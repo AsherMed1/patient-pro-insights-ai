@@ -9,18 +9,17 @@ export interface SheetConfig {
 }
 
 // Configuration mapping for different clients
-// You'll need to update these with your actual Google Sheet IDs and ranges
 export const clientSheetConfigs: Record<string, SheetConfig> = {
   'client-1': {
-    spreadsheetId: 'YOUR_SHEET_ID_FOR_CLIENT_1', // Replace with actual sheet ID
+    spreadsheetId: '324183023',
     ranges: {
-      campaign: 'Campaign Data!A1:Z100', // Adjust range as needed
+      campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
       health: 'Account Health!A1:Z100',
     },
   },
   'client-2': {
-    spreadsheetId: 'YOUR_SHEET_ID_FOR_CLIENT_2',
+    spreadsheetId: '606531950',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
@@ -28,7 +27,7 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
     },
   },
   'client-3': {
-    spreadsheetId: 'YOUR_SHEET_ID_FOR_CLIENT_3',
+    spreadsheetId: '1338313062',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
