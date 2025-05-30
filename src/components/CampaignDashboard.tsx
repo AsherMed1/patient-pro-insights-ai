@@ -1,17 +1,30 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, DollarSign, Users, Calendar, Target } from 'lucide-react';
+import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { getSheetConfig } from '@/config/googleSheets';
+import { transformCampaignData } from '@/utils/sheetDataTransformer';
 
 interface CampaignDashboardProps {
   clientId: string;
 }
 
 const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
-  // Mock data based on client
-  const campaignData = {
+  const sheetConfig = getSheetConfig(clientId);
+  
+  const { data: sheetData, loading, error } = useGoogleSheets({
+    spreadsheetId: sheetConfig?.spreadsheetId || '',
+    range: sheetConfig?.ranges.campaign || '',
+    clientId,
+  });
+
+  // Transform Google Sheets data or fall back to mock data
+  const campaignData = transformCampaignData(sheetData);
+  
+  // Fallback mock data if Google Sheets data is not available
+  const mockData = {
     'client-1': {
       adSpend: 15420,
       leads: 187,
@@ -21,7 +34,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpl: 82.46,
       cpa: 173.26,
       cpp: 342.67,
-      trend: 'up'
+      trend: 'up' as const
     },
     'client-2': {
       adSpend: 22100,
@@ -32,7 +45,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpl: 90.20,
       cpa: 197.32,
       cpp: 329.85,
-      trend: 'down'
+      trend: 'down' as const
     },
     'client-3': {
       adSpend: 11800,
@@ -43,7 +56,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpl: 75.64,
       cpa: 159.46,
       cpp: 310.53,
-      trend: 'up'
+      trend: 'up' as const
     },
     'client-4': {
       adSpend: 8900,
@@ -54,17 +67,44 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpl: 90.82,
       cpa: 211.90,
       cpp: 423.81,
-      trend: 'up'
+      trend: 'up' as const
     }
   };
 
-  const data = campaignData[clientId as keyof typeof campaignData] || campaignData['client-1'];
+  const data = campaignData || mockData[clientId as keyof typeof mockData] || mockData['client-1'];
 
   const formatCurrency = (amount: number) => `$${amount.toLocaleString()}`;
   const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading campaign data...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    console.error('Campaign dashboard error:', error);
+    // Continue with mock data if there's an error
+  }
+
   return (
     <div className="space-y-6">
+      {/* Data Source Indicator */}
+      {sheetConfig && (
+        <div className="flex items-center justify-between">
+          <Badge variant={campaignData ? "default" : "secondary"}>
+            {campaignData ? "Live Data" : "Mock Data"}
+          </Badge>
+          {error && (
+            <Badge variant="destructive" className="text-xs">
+              Using fallback data: {error}
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
