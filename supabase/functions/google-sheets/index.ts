@@ -101,6 +101,26 @@ async function fetchSheetData(spreadsheetId: string, range: string, accessToken:
   return data.values || [];
 }
 
+async function fetchSheetMetadata(spreadsheetId: string, accessToken: string) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch sheet metadata: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.sheets?.map((sheet: any) => ({
+    title: sheet.properties.title,
+    sheetId: sheet.properties.sheetId,
+  })) || [];
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -108,11 +128,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { spreadsheetId, range, clientId } = await req.json();
+    const { spreadsheetId, range, clientId, action } = await req.json();
 
-    if (!spreadsheetId || !range) {
+    if (!spreadsheetId) {
       return new Response(
-        JSON.stringify({ error: 'Missing spreadsheetId or range' }),
+        JSON.stringify({ error: 'Missing spreadsheetId' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -137,20 +157,43 @@ Deno.serve(async (req) => {
     // Get access token
     const accessToken = await getAccessToken(credentials);
     
-    // Fetch data from Google Sheets
-    const sheetData = await fetchSheetData(spreadsheetId, range, accessToken);
-    
-    console.log(`Fetched ${sheetData.length} rows from Google Sheets for client ${clientId}`);
-
-    return new Response(
-      JSON.stringify({ data: sheetData }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    // Handle different actions
+    if (action === 'getSheets') {
+      // Fetch sheet metadata (tab names)
+      const sheets = await fetchSheetMetadata(spreadsheetId, accessToken);
+      console.log(`Fetched ${sheets.length} sheet tabs for client ${clientId}`);
+      
+      return new Response(
+        JSON.stringify({ sheets }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    } else {
+      // Default action: fetch data from a specific range
+      if (!range) {
+        return new Response(
+          JSON.stringify({ error: 'Missing range for data fetch' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
-    );
+
+      const sheetData = await fetchSheetData(spreadsheetId, range, accessToken);
+      console.log(`Fetched ${sheetData.length} rows from Google Sheets for client ${clientId}`);
+
+      return new Response(
+        JSON.stringify({ data: sheetData }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
   } catch (error) {
-    console.error('Error fetching Google Sheets data:', error);
+    console.error('Error in Google Sheets function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
