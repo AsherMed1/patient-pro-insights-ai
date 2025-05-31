@@ -71,11 +71,11 @@ Deno.serve(async (req) => {
     
     switch (action) {
       case 'getContacts':
-        data = await fetchGoHighLevelData(`/contacts/?locationId=${locationId}`, apiKey);
+        data = await fetchGoHighLevelData(`/contacts/?locationId=${locationId}&limit=100`, apiKey);
         break;
       
       case 'getOpportunities':
-        data = await fetchGoHighLevelData(`/opportunities/search?location_id=${locationId}`, apiKey);
+        data = await fetchGoHighLevelData(`/opportunities/search?location_id=${locationId}&limit=100`, apiKey);
         break;
       
       case 'getPipelines':
