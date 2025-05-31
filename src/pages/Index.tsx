@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -100,7 +99,7 @@ const Index = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Call Center Performance</h2>
               <p className="text-gray-600">Agent performance and call analytics</p>
             </div>
-            <CallCenterDashboard />
+            <CallCenterDashboard clientId={selectedClient} />
           </TabsContent>
 
           <TabsContent value="account-health" className="space-y-6">
@@ -108,7 +107,7 @@ const Index = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Health Monitoring</h2>
               <p className="text-gray-600">Overall account performance and health metrics</p>
             </div>
-            <AccountHealthDashboard />
+            <AccountHealthDashboard clientId={selectedClient} />
           </TabsContent>
 
           <TabsContent value="admin" className="space-y-6">
@@ -128,7 +127,7 @@ const Index = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Assistant</h2>
               <p className="text-gray-600">Get insights and recommendations powered by AI</p>
             </div>
-            <AIAssistant />
+            <AIAssistant clientId={selectedClient} />
           </TabsContent>
         </Tabs>
       </div>
