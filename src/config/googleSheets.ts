@@ -1,3 +1,4 @@
+
 export interface SheetConfig {
   spreadsheetId: string;
   ranges: {
@@ -46,6 +47,14 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Sheet1!A1:Z100',
+      health: 'Account Health!A1:Z100',
+    },
+  },
+  'account-management': {
+    spreadsheetId: '1WWOfGsw2IUHTlwwgulRxiuOxdL12E9HWjh2aq8I6Ck4',
+    ranges: {
+      campaign: 'Campaign Data!A1:Z100',
+      calls: 'Call Center!A1:Z100',
       health: 'Account Health!A1:Z100',
     },
   },
@@ -130,6 +139,7 @@ export const clientDisplayNames: Record<string, string> = {
   'houston-vascular-care': 'Houston Vascular Care',
   'ally-vascular-pain-centers': 'Ally Vascular & Pain Centers',
   'call-center-analytics': 'Call Center Analytics',
+  'account-management': 'Account Management',
 };
 
 // Helper function to get client display name
