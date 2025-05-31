@@ -11,6 +11,7 @@ import SheetTabSelector from "@/components/SheetTabSelector";
 import ConnectionTester from "@/components/ConnectionTester";
 import DataSyncManager from "@/components/DataSyncManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
+import ClientManager from "@/components/ClientManager";
 
 const clientOptions = [
   { id: 'texas-vascular-institute', name: 'Texas Vascular Institute' },
@@ -116,9 +117,12 @@ const Index = () => {
               <p className="text-gray-600">Configuration and testing utilities</p>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ConnectionTester />
-              <SheetTabSelector clientId={selectedClient} />
+            <div className="grid grid-cols-1 gap-6">
+              <ClientManager />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ConnectionTester />
+                <SheetTabSelector clientId={selectedClient} />
+              </div>
             </div>
           </TabsContent>
 

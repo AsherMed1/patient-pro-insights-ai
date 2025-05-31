@@ -23,6 +23,8 @@ interface AppointmentRecord {
   confirmed?: boolean;
   source_sheet: string;
   source_row: number;
+  raw_data?: any; // Store all original data
+  additional_fields?: any; // Store unmapped fields
 }
 
 interface CampaignRecord {
@@ -38,11 +40,16 @@ interface CampaignRecord {
   cpp?: number;
   source_sheet: string;
   source_row: number;
+  raw_data?: any; // Store all original data
+  additional_fields?: any; // Store unmapped fields
 }
 
+// Enhanced function to fetch ALL sheet data with complete metadata
 async function fetchAllSheetData(spreadsheetId: string, apiKey: string) {
-  // First get all sheet tabs
-  const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?key=${apiKey}`;
+  console.log(`Fetching complete metadata for spreadsheet: ${spreadsheetId}`);
+  
+  // First get all sheet tabs with detailed metadata
+  const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?key=${apiKey}&includeGridData=false`;
   const metadataResponse = await fetch(metadataUrl);
   
   if (!metadataResponse.ok) {
@@ -50,28 +57,47 @@ async function fetchAllSheetData(spreadsheetId: string, apiKey: string) {
   }
   
   const metadata = await metadataResponse.json();
-  const sheets = metadata.sheets?.map((sheet: any) => sheet.properties.title) || [];
+  const sheets = metadata.sheets?.map((sheet: any) => ({
+    title: sheet.properties.title,
+    sheetId: sheet.properties.sheetId,
+    gridProperties: sheet.properties.gridProperties
+  })) || [];
   
-  // Fetch data from all sheets
+  console.log(`Found ${sheets.length} sheets:`, sheets.map(s => s.title));
+  
+  // Fetch data from all sheets with expanded range to capture everything
   const allSheetData: SheetData[] = [];
   
-  for (const sheetName of sheets) {
-    const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}?key=${apiKey}`;
+  for (const sheet of sheets) {
+    const sheetName = sheet.title;
+    // Use a large range to capture all possible data
+    const maxRange = `${sheetName}!A1:ZZ10000`;
+    const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${maxRange}?key=${apiKey}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
+    
+    console.log(`Fetching data from sheet: ${sheetName}`);
     const dataResponse = await fetch(dataUrl);
     
     if (dataResponse.ok) {
       const data = await dataResponse.json();
-      allSheetData.push({
-        tabName: sheetName,
-        data: data.values || []
-      });
+      const values = data.values || [];
+      
+      if (values.length > 0) {
+        allSheetData.push({
+          tabName: sheetName,
+          data: values
+        });
+        console.log(`Captured ${values.length} rows from ${sheetName}`);
+      }
+    } else {
+      console.warn(`Failed to fetch data from sheet ${sheetName}:`, dataResponse.statusText);
     }
   }
   
   return allSheetData;
 }
 
-function transformToAppointments(sheetData: SheetData[], clientId: string): AppointmentRecord[] {
+// Enhanced function to intelligently detect and map data
+function smartTransformToAppointments(sheetData: SheetData[], clientId: string): AppointmentRecord[] {
   const appointments: AppointmentRecord[] = [];
   
   for (const sheet of sheetData) {
@@ -79,80 +105,107 @@ function transformToAppointments(sheetData: SheetData[], clientId: string): Appo
     
     if (!data || data.length < 2) continue;
     
-    // Find header row
+    console.log(`Processing ${tabName} for appointment data...`);
+    
+    // Find header row using multiple strategies
     let headerRow: string[] = [];
     let dataStartIndex = 1;
     
-    for (let i = 0; i < data.length; i++) {
+    // Strategy 1: Look for appointment-related keywords
+    for (let i = 0; i < Math.min(data.length, 10); i++) {
       const row = data[i];
       if (!row || row.length === 0) continue;
       
+      const appointmentKeywords = [
+        'patient', 'name', 'date', 'time', 'status', 'appointment', 
+        'procedure', 'show', 'confirm', 'cancel', 'client', 'lead'
+      ];
+      
       const hasAppointmentHeaders = row.some(cell => 
-        cell && (
-          cell.toLowerCase().includes('patient') ||
-          cell.toLowerCase().includes('name') ||
-          cell.toLowerCase().includes('date') ||
-          cell.toLowerCase().includes('status')
+        cell && appointmentKeywords.some(keyword => 
+          cell.toString().toLowerCase().includes(keyword)
         )
       );
       
       if (hasAppointmentHeaders) {
-        headerRow = row;
+        headerRow = row.map(cell => cell?.toString() || '');
         dataStartIndex = i + 1;
+        console.log(`Found appointment headers in ${tabName} at row ${i + 1}`);
         break;
+      }
+    }
+    
+    if (headerRow.length === 0) {
+      // Fallback: use first non-empty row as header
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] && data[i].length > 0) {
+          headerRow = data[i].map(cell => cell?.toString() || '');
+          dataStartIndex = i + 1;
+          break;
+        }
       }
     }
     
     if (headerRow.length === 0) continue;
     
-    // Map column indices
-    const patientNameIndex = headerRow.findIndex(h => 
-      h && (h.toLowerCase().includes('patient') || h.toLowerCase().includes('name'))
-    );
-    const dateIndex = headerRow.findIndex(h => 
-      h && h.toLowerCase().includes('date')
-    );
-    const timeIndex = headerRow.findIndex(h => 
-      h && h.toLowerCase().includes('time')
-    );
-    const statusIndex = headerRow.findIndex(h => 
-      h && h.toLowerCase().includes('status')
-    );
-    const procedureIndex = headerRow.findIndex(h => 
-      h && (h.toLowerCase().includes('procedure') || h.toLowerCase().includes('ordered'))
-    );
+    // Smart column mapping with fuzzy matching
+    const columnMap = createColumnMap(headerRow);
     
-    // Process data rows
+    // Process all data rows
     for (let i = dataStartIndex; i < data.length; i++) {
       const row = data[i];
       if (!row || row.length === 0) continue;
       
-      const patientName = patientNameIndex >= 0 ? row[patientNameIndex]?.trim() : '';
-      if (!patientName) continue;
+      // Skip completely empty rows
+      if (row.every(cell => !cell || cell.toString().trim() === '')) continue;
       
-      const status = statusIndex >= 0 ? row[statusIndex]?.toLowerCase() || '' : '';
-      const procedureValue = procedureIndex >= 0 ? row[procedureIndex]?.toLowerCase() || '' : '';
+      // Create raw data object with all available information
+      const rawData: any = {};
+      const additionalFields: any = {};
       
-      appointments.push({
-        client_id: clientId,
-        patient_name: patientName,
-        appointment_date: dateIndex >= 0 ? row[dateIndex] : undefined,
-        appointment_time: timeIndex >= 0 ? row[timeIndex] : undefined,
-        status: status,
-        procedure_ordered: ['true', 'yes', 'x', '✓', 'checked', '1'].includes(procedureValue),
-        showed: status.includes('showed') || status.includes('show'),
-        cancelled: status.includes('cancelled') || status.includes('cancel'),
-        confirmed: status.includes('confirmed') || status.includes('confirm'),
-        source_sheet: tabName,
-        source_row: i + 1
+      headerRow.forEach((header, index) => {
+        if (header && row[index] !== undefined) {
+          const cleanHeader = header.toString().trim();
+          rawData[cleanHeader] = row[index];
+          
+          // Store fields that don't map to known columns
+          if (!isKnownAppointmentField(cleanHeader)) {
+            additionalFields[cleanHeader] = row[index];
+          }
+        }
       });
+      
+      // Extract known fields using smart mapping
+      const patientName = extractFieldValue(row, headerRow, columnMap.patientName);
+      const appointmentDate = extractFieldValue(row, headerRow, columnMap.appointmentDate);
+      const status = extractFieldValue(row, headerRow, columnMap.status);
+      
+      // Only create appointment record if we have some meaningful data
+      if (patientName || appointmentDate || Object.keys(rawData).length > 0) {
+        appointments.push({
+          client_id: clientId,
+          patient_name: patientName,
+          appointment_date: appointmentDate,
+          appointment_time: extractFieldValue(row, headerRow, columnMap.appointmentTime),
+          status: status?.toLowerCase(),
+          procedure_ordered: extractBooleanValue(row, headerRow, columnMap.procedureOrdered),
+          showed: extractBooleanValue(row, headerRow, columnMap.showed) || status?.toLowerCase().includes('show'),
+          cancelled: extractBooleanValue(row, headerRow, columnMap.cancelled) || status?.toLowerCase().includes('cancel'),
+          confirmed: extractBooleanValue(row, headerRow, columnMap.confirmed) || status?.toLowerCase().includes('confirm'),
+          source_sheet: tabName,
+          source_row: i + 1,
+          raw_data: rawData,
+          additional_fields: Object.keys(additionalFields).length > 0 ? additionalFields : null
+        });
+      }
     }
   }
   
+  console.log(`Transformed ${appointments.length} appointment records from all sheets`);
   return appointments;
 }
 
-function transformToCampaigns(sheetData: SheetData[], clientId: string): CampaignRecord[] {
+function smartTransformToCampaigns(sheetData: SheetData[], clientId: string): CampaignRecord[] {
   const campaigns: CampaignRecord[] = [];
   
   for (const sheet of sheetData) {
@@ -160,69 +213,175 @@ function transformToCampaigns(sheetData: SheetData[], clientId: string): Campaig
     
     if (!data || data.length < 2) continue;
     
+    console.log(`Processing ${tabName} for campaign data...`);
+    
     // Find header row for campaign data
     let headerRow: string[] = [];
     let dataStartIndex = 1;
     
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < Math.min(data.length, 10); i++) {
       const row = data[i];
       if (!row || row.length === 0) continue;
       
+      const campaignKeywords = [
+        'spend', 'cost', 'leads', 'cpl', 'cpa', 'cpp', 'campaign', 
+        'ad', 'marketing', 'appointments', 'procedures', 'show', 'rate'
+      ];
+      
       const hasCampaignHeaders = row.some(cell => 
-        cell && (
-          cell.toLowerCase().includes('spend') ||
-          cell.toLowerCase().includes('leads') ||
-          cell.toLowerCase().includes('cpl') ||
-          cell.toLowerCase().includes('cost')
+        cell && campaignKeywords.some(keyword => 
+          cell.toString().toLowerCase().includes(keyword)
         )
       );
       
       if (hasCampaignHeaders) {
-        headerRow = row;
+        headerRow = row.map(cell => cell?.toString() || '');
         dataStartIndex = i + 1;
+        console.log(`Found campaign headers in ${tabName} at row ${i + 1}`);
         break;
       }
     }
     
     if (headerRow.length === 0) continue;
     
-    // Map column indices for campaign data
-    const dateIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('date'));
-    const spendIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('spend'));
-    const leadsIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('leads'));
-    const appointmentsIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('appointments'));
-    const proceduresIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('procedures'));
-    const showRateIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('show'));
-    const cplIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('cpl'));
-    const cpaIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('cpa'));
-    const cppIndex = headerRow.findIndex(h => h && h.toLowerCase().includes('cpp'));
+    // Smart column mapping for campaigns
+    const columnMap = createCampaignColumnMap(headerRow);
     
-    // Process data rows
+    // Process all data rows
     for (let i = dataStartIndex; i < data.length; i++) {
       const row = data[i];
       if (!row || row.length === 0) continue;
       
-      const dateValue = dateIndex >= 0 ? row[dateIndex] : '';
-      if (!dateValue) continue;
+      // Skip completely empty rows
+      if (row.every(cell => !cell || cell.toString().trim() === '')) continue;
       
-      campaigns.push({
-        client_id: clientId,
-        campaign_date: dateValue,
-        ad_spend: spendIndex >= 0 ? parseFloat(row[spendIndex]) || 0 : 0,
-        leads: leadsIndex >= 0 ? parseInt(row[leadsIndex]) || 0 : 0,
-        appointments: appointmentsIndex >= 0 ? parseInt(row[appointmentsIndex]) || 0 : 0,
-        procedures: proceduresIndex >= 0 ? parseInt(row[proceduresIndex]) || 0 : 0,
-        show_rate: showRateIndex >= 0 ? parseFloat(row[showRateIndex]) || 0 : 0,
-        cpl: cplIndex >= 0 ? parseFloat(row[cplIndex]) || 0 : 0,
-        cpa: cpaIndex >= 0 ? parseFloat(row[cpaIndex]) || 0 : 0,
-        cpp: cppIndex >= 0 ? parseFloat(row[cppIndex]) || 0 : 0,
-        source_sheet: tabName,
-        source_row: i + 1
+      // Create raw data object
+      const rawData: any = {};
+      const additionalFields: any = {};
+      
+      headerRow.forEach((header, index) => {
+        if (header && row[index] !== undefined) {
+          const cleanHeader = header.toString().trim();
+          rawData[cleanHeader] = row[index];
+          
+          if (!isKnownCampaignField(cleanHeader)) {
+            additionalFields[cleanHeader] = row[index];
+          }
+        }
       });
+      
+      const dateValue = extractFieldValue(row, headerRow, columnMap.date);
+      
+      // Create campaign record if we have meaningful data
+      if (dateValue || Object.keys(rawData).length > 0) {
+        campaigns.push({
+          client_id: clientId,
+          campaign_date: dateValue,
+          ad_spend: extractNumericValue(row, headerRow, columnMap.adSpend),
+          leads: extractIntegerValue(row, headerRow, columnMap.leads),
+          appointments: extractIntegerValue(row, headerRow, columnMap.appointments),
+          procedures: extractIntegerValue(row, headerRow, columnMap.procedures),
+          show_rate: extractNumericValue(row, headerRow, columnMap.showRate),
+          cpl: extractNumericValue(row, headerRow, columnMap.cpl),
+          cpa: extractNumericValue(row, headerRow, columnMap.cpa),
+          cpp: extractNumericValue(row, headerRow, columnMap.cpp),
+          source_sheet: tabName,
+          source_row: i + 1,
+          raw_data: rawData,
+          additional_fields: Object.keys(additionalFields).length > 0 ? additionalFields : null
+        });
+      }
     }
   }
   
+  console.log(`Transformed ${campaigns.length} campaign records from all sheets`);
   return campaigns;
+}
+
+// Helper functions for smart field extraction
+function createColumnMap(headers: string[]) {
+  const map: any = {};
+  
+  headers.forEach((header, index) => {
+    const lower = header.toLowerCase();
+    
+    if (lower.includes('patient') || lower.includes('name')) map.patientName = index;
+    if (lower.includes('date') && !lower.includes('time')) map.appointmentDate = index;
+    if (lower.includes('time')) map.appointmentTime = index;
+    if (lower.includes('status')) map.status = index;
+    if (lower.includes('procedure') || lower.includes('order')) map.procedureOrdered = index;
+    if (lower.includes('show') && !lower.includes('rate')) map.showed = index;
+    if (lower.includes('cancel')) map.cancelled = index;
+    if (lower.includes('confirm')) map.confirmed = index;
+  });
+  
+  return map;
+}
+
+function createCampaignColumnMap(headers: string[]) {
+  const map: any = {};
+  
+  headers.forEach((header, index) => {
+    const lower = header.toLowerCase();
+    
+    if (lower.includes('date')) map.date = index;
+    if (lower.includes('spend') || lower.includes('cost')) map.adSpend = index;
+    if (lower.includes('leads') && !lower.includes('cost')) map.leads = index;
+    if (lower.includes('appointment')) map.appointments = index;
+    if (lower.includes('procedure')) map.procedures = index;
+    if (lower.includes('show') && lower.includes('rate')) map.showRate = index;
+    if (lower.includes('cpl')) map.cpl = index;
+    if (lower.includes('cpa')) map.cpa = index;
+    if (lower.includes('cpp')) map.cpp = index;
+  });
+  
+  return map;
+}
+
+function extractFieldValue(row: any[], headers: string[], columnIndex?: number): string | undefined {
+  if (columnIndex !== undefined && columnIndex >= 0 && row[columnIndex]) {
+    return row[columnIndex].toString().trim();
+  }
+  return undefined;
+}
+
+function extractNumericValue(row: any[], headers: string[], columnIndex?: number): number {
+  const value = extractFieldValue(row, headers, columnIndex);
+  if (!value) return 0;
+  
+  const numericValue = parseFloat(value.replace(/[,$%]/g, ''));
+  return isNaN(numericValue) ? 0 : numericValue;
+}
+
+function extractIntegerValue(row: any[], headers: string[], columnIndex?: number): number {
+  const value = extractNumericValue(row, headers, columnIndex);
+  return Math.floor(value);
+}
+
+function extractBooleanValue(row: any[], headers: string[], columnIndex?: number): boolean {
+  const value = extractFieldValue(row, headers, columnIndex);
+  if (!value) return false;
+  
+  const lower = value.toLowerCase();
+  return ['true', 'yes', 'x', '✓', 'checked', '1', 'y'].includes(lower);
+}
+
+function isKnownAppointmentField(fieldName: string): boolean {
+  const knownFields = [
+    'patient', 'name', 'date', 'time', 'status', 'procedure', 
+    'show', 'cancel', 'confirm', 'appointment'
+  ];
+  const lower = fieldName.toLowerCase();
+  return knownFields.some(field => lower.includes(field));
+}
+
+function isKnownCampaignField(fieldName: string): boolean {
+  const knownFields = [
+    'date', 'spend', 'cost', 'leads', 'appointment', 'procedure', 
+    'show', 'rate', 'cpl', 'cpa', 'cpp', 'campaign'
+  ];
+  const lower = fieldName.toLowerCase();
+  return knownFields.some(field => lower.includes(field));
 }
 
 Deno.serve(async (req) => {
@@ -233,7 +392,7 @@ Deno.serve(async (req) => {
   try {
     const { clientId, syncType = 'full' } = await req.json();
     
-    console.log(`Starting sync for client: ${clientId}, type: ${syncType}`);
+    console.log(`Starting enhanced sync for client: ${clientId}, type: ${syncType}`);
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -257,6 +416,8 @@ Deno.serve(async (req) => {
       throw new Error(`Client not found: ${clientId}`);
     }
     
+    console.log(`Processing client: ${client.name} (${client.spreadsheet_id})`);
+    
     // Create sync log entry
     const { data: syncLog, error: logError } = await supabase
       .from('sync_logs')
@@ -276,24 +437,29 @@ Deno.serve(async (req) => {
     let errorMessage = null;
     
     try {
-      // Fetch all sheet data
+      // Fetch ALL sheet data with enhanced capture
+      console.log('Fetching all sheet data with enhanced capture...');
       const allSheetData = await fetchAllSheetData(client.spreadsheet_id, apiKey);
-      console.log(`Fetched data from ${allSheetData.length} sheets`);
+      console.log(`Captured data from ${allSheetData.length} sheets`);
       
       if (syncType === 'full' || syncType === 'appointments') {
-        // Transform and store appointments
-        const appointments = transformToAppointments(allSheetData, clientId);
-        console.log(`Transformed ${appointments.length} appointments`);
+        // Transform and store appointments with all data
+        const appointments = smartTransformToAppointments(allSheetData, clientId);
+        console.log(`Smart-transformed ${appointments.length} appointments`);
         
         if (appointments.length > 0) {
           // Delete existing appointments for this client
-          await supabase
+          const { error: deleteError } = await supabase
             .from('appointments')
             .delete()
             .eq('client_id', clientId);
           
+          if (deleteError) {
+            console.error('Error deleting existing appointments:', deleteError);
+          }
+          
           // Insert new appointments in batches
-          const batchSize = 100;
+          const batchSize = 50; // Smaller batches for more complex data
           for (let i = 0; i < appointments.length; i += batchSize) {
             const batch = appointments.slice(i, i + batchSize);
             const { error: insertError } = await supabase
@@ -304,25 +470,30 @@ Deno.serve(async (req) => {
               console.error('Error inserting appointments batch:', insertError);
             } else {
               recordsProcessed += batch.length;
+              console.log(`Inserted appointments batch ${Math.floor(i/batchSize) + 1}: ${batch.length} records`);
             }
           }
         }
       }
       
       if (syncType === 'full' || syncType === 'campaigns') {
-        // Transform and store campaigns
-        const campaigns = transformToCampaigns(allSheetData, clientId);
-        console.log(`Transformed ${campaigns.length} campaigns`);
+        // Transform and store campaigns with all data
+        const campaigns = smartTransformToCampaigns(allSheetData, clientId);
+        console.log(`Smart-transformed ${campaigns.length} campaigns`);
         
         if (campaigns.length > 0) {
           // Delete existing campaigns for this client
-          await supabase
+          const { error: deleteError } = await supabase
             .from('campaigns')
             .delete()
             .eq('client_id', clientId);
           
+          if (deleteError) {
+            console.error('Error deleting existing campaigns:', deleteError);
+          }
+          
           // Insert new campaigns in batches
-          const batchSize = 100;
+          const batchSize = 50;
           for (let i = 0; i < campaigns.length; i += batchSize) {
             const batch = campaigns.slice(i, i + batchSize);
             const { error: insertError } = await supabase
@@ -333,6 +504,7 @@ Deno.serve(async (req) => {
               console.error('Error inserting campaigns batch:', insertError);
             } else {
               recordsProcessed += batch.length;
+              console.log(`Inserted campaigns batch ${Math.floor(i/batchSize) + 1}: ${batch.length} records`);
             }
           }
         }
@@ -340,7 +512,7 @@ Deno.serve(async (req) => {
       
     } catch (syncError) {
       errorMessage = syncError.message;
-      console.error('Sync error:', syncError);
+      console.error('Enhanced sync error:', syncError);
     }
     
     // Update sync log
@@ -354,7 +526,7 @@ Deno.serve(async (req) => {
       })
       .eq('id', syncLog.id);
     
-    console.log(`Sync completed. Records processed: ${recordsProcessed}`);
+    console.log(`Enhanced sync completed. Records processed: ${recordsProcessed}`);
     
     return new Response(
       JSON.stringify({
@@ -370,7 +542,7 @@ Deno.serve(async (req) => {
     );
     
   } catch (error) {
-    console.error('Sync function error:', error);
+    console.error('Enhanced sync function error:', error);
     return new Response(
       JSON.stringify({ 
         success: false,
