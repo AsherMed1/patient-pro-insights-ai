@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -32,18 +33,22 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
     enableDynamicTabs: true,
   });
 
+  console.log('Campaign Dashboard - Sheet Config:', sheetConfig);
   console.log('Campaign Dashboard - Sheet Data:', sheetData);
   console.log('Campaign Dashboard - Used Tab:', usedTabName);
   console.log('Campaign Dashboard - Error:', error);
   console.log('Campaign Dashboard - Date Range:', dateRange);
   console.log('Campaign Dashboard - Procedure Filter:', procedure);
 
-  // Transform Google Sheets data or fall back to mock data
+  // Transform Google Sheets data
   const campaignData = transformCampaignData(sheetData, procedure, dateRange);
   
-  // Fallback mock data if Google Sheets data is not available
+  console.log('Campaign Dashboard - Transformed Data:', campaignData);
+  console.log('Campaign Dashboard - Using Live Data:', !!campaignData);
+  
+  // Fallback mock data only if no live data is available
   const mockData = {
-    'client-1': {
+    'texas-vascular-institute': {
       adSpend: 15420,
       leads: 187,
       appointments: 89,
@@ -54,7 +59,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpp: 342.67,
       trend: 'up' as const
     },
-    'client-2': {
+    'advanced-dermatology-center': {
       adSpend: 22100,
       leads: 245,
       appointments: 112,
@@ -65,7 +70,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpp: 329.85,
       trend: 'down' as const
     },
-    'client-3': {
+    'call-center-analytics': {
       adSpend: 11800,
       leads: 156,
       appointments: 74,
@@ -75,21 +80,12 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       cpa: 159.46,
       cpp: 310.53,
       trend: 'up' as const
-    },
-    'client-4': {
-      adSpend: 8900,
-      leads: 98,
-      appointments: 42,
-      procedures: 21,
-      showRate: 73.8,
-      cpl: 90.82,
-      cpa: 211.90,
-      cpp: 423.81,
-      trend: 'up' as const
     }
   };
 
-  const data = campaignData || mockData[clientId as keyof typeof mockData] || mockData['client-1'];
+  // Use live data if available, otherwise fall back to mock data
+  const data = campaignData || mockData[clientId as keyof typeof mockData] || mockData['texas-vascular-institute'];
+  const isLiveData = !!campaignData;
 
   const formatCurrency = (amount: number) => `$${amount.toLocaleString()}`;
   const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
@@ -97,7 +93,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading campaign data...</div>
+        <div className="text-lg">Loading campaign data from Google Sheets...</div>
       </div>
     );
   }
@@ -115,8 +111,8 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       {/* Data Source Indicator */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <Badge variant={campaignData ? "default" : "secondary"}>
-            {campaignData ? "Live Data" : "Mock Data"}
+          <Badge variant={isLiveData ? "default" : "secondary"}>
+            {isLiveData ? "Live Data" : "Mock Data"}
           </Badge>
           {usedTabName && (
             <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -128,10 +124,20 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
               Procedure: {procedure}
             </Badge>
           )}
+          {sheetData && sheetData.length > 0 && (
+            <Badge variant="outline" className="bg-purple-50 text-purple-700">
+              {sheetData.length - 1} rows loaded
+            </Badge>
+          )}
         </div>
         {error && (
           <Badge variant="destructive" className="text-xs">
             Error: {error}
+          </Badge>
+        )}
+        {!isLiveData && sheetData && sheetData.length > 0 && (
+          <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
+            Data found but no Texas Vascular matches
           </Badge>
         )}
       </div>
@@ -145,7 +151,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(data.adSpend)}</div>
-            <p className="text-xs opacity-90 mt-1">Current month</p>
+            <p className="text-xs opacity-90 mt-1">Current period</p>
           </CardContent>
         </Card>
 
@@ -162,7 +168,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
               ) : (
                 <TrendingDown className="h-3 w-3 mr-1" />
               )}
-              <span className="text-xs opacity-90">vs last month</span>
+              <span className="text-xs opacity-90">vs last period</span>
             </div>
           </CardContent>
         </Card>
@@ -174,7 +180,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.appointments}</div>
-            <p className="text-xs opacity-90 mt-1">Booked this month</p>
+            <p className="text-xs opacity-90 mt-1">Booked this period</p>
           </CardContent>
         </Card>
 
@@ -248,7 +254,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       <Card>
         <CardHeader>
           <CardTitle>Performance Summary</CardTitle>
-          <CardDescription>Key insights for current month</CardDescription>
+          <CardDescription>Key insights for current period</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
