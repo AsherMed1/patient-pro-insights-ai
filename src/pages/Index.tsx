@@ -4,22 +4,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import CampaignDashboard from '../components/CampaignDashboard';
 import CallCenterDashboard from '../components/CallCenterDashboard';
 import AccountHealthDashboard from '../components/AccountHealthDashboard';
 import AIAssistant from '../components/AIAssistant';
 import { Shield, BarChart3, Phone, Users, MessageSquare } from 'lucide-react';
+import { clientDisplayNames } from '@/config/googleSheets';
 
 const Index = () => {
-  const [selectedClient, setSelectedClient] = useState('client-1');
+  const [selectedClient, setSelectedClient] = useState('texas-vascular-institute');
   
   const clients = [
-    { id: 'client-1', name: 'Advanced Dermatology Center', status: 'active' },
-    { id: 'client-2', name: 'Elite Plastic Surgery', status: 'active' },
-    { id: 'client-3', name: 'Metro Eye Institute', status: 'active' },
-    { id: 'client-4', name: 'Wellness Aesthetics', status: 'pending' }
+    { id: 'texas-vascular-institute', name: 'Texas Vascular Institute', status: 'active' },
+    { id: 'advanced-dermatology-center', name: 'Advanced Dermatology Center', status: 'active' },
+    { id: 'call-center-analytics', name: 'Call Center Analytics', status: 'active' },
   ];
 
   const currentClient = clients.find(c => c.id === selectedClient);
@@ -36,7 +34,7 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Patient Pro Marketing</h1>
-                <p className="text-sm text-gray-600">IR Multi-Client Dashboard</p>
+                <p className="text-sm text-gray-600">Multi-Client Analytics Dashboard</p>
               </div>
             </div>
             
@@ -66,7 +64,7 @@ const Index = () => {
                 <SelectTrigger className="w-80">
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       <div className="flex items-center space-x-2">
