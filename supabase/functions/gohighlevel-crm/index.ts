@@ -11,17 +11,20 @@ async function fetchGoHighLevelData(endpoint: string, apiKey: string) {
   const url = `${baseUrl}${endpoint}`;
   
   console.log(`Fetching GoHighLevel data from: ${url}`);
+  console.log(`Using API Key (first 20 chars): ${apiKey.substring(0, 20)}...`);
   
   const response = await fetch(url, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'Version': '2021-07-28'
+      'Version': '2021-07-28',
+      'Accept': 'application/json'
     }
   });
 
   console.log(`GoHighLevel API Response Status: ${response.status}`);
+  console.log(`Response Headers:`, Object.fromEntries(response.headers.entries()));
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -29,13 +32,17 @@ async function fetchGoHighLevelData(endpoint: string, apiKey: string) {
       status: response.status,
       statusText: response.statusText,
       url: url,
-      errorResponse: errorText
+      errorResponse: errorText,
+      headers: Object.fromEntries(response.headers.entries())
     });
     throw new Error(`Failed to fetch GoHighLevel data: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   const data = await response.json();
-  console.log(`Successfully fetched GoHighLevel data from ${endpoint}`, { dataKeys: Object.keys(data) });
+  console.log(`Successfully fetched GoHighLevel data from ${endpoint}`, { 
+    dataKeys: Object.keys(data),
+    dataLength: Array.isArray(data) ? data.length : 'not array'
+  });
   return data;
 }
 
@@ -73,11 +80,23 @@ Deno.serve(async (req) => {
     
     switch (action) {
       case 'getContacts':
-        data = await fetchGoHighLevelData(`/contacts/?locationId=${locationId}&limit=100`, apiKey);
+        // Try the v2 API endpoint first
+        try {
+          data = await fetchGoHighLevelData(`/contacts/?locationId=${locationId}&limit=100`, apiKey);
+        } catch (error) {
+          console.log('V2 API failed, trying alternative endpoint');
+          // Fallback to alternative endpoint format
+          data = await fetchGoHighLevelData(`/contacts?locationId=${locationId}&limit=100`, apiKey);
+        }
         break;
       
       case 'getOpportunities':
-        data = await fetchGoHighLevelData(`/opportunities/search?location_id=${locationId}&limit=100`, apiKey);
+        try {
+          data = await fetchGoHighLevelData(`/opportunities/search?location_id=${locationId}&limit=100`, apiKey);
+        } catch (error) {
+          console.log('Opportunities search failed, trying alternative');
+          data = await fetchGoHighLevelData(`/opportunities?locationId=${locationId}&limit=100`, apiKey);
+        }
         break;
       
       case 'getPipelines':
@@ -87,6 +106,34 @@ Deno.serve(async (req) => {
       case 'getLocation':
         data = await fetchGoHighLevelData(`/locations/${locationId}`, apiKey);
         break;
+
+      case 'testConnection':
+        // Simple test to verify API access
+        try {
+          data = await fetchGoHighLevelData(`/locations/${locationId}`, apiKey);
+          return new Response(
+            JSON.stringify({ 
+              success: true,
+              message: 'Connection successful',
+              locationData: data
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ 
+              success: false,
+              error: error.message,
+              message: 'Connection failed'
+            }),
+            { 
+              status: 200, // Return 200 to avoid triggering error handlers
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
         
       default:
         return new Response(
