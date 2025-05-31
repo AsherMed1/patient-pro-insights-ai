@@ -6,6 +6,70 @@ interface MultipleSheetData {
   data: string[][];
 }
 
+// Helper function to determine if a tab is relevant for the given date range
+const isTabRelevantForDateRange = (
+  tabName: string, 
+  dateRange?: { from: Date | undefined; to: Date | undefined }
+): boolean => {
+  if (!dateRange?.from || !dateRange?.to) {
+    return true; // If no date range, include all tabs
+  }
+
+  const startMonth = dateRange.from.getMonth(); // 0-based (0 = January, 4 = May)
+  const endMonth = dateRange.to.getMonth();
+  const startYear = dateRange.from.getFullYear();
+  const endYear = dateRange.to.getFullYear();
+
+  const tabLower = tabName.toLowerCase();
+
+  // Map month names to numbers (0-based)
+  const monthMap: Record<string, number> = {
+    'jan': 0, 'january': 0,
+    'feb': 1, 'february': 1,
+    'mar': 2, 'march': 2,
+    'apr': 3, 'april': 3,
+    'may': 4,
+    'jun': 5, 'june': 5,
+    'jul': 6, 'july': 6,
+    'aug': 7, 'august': 7,
+    'sep': 8, 'september': 8,
+    'oct': 9, 'october': 9,
+    'nov': 10, 'november': 10,
+    'dec': 11, 'december': 11
+  };
+
+  // Check if tab contains a specific month
+  for (const [monthName, monthNum] of Object.entries(monthMap)) {
+    if (tabLower.includes(monthName)) {
+      // Check if this month falls within the selected date range
+      if (startYear === endYear) {
+        // Same year - check if month is within range
+        return monthNum >= startMonth && monthNum <= endMonth;
+      } else {
+        // Different years - more complex logic needed
+        return (monthNum >= startMonth && startYear <= endYear) || 
+               (monthNum <= endMonth && endYear >= startYear);
+      }
+    }
+  }
+
+  // For generic tabs like "Client Stats by Month", include them always
+  // unless we have a very specific single-month filter
+  if (tabLower.includes('client stats') && !tabLower.includes('jan') && 
+      !tabLower.includes('feb') && !tabLower.includes('mar') && 
+      !tabLower.includes('apr') && !tabLower.includes('may') && 
+      !tabLower.includes('jun') && !tabLower.includes('jul') && 
+      !tabLower.includes('aug') && !tabLower.includes('sep') && 
+      !tabLower.includes('oct') && !tabLower.includes('nov') && 
+      !tabLower.includes('dec')) {
+    // This is a generic stats tab - include it only if date range spans multiple months
+    const isMultiMonth = startMonth !== endMonth || startYear !== endYear;
+    return isMultiMonth;
+  }
+
+  return false; // Don't include tabs we can't identify
+};
+
 // Transform data from multiple sheets into aggregated campaign data
 export const transformMultiSheetCampaignData = (
   allSheetData: MultipleSheetData[],
@@ -24,14 +88,27 @@ export const transformMultiSheetCampaignData = (
       dateRange 
     });
 
+    // Filter sheets based on date range
+    const relevantSheets = allSheetData.filter(sheet => 
+      isTabRelevantForDateRange(sheet.tabName, dateRange)
+    );
+
+    console.log(`Filtered to ${relevantSheets.length} relevant sheets:`, 
+      relevantSheets.map(s => s.tabName));
+
+    if (relevantSheets.length === 0) {
+      console.log('No relevant sheets found for the selected date range');
+      return null;
+    }
+
     let totalLeads = 0;
     let totalAdSpend = 0;
     let totalCpl = 0;
     let cplCount = 0;
     let processedRows = 0;
 
-    // Process each sheet
-    allSheetData.forEach(({ tabName, data }) => {
+    // Process each relevant sheet
+    relevantSheets.forEach(({ tabName, data }) => {
       console.log(`Processing tab: ${tabName} with ${data.length} rows`);
       
       if (!data || data.length < 2) return;
@@ -100,7 +177,7 @@ export const transformMultiSheetCampaignData = (
         // Log the row we're checking
         console.log(`Tab ${tabName} checking row ${i}:`, row);
         
-        // More flexible Texas Vascular Institute detection
+        // Enhanced Texas Vascular Institute detection
         const businessName = businessIndex >= 0 ? (row[businessIndex] || '').toString() : '';
         
         // Check multiple ways for Texas Vascular Institute
@@ -162,11 +239,11 @@ export const transformMultiSheetCampaignData = (
       }
     });
 
-    console.log(`Final processing summary: ${processedRows} rows processed across all tabs`);
+    console.log(`Final processing summary: ${processedRows} rows processed across ${relevantSheets.length} relevant tabs`);
     console.log(`Final totals:`, { totalLeads, totalAdSpend, totalCpl, cplCount });
 
     if (processedRows === 0) {
-      console.log('No Texas Vascular data found across all tabs');
+      console.log('No Texas Vascular data found across relevant tabs');
       return null;
     }
 
