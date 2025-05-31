@@ -1,150 +1,74 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import CampaignDashboard from '../components/CampaignDashboard';
-import CallCenterDashboard from '../components/CallCenterDashboard';
-import AccountHealthDashboard from '../components/AccountHealthDashboard';
-import AIAssistant from '../components/AIAssistant';
-import ConnectionTester from '../components/ConnectionTester';
-import { Shield, BarChart3, Phone, Users, MessageSquare, Wifi } from 'lucide-react';
-import { clientDisplayNames } from '@/config/googleSheets';
+import ConnectionTester from "@/components/ConnectionTester";
+import GoHighLevelDashboard from "@/components/GoHighLevelDashboard";
+import CallCenterDashboard from "@/components/CallCenterDashboard";
+import CampaignDashboard from "@/components/CampaignDashboard";
+import AccountHealthDashboard from "@/components/AccountHealthDashboard";
+import AIAssistant from "@/components/AIAssistant";
+
+const queryClient = new QueryClient();
 
 const Index = () => {
-  const [selectedClient, setSelectedClient] = useState('texas-vascular-institute');
-  
-  const clients = [
-    { id: 'texas-vascular-institute', name: 'Texas Vascular Institute', status: 'active' },
-    { id: 'naadi-healthcare', name: 'Naadi Healthcare', status: 'active' },
-    { id: 'houston-vascular-care', name: 'Houston Vascular Care', status: 'active' },
-    { id: 'ally-vascular-pain-centers', name: 'Ally Vascular & Pain Centers', status: 'active' },
-    { id: 'call-center-analytics', name: 'Call Center Analytics', status: 'active' },
-  ];
-
-  const currentClient = clients.find(c => c.id === selectedClient);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-      {/* Header */}
-      <div className="bg-white border-b border-blue-100 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-blue-600 text-white p-2 rounded-lg">
-                <BarChart3 className="h-6 w-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Patient Pro Marketing</h1>
-                <p className="text-sm text-gray-600">Multi-Client Analytics Dashboard</p>
-              </div>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <div className="min-h-screen bg-gray-50">
+          <div className="container mx-auto px-4 py-8">
+            <div className="mb-8">
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                Healthcare Marketing Dashboard
+              </h1>
+              <p className="text-gray-600">
+                Monitor your campaigns, track performance, and optimize results
+              </p>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <Shield className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-600">Secure Access</span>
-            </div>
+            <Tabs defaultValue="crm" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-6">
+                <TabsTrigger value="crm">GoHighLevel CRM</TabsTrigger>
+                <TabsTrigger value="call-center">Call Center</TabsTrigger>
+                <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+                <TabsTrigger value="account-health">Account Health</TabsTrigger>
+                <TabsTrigger value="ai-assistant">AI Assistant</TabsTrigger>
+                <TabsTrigger value="connection-test">Connection Test</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="crm" className="space-y-6">
+                <GoHighLevelDashboard />
+              </TabsContent>
+              
+              <TabsContent value="call-center" className="space-y-6">
+                <CallCenterDashboard />
+              </TabsContent>
+              
+              <TabsContent value="campaigns" className="space-y-6">
+                <CampaignDashboard />
+              </TabsContent>
+              
+              <TabsContent value="account-health" className="space-y-6">
+                <AccountHealthDashboard />
+              </TabsContent>
+              
+              <TabsContent value="ai-assistant" className="space-y-6">
+                <AIAssistant />
+              </TabsContent>
+              
+              <TabsContent value="connection-test" className="space-y-6">
+                <ConnectionTester />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
-      </div>
-
-      <div className="container mx-auto px-6 py-8">
-        {/* Connection Tester */}
-        <div className="mb-8">
-          <ConnectionTester />
-        </div>
-
-        {/* Client Selector */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Client Selection</span>
-            </CardTitle>
-            <CardDescription>
-              Select a client to view their performance data and analytics
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-4">
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
-                <SelectTrigger className="w-80">
-                  <SelectValue placeholder="Select a client" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      <div className="flex items-center space-x-2">
-                        <span>{client.name}</span>
-                        <Badge variant={client.status === 'active' ? 'default' : 'secondary'}>
-                          {client.status}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {currentClient && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Selected:</span>
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                    {currentClient.name}
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Dashboard Tabs */}
-        <Tabs defaultValue="campaign" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
-            <TabsTrigger value="test" className="flex items-center space-x-2">
-              <Wifi className="h-4 w-4" />
-              <span>Connection Test</span>
-            </TabsTrigger>
-            <TabsTrigger value="campaign" className="flex items-center space-x-2">
-              <BarChart3 className="h-4 w-4" />
-              <span>Campaign Performance</span>
-            </TabsTrigger>
-            <TabsTrigger value="calls" className="flex items-center space-x-2">
-              <Phone className="h-4 w-4" />
-              <span>Call Center</span>
-            </TabsTrigger>
-            <TabsTrigger value="health" className="flex items-center space-x-2">
-              <Users className="h-4 w-4" />
-              <span>Account Health</span>
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center space-x-2">
-              <MessageSquare className="h-4 w-4" />
-              <span>Ask the Data</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="test">
-            <ConnectionTester />
-          </TabsContent>
-
-          <TabsContent value="campaign">
-            <CampaignDashboard clientId={selectedClient} />
-          </TabsContent>
-
-          <TabsContent value="calls">
-            <CallCenterDashboard clientId={selectedClient} />
-          </TabsContent>
-
-          <TabsContent value="health">
-            <AccountHealthDashboard clientId={selectedClient} />
-          </TabsContent>
-
-          <TabsContent value="ai">
-            <AIAssistant clientId={selectedClient} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+        <Toaster />
+        <Sonner />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 };
 
