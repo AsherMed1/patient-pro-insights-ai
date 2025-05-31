@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +8,8 @@ import CampaignDashboard from '../components/CampaignDashboard';
 import CallCenterDashboard from '../components/CallCenterDashboard';
 import AccountHealthDashboard from '../components/AccountHealthDashboard';
 import AIAssistant from '../components/AIAssistant';
-import { Shield, BarChart3, Phone, Users, MessageSquare } from 'lucide-react';
+import ConnectionTester from '../components/ConnectionTester';
+import { Shield, BarChart3, Phone, Users, MessageSquare, Wifi } from 'lucide-react';
 import { clientDisplayNames } from '@/config/googleSheets';
 
 const Index = () => {
@@ -48,6 +50,11 @@ const Index = () => {
       </div>
 
       <div className="container mx-auto px-6 py-8">
+        {/* Connection Tester */}
+        <div className="mb-8">
+          <ConnectionTester />
+        </div>
+
         {/* Client Selector */}
         <Card className="mb-8">
           <CardHeader>
@@ -93,7 +100,11 @@ const Index = () => {
 
         {/* Dashboard Tabs */}
         <Tabs defaultValue="campaign" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
+            <TabsTrigger value="test" className="flex items-center space-x-2">
+              <Wifi className="h-4 w-4" />
+              <span>Connection Test</span>
+            </TabsTrigger>
             <TabsTrigger value="campaign" className="flex items-center space-x-2">
               <BarChart3 className="h-4 w-4" />
               <span>Campaign Performance</span>
@@ -111,6 +122,10 @@ const Index = () => {
               <span>Ask the Data</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="test">
+            <ConnectionTester />
+          </TabsContent>
 
           <TabsContent value="campaign">
             <CampaignDashboard clientId={selectedClient} />
