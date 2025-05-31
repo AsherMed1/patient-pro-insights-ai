@@ -1,4 +1,3 @@
-
 export interface SheetConfig {
   spreadsheetId: string;
   ranges: {
@@ -36,14 +35,6 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
   },
   'ally-vascular-pain-centers': {
     spreadsheetId: '1YVemB6u5QkJdIntvGfwuCOvoaG8skCPkebwTpoTT5ns',
-    ranges: {
-      campaign: 'Campaign Data!A1:Z100',
-      calls: 'Call Center!A1:Z100',
-      health: 'Account Health!A1:Z100',
-    },
-  },
-  'advanced-dermatology-center': {
-    spreadsheetId: '1rbFoZR2knC5-P9Ly-D80rnxPdbLsuMBrYqlElh-kJ64',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
@@ -138,7 +129,6 @@ export const clientDisplayNames: Record<string, string> = {
   'naadi-healthcare': 'Naadi Healthcare',
   'houston-vascular-care': 'Houston Vascular Care',
   'ally-vascular-pain-centers': 'Ally Vascular & Pain Centers',
-  'advanced-dermatology-center': 'Advanced Dermatology Center',
   'call-center-analytics': 'Call Center Analytics',
 };
 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,7 +18,6 @@ const Index = () => {
     { id: 'naadi-healthcare', name: 'Naadi Healthcare', status: 'active' },
     { id: 'houston-vascular-care', name: 'Houston Vascular Care', status: 'active' },
     { id: 'ally-vascular-pain-centers', name: 'Ally Vascular & Pain Centers', status: 'active' },
-    { id: 'advanced-dermatology-center', name: 'Advanced Dermatology Center', status: 'active' },
     { id: 'call-center-analytics', name: 'Call Center Analytics', status: 'active' },
   ];
 
