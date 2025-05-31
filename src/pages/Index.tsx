@@ -15,6 +15,9 @@ import AIAssistant from "@/components/AIAssistant";
 const queryClient = new QueryClient();
 
 const Index = () => {
+  // Default client ID for Texas Vascular Institute
+  const defaultClientId = "client-1";
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -44,19 +47,19 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="call-center" className="space-y-6">
-                <CallCenterDashboard />
+                <CallCenterDashboard clientId={defaultClientId} />
               </TabsContent>
               
               <TabsContent value="campaigns" className="space-y-6">
-                <CampaignDashboard />
+                <CampaignDashboard clientId={defaultClientId} />
               </TabsContent>
               
               <TabsContent value="account-health" className="space-y-6">
-                <AccountHealthDashboard />
+                <AccountHealthDashboard clientId={defaultClientId} />
               </TabsContent>
               
               <TabsContent value="ai-assistant" className="space-y-6">
-                <AIAssistant />
+                <AIAssistant clientId={defaultClientId} />
               </TabsContent>
               
               <TabsContent value="connection-test" className="space-y-6">
