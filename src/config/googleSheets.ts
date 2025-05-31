@@ -11,10 +11,34 @@ export interface SheetConfig {
 // Configuration mapping for different clients
 export const clientSheetConfigs: Record<string, SheetConfig> = {
   'texas-vascular-institute': {
-    spreadsheetId: '1WWOfGsw2IUHTlwwgulRxiuOxdL12E9HWjh2aq8I6Ck4',
+    spreadsheetId: '1rbFoZR2knC5-P9Ly-D80rnxPdbLsuMBrYqlElh-kJ64',
     ranges: {
-      campaign: 'Table1_6!A1:Z100',
-      calls: 'Call Center!A1:Z100', 
+      campaign: 'Campaign Data!A1:Z100',
+      calls: 'Call Center!A1:Z100',
+      health: 'Account Health!A1:Z100',
+    },
+  },
+  'naadi-healthcare': {
+    spreadsheetId: '1lvoPQdDuvvAifJteFHl0ZJv_UhHYdQU1N9DpGrBTX1k',
+    ranges: {
+      campaign: 'Campaign Data!A1:Z100',
+      calls: 'Call Center!A1:Z100',
+      health: 'Account Health!A1:Z100',
+    },
+  },
+  'houston-vascular-care': {
+    spreadsheetId: '1GP8D5Dz6FMTqnJblhG-BdjNLRKUYCBLvRtj-Ot9Ccfs',
+    ranges: {
+      campaign: 'Campaign Data!A1:Z100',
+      calls: 'Call Center!A1:Z100',
+      health: 'Account Health!A1:Z100',
+    },
+  },
+  'ally-vascular-pain-centers': {
+    spreadsheetId: '1YVemB6u5QkJdIntvGfwuCOvoaG8skCPkebwTpoTT5ns',
+    ranges: {
+      campaign: 'Campaign Data!A1:Z100',
+      calls: 'Call Center!A1:Z100',
       health: 'Account Health!A1:Z100',
     },
   },
@@ -111,6 +135,9 @@ export const findBestTab = (tabs: Array<{title: string}>, dataType: 'campaign' |
 // Client display names mapping
 export const clientDisplayNames: Record<string, string> = {
   'texas-vascular-institute': 'Texas Vascular Institute',
+  'naadi-healthcare': 'Naadi Healthcare',
+  'houston-vascular-care': 'Houston Vascular Care',
+  'ally-vascular-pain-centers': 'Ally Vascular & Pain Centers',
   'advanced-dermatology-center': 'Advanced Dermatology Center',
   'call-center-analytics': 'Call Center Analytics',
 };

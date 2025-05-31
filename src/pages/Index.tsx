@@ -16,6 +16,9 @@ const Index = () => {
   
   const clients = [
     { id: 'texas-vascular-institute', name: 'Texas Vascular Institute', status: 'active' },
+    { id: 'naadi-healthcare', name: 'Naadi Healthcare', status: 'active' },
+    { id: 'houston-vascular-care', name: 'Houston Vascular Care', status: 'active' },
+    { id: 'ally-vascular-pain-centers', name: 'Ally Vascular & Pain Centers', status: 'active' },
     { id: 'advanced-dermatology-center', name: 'Advanced Dermatology Center', status: 'active' },
     { id: 'call-center-analytics', name: 'Call Center Analytics', status: 'active' },
   ];
