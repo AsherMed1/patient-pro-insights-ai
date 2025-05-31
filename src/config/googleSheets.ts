@@ -11,7 +11,7 @@ export interface SheetConfig {
 // Configuration mapping for different clients
 export const clientSheetConfigs: Record<string, SheetConfig> = {
   'client-1': {
-    spreadsheetId: '324183023',
+    spreadsheetId: '1rbFoZR2knC5-P9Ly-D80rnxPdbLsuMBrYqlElh-kJ64',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
@@ -19,7 +19,7 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
     },
   },
   'client-2': {
-    spreadsheetId: '606531950',
+    spreadsheetId: '1WWOfGsw2IUHTlwwgulRxiuOxdL12E9HWjh2aq8I6Ck4',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
@@ -27,7 +27,7 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
     },
   },
   'client-3': {
-    spreadsheetId: '1338313062',
+    spreadsheetId: '1e_dxBWUuZAG_9QsxaskO0oYNc1KTSwDdIna7Ik9TmCA',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
