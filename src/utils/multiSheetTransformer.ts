@@ -84,45 +84,86 @@ export const transformMultiSheetCampaignData = (
       const spendIndex = getColumnIndex(['spend', 'ad spend', 'cost', 'budget']);
       const cplIndex = getColumnIndex(['cpl', 'cost per lead']);
 
+      console.log(`Tab ${tabName} column indices:`, {
+        business: businessIndex,
+        service: serviceIndex,
+        leads: leadsIndex,
+        spend: spendIndex,
+        cpl: cplIndex
+      });
+
       // Process data rows
       for (let i = dataStartIndex; i < data.length; i++) {
         const row = data[i];
         if (!row || row.length === 0) continue;
         
-        // Check for Texas Vascular Institute data
-        const businessName = businessIndex >= 0 ? row[businessIndex] || '' : '';
-        const hasTexasVascular = businessName.toLowerCase().includes('texas vascular') ||
-                                 row.some(cell => cell && cell.toString().toLowerCase().includes('texas vascular'));
+        // Log the row we're checking
+        console.log(`Tab ${tabName} checking row ${i}:`, row);
+        
+        // More flexible Texas Vascular Institute detection
+        const businessName = businessIndex >= 0 ? (row[businessIndex] || '').toString() : '';
+        
+        // Check multiple ways for Texas Vascular Institute
+        const hasTexasVascular = 
+          businessName.toLowerCase().includes('texas vascular') ||
+          businessName.toLowerCase().includes('texas vascular institute') ||
+          row.some(cell => {
+            if (!cell) return false;
+            const cellStr = cell.toString().toLowerCase();
+            return cellStr.includes('texas vascular') || 
+                   cellStr.includes('texas vascular institute');
+          });
+        
+        console.log(`Tab ${tabName} row ${i} - Business: "${businessName}", Has Texas Vascular: ${hasTexasVascular}`);
         
         if (!hasTexasVascular) continue;
         
-        // Apply procedure filter
+        console.log(`Found Texas Vascular data in tab ${tabName} row ${i}`);
+        
+        // Apply procedure filter if specified
         if (procedureFilter && procedureFilter !== 'ALL') {
-          const serviceValue = serviceIndex >= 0 ? row[serviceIndex] || '' : '';
+          const serviceValue = serviceIndex >= 0 ? (row[serviceIndex] || '').toString() : '';
           if (!serviceValue.toLowerCase().includes(procedureFilter.toLowerCase())) {
+            console.log(`Filtered out row ${i} due to procedure filter: ${serviceValue} doesn't contain ${procedureFilter}`);
             continue;
           }
         }
         
         // Extract and aggregate numeric values
-        const leads = leadsIndex >= 0 ? parseFloat(row[leadsIndex]?.toString().replace(/[^0-9.-]/g, '') || '0') : 0;
-        const adSpend = spendIndex >= 0 ? parseFloat(row[spendIndex]?.toString().replace(/[^0-9.-]/g, '') || '0') : 0;
-        const cpl = cplIndex >= 0 ? parseFloat(row[cplIndex]?.toString().replace(/[^0-9.-]/g, '') || '0') : 0;
+        const leadsRaw = leadsIndex >= 0 ? row[leadsIndex] : null;
+        const spendRaw = spendIndex >= 0 ? row[spendIndex] : null;
+        const cplRaw = cplIndex >= 0 ? row[cplIndex] : null;
         
-        totalLeads += leads;
-        totalAdSpend += adSpend;
+        const leads = leadsRaw ? parseFloat(leadsRaw.toString().replace(/[^0-9.-]/g, '') || '0') : 0;
+        const adSpend = spendRaw ? parseFloat(spendRaw.toString().replace(/[^0-9.-]/g, '') || '0') : 0;
+        const cpl = cplRaw ? parseFloat(cplRaw.toString().replace(/[^0-9.-]/g, '') || '0') : 0;
         
-        if (cpl > 0) {
-          totalCpl += cpl;
-          cplCount++;
+        console.log(`Tab ${tabName} row ${i} extracted values:`, { 
+          leadsRaw, leads, 
+          spendRaw, adSpend, 
+          cplRaw, cpl 
+        });
+        
+        if (leads > 0 || adSpend > 0) {
+          totalLeads += leads;
+          totalAdSpend += adSpend;
+          
+          if (cpl > 0) {
+            totalCpl += cpl;
+            cplCount++;
+          }
+          
+          processedRows++;
+          console.log(`Tab ${tabName} row ${i} PROCESSED:`, { leads, adSpend, cpl });
+          console.log(`Running totals:`, { totalLeads, totalAdSpend, totalCpl, cplCount });
+        } else {
+          console.log(`Tab ${tabName} row ${i} SKIPPED - no valid leads or spend data`);
         }
-        
-        processedRows++;
-        console.log(`Tab ${tabName} row ${i}:`, { leads, adSpend, cpl });
       }
     });
 
-    console.log(`Processed ${processedRows} rows across all tabs`);
+    console.log(`Final processing summary: ${processedRows} rows processed across all tabs`);
+    console.log(`Final totals:`, { totalLeads, totalAdSpend, totalCpl, cplCount });
 
     if (processedRows === 0) {
       console.log('No Texas Vascular data found across all tabs');
@@ -149,7 +190,7 @@ export const transformMultiSheetCampaignData = (
       trend: 'up' as 'up' | 'down',
     };
 
-    console.log('Multi-sheet transformation result:', result);
+    console.log('Multi-sheet transformation final result:', result);
     return result;
 
   } catch (error) {
