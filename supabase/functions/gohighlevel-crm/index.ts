@@ -21,6 +21,8 @@ async function fetchGoHighLevelData(endpoint: string, apiKey: string) {
     }
   });
 
+  console.log(`GoHighLevel API Response Status: ${response.status}`);
+
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`GoHighLevel API Error:`, {
@@ -33,7 +35,7 @@ async function fetchGoHighLevelData(endpoint: string, apiKey: string) {
   }
 
   const data = await response.json();
-  console.log(`Successfully fetched GoHighLevel data from ${endpoint}`);
+  console.log(`Successfully fetched GoHighLevel data from ${endpoint}`, { dataKeys: Object.keys(data) });
   return data;
 }
 
@@ -96,7 +98,7 @@ Deno.serve(async (req) => {
         );
     }
 
-    console.log(`Returning GoHighLevel data for action: ${action}`);
+    console.log(`Returning GoHighLevel data for action: ${action}`, { hasData: !!data });
 
     return new Response(
       JSON.stringify({ 
