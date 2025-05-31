@@ -18,11 +18,11 @@ import { getClientDisplayName } from "@/config/googleSheets";
 const queryClient = new QueryClient();
 
 const Index = () => {
-  // Default to account management sheet since it has all the campaign data
-  const [selectedClient, setSelectedClient] = useState("account-management");
+  // Default to master sheet since it has all the client data
+  const [selectedClient, setSelectedClient] = useState("all-clients-master");
 
   const clientOptions = [
-    { id: "account-management", name: "Account Management" },
+    { id: "all-clients-master", name: "All Clients (Master Sheet)" },
     { id: "texas-vascular-institute", name: "Texas Vascular Institute" },
     { id: "naadi-healthcare", name: "Naadi Healthcare" },
     { id: "houston-vascular-care", name: "Houston Vascular Care" },
@@ -43,14 +43,14 @@ const Index = () => {
                 Monitor your campaigns, track performance, and optimize results
               </p>
               
-              {/* Client Selector */}
+              {/* Client/Data Source Selector */}
               <div className="flex items-center space-x-2">
                 <label htmlFor="client-select" className="text-sm font-medium text-gray-700">
-                  Client:
+                  Data Source:
                 </label>
                 <Select value={selectedClient} onValueChange={setSelectedClient}>
                   <SelectTrigger className="w-64">
-                    <SelectValue placeholder="Select client" />
+                    <SelectValue placeholder="Select data source" />
                   </SelectTrigger>
                   <SelectContent>
                     {clientOptions.map((client) => (

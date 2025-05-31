@@ -27,7 +27,7 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
     },
   },
   'houston-vascular-care': {
-    spreadsheetId: '1GP8D5Dz6FMTqnJblhG-BdjNLRKUYCBLvRtj-Ot9Ccfs',
+    spreadsheetId: '1GP8D5Dz6FMTqnJblhG-BdjNLRKUYCBLvRKUYCBLvRtj-Ot9Ccfs',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
       calls: 'Call Center!A1:Z100',
@@ -50,7 +50,8 @@ export const clientSheetConfigs: Record<string, SheetConfig> = {
       health: 'Account Health!A1:Z100',
     },
   },
-  'account-management': {
+  // Master sheet containing data for all clients
+  'all-clients-master': {
     spreadsheetId: '1WWOfGsw2IUHTlwwgulRxiuOxdL12E9HWjh2aq8I6Ck4',
     ranges: {
       campaign: 'Campaign Data!A1:Z100',
@@ -139,7 +140,7 @@ export const clientDisplayNames: Record<string, string> = {
   'houston-vascular-care': 'Houston Vascular Care',
   'ally-vascular-pain-centers': 'Ally Vascular & Pain Centers',
   'call-center-analytics': 'Call Center Analytics',
-  'account-management': 'Account Management',
+  'all-clients-master': 'All Clients (Master Sheet)',
 };
 
 // Helper function to get client display name
