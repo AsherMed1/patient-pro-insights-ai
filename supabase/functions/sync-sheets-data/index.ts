@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -23,8 +22,8 @@ interface AppointmentRecord {
   confirmed?: boolean;
   source_sheet: string;
   source_row: number;
-  raw_data?: any; // Store all original data
-  additional_fields?: any; // Store unmapped fields
+  raw_data?: any;
+  additional_fields?: any;
 }
 
 interface CampaignRecord {
@@ -40,8 +39,8 @@ interface CampaignRecord {
   cpp?: number;
   source_sheet: string;
   source_row: number;
-  raw_data?: any; // Store all original data
-  additional_fields?: any; // Store unmapped fields
+  raw_data?: any;
+  additional_fields?: any;
 }
 
 // Enhanced function to fetch ALL sheet data with complete metadata
@@ -96,6 +95,67 @@ async function fetchAllSheetData(spreadsheetId: string, apiKey: string) {
   return allSheetData;
 }
 
+// Enhanced validation functions
+function isValidDate(dateString: string): boolean {
+  if (!dateString || typeof dateString !== 'string') return false;
+  
+  // Skip obvious non-date values
+  const invalidPatterns = [
+    /^(business|client|name|company|institute|care|center|vascular|medical|health)/i,
+    /^(est|cst|pst|mst)$/i,
+    /^(done|pending|complete|active|inactive)$/i,
+    /^https?:\/\//i,
+    /^[a-z\s&]+$/i // Pure text with no numbers
+  ];
+  
+  for (const pattern of invalidPatterns) {
+    if (pattern.test(dateString.toString().trim())) {
+      return false;
+    }
+  }
+  
+  // Try to parse as date
+  const date = new Date(dateString);
+  return !isNaN(date.getTime()) && dateString.toString().trim().length > 0;
+}
+
+function isValidTime(timeString: string): boolean {
+  if (!timeString || typeof timeString !== 'string') return false;
+  
+  // Skip timezone abbreviations and obvious non-time values
+  const invalidPatterns = [
+    /^(est|cst|pst|mst)$/i,
+    /^(business|client|name)/i,
+    /^https?:\/\//i
+  ];
+  
+  for (const pattern of invalidPatterns) {
+    if (pattern.test(timeString.toString().trim())) {
+      return false;
+    }
+  }
+  
+  // Check for time patterns (HH:MM, H:MM AM/PM, etc.)
+  const timePatterns = [
+    /^\d{1,2}:\d{2}$/,
+    /^\d{1,2}:\d{2}\s?(am|pm)$/i,
+    /^\d{1,2}:\d{2}:\d{2}$/
+  ];
+  
+  return timePatterns.some(pattern => pattern.test(timeString.toString().trim()));
+}
+
+function sanitizeForDatabase(value: any): string | null {
+  if (!value) return null;
+  
+  const strValue = value.toString().trim();
+  if (strValue === '' || strValue.toLowerCase() === 'null' || strValue.toLowerCase() === 'undefined') {
+    return null;
+  }
+  
+  return strValue;
+}
+
 // Enhanced function to intelligently detect and map data
 function smartTransformToAppointments(sheetData: SheetData[], clientId: string): AppointmentRecord[] {
   const appointments: AppointmentRecord[] = [];
@@ -111,7 +171,7 @@ function smartTransformToAppointments(sheetData: SheetData[], clientId: string):
     let headerRow: string[] = [];
     let dataStartIndex = 1;
     
-    // Strategy 1: Look for appointment-related keywords
+    // Strategy: Look for appointment-related keywords
     for (let i = 0; i < Math.min(data.length, 10); i++) {
       const row = data[i];
       if (!row || row.length === 0) continue;
@@ -175,18 +235,33 @@ function smartTransformToAppointments(sheetData: SheetData[], clientId: string):
         }
       });
       
-      // Extract known fields using smart mapping
-      const patientName = extractFieldValue(row, headerRow, columnMap.patientName);
-      const appointmentDate = extractFieldValue(row, headerRow, columnMap.appointmentDate);
-      const status = extractFieldValue(row, headerRow, columnMap.status);
+      // Extract and validate known fields using smart mapping
+      const patientName = sanitizeForDatabase(extractFieldValue(row, headerRow, columnMap.patientName));
+      const appointmentDateRaw = extractFieldValue(row, headerRow, columnMap.appointmentDate);
+      const appointmentTimeRaw = extractFieldValue(row, headerRow, columnMap.appointmentTime);
+      const status = sanitizeForDatabase(extractFieldValue(row, headerRow, columnMap.status));
+      
+      // Validate date and time before using
+      const appointmentDate = appointmentDateRaw && isValidDate(appointmentDateRaw) ? appointmentDateRaw : null;
+      const appointmentTime = appointmentTimeRaw && isValidTime(appointmentTimeRaw) ? appointmentTimeRaw : null;
+      
+      // Skip rows that are clearly header rows or invalid data
+      if (patientName && (
+        patientName.toLowerCase().includes('patient') ||
+        patientName.toLowerCase().includes('business name') ||
+        patientName.toLowerCase().includes('client')
+      )) {
+        console.log(`Skipping header/invalid row ${i + 1}: ${patientName}`);
+        continue;
+      }
       
       // Only create appointment record if we have some meaningful data
-      if (patientName || appointmentDate || Object.keys(rawData).length > 0) {
+      if (patientName || appointmentDate || (Object.keys(rawData).length > 2)) {
         appointments.push({
           client_id: clientId,
           patient_name: patientName,
           appointment_date: appointmentDate,
-          appointment_time: extractFieldValue(row, headerRow, columnMap.appointmentTime),
+          appointment_time: appointmentTime,
           status: status?.toLowerCase(),
           procedure_ordered: extractBooleanValue(row, headerRow, columnMap.procedureOrdered),
           showed: extractBooleanValue(row, headerRow, columnMap.showed) || status?.toLowerCase().includes('show'),
@@ -225,7 +300,7 @@ function smartTransformToCampaigns(sheetData: SheetData[], clientId: string): Ca
       
       const campaignKeywords = [
         'spend', 'cost', 'leads', 'cpl', 'cpa', 'cpp', 'campaign', 
-        'ad', 'marketing', 'appointments', 'procedures', 'show', 'rate'
+        'ad', 'marketing', 'appointments', 'procedures', 'show', 'rate', 'date'
       ];
       
       const hasCampaignHeaders = row.some(cell => 
@@ -270,10 +345,21 @@ function smartTransformToCampaigns(sheetData: SheetData[], clientId: string): Ca
         }
       });
       
-      const dateValue = extractFieldValue(row, headerRow, columnMap.date);
+      const dateValueRaw = extractFieldValue(row, headerRow, columnMap.date);
+      const dateValue = dateValueRaw && isValidDate(dateValueRaw) ? dateValueRaw : null;
+      
+      // Skip rows with invalid dates that are clearly not campaign data
+      if (dateValueRaw && !dateValue && (
+        dateValueRaw.toString().toLowerCase().includes('business') ||
+        dateValueRaw.toString().toLowerCase().includes('client') ||
+        dateValueRaw.toString().startsWith('http')
+      )) {
+        console.log(`Skipping invalid campaign row ${i + 1}: ${dateValueRaw}`);
+        continue;
+      }
       
       // Create campaign record if we have meaningful data
-      if (dateValue || Object.keys(rawData).length > 0) {
+      if (dateValue || Object.keys(rawData).length > 2) {
         campaigns.push({
           client_id: clientId,
           campaign_date: dateValue,
@@ -458,19 +544,36 @@ Deno.serve(async (req) => {
             console.error('Error deleting existing appointments:', deleteError);
           }
           
-          // Insert new appointments in batches
-          const batchSize = 50; // Smaller batches for more complex data
+          // Insert new appointments in smaller batches with better error handling
+          const batchSize = 25; // Smaller batches for complex data
           for (let i = 0; i < appointments.length; i += batchSize) {
             const batch = appointments.slice(i, i + batchSize);
-            const { error: insertError } = await supabase
-              .from('appointments')
-              .insert(batch);
             
-            if (insertError) {
-              console.error('Error inserting appointments batch:', insertError);
-            } else {
-              recordsProcessed += batch.length;
-              console.log(`Inserted appointments batch ${Math.floor(i/batchSize) + 1}: ${batch.length} records`);
+            // Validate each record before insertion
+            const validBatch = batch.filter(record => {
+              // Skip records with invalid data
+              if (record.appointment_date && !isValidDate(record.appointment_date)) {
+                console.log(`Skipping invalid appointment date: ${record.appointment_date}`);
+                return false;
+              }
+              if (record.appointment_time && !isValidTime(record.appointment_time)) {
+                console.log(`Skipping invalid appointment time: ${record.appointment_time}`);
+                return false;
+              }
+              return true;
+            });
+            
+            if (validBatch.length > 0) {
+              const { error: insertError } = await supabase
+                .from('appointments')
+                .insert(validBatch);
+              
+              if (insertError) {
+                console.error('Error inserting appointments batch:', insertError);
+              } else {
+                recordsProcessed += validBatch.length;
+                console.log(`Inserted appointments batch ${Math.floor(i/batchSize) + 1}: ${validBatch.length} records`);
+              }
             }
           }
         }
@@ -492,19 +595,31 @@ Deno.serve(async (req) => {
             console.error('Error deleting existing campaigns:', deleteError);
           }
           
-          // Insert new campaigns in batches
-          const batchSize = 50;
+          // Insert new campaigns in smaller batches with validation
+          const batchSize = 25;
           for (let i = 0; i < campaigns.length; i += batchSize) {
             const batch = campaigns.slice(i, i + batchSize);
-            const { error: insertError } = await supabase
-              .from('campaigns')
-              .insert(batch);
             
-            if (insertError) {
-              console.error('Error inserting campaigns batch:', insertError);
-            } else {
-              recordsProcessed += batch.length;
-              console.log(`Inserted campaigns batch ${Math.floor(i/batchSize) + 1}: ${batch.length} records`);
+            // Validate each record before insertion
+            const validBatch = batch.filter(record => {
+              if (record.campaign_date && !isValidDate(record.campaign_date)) {
+                console.log(`Skipping invalid campaign date: ${record.campaign_date}`);
+                return false;
+              }
+              return true;
+            });
+            
+            if (validBatch.length > 0) {
+              const { error: insertError } = await supabase
+                .from('campaigns')
+                .insert(validBatch);
+              
+              if (insertError) {
+                console.error('Error inserting campaigns batch:', insertError);
+              } else {
+                recordsProcessed += validBatch.length;
+                console.log(`Inserted campaigns batch ${Math.floor(i/batchSize) + 1}: ${validBatch.length} records`);
+              }
             }
           }
         }

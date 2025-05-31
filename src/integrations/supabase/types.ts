@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       appointments: {
         Row: {
+          additional_fields: Json | null
           appointment_date: string | null
           appointment_time: string | null
           cancelled: boolean | null
@@ -20,6 +21,7 @@ export type Database = {
           id: string
           patient_name: string | null
           procedure_ordered: boolean | null
+          raw_data: Json | null
           showed: boolean | null
           source_row: number | null
           source_sheet: string | null
@@ -27,6 +29,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          additional_fields?: Json | null
           appointment_date?: string | null
           appointment_time?: string | null
           cancelled?: boolean | null
@@ -36,6 +39,7 @@ export type Database = {
           id?: string
           patient_name?: string | null
           procedure_ordered?: boolean | null
+          raw_data?: Json | null
           showed?: boolean | null
           source_row?: number | null
           source_sheet?: string | null
@@ -43,6 +47,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          additional_fields?: Json | null
           appointment_date?: string | null
           appointment_time?: string | null
           cancelled?: boolean | null
@@ -52,6 +57,7 @@ export type Database = {
           id?: string
           patient_name?: string | null
           procedure_ordered?: boolean | null
+          raw_data?: Json | null
           showed?: boolean | null
           source_row?: number | null
           source_sheet?: string | null
@@ -71,6 +77,7 @@ export type Database = {
       campaigns: {
         Row: {
           ad_spend: number | null
+          additional_fields: Json | null
           appointments: number | null
           campaign_date: string | null
           client_id: string
@@ -81,6 +88,7 @@ export type Database = {
           id: string
           leads: number | null
           procedures: number | null
+          raw_data: Json | null
           show_rate: number | null
           source_row: number | null
           source_sheet: string | null
@@ -88,6 +96,7 @@ export type Database = {
         }
         Insert: {
           ad_spend?: number | null
+          additional_fields?: Json | null
           appointments?: number | null
           campaign_date?: string | null
           client_id: string
@@ -98,6 +107,7 @@ export type Database = {
           id?: string
           leads?: number | null
           procedures?: number | null
+          raw_data?: Json | null
           show_rate?: number | null
           source_row?: number | null
           source_sheet?: string | null
@@ -105,6 +115,7 @@ export type Database = {
         }
         Update: {
           ad_spend?: number | null
+          additional_fields?: Json | null
           appointments?: number | null
           campaign_date?: string | null
           client_id?: string
@@ -115,6 +126,7 @@ export type Database = {
           id?: string
           leads?: number | null
           procedures?: number | null
+          raw_data?: Json | null
           show_rate?: number | null
           source_row?: number | null
           source_sheet?: string | null
