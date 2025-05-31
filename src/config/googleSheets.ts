@@ -51,22 +51,31 @@ export const findBestTab = (tabs: Array<{title: string}>, dataType: 'campaign' |
   if (!tabs || tabs.length === 0) return null;
   
   const keywords = {
-    campaign: ['campaign', 'marketing', 'ads', 'advertising', 'performance', 'table'],
+    campaign: [
+      // Prioritize specific client stats tabs
+      'client stats', 'stats', 'may - client', 'april - client', 'jan- client', 'feb - client',
+      // Then look for general campaign terms
+      'campaign', 'marketing', 'ads', 'advertising', 'performance', 'table'
+    ],
     calls: ['call', 'phone', 'dial', 'contact', 'center'],
     health: ['health', 'account', 'retention', 'status', 'relationship']
   };
   
   const relevantKeywords = keywords[dataType];
   
-  // First, try to find exact matches
+  // First, try to find exact matches with priority order
   for (const keyword of relevantKeywords) {
     const exactMatch = tabs.find(tab => 
       tab.title.toLowerCase().includes(keyword.toLowerCase())
     );
-    if (exactMatch) return exactMatch.title;
+    if (exactMatch) {
+      console.log(`Found matching tab "${exactMatch.title}" for keyword "${keyword}"`);
+      return exactMatch.title;
+    }
   }
   
   // If no exact match, return the first tab as fallback
+  console.log(`No matching tab found for ${dataType}, using first tab: ${tabs[0]?.title}`);
   return tabs[0]?.title || null;
 };
 
