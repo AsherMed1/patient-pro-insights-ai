@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, DollarSign, Users, Calendar, Target, CalendarIcon } from 'lucide-react';
-import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { useMultipleSheets } from '@/hooks/useMultipleSheets';
 import { getSheetConfig } from '@/config/googleSheets';
-import { transformCampaignData } from '@/utils/sheetDataTransformer';
+import { transformMultiSheetCampaignData } from '@/utils/multiSheetTransformer';
 import DashboardFilters from './DashboardFilters';
 
 interface CampaignDashboardProps {
@@ -26,16 +25,15 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
 
   const sheetConfig = getSheetConfig(clientId);
   
-  const { data: sheetData, loading, error, usedTabName } = useGoogleSheets({
+  const { allData, loading, error, usedTabs } = useMultipleSheets({
     spreadsheetId: sheetConfig?.spreadsheetId || '',
     clientId,
     dataType: 'campaign',
-    enableDynamicTabs: true,
   });
 
   console.log('Campaign Dashboard - Sheet Config:', sheetConfig);
-  console.log('Campaign Dashboard - Sheet Data:', sheetData);
-  console.log('Campaign Dashboard - Used Tab:', usedTabName);
+  console.log('Campaign Dashboard - All Data:', allData);
+  console.log('Campaign Dashboard - Used Tabs:', usedTabs);
   console.log('Campaign Dashboard - Error:', error);
   console.log('Campaign Dashboard - Date Range:', dateRange);
   console.log('Campaign Dashboard - Procedure Filter:', procedure);
@@ -43,8 +41,8 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
   // Check if date range is selected
   const hasDateRange = dateRange.from && dateRange.to;
 
-  // Transform Google Sheets data only if date range is selected
-  const campaignData = hasDateRange ? transformCampaignData(sheetData, procedure, dateRange) : null;
+  // Transform aggregated Google Sheets data only if date range is selected
+  const campaignData = hasDateRange ? transformMultiSheetCampaignData(allData, procedure, dateRange) : null;
   
   console.log('Campaign Dashboard - Transformed Data:', campaignData);
   console.log('Campaign Dashboard - Using Live Data:', !!campaignData);
@@ -72,7 +70,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading campaign data from Google Sheets...</div>
+        <div className="text-lg">Loading campaign data from multiple Google Sheets tabs...</div>
       </div>
     );
   }
@@ -119,9 +117,9 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
           <Badge variant={isLiveData ? "default" : "secondary"}>
             {isLiveData ? "Live Data" : "No Data"}
           </Badge>
-          {usedTabName && (
+          {usedTabs.length > 0 && (
             <Badge variant="outline" className="bg-blue-50 text-blue-700">
-              Tab: {usedTabName}
+              Tabs: {usedTabs.join(', ')}
             </Badge>
           )}
           {procedure !== 'ALL' && (
@@ -129,9 +127,9 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
               Procedure: {procedure}
             </Badge>
           )}
-          {sheetData && sheetData.length > 0 && (
+          {allData.length > 0 && (
             <Badge variant="outline" className="bg-purple-50 text-purple-700">
-              {sheetData.length - 1} rows loaded
+              {allData.reduce((sum, sheet) => sum + sheet.data.length, 0)} total rows from {allData.length} tabs
             </Badge>
           )}
         </div>
@@ -140,7 +138,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
             Error: {error}
           </Badge>
         )}
-        {!isLiveData && sheetData && sheetData.length > 0 && hasDateRange && (
+        {!isLiveData && allData.length > 0 && hasDateRange && (
           <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
             Data found but no matches for selected criteria
           </Badge>

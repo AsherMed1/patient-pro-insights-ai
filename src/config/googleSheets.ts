@@ -46,17 +46,46 @@ export const createRange = (tabName: string, range: string = 'A1:Z100'): string 
   return `${tabName}!${range}`;
 };
 
+// Helper function to find ALL matching tabs for campaign data (not just the first one)
+export const findAllCampaignTabs = (tabs: Array<{title: string}>): string[] => {
+  if (!tabs || tabs.length === 0) return [];
+  
+  const campaignKeywords = [
+    'client stats', 'stats', 'may - client', 'april - client', 'jan- client', 'feb - client',
+    'march - client', 'june - client', 'july - client', 'august - client', 'september - client',
+    'october - client', 'november - client', 'december - client', 'client stats by month'
+  ];
+  
+  const matchingTabs: string[] = [];
+  
+  for (const keyword of campaignKeywords) {
+    const matches = tabs.filter(tab => 
+      tab.title.toLowerCase().includes(keyword.toLowerCase())
+    );
+    
+    matches.forEach(match => {
+      if (!matchingTabs.includes(match.title)) {
+        matchingTabs.push(match.title);
+        console.log(`Found campaign tab: "${match.title}" for keyword "${keyword}"`);
+      }
+    });
+  }
+  
+  console.log(`Found ${matchingTabs.length} campaign tabs:`, matchingTabs);
+  return matchingTabs;
+};
+
 // Helper function to find the best matching tab for a data type
 export const findBestTab = (tabs: Array<{title: string}>, dataType: 'campaign' | 'calls' | 'health'): string | null => {
   if (!tabs || tabs.length === 0) return null;
   
+  // For campaign data, use the new multi-tab approach
+  if (dataType === 'campaign') {
+    const campaignTabs = findAllCampaignTabs(tabs);
+    return campaignTabs.length > 0 ? campaignTabs[0] : null; // Return first tab for compatibility
+  }
+  
   const keywords = {
-    campaign: [
-      // Prioritize specific client stats tabs
-      'client stats', 'stats', 'may - client', 'april - client', 'jan- client', 'feb - client',
-      // Then look for general campaign terms
-      'campaign', 'marketing', 'ads', 'advertising', 'performance', 'table'
-    ],
     calls: ['call', 'phone', 'dial', 'contact', 'center'],
     health: ['health', 'account', 'retention', 'status', 'relationship']
   };
