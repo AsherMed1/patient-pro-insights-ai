@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, DollarSign, Users, Calendar, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Calendar, Target, CalendarIcon } from 'lucide-react';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { getSheetConfig } from '@/config/googleSheets';
 import { transformCampaignData } from '@/utils/sheetDataTransformer';
@@ -40,60 +40,65 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
   console.log('Campaign Dashboard - Date Range:', dateRange);
   console.log('Campaign Dashboard - Procedure Filter:', procedure);
 
-  // Transform Google Sheets data
-  const campaignData = transformCampaignData(sheetData, procedure, dateRange);
+  // Check if date range is selected
+  const hasDateRange = dateRange.from && dateRange.to;
+
+  // Transform Google Sheets data only if date range is selected
+  const campaignData = hasDateRange ? transformCampaignData(sheetData, procedure, dateRange) : null;
   
   console.log('Campaign Dashboard - Transformed Data:', campaignData);
   console.log('Campaign Dashboard - Using Live Data:', !!campaignData);
   
-  // Fallback mock data only if no live data is available
-  const mockData = {
-    'texas-vascular-institute': {
-      adSpend: 15420,
-      leads: 187,
-      appointments: 89,
-      procedures: 45,
-      showRate: 85.3,
-      cpl: 82.46,
-      cpa: 173.26,
-      cpp: 342.67,
-      trend: 'up' as const
-    },
-    'advanced-dermatology-center': {
-      adSpend: 22100,
-      leads: 245,
-      appointments: 112,
-      procedures: 67,
-      showRate: 78.2,
-      cpl: 90.20,
-      cpa: 197.32,
-      cpp: 329.85,
-      trend: 'down' as const
-    },
-    'call-center-analytics': {
-      adSpend: 11800,
-      leads: 156,
-      appointments: 74,
-      procedures: 38,
-      showRate: 91.2,
-      cpl: 75.64,
-      cpa: 159.46,
-      cpp: 310.53,
-      trend: 'up' as const
-    }
+  // Empty data structure for when no date range is selected
+  const emptyData = {
+    adSpend: 0,
+    leads: 0,
+    appointments: 0,
+    procedures: 0,
+    showRate: 0,
+    cpl: 0,
+    cpa: 0,
+    cpp: 0,
+    trend: 'up' as const
   };
 
-  // Use live data if available, otherwise fall back to mock data
-  const data = campaignData || mockData[clientId as keyof typeof mockData] || mockData['texas-vascular-institute'];
-  const isLiveData = !!campaignData;
+  // Use live data if available and date range is selected, otherwise show empty data
+  const data = campaignData || emptyData;
+  const isLiveData = !!campaignData && hasDateRange;
 
-  const formatCurrency = (amount: number) => `$${amount.toLocaleString()}`;
-  const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
+  const formatCurrency = (amount: number) => amount > 0 ? `$${amount.toLocaleString()}` : '$0';
+  const formatPercent = (percent: number) => percent > 0 ? `${percent.toFixed(1)}%` : '0.0%';
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg">Loading campaign data from Google Sheets...</div>
+      </div>
+    );
+  }
+
+  // Show empty state when no date range is selected
+  if (!hasDateRange) {
+    return (
+      <div className="space-y-6">
+        {/* Filters */}
+        <DashboardFilters
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          procedure={procedure}
+          onProcedureChange={setProcedure}
+        />
+
+        {/* Empty State */}
+        <Card className="text-center py-12">
+          <CardContent>
+            <CalendarIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">Select a Date Range</h3>
+            <p className="text-gray-500">
+              Please select a date range above to view campaign performance data.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -112,7 +117,7 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Badge variant={isLiveData ? "default" : "secondary"}>
-            {isLiveData ? "Live Data" : "Mock Data"}
+            {isLiveData ? "Live Data" : "No Data"}
           </Badge>
           {usedTabName && (
             <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -135,9 +140,9 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
             Error: {error}
           </Badge>
         )}
-        {!isLiveData && sheetData && sheetData.length > 0 && (
+        {!isLiveData && sheetData && sheetData.length > 0 && hasDateRange && (
           <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
-            Data found but no Texas Vascular matches
+            Data found but no matches for selected criteria
           </Badge>
         )}
       </div>
@@ -208,9 +213,9 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-2">
                 <span>Target: $75.00</span>
-                <span>{data.cpl > 75 ? 'Above Target' : 'On Target'}</span>
+                <span>{data.cpl > 75 ? 'Above Target' : data.cpl > 0 ? 'On Target' : 'No Data'}</span>
               </div>
-              <Progress value={Math.min((75 / data.cpl) * 100, 100)} className="h-2" />
+              <Progress value={data.cpl > 0 ? Math.min((75 / data.cpl) * 100, 100) : 0} className="h-2" />
             </div>
           </CardContent>
         </Card>
@@ -225,9 +230,9 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-2">
                 <span>Target: $180.00</span>
-                <span>{data.cpa > 180 ? 'Above Target' : 'On Target'}</span>
+                <span>{data.cpa > 180 ? 'Above Target' : data.cpa > 0 ? 'On Target' : 'No Data'}</span>
               </div>
-              <Progress value={Math.min((180 / data.cpa) * 100, 100)} className="h-2" />
+              <Progress value={data.cpa > 0 ? Math.min((180 / data.cpa) * 100, 100) : 0} className="h-2" />
             </div>
           </CardContent>
         </Card>
@@ -242,9 +247,9 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-2">
                 <span>Target: $350.00</span>
-                <span>{data.cpp > 350 ? 'Above Target' : 'On Target'}</span>
+                <span>{data.cpp > 350 ? 'Above Target' : data.cpp > 0 ? 'On Target' : 'No Data'}</span>
               </div>
-              <Progress value={Math.min((350 / data.cpp) * 100, 100)} className="h-2" />
+              <Progress value={data.cpp > 0 ? Math.min((350 / data.cpp) * 100, 100) : 0} className="h-2" />
             </div>
           </CardContent>
         </Card>
@@ -262,11 +267,11 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
               <div>
                 <h4 className="font-medium">Conversion Rate (Leads to Appointments)</h4>
                 <p className="text-sm text-gray-600">
-                  {((data.appointments / data.leads) * 100).toFixed(1)}% of leads converted to appointments
+                  {data.leads > 0 ? ((data.appointments / data.leads) * 100).toFixed(1) : '0.0'}% of leads converted to appointments
                 </p>
               </div>
-              <Badge variant={data.appointments / data.leads > 0.45 ? "default" : "secondary"}>
-                {data.appointments / data.leads > 0.45 ? "Good" : "Needs Improvement"}
+              <Badge variant={data.leads > 0 && data.appointments / data.leads > 0.45 ? "default" : "secondary"}>
+                {data.leads > 0 && data.appointments / data.leads > 0.45 ? "Good" : data.leads > 0 ? "Needs Improvement" : "No Data"}
               </Badge>
             </div>
             
@@ -274,11 +279,11 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
               <div>
                 <h4 className="font-medium">Procedure Conversion Rate</h4>
                 <p className="text-sm text-gray-600">
-                  {((data.procedures / data.appointments) * 100).toFixed(1)}% of appointments resulted in procedures
+                  {data.appointments > 0 ? ((data.procedures / data.appointments) * 100).toFixed(1) : '0.0'}% of appointments resulted in procedures
                 </p>
               </div>
-              <Badge variant={data.procedures / data.appointments > 0.5 ? "default" : "secondary"}>
-                {data.procedures / data.appointments > 0.5 ? "Excellent" : "Good"}
+              <Badge variant={data.appointments > 0 && data.procedures / data.appointments > 0.5 ? "default" : "secondary"}>
+                {data.appointments > 0 && data.procedures / data.appointments > 0.5 ? "Excellent" : data.appointments > 0 ? "Good" : "No Data"}
               </Badge>
             </div>
           </div>
