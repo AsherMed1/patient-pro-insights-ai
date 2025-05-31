@@ -14,11 +14,16 @@ interface CampaignDashboardProps {
 const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
   const sheetConfig = getSheetConfig(clientId);
   
-  const { data: sheetData, loading, error } = useGoogleSheets({
+  const { data: sheetData, loading, error, usedTabName } = useGoogleSheets({
     spreadsheetId: sheetConfig?.spreadsheetId || '',
-    range: sheetConfig?.ranges.campaign || '',
     clientId,
+    dataType: 'campaign',
+    enableDynamicTabs: true,
   });
+
+  console.log('Campaign Dashboard - Sheet Data:', sheetData);
+  console.log('Campaign Dashboard - Used Tab:', usedTabName);
+  console.log('Campaign Dashboard - Error:', error);
 
   // Transform Google Sheets data or fall back to mock data
   const campaignData = transformCampaignData(sheetData);
@@ -84,26 +89,26 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
     );
   }
 
-  if (error) {
-    console.error('Campaign dashboard error:', error);
-    // Continue with mock data if there's an error
-  }
-
   return (
     <div className="space-y-6">
       {/* Data Source Indicator */}
-      {sheetConfig && (
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
           <Badge variant={campaignData ? "default" : "secondary"}>
             {campaignData ? "Live Data" : "Mock Data"}
           </Badge>
-          {error && (
-            <Badge variant="destructive" className="text-xs">
-              Using fallback data: {error}
+          {usedTabName && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+              Tab: {usedTabName}
             </Badge>
           )}
         </div>
-      )}
+        {error && (
+          <Badge variant="destructive" className="text-xs">
+            Error: {error}
+          </Badge>
+        )}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
