@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -6,12 +6,23 @@ import { TrendingUp, TrendingDown, DollarSign, Users, Calendar, Target } from 'l
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { getSheetConfig } from '@/config/googleSheets';
 import { transformCampaignData } from '@/utils/sheetDataTransformer';
+import DashboardFilters from './DashboardFilters';
 
 interface CampaignDashboardProps {
   clientId: string;
 }
 
 const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined,
+  });
+  
+  const [procedure, setProcedure] = useState<string>('ALL');
+
   const sheetConfig = getSheetConfig(clientId);
   
   const { data: sheetData, loading, error, usedTabName } = useGoogleSheets({
@@ -24,9 +35,11 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
   console.log('Campaign Dashboard - Sheet Data:', sheetData);
   console.log('Campaign Dashboard - Used Tab:', usedTabName);
   console.log('Campaign Dashboard - Error:', error);
+  console.log('Campaign Dashboard - Date Range:', dateRange);
+  console.log('Campaign Dashboard - Procedure Filter:', procedure);
 
   // Transform Google Sheets data or fall back to mock data
-  const campaignData = transformCampaignData(sheetData);
+  const campaignData = transformCampaignData(sheetData, procedure, dateRange);
   
   // Fallback mock data if Google Sheets data is not available
   const mockData = {
@@ -91,6 +104,14 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Filters */}
+      <DashboardFilters
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        procedure={procedure}
+        onProcedureChange={setProcedure}
+      />
+
       {/* Data Source Indicator */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -100,6 +121,11 @@ const CampaignDashboard = ({ clientId }: CampaignDashboardProps) => {
           {usedTabName && (
             <Badge variant="outline" className="bg-blue-50 text-blue-700">
               Tab: {usedTabName}
+            </Badge>
+          )}
+          {procedure !== 'ALL' && (
+            <Badge variant="outline" className="bg-green-50 text-green-700">
+              Procedure: {procedure}
             </Badge>
           )}
         </div>
