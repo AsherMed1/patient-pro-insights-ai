@@ -8,7 +8,6 @@ import NewLeadsManager from "@/components/NewLeadsManager";
 import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
-import ClientManager from "@/components/ClientManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import AllAppointmentsApiDocs from "@/components/AllAppointmentsApiDocs";
 import AllCallsApiDocs from "@/components/AllCallsApiDocs";
@@ -26,7 +25,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -34,7 +33,6 @@ const Index = () => {
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="clients">Clients</TabsTrigger>
             <TabsTrigger value="api">API Docs</TabsTrigger>
           </TabsList>
 
@@ -65,10 +63,6 @@ const Index = () => {
 
           <TabsContent value="projects" className="space-y-6">
             <ProjectsManager />
-          </TabsContent>
-
-          <TabsContent value="clients" className="space-y-6">
-            <ClientManager />
           </TabsContent>
 
           <TabsContent value="api" className="space-y-6">
