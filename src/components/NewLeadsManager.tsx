@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { PlusCircle, Phone, Calendar, User, Building } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -19,8 +20,14 @@ interface NewLead {
   updated_at: string;
 }
 
+interface Client {
+  client_id: string;
+  name: string;
+}
+
 const NewLeadsManager = () => {
   const [leads, setLeads] = useState<NewLead[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -32,7 +39,25 @@ const NewLeadsManager = () => {
 
   useEffect(() => {
     fetchLeads();
+    fetchClients();
   }, []);
+
+  const fetchClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('client_id, name')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching clients:', error);
+      } else {
+        setClients(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
 
   const fetchLeads = async () => {
     try {
@@ -156,14 +181,18 @@ const NewLeadsManager = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="project_name">Project Name</Label>
-                <Input
-                  id="project_name"
-                  type="text"
-                  placeholder="Enter project name"
-                  value={formData.project_name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, project_name: e.target.value }))}
-                  required
-                />
+                <Select value={formData.project_name} onValueChange={(value) => setFormData(prev => ({ ...prev, project_name: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a client/project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.client_id} value={client.name}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="space-y-2">

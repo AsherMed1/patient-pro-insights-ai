@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -21,8 +22,14 @@ interface SpeedToLeadStat {
   updated_at: string;
 }
 
+interface Client {
+  client_id: string;
+  name: string;
+}
+
 const SpeedToLeadManager = () => {
   const [stats, setStats] = useState<SpeedToLeadStat[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     date: '',
@@ -36,7 +43,25 @@ const SpeedToLeadManager = () => {
 
   useEffect(() => {
     fetchStats();
+    fetchClients();
   }, []);
+
+  const fetchClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('client_id, name')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching clients:', error);
+      } else {
+        setClients(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -155,14 +180,18 @@ const SpeedToLeadManager = () => {
             
             <div className="space-y-2">
               <Label htmlFor="project_name">Project Name</Label>
-              <Input
-                id="project_name"
-                name="project_name"
-                value={formData.project_name}
-                onChange={handleInputChange}
-                placeholder="Enter project name"
-                required
-              />
+              <Select value={formData.project_name} onValueChange={(value) => setFormData(prev => ({ ...prev, project_name: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client/project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.client_id} value={client.name}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">
