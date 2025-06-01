@@ -358,25 +358,25 @@ export type Database = {
         Row: {
           client_id: string
           created_at: string
+          gohighlevel_api_key: string
           id: string
           name: string
-          spreadsheet_id: string
           updated_at: string
         }
         Insert: {
           client_id: string
           created_at?: string
+          gohighlevel_api_key?: string
           id?: string
           name: string
-          spreadsheet_id: string
           updated_at?: string
         }
         Update: {
           client_id?: string
           created_at?: string
+          gohighlevel_api_key?: string
           id?: string
           name?: string
-          spreadsheet_id?: string
           updated_at?: string
         }
         Relationships: []
