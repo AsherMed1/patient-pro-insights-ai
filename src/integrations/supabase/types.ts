@@ -286,74 +286,6 @@ export type Database = {
           },
         ]
       }
-      campaigns: {
-        Row: {
-          ad_spend: number | null
-          additional_fields: Json | null
-          appointments: number | null
-          campaign_date: string | null
-          client_id: string
-          cpa: number | null
-          cpl: number | null
-          cpp: number | null
-          created_at: string
-          id: string
-          leads: number | null
-          procedures: number | null
-          raw_data: Json | null
-          show_rate: number | null
-          source_row: number | null
-          source_sheet: string | null
-          updated_at: string
-        }
-        Insert: {
-          ad_spend?: number | null
-          additional_fields?: Json | null
-          appointments?: number | null
-          campaign_date?: string | null
-          client_id: string
-          cpa?: number | null
-          cpl?: number | null
-          cpp?: number | null
-          created_at?: string
-          id?: string
-          leads?: number | null
-          procedures?: number | null
-          raw_data?: Json | null
-          show_rate?: number | null
-          source_row?: number | null
-          source_sheet?: string | null
-          updated_at?: string
-        }
-        Update: {
-          ad_spend?: number | null
-          additional_fields?: Json | null
-          appointments?: number | null
-          campaign_date?: string | null
-          client_id?: string
-          cpa?: number | null
-          cpl?: number | null
-          cpp?: number | null
-          created_at?: string
-          id?: string
-          leads?: number | null
-          procedures?: number | null
-          raw_data?: Json | null
-          show_rate?: number | null
-          source_row?: number | null
-          source_sheet?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campaigns_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["client_id"]
-          },
-        ]
-      }
       clients: {
         Row: {
           client_id: string
@@ -467,47 +399,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      sync_logs: {
-        Row: {
-          client_id: string | null
-          completed_at: string | null
-          error_message: string | null
-          id: string
-          records_processed: number | null
-          started_at: string
-          status: string
-          sync_type: string
-        }
-        Insert: {
-          client_id?: string | null
-          completed_at?: string | null
-          error_message?: string | null
-          id?: string
-          records_processed?: number | null
-          started_at?: string
-          status: string
-          sync_type: string
-        }
-        Update: {
-          client_id?: string | null
-          completed_at?: string | null
-          error_message?: string | null
-          id?: string
-          records_processed?: number | null
-          started_at?: string
-          status?: string
-          sync_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sync_logs_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["client_id"]
-          },
-        ]
       }
     }
     Views: {

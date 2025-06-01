@@ -1,12 +1,10 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import CampaignDashboard from "@/components/CampaignDashboard";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AccountHealthDashboard from "@/components/AccountHealthDashboard";
 import AIAssistant from "@/components/AIAssistant";
 import ClientManager from "@/components/ClientManager";
-import DataSyncManager from "@/components/DataSyncManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import NewLeadsManager from "@/components/NewLeadsManager";
 import AllCallsManager from "@/components/AllCallsManager";
@@ -32,13 +30,11 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="callcenter">Call Center</TabsTrigger>
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="clients">Clients</TabsTrigger>
-            <TabsTrigger value="sync">Data Sync</TabsTrigger>
             <TabsTrigger value="callcenterstats">Call Center Stats</TabsTrigger>
             <TabsTrigger value="agentperformance">Agent Performance</TabsTrigger>
           </TabsList>
@@ -57,11 +53,9 @@ const Index = () => {
                       Use the tabs above to navigate between different sections:
                     </p>
                     <ul className="space-y-2 text-sm">
-                      <li>• <strong>Campaigns:</strong> View campaign performance metrics</li>
                       <li>• <strong>Call Center:</strong> Call analytics and performance</li>
                       <li>• <strong>Health:</strong> Account health monitoring</li>
                       <li>• <strong>Clients:</strong> Manage client information</li>
-                      <li>• <strong>Data Sync:</strong> Synchronize data from Google Sheets</li>
                       <li>• <strong>Call Center Stats:</strong> View leads, calls, appointments, and agent data</li>
                       <li>• <strong>Agent Performance:</strong> Real-time agent performance dashboard</li>
                     </ul>
@@ -70,10 +64,6 @@ const Index = () => {
               </Card>
             </div>
             <AIAssistant clientId={defaultClientId} />
-          </TabsContent>
-
-          <TabsContent value="campaigns">
-            <CampaignDashboard clientId={defaultClientId} />
           </TabsContent>
 
           <TabsContent value="callcenter">
@@ -86,10 +76,6 @@ const Index = () => {
 
           <TabsContent value="clients">
             <ClientManager />
-          </TabsContent>
-
-          <TabsContent value="sync">
-            <DataSyncManager />
           </TabsContent>
 
           <TabsContent value="callcenterstats" className="space-y-6">
