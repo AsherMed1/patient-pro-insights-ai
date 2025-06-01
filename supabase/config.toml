@@ -3,3 +3,6 @@ project_id = "bhabbokbhnqioykjimix"
 
 [functions.new-lead-api]
 verify_jwt = false
+
+[functions.all-calls-api]
+verify_jwt = false
