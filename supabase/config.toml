@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.speed-to-lead-calculator]
 verify_jwt = false
+
+[functions.all-appointments-api]
+verify_jwt = false
