@@ -1,4 +1,3 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import CampaignDashboard from "@/components/CampaignDashboard";
@@ -14,6 +13,7 @@ import AllCallsManager from "@/components/AllCallsManager";
 import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AgentManager from "@/components/AgentManager";
+import AgentPerformanceDashboard from "@/components/AgentPerformanceDashboard";
 
 const Index = () => {
   // Default clientId for components that require it
@@ -32,7 +32,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-9">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="gohighlevel">GoHighLevel</TabsTrigger>
@@ -41,6 +41,7 @@ const Index = () => {
             <TabsTrigger value="clients">Clients</TabsTrigger>
             <TabsTrigger value="sync">Data Sync</TabsTrigger>
             <TabsTrigger value="callcenterstats">Call Center Stats</TabsTrigger>
+            <TabsTrigger value="agentperformance">Agent Performance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -64,6 +65,7 @@ const Index = () => {
                       <li>• <strong>Clients:</strong> Manage client information</li>
                       <li>• <strong>Data Sync:</strong> Synchronize data from Google Sheets</li>
                       <li>• <strong>Call Center Stats:</strong> View leads, calls, appointments, and agent data</li>
+                      <li>• <strong>Agent Performance:</strong> Real-time agent performance dashboard</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -131,6 +133,10 @@ const Index = () => {
                 <AgentManager />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="agentperformance">
+            <AgentPerformanceDashboard />
           </TabsContent>
         </Tabs>
       </div>

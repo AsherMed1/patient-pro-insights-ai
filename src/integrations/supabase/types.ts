@@ -9,6 +9,77 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      agent_performance_stats: {
+        Row: {
+          agent_id: string | null
+          agent_name: string
+          answered_calls_vm: number
+          appts_to_take_place: number
+          average_duration_per_call_minutes: number
+          average_duration_per_call_seconds: number
+          booked_appointments: number
+          conversations_2_minutes_plus: number
+          created_at: string
+          date: string
+          id: string
+          no_shows: number
+          pickups_40_seconds_plus: number
+          show_rate: number
+          shows: number
+          time_on_phone_minutes: number
+          total_dials_made: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          agent_name: string
+          answered_calls_vm?: number
+          appts_to_take_place?: number
+          average_duration_per_call_minutes?: number
+          average_duration_per_call_seconds?: number
+          booked_appointments?: number
+          conversations_2_minutes_plus?: number
+          created_at?: string
+          date: string
+          id?: string
+          no_shows?: number
+          pickups_40_seconds_plus?: number
+          show_rate?: number
+          shows?: number
+          time_on_phone_minutes?: number
+          total_dials_made?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          agent_name?: string
+          answered_calls_vm?: number
+          appts_to_take_place?: number
+          average_duration_per_call_minutes?: number
+          average_duration_per_call_seconds?: number
+          booked_appointments?: number
+          conversations_2_minutes_plus?: number
+          created_at?: string
+          date?: string
+          id?: string
+          no_shows?: number
+          pickups_40_seconds_plus?: number
+          show_rate?: number
+          shows?: number
+          time_on_phone_minutes?: number
+          total_dials_made?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_performance_stats_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agents: {
         Row: {
           active: boolean
