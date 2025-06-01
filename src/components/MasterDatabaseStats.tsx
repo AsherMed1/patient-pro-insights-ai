@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useMasterDatabase } from '@/hooks/useMasterDatabase';
-import { Database, Users, Calendar, TrendingUp, Loader2 } from 'lucide-react';
+import { Database, Users, Calendar, UserCheck, Loader2 } from 'lucide-react';
 
 const MasterDatabaseStats = () => {
   const { stats, loading } = useMasterDatabase();
@@ -45,12 +45,12 @@ const MasterDatabaseStats = () => {
 
       <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium opacity-90">Campaign Records</CardTitle>
-          <TrendingUp className="h-4 w-4 opacity-90" />
+          <CardTitle className="text-sm font-medium opacity-90">Active Agents</CardTitle>
+          <UserCheck className="h-4 w-4 opacity-90" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.totalCampaigns.toLocaleString()}</div>
-          <p className="text-xs opacity-90 mt-1">Marketing data points</p>
+          <div className="text-2xl font-bold">{stats.totalAgents.toLocaleString()}</div>
+          <p className="text-xs opacity-90 mt-1">Call center agents</p>
         </CardContent>
       </Card>
 
@@ -62,14 +62,10 @@ const MasterDatabaseStats = () => {
         <CardContent>
           <div className="flex items-center space-x-2">
             <Badge variant="secondary" className="bg-white/20 text-white">
-              {stats.totalAppointments > 0 || stats.totalCampaigns > 0 ? 'Active' : 'Empty'}
+              {stats.totalAppointments > 0 || stats.totalAgents > 0 ? 'Active' : 'Empty'}
             </Badge>
           </div>
-          {stats.lastSyncTime && (
-            <p className="text-xs opacity-90 mt-1">
-              Last sync: {new Date(stats.lastSyncTime).toLocaleDateString()}
-            </p>
-          )}
+          <p className="text-xs opacity-90 mt-1">System operational</p>
         </CardContent>
       </Card>
     </div>
