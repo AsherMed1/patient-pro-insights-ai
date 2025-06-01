@@ -13,6 +13,7 @@ import NewLeadsManager from "@/components/NewLeadsManager";
 import AllCallsManager from "@/components/AllCallsManager";
 import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
+import AgentManager from "@/components/AgentManager";
 
 const Index = () => {
   // Default clientId for components that require it
@@ -31,7 +32,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-11">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-12">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="gohighlevel">GoHighLevel</TabsTrigger>
@@ -43,6 +44,7 @@ const Index = () => {
             <TabsTrigger value="calls">All Calls</TabsTrigger>
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="appointments">All Appointments</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -69,6 +71,7 @@ const Index = () => {
                       <li>• <strong>All Calls:</strong> Record and manage call data</li>
                       <li>• <strong>Speed to Lead:</strong> Track lead response time statistics</li>
                       <li>• <strong>All Appointments:</strong> Manage appointment records and tracking</li>
+                      <li>• <strong>Agents:</strong> Manage call center agents and their information</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -115,6 +118,10 @@ const Index = () => {
 
           <TabsContent value="appointments">
             <AllAppointmentsManager />
+          </TabsContent>
+
+          <TabsContent value="agents">
+            <AgentManager />
           </TabsContent>
         </Tabs>
       </div>
