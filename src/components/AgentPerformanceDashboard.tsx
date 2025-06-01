@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Phone, TrendingUp, Users, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Phone, TrendingUp, Users, CheckCircle, XCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 import AgentPerformanceTable from './AgentPerformanceTable';
 import AgentPerformanceStats from './AgentPerformanceStats';
-import DashboardFilters from './DashboardFilters';
 
 interface AgentPerformanceData {
   id: string;
@@ -303,33 +307,94 @@ const AgentPerformanceDashboard = () => {
         </div>
       </div>
 
-      <DashboardFilters
-        dateRange={dateRange}
-        onDateRangeChange={handleDateRangeChange}
-        procedure="ALL"
-        onProcedureChange={() => {}} // Not used in this context
-      />
+      {/* Compact Filters */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+            {/* Date Range Picker */}
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">Date Range</label>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[120px] justify-start text-left font-normal",
+                        !dateRange.from && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.from ? format(dateRange.from, "MMM dd") : "Start"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.from}
+                      onSelect={(date) => handleDateRangeChange({ ...dateRange, from: date })}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Calendar className="h-4 w-4 text-gray-500" />
-          <span className="text-sm text-gray-600">{getDateRangeText()}</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <label className="text-sm font-medium">View:</label>
-          <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select agent" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Agents</SelectItem>
-              {availableAgents.map(agent => (
-                <SelectItem key={agent} value={agent}>{agent}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[120px] justify-start text-left font-normal",
+                        !dateRange.to && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.to ? format(dateRange.to, "MMM dd") : "End"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.to}
+                      onSelect={(date) => handleDateRangeChange({ ...dateRange, to: date })}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Agent Filter */}
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">Agent</label>
+              <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Select agent" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
+                  <SelectItem value="all">All Agents</SelectItem>
+                  {availableAgents.map(agent => (
+                    <SelectItem key={agent} value={agent}>{agent}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Clear Filters Button */}
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                handleDateRangeChange({ from: new Date(), to: new Date() });
+                setSelectedAgent('all');
+              }}
+              className="w-fit"
+            >
+              Reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <AgentPerformanceStats 
         totalStats={totalStats}
