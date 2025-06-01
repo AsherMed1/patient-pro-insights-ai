@@ -13,7 +13,6 @@ import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import AllAppointmentsApiDocs from "@/components/AllAppointmentsApiDocs";
 import AllCallsApiDocs from "@/components/AllCallsApiDocs";
 import NewLeadApiDocs from "@/components/NewLeadApiDocs";
-import AgentAppointmentClaimForm from "@/components/AgentAppointmentClaimForm";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -27,9 +26,8 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="claim">Claim Appt</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
@@ -43,10 +41,6 @@ const Index = () => {
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />
             <CallCenterDashboard projectId="project-1" />
-          </TabsContent>
-
-          <TabsContent value="claim" className="space-y-6">
-            <AgentAppointmentClaimForm />
           </TabsContent>
 
           <TabsContent value="appointments" className="space-y-6">
