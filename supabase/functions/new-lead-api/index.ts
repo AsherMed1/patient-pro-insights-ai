@@ -62,6 +62,43 @@ serve(async (req) => {
       )
     }
 
+    // Check if project exists, if not create it
+    const { data: existingProject, error: projectCheckError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('project_name', project_name)
+      .maybeSingle()
+
+    if (projectCheckError && projectCheckError.code !== 'PGRST116') {
+      console.error('Error checking project:', projectCheckError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to check project', details: projectCheckError.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // If project doesn't exist, create it
+    if (!existingProject) {
+      const { error: projectInsertError } = await supabase
+        .from('projects')
+        .insert([{ project_name }])
+
+      if (projectInsertError) {
+        console.error('Error creating project:', projectInsertError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to create project', details: projectInsertError.message }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+      console.log('Created new project:', project_name)
+    }
+
     // Insert new lead into database
     const { data, error } = await supabase
       .from('new_leads')
@@ -89,7 +126,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Lead created successfully',
-        data: data[0]
+        data: data[0],
+        project_created: !existingProject
       }),
       { 
         status: 201, 

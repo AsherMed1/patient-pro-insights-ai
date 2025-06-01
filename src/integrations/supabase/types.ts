@@ -411,6 +411,27 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          created_at: string
+          id: string
+          project_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       speed_to_lead_stats: {
         Row: {
           created_at: string
