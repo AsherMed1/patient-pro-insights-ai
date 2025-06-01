@@ -88,9 +88,8 @@ serve(async (req) => {
       )
     }
 
-    // Validate direction and status values
+    // Validate direction values
     const validDirections = ['inbound', 'outbound']
-    const validStatuses = ['answered', 'missed', 'voicemail', 'busy', 'failed', 'no-answer']
 
     if (!validDirections.includes(direction.toLowerCase())) {
       return new Response(
@@ -104,17 +103,7 @@ serve(async (req) => {
       )
     }
 
-    if (!validStatuses.includes(status.toLowerCase())) {
-      return new Response(
-        JSON.stringify({ 
-          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
-        }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
+    // Status can now be any text - no validation needed
 
     // Insert new call record into database
     const { data, error } = await supabase
@@ -126,7 +115,7 @@ serve(async (req) => {
         date: dateObj.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
         call_datetime: callDateTimeObj.toISOString(),
         direction: direction.toLowerCase(),
-        status: status.toLowerCase(),
+        status: status, // Accept any text value
         duration_seconds: parseInt(duration_seconds) || 0,
         agent,
         recording_url,

@@ -24,7 +24,7 @@ const AllCallsApiDocs = () => {
     date: "2024-01-15",
     call_datetime: "2024-01-15T14:30:00Z",
     direction: "outbound",
-    status: "answered",
+    status: "lead_answered",
     duration_seconds: 180,
     agent: "John Agent",
     recording_url: "https://example.com/recording.mp3",
@@ -96,7 +96,7 @@ print(result)`;
               <li><code className="bg-gray-100 px-1 rounded">date</code> - Date in YYYY-MM-DD format (string)</li>
               <li><code className="bg-gray-100 px-1 rounded">call_datetime</code> - Call date and time in ISO 8601 format (string)</li>
               <li><code className="bg-gray-100 px-1 rounded">direction</code> - Call direction: "inbound" or "outbound" (string)</li>
-              <li><code className="bg-gray-100 px-1 rounded">status</code> - Call status: "answered", "missed", "voicemail", "busy", "failed", or "no-answer" (string)</li>
+              <li><code className="bg-gray-100 px-1 rounded">status</code> - Call status: any text value (string)</li>
             </ul>
           </div>
 
@@ -210,7 +210,7 @@ print(result)`;
     "date": "2024-01-15",
     "call_datetime": "2024-01-15T14:30:00Z",
     "direction": "outbound",
-    "status": "answered",
+    "status": "lead_answered",
     "duration_seconds": 180,
     "agent": "John Agent",
     "recording_url": "https://example.com/recording.mp3",
