@@ -12,6 +12,7 @@ import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import AllAppointmentsApiDocs from "@/components/AllAppointmentsApiDocs";
 import AllCallsApiDocs from "@/components/AllCallsApiDocs";
 import NewLeadApiDocs from "@/components/NewLeadApiDocs";
+import AIAssistant from "@/components/AIAssistant";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -25,7 +26,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -33,6 +34,7 @@ const Index = () => {
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="ai">AI Assistant</TabsTrigger>
             <TabsTrigger value="api">API Docs</TabsTrigger>
           </TabsList>
 
@@ -63,6 +65,10 @@ const Index = () => {
 
           <TabsContent value="projects" className="space-y-6">
             <ProjectsManager />
+          </TabsContent>
+
+          <TabsContent value="ai" className="space-y-6">
+            <AIAssistant clientId="project-1" />
           </TabsContent>
 
           <TabsContent value="api" className="space-y-6">
