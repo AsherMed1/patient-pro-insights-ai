@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Clock, Phone, TrendingUp, Users, CheckCircle, XCircle } from 'lucide-react';
 import AgentPerformanceTable from './AgentPerformanceTable';
 import AgentPerformanceStats from './AgentPerformanceStats';
+import DashboardFilters from './DashboardFilters';
 
 interface AgentPerformanceData {
   id: string;
@@ -31,24 +33,46 @@ interface AgentPerformanceData {
 const AgentPerformanceDashboard = () => {
   const [performanceData, setPerformanceData] = useState<AgentPerformanceData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: new Date(),
+    to: new Date()
+  });
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
+  const [availableAgents, setAvailableAgents] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchPerformanceData();
     setupRealtimeSubscription();
-  }, [selectedDate]);
+  }, [dateRange, selectedAgent]);
 
   const fetchPerformanceData = async () => {
     try {
       setLoading(true);
       
+      const fromDate = dateRange.from?.toISOString().split('T')[0];
+      const toDate = dateRange.to?.toISOString().split('T')[0];
+      
+      if (!fromDate || !toDate) {
+        setPerformanceData([]);
+        return;
+      }
+
       // Try to get data from agent_performance_stats first
-      const { data: existingData, error: existingError } = await supabase
+      let query = supabase
         .from('agent_performance_stats')
         .select('*')
-        .eq('date', selectedDate)
-        .order('agent_name');
+        .gte('date', fromDate)
+        .lte('date', toDate);
+
+      if (selectedAgent !== 'all') {
+        query = query.eq('agent_name', selectedAgent);
+      }
+
+      const { data: existingData, error: existingError } = await query.order('date', { ascending: false }).order('agent_name');
 
       if (existingError) {
         console.error('Error fetching existing performance data:', existingError);
@@ -57,9 +81,10 @@ const AgentPerformanceDashboard = () => {
       // If we have existing data, use it
       if (existingData && existingData.length > 0) {
         setPerformanceData(existingData);
+        updateAvailableAgents(existingData);
       } else {
         // Otherwise, calculate from call center stats tables
-        await calculatePerformanceFromCallData();
+        await calculatePerformanceFromCallData(fromDate, toDate);
       }
     } catch (error) {
       console.error('Error fetching performance data:', error);
@@ -73,80 +98,117 @@ const AgentPerformanceDashboard = () => {
     }
   };
 
-  const calculatePerformanceFromCallData = async () => {
+  const calculatePerformanceFromCallData = async (fromDate: string, toDate: string) => {
     try {
       // Get all agents
-      const { data: agents, error: agentsError } = await supabase
+      let agentsQuery = supabase
         .from('agents')
         .select('*')
         .eq('active', true);
 
+      if (selectedAgent !== 'all') {
+        agentsQuery = agentsQuery.eq('agent_name', selectedAgent);
+      }
+
+      const { data: agents, error: agentsError } = await agentsQuery;
+
       if (agentsError) throw agentsError;
 
-      // Get call data for the selected date
+      // Get call data for the date range
       const { data: calls, error: callsError } = await supabase
         .from('all_calls')
         .select('*')
-        .eq('date', selectedDate);
+        .gte('date', fromDate)
+        .lte('date', toDate);
 
       if (callsError) throw callsError;
 
-      // Get appointment data for the selected date
+      // Get appointment data for the date range
       const { data: appointments, error: appointmentsError } = await supabase
         .from('all_appointments')
         .select('*')
-        .eq('date_appointment_created', selectedDate);
+        .gte('date_appointment_created', fromDate)
+        .lte('date_appointment_created', toDate);
 
       if (appointmentsError) throw appointmentsError;
 
-      // Calculate performance for each agent
-      const calculatedPerformance = (agents || []).map(agent => {
-        const agentCalls = calls?.filter(call => call.agent === agent.agent_name) || [];
-        const agentAppointments = appointments?.filter(apt => apt.agent === agent.agent_name) || [];
+      // Calculate performance for each agent and date combination
+      const calculatedPerformance: AgentPerformanceData[] = [];
+      const dateRange = getDateRange(new Date(fromDate), new Date(toDate));
 
-        const totalDials = agentCalls.length;
-        const answeredCalls = agentCalls.filter(call => call.status === 'answered' || call.status === 'voicemail').length;
-        const pickups40Plus = agentCalls.filter(call => call.duration_seconds >= 40).length;
-        const conversations2Plus = agentCalls.filter(call => call.duration_seconds >= 120).length;
-        const totalDuration = agentCalls.reduce((sum, call) => sum + call.duration_seconds, 0);
-        const avgDurationSeconds = totalDials > 0 ? Math.round(totalDuration / totalDials) : 0;
-        const timeOnPhoneMinutes = Math.round(totalDuration / 60);
-        
-        const bookedAppointments = agentAppointments.length;
-        const shows = agentAppointments.filter(apt => apt.showed).length;
-        const noShows = agentAppointments.filter(apt => !apt.showed && apt.date_of_appointment && new Date(apt.date_of_appointment) < new Date()).length;
-        const showRate = (shows + noShows) > 0 ? (shows / (shows + noShows)) * 100 : 0;
+      dateRange.forEach(date => {
+        (agents || []).forEach(agent => {
+          const dateString = date.toISOString().split('T')[0];
+          const agentCalls = calls?.filter(call => call.agent === agent.agent_name && call.date === dateString) || [];
+          const agentAppointments = appointments?.filter(apt => apt.agent === agent.agent_name && apt.date_appointment_created === dateString) || [];
 
-        return {
-          id: `calculated-${agent.id}-${selectedDate}`,
-          date: selectedDate,
-          agent_name: agent.agent_name,
-          agent_id: agent.id,
-          total_dials_made: totalDials,
-          answered_calls_vm: answeredCalls,
-          pickups_40_seconds_plus: pickups40Plus,
-          conversations_2_minutes_plus: conversations2Plus,
-          booked_appointments: bookedAppointments,
-          time_on_phone_minutes: timeOnPhoneMinutes,
-          average_duration_per_call_seconds: avgDurationSeconds,
-          average_duration_per_call_minutes: avgDurationSeconds / 60,
-          appts_to_take_place: bookedAppointments,
-          shows: shows,
-          no_shows: noShows,
-          show_rate: showRate,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+          const totalDials = agentCalls.length;
+          const answeredCalls = agentCalls.filter(call => call.status === 'answered' || call.status === 'voicemail').length;
+          const pickups40Plus = agentCalls.filter(call => call.duration_seconds >= 40).length;
+          const conversations2Plus = agentCalls.filter(call => call.duration_seconds >= 120).length;
+          const totalDuration = agentCalls.reduce((sum, call) => sum + call.duration_seconds, 0);
+          const avgDurationSeconds = totalDials > 0 ? Math.round(totalDuration / totalDials) : 0;
+          const timeOnPhoneMinutes = Math.round(totalDuration / 60);
+          
+          const bookedAppointments = agentAppointments.length;
+          const shows = agentAppointments.filter(apt => apt.showed).length;
+          const noShows = agentAppointments.filter(apt => !apt.showed && apt.date_of_appointment && new Date(apt.date_of_appointment) < new Date()).length;
+          const showRate = (shows + noShows) > 0 ? (shows / (shows + noShows)) * 100 : 0;
+
+          calculatedPerformance.push({
+            id: `calculated-${agent.id}-${dateString}`,
+            date: dateString,
+            agent_name: agent.agent_name,
+            agent_id: agent.id,
+            total_dials_made: totalDials,
+            answered_calls_vm: answeredCalls,
+            pickups_40_seconds_plus: pickups40Plus,
+            conversations_2_minutes_plus: conversations2Plus,
+            booked_appointments: bookedAppointments,
+            time_on_phone_minutes: timeOnPhoneMinutes,
+            average_duration_per_call_seconds: avgDurationSeconds,
+            average_duration_per_call_minutes: avgDurationSeconds / 60,
+            appts_to_take_place: bookedAppointments,
+            shows: shows,
+            no_shows: noShows,
+            show_rate: showRate,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        });
       });
 
       setPerformanceData(calculatedPerformance);
+      updateAvailableAgents(calculatedPerformance);
     } catch (error) {
       console.error('Error calculating performance from call data:', error);
       setPerformanceData([]);
     }
   };
 
+  const getDateRange = (start: Date, end: Date): Date[] => {
+    const dates = [];
+    const currentDate = new Date(start);
+    
+    while (currentDate <= end) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
+  };
+
+  const updateAvailableAgents = (data: AgentPerformanceData[]) => {
+    const agents = [...new Set(data.map(item => item.agent_name))].sort();
+    setAvailableAgents(agents);
+  };
+
   const setupRealtimeSubscription = () => {
+    const fromDate = dateRange.from?.toISOString().split('T')[0];
+    const toDate = dateRange.to?.toISOString().split('T')[0];
+    
+    if (!fromDate || !toDate) return;
+
     const channel = supabase
       .channel('agent-performance-changes')
       .on(
@@ -154,8 +216,7 @@ const AgentPerformanceDashboard = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'agent_performance_stats',
-          filter: `date=eq.${selectedDate}`
+          table: 'agent_performance_stats'
         },
         (payload) => {
           console.log('Real-time update:', payload);
@@ -167,8 +228,7 @@ const AgentPerformanceDashboard = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'all_calls',
-          filter: `date=eq.${selectedDate}`
+          table: 'all_calls'
         },
         (payload) => {
           console.log('Real-time call update:', payload);
@@ -180,8 +240,7 @@ const AgentPerformanceDashboard = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'all_appointments',
-          filter: `date_appointment_created=eq.${selectedDate}`
+          table: 'all_appointments'
         },
         (payload) => {
           console.log('Real-time appointment update:', payload);
@@ -218,6 +277,18 @@ const AgentPerformanceDashboard = () => {
     ? performanceData.reduce((sum, agent) => sum + agent.show_rate, 0) / performanceData.length 
     : 0;
 
+  const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
+  };
+
+  const getDateRangeText = () => {
+    if (!dateRange.from || !dateRange.to) return 'Select date range';
+    if (dateRange.from.toDateString() === dateRange.to.toDateString()) {
+      return dateRange.from.toLocaleDateString();
+    }
+    return `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -225,31 +296,52 @@ const AgentPerformanceDashboard = () => {
           <h2 className="text-3xl font-bold text-gray-900">Agent Performance Dashboard</h2>
           <p className="text-gray-600">Real-time agent statistics calculated from call center data</p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Calendar className="h-4 w-4 text-gray-500" />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="border rounded px-3 py-1"
-          />
+        <div className="flex items-center space-x-4">
           <Badge variant="outline" className="ml-2">
             Live Updates
           </Badge>
         </div>
       </div>
 
+      <DashboardFilters
+        dateRange={dateRange}
+        onDateRangeChange={handleDateRangeChange}
+        procedure="ALL"
+        onProcedureChange={() => {}} // Not used in this context
+      />
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Calendar className="h-4 w-4 text-gray-500" />
+          <span className="text-sm text-gray-600">{getDateRangeText()}</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm font-medium">View:</label>
+          <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select agent" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Agents</SelectItem>
+              {availableAgents.map(agent => (
+                <SelectItem key={agent} value={agent}>{agent}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <AgentPerformanceStats 
         totalStats={totalStats}
         averageShowRate={averageShowRate}
-        agentCount={performanceData.length}
+        agentCount={selectedAgent === 'all' ? availableAgents.length : 1}
       />
 
       <Card>
         <CardHeader>
           <CardTitle>Agent Performance Details</CardTitle>
           <CardDescription>
-            Performance metrics calculated from call center data for {selectedDate} - {performanceData.length} agents
+            Performance metrics for {selectedAgent === 'all' ? 'all agents' : selectedAgent} - {getDateRangeText()}
           </CardDescription>
         </CardHeader>
         <CardContent>
