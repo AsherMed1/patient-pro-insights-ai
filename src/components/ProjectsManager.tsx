@@ -1,16 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FolderOpen, Calendar, Activity, Plus, Edit, Trash2 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { FolderOpen } from 'lucide-react';
+import { ProjectCard } from './projects/ProjectCard';
+import { AddProjectDialog } from './projects/AddProjectDialog';
+import { EditProjectDialog } from './projects/EditProjectDialog';
 
 interface Project {
   id: string;
@@ -39,9 +35,6 @@ const ProjectsManager = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const { toast } = useToast();
-
-  const addForm = useForm<ProjectFormData>();
-  const editForm = useForm<ProjectFormData>();
 
   useEffect(() => {
     fetchProjectsAndStats();
@@ -118,7 +111,6 @@ const ProjectsManager = () => {
       });
 
       setIsAddDialogOpen(false);
-      addForm.reset();
       await fetchProjectsAndStats();
     } catch (error) {
       console.error('Error adding project:', error);
@@ -151,7 +143,6 @@ const ProjectsManager = () => {
 
       setIsEditDialogOpen(false);
       setEditingProject(null);
-      editForm.reset();
       await fetchProjectsAndStats();
     } catch (error) {
       console.error('Error updating project:', error);
@@ -190,29 +181,7 @@ const ProjectsManager = () => {
 
   const openEditDialog = (project: Project) => {
     setEditingProject(project);
-    editForm.setValue('project_name', project.project_name);
     setIsEditDialogOpen(true);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getActivityStatus = (lastActivity: string | null) => {
-    if (!lastActivity) return { status: 'No Activity', color: 'bg-gray-100 text-gray-600' };
-    
-    const daysSinceActivity = Math.floor(
-      (new Date().getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    
-    if (daysSinceActivity === 0) return { status: 'Active Today', color: 'bg-green-100 text-green-600' };
-    if (daysSinceActivity <= 7) return { status: 'Active This Week', color: 'bg-blue-100 text-blue-600' };
-    if (daysSinceActivity <= 30) return { status: 'Active This Month', color: 'bg-yellow-100 text-yellow-600' };
-    return { status: 'Inactive', color: 'bg-red-100 text-red-600' };
   };
 
   if (loading) {
@@ -238,46 +207,11 @@ const ProjectsManager = () => {
               Overview of all projects and their activity status
             </CardDescription>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Project</DialogTitle>
-                <DialogDescription>
-                  Create a new project to track leads, calls, and appointments.
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...addForm}>
-                <form onSubmit={addForm.handleSubmit(handleAddProject)} className="space-y-4">
-                  <FormField
-                    control={addForm.control}
-                    name="project_name"
-                    rules={{ required: "Project name is required" }}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Project Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter project name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">Add Project</Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+          <AddProjectDialog
+            open={isAddDialogOpen}
+            onOpenChange={setIsAddDialogOpen}
+            onSubmit={handleAddProject}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -290,129 +224,26 @@ const ProjectsManager = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map((project) => {
               const stats = projectStats.find(s => s.project_name === project.project_name);
-              const activityStatus = getActivityStatus(stats?.last_activity || null);
               
               return (
-                <Card key={project.id} className="border-l-4 border-l-blue-500">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg font-medium">
-                        {project.project_name}
-                      </CardTitle>
-                      <div className="flex items-center space-x-2">
-                        <Badge className={`text-xs ${activityStatus.color}`}>
-                          {activityStatus.status}
-                        </Badge>
-                        <div className="flex space-x-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openEditDialog(project)}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="ghost">
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Project</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete "{project.project_name}"? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteProject(project)}>
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-blue-50 p-2 rounded">
-                        <div className="text-lg font-semibold text-blue-600">
-                          {stats?.leads_count || 0}
-                        </div>
-                        <div className="text-xs text-blue-600">Leads</div>
-                      </div>
-                      <div className="bg-green-50 p-2 rounded">
-                        <div className="text-lg font-semibold text-green-600">
-                          {stats?.calls_count || 0}
-                        </div>
-                        <div className="text-xs text-green-600">Calls</div>
-                      </div>
-                      <div className="bg-purple-50 p-2 rounded">
-                        <div className="text-lg font-semibold text-purple-600">
-                          {stats?.appointments_count || 0}
-                        </div>
-                        <div className="text-xs text-purple-600">Appointments</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>Created: {formatDate(project.created_at)}</span>
-                      </div>
-                    </div>
-                    
-                    {stats?.last_activity && (
-                      <div className="flex items-center space-x-1 text-sm text-gray-500">
-                        <Activity className="h-3 w-3" />
-                        <span>Last activity: {formatDate(stats.last_activity)}</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  stats={stats}
+                  onEdit={openEditDialog}
+                  onDelete={handleDeleteProject}
+                />
               );
             })}
           </div>
         )}
 
-        {/* Edit Project Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Project</DialogTitle>
-              <DialogDescription>
-                Update the project information.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...editForm}>
-              <form onSubmit={editForm.handleSubmit(handleEditProject)} className="space-y-4">
-                <FormField
-                  control={editForm.control}
-                  name="project_name"
-                  rules={{ required: "Project name is required" }}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter project name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">Update Project</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <EditProjectDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          project={editingProject}
+          onSubmit={handleEditProject}
+        />
       </CardContent>
     </Card>
   );
