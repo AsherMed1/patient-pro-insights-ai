@@ -2,9 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FolderOpen, Calendar, Activity } from 'lucide-react';
+import { FolderOpen, Calendar, Activity, Plus, Edit, Trash2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
 
 interface Project {
   id: string;
@@ -21,11 +27,21 @@ interface ProjectStats {
   last_activity: string | null;
 }
 
+interface ProjectFormData {
+  project_name: string;
+}
+
 const ProjectsManager = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectStats, setProjectStats] = useState<ProjectStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const { toast } = useToast();
+
+  const addForm = useForm<ProjectFormData>();
+  const editForm = useForm<ProjectFormData>();
 
   useEffect(() => {
     fetchProjectsAndStats();
@@ -86,6 +102,98 @@ const ProjectsManager = () => {
     }
   };
 
+  const handleAddProject = async (data: ProjectFormData) => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .insert({
+          project_name: data.project_name
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Project added successfully",
+      });
+
+      setIsAddDialogOpen(false);
+      addForm.reset();
+      await fetchProjectsAndStats();
+    } catch (error) {
+      console.error('Error adding project:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add project",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditProject = async (data: ProjectFormData) => {
+    if (!editingProject) return;
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          project_name: data.project_name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingProject.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Project updated successfully",
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingProject(null);
+      editForm.reset();
+      await fetchProjectsAndStats();
+    } catch (error) {
+      console.error('Error updating project:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update project",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteProject = async (project: Project) => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', project.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Project deleted successfully",
+      });
+
+      await fetchProjectsAndStats();
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openEditDialog = (project: Project) => {
+    setEditingProject(project);
+    editForm.setValue('project_name', project.project_name);
+    setIsEditDialogOpen(true);
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -120,19 +228,63 @@ const ProjectsManager = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <FolderOpen className="h-5 w-5" />
-          <span>Active Projects</span>
-        </CardTitle>
-        <CardDescription>
-          Overview of all projects and their activity status
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center space-x-2">
+              <FolderOpen className="h-5 w-5" />
+              <span>Active Projects</span>
+            </CardTitle>
+            <CardDescription>
+              Overview of all projects and their activity status
+            </CardDescription>
+          </div>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Project
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Project</DialogTitle>
+                <DialogDescription>
+                  Create a new project to track leads, calls, and appointments.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...addForm}>
+                <form onSubmit={addForm.handleSubmit(handleAddProject)} className="space-y-4">
+                  <FormField
+                    control={addForm.control}
+                    name="project_name"
+                    rules={{ required: "Project name is required" }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter project name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Add Project</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {projects.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <p>No projects found.</p>
-            <p className="text-sm">Projects are created automatically when data is synced.</p>
+            <p className="text-sm">Click "Add Project" to create your first project.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -147,9 +299,41 @@ const ProjectsManager = () => {
                       <CardTitle className="text-lg font-medium">
                         {project.project_name}
                       </CardTitle>
-                      <Badge className={`text-xs ${activityStatus.color}`}>
-                        {activityStatus.status}
-                      </Badge>
+                      <div className="flex items-center space-x-2">
+                        <Badge className={`text-xs ${activityStatus.color}`}>
+                          {activityStatus.status}
+                        </Badge>
+                        <div className="flex space-x-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEditDialog(project)}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Project</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{project.project_name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteProject(project)}>
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -193,6 +377,42 @@ const ProjectsManager = () => {
             })}
           </div>
         )}
+
+        {/* Edit Project Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Project</DialogTitle>
+              <DialogDescription>
+                Update the project information.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(handleEditProject)} className="space-y-4">
+                <FormField
+                  control={editForm.control}
+                  name="project_name"
+                  rules={{ required: "Project name is required" }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter project name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Update Project</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
