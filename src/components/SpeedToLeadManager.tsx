@@ -38,6 +38,9 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
       const { data, error } = await supabase
         .from('speed_to_lead_stats')
         .select('*')
+        .not('date_time_of_first_call', 'is', null)
+        .not('speed_to_lead_time_min', 'is', null)
+        .gte('speed_to_lead_time_min', 0)
         .order('date_time_in', { ascending: false });
 
       if (error) {
@@ -67,8 +70,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   };
 
   const formatSpeedToLead = (minutes: number | null) => {
-    if (minutes === null) return 'No Call Made';
-    if (minutes < 0) return 'Invalid Data';
+    if (minutes === null || minutes < 0) return 'N/A';
     
     if (minutes < 60) {
       return `${Math.round(minutes)} min`;
@@ -79,7 +81,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   };
 
   const getSpeedToLeadColor = (minutes: number | null) => {
-    if (minutes === null) return 'text-gray-500';
+    if (minutes === null || minutes < 0) return 'text-gray-500';
     if (minutes <= 5) return 'text-green-600 font-semibold';
     if (minutes <= 15) return 'text-yellow-600 font-semibold';
     if (minutes <= 60) return 'text-orange-600 font-semibold';
@@ -88,7 +90,6 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Add the tracker component if not view only */}
       {!viewOnly && <SpeedToLeadTracker onCalculationComplete={fetchStats} />}
       
       <Card>
@@ -104,7 +105,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
             <div className="text-center py-8">Loading statistics...</div>
           ) : stats.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">No speed to lead data available</p>
+              <p className="text-gray-500 mb-4">No speed to lead data available with valid call records</p>
               <p className="text-sm text-gray-400">
                 Use the tracker above to calculate speed to lead times from your data
               </p>
@@ -159,7 +160,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
                   </div>
                 </div>
                 <div className="bg-red-50 p-4 rounded-lg">
-                  <div className="text-sm text-red-600 font-medium">> 1 hour</div>
+                  <div className="text-sm text-red-600 font-medium">&gt; 1 hour</div>
                   <div className="text-2xl font-bold text-red-700">
                     {stats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 60).length}
                   </div>
