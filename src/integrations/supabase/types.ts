@@ -250,6 +250,45 @@ export type Database = {
         }
         Relationships: []
       }
+      speed_to_lead_stats: {
+        Row: {
+          created_at: string
+          date: string
+          date_time_in: string
+          date_time_of_first_call: string | null
+          id: string
+          lead_name: string
+          lead_phone_number: string
+          project_name: string
+          speed_to_lead_time_min: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          date_time_in: string
+          date_time_of_first_call?: string | null
+          id?: string
+          lead_name: string
+          lead_phone_number: string
+          project_name: string
+          speed_to_lead_time_min?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          date_time_in?: string
+          date_time_of_first_call?: string | null
+          id?: string
+          lead_name?: string
+          lead_phone_number?: string
+          project_name?: string
+          speed_to_lead_time_min?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sync_logs: {
         Row: {
           client_id: string | null

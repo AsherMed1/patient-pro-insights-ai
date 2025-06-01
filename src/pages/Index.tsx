@@ -11,6 +11,7 @@ import DataSyncManager from "@/components/DataSyncManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import NewLeadsManager from "@/components/NewLeadsManager";
 import AllCallsManager from "@/components/AllCallsManager";
+import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 
 const Index = () => {
   // Default clientId for components that require it
@@ -29,7 +30,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-10">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="gohighlevel">GoHighLevel</TabsTrigger>
@@ -39,6 +40,7 @@ const Index = () => {
             <TabsTrigger value="sync">Data Sync</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
             <TabsTrigger value="calls">All Calls</TabsTrigger>
+            <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -63,6 +65,7 @@ const Index = () => {
                       <li>• <strong>Data Sync:</strong> Synchronize data from Google Sheets</li>
                       <li>• <strong>New Leads:</strong> Track and manage new leads</li>
                       <li>• <strong>All Calls:</strong> Record and manage call data</li>
+                      <li>• <strong>Speed to Lead:</strong> Track lead response time statistics</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -101,6 +104,10 @@ const Index = () => {
 
           <TabsContent value="calls">
             <AllCallsManager />
+          </TabsContent>
+
+          <TabsContent value="speed">
+            <SpeedToLeadManager />
           </TabsContent>
         </Tabs>
       </div>
