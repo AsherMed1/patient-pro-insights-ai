@@ -34,9 +34,33 @@ serve(async (req) => {
       )
     }
 
-    // Parse request body
-    const body = await req.json()
-    console.log('Received appointment data:', body)
+    // Get the raw body text first for debugging
+    const bodyText = await req.text()
+    console.log('Raw request body:', bodyText)
+    console.log('Content-Type header:', req.headers.get('content-type'))
+
+    // Try to parse JSON with better error handling
+    let body
+    try {
+      body = JSON.parse(bodyText)
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError)
+      console.error('Body that failed to parse:', bodyText)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid JSON format', 
+          message: 'Request body must be valid JSON',
+          details: parseError.message,
+          receivedBody: bodyText.substring(0, 500) // First 500 chars for debugging
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    console.log('Parsed appointment data:', body)
 
     // Validate required fields
     const requiredFields = ['date_appointment_created', 'lead_name', 'project_name']
