@@ -169,6 +169,36 @@ export type Database = {
         }
         Relationships: []
       }
+      new_leads: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          lead_name: string
+          project_name: string
+          times_called: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          lead_name: string
+          project_name: string
+          times_called?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          lead_name?: string
+          project_name?: string
+          times_called?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sync_logs: {
         Row: {
           client_id: string | null
