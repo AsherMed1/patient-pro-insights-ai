@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import SpeedToLeadTracker from './SpeedToLeadTracker';
 
 interface SpeedToLeadStat {
   id: string;
@@ -77,6 +77,9 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Add the tracker component */}
+      {!viewOnly && <SpeedToLeadTracker />}
+      
       <Card>
         <CardHeader>
           <CardTitle>Speed to Lead Statistics</CardTitle>

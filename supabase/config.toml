@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.all-calls-api]
 verify_jwt = false
+
+[functions.speed-to-lead-calculator]
+verify_jwt = false
