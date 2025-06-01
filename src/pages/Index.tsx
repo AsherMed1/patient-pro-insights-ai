@@ -32,7 +32,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-12">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-8">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="gohighlevel">GoHighLevel</TabsTrigger>
@@ -40,11 +40,7 @@ const Index = () => {
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="clients">Clients</TabsTrigger>
             <TabsTrigger value="sync">Data Sync</TabsTrigger>
-            <TabsTrigger value="leads">New Leads</TabsTrigger>
-            <TabsTrigger value="calls">All Calls</TabsTrigger>
-            <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
-            <TabsTrigger value="appointments">All Appointments</TabsTrigger>
-            <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="callcenterstats">Call Center Stats</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -67,11 +63,7 @@ const Index = () => {
                       <li>• <strong>Health:</strong> Account health monitoring</li>
                       <li>• <strong>Clients:</strong> Manage client information</li>
                       <li>• <strong>Data Sync:</strong> Synchronize data from Google Sheets</li>
-                      <li>• <strong>New Leads:</strong> Track and manage new leads</li>
-                      <li>• <strong>All Calls:</strong> Record and manage call data</li>
-                      <li>• <strong>Speed to Lead:</strong> Track lead response time statistics</li>
-                      <li>• <strong>All Appointments:</strong> Manage appointment records and tracking</li>
-                      <li>• <strong>Agents:</strong> Manage call center agents and their information</li>
+                      <li>• <strong>Call Center Stats:</strong> View leads, calls, appointments, and agent data</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -104,24 +96,41 @@ const Index = () => {
             <DataSyncManager />
           </TabsContent>
 
-          <TabsContent value="leads">
-            <NewLeadsManager />
-          </TabsContent>
+          <TabsContent value="callcenterstats" className="space-y-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Call Center Statistics</h2>
+              <p className="text-gray-600">View and analyze call center performance data</p>
+            </div>
+            
+            <Tabs defaultValue="newleads" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="newleads">New Leads</TabsTrigger>
+                <TabsTrigger value="allcalls">All Calls</TabsTrigger>
+                <TabsTrigger value="speedtolead">Speed to Lead</TabsTrigger>
+                <TabsTrigger value="appointments">All Appointments</TabsTrigger>
+                <TabsTrigger value="agents">Agents</TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="calls">
-            <AllCallsManager />
-          </TabsContent>
+              <TabsContent value="newleads">
+                <NewLeadsManager viewOnly={true} />
+              </TabsContent>
 
-          <TabsContent value="speed">
-            <SpeedToLeadManager />
-          </TabsContent>
+              <TabsContent value="allcalls">
+                <AllCallsManager viewOnly={true} />
+              </TabsContent>
 
-          <TabsContent value="appointments">
-            <AllAppointmentsManager />
-          </TabsContent>
+              <TabsContent value="speedtolead">
+                <SpeedToLeadManager viewOnly={true} />
+              </TabsContent>
 
-          <TabsContent value="agents">
-            <AgentManager />
+              <TabsContent value="appointments">
+                <AllAppointmentsManager viewOnly={true} />
+              </TabsContent>
+
+              <TabsContent value="agents">
+                <AgentManager viewOnly={true} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>

@@ -1,13 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
-import { PlusCircle, Phone, Calendar, User, Building } from 'lucide-react';
+import { Phone, Calendar, User, Building } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 interface NewLead {
@@ -20,44 +16,18 @@ interface NewLead {
   updated_at: string;
 }
 
-interface Client {
-  client_id: string;
-  name: string;
+interface NewLeadsManagerProps {
+  viewOnly?: boolean;
 }
 
-const NewLeadsManager = () => {
+const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
   const [leads, setLeads] = useState<NewLead[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    project_name: '',
-    lead_name: '',
-    times_called: 0
-  });
   const { toast } = useToast();
 
   useEffect(() => {
     fetchLeads();
-    fetchClients();
   }, []);
-
-  const fetchClients = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('client_id, name')
-        .order('name');
-
-      if (error) {
-        console.error('Error fetching clients:', error);
-      } else {
-        setClients(data || []);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  };
 
   const fetchLeads = async () => {
     try {
@@ -81,157 +51,19 @@ const NewLeadsManager = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.project_name || !formData.lead_name) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('new_leads')
-        .insert([formData]);
-      
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "New lead added successfully"
-      });
-
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        project_name: '',
-        lead_name: '',
-        times_called: 0
-      });
-      
-      fetchLeads();
-    } catch (error) {
-      console.error('Error adding lead:', error);
-      toast({
-        title: "Error",
-        description: "Failed to add lead",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const incrementCalls = async (leadId: string, currentCalls: number) => {
-    try {
-      const { error } = await supabase
-        .from('new_leads')
-        .update({ times_called: currentCalls + 1 })
-        .eq('id', leadId);
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: "Call count updated"
-      });
-      
-      fetchLeads();
-    } catch (error) {
-      console.error('Error updating call count:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update call count",
-        variant: "destructive"
-      });
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
 
   return (
     <div className="space-y-6">
-      {/* Add New Lead Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <PlusCircle className="h-5 w-5" />
-            <span>Add New Lead</span>
-          </CardTitle>
-          <CardDescription>
-            Record new leads and track call attempts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="project_name">Project Name</Label>
-                <Select value={formData.project_name} onValueChange={(value) => setFormData(prev => ({ ...prev, project_name: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a client/project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.client_id} value={client.name}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="lead_name">Lead Name</Label>
-                <Input
-                  id="lead_name"
-                  type="text"
-                  placeholder="Enter lead name"
-                  value={formData.lead_name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, lead_name: e.target.value }))}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="times_called">Times Called</Label>
-                <Input
-                  id="times_called"
-                  type="number"
-                  min="0"
-                  value={formData.times_called}
-                  onChange={(e) => setFormData(prev => ({ ...prev, times_called: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-            
-            <Button type="submit" className="w-full">
-              Add Lead
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
       {/* Leads List */}
       <Card>
         <CardHeader>
-          <CardTitle>All Leads</CardTitle>
+          <CardTitle>New Leads</CardTitle>
           <CardDescription>
             {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded
+            {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -270,13 +102,6 @@ const NewLeadsManager = () => {
                         <Phone className="h-3 w-3" />
                         <span>{lead.times_called} calls</span>
                       </Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => incrementCalls(lead.id, lead.times_called)}
-                      >
-                        + Call
-                      </Button>
                     </div>
                   </div>
                 </div>
