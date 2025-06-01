@@ -9,6 +9,69 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      all_appointments: {
+        Row: {
+          agent: string | null
+          agent_number: string | null
+          calendar_name: string | null
+          confirmed: boolean | null
+          confirmed_number: string | null
+          created_at: string
+          date_appointment_created: string
+          date_of_appointment: string | null
+          ghl_id: string | null
+          id: string
+          lead_email: string | null
+          lead_name: string
+          lead_phone_number: string | null
+          project_name: string
+          requested_time: string | null
+          showed: boolean | null
+          stage_booked: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent?: string | null
+          agent_number?: string | null
+          calendar_name?: string | null
+          confirmed?: boolean | null
+          confirmed_number?: string | null
+          created_at?: string
+          date_appointment_created: string
+          date_of_appointment?: string | null
+          ghl_id?: string | null
+          id?: string
+          lead_email?: string | null
+          lead_name: string
+          lead_phone_number?: string | null
+          project_name: string
+          requested_time?: string | null
+          showed?: boolean | null
+          stage_booked?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent?: string | null
+          agent_number?: string | null
+          calendar_name?: string | null
+          confirmed?: boolean | null
+          confirmed_number?: string | null
+          created_at?: string
+          date_appointment_created?: string
+          date_of_appointment?: string | null
+          ghl_id?: string | null
+          id?: string
+          lead_email?: string | null
+          lead_name?: string
+          lead_phone_number?: string | null
+          project_name?: string
+          requested_time?: string | null
+          showed?: boolean | null
+          stage_booked?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       all_calls: {
         Row: {
           agent: string | null
