@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ interface Client {
   id: string;
   client_id: string;
   name: string;
-  gohighlevel_api_key: string;
   created_at: string;
 }
 
@@ -24,8 +22,7 @@ const ClientManager = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newClient, setNewClient] = useState({
     client_id: '',
-    name: '',
-    gohighlevel_api_key: ''
+    name: ''
   });
   const { toast } = useToast();
 
@@ -55,7 +52,7 @@ const ClientManager = () => {
   };
 
   const handleAddClient = async () => {
-    if (!newClient.client_id || !newClient.name || !newClient.gohighlevel_api_key) {
+    if (!newClient.client_id || !newClient.name) {
       toast({
         title: "Validation Error",
         description: "All fields are required",
@@ -76,7 +73,7 @@ const ClientManager = () => {
         description: "Client added successfully",
       });
       
-      setNewClient({ client_id: '', name: '', gohighlevel_api_key: '' });
+      setNewClient({ client_id: '', name: '' });
       setIsAdding(false);
       fetchClients();
     } catch (error: any) {
@@ -143,7 +140,7 @@ const ClientManager = () => {
           </Button>
         </CardTitle>
         <CardDescription>
-          Manage your clients and their GoHighLevel API connections. Adding a new client here makes it immediately available for data sync.
+          Manage your clients for data synchronization and campaign tracking.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -151,7 +148,7 @@ const ClientManager = () => {
         {isAdding && (
           <Card className="border-dashed">
             <CardContent className="p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="client_id">Client ID</Label>
                   <Input
@@ -171,17 +168,6 @@ const ClientManager = () => {
                     onChange={(e) => setNewClient({...newClient, name: e.target.value})}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="gohighlevel_api_key">GoHighLevel API Key</Label>
-                  <Input
-                    id="gohighlevel_api_key"
-                    type="password"
-                    placeholder="e.g., ghl_abc123..."
-                    value={newClient.gohighlevel_api_key}
-                    onChange={(e) => setNewClient({...newClient, gohighlevel_api_key: e.target.value})}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">From your GoHighLevel account settings</p>
-                </div>
               </div>
               <div className="flex space-x-2">
                 <Button onClick={handleAddClient} className="flex items-center space-x-2">
@@ -192,7 +178,7 @@ const ClientManager = () => {
                   variant="outline" 
                   onClick={() => {
                     setIsAdding(false);
-                    setNewClient({ client_id: '', name: '', gohighlevel_api_key: '' });
+                    setNewClient({ client_id: '', name: '' });
                   }}
                   className="flex items-center space-x-2"
                 >
@@ -222,9 +208,6 @@ const ClientManager = () => {
                     </div>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-2 font-mono">
-                  API Key: {client.gohighlevel_api_key ? '*********************' + client.gohighlevel_api_key.slice(-4) : 'Not set'}
-                </p>
               </div>
               <div className="flex items-center space-x-2">
                 <Button

@@ -1,7 +1,7 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import CampaignDashboard from "@/components/CampaignDashboard";
-import GoHighLevelDashboard from "@/components/GoHighLevelDashboard";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AccountHealthDashboard from "@/components/AccountHealthDashboard";
 import AIAssistant from "@/components/AIAssistant";
@@ -32,10 +32,9 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-8">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-            <TabsTrigger value="gohighlevel">GoHighLevel</TabsTrigger>
             <TabsTrigger value="callcenter">Call Center</TabsTrigger>
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="clients">Clients</TabsTrigger>
@@ -59,7 +58,6 @@ const Index = () => {
                     </p>
                     <ul className="space-y-2 text-sm">
                       <li>• <strong>Campaigns:</strong> View campaign performance metrics</li>
-                      <li>• <strong>GoHighLevel:</strong> CRM integration and lead tracking</li>
                       <li>• <strong>Call Center:</strong> Call analytics and performance</li>
                       <li>• <strong>Health:</strong> Account health monitoring</li>
                       <li>• <strong>Clients:</strong> Manage client information</li>
@@ -76,10 +74,6 @@ const Index = () => {
 
           <TabsContent value="campaigns">
             <CampaignDashboard clientId={defaultClientId} />
-          </TabsContent>
-
-          <TabsContent value="gohighlevel">
-            <GoHighLevelDashboard />
           </TabsContent>
 
           <TabsContent value="callcenter">

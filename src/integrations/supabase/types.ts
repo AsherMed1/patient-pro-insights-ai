@@ -358,7 +358,6 @@ export type Database = {
         Row: {
           client_id: string
           created_at: string
-          gohighlevel_api_key: string
           id: string
           name: string
           updated_at: string
@@ -366,7 +365,6 @@ export type Database = {
         Insert: {
           client_id: string
           created_at?: string
-          gohighlevel_api_key?: string
           id?: string
           name: string
           updated_at?: string
@@ -374,7 +372,6 @@ export type Database = {
         Update: {
           client_id?: string
           created_at?: string
-          gohighlevel_api_key?: string
           id?: string
           name?: string
           updated_at?: string

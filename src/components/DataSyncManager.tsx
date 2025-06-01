@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/integrations/supabase/client';
-import { Database, Loader2, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Database, Loader2, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 interface SyncLog {
   id: string;
@@ -20,14 +19,12 @@ interface SyncLog {
 interface Client {
   client_id: string;
   name: string;
-  gohighlevel_api_key: string;
 }
 
 const DataSyncManager = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -38,7 +35,7 @@ const DataSyncManager = () => {
     try {
       const { data, error } = await supabase
         .from('clients')
-        .select('client_id, name, gohighlevel_api_key')
+        .select('client_id, name')
         .order('name');
       
       if (error) throw error;
@@ -99,24 +96,24 @@ const DataSyncManager = () => {
 
   return (
     <div className="space-y-6">
-      {/* GoHighLevel Integration Info */}
+      {/* Google Sheets Integration Info */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Database className="h-5 w-5" />
-            <span>GoHighLevel Integration</span>
+            <span>Google Sheets Data Sync</span>
           </CardTitle>
           <CardDescription>
-            Data synchronization is now handled directly through GoHighLevel API integration
+            Manage data synchronization from Google Sheets to your database
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Direct API Integration</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Google Sheets Integration</h4>
             <p className="text-sm text-blue-800">
-              Your data is now automatically synchronized through GoHighLevel's API. 
-              No manual sync required - all leads, appointments, and campaign data 
-              flows directly into the system in real-time.
+              Your data is synchronized from Google Sheets through the Google Sheets API. 
+              Use the sync functions to pull campaign data, appointments, and other 
+              information directly into your database.
             </p>
           </div>
         </CardContent>
@@ -125,8 +122,8 @@ const DataSyncManager = () => {
       {/* Client Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Client API Configuration</CardTitle>
-          <CardDescription>Manage GoHighLevel API keys for each client</CardDescription>
+          <CardTitle>Client Configuration</CardTitle>
+          <CardDescription>Manage client settings for data synchronization</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -135,16 +132,9 @@ const DataSyncManager = () => {
                 <div>
                   <h4 className="font-medium">{client.name}</h4>
                   <p className="text-xs text-gray-500">{client.client_id}</p>
-                  <p className="text-xs text-gray-400">
-                    API Key: {client.gohighlevel_api_key ? '*********************' + client.gohighlevel_api_key.slice(-4) : 'Not configured'}
-                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {client.gohighlevel_api_key ? (
-                    <Badge variant="default" className="text-xs">Connected</Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-xs">Not Connected</Badge>
-                  )}
+                  <Badge variant="default" className="text-xs">Active</Badge>
                 </div>
               </div>
             ))}
