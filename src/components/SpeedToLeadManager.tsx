@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -66,7 +67,9 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   };
 
   const formatSpeedToLead = (minutes: number | null) => {
-    if (minutes === null) return 'N/A';
+    if (minutes === null) return 'No Call Made';
+    if (minutes < 0) return 'Invalid Data';
+    
     if (minutes < 60) {
       return `${Math.round(minutes)} min`;
     }
@@ -75,54 +78,93 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
     return `${hours}h ${remainingMinutes}m`;
   };
 
+  const getSpeedToLeadColor = (minutes: number | null) => {
+    if (minutes === null) return 'text-gray-500';
+    if (minutes <= 5) return 'text-green-600 font-semibold';
+    if (minutes <= 15) return 'text-yellow-600 font-semibold';
+    if (minutes <= 60) return 'text-orange-600 font-semibold';
+    return 'text-red-600 font-semibold';
+  };
+
   return (
     <div className="space-y-6">
-      {/* Add the tracker component */}
-      {!viewOnly && <SpeedToLeadTracker />}
+      {/* Add the tracker component if not view only */}
+      {!viewOnly && <SpeedToLeadTracker onCalculationComplete={fetchStats} />}
       
       <Card>
         <CardHeader>
           <CardTitle>Speed to Lead Statistics</CardTitle>
           <CardDescription>
-            View all recorded speed to lead data
+            Time between when leads enter the system and when they receive their first call
             {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-4">Loading statistics...</div>
+            <div className="text-center py-8">Loading statistics...</div>
           ) : stats.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">No statistics recorded yet</div>
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">No speed to lead data available</p>
+              <p className="text-sm text-gray-400">
+                Use the tracker above to calculate speed to lead times from your data
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse border border-gray-300">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Project</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Lead Name</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Phone</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Time In</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">First Call</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Speed to Lead</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Name</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Phone Number</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Project</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Received</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">First Call</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Speed to Lead</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.map((stat) => (
                     <tr key={stat.id} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-2">{stat.date}</td>
-                      <td className="border border-gray-300 px-4 py-2">{stat.project_name}</td>
-                      <td className="border border-gray-300 px-4 py-2">{stat.lead_name}</td>
-                      <td className="border border-gray-300 px-4 py-2">{stat.lead_phone_number}</td>
-                      <td className="border border-gray-300 px-4 py-2">{formatDateTime(stat.date_time_in)}</td>
-                      <td className="border border-gray-300 px-4 py-2">{formatDateTime(stat.date_time_of_first_call)}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-semibold">
+                      <td className="border border-gray-300 px-4 py-3 font-medium">{stat.lead_name}</td>
+                      <td className="border border-gray-300 px-4 py-3">{stat.lead_phone_number || 'N/A'}</td>
+                      <td className="border border-gray-300 px-4 py-3">{stat.project_name}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm">{formatDateTime(stat.date_time_in)}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm">{formatDateTime(stat.date_time_of_first_call)}</td>
+                      <td className={`border border-gray-300 px-4 py-3 ${getSpeedToLeadColor(stat.speed_to_lead_time_min)}`}>
                         {formatSpeedToLead(stat.speed_to_lead_time_min)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              
+              {/* Summary Stats */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="text-sm text-green-600 font-medium">≤ 5 minutes</div>
+                  <div className="text-2xl font-bold text-green-700">
+                    {stats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min <= 5).length}
+                  </div>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <div className="text-sm text-yellow-600 font-medium">5-15 minutes</div>
+                  <div className="text-2xl font-bold text-yellow-700">
+                    {stats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 5 && s.speed_to_lead_time_min <= 15).length}
+                  </div>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-lg">
+                  <div className="text-sm text-orange-600 font-medium">15-60 minutes</div>
+                  <div className="text-2xl font-bold text-orange-700">
+                    {stats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 15 && s.speed_to_lead_time_min <= 60).length}
+                  </div>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <div className="text-sm text-red-600 font-medium">> 1 hour</div>
+                  <div className="text-2xl font-bold text-red-700">
+                    {stats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 60).length}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

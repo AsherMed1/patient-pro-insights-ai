@@ -4,9 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Calculator, RefreshCw } from 'lucide-react';
+import { Clock, Calculator, RefreshCw, AlertCircle } from 'lucide-react';
 
-const SpeedToLeadTracker = () => {
+interface SpeedToLeadTrackerProps {
+  onCalculationComplete?: () => void;
+}
+
+const SpeedToLeadTracker = ({ onCalculationComplete }: SpeedToLeadTrackerProps) => {
   const [isCalculating, setIsCalculating] = useState(false);
   const [lastCalculation, setLastCalculation] = useState<{
     totalProcessed: number;
@@ -35,6 +39,11 @@ const SpeedToLeadTracker = () => {
           title: "Calculation Complete",
           description: `Processed ${result.stats.totalProcessed} leads. Created ${result.stats.recordsCreated} new records, updated ${result.stats.recordsUpdated} existing records.`,
         });
+        
+        // Call the callback to refresh the data
+        if (onCalculationComplete) {
+          onCalculationComplete();
+        }
       } else {
         throw new Error(result.error || 'Failed to calculate speed-to-lead');
       }
@@ -51,65 +60,74 @@ const SpeedToLeadTracker = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calculator className="h-5 w-5" />
-            <span>Speed to Lead Tracker</span>
-          </CardTitle>
-          <CardDescription>
-            Calculate the time between when new leads enter the system and when they receive their first call
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <Calculator className="h-5 w-5" />
+          <span>Speed to Lead Calculator</span>
+        </CardTitle>
+        <CardDescription>
+          Calculate the time between when new leads enter the system and when they receive their first call
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
             <div className="space-y-2">
-              <h4 className="font-medium">How it works:</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Matches leads from "New Leads" with calls from "All Calls"</li>
+              <h4 className="font-medium text-blue-900">How it works:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Matches leads from "New Leads" table with calls from "All Calls" table</li>
                 <li>• Uses lead name for matching (case-insensitive)</li>
-                <li>• Calculates time from lead creation to first call</li>
-                <li>• Updates existing records and creates new ones</li>
+                <li>• Calculates time from lead creation to first call attempt</li>
+                <li>• Updates existing records and creates new ones as needed</li>
+                <li>• Shows phone numbers from the first call record</li>
               </ul>
             </div>
-            
-            <Button 
-              onClick={triggerCalculation} 
-              disabled={isCalculating}
-              className="flex items-center space-x-2"
-            >
-              {isCalculating ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Clock className="h-4 w-4" />
-              )}
-              <span>{isCalculating ? 'Calculating...' : 'Calculate Speed to Lead'}</span>
-            </Button>
           </div>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Ready to calculate speed to lead metrics?</p>
+            <p className="text-xs text-gray-600">This will process all leads and calls in your database</p>
+          </div>
+          
+          <Button 
+            onClick={triggerCalculation} 
+            disabled={isCalculating}
+            className="flex items-center space-x-2"
+          >
+            {isCalculating ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Clock className="h-4 w-4" />
+            )}
+            <span>{isCalculating ? 'Calculating...' : 'Calculate Speed to Lead'}</span>
+          </Button>
+        </div>
 
-          {lastCalculation && (
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-3">Last Calculation Results:</h4>
-              <div className="flex items-center space-x-4">
-                <Badge variant="outline" className="flex items-center space-x-1">
-                  <span className="text-xs">Processed:</span>
-                  <span className="font-semibold">{lastCalculation.totalProcessed}</span>
-                </Badge>
-                <Badge variant="secondary" className="flex items-center space-x-1">
-                  <span className="text-xs">Created:</span>
-                  <span className="font-semibold">{lastCalculation.recordsCreated}</span>
-                </Badge>
-                <Badge variant="secondary" className="flex items-center space-x-1">
-                  <span className="text-xs">Updated:</span>
-                  <span className="font-semibold">{lastCalculation.recordsUpdated}</span>
-                </Badge>
-              </div>
+        {lastCalculation && (
+          <div className="border-t pt-4">
+            <h4 className="font-medium mb-3">Last Calculation Results:</h4>
+            <div className="flex items-center space-x-4">
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <span className="text-xs">Processed:</span>
+                <span className="font-semibold">{lastCalculation.totalProcessed}</span>
+              </Badge>
+              <Badge variant="secondary" className="flex items-center space-x-1">
+                <span className="text-xs">Created:</span>
+                <span className="font-semibold">{lastCalculation.recordsCreated}</span>
+              </Badge>
+              <Badge variant="secondary" className="flex items-center space-x-1">
+                <span className="text-xs">Updated:</span>
+                <span className="font-semibold">{lastCalculation.recordsUpdated}</span>
+              </Badge>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
