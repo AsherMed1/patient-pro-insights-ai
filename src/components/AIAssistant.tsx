@@ -1,37 +1,105 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Send, Lightbulb, TrendingUp, BarChart3 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AIAssistantProps {
   clientId: string;
 }
 
+interface DatabaseStats {
+  totalDials: number;
+  totalAppointments: number;
+  totalAgents: number;
+  averageCallDuration: number;
+  totalProjects: number;
+  totalNewLeads: number;
+  connectRate: number;
+  showRate: number;
+}
+
 const AIAssistant = ({ clientId }: AIAssistantProps) => {
   const [query, setQuery] = useState('');
+  const [stats, setStats] = useState<DatabaseStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Array<{id: number, type: 'user' | 'ai', content: string, timestamp: string}>>([
     {
       id: 1,
       type: 'ai',
-      content: 'Hello! I\'m your AI assistant for Patient Pro Marketing data analysis. You can ask me questions about campaign performance, call center metrics, or account health. What would you like to know?',
+      content: 'Hello! I\'m your AI assistant for Patient Pro Marketing data analysis. I can provide insights about your call center performance, appointment metrics, and agent statistics. What would you like to know?',
       timestamp: new Date().toLocaleTimeString()
     }
   ]);
 
+  useEffect(() => {
+    fetchDatabaseStats();
+  }, []);
+
+  const fetchDatabaseStats = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all required data in parallel
+      const [callsResult, appointmentsResult, agentsResult, projectsResult, leadsResult] = await Promise.all([
+        supabase.from('all_calls').select('duration_seconds, status'),
+        supabase.from('all_appointments').select('showed, confirmed'),
+        supabase.from('agents').select('id').eq('active', true),
+        supabase.from('projects').select('id'),
+        supabase.from('new_leads').select('id')
+      ]);
+
+      const calls = callsResult.data || [];
+      const appointments = appointmentsResult.data || [];
+      const agents = agentsResult.data || [];
+      const projects = projectsResult.data || [];
+      const leads = leadsResult.data || [];
+
+      // Calculate statistics
+      const totalDials = calls.length;
+      const answeredCalls = calls.filter(call => 
+        call.status === 'answered' || call.status === 'connected' || call.status === 'pickup'
+      ).length;
+      const connectRate = totalDials > 0 ? (answeredCalls / totalDials) * 100 : 0;
+      
+      const totalCallDuration = calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0);
+      const averageCallDuration = calls.length > 0 ? totalCallDuration / calls.length / 60 : 0;
+      
+      const showedAppointments = appointments.filter(apt => apt.showed).length;
+      const totalCompletedAppointments = appointments.filter(apt => apt.showed !== null).length;
+      const showRate = totalCompletedAppointments > 0 ? (showedAppointments / totalCompletedAppointments) * 100 : 0;
+
+      setStats({
+        totalDials,
+        totalAppointments: appointments.length,
+        totalAgents: agents.length,
+        averageCallDuration,
+        totalProjects: projects.length,
+        totalNewLeads: leads.length,
+        connectRate,
+        showRate
+      });
+    } catch (error) {
+      console.error('Error fetching database stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const suggestedQueries = [
-    "What was the show rate last month for this client?",
-    "Which procedures had the highest CPA in Q2?",
-    "Compare March and April appointment volume",
-    "How many calls per appointment last month?",
-    "What was the top-performing ad campaign in May?"
+    "What is our current show rate?",
+    "How many total calls have we made?",
+    "What's our average call duration?",
+    "How many active agents do we have?",
+    "What's our call connect rate?"
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() || !stats) return;
 
     // Add user message
     const userMessage = {
@@ -41,8 +109,8 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
       timestamp: new Date().toLocaleTimeString()
     };
 
-    // Generate AI response based on query
-    const aiResponse = generateAIResponse(query, clientId);
+    // Generate AI response based on real data
+    const aiResponse = generateAIResponse(query, stats);
     const aiMessage = {
       id: messages.length + 2,
       type: 'ai' as const,
@@ -54,36 +122,55 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
     setQuery('');
   };
 
-  const generateAIResponse = (query: string, clientId: string) => {
+  const generateAIResponse = (query: string, stats: DatabaseStats) => {
     const lowerQuery = query.toLowerCase();
     
     if (lowerQuery.includes('show rate') || lowerQuery.includes('appointment rate')) {
-      return `Based on the current data for this client, the show rate last month was 85.3%. This is above the industry average of 78% and represents a 3.2% improvement from the previous month. The high show rate indicates effective lead qualification and appointment scheduling processes.`;
+      return `Based on your current data, the show rate is ${stats.showRate.toFixed(1)}%. You have ${stats.totalAppointments} total appointments in the system. ${stats.showRate > 75 ? 'This is a strong show rate!' : 'There may be room for improvement in appointment follow-up.'}`;
     }
     
-    if (lowerQuery.includes('cpa') || lowerQuery.includes('cost per appointment')) {
-      return `The Cost Per Appointment (CPA) for this client is currently $173.26. This is performing well against the target of $180. The dermatology procedures show the highest CPA at $195, while consultation appointments have the lowest at $142. I recommend focusing budget allocation on consultation campaigns to improve overall efficiency.`;
+    if (lowerQuery.includes('calls') || lowerQuery.includes('dials')) {
+      return `You have made ${stats.totalDials.toLocaleString()} total calls with a connect rate of ${stats.connectRate.toFixed(1)}%. ${stats.connectRate > 60 ? 'Your connect rate is performing well!' : 'Consider optimizing call timing and strategies to improve connect rates.'}`;
     }
     
-    if (lowerQuery.includes('calls') || lowerQuery.includes('call center')) {
-      return `Call center performance shows 542 total dials with a 68.2% connect rate. On average, it takes 6.1 calls to book one appointment. Agent Rachel M. is performing exceptionally well with a 72.1% connect rate and 52 appointments booked. The team is exceeding industry benchmarks.`;
+    if (lowerQuery.includes('duration') || lowerQuery.includes('call time')) {
+      return `Your average call duration is ${stats.averageCallDuration.toFixed(1)} minutes. ${stats.averageCallDuration > 3 ? 'This indicates good engagement with prospects.' : 'Consider strategies to increase conversation length for better qualification.'}`;
     }
     
-    if (lowerQuery.includes('compare') || lowerQuery.includes('march') || lowerQuery.includes('april')) {
-      return `Comparing March to April performance: March had 78 appointments vs April's 89 appointments (14% increase). Ad spend increased from $13,200 to $15,420 (17% increase), but CPL improved from $89.20 to $82.46. This indicates improved campaign optimization and better lead quality.`;
+    if (lowerQuery.includes('agents') || lowerQuery.includes('team')) {
+      return `You currently have ${stats.totalAgents} active agents. With ${stats.totalDials} total calls, that's an average of ${Math.round(stats.totalDials / Math.max(stats.totalAgents, 1))} calls per agent. ${stats.totalAgents > 0 ? 'Your team is actively making calls!' : 'Consider adding more agents to increase call volume.'}`;
     }
     
-    if (lowerQuery.includes('campaign') || lowerQuery.includes('ad') || lowerQuery.includes('performance')) {
-      return `The top-performing campaign last month was "Acne Treatment Solutions" with a CPL of $67.80 and 23% of total leads. The "Anti-Aging Consultation" campaign had the highest conversion rate at 47% but lower volume. I recommend increasing budget allocation to the acne treatment campaign while optimizing the anti-aging campaign's targeting.`;
+    if (lowerQuery.includes('connect rate') || lowerQuery.includes('pickup')) {
+      return `Your current connect rate is ${stats.connectRate.toFixed(1)}%. Industry average is typically 15-25%, so ${stats.connectRate > 25 ? 'you\'re performing exceptionally well!' : stats.connectRate > 15 ? 'you\'re within industry standards.' : 'there\'s opportunity to improve call timing and strategies.'}`;
     }
 
-    // Default response
-    return `I'd be happy to help analyze that data! Based on your current client's performance metrics, I can provide detailed insights about campaign efficiency, call center operations, and account health. Could you please specify which particular metric or time period you'd like me to focus on? I have access to real-time data for leads, appointments, costs, and conversion rates.`;
+    if (lowerQuery.includes('projects') || lowerQuery.includes('clients')) {
+      return `You have ${stats.totalProjects} active projects and ${stats.totalNewLeads} new leads in the system. This gives you an average of ${Math.round(stats.totalNewLeads / Math.max(stats.totalProjects, 1))} leads per project.`;
+    }
+
+    // Default response with comprehensive stats
+    return `Here's a summary of your current performance: ${stats.totalDials.toLocaleString()} total calls made with a ${stats.connectRate.toFixed(1)}% connect rate, ${stats.totalAppointments} appointments booked with a ${stats.showRate.toFixed(1)}% show rate, ${stats.totalAgents} active agents, and an average call duration of ${stats.averageCallDuration.toFixed(1)} minutes. ${stats.totalProjects} active projects with ${stats.totalNewLeads} new leads. Is there a specific metric you'd like me to analyze further?`;
   };
 
   const handleSuggestedQuery = (suggestion: string) => {
     setQuery(suggestion);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <span>Loading your data...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -95,7 +182,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
             <span>AI Data Assistant</span>
           </CardTitle>
           <CardDescription>
-            Ask questions about your client's performance data in natural language
+            Ask questions about your real call center performance data
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col h-full">
@@ -124,7 +211,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask about campaign performance, call metrics, or account health..."
+              placeholder="Ask about your call center performance, show rates, or agent metrics..."
               className="flex-1"
             />
             <Button type="submit" size="sm">
@@ -142,7 +229,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
             <span>Suggested Questions</span>
           </CardTitle>
           <CardDescription>
-            Click on any question to get instant insights
+            Click on any question to get instant insights from your data
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -166,51 +253,40 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
         </CardContent>
       </Card>
 
-      {/* Quick Analytics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <TrendingUp className="h-5 w-5" />
-            <span>Quick Analytics</span>
-          </CardTitle>
-          <CardDescription>
-            Pre-generated insights based on current data
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-green-900">Performance Highlight</h4>
-                <Badge variant="default" className="bg-green-600">Excellent</Badge>
+      {/* Real-time Analytics Summary */}
+      {stats && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <TrendingUp className="h-5 w-5" />
+              <span>Live Data Summary</span>
+            </CardTitle>
+            <CardDescription>
+              Current statistics from your database
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{stats.totalDials.toLocaleString()}</div>
+                <div className="text-sm text-blue-800">Total Calls</div>
               </div>
-              <p className="text-sm text-green-800">
-                Your show rate of 85.3% is 7.3 points above industry average. This indicates high-quality lead generation and effective appointment booking processes.
-              </p>
-            </div>
-
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-blue-900">Optimization Opportunity</h4>
-                <Badge variant="secondary">Actionable</Badge>
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{stats.connectRate.toFixed(1)}%</div>
+                <div className="text-sm text-green-800">Connect Rate</div>
               </div>
-              <p className="text-sm text-blue-800">
-                CPL decreased by 7.5% this month. Consider reallocating budget from underperforming campaigns to scale successful ones further.
-              </p>
-            </div>
-
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-yellow-900">Trend Alert</h4>
-                <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Monitor</Badge>
+              <div className="text-center p-3 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{stats.totalAppointments}</div>
+                <div className="text-sm text-purple-800">Appointments</div>
               </div>
-              <p className="text-sm text-yellow-800">
-                Call volume increased 15% but connect rate remained stable. Monitor for capacity constraints as lead volume grows.
-              </p>
+              <div className="text-center p-3 bg-orange-50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{stats.showRate.toFixed(1)}%</div>
+                <div className="text-sm text-orange-800">Show Rate</div>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
