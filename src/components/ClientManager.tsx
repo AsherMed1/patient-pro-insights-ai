@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ interface Client {
   id: string;
   client_id: string;
   name: string;
-  spreadsheet_id: string;
+  gohighlevel_api_key: string;
   created_at: string;
 }
 
@@ -24,7 +25,7 @@ const ClientManager = () => {
   const [newClient, setNewClient] = useState({
     client_id: '',
     name: '',
-    spreadsheet_id: ''
+    gohighlevel_api_key: ''
   });
   const { toast } = useToast();
 
@@ -54,7 +55,7 @@ const ClientManager = () => {
   };
 
   const handleAddClient = async () => {
-    if (!newClient.client_id || !newClient.name || !newClient.spreadsheet_id) {
+    if (!newClient.client_id || !newClient.name || !newClient.gohighlevel_api_key) {
       toast({
         title: "Validation Error",
         description: "All fields are required",
@@ -75,7 +76,7 @@ const ClientManager = () => {
         description: "Client added successfully",
       });
       
-      setNewClient({ client_id: '', name: '', spreadsheet_id: '' });
+      setNewClient({ client_id: '', name: '', gohighlevel_api_key: '' });
       setIsAdding(false);
       fetchClients();
     } catch (error: any) {
@@ -142,7 +143,7 @@ const ClientManager = () => {
           </Button>
         </CardTitle>
         <CardDescription>
-          Manage your clients and their Google Sheets connections. Adding a new client here makes it immediately available for data sync.
+          Manage your clients and their GoHighLevel API connections. Adding a new client here makes it immediately available for data sync.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -171,14 +172,15 @@ const ClientManager = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="spreadsheet_id">Google Sheets ID</Label>
+                  <Label htmlFor="gohighlevel_api_key">GoHighLevel API Key</Label>
                   <Input
-                    id="spreadsheet_id"
-                    placeholder="e.g., 1ABC123..."
-                    value={newClient.spreadsheet_id}
-                    onChange={(e) => setNewClient({...newClient, spreadsheet_id: e.target.value})}
+                    id="gohighlevel_api_key"
+                    type="password"
+                    placeholder="e.g., ghl_abc123..."
+                    value={newClient.gohighlevel_api_key}
+                    onChange={(e) => setNewClient({...newClient, gohighlevel_api_key: e.target.value})}
                   />
-                  <p className="text-xs text-gray-500 mt-1">From the Google Sheets URL</p>
+                  <p className="text-xs text-gray-500 mt-1">From your GoHighLevel account settings</p>
                 </div>
               </div>
               <div className="flex space-x-2">
@@ -190,7 +192,7 @@ const ClientManager = () => {
                   variant="outline" 
                   onClick={() => {
                     setIsAdding(false);
-                    setNewClient({ client_id: '', name: '', spreadsheet_id: '' });
+                    setNewClient({ client_id: '', name: '', gohighlevel_api_key: '' });
                   }}
                   className="flex items-center space-x-2"
                 >
@@ -221,7 +223,7 @@ const ClientManager = () => {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2 font-mono">
-                  Sheet ID: {client.spreadsheet_id}
+                  API Key: {client.gohighlevel_api_key ? '*********************' + client.gohighlevel_api_key.slice(-4) : 'Not set'}
                 </p>
               </div>
               <div className="flex items-center space-x-2">
