@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +8,8 @@ import { useState } from 'react';
 const AllCallsApiDocs = () => {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  const apiUrl = `${window.location.origin}/functions/v1/all-calls-api`;
+  // Use the correct Supabase function URL
+  const apiUrl = "https://bhabbokbhnqioykjimix.supabase.co/functions/v1/all-calls-api";
 
   const copyToClipboard = (text: string, section: string) => {
     navigator.clipboard.writeText(text);
