@@ -1,6 +1,6 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AccountHealthDashboard from "@/components/AccountHealthDashboard";
 import AIAssistant from "@/components/AIAssistant";
 import ProjectsManager from "@/components/ProjectsManager";
@@ -29,9 +29,8 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="callcenter">Call Center</TabsTrigger>
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="callcenterstats">Call Center Stats</TabsTrigger>
@@ -52,7 +51,6 @@ const Index = () => {
                       Use the tabs above to navigate between different sections:
                     </p>
                     <ul className="space-y-2 text-sm">
-                      <li>• <strong>Call Center:</strong> Call analytics and performance</li>
                       <li>• <strong>Health:</strong> Account health monitoring</li>
                       <li>• <strong>Projects:</strong> View and manage active projects</li>
                       <li>• <strong>Call Center Stats:</strong> View leads, calls, appointments, and agent data</li>
@@ -63,10 +61,6 @@ const Index = () => {
               </Card>
             </div>
             <AIAssistant clientId={defaultClientId} />
-          </TabsContent>
-
-          <TabsContent value="callcenter">
-            <CallCenterDashboard clientId={defaultClientId} />
           </TabsContent>
 
           <TabsContent value="health">
