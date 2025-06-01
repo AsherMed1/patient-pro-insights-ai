@@ -128,7 +128,7 @@ const Index = () => {
               </TabsContent>
 
               <TabsContent value="agents">
-                <AgentManager viewOnly={true} />
+                <AgentManager />
               </TabsContent>
             </Tabs>
           </TabsContent>
