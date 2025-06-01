@@ -10,8 +10,12 @@ import ClientManager from "@/components/ClientManager";
 import DataSyncManager from "@/components/DataSyncManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import NewLeadsManager from "@/components/NewLeadsManager";
+import AllCallsManager from "@/components/AllCallsManager";
 
 const Index = () => {
+  // Default clientId for components that require it
+  const defaultClientId = "default-client";
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -25,7 +29,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="gohighlevel">GoHighLevel</TabsTrigger>
@@ -34,6 +38,7 @@ const Index = () => {
             <TabsTrigger value="clients">Clients</TabsTrigger>
             <TabsTrigger value="sync">Data Sync</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
+            <TabsTrigger value="calls">All Calls</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -57,16 +62,17 @@ const Index = () => {
                       <li>• <strong>Clients:</strong> Manage client information</li>
                       <li>• <strong>Data Sync:</strong> Synchronize data from Google Sheets</li>
                       <li>• <strong>New Leads:</strong> Track and manage new leads</li>
+                      <li>• <strong>All Calls:</strong> Record and manage call data</li>
                     </ul>
                   </div>
                 </CardContent>
               </Card>
             </div>
-            <AIAssistant />
+            <AIAssistant clientId={defaultClientId} />
           </TabsContent>
 
           <TabsContent value="campaigns">
-            <CampaignDashboard />
+            <CampaignDashboard clientId={defaultClientId} />
           </TabsContent>
 
           <TabsContent value="gohighlevel">
@@ -74,11 +80,11 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="callcenter">
-            <CallCenterDashboard />
+            <CallCenterDashboard clientId={defaultClientId} />
           </TabsContent>
 
           <TabsContent value="health">
-            <AccountHealthDashboard />
+            <AccountHealthDashboard clientId={defaultClientId} />
           </TabsContent>
 
           <TabsContent value="clients">
@@ -91,6 +97,10 @@ const Index = () => {
 
           <TabsContent value="leads">
             <NewLeadsManager />
+          </TabsContent>
+
+          <TabsContent value="calls">
+            <AllCallsManager />
           </TabsContent>
         </Tabs>
       </div>
