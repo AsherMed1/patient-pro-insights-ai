@@ -1,16 +1,15 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DatabaseStats {
-  totalClients: number;
+  totalProjects: number;
   totalAppointments: number;
   totalAgents: number;
   lastSyncTime?: string;
 }
 
 interface AppointmentFilters {
-  clientId?: string;
+  projectName?: string;
   dateRange?: { from: Date; to: Date };
   patientName?: string;
   status?: string;
@@ -19,7 +18,7 @@ interface AppointmentFilters {
 
 export const useMasterDatabase = () => {
   const [stats, setStats] = useState<DatabaseStats>({
-    totalClients: 0,
+    totalProjects: 0,
     totalAppointments: 0,
     totalAgents: 0
   });
@@ -34,14 +33,14 @@ export const useMasterDatabase = () => {
       setLoading(true);
       
       // Get counts from existing tables
-      const [clientsCount, appointmentsCount, agentsCount] = await Promise.all([
-        supabase.from('clients').select('id', { count: 'exact', head: true }),
+      const [projectsCount, appointmentsCount, agentsCount] = await Promise.all([
+        supabase.from('projects').select('id', { count: 'exact', head: true }),
         supabase.from('appointments').select('id', { count: 'exact', head: true }),
         supabase.from('agents').select('id', { count: 'exact', head: true })
       ]);
       
       setStats({
-        totalClients: clientsCount.count || 0,
+        totalProjects: projectsCount.count || 0,
         totalAppointments: appointmentsCount.count || 0,
         totalAgents: agentsCount.count || 0
       });
@@ -56,14 +55,12 @@ export const useMasterDatabase = () => {
   const searchAppointments = async (filters: AppointmentFilters) => {
     let query = supabase
       .from('appointments')
-      .select(`
-        *,
-        clients!inner(name)
-      `)
+      .select('*')
       .order('appointment_date', { ascending: false });
 
-    if (filters.clientId) {
-      query = query.eq('client_id', filters.clientId);
+    if (filters.projectName) {
+      // Since appointments don't have project_name, we'll filter by client_id for now
+      query = query.eq('client_id', filters.projectName);
     }
 
     if (filters.dateRange) {
@@ -94,13 +91,13 @@ export const useMasterDatabase = () => {
     return data || [];
   };
 
-  const getAggregatedMetrics = async (clientId?: string, dateRange?: { from: Date; to: Date }) => {
+  const getAggregatedMetrics = async (projectName?: string, dateRange?: { from: Date; to: Date }) => {
     let appointmentsQuery = supabase
       .from('appointments')
       .select('procedure_ordered, showed, cancelled, confirmed');
 
-    if (clientId) {
-      appointmentsQuery = appointmentsQuery.eq('client_id', clientId);
+    if (projectName) {
+      appointmentsQuery = appointmentsQuery.eq('client_id', projectName);
     }
 
     if (dateRange) {

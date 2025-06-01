@@ -1,10 +1,9 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AccountHealthDashboard from "@/components/AccountHealthDashboard";
 import AIAssistant from "@/components/AIAssistant";
-import ClientManager from "@/components/ClientManager";
+import ProjectsManager from "@/components/ProjectsManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import NewLeadsManager from "@/components/NewLeadsManager";
 import AllCallsManager from "@/components/AllCallsManager";
@@ -34,7 +33,7 @@ const Index = () => {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="callcenter">Call Center</TabsTrigger>
             <TabsTrigger value="health">Health</TabsTrigger>
-            <TabsTrigger value="clients">Clients</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="callcenterstats">Call Center Stats</TabsTrigger>
             <TabsTrigger value="agentperformance">Agent Performance</TabsTrigger>
           </TabsList>
@@ -55,7 +54,7 @@ const Index = () => {
                     <ul className="space-y-2 text-sm">
                       <li>• <strong>Call Center:</strong> Call analytics and performance</li>
                       <li>• <strong>Health:</strong> Account health monitoring</li>
-                      <li>• <strong>Clients:</strong> Manage client information</li>
+                      <li>• <strong>Projects:</strong> View and manage active projects</li>
                       <li>• <strong>Call Center Stats:</strong> View leads, calls, appointments, and agent data</li>
                       <li>• <strong>Agent Performance:</strong> Real-time agent performance dashboard</li>
                     </ul>
@@ -74,8 +73,8 @@ const Index = () => {
             <AccountHealthDashboard clientId={defaultClientId} />
           </TabsContent>
 
-          <TabsContent value="clients">
-            <ClientManager />
+          <TabsContent value="projects">
+            <ProjectsManager />
           </TabsContent>
 
           <TabsContent value="callcenterstats" className="space-y-6">
