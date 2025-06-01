@@ -42,7 +42,7 @@ const Index = () => {
 
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />
-            <CallCenterDashboard />
+            <CallCenterDashboard projectId="project-1" />
           </TabsContent>
 
           <TabsContent value="claim" className="space-y-6">

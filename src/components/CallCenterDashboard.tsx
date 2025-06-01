@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -6,13 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, PhoneCall, Clock, UserCheck, TrendingUp } from 'lucide-react';
 
 interface CallCenterDashboardProps {
-  clientId: string;
+  projectId: string;
 }
 
-const CallCenterDashboard = ({ clientId }: CallCenterDashboardProps) => {
+const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
   // Mock call center data
   const callData = {
-    'client-1': {
+    'project-1': {
       totalDials: 542,
       connectRate: 68.2,
       appointmentsSet: 89,
@@ -23,7 +22,7 @@ const CallCenterDashboard = ({ clientId }: CallCenterDashboardProps) => {
         { name: 'Marcus T.', appointments: 37, connectRate: 64.8 }
       ]
     },
-    'client-2': {
+    'project-2': {
       totalDials: 698,
       connectRate: 61.4,
       appointmentsSet: 112,
@@ -34,7 +33,7 @@ const CallCenterDashboard = ({ clientId }: CallCenterDashboardProps) => {
         { name: 'David L.', appointments: 45, connectRate: 58.2 }
       ]
     },
-    'client-3': {
+    'project-3': {
       totalDials: 445,
       connectRate: 74.6,
       appointmentsSet: 74,
@@ -45,7 +44,7 @@ const CallCenterDashboard = ({ clientId }: CallCenterDashboardProps) => {
         { name: 'Alex P.', appointments: 26, connectRate: 69.1 }
       ]
     },
-    'client-4': {
+    'project-4': {
       totalDials: 289,
       connectRate: 59.2,
       appointmentsSet: 42,
@@ -58,7 +57,7 @@ const CallCenterDashboard = ({ clientId }: CallCenterDashboardProps) => {
     }
   };
 
-  const data = callData[clientId as keyof typeof callData] || callData['client-1'];
+  const data = callData[projectId as keyof typeof callData] || callData['project-1'];
 
   return (
     <div className="space-y-6">
