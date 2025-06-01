@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,17 +33,18 @@ export const useMasterDatabase = () => {
     try {
       setLoading(true);
       
-      // Get counts from existing tables
-      const [projectsCount, appointmentsCount, agentsCount] = await Promise.all([
+      // Get counts from all tables
+      const [projectsResult, appointmentsResult, agentsResult] = await Promise.all([
         supabase.from('projects').select('id', { count: 'exact', head: true }),
-        supabase.from('appointments').select('id', { count: 'exact', head: true }),
+        supabase.from('all_appointments').select('id', { count: 'exact', head: true }),
         supabase.from('agents').select('id', { count: 'exact', head: true })
       ]);
       
       setStats({
-        totalProjects: projectsCount.count || 0,
-        totalAppointments: appointmentsCount.count || 0,
-        totalAgents: agentsCount.count || 0
+        totalProjects: projectsResult.count || 0,
+        totalAppointments: appointmentsResult.count || 0,
+        totalAgents: agentsResult.count || 0,
+        lastSyncTime: new Date().toISOString()
       });
       
     } catch (error) {
@@ -54,31 +56,30 @@ export const useMasterDatabase = () => {
 
   const searchAppointments = async (filters: AppointmentFilters) => {
     let query = supabase
-      .from('appointments')
+      .from('all_appointments')
       .select('*')
-      .order('appointment_date', { ascending: false });
+      .order('date_appointment_created', { ascending: false });
 
     if (filters.projectName) {
-      // Since appointments don't have project_name, we'll filter by client_id for now
-      query = query.eq('client_id', filters.projectName);
+      query = query.eq('project_name', filters.projectName);
     }
 
     if (filters.dateRange) {
       query = query
-        .gte('appointment_date', filters.dateRange.from.toISOString().split('T')[0])
-        .lte('appointment_date', filters.dateRange.to.toISOString().split('T')[0]);
+        .gte('date_of_appointment', filters.dateRange.from.toISOString().split('T')[0])
+        .lte('date_of_appointment', filters.dateRange.to.toISOString().split('T')[0]);
     }
 
     if (filters.patientName) {
-      query = query.ilike('patient_name', `%${filters.patientName}%`);
+      query = query.ilike('lead_name', `%${filters.patientName}%`);
     }
 
     if (filters.status) {
-      query = query.ilike('status', `%${filters.status}%`);
-    }
-
-    if (filters.procedureOrdered !== undefined) {
-      query = query.eq('procedure_ordered', filters.procedureOrdered);
+      if (filters.status === 'showed') {
+        query = query.eq('showed', true);
+      } else if (filters.status === 'no-show') {
+        query = query.eq('showed', false);
+      }
     }
 
     const { data, error } = await query;
@@ -93,11 +94,11 @@ export const useMasterDatabase = () => {
 
   const getAggregatedMetrics = async (projectName?: string, dateRange?: { from: Date; to: Date }) => {
     let appointmentsQuery = supabase
-      .from('appointments')
-      .select('procedure_ordered, showed, cancelled, confirmed');
+      .from('all_appointments')
+      .select('showed, confirmed');
 
     if (projectName) {
-      appointmentsQuery = appointmentsQuery.eq('client_id', projectName);
+      appointmentsQuery = appointmentsQuery.eq('project_name', projectName);
     }
 
     if (dateRange) {
@@ -105,8 +106,8 @@ export const useMasterDatabase = () => {
       const toDate = dateRange.to.toISOString().split('T')[0];
       
       appointmentsQuery = appointmentsQuery
-        .gte('appointment_date', fromDate)
-        .lte('appointment_date', toDate);
+        .gte('date_of_appointment', fromDate)
+        .lte('date_of_appointment', toDate);
     }
 
     const appointmentsResult = await appointmentsQuery;
@@ -120,21 +121,17 @@ export const useMasterDatabase = () => {
 
     // Calculate aggregated metrics from appointments
     const totalAppointments = appointments.length;
-    const proceduresOrdered = appointments.filter(a => a.procedure_ordered).length;
     const showedAppointments = appointments.filter(a => a.showed).length;
-    const cancelledAppointments = appointments.filter(a => a.cancelled).length;
     const confirmedAppointments = appointments.filter(a => a.confirmed).length;
 
     const showRate = totalAppointments > 0 ? (showedAppointments / totalAppointments) * 100 : 0;
 
     return {
       appointments: totalAppointments,
-      procedures: proceduresOrdered,
       showedAppointments,
-      cancelledAppointments,
       confirmedAppointments,
       showRate,
-      dataSource: 'appointments'
+      dataSource: 'all_appointments'
     };
   };
 
