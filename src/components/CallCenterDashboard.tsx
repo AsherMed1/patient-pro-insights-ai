@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import CallMetricsCards from './dashboard/CallMetricsCards';
 import ConversionMetrics from './dashboard/ConversionMetrics';
 import AgentPerformanceSection from './dashboard/AgentPerformanceSection';
+import DashboardFilters from './DashboardFilters';
 
 interface CallCenterDashboardProps {
   projectId: string;
@@ -27,29 +28,52 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
   const [callData, setCallData] = useState<CallData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined
+  });
+  const [procedure, setProcedure] = useState('ALL');
 
   useEffect(() => {
     fetchDashboardData();
-  }, [projectId]);
+  }, [projectId, dateRange, procedure]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       
-      // Fetch calls data
-      const { data: calls, error: callsError } = await supabase
+      // Build queries with date filters
+      let callsQuery = supabase
         .from('all_calls')
         .select('*')
         .eq('project_name', projectId);
-      
-      if (callsError) throw new Error(callsError.message);
 
-      // Fetch appointments
-      const { data: appointments, error: apptsError } = await supabase
+      let appointmentsQuery = supabase
         .from('all_appointments')
         .select('*')
         .eq('project_name', projectId);
-        
+
+      // Apply date filters if set
+      if (dateRange.from) {
+        const fromDate = dateRange.from.toISOString().split('T')[0];
+        callsQuery = callsQuery.gte('date', fromDate);
+        appointmentsQuery = appointmentsQuery.gte('date_of_appointment', fromDate);
+      }
+
+      if (dateRange.to) {
+        const toDate = dateRange.to.toISOString().split('T')[0];
+        callsQuery = callsQuery.lte('date', toDate);
+        appointmentsQuery = appointmentsQuery.lte('date_of_appointment', toDate);
+      }
+
+      // Execute queries
+      const { data: calls, error: callsError } = await callsQuery;
+      if (callsError) throw new Error(callsError.message);
+
+      const { data: appointments, error: apptsError } = await appointmentsQuery;
       if (apptsError) throw new Error(apptsError.message);
 
       // Fetch agents
@@ -60,7 +84,7 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         
       if (agentsError) throw new Error(agentsError.message);
 
-      // Calculate statistics
+      // Calculate statistics - totalDials is now the actual count of call records
       const totalDials = calls ? calls.length : 0;
       
       const answeredCalls = calls ? calls.filter(call => 
@@ -70,7 +94,7 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
       const connectRate = totalDials > 0 ? (answeredCalls / totalDials) * 100 : 0;
       
       const totalCallDuration = calls ? calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0) : 0;
-      const avgCallDuration = totalDials > 0 ? totalCallDuration / totalDials / 60 : 0;
+      const avgCallDuration = answeredCalls > 0 ? totalCallDuration / answeredCalls / 60 : 0;
       
       const appointmentsSet = appointments ? appointments.length : 0;
       
@@ -151,6 +175,13 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
 
   return (
     <div className="space-y-6">
+      <DashboardFilters 
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        procedure={procedure}
+        onProcedureChange={setProcedure}
+      />
+
       <CallMetricsCards 
         totalDials={data.totalDials}
         connectRate={data.connectRate}

@@ -21,7 +21,7 @@ const CallMetricsCards = ({ totalDials, connectRate, appointmentsSet, avgCallDur
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalDials.toLocaleString()}</div>
-          <p className="text-xs opacity-90 mt-1">From database</p>
+          <p className="text-xs opacity-90 mt-1">Call records in database</p>
         </CardContent>
       </Card>
 
