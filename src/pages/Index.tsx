@@ -102,7 +102,7 @@ const Index = () => {
               </TabsContent>
 
               <TabsContent value="speedtolead">
-                <SpeedToLeadManager viewOnly={true} />
+                <SpeedToLeadManager viewOnly={false} />
               </TabsContent>
 
               <TabsContent value="appointments">
