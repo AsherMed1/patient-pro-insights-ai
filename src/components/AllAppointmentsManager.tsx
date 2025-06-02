@@ -200,6 +200,15 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
     }
   };
 
+  const getProcedureOrderedVariant = (procedureOrdered: boolean | null) => {
+    if (procedureOrdered === true) {
+      return 'default' as const; // Green for Yes
+    } else if (procedureOrdered === false) {
+      return 'destructive' as const; // Red for No
+    }
+    return 'secondary' as const; // Gray for not set
+  };
+
   const statusOptions = ['Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
 
   return (
@@ -345,9 +354,9 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                           {appointment.stage_booked}
                         </Badge>
                       )}
-                      {appointment.procedure_ordered && (
-                        <Badge variant="secondary">
-                          Procedure Ordered
+                      {appointment.procedure_ordered !== null && (
+                        <Badge variant={getProcedureOrderedVariant(appointment.procedure_ordered)}>
+                          Procedure: {appointment.procedure_ordered ? 'Yes' : 'No'}
                         </Badge>
                       )}
                     </div>
