@@ -1,15 +1,9 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { User, Phone, Mail, MapPin, Calendar as CalendarIcon, Building, Clock, Heart, FileText } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Calendar, Building, Clock, Heart, FileText } from 'lucide-react';
 import { formatDateInCentralTime, formatDateTimeForTable } from '@/utils/dateTimeUtils';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 
 interface NewLead {
   id: string;
@@ -58,25 +52,9 @@ interface LeadCardProps {
   lead: NewLead;
   onViewCalls: (leadName: string) => void;
   onViewFullDetails: (lead: NewLead) => void;
-  onUpdateLead: (leadId: string, updates: Partial<NewLead>) => void;
 }
 
-const statusOptions = [
-  'Showed',
-  'No Show', 
-  'Cancelled',
-  'Reschedued',
-  'Confirmed',
-  'Welcome Call',
-  'Won'
-];
-
-const LeadCard = ({ lead, onViewCalls, onViewFullDetails, onUpdateLead }: LeadCardProps) => {
-  const [procedureDate, setProcedureDate] = useState<Date | undefined>(
-    lead.appt_date ? new Date(lead.appt_date) : undefined
-  );
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-
+const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
   const getDisplayName = (lead: NewLead) => {
     if (lead.first_name && lead.last_name) {
       return `${lead.first_name} ${lead.last_name}`;
@@ -100,22 +78,6 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails, onUpdateLead }: LeadCa
     return formatDateTimeForTable(dateTimeString);
   };
 
-  const handleStatusChange = (newStatus: string) => {
-    onUpdateLead(lead.id, { status: newStatus });
-  };
-
-  const handleProcedureOrderedChange = (checked: boolean) => {
-    onUpdateLead(lead.id, { procedure_ordered: checked });
-  };
-
-  const handleProcedureDateChange = (date: Date | undefined) => {
-    setProcedureDate(date);
-    setIsDatePickerOpen(false);
-    onUpdateLead(lead.id, { 
-      appt_date: date ? date.toISOString().split('T')[0] : undefined 
-    });
-  };
-
   return (
     <div className="border rounded-lg p-4 space-y-3">
       <div className="flex items-start justify-between">
@@ -123,20 +85,11 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails, onUpdateLead }: LeadCa
           <div className="flex items-center space-x-2">
             <User className="h-4 w-4 text-gray-500" />
             <span className="font-medium">{getDisplayName(lead)}</span>
-            <div className="flex items-center space-x-2">
-              <Select value={lead.status || ''} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-32 h-6 text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status} className="text-xs">
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {lead.status && (
+              <Badge variant="outline" className="text-xs">
+                {lead.status}
+              </Badge>
+            )}
           </div>
           
           <div className="flex items-center space-x-2">
@@ -145,7 +98,7 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails, onUpdateLead }: LeadCa
           </div>
           
           <div className="flex items-center space-x-2">
-            <CalendarIcon className="h-4 w-4 text-gray-500" />
+            <Calendar className="h-4 w-4 text-gray-500" />
             <span className="text-sm text-gray-600">{formatDate(lead.date)}</span>
             {lead.appt_date && (
               <>
@@ -160,50 +113,6 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails, onUpdateLead }: LeadCa
             <span className="text-sm text-blue-600 font-medium">
               Came in: {formatDateTime(lead.created_at)}
             </span>
-          </div>
-
-          {/* Procedure Information */}
-          <div className="flex items-center space-x-4 pt-2 border-t">
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id={`procedure-${lead.id}`}
-                checked={lead.procedure_ordered || false}
-                onCheckedChange={handleProcedureOrderedChange}
-              />
-              <label htmlFor={`procedure-${lead.id}`} className="text-sm font-medium">
-                Procedure Ordered
-              </label>
-            </div>
-            
-            {lead.procedure_ordered && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Date:</span>
-                <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "text-xs h-6 px-2",
-                        !procedureDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="h-3 w-3 mr-1" />
-                      {procedureDate ? format(procedureDate, "MMM d, yyyy") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={procedureDate}
-                      onSelect={handleProcedureDateChange}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
           </div>
 
           {/* Additional Information Grid */}
@@ -242,6 +151,14 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails, onUpdateLead }: LeadCa
               <div className="flex items-center space-x-1 text-xs">
                 <FileText className="h-3 w-3 text-gray-400" />
                 <span className="text-gray-600">{lead.insurance_provider}</span>
+              </div>
+            )}
+            
+            {lead.procedure_ordered && (
+              <div className="text-xs">
+                <Badge variant="secondary" className="text-xs">
+                  Procedure Ordered
+                </Badge>
               </div>
             )}
           </div>
