@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,11 +40,11 @@ const AppointmentCard = ({
   const getProcedureTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
     
-    const baseClass = "w-full h-11 md:h-10 text-base md:text-sm bg-red-50 border-red-200 hover:bg-red-100";
+    const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
     if (isProcedureUpdated) {
       return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
     } else {
-      return baseClass;
+      return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     }
   };
 
@@ -147,7 +148,7 @@ const AppointmentCard = ({
               <div className="space-y-2">
                 <label className="text-sm font-medium block">Procedure Ordered:</label>
                 <Select 
-                  value={appointment.procedure_ordered === true ? 'yes' : appointment.procedure_ordered === false ? 'no' : ''} 
+                  value={isProcedureUpdated ? (appointment.procedure_ordered === true ? 'yes' : 'no') : ''} 
                   onValueChange={(value) => {
                     if (value === 'yes' || value === 'no') {
                       onUpdateProcedure(appointment.id, value === 'yes');
