@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
-import { Phone, Calendar, User, Building, Eye } from 'lucide-react';
+import { Phone, Calendar, User, Building, Eye, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import CallDetailsModal from './CallDetailsModal';
-import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
+import { formatDateInCentralTime, formatTimeInCentralTime, formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface NewLead {
   id: string;
@@ -58,7 +59,7 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
       const { data: leadsData, error: leadsError } = await supabase
         .from('new_leads')
         .select('*')
-        .order('date', { ascending: false });
+        .order('created_at', { ascending: false });
       
       if (leadsError) throw leadsError;
 
@@ -121,6 +122,10 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
     return formatDateInCentralTime(dateString);
   };
 
+  const formatDateTime = (dateTimeString: string) => {
+    return formatDateTimeForTable(dateTimeString);
+  };
+
   return (
     <div className="space-y-6">
       {/* Leads List */}
@@ -128,7 +133,7 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
         <CardHeader>
           <CardTitle>New Leads</CardTitle>
           <CardDescription>
-            {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded (Dates in Central Time Zone)
+            {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>
@@ -160,6 +165,13 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-gray-500" />
                         <span className="text-sm text-gray-600">{formatDate(lead.date)}</span>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm text-blue-600 font-medium">
+                          Came in: {formatDateTime(lead.created_at)}
+                        </span>
                       </div>
                     </div>
                     
