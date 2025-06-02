@@ -21,6 +21,33 @@ const AppointmentCard = ({
 }: AppointmentCardProps) => {
   const appointmentStatus = getAppointmentStatus(appointment);
 
+  // Check if status and procedure have been updated
+  const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
+  const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+
+  // Get styling classes for dropdowns
+  const getStatusTriggerClass = () => {
+    if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
+    
+    const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
+    if (isStatusUpdated) {
+      return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
+    } else {
+      return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
+    }
+  };
+
+  const getProcedureTriggerClass = () => {
+    if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
+    
+    const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
+    if (isProcedureUpdated) {
+      return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
+    } else {
+      return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
+    }
+  };
+
   return (
     <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
       <div className="space-y-2">
@@ -105,7 +132,7 @@ const AppointmentCard = ({
                   value={appointment.status || ''} 
                   onValueChange={(value) => onUpdateStatus(appointment.id, value)}
                 >
-                  <SelectTrigger className="w-full h-11 md:h-10 text-base md:text-sm">
+                  <SelectTrigger className={getStatusTriggerClass()}>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -128,7 +155,7 @@ const AppointmentCard = ({
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full h-11 md:h-10 text-base md:text-sm">
+                  <SelectTrigger className={getProcedureTriggerClass()}>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
