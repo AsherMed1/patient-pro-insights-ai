@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { AllAppointment, AllAppointmentsManagerProps } from './appointments/types';
 import AppointmentsTabs from './appointments/AppointmentsTabs';
+import AppointmentsCsvImport from './AppointmentsCsvImport';
 
 const AllAppointmentsManager = ({
   projectFilter
@@ -11,6 +14,7 @@ const AllAppointmentsManager = ({
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("needs-review");
+  const [showImport, setShowImport] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -63,6 +67,11 @@ const AllAppointmentsManager = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImportComplete = () => {
+    setShowImport(false);
+    fetchAppointments(); // Refresh the appointments list
   };
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
@@ -135,28 +144,67 @@ const AllAppointmentsManager = ({
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3 md:pb-6">
-        <CardTitle className="text-lg md:text-xl">
-          {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
-        </CardTitle>
-        <CardDescription className="text-sm">
-          {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
-          {projectFilter && ` for ${projectFilter}`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-3 md:p-6 pt-0">
-        <AppointmentsTabs
-          appointments={appointments}
-          loading={loading}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          projectFilter={projectFilter}
-          onUpdateStatus={updateAppointmentStatus}
-          onUpdateProcedure={updateProcedureOrdered}
-        />
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      {/* Import Section */}
+      {!showImport && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Import Historical Appointments</CardTitle>
+                <CardDescription>Upload past appointments data from CSV file</CardDescription>
+              </div>
+              <Button 
+                onClick={() => setShowImport(true)}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Import CSV
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* CSV Import Component */}
+      {showImport && (
+        <div className="space-y-4">
+          <AppointmentsCsvImport />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowImport(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleImportComplete}>
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Appointments List */}
+      <Card className="w-full">
+        <CardHeader className="pb-3 md:pb-6">
+          <CardTitle className="text-lg md:text-xl">
+            {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
+          </CardTitle>
+          <CardDescription className="text-sm">
+            {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+            {projectFilter && ` for ${projectFilter}`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-3 md:p-6 pt-0">
+          <AppointmentsTabs
+            appointments={appointments}
+            loading={loading}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            projectFilter={projectFilter}
+            onUpdateStatus={updateAppointmentStatus}
+            onUpdateProcedure={updateProcedureOrdered}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
