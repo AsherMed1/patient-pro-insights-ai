@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AllAppointmentsApiDocs from "@/components/AllAppointmentsApiDocs";
 import AllCallsApiDocs from "@/components/AllCallsApiDocs";
 import NewLeadApiDocs from "@/components/NewLeadApiDocs";
+import UpdateAppointmentApiDocs from "@/components/UpdateAppointmentApiDocs";
 
 const ApiDocs = () => {
   return (
@@ -14,13 +15,17 @@ const ApiDocs = () => {
         </div>
 
         <Tabs defaultValue="appointments-api" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="appointments-api">Appointments API</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="appointments-api">Create Appointments</TabsTrigger>
+            <TabsTrigger value="update-appointments-api">Update Appointments</TabsTrigger>
             <TabsTrigger value="calls-api">Calls API</TabsTrigger>
             <TabsTrigger value="leads-api">New Leads API</TabsTrigger>
           </TabsList>
           <TabsContent value="appointments-api">
             <AllAppointmentsApiDocs />
+          </TabsContent>
+          <TabsContent value="update-appointments-api">
+            <UpdateAppointmentApiDocs />
           </TabsContent>
           <TabsContent value="calls-api">
             <AllCallsApiDocs />
