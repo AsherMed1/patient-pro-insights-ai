@@ -70,9 +70,10 @@ interface CallRecord {
 
 interface NewLeadsManagerProps {
   viewOnly?: boolean;
+  projectFilter?: string;
 }
 
-const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
+const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerProps) => {
   const [leads, setLeads] = useState<NewLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLeadCalls, setSelectedLeadCalls] = useState<CallRecord[]>([]);
@@ -84,17 +85,23 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
 
   useEffect(() => {
     fetchLeadsWithCallCounts();
-  }, []);
+  }, [projectFilter]);
 
   const fetchLeadsWithCallCounts = async () => {
     try {
       setLoading(true);
       
-      // Fetch leads
-      const { data: leadsData, error: leadsError } = await supabase
+      // Fetch leads with optional project filtering
+      let leadsQuery = supabase
         .from('new_leads')
         .select('*')
         .order('created_at', { ascending: false });
+      
+      if (projectFilter) {
+        leadsQuery = leadsQuery.eq('project_name', projectFilter);
+      }
+      
+      const { data: leadsData, error: leadsError } = await leadsQuery;
       
       if (leadsError) throw leadsError;
 
@@ -186,10 +193,13 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
       {/* Leads List */}
       <Card>
         <CardHeader>
-          <CardTitle>New Leads</CardTitle>
+          <CardTitle>
+            {projectFilter ? `${projectFilter} - New Leads` : 'New Leads'}
+          </CardTitle>
           <CardDescription>
             {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
+            {projectFilter && ` for ${projectFilter}`}
           </CardDescription>
         </CardHeader>
         <CardContent>

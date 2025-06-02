@@ -29,25 +29,32 @@ interface AllAppointment {
 }
 
 interface AllAppointmentsManagerProps {
-  viewOnly?: boolean;
+  projectFilter?: string;
 }
 
-const AllAppointmentsManager = ({ viewOnly = false }: AllAppointmentsManagerProps) => {
+const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchAppointments();
-  }, []);
+  }, [projectFilter]);
 
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      let appointmentsQuery = supabase
         .from('all_appointments')
         .select('*')
         .order('date_appointment_created', { ascending: false });
+      
+      if (projectFilter) {
+        appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
+      }
+      
+      const { data, error } = await appointmentsQuery;
       
       if (error) throw error;
       setAppointments(data || []);
@@ -97,111 +104,111 @@ const AllAppointmentsManager = ({ viewOnly = false }: AllAppointmentsManagerProp
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>All Appointments</CardTitle>
-          <CardDescription>
-            {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
-            {viewOnly && " (View Only - Records created via API)"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="text-gray-500">Loading appointments...</div>
-            </div>
-          ) : appointments.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-gray-500">No appointments recorded yet</div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {appointments.map((appointment) => {
-                const appointmentStatus = getAppointmentStatus(appointment);
-                
-                return (
-                  <div key={appointment.id} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2 flex-1">
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
+        </CardTitle>
+        <CardDescription>
+          {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+          {projectFilter && ` for ${projectFilter}`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="text-gray-500">Loading appointments...</div>
+          </div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-gray-500">No appointments recorded yet</div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {appointments.map((appointment) => {
+              const appointmentStatus = getAppointmentStatus(appointment);
+              
+              return (
+                <div key={appointment.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-gray-500" />
+                        <span className="font-medium">{appointment.lead_name}</span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Building className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm text-gray-600">{appointment.project_name}</span>
+                      </div>
+                      
+                      {appointment.lead_email && (
                         <div className="flex items-center space-x-2">
-                          <User className="h-4 w-4 text-gray-500" />
-                          <span className="font-medium">{appointment.lead_name}</span>
+                          <Mail className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">{appointment.lead_email}</span>
                         </div>
-                        
+                      )}
+                      
+                      {appointment.lead_phone_number && (
                         <div className="flex items-center space-x-2">
-                          <Building className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">{appointment.project_name}</span>
+                          <Phone className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
                         </div>
-                        
-                        {appointment.lead_email && (
-                          <div className="flex items-center space-x-2">
-                            <Mail className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">{appointment.lead_email}</span>
-                          </div>
-                        )}
-                        
-                        {appointment.lead_phone_number && (
-                          <div className="flex items-center space-x-2">
-                            <Phone className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-                          </div>
-                        )}
-                        
+                      )}
+                      
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm text-gray-600">
+                          Created: {formatDate(appointment.date_appointment_created)}
+                        </span>
+                      </div>
+                      
+                      {appointment.date_of_appointment && (
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">
-                            Created: {formatDate(appointment.date_appointment_created)}
+                            Appointment: {formatDate(appointment.date_of_appointment)}
                           </span>
                         </div>
-                        
-                        {appointment.date_of_appointment && (
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              Appointment: {formatDate(appointment.date_of_appointment)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {appointment.requested_time && (
-                          <div className="flex items-center space-x-2">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              Time: {formatTime(appointment.requested_time)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {appointment.agent && (
-                          <div className="text-sm text-gray-600">
-                            Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
-                          </div>
-                        )}
-                      </div>
+                      )}
                       
-                      <div className="flex flex-col space-y-2">
-                        <Badge variant={appointment.confirmed ? "default" : "secondary"}>
-                          {appointment.confirmed ? "Confirmed" : "Not Confirmed"}
+                      {appointment.requested_time && (
+                        <div className="flex items-center space-x-2">
+                          <Clock className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">
+                            Time: {formatTime(appointment.requested_time)}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {appointment.agent && (
+                        <div className="text-sm text-gray-600">
+                          Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-col space-y-2">
+                      <Badge variant={appointment.confirmed ? "default" : "secondary"}>
+                        {appointment.confirmed ? "Confirmed" : "Not Confirmed"}
+                      </Badge>
+                      <Badge variant={appointmentStatus.variant}>
+                        {appointmentStatus.text}
+                      </Badge>
+                      {appointment.stage_booked && (
+                        <Badge variant="outline">
+                          {appointment.stage_booked}
                         </Badge>
-                        <Badge variant={appointmentStatus.variant}>
-                          {appointmentStatus.text}
-                        </Badge>
-                        {appointment.stage_booked && (
-                          <Badge variant="outline">
-                            {appointment.stage_booked}
-                          </Badge>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

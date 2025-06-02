@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2, TrendingUp } from 'lucide-react';
+import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
 
@@ -121,8 +121,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           </div>
         )}
 
-        {/* View Detailed Stats Button */}
-        <div className="pt-2">
+        {/* Project Portal and Detailed Stats Buttons */}
+        <div className="pt-2 space-y-2">
+          <Link to={`/project/${encodeURIComponent(project.project_name)}`}>
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="w-full"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open Project Portal
+            </Button>
+          </Link>
+          
           <ProjectDetailedDashboard project={project}>
             <Button 
               variant="outline" 

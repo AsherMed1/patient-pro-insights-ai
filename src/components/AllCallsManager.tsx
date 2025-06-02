@@ -24,25 +24,32 @@ interface CallRecord {
 }
 
 interface AllCallsManagerProps {
-  viewOnly?: boolean;
+  projectFilter?: string;
 }
 
-const AllCallsManager = ({ viewOnly = false }: AllCallsManagerProps) => {
+const AllCallsManager = ({ projectFilter }: AllCallsManagerProps) => {
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchCalls();
-  }, []);
+  }, [projectFilter]);
 
   const fetchCalls = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      let callsQuery = supabase
         .from('all_calls')
         .select('*')
         .order('call_datetime', { ascending: false });
+      
+      if (projectFilter) {
+        callsQuery = callsQuery.eq('project_name', projectFilter);
+      }
+      
+      const { data, error } = await callsQuery;
       
       if (error) throw error;
       setCalls(data || []);
@@ -73,10 +80,12 @@ const AllCallsManager = ({ viewOnly = false }: AllCallsManagerProps) => {
       {/* Calls List */}
       <Card>
         <CardHeader>
-          <CardTitle>All Call Records</CardTitle>
+          <CardTitle>
+            {projectFilter ? `${projectFilter} - All Calls` : 'All Calls'}
+          </CardTitle>
           <CardDescription>
-            {calls.length} call record{calls.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
-            {viewOnly && " (View Only - Records created via API)"}
+            {calls.length} call{calls.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+            {projectFilter && ` for ${projectFilter}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
