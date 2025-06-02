@@ -297,12 +297,7 @@ const AllAppointmentsManager = ({
                         </div>}
                     </div>
                     
-                    <div className="flex flex-col space-y-2">
-                      
-                      
-                      {appointment.stage_booked}
-                      {appointment.procedure_ordered !== null}
-                    </div>
+                    
                   </div>
                 </div>;
         })}
