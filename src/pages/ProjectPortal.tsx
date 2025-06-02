@@ -1,15 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Building, BarChart3, Calendar, CheckCircle, Stethoscope, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
-import NewLeadsManager from '@/components/NewLeadsManager';
-import AllCallsManager from '@/components/AllCallsManager';
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
 
@@ -20,16 +17,29 @@ interface Project {
   updated_at: string;
 }
 
+interface AppointmentStats {
+  totalAppointments: number;
+  totalShowed: number;
+  totalProceduresOrdered: number;
+  projectedRevenue: number;
+}
+
 const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("leads");
+  const [stats, setStats] = useState<AppointmentStats>({
+    totalAppointments: 0,
+    totalShowed: 0,
+    totalProceduresOrdered: 0,
+    projectedRevenue: 0
+  });
   const { toast } = useToast();
 
   useEffect(() => {
     if (projectName) {
       fetchProject();
+      fetchAppointmentStats();
     }
   }, [projectName]);
 
@@ -66,6 +76,36 @@ const ProjectPortal = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAppointmentStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .select('showed, procedure_ordered')
+        .eq('project_name', decodeURIComponent(projectName!));
+      
+      if (error) throw error;
+      
+      const totalAppointments = data?.length || 0;
+      const totalShowed = data?.filter(apt => apt.showed === true).length || 0;
+      const totalProceduresOrdered = data?.filter(apt => apt.procedure_ordered === true).length || 0;
+      const projectedRevenue = totalProceduresOrdered * 7000;
+      
+      setStats({
+        totalAppointments,
+        totalShowed,
+        totalProceduresOrdered,
+        projectedRevenue
+      });
+    } catch (error) {
+      console.error('Error fetching appointment stats:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch appointment statistics",
+        variant: "destructive",
+      });
     }
   };
 
@@ -132,42 +172,62 @@ const ProjectPortal = () => {
           <p className="text-xl text-gray-600">Project Portal & Analytics</p>
         </div>
 
-        {/* Tabs for different sections */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-            <TabsTrigger value="calls">Calls</TabsTrigger>
-            <TabsTrigger value="appointments">Appointments</TabsTrigger>
-          </TabsList>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Appointments</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.totalAppointments}</p>
+                </div>
+                <Calendar className="h-8 w-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="leads" className="space-y-6">
-            <ProjectLeadsManager projectName={project.project_name} />
-          </TabsContent>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Showed</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.totalShowed}</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="calls" className="space-y-6">
-            <ProjectCallsManager projectName={project.project_name} />
-          </TabsContent>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Procedures Ordered</p>
+                  <p className="text-2xl font-bold text-purple-600">{stats.totalProceduresOrdered}</p>
+                </div>
+                <Stethoscope className="h-8 w-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="appointments" className="space-y-6">
-            <ProjectAppointmentsManager projectName={project.project_name} />
-          </TabsContent>
-        </Tabs>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Projected Revenue</p>
+                  <p className="text-2xl font-bold text-orange-600">${stats.projectedRevenue.toLocaleString()}</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Appointments Section */}
+        <AllAppointmentsManager projectFilter={project.project_name} />
       </div>
     </div>
   );
-};
-
-// Project-specific components that filter by project
-const ProjectLeadsManager = ({ projectName }: { projectName: string }) => {
-  return <NewLeadsManager viewOnly projectFilter={projectName} />;
-};
-
-const ProjectCallsManager = ({ projectName }: { projectName: string }) => {
-  return <AllCallsManager projectFilter={projectName} />;
-};
-
-const ProjectAppointmentsManager = ({ projectName }: { projectName: string }) => {
-  return <AllAppointmentsManager projectFilter={projectName} />;
 };
 
 export default ProjectPortal;
