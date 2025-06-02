@@ -3,8 +3,9 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2 } from 'lucide-react';
+import { Calendar, Activity, Edit, Trash2, TrendingUp } from 'lucide-react';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
+import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
 
 interface Project {
   id: string;
@@ -119,6 +120,20 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             <span>Last activity: {formatDate(stats.last_activity)}</span>
           </div>
         )}
+
+        {/* View Detailed Stats Button */}
+        <div className="pt-2">
+          <ProjectDetailedDashboard project={project}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              View Detailed Stats
+            </Button>
+          </ProjectDetailedDashboard>
+        </div>
       </CardContent>
     </Card>
   );
