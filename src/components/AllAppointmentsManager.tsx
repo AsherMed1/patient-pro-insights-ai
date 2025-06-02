@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from '@/integrations/supabase/client';
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -312,16 +310,23 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                             </div>
 
                             <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`procedure-${appointment.id}`}
-                                checked={appointment.procedure_ordered || false}
-                                onCheckedChange={(checked) => {
-                                  updateProcedureOrdered(appointment.id, checked as boolean);
+                              <label className="text-sm font-medium">Procedure Ordered:</label>
+                              <Select
+                                value={appointment.procedure_ordered === true ? 'yes' : appointment.procedure_ordered === false ? 'no' : ''}
+                                onValueChange={(value) => {
+                                  if (value === 'yes' || value === 'no') {
+                                    updateProcedureOrdered(appointment.id, value === 'yes');
+                                  }
                                 }}
-                              />
-                              <label htmlFor={`procedure-${appointment.id}`} className="text-sm font-medium">
-                                Procedure Ordered
-                              </label>
+                              >
+                                <SelectTrigger className="w-40">
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="yes">Yes</SelectItem>
+                                  <SelectItem value="no">No</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         </div>
