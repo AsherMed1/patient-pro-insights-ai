@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building, BarChart3, Calendar, CheckCircle, Stethoscope, DollarSign } from 'lucide-react';
+import { ArrowLeft, Building, Calendar, CheckCircle, Stethoscope, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -147,7 +147,7 @@ const ProjectPortal = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header with back button */}
+        {/* Header with back button only */}
         <div className="flex items-center justify-between">
           <Link to="/">
             <Button variant="outline">
@@ -155,12 +155,6 @@ const ProjectPortal = () => {
               Back to Dashboard
             </Button>
           </Link>
-          <ProjectDetailedDashboard project={project}>
-            <Button variant="outline">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              View Detailed Analytics
-            </Button>
-          </ProjectDetailedDashboard>
         </div>
 
         {/* Project Header */}
@@ -221,6 +215,15 @@ const ProjectPortal = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Small detailed analytics link below stats */}
+        <div className="text-center">
+          <ProjectDetailedDashboard project={project}>
+            <button className="text-sm text-blue-600 hover:text-blue-800 underline">
+              View detailed analytics
+            </button>
+          </ProjectDetailedDashboard>
         </div>
 
         {/* Appointments Section */}
