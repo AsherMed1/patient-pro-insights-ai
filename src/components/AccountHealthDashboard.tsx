@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, CheckCircle, MessageCircle, TrendingUp, AlertTriangle, Clock } from 'lucide-react';
+import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
 interface AccountHealthDashboardProps {
   clientId: string;
@@ -61,8 +61,7 @@ const AccountHealthDashboard = ({ clientId }: AccountHealthDashboardProps) => {
   const data = healthData[clientId as keyof typeof healthData] || healthData['client-1'];
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return formatDateInCentralTime(dateString);
   };
 
   const getDaysAgo = (dateString: string) => {
@@ -148,7 +147,7 @@ const AccountHealthDashboard = ({ clientId }: AccountHealthDashboardProps) => {
               <Calendar className="h-5 w-5" />
               <span>Recent Activity</span>
             </CardTitle>
-            <CardDescription>Latest touchpoints and interactions</CardDescription>
+            <CardDescription>Latest touchpoints and interactions (Central Time Zone)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

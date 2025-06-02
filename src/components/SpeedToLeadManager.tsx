@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
 import SpeedToLeadTracker from './SpeedToLeadTracker';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Clock, Target, TrendingUp, Users } from 'lucide-react';
+import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface SpeedToLeadStat {
   id: string;
@@ -65,11 +64,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
 
   const formatDateTime = (dateTimeString: string | null) => {
     if (!dateTimeString) return 'N/A';
-    try {
-      return format(new Date(dateTimeString), 'MMM dd, yyyy HH:mm:ss');
-    } catch {
-      return dateTimeString;
-    }
+    return formatDateTimeForTable(dateTimeString);
   };
 
   const formatSpeedToLead = (minutes: number | null) => {
@@ -268,7 +263,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
             <CardHeader>
               <CardTitle>Valid Speed to Lead Records</CardTitle>
               <CardDescription>
-                Only showing records with valid first call times and positive speed calculations
+                Only showing records with valid first call times and positive speed calculations (Times in Central Time Zone)
                 {viewOnly && " (View Only - Records created via API)"}
               </CardDescription>
             </CardHeader>
@@ -280,8 +275,8 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
                       <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Name</th>
                       <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Phone Number</th>
                       <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Project</th>
-                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Created</th>
-                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold">First Call</th>
+                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Created (CT)</th>
+                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold">First Call (CT)</th>
                       <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Speed to Lead</th>
                     </tr>
                   </thead>

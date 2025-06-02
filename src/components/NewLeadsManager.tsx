@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Phone, Calendar, User, Building, Eye } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import CallDetailsModal from './CallDetailsModal';
+import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
 interface NewLead {
   id: string;
@@ -118,7 +118,7 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+    return formatDateInCentralTime(dateString);
   };
 
   return (
@@ -128,7 +128,7 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
         <CardHeader>
           <CardTitle>New Leads</CardTitle>
           <CardDescription>
-            {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded
+            {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded (Dates in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>

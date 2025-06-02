@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
 import { Calendar, User, Building, Phone, Mail, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { formatDateInCentralTime, formatTimeInCentralTime } from '@/utils/dateTimeUtils';
 
 interface AllAppointment {
   id: string;
@@ -65,7 +65,7 @@ const AllAppointmentsManager = ({ viewOnly = false }: AllAppointmentsManagerProp
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not set';
-    return new Date(dateString).toLocaleDateString();
+    return formatDateInCentralTime(dateString);
   };
 
   const formatTime = (timeString: string | null) => {
@@ -102,7 +102,7 @@ const AllAppointmentsManager = ({ viewOnly = false }: AllAppointmentsManagerProp
         <CardHeader>
           <CardTitle>All Appointments</CardTitle>
           <CardDescription>
-            {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded
+            {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>

@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import AgentPerformanceTable from './AgentPerformanceTable';
 import AgentPerformanceStats from './AgentPerformanceStats';
+import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
 interface AgentPerformanceData {
   id: string;
@@ -288,9 +289,9 @@ const AgentPerformanceDashboard = () => {
   const getDateRangeText = () => {
     if (!dateRange.from || !dateRange.to) return 'Select date range';
     if (dateRange.from.toDateString() === dateRange.to.toDateString()) {
-      return dateRange.from.toLocaleDateString();
+      return formatDateInCentralTime(dateRange.from);
     }
-    return `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`;
+    return `${formatDateInCentralTime(dateRange.from)} - ${formatDateInCentralTime(dateRange.to)}`;
   };
 
   return (
@@ -298,7 +299,7 @@ const AgentPerformanceDashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Agent Performance Dashboard</h2>
-          <p className="text-gray-600">Real-time agent statistics calculated from call center data</p>
+          <p className="text-gray-600">Real-time agent statistics calculated from call center data (Central Time Zone)</p>
         </div>
         <div className="flex items-center space-x-4">
           <Badge variant="outline" className="ml-2">
@@ -313,7 +314,7 @@ const AgentPerformanceDashboard = () => {
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
             {/* Date Range Picker */}
             <div className="flex flex-col space-y-2">
-              <label className="text-sm font-medium">Date Range</label>
+              <label className="text-sm font-medium">Date Range (CT)</label>
               <div className="flex gap-2">
                 <Popover>
                   <PopoverTrigger asChild>

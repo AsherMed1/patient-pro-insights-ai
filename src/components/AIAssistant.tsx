@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Send, Lightbulb, TrendingUp, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { formatTimeInCentralTime } from '@/utils/dateTimeUtils';
 
 interface AIAssistantProps {
   clientId: string;
@@ -31,7 +31,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
       id: 1,
       type: 'ai',
       content: 'Hello! I\'m your AI assistant for Patient Pro Marketing data analysis. I can provide insights about your call center performance, appointment metrics, and agent statistics. What would you like to know?',
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: formatTimeInCentralTime(new Date())
     }
   ]);
 
@@ -106,7 +106,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
       id: messages.length + 1,
       type: 'user' as const,
       content: query,
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: formatTimeInCentralTime(new Date())
     };
 
     // Generate AI response based on real data
@@ -115,7 +115,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
       id: messages.length + 2,
       type: 'ai' as const,
       content: aiResponse,
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: formatTimeInCentralTime(new Date())
     };
 
     setMessages(prev => [...prev, userMessage, aiMessage]);
@@ -182,7 +182,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
             <span>AI Data Assistant</span>
           </CardTitle>
           <CardDescription>
-            Ask questions about your real call center performance data
+            Ask questions about your real call center performance data (Times in Central Time Zone)
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col h-full">

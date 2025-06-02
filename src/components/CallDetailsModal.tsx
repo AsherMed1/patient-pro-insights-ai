@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Clock, ExternalLink, User } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface CallRecord {
   id: string;
@@ -29,7 +29,7 @@ interface CallDetailsModalProps {
 
 const CallDetailsModal = ({ isOpen, onClose, leadName, calls }: CallDetailsModalProps) => {
   const formatDateTime = (dateTimeString: string) => {
-    return new Date(dateTimeString).toLocaleString();
+    return formatDateTimeForTable(dateTimeString);
   };
 
   const formatDuration = (seconds: number) => {
@@ -47,7 +47,7 @@ const CallDetailsModal = ({ isOpen, onClose, leadName, calls }: CallDetailsModal
             <span>Call History for {leadName}</span>
           </DialogTitle>
           <DialogDescription>
-            {calls.length} call{calls.length !== 1 ? 's' : ''} found for this lead
+            {calls.length} call{calls.length !== 1 ? 's' : ''} found for this lead (Times in Central Time Zone)
           </DialogDescription>
         </DialogHeader>
         
@@ -60,7 +60,7 @@ const CallDetailsModal = ({ isOpen, onClose, leadName, calls }: CallDetailsModal
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Date & Time (CT)</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Direction</TableHead>
                   <TableHead>Status</TableHead>

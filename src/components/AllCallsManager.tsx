@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/integrations/supabase/client';
 import { Phone, Clock, User, Building, ExternalLink } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface CallRecord {
   id: string;
@@ -65,7 +65,7 @@ const AllCallsManager = ({ viewOnly = false }: AllCallsManagerProps) => {
   };
 
   const formatDateTime = (dateTimeString: string) => {
-    return new Date(dateTimeString).toLocaleString();
+    return formatDateTimeForTable(dateTimeString);
   };
 
   return (
@@ -75,7 +75,7 @@ const AllCallsManager = ({ viewOnly = false }: AllCallsManagerProps) => {
         <CardHeader>
           <CardTitle>All Call Records</CardTitle>
           <CardDescription>
-            {calls.length} call record{calls.length !== 1 ? 's' : ''} recorded
+            {calls.length} call record{calls.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>
