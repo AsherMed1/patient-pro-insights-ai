@@ -5,14 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from '@/integrations/supabase/client';
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { formatDateInCentralTime, formatTimeInCentralTime } from '@/utils/dateTimeUtils';
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 
 interface AllAppointment {
   id: string;
@@ -35,7 +31,6 @@ interface AllAppointment {
   updated_at: string;
   status?: string;
   procedure_ordered?: boolean;
-  procedure_date?: string | null;
 }
 
 interface AllAppointmentsManagerProps {
@@ -117,22 +112,14 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
     }
   };
 
-  const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean, procedureDate?: Date) => {
+  const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean) => {
     try {
-      const updateData: any = { 
-        procedure_ordered: procedureOrdered,
-        updated_at: new Date().toISOString()
-      };
-
-      if (procedureOrdered && procedureDate) {
-        updateData.procedure_date = procedureDate.toISOString().split('T')[0];
-      } else if (!procedureOrdered) {
-        updateData.procedure_date = null;
-      }
-
       const { error } = await supabase
         .from('all_appointments')
-        .update(updateData)
+        .update({ 
+          procedure_ordered: procedureOrdered,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', appointmentId);
 
       if (error) throw error;
@@ -141,8 +128,7 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
         appointment.id === appointmentId 
           ? { 
               ...appointment, 
-              procedure_ordered: procedureOrdered,
-              procedure_date: updateData.procedure_date
+              procedure_ordered: procedureOrdered
             }
           : appointment
       ));
@@ -272,7 +258,7 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                       )}
                       
                       <div className="flex items-center space-x-2">
-                        <Calendar as CalendarIcon className="h-4 w-4 text-gray-500" />
+                        <CalendarIcon className="h-4 w-4 text-gray-500" />
                         <span className="text-sm text-gray-600">
                           Created: {formatDate(appointment.date_appointment_created)}
                         </span>
@@ -280,7 +266,7 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                       
                       {appointment.date_of_appointment && (
                         <div className="flex items-center space-x-2">
-                          <Calendar as CalendarIcon className="h-4 w-4 text-gray-500" />
+                          <CalendarIcon className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">
                             Appointment: {formatDate(appointment.date_of_appointment)}
                           </span>
@@ -325,55 +311,17 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                               </Select>
                             </div>
 
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`procedure-${appointment.id}`}
-                                  checked={appointment.procedure_ordered || false}
-                                  onCheckedChange={(checked) => {
-                                    updateProcedureOrdered(appointment.id, checked as boolean);
-                                  }}
-                                />
-                                <label htmlFor={`procedure-${appointment.id}`} className="text-sm font-medium">
-                                  Procedure Ordered
-                                </label>
-                              </div>
-
-                              {appointment.procedure_ordered && (
-                                <div className="ml-6">
-                                  <label className="text-sm text-gray-600">Procedure Date:</label>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        className={cn(
-                                          "w-40 justify-start text-left font-normal ml-2",
-                                          !appointment.procedure_date && "text-muted-foreground"
-                                        )}
-                                      >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {appointment.procedure_date ? 
-                                          format(new Date(appointment.procedure_date), "PPP") : 
-                                          "Pick date"
-                                        }
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={appointment.procedure_date ? new Date(appointment.procedure_date) : undefined}
-                                        onSelect={(date) => {
-                                          if (date) {
-                                            updateProcedureOrdered(appointment.id, true, date);
-                                          }
-                                        }}
-                                        initialFocus
-                                        className="p-3 pointer-events-auto"
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                </div>
-                              )}
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`procedure-${appointment.id}`}
+                                checked={appointment.procedure_ordered || false}
+                                onCheckedChange={(checked) => {
+                                  updateProcedureOrdered(appointment.id, checked as boolean);
+                                }}
+                              />
+                              <label htmlFor={`procedure-${appointment.id}`} className="text-sm font-medium">
+                                Procedure Ordered
+                              </label>
                             </div>
                           </div>
                         </div>
