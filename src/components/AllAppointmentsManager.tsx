@@ -1,11 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, User, Building, Phone, Mail, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { formatDateInCentralTime, formatTimeInCentralTime } from '@/utils/dateTimeUtils';
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface AllAppointment {
   id: string;
@@ -26,6 +33,9 @@ interface AllAppointment {
   confirmed_number: string | null;
   created_at: string;
   updated_at: string;
+  status?: string;
+  procedure_ordered?: boolean;
+  procedure_date?: string | null;
 }
 
 interface AllAppointmentsManagerProps {
@@ -70,6 +80,87 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
     }
   };
 
+  const updateAppointmentStatus = async (appointmentId: string, status: string) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({ 
+          status,
+          showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment => 
+        appointment.id === appointmentId 
+          ? { 
+              ...appointment, 
+              status,
+              showed: status === 'Showed' ? true : status === 'No Show' ? false : null
+            }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Appointment status updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update appointment status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean, procedureDate?: Date) => {
+    try {
+      const updateData: any = { 
+        procedure_ordered: procedureOrdered,
+        updated_at: new Date().toISOString()
+      };
+
+      if (procedureOrdered && procedureDate) {
+        updateData.procedure_date = procedureDate.toISOString().split('T')[0];
+      } else if (!procedureOrdered) {
+        updateData.procedure_date = null;
+      }
+
+      const { error } = await supabase
+        .from('all_appointments')
+        .update(updateData)
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment => 
+        appointment.id === appointmentId 
+          ? { 
+              ...appointment, 
+              procedure_ordered: procedureOrdered,
+              procedure_date: updateData.procedure_date
+            }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Procedure information updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating procedure information:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update procedure information",
+        variant: "destructive"
+      });
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not set';
     return formatDateInCentralTime(dateString);
@@ -88,6 +179,10 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
   };
 
   const getAppointmentStatus = (appointment: AllAppointment) => {
+    if (appointment.status) {
+      return { text: appointment.status, variant: getStatusVariant(appointment.status) };
+    }
+
     if (!appointment.date_of_appointment) {
       return { text: 'Date Not Set', variant: 'secondary' as const };
     }
@@ -102,6 +197,26 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
       return { text: 'No Show', variant: 'destructive' as const };
     }
   };
+
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'Showed':
+      case 'Won':
+        return 'default' as const;
+      case 'No Show':
+      case 'Cancelled':
+        return 'destructive' as const;
+      case 'Confirmed':
+      case 'Welcome Call':
+        return 'secondary' as const;
+      case 'Rescheduled':
+        return 'outline' as const;
+      default:
+        return 'outline' as const;
+    }
+  };
+
+  const statusOptions = ['Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
 
   return (
     <Card>
@@ -157,7 +272,7 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                       )}
                       
                       <div className="flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <Calendar as CalendarIcon className="h-4 w-4 text-gray-500" />
                         <span className="text-sm text-gray-600">
                           Created: {formatDate(appointment.date_appointment_created)}
                         </span>
@@ -165,7 +280,7 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                       
                       {appointment.date_of_appointment && (
                         <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4 text-gray-500" />
+                          <Calendar as CalendarIcon className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">
                             Appointment: {formatDate(appointment.date_of_appointment)}
                           </span>
@@ -186,6 +301,83 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                           Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
                         </div>
                       )}
+
+                      {/* Status Update Section */}
+                      {projectFilter && (
+                        <div className="border-t pt-3 mt-3">
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm font-medium">Status:</label>
+                              <Select
+                                value={appointment.status || ''}
+                                onValueChange={(value) => updateAppointmentStatus(appointment.id, value)}
+                              >
+                                <SelectTrigger className="w-40">
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {statusOptions.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                      {status}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`procedure-${appointment.id}`}
+                                  checked={appointment.procedure_ordered || false}
+                                  onCheckedChange={(checked) => {
+                                    updateProcedureOrdered(appointment.id, checked as boolean);
+                                  }}
+                                />
+                                <label htmlFor={`procedure-${appointment.id}`} className="text-sm font-medium">
+                                  Procedure Ordered
+                                </label>
+                              </div>
+
+                              {appointment.procedure_ordered && (
+                                <div className="ml-6">
+                                  <label className="text-sm text-gray-600">Procedure Date:</label>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          "w-40 justify-start text-left font-normal ml-2",
+                                          !appointment.procedure_date && "text-muted-foreground"
+                                        )}
+                                      >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {appointment.procedure_date ? 
+                                          format(new Date(appointment.procedure_date), "PPP") : 
+                                          "Pick date"
+                                        }
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={appointment.procedure_date ? new Date(appointment.procedure_date) : undefined}
+                                        onSelect={(date) => {
+                                          if (date) {
+                                            updateProcedureOrdered(appointment.id, true, date);
+                                          }
+                                        }}
+                                        initialFocus
+                                        className="p-3 pointer-events-auto"
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex flex-col space-y-2">
@@ -198,6 +390,11 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                       {appointment.stage_booked && (
                         <Badge variant="outline">
                           {appointment.stage_booked}
+                        </Badge>
+                      )}
+                      {appointment.procedure_ordered && (
+                        <Badge variant="secondary">
+                          Procedure Ordered
                         </Badge>
                       )}
                     </div>
