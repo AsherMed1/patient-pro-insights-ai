@@ -1,12 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from '@/integrations/supabase/client';
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { formatDateInCentralTime, formatTimeInCentralTime } from '@/utils/dateTimeUtils';
+
 interface AllAppointment {
   id: string;
   date_appointment_created: string;
@@ -29,33 +32,36 @@ interface AllAppointment {
   status?: string;
   procedure_ordered?: boolean;
 }
+
 interface AllAppointmentsManagerProps {
   projectFilter?: string;
 }
+
 const AllAppointmentsManager = ({
   projectFilter
 }: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const {
-    toast
-  } = useToast();
+  const [activeTab, setActiveTab] = useState("needs-review");
+  const { toast } = useToast();
+
   useEffect(() => {
     fetchAppointments();
   }, [projectFilter]);
+
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      let appointmentsQuery = supabase.from('all_appointments').select('*').order('date_appointment_created', {
-        ascending: false
-      });
+      let appointmentsQuery = supabase
+        .from('all_appointments')
+        .select('*')
+        .order('date_appointment_created', { ascending: false });
+
       if (projectFilter) {
         appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
       }
-      const {
-        data,
-        error
-      } = await appointmentsQuery;
+
+      const { data, error } = await appointmentsQuery;
       if (error) throw error;
       setAppointments(data || []);
     } catch (error) {
@@ -69,21 +75,30 @@ const AllAppointmentsManager = ({
       setLoading(false);
     }
   };
+
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
-      const {
-        error
-      } = await supabase.from('all_appointments').update({
-        status,
-        showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
-        updated_at: new Date().toISOString()
-      }).eq('id', appointmentId);
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          status,
+          showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
       if (error) throw error;
-      setAppointments(prev => prev.map(appointment => appointment.id === appointmentId ? {
-        ...appointment,
-        status,
-        showed: status === 'Showed' ? true : status === 'No Show' ? false : null
-      } : appointment));
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? {
+              ...appointment,
+              status,
+              showed: status === 'Showed' ? true : status === 'No Show' ? false : null
+            }
+          : appointment
+      ));
+
       toast({
         title: "Success",
         description: "Appointment status updated successfully"
@@ -97,19 +112,25 @@ const AllAppointmentsManager = ({
       });
     }
   };
+
   const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean) => {
     try {
-      const {
-        error
-      } = await supabase.from('all_appointments').update({
-        procedure_ordered: procedureOrdered,
-        updated_at: new Date().toISOString()
-      }).eq('id', appointmentId);
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          procedure_ordered: procedureOrdered,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
       if (error) throw error;
-      setAppointments(prev => prev.map(appointment => appointment.id === appointmentId ? {
-        ...appointment,
-        procedure_ordered: procedureOrdered
-      } : appointment));
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, procedure_ordered: procedureOrdered }
+          : appointment
+      ));
+
       toast({
         title: "Success",
         description: "Procedure information updated successfully"
@@ -123,20 +144,57 @@ const AllAppointmentsManager = ({
       });
     }
   };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not set';
     return formatDateInCentralTime(dateString);
   };
+
   const formatTime = (timeString: string | null) => {
     if (!timeString) return 'Not set';
     return timeString;
   };
-  const isAppointmentPassed = (appointmentDate: string | null) => {
+
+  const isAppointmentInPast = (appointmentDate: string | null) => {
     if (!appointmentDate) return false;
     const today = new Date();
     const appointmentDay = new Date(appointmentDate);
     return appointmentDay < today;
   };
+
+  const isAppointmentInFuture = (appointmentDate: string | null) => {
+    if (!appointmentDate) return false;
+    const today = new Date();
+    const appointmentDay = new Date(appointmentDate);
+    return appointmentDay >= today;
+  };
+
+  const isStatusUpdated = (appointment: AllAppointment) => {
+    return appointment.status && appointment.status.trim() !== '';
+  };
+
+  const isProcedureUpdated = (appointment: AllAppointment) => {
+    return appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+  };
+
+  const filterAppointments = (filterType: string) => {
+    return appointments.filter(appointment => {
+      switch (filterType) {
+        case 'future':
+          return isAppointmentInFuture(appointment.date_of_appointment);
+        case 'past':
+          return isAppointmentInPast(appointment.date_of_appointment) && 
+                 isStatusUpdated(appointment) && 
+                 isProcedureUpdated(appointment);
+        case 'needs-review':
+          return isAppointmentInPast(appointment.date_of_appointment) && 
+                 (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
+        default:
+          return true;
+      }
+    });
+  };
+
   const getAppointmentStatus = (appointment: AllAppointment) => {
     if (appointment.status) {
       return {
@@ -150,7 +208,7 @@ const AllAppointmentsManager = ({
         variant: 'secondary' as const
       };
     }
-    if (!isAppointmentPassed(appointment.date_of_appointment)) {
+    if (!isAppointmentInPast(appointment.date_of_appointment)) {
       return {
         text: 'Pending',
         variant: 'outline' as const
@@ -168,6 +226,7 @@ const AllAppointmentsManager = ({
       };
     }
   };
+
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'Showed':
@@ -185,16 +244,168 @@ const AllAppointmentsManager = ({
         return 'outline' as const;
     }
   };
+
   const getProcedureOrderedVariant = (procedureOrdered: boolean | null) => {
     if (procedureOrdered === true) {
-      return 'default' as const; // Green for Yes
+      return 'default' as const;
     } else if (procedureOrdered === false) {
-      return 'destructive' as const; // Red for No
+      return 'destructive' as const;
     }
-    return 'secondary' as const; // Gray for not set
+    return 'secondary' as const;
   };
+
   const statusOptions = ['Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
-  return <Card>
+
+  const renderAppointmentsList = (filteredAppointments: AllAppointment[]) => {
+    if (loading) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-gray-500">Loading appointments...</div>
+        </div>
+      );
+    }
+
+    if (filteredAppointments.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-gray-500">No appointments found for this category</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {filteredAppointments.map(appointment => {
+          const appointmentStatus = getAppointmentStatus(appointment);
+          return (
+            <div key={appointment.id} className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-center space-x-2">
+                    <User className="h-4 w-4 text-gray-500" />
+                    <span className="font-medium">{appointment.lead_name}</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Building className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">{appointment.project_name}</span>
+                  </div>
+                  
+                  {appointment.lead_email && (
+                    <div className="flex items-center space-x-2">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">{appointment.lead_email}</span>
+                    </div>
+                  )}
+                  
+                  {appointment.lead_phone_number && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center space-x-2">
+                    <CalendarIcon className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">
+                      Created: {formatDate(appointment.date_appointment_created)}
+                    </span>
+                  </div>
+                  
+                  {appointment.date_of_appointment && (
+                    <div className="flex items-center space-x-2">
+                      <CalendarIcon className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        Appointment: {formatDate(appointment.date_of_appointment)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {appointment.requested_time && (
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        Time: {formatTime(appointment.requested_time)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {appointment.agent && (
+                    <div className="text-sm text-gray-600">
+                      Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
+                    </div>
+                  )}
+
+                  {/* Status and Procedure Badges */}
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Badge variant={appointmentStatus.variant}>
+                      {appointmentStatus.text}
+                    </Badge>
+                    <Badge variant={getProcedureOrderedVariant(appointment.procedure_ordered)}>
+                      Procedure: {appointment.procedure_ordered === true ? 'Yes' : appointment.procedure_ordered === false ? 'No' : 'Not Set'}
+                    </Badge>
+                  </div>
+
+                  {/* Status Update Section - Only show for project filters */}
+                  {projectFilter && (
+                    <div className="border-t pt-3 mt-3">
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm font-medium">Status:</label>
+                          <Select 
+                            value={appointment.status || ''} 
+                            onValueChange={(value) => updateAppointmentStatus(appointment.id, value)}
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map(status => (
+                                <SelectItem key={status} value={status}>
+                                  {status}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm font-medium">Procedure Ordered:</label>
+                          <Select 
+                            value={appointment.procedure_ordered === true ? 'yes' : appointment.procedure_ordered === false ? 'no' : ''} 
+                            onValueChange={(value) => {
+                              if (value === 'yes' || value === 'no') {
+                                updateProcedureOrdered(appointment.id, value === 'yes');
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const futureAppointments = filterAppointments('future');
+  const pastAppointments = filterAppointments('past');
+  const needsReviewAppointments = filterAppointments('needs-review');
+
+  return (
+    <Card>
       <CardHeader>
         <CardTitle>
           {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
@@ -205,104 +416,34 @@ const AllAppointmentsManager = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? <div className="text-center py-8">
-            <div className="text-gray-500">Loading appointments...</div>
-          </div> : appointments.length === 0 ? <div className="text-center py-8">
-            <div className="text-gray-500">No appointments recorded yet</div>
-          </div> : <div className="space-y-4">
-            {appointments.map(appointment => {
-          const appointmentStatus = getAppointmentStatus(appointment);
-          return <div key={appointment.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center space-x-2">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span className="font-medium">{appointment.lead_name}</span>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <Building className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">{appointment.project_name}</span>
-                      </div>
-                      
-                      {appointment.lead_email && <div className="flex items-center space-x-2">
-                          <Mail className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">{appointment.lead_email}</span>
-                        </div>}
-                      
-                      {appointment.lead_phone_number && <div className="flex items-center space-x-2">
-                          <Phone className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-                        </div>}
-                      
-                      <div className="flex items-center space-x-2">
-                        <CalendarIcon className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">
-                          Created: {formatDate(appointment.date_appointment_created)}
-                        </span>
-                      </div>
-                      
-                      {appointment.date_of_appointment && <div className="flex items-center space-x-2">
-                          <CalendarIcon className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">
-                            Appointment: {formatDate(appointment.date_of_appointment)}
-                          </span>
-                        </div>}
-                      
-                      {appointment.requested_time && <div className="flex items-center space-x-2">
-                          <Clock className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">
-                            Time: {formatTime(appointment.requested_time)}
-                          </span>
-                        </div>}
-                      
-                      {appointment.agent && <div className="text-sm text-gray-600">
-                          Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
-                        </div>}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="needs-review">
+              Needs Review ({needsReviewAppointments.length})
+            </TabsTrigger>
+            <TabsTrigger value="future">
+              Future ({futureAppointments.length})
+            </TabsTrigger>
+            <TabsTrigger value="past">
+              Past ({pastAppointments.length})
+            </TabsTrigger>
+          </TabsList>
 
-                      {/* Status Update Section */}
-                      {projectFilter && <div className="border-t pt-3 mt-3">
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                              <label className="text-sm font-medium">Status:</label>
-                              <Select value={appointment.status || ''} onValueChange={value => updateAppointmentStatus(appointment.id, value)}>
-                                <SelectTrigger className="w-40">
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {statusOptions.map(status => <SelectItem key={status} value={status}>
-                                      {status}
-                                    </SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            </div>
+          <TabsContent value="needs-review" className="space-y-4">
+            {renderAppointmentsList(needsReviewAppointments)}
+          </TabsContent>
 
-                            <div className="flex items-center space-x-2">
-                              <label className="text-sm font-medium">Procedure Ordered:</label>
-                              <Select value={appointment.procedure_ordered === true ? 'yes' : appointment.procedure_ordered === false ? 'no' : ''} onValueChange={value => {
-                        if (value === 'yes' || value === 'no') {
-                          updateProcedureOrdered(appointment.id, value === 'yes');
-                        }
-                      }}>
-                                <SelectTrigger className="w-40">
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="yes">Yes</SelectItem>
-                                  <SelectItem value="no">No</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                        </div>}
-                    </div>
-                    
-                    
-                  </div>
-                </div>;
-        })}
-          </div>}
+          <TabsContent value="future" className="space-y-4">
+            {renderAppointmentsList(futureAppointments)}
+          </TabsContent>
+
+          <TabsContent value="past" className="space-y-4">
+            {renderAppointmentsList(pastAppointments)}
+          </TabsContent>
+        </Tabs>
       </CardContent>
-    </Card>;
+    </Card>
+  );
 };
+
 export default AllAppointmentsManager;
