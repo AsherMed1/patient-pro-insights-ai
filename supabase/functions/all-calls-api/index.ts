@@ -77,31 +77,52 @@ serve(async (req) => {
     // Handle call_datetime with proper timezone conversion
     let callDateTimeObj;
     
-    // If the datetime string doesn't include timezone info, treat it as Central Time
+    console.log('Original call_datetime:', call_datetime);
+    
+    // Check if the datetime string already has timezone info
     if (call_datetime.includes('Z') || call_datetime.includes('+') || call_datetime.includes('-')) {
-      // Already has timezone info, use as-is
+      // Already has timezone info, use as-is (no conversion needed)
       callDateTimeObj = new Date(call_datetime);
+      console.log('Datetime has timezone info, using as-is');
     } else {
       // No timezone info - assume it's Central Time and convert to UTC
-      // First, parse the datetime as if it's in Central Time
-      const centralDateTime = new Date(call_datetime);
+      console.log('No timezone info detected, treating as Central Time');
       
-      // Central Time is UTC-6 (CST) or UTC-5 (CDT)
-      // We need to determine if it's during DST period
-      const year = centralDateTime.getFullYear();
+      // Parse the datetime string manually to avoid timezone interpretation issues
+      const parts = call_datetime.match(/(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/);
+      if (!parts) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid call_datetime format. Use ISO 8601 format (e.g., 2024-01-15T10:30:00 or 2024-01-15T10:30:00Z)' 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
       
-      // DST in the US typically runs from second Sunday in March to first Sunday in November
-      const dstStart = new Date(year, 2, 8); // March 8th as baseline
+      const [, year, month, day, hour, minute, second] = parts;
+      
+      // Create date in Central Time
+      const centralTime = new Date();
+      centralTime.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
+      centralTime.setHours(parseInt(hour), parseInt(minute), parseInt(second), 0);
+      
+      // Determine if it's DST
+      const dstStart = new Date(parseInt(year), 2, 8); // March 8th as baseline
       dstStart.setDate(dstStart.getDate() + (7 - dstStart.getDay()) % 7); // Second Sunday
       
-      const dstEnd = new Date(year, 10, 1); // November 1st as baseline  
+      const dstEnd = new Date(parseInt(year), 10, 1); // November 1st as baseline  
       dstEnd.setDate(dstEnd.getDate() + (7 - dstEnd.getDay()) % 7); // First Sunday
       
-      const isDST = centralDateTime >= dstStart && centralDateTime < dstEnd;
+      const isDST = centralTime >= dstStart && centralTime < dstEnd;
       const offsetHours = isDST ? 5 : 6; // CDT is UTC-5, CST is UTC-6
       
+      console.log('Is DST:', isDST, 'Offset hours:', offsetHours);
+      
       // Convert Central Time to UTC by adding the offset
-      callDateTimeObj = new Date(centralDateTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      callDateTimeObj = new Date(centralTime.getTime() + (offsetHours * 60 * 60 * 1000));
     }
 
     if (isNaN(callDateTimeObj.getTime())) {
@@ -131,8 +152,7 @@ serve(async (req) => {
       )
     }
 
-    console.log('Original call_datetime:', call_datetime);
-    console.log('Converted to UTC:', callDateTimeObj.toISOString());
+    console.log('Final UTC datetime to save:', callDateTimeObj.toISOString());
 
     // Insert new call record into database
     const { data, error } = await supabase
@@ -171,7 +191,9 @@ serve(async (req) => {
         success: true, 
         message: 'Call record created successfully',
         data: data[0],
-        timezone_note: 'Datetime converted from Central Time to UTC for storage'
+        timezone_note: call_datetime.includes('Z') || call_datetime.includes('+') || call_datetime.includes('-') 
+          ? 'Datetime already had timezone info, used as-is' 
+          : 'Datetime converted from Central Time to UTC for storage'
       }),
       { 
         status: 201, 
