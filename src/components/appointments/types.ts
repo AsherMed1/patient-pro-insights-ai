@@ -18,8 +18,8 @@ export interface AllAppointment {
   confirmed_number: string | null;
   created_at: string;
   updated_at: string;
-  status?: string;
-  procedure_ordered?: boolean;
+  status: string | null;
+  procedure_ordered: boolean | null;
 }
 
 export interface AllAppointmentsManagerProps {

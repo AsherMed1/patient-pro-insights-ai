@@ -122,6 +122,7 @@ export type Database = {
           lead_email: string | null
           lead_name: string
           lead_phone_number: string | null
+          procedure_ordered: boolean | null
           project_name: string
           requested_time: string | null
           showed: boolean | null
@@ -142,6 +143,7 @@ export type Database = {
           lead_email?: string | null
           lead_name: string
           lead_phone_number?: string | null
+          procedure_ordered?: boolean | null
           project_name: string
           requested_time?: string | null
           showed?: boolean | null
@@ -162,6 +164,7 @@ export type Database = {
           lead_email?: string | null
           lead_name?: string
           lead_phone_number?: string | null
+          procedure_ordered?: boolean | null
           project_name?: string
           requested_time?: string | null
           showed?: boolean | null

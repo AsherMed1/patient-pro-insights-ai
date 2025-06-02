@@ -95,6 +95,8 @@ serve(async (req) => {
     if (body.stage_booked !== undefined) updateData.stage_booked = body.stage_booked
     if (body.date_of_appointment !== undefined) updateData.date_of_appointment = body.date_of_appointment
     if (body.requested_time !== undefined) updateData.requested_time = body.requested_time
+    if (body.status !== undefined) updateData.status = body.status
+    if (body.procedure_ordered !== undefined) updateData.procedure_ordered = body.procedure_ordered
 
     // Always update the updated_at timestamp
     updateData.updated_at = new Date().toISOString()
@@ -104,7 +106,7 @@ serve(async (req) => {
         JSON.stringify({ 
           error: 'No valid fields to update', 
           message: 'Please provide at least one valid field to update',
-          validFields: ['showed', 'confirmed', 'agent', 'agent_number', 'confirmed_number', 'stage_booked', 'date_of_appointment', 'requested_time']
+          validFields: ['showed', 'confirmed', 'agent', 'agent_number', 'confirmed_number', 'stage_booked', 'date_of_appointment', 'requested_time', 'status', 'procedure_ordered']
         }),
         { 
           status: 400, 
