@@ -66,8 +66,8 @@ serve(async (req) => {
           continue
         }
 
-        // Create date_time_in from lead creation timestamp
-        const leadDateTime = new Date(lead.created_at)
+        // Use the lead's created_at timestamp as the starting point
+        const leadCreatedTime = new Date(lead.created_at)
 
         // Check if speed-to-lead record already exists for this lead
         const { data: existingRecord, error: existingError } = await supabase
@@ -87,7 +87,7 @@ serve(async (req) => {
         let speedToLeadMin = null
         if (firstCall) {
           const callDateTime = new Date(firstCall.call_datetime)
-          const timeDiffMs = callDateTime.getTime() - leadDateTime.getTime()
+          const timeDiffMs = callDateTime.getTime() - leadCreatedTime.getTime()
           speedToLeadMin = Math.round(timeDiffMs / (1000 * 60)) // Convert to minutes
         }
 
@@ -96,7 +96,7 @@ serve(async (req) => {
           lead_phone_number: firstCall?.lead_phone_number || '',
           project_name: lead.project_name,
           date: lead.date,
-          date_time_in: leadDateTime.toISOString(),
+          date_time_in: leadCreatedTime.toISOString(),
           date_time_of_first_call: firstCall?.call_datetime || null,
           speed_to_lead_time_min: speedToLeadMin
         }
@@ -113,7 +113,7 @@ serve(async (req) => {
             continue
           }
           updatedCount++
-          console.log(`Updated speed-to-lead record for ${lead.lead_name}`)
+          console.log(`Updated speed-to-lead record for ${lead.lead_name}: ${speedToLeadMin} minutes`)
         } else {
           // Create new record
           const { error: insertError } = await supabase
@@ -125,7 +125,7 @@ serve(async (req) => {
             continue
           }
           createdCount++
-          console.log(`Created speed-to-lead record for ${lead.lead_name}`)
+          console.log(`Created speed-to-lead record for ${lead.lead_name}: ${speedToLeadMin} minutes`)
         }
 
         processedCount++

@@ -106,7 +106,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         <CardHeader>
           <CardTitle>All Speed to Lead Records</CardTitle>
           <CardDescription>
-            Complete view of all speed-to-lead data including records without call data
+            Speed to lead is calculated from when the lead was created to the first call time
             {viewOnly && " (View Only - Records created via API)"}
           </CardDescription>
         </CardHeader>
@@ -146,7 +146,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
                     <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Name</th>
                     <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Phone Number</th>
                     <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Project</th>
-                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Received</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Lead Created</th>
                     <th className="border border-gray-300 px-4 py-3 text-left font-semibold">First Call</th>
                     <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Speed to Lead</th>
                     <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Status</th>
