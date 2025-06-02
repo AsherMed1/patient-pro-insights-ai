@@ -63,7 +63,7 @@ serve(async (req) => {
     console.log('Parsed appointment update data:', body)
 
     // Validate required fields - need either id or combination of identifiers
-    if (!body.id && (!body.ghl_id && !body.lead_name)) {
+    if (!body.id && !body.ghl_id && !body.lead_name) {
       return new Response(
         JSON.stringify({ 
           error: 'Missing required identifier', 
@@ -113,25 +113,23 @@ serve(async (req) => {
       )
     }
 
-    // Build the query based on available identifier
-    let query = supabase.from('all_appointments')
+    // Build the query based on available identifier - FIXED VERSION
+    let updateQuery = supabase.from('all_appointments').update(updateData)
 
     if (body.id) {
-      query = query.eq('id', body.id)
+      updateQuery = updateQuery.eq('id', body.id)
     } else if (body.ghl_id) {
-      query = query.eq('ghl_id', body.ghl_id)
+      updateQuery = updateQuery.eq('ghl_id', body.ghl_id)
     } else if (body.lead_name) {
-      query = query.eq('lead_name', body.lead_name)
+      updateQuery = updateQuery.eq('lead_name', body.lead_name)
       // Optionally filter by project_name if provided for more precision
       if (body.project_name) {
-        query = query.eq('project_name', body.project_name)
+        updateQuery = updateQuery.eq('project_name', body.project_name)
       }
     }
 
-    // Update the appointment
-    const { data, error } = await query
-      .update(updateData)
-      .select()
+    // Execute the update query
+    const { data, error } = await updateQuery.select()
 
     if (error) {
       console.error('Database error:', error)
