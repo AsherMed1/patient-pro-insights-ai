@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Clock, Target, TrendingUp, Users, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { Clock, Target, TrendingUp, Users, Calendar as CalendarIcon, Filter, RefreshCw, Play } from 'lucide-react';
 import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -33,6 +32,8 @@ interface SpeedToLeadManagerProps {
 const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   const [stats, setStats] = useState<SpeedToLeadStat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calculating, setCalculating] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -80,11 +81,48 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         });
       } else {
         setStats(data || []);
+        setLastUpdateTime(new Date().toLocaleTimeString());
       }
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const triggerSpeedToLeadCalculation = async () => {
+    try {
+      setCalculating(true);
+      
+      const { data, error } = await supabase.functions.invoke('speed-to-lead-calculator');
+      
+      if (error) {
+        console.error('Error triggering speed-to-lead calculation:', error);
+        toast({
+          title: "Error",
+          description: "Failed to trigger speed-to-lead calculation",
+          variant: "destructive",
+        });
+      } else {
+        console.log('Speed-to-lead calculation result:', data);
+        toast({
+          title: "Success",
+          description: `Speed-to-lead calculation completed. ${data?.stats?.totalProcessed || 0} leads processed.`,
+        });
+        // Refresh the data after calculation
+        setTimeout(() => {
+          fetchStats();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger speed-to-lead calculation",
+        variant: "destructive",
+      });
+    } finally {
+      setCalculating(false);
     }
   };
 
@@ -101,6 +139,40 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         (payload) => {
           console.log('Real-time speed-to-lead update:', payload);
           fetchStats();
+          toast({
+            title: "Live Update",
+            description: "Speed-to-lead data updated in real-time",
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'new_leads'
+        },
+        (payload) => {
+          console.log('New lead detected:', payload);
+          toast({
+            title: "New Lead Detected",
+            description: "New lead added - speed-to-lead calculation may be needed",
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'all_calls'
+        },
+        (payload) => {
+          console.log('New call detected:', payload);
+          toast({
+            title: "New Call Detected",
+            description: "New call recorded - speed-to-lead calculation may be needed",
+          });
         }
       )
       .subscribe();
@@ -207,13 +279,28 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Live Data Indicator */}
+      {/* Header with Live Data Indicator and Manual Trigger */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Speed to Lead Analytics</h2>
           <p className="text-gray-600">Live speed-to-lead data with real-time updates (Central Time Zone)</p>
+          {lastUpdateTime && (
+            <p className="text-sm text-gray-500">Last updated: {lastUpdateTime}</p>
+          )}
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-4">
+          <Button
+            onClick={triggerSpeedToLeadCalculation}
+            disabled={calculating}
+            className="flex items-center space-x-2"
+          >
+            {calculating ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            <span>{calculating ? 'Calculating...' : 'Trigger Calculation'}</span>
+          </Button>
           <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span>Live Data</span>
@@ -300,9 +387,21 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
       ) : validStats.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500 mb-4">No speed to lead data available for the selected date range</p>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-400 mb-4">
             Data will appear here automatically as new leads are processed
           </p>
+          <Button
+            onClick={triggerSpeedToLeadCalculation}
+            disabled={calculating}
+            className="flex items-center space-x-2"
+          >
+            {calculating ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            <span>{calculating ? 'Calculating...' : 'Calculate Speed to Lead'}</span>
+          </Button>
         </div>
       ) : (
         <>
