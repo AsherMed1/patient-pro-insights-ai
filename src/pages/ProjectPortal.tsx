@@ -1,14 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building, Calendar, CheckCircle, Stethoscope, DollarSign } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
+import { ProjectHeader } from '@/components/projects/ProjectHeader';
+import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 
 interface Project {
   id: string;
@@ -158,64 +160,10 @@ const ProjectPortal = () => {
         </div>
 
         {/* Project Header */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center space-x-2">
-            <Building className="h-8 w-8 text-blue-600" />
-            <h1 className="text-4xl font-bold text-gray-900">{project.project_name}</h1>
-          </div>
-          <p className="text-xl text-gray-600">Project Portal & Analytics</p>
-        </div>
+        <ProjectHeader projectName={project.project_name} />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Appointments</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats.totalAppointments}</p>
-                </div>
-                <Calendar className="h-8 w-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Showed</p>
-                  <p className="text-2xl font-bold text-green-600">{stats.totalShowed}</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Procedures Ordered</p>
-                  <p className="text-2xl font-bold text-purple-600">{stats.totalProceduresOrdered}</p>
-                </div>
-                <Stethoscope className="h-8 w-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Projected Revenue</p>
-                  <p className="text-2xl font-bold text-orange-600">${stats.projectedRevenue.toLocaleString()}</p>
-                </div>
-                <DollarSign className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <ProjectStatsCards stats={stats} />
 
         {/* Small detailed analytics link below stats */}
         <div className="text-center">
