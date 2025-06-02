@@ -45,15 +45,33 @@ serve(async (req) => {
 
     console.log(`Found ${newLeads?.length || 0} new leads to process`)
 
+    // Get all calls for debugging
+    const { data: allCalls, error: callsError } = await supabase
+      .from('all_calls')
+      .select('lead_name, call_datetime')
+      .order('call_datetime', { ascending: true })
+
+    if (callsError) {
+      console.error('Error fetching calls:', callsError)
+    } else {
+      console.log(`Found ${allCalls?.length || 0} total calls in database`)
+    }
+
     let processedCount = 0
     let createdCount = 0
     let updatedCount = 0
+    let noCallsCount = 0
 
     // Process each new lead
     for (const lead of newLeads || []) {
       try {
-        // Find the first call for this lead (by name match - case insensitive)
-        const { data: firstCall, error: callError } = await supabase
+        console.log(`Processing lead: ${lead.lead_name}`)
+
+        // Find the first call for this lead - try multiple matching strategies
+        let firstCall = null
+        
+        // Strategy 1: Exact match (case insensitive)
+        const { data: exactMatch, error: exactError } = await supabase
           .from('all_calls')
           .select('*')
           .ilike('lead_name', lead.lead_name.trim())
@@ -61,9 +79,42 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle()
 
-        if (callError) {
-          console.error(`Error finding first call for ${lead.lead_name}:`, callError)
-          continue
+        if (exactError) {
+          console.error(`Error finding exact match for ${lead.lead_name}:`, exactError)
+        }
+
+        if (exactMatch) {
+          firstCall = exactMatch
+          console.log(`Found exact match for ${lead.lead_name}`)
+        } else {
+          // Strategy 2: Try partial matching (first and last name separately)
+          const nameParts = lead.lead_name.trim().split(' ')
+          if (nameParts.length >= 2) {
+            const firstName = nameParts[0]
+            const lastName = nameParts[nameParts.length - 1]
+            
+            const { data: partialMatch, error: partialError } = await supabase
+              .from('all_calls')
+              .select('*')
+              .or(`lead_name.ilike.%${firstName}%,lead_name.ilike.%${lastName}%`)
+              .order('call_datetime', { ascending: true })
+              .limit(1)
+              .maybeSingle()
+
+            if (partialError) {
+              console.error(`Error finding partial match for ${lead.lead_name}:`, partialError)
+            }
+
+            if (partialMatch) {
+              firstCall = partialMatch
+              console.log(`Found partial match for ${lead.lead_name}: ${partialMatch.lead_name}`)
+            }
+          }
+        }
+
+        if (!firstCall) {
+          console.log(`No call found for lead: ${lead.lead_name}`)
+          noCallsCount++
         }
 
         // Use the lead's created_at timestamp as the starting point
@@ -89,6 +140,7 @@ serve(async (req) => {
           const callDateTime = new Date(firstCall.call_datetime)
           const timeDiffMs = callDateTime.getTime() - leadCreatedTime.getTime()
           speedToLeadMin = Math.round(timeDiffMs / (1000 * 60)) // Convert to minutes
+          console.log(`Calculated speed-to-lead for ${lead.lead_name}: ${speedToLeadMin} minutes`)
         }
 
         const speedToLeadData = {
@@ -135,7 +187,11 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Speed-to-lead calculation completed. Processed: ${processedCount}, Created: ${createdCount}, Updated: ${updatedCount}`)
+    console.log(`Speed-to-lead calculation completed.`)
+    console.log(`Total leads processed: ${processedCount}`)
+    console.log(`Records created: ${createdCount}`)
+    console.log(`Records updated: ${updatedCount}`)
+    console.log(`Leads without calls: ${noCallsCount}`)
 
     // Return success response
     return new Response(
@@ -145,7 +201,8 @@ serve(async (req) => {
         stats: {
           totalProcessed: processedCount,
           recordsCreated: createdCount,
-          recordsUpdated: updatedCount
+          recordsUpdated: updatedCount,
+          leadsWithoutCalls: noCallsCount
         }
       }),
       { 
