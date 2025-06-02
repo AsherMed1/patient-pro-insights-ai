@@ -62,6 +62,22 @@ serve(async (req) => {
       )
     }
 
+    // Validate pain severity scale if provided
+    if (body.pain_severity_scale !== undefined && body.pain_severity_scale !== null) {
+      const painScale = parseInt(body.pain_severity_scale)
+      if (isNaN(painScale) || painScale < 1 || painScale > 10) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Pain severity scale must be between 1 and 10' 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+    }
+
     // Check if project exists, if not create it
     const { data: existingProject, error: projectCheckError } = await supabase
       .from('projects')
@@ -99,15 +115,51 @@ serve(async (req) => {
       console.log('Created new project:', project_name)
     }
 
+    // Prepare the lead data with all possible fields
+    const leadData = {
+      lead_name,
+      project_name,
+      date: dateObj.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
+      times_called: parseInt(times_called) || 0,
+      // Optional fields
+      appt_date: body.appt_date ? new Date(body.appt_date).toISOString().split('T')[0] : null,
+      first_name: body.first_name || null,
+      last_name: body.last_name || null,
+      dob: body.dob ? new Date(body.dob).toISOString().split('T')[0] : null,
+      status: body.status || null,
+      procedure_ordered: body.procedure_ordered === true,
+      phone_number: body.phone_number || null,
+      calendar_location: body.calendar_location || null,
+      insurance_provider: body.insurance_provider || null,
+      insurance_id: body.insurance_id || null,
+      insurance_plan: body.insurance_plan || null,
+      group_number: body.group_number || null,
+      address: body.address || null,
+      notes: body.notes || null,
+      card_image: body.card_image || null,
+      knee_pain_duration: body.knee_pain_duration || null,
+      knee_osteoarthritis_diagnosis: body.knee_osteoarthritis_diagnosis === true,
+      gae_candidate: body.gae_candidate === true,
+      trauma_injury_onset: body.trauma_injury_onset === true,
+      pain_severity_scale: body.pain_severity_scale ? parseInt(body.pain_severity_scale) : null,
+      symptoms_description: body.symptoms_description || null,
+      knee_treatments_tried: body.knee_treatments_tried || null,
+      fever_chills: body.fever_chills === true,
+      knee_imaging: body.knee_imaging === true,
+      heel_morning_pain: body.heel_morning_pain === true,
+      heel_pain_improves_rest: body.heel_pain_improves_rest === true,
+      heel_pain_duration: body.heel_pain_duration || null,
+      heel_pain_exercise_frequency: body.heel_pain_exercise_frequency || null,
+      plantar_fasciitis_treatments: body.plantar_fasciitis_treatments || null,
+      plantar_fasciitis_mobility_impact: body.plantar_fasciitis_mobility_impact === true,
+      plantar_fasciitis_imaging: body.plantar_fasciitis_imaging === true,
+      email: body.email || null
+    }
+
     // Insert new lead into database
     const { data, error } = await supabase
       .from('new_leads')
-      .insert([{
-        lead_name,
-        project_name,
-        date: dateObj.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
-        times_called: parseInt(times_called) || 0
-      }])
+      .insert([leadData])
       .select()
 
     if (error) {

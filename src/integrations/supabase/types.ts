@@ -312,30 +312,126 @@ export type Database = {
       }
       new_leads: {
         Row: {
+          address: string | null
+          appt_date: string | null
+          calendar_location: string | null
+          card_image: string | null
           created_at: string
           date: string
+          dob: string | null
+          email: string | null
+          fever_chills: boolean | null
+          first_name: string | null
+          gae_candidate: boolean | null
+          group_number: string | null
+          heel_morning_pain: boolean | null
+          heel_pain_duration: string | null
+          heel_pain_exercise_frequency: string | null
+          heel_pain_improves_rest: boolean | null
           id: string
+          insurance_id: string | null
+          insurance_plan: string | null
+          insurance_provider: string | null
+          knee_imaging: boolean | null
+          knee_osteoarthritis_diagnosis: boolean | null
+          knee_pain_duration: string | null
+          knee_treatments_tried: string | null
+          last_name: string | null
           lead_name: string
+          notes: string | null
+          pain_severity_scale: number | null
+          phone_number: string | null
+          plantar_fasciitis_imaging: boolean | null
+          plantar_fasciitis_mobility_impact: boolean | null
+          plantar_fasciitis_treatments: string | null
+          procedure_ordered: boolean | null
           project_name: string
+          status: string | null
+          symptoms_description: string | null
           times_called: number
+          trauma_injury_onset: boolean | null
           updated_at: string
         }
         Insert: {
+          address?: string | null
+          appt_date?: string | null
+          calendar_location?: string | null
+          card_image?: string | null
           created_at?: string
           date: string
+          dob?: string | null
+          email?: string | null
+          fever_chills?: boolean | null
+          first_name?: string | null
+          gae_candidate?: boolean | null
+          group_number?: string | null
+          heel_morning_pain?: boolean | null
+          heel_pain_duration?: string | null
+          heel_pain_exercise_frequency?: string | null
+          heel_pain_improves_rest?: boolean | null
           id?: string
+          insurance_id?: string | null
+          insurance_plan?: string | null
+          insurance_provider?: string | null
+          knee_imaging?: boolean | null
+          knee_osteoarthritis_diagnosis?: boolean | null
+          knee_pain_duration?: string | null
+          knee_treatments_tried?: string | null
+          last_name?: string | null
           lead_name: string
+          notes?: string | null
+          pain_severity_scale?: number | null
+          phone_number?: string | null
+          plantar_fasciitis_imaging?: boolean | null
+          plantar_fasciitis_mobility_impact?: boolean | null
+          plantar_fasciitis_treatments?: string | null
+          procedure_ordered?: boolean | null
           project_name: string
+          status?: string | null
+          symptoms_description?: string | null
           times_called?: number
+          trauma_injury_onset?: boolean | null
           updated_at?: string
         }
         Update: {
+          address?: string | null
+          appt_date?: string | null
+          calendar_location?: string | null
+          card_image?: string | null
           created_at?: string
           date?: string
+          dob?: string | null
+          email?: string | null
+          fever_chills?: boolean | null
+          first_name?: string | null
+          gae_candidate?: boolean | null
+          group_number?: string | null
+          heel_morning_pain?: boolean | null
+          heel_pain_duration?: string | null
+          heel_pain_exercise_frequency?: string | null
+          heel_pain_improves_rest?: boolean | null
           id?: string
+          insurance_id?: string | null
+          insurance_plan?: string | null
+          insurance_provider?: string | null
+          knee_imaging?: boolean | null
+          knee_osteoarthritis_diagnosis?: boolean | null
+          knee_pain_duration?: string | null
+          knee_treatments_tried?: string | null
+          last_name?: string | null
           lead_name?: string
+          notes?: string | null
+          pain_severity_scale?: number | null
+          phone_number?: string | null
+          plantar_fasciitis_imaging?: boolean | null
+          plantar_fasciitis_mobility_impact?: boolean | null
+          plantar_fasciitis_treatments?: string | null
+          procedure_ordered?: boolean | null
           project_name?: string
+          status?: string | null
+          symptoms_description?: string | null
           times_called?: number
+          trauma_injury_onset?: boolean | null
           updated_at?: string
         }
         Relationships: []
