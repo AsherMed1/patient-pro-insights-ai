@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.all-appointments-api]
 verify_jwt = false
+
+[functions.update-appointment-status]
+verify_jwt = false
