@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +22,28 @@ const AllAppointmentsManager = ({
       setLoading(true);
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select('*')
+        .select(`
+          id,
+          date_appointment_created,
+          date_of_appointment,
+          project_name,
+          lead_name,
+          lead_email,
+          lead_phone_number,
+          calendar_name,
+          requested_time,
+          stage_booked,
+          showed,
+          confirmed,
+          agent,
+          agent_number,
+          ghl_id,
+          confirmed_number,
+          created_at,
+          updated_at,
+          status,
+          procedure_ordered
+        `)
         .order('date_appointment_created', { ascending: false });
 
       if (projectFilter) {
