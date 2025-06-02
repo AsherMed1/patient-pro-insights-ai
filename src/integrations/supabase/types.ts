@@ -127,6 +127,7 @@ export type Database = {
           requested_time: string | null
           showed: boolean | null
           stage_booked: string | null
+          status: string | null
           updated_at: string
         }
         Insert: {
@@ -148,6 +149,7 @@ export type Database = {
           requested_time?: string | null
           showed?: boolean | null
           stage_booked?: string | null
+          status?: string | null
           updated_at?: string
         }
         Update: {
@@ -169,6 +171,7 @@ export type Database = {
           requested_time?: string | null
           showed?: boolean | null
           stage_booked?: string | null
+          status?: string | null
           updated_at?: string
         }
         Relationships: []
