@@ -74,23 +74,28 @@ serve(async (req) => {
       )
     }
 
-    // Handle call_datetime with proper timezone conversion
-    let callDateTimeObj;
-    
+    // Handle call_datetime - simplified approach
     console.log('Original call_datetime:', call_datetime);
     
     // Check if the datetime string already has timezone info
-    if (call_datetime.includes('Z') || call_datetime.includes('+') || call_datetime.includes('-')) {
-      // Already has timezone info, use as-is (no conversion needed)
+    const hasTimezoneInfo = call_datetime.includes('Z') || 
+                           call_datetime.includes('+') || 
+                           (call_datetime.includes('-') && call_datetime.lastIndexOf('-') > 10);
+    
+    let callDateTimeObj;
+    
+    if (hasTimezoneInfo) {
+      // Already has timezone info, use directly
       callDateTimeObj = new Date(call_datetime);
-      console.log('Datetime has timezone info, using as-is');
+      console.log('Datetime has timezone info, using as-is:', callDateTimeObj.toISOString());
     } else {
-      // No timezone info - assume it's Central Time and convert to UTC
+      // No timezone info - treat as Central Time and convert to UTC
       console.log('No timezone info detected, treating as Central Time');
       
-      // Parse the datetime string manually to avoid timezone interpretation issues
-      const parts = call_datetime.match(/(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/);
-      if (!parts) {
+      // Create a date object from the string
+      const localDateTime = new Date(call_datetime);
+      
+      if (isNaN(localDateTime.getTime())) {
         return new Response(
           JSON.stringify({ 
             error: 'Invalid call_datetime format. Use ISO 8601 format (e.g., 2024-01-15T10:30:00 or 2024-01-15T10:30:00Z)' 
@@ -102,27 +107,22 @@ serve(async (req) => {
         )
       }
       
-      const [, year, month, day, hour, minute, second] = parts;
-      
-      // Create date in Central Time
-      const centralTime = new Date();
-      centralTime.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
-      centralTime.setHours(parseInt(hour), parseInt(minute), parseInt(second), 0);
-      
-      // Determine if it's DST
-      const dstStart = new Date(parseInt(year), 2, 8); // March 8th as baseline
+      // Determine DST for Central Time
+      const year = localDateTime.getFullYear();
+      const dstStart = new Date(year, 2, 8); // March 8th as baseline
       dstStart.setDate(dstStart.getDate() + (7 - dstStart.getDay()) % 7); // Second Sunday
       
-      const dstEnd = new Date(parseInt(year), 10, 1); // November 1st as baseline  
+      const dstEnd = new Date(year, 10, 1); // November 1st as baseline  
       dstEnd.setDate(dstEnd.getDate() + (7 - dstEnd.getDay()) % 7); // First Sunday
       
-      const isDST = centralTime >= dstStart && centralTime < dstEnd;
+      const isDST = localDateTime >= dstStart && localDateTime < dstEnd;
       const offsetHours = isDST ? 5 : 6; // CDT is UTC-5, CST is UTC-6
       
       console.log('Is DST:', isDST, 'Offset hours:', offsetHours);
       
       // Convert Central Time to UTC by adding the offset
-      callDateTimeObj = new Date(centralTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      callDateTimeObj = new Date(localDateTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      console.log('Converted Central to UTC:', callDateTimeObj.toISOString());
     }
 
     if (isNaN(callDateTimeObj.getTime())) {
@@ -191,7 +191,7 @@ serve(async (req) => {
         success: true, 
         message: 'Call record created successfully',
         data: data[0],
-        timezone_note: call_datetime.includes('Z') || call_datetime.includes('+') || call_datetime.includes('-') 
+        timezone_note: hasTimezoneInfo 
           ? 'Datetime already had timezone info, used as-is' 
           : 'Datetime converted from Central Time to UTC for storage'
       }),
