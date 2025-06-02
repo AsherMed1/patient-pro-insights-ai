@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { formatDateInCentralTime, formatTimeInCentralTime } from '@/utils/dateTimeUtils';
-
 interface AllAppointment {
   id: string;
   date_appointment_created: string;
@@ -30,35 +29,33 @@ interface AllAppointment {
   status?: string;
   procedure_ordered?: boolean;
 }
-
 interface AllAppointmentsManagerProps {
   projectFilter?: string;
 }
-
-const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) => {
+const AllAppointmentsManager = ({
+  projectFilter
+}: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   useEffect(() => {
     fetchAppointments();
   }, [projectFilter]);
-
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      
-      let appointmentsQuery = supabase
-        .from('all_appointments')
-        .select('*')
-        .order('date_appointment_created', { ascending: false });
-      
+      let appointmentsQuery = supabase.from('all_appointments').select('*').order('date_appointment_created', {
+        ascending: false
+      });
       if (projectFilter) {
         appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
       }
-      
-      const { data, error } = await appointmentsQuery;
-      
+      const {
+        data,
+        error
+      } = await appointmentsQuery;
       if (error) throw error;
       setAppointments(data || []);
     } catch (error) {
@@ -72,33 +69,24 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
       setLoading(false);
     }
   };
-
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
-      const { error } = await supabase
-        .from('all_appointments')
-        .update({ 
-          status,
-          showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
-
+      const {
+        error
+      } = await supabase.from('all_appointments').update({
+        status,
+        showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
+        updated_at: new Date().toISOString()
+      }).eq('id', appointmentId);
       if (error) throw error;
-
-      setAppointments(prev => prev.map(appointment => 
-        appointment.id === appointmentId 
-          ? { 
-              ...appointment, 
-              status,
-              showed: status === 'Showed' ? true : status === 'No Show' ? false : null
-            }
-          : appointment
-      ));
-
+      setAppointments(prev => prev.map(appointment => appointment.id === appointmentId ? {
+        ...appointment,
+        status,
+        showed: status === 'Showed' ? true : status === 'No Show' ? false : null
+      } : appointment));
       toast({
         title: "Success",
-        description: "Appointment status updated successfully",
+        description: "Appointment status updated successfully"
       });
     } catch (error) {
       console.error('Error updating appointment status:', error);
@@ -109,31 +97,22 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
       });
     }
   };
-
   const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean) => {
     try {
-      const { error } = await supabase
-        .from('all_appointments')
-        .update({ 
-          procedure_ordered: procedureOrdered,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
-
+      const {
+        error
+      } = await supabase.from('all_appointments').update({
+        procedure_ordered: procedureOrdered,
+        updated_at: new Date().toISOString()
+      }).eq('id', appointmentId);
       if (error) throw error;
-
-      setAppointments(prev => prev.map(appointment => 
-        appointment.id === appointmentId 
-          ? { 
-              ...appointment, 
-              procedure_ordered: procedureOrdered
-            }
-          : appointment
-      ));
-
+      setAppointments(prev => prev.map(appointment => appointment.id === appointmentId ? {
+        ...appointment,
+        procedure_ordered: procedureOrdered
+      } : appointment));
       toast({
         title: "Success",
-        description: "Procedure information updated successfully",
+        description: "Procedure information updated successfully"
       });
     } catch (error) {
       console.error('Error updating procedure information:', error);
@@ -144,44 +123,51 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
       });
     }
   };
-
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not set';
     return formatDateInCentralTime(dateString);
   };
-
   const formatTime = (timeString: string | null) => {
     if (!timeString) return 'Not set';
     return timeString;
   };
-
   const isAppointmentPassed = (appointmentDate: string | null) => {
     if (!appointmentDate) return false;
     const today = new Date();
     const appointmentDay = new Date(appointmentDate);
     return appointmentDay < today;
   };
-
   const getAppointmentStatus = (appointment: AllAppointment) => {
     if (appointment.status) {
-      return { text: appointment.status, variant: getStatusVariant(appointment.status) };
+      return {
+        text: appointment.status,
+        variant: getStatusVariant(appointment.status)
+      };
     }
-
     if (!appointment.date_of_appointment) {
-      return { text: 'Date Not Set', variant: 'secondary' as const };
+      return {
+        text: 'Date Not Set',
+        variant: 'secondary' as const
+      };
     }
-
     if (!isAppointmentPassed(appointment.date_of_appointment)) {
-      return { text: 'Pending', variant: 'outline' as const };
+      return {
+        text: 'Pending',
+        variant: 'outline' as const
+      };
     }
-
     if (appointment.showed) {
-      return { text: 'Showed', variant: 'default' as const };
+      return {
+        text: 'Showed',
+        variant: 'default' as const
+      };
     } else {
-      return { text: 'No Show', variant: 'destructive' as const };
+      return {
+        text: 'No Show',
+        variant: 'destructive' as const
+      };
     }
   };
-
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'Showed':
@@ -199,7 +185,6 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
         return 'outline' as const;
     }
   };
-
   const getProcedureOrderedVariant = (procedureOrdered: boolean | null) => {
     if (procedureOrdered === true) {
       return 'default' as const; // Green for Yes
@@ -208,11 +193,8 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
     }
     return 'secondary' as const; // Gray for not set
   };
-
   const statusOptions = ['Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
-
-  return (
-    <Card>
+  return <Card>
       <CardHeader>
         <CardTitle>
           {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
@@ -223,21 +205,14 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <div className="text-center py-8">
+        {loading ? <div className="text-center py-8">
             <div className="text-gray-500">Loading appointments...</div>
-          </div>
-        ) : appointments.length === 0 ? (
-          <div className="text-center py-8">
+          </div> : appointments.length === 0 ? <div className="text-center py-8">
             <div className="text-gray-500">No appointments recorded yet</div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {appointments.map((appointment) => {
-              const appointmentStatus = getAppointmentStatus(appointment);
-              
-              return (
-                <div key={appointment.id} className="border rounded-lg p-4 space-y-3">
+          </div> : <div className="space-y-4">
+            {appointments.map(appointment => {
+          const appointmentStatus = getAppointmentStatus(appointment);
+          return <div key={appointment.id} className="border rounded-lg p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center space-x-2">
@@ -250,19 +225,15 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                         <span className="text-sm text-gray-600">{appointment.project_name}</span>
                       </div>
                       
-                      {appointment.lead_email && (
-                        <div className="flex items-center space-x-2">
+                      {appointment.lead_email && <div className="flex items-center space-x-2">
                           <Mail className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">{appointment.lead_email}</span>
-                        </div>
-                      )}
+                        </div>}
                       
-                      {appointment.lead_phone_number && (
-                        <div className="flex items-center space-x-2">
+                      {appointment.lead_phone_number && <div className="flex items-center space-x-2">
                           <Phone className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-                        </div>
-                      )}
+                        </div>}
                       
                       <div className="flex items-center space-x-2">
                         <CalendarIcon className="h-4 w-4 text-gray-500" />
@@ -271,63 +242,48 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                         </span>
                       </div>
                       
-                      {appointment.date_of_appointment && (
-                        <div className="flex items-center space-x-2">
+                      {appointment.date_of_appointment && <div className="flex items-center space-x-2">
                           <CalendarIcon className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">
                             Appointment: {formatDate(appointment.date_of_appointment)}
                           </span>
-                        </div>
-                      )}
+                        </div>}
                       
-                      {appointment.requested_time && (
-                        <div className="flex items-center space-x-2">
+                      {appointment.requested_time && <div className="flex items-center space-x-2">
                           <Clock className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">
                             Time: {formatTime(appointment.requested_time)}
                           </span>
-                        </div>
-                      )}
+                        </div>}
                       
-                      {appointment.agent && (
-                        <div className="text-sm text-gray-600">
+                      {appointment.agent && <div className="text-sm text-gray-600">
                           Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
-                        </div>
-                      )}
+                        </div>}
 
                       {/* Status Update Section */}
-                      {projectFilter && (
-                        <div className="border-t pt-3 mt-3">
+                      {projectFilter && <div className="border-t pt-3 mt-3">
                           <div className="space-y-3">
                             <div className="flex items-center space-x-2">
                               <label className="text-sm font-medium">Status:</label>
-                              <Select
-                                value={appointment.status || ''}
-                                onValueChange={(value) => updateAppointmentStatus(appointment.id, value)}
-                              >
+                              <Select value={appointment.status || ''} onValueChange={value => updateAppointmentStatus(appointment.id, value)}>
                                 <SelectTrigger className="w-40">
                                   <SelectValue placeholder="Select status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {statusOptions.map((status) => (
-                                    <SelectItem key={status} value={status}>
+                                  {statusOptions.map(status => <SelectItem key={status} value={status}>
                                       {status}
-                                    </SelectItem>
-                                  ))}
+                                    </SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </div>
 
                             <div className="flex items-center space-x-2">
                               <label className="text-sm font-medium">Procedure Ordered:</label>
-                              <Select
-                                value={appointment.procedure_ordered === true ? 'yes' : appointment.procedure_ordered === false ? 'no' : ''}
-                                onValueChange={(value) => {
-                                  if (value === 'yes' || value === 'no') {
-                                    updateProcedureOrdered(appointment.id, value === 'yes');
-                                  }
-                                }}
-                              >
+                              <Select value={appointment.procedure_ordered === true ? 'yes' : appointment.procedure_ordered === false ? 'no' : ''} onValueChange={value => {
+                        if (value === 'yes' || value === 'no') {
+                          updateProcedureOrdered(appointment.id, value === 'yes');
+                        }
+                      }}>
                                 <SelectTrigger className="w-40">
                                   <SelectValue placeholder="Select status" />
                                 </SelectTrigger>
@@ -338,37 +294,20 @@ const AllAppointmentsManager = ({ projectFilter }: AllAppointmentsManagerProps) 
                               </Select>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        </div>}
                     </div>
                     
                     <div className="flex flex-col space-y-2">
-                      <Badge variant={appointment.confirmed ? "default" : "secondary"}>
-                        {appointment.confirmed ? "Confirmed" : "Not Confirmed"}
-                      </Badge>
-                      <Badge variant={appointmentStatus.variant}>
-                        {appointmentStatus.text}
-                      </Badge>
-                      {appointment.stage_booked && (
-                        <Badge variant="outline">
-                          {appointment.stage_booked}
-                        </Badge>
-                      )}
-                      {appointment.procedure_ordered !== null && (
-                        <Badge variant={getProcedureOrderedVariant(appointment.procedure_ordered)}>
-                          Procedure: {appointment.procedure_ordered ? 'Yes' : 'No'}
-                        </Badge>
-                      )}
+                      
+                      
+                      {appointment.stage_booked}
+                      {appointment.procedure_ordered !== null}
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                </div>;
+        })}
+          </div>}
       </CardContent>
-    </Card>
-  );
+    </Card>;
 };
-
 export default AllAppointmentsManager;
