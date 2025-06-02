@@ -17,13 +17,19 @@ interface DashboardFiltersProps {
   onDateRangeChange: (range: { from: Date | undefined; to: Date | undefined }) => void;
   procedure: string;
   onProcedureChange: (procedure: string) => void;
+  selectedAgent: string;
+  onAgentChange: (agent: string) => void;
+  availableAgents: string[];
 }
 
 const DashboardFilters = ({ 
   dateRange, 
   onDateRangeChange, 
   procedure, 
-  onProcedureChange 
+  onProcedureChange,
+  selectedAgent,
+  onAgentChange,
+  availableAgents
 }: DashboardFiltersProps) => {
   return (
     <Card className="mb-6">
@@ -89,6 +95,22 @@ const DashboardFilters = ({
             </div>
           </div>
 
+          {/* Agent Filter */}
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">Agent</label>
+            <Select value={selectedAgent} onValueChange={onAgentChange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select agent" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
+                <SelectItem value="ALL">All Agents</SelectItem>
+                {availableAgents.map(agent => (
+                  <SelectItem key={agent} value={agent}>{agent}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Procedure Filter */}
           <div className="flex flex-col space-y-2">
             <label className="text-sm font-medium">Procedure</label>
@@ -112,6 +134,7 @@ const DashboardFilters = ({
               onClick={() => {
                 onDateRangeChange({ from: undefined, to: undefined });
                 onProcedureChange('ALL');
+                onAgentChange('ALL');
               }}
               className="w-fit"
             >

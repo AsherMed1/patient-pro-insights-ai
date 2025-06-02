@@ -36,10 +36,12 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
     to: undefined
   });
   const [procedure, setProcedure] = useState('ALL');
+  const [selectedAgent, setSelectedAgent] = useState('ALL');
+  const [availableAgents, setAvailableAgents] = useState<string[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [projectId, dateRange, procedure]);
+  }, [projectId, dateRange, procedure, selectedAgent]);
 
   const fetchDashboardData = async () => {
     try {
@@ -69,6 +71,12 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         appointmentsQuery = appointmentsQuery.lte('date_of_appointment', toDate);
       }
 
+      // Apply agent filter if set
+      if (selectedAgent !== 'ALL') {
+        callsQuery = callsQuery.eq('agent', selectedAgent);
+        appointmentsQuery = appointmentsQuery.eq('agent', selectedAgent);
+      }
+
       // Execute queries
       const { data: calls, error: callsError } = await callsQuery;
       if (callsError) throw new Error(callsError.message);
@@ -83,6 +91,12 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         .eq('active', true);
         
       if (agentsError) throw new Error(agentsError.message);
+
+      // Get unique agents from calls and appointments for filtering
+      const callAgents = calls ? [...new Set(calls.map(call => call.agent).filter(Boolean))] : [];
+      const appointmentAgents = appointments ? [...new Set(appointments.map(appt => appt.agent).filter(Boolean))] : [];
+      const uniqueAgents = [...new Set([...callAgents, ...appointmentAgents])].sort();
+      setAvailableAgents(uniqueAgents);
 
       // Calculate statistics - totalDials is now the actual count of call records
       const totalDials = calls ? calls.length : 0;
@@ -180,6 +194,9 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         onDateRangeChange={setDateRange}
         procedure={procedure}
         onProcedureChange={setProcedure}
+        selectedAgent={selectedAgent}
+        onAgentChange={setSelectedAgent}
+        availableAgents={availableAgents}
       />
 
       <CallMetricsCards 
