@@ -23,7 +23,8 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     showLeadDetailsModal,
     setShowLeadDetailsModal,
     handleViewCalls,
-    handleViewFullDetails
+    handleViewFullDetails,
+    handleUpdateLead
   } = useLeads(projectFilter);
 
   return (
@@ -57,6 +58,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
                   lead={lead}
                   onViewCalls={handleViewCalls}
                   onViewFullDetails={handleViewFullDetails}
+                  onUpdateLead={handleUpdateLead}
                 />
               ))}
             </div>

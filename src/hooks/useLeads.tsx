@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -149,6 +148,36 @@ export const useLeads = (projectFilter?: string) => {
     setShowLeadDetailsModal(true);
   };
 
+  const handleUpdateLead = async (leadId: string, updates: Partial<NewLead>) => {
+    try {
+      const { error } = await supabase
+        .from('new_leads')
+        .update(updates)
+        .eq('id', leadId);
+
+      if (error) throw error;
+
+      // Update the local state
+      setLeads(prevLeads => 
+        prevLeads.map(lead => 
+          lead.id === leadId ? { ...lead, ...updates } : lead
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: "Lead updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating lead:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update lead",
+        variant: "destructive"
+      });
+    }
+  };
+
   useEffect(() => {
     fetchLeadsWithCallCounts();
   }, [projectFilter]);
@@ -165,6 +194,7 @@ export const useLeads = (projectFilter?: string) => {
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
+    handleUpdateLead,
     fetchLeadsWithCallCounts
   };
 };
