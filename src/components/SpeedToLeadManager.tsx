@@ -1,12 +1,17 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import SpeedToLeadTracker from './SpeedToLeadTracker';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Clock, Target, TrendingUp, Users } from 'lucide-react';
+import { Clock, Target, TrendingUp, Users, Calendar as CalendarIcon, Filter } from 'lucide-react';
 import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface SpeedToLeadStat {
   id: string;
@@ -28,22 +33,43 @@ interface SpeedToLeadManagerProps {
 const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   const [stats, setStats] = useState<SpeedToLeadStat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined
+  });
   const { toast } = useToast();
 
   useEffect(() => {
     fetchStats();
-  }, []);
+    setupRealtimeSubscription();
+  }, [dateRange]);
 
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('speed_to_lead_stats')
         .select('*')
         .not('date_time_of_first_call', 'is', null)
         .not('speed_to_lead_time_min', 'is', null)
-        .gte('speed_to_lead_time_min', 0)
-        .order('date_time_in', { ascending: false });
+        .gte('speed_to_lead_time_min', 0);
+
+      // Apply date filters if set
+      if (dateRange.from) {
+        const fromDate = dateRange.from.toISOString().split('T')[0];
+        query = query.gte('date', fromDate);
+      }
+
+      if (dateRange.to) {
+        const toDate = dateRange.to.toISOString().split('T')[0];
+        query = query.lte('date', toDate);
+      }
+
+      const { data, error } = await query.order('date_time_in', { ascending: false });
 
       if (error) {
         console.error('Error fetching speed to lead stats:', error);
@@ -60,6 +86,28 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const setupRealtimeSubscription = () => {
+    const channel = supabase
+      .channel('speed-to-lead-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'speed_to_lead_stats'
+        },
+        (payload) => {
+          console.log('Real-time speed-to-lead update:', payload);
+          fetchStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   };
 
   const formatDateTime = (dateTimeString: string | null) => {
@@ -84,6 +132,27 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
     if (minutes <= 15) return 'text-yellow-600 font-semibold';
     if (minutes <= 60) return 'text-orange-600 font-semibold';
     return 'text-red-600 font-semibold';
+  };
+
+  const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
+  };
+
+  const getDateRangeText = () => {
+    if (!dateRange.from && !dateRange.to) return 'All dates';
+    if (dateRange.from && !dateRange.to) {
+      return `From ${format(dateRange.from, "MMM dd, yyyy")}`;
+    }
+    if (!dateRange.from && dateRange.to) {
+      return `Until ${format(dateRange.to, "MMM dd, yyyy")}`;
+    }
+    if (dateRange.from && dateRange.to) {
+      if (dateRange.from.toDateString() === dateRange.to.toDateString()) {
+        return format(dateRange.from, "MMM dd, yyyy");
+      }
+      return `${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd, yyyy")}`;
+    }
+    return 'Select date range';
   };
 
   // Calculate statistics
@@ -138,15 +207,101 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
 
   return (
     <div className="space-y-6">
-      {!viewOnly && <SpeedToLeadTracker onCalculationComplete={fetchStats} />}
+      {/* Header with Live Data Indicator */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Speed to Lead Analytics</h2>
+          <p className="text-gray-600">Live speed-to-lead data with real-time updates (Central Time Zone)</p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Live Data</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Date Filter */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex items-center space-x-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium">Filter by Date Range:</span>
+            </div>
+            
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[140px] justify-start text-left font-normal",
+                      !dateRange.from && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateRange.from}
+                    onSelect={(date) => handleDateRangeChange({ ...dateRange, from: date })}
+                    initialFocus
+                    className="p-3"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[140px] justify-start text-left font-normal",
+                      !dateRange.to && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateRange.to}
+                    onSelect={(date) => handleDateRangeChange({ ...dateRange, to: date })}
+                    initialFocus
+                    className="p-3"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <Button 
+              variant="outline" 
+              onClick={() => handleDateRangeChange({ from: undefined, to: undefined })}
+              className="w-fit"
+            >
+              Clear Filters
+            </Button>
+
+            <div className="text-sm text-gray-600">
+              Showing: {getDateRangeText()}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       
       {loading ? (
-        <div className="text-center py-8">Loading statistics...</div>
+        <div className="text-center py-8">Loading live data...</div>
       ) : validStats.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-500 mb-4">No valid speed to lead data available</p>
+          <p className="text-gray-500 mb-4">No speed to lead data available for the selected date range</p>
           <p className="text-sm text-gray-400">
-            Use the tracker above to calculate speed to lead times from your data
+            Data will appear here automatically as new leads are processed
           </p>
         </div>
       ) : (
@@ -261,10 +416,10 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
           {/* Data Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Valid Speed to Lead Records</CardTitle>
+              <CardTitle>Speed to Lead Records</CardTitle>
               <CardDescription>
-                Only showing records with valid first call times and positive speed calculations (Times in Central Time Zone)
-                {viewOnly && " (View Only - Records created via API)"}
+                Live data showing all speed to lead calculations (Times in Central Time Zone)
+                {dateRange.from || dateRange.to ? ` - Filtered: ${getDateRangeText()}` : ''}
               </CardDescription>
             </CardHeader>
             <CardContent>
