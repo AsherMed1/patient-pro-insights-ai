@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
-import { Phone, Calendar, User, Building, Eye, Clock, Mail, MapPin, Heart, FileText } from 'lucide-react';
+import { Phone, Calendar, User, Building, Eye, Clock, Mail, MapPin, Heart, FileText, Info } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import CallDetailsModal from './CallDetailsModal';
+import LeadDetailsModal from './LeadDetailsModal';
 import { formatDateInCentralTime, formatTimeInCentralTime, formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface NewLead {
@@ -78,6 +78,8 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
   const [selectedLeadCalls, setSelectedLeadCalls] = useState<CallRecord[]>([]);
   const [selectedLeadName, setSelectedLeadName] = useState<string>('');
   const [showCallsModal, setShowCallsModal] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<NewLead | null>(null);
+  const [showLeadDetailsModal, setShowLeadDetailsModal] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -149,6 +151,11 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleViewFullDetails = (lead: NewLead) => {
+    setSelectedLead(lead);
+    setShowLeadDetailsModal(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -302,6 +309,16 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
                           <Eye className="h-3 w-3" />
                         )}
                       </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewFullDetails(lead)}
+                        className="flex items-center space-x-1"
+                      >
+                        <Info className="h-3 w-3" />
+                        <span>See Full Details</span>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -316,6 +333,12 @@ const NewLeadsManager = ({ viewOnly = false }: NewLeadsManagerProps) => {
         onClose={() => setShowCallsModal(false)}
         leadName={selectedLeadName}
         calls={selectedLeadCalls}
+      />
+
+      <LeadDetailsModal
+        isOpen={showLeadDetailsModal}
+        onClose={() => setShowLeadDetailsModal(false)}
+        lead={selectedLead}
       />
     </div>
   );
