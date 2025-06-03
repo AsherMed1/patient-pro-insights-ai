@@ -115,7 +115,7 @@ serve(async (req) => {
       )
     }
 
-    // Build the query based on available identifier - FIXED VERSION
+    // Build the query based on available identifier
     let updateQuery = supabase.from('all_appointments').update(updateData)
 
     if (body.id) {
