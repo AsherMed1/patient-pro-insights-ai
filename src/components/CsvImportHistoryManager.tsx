@@ -9,20 +9,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
 import { Undo2, FileText, AlertTriangle, CheckCircle, Trash2 } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
 
-interface ImportHistoryRecord {
-  id: string;
-  import_type: 'appointments' | 'leads' | 'calls' | 'ad_spend';
-  file_name: string;
-  records_imported: number;
-  records_failed: number;
-  import_summary: any;
-  imported_record_ids: string[];
-  imported_at: string;
-  imported_by: string | null;
-  is_undone: boolean;
-  undone_at: string | null;
-}
+type ImportHistoryRecord = Tables<'csv_import_history'>;
 
 const CsvImportHistoryManager = () => {
   const [imports, setImports] = useState<ImportHistoryRecord[]>([]);
@@ -71,7 +60,7 @@ const CsvImportHistoryManager = () => {
 
     try {
       // Get the appropriate table name based on import type
-      const tableMap = {
+      const tableMap: Record<string, string> = {
         appointments: 'all_appointments',
         leads: 'new_leads',
         calls: 'all_calls',
@@ -80,12 +69,38 @@ const CsvImportHistoryManager = () => {
 
       const tableName = tableMap[importRecord.import_type];
       
-      // Delete the imported records
-      const { error: deleteError } = await supabase
-        .from(tableName)
-        .delete()
-        .in('id', importRecord.imported_record_ids);
+      // Delete the imported records using dynamic table name
+      let deleteQuery;
+      switch (tableName) {
+        case 'all_appointments':
+          deleteQuery = supabase
+            .from('all_appointments')
+            .delete()
+            .in('id', importRecord.imported_record_ids);
+          break;
+        case 'new_leads':
+          deleteQuery = supabase
+            .from('new_leads')
+            .delete()
+            .in('id', importRecord.imported_record_ids);
+          break;
+        case 'all_calls':
+          deleteQuery = supabase
+            .from('all_calls')
+            .delete()
+            .in('id', importRecord.imported_record_ids);
+          break;
+        case 'facebook_ad_spend':
+          deleteQuery = supabase
+            .from('facebook_ad_spend')
+            .delete()
+            .in('id', importRecord.imported_record_ids);
+          break;
+        default:
+          throw new Error(`Unknown table: ${tableName}`);
+      }
 
+      const { error: deleteError } = await deleteQuery;
       if (deleteError) throw deleteError;
 
       // Mark the import as undone
