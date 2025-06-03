@@ -74,6 +74,14 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       
       if (callsError) throw callsError;
 
+      // Fetch ad spend data
+      const { data: adSpendData, error: adSpendError } = await supabase
+        .from('facebook_ad_spend')
+        .select('spend')
+        .eq('project_name', project.project_name);
+      
+      if (adSpendError) throw adSpendError;
+
       // Calculate stats
       const newLeads = leads?.length || 0;
       const bookedAppointments = appointments?.length || 0;
@@ -94,12 +102,15 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         call.duration_seconds >= 120
       ).length || 0;
 
+      // Calculate total ad spend
+      const adSpend = adSpendData?.reduce((sum, record) => {
+        const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
+        return sum + (isNaN(spendValue) ? 0 : spendValue);
+      }, 0) || 0;
+
       // Calculate percentages
       const bookingPercentage = newLeads > 0 ? (bookedAppointments / newLeads) * 100 : 0;
       const confirmedPercentage = bookedAppointments > 0 ? (confirmedAppointments / bookedAppointments) * 100 : 0;
-      
-      // Mock ad spend and cost per lead (you may want to add these fields to your database)
-      const adSpend = 0; // Add this data source when available
       const costPerLead = newLeads > 0 && adSpend > 0 ? adSpend / newLeads : 0;
 
       setStats({
