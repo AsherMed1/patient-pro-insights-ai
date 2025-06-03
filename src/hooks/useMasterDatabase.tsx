@@ -41,8 +41,11 @@ export const useMasterDatabase = () => {
         supabase.from('all_appointments').select('id', { count: 'exact', head: true }),
         supabase.from('agents').select('id', { count: 'exact', head: true }),
         supabase.from('facebook_ad_spend').select('spend').then(result => {
-          if (result.error) return { data: [], error: result.error };
-          const totalSpend = result.data?.reduce((sum, record) => sum + parseFloat(record.spend || '0'), 0) || 0;
+          if (result.error) return { data: 0, error: result.error };
+          const totalSpend = result.data?.reduce((sum, record) => {
+            const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
+            return sum + (isNaN(spendValue) ? 0 : spendValue);
+          }, 0) || 0;
           return { data: totalSpend, error: null };
         })
       ]);
@@ -51,7 +54,7 @@ export const useMasterDatabase = () => {
         totalProjects: projectsResult.count || 0,
         totalAppointments: appointmentsResult.count || 0,
         totalAgents: agentsResult.count || 0,
-        totalAdSpend: adSpendResult.data || 0,
+        totalAdSpend: typeof adSpendResult.data === 'number' ? adSpendResult.data : 0,
         lastSyncTime: new Date().toISOString()
       });
       
@@ -144,7 +147,10 @@ export const useMasterDatabase = () => {
     const totalAppointments = appointments.length;
     const showedAppointments = appointments.filter(a => a.showed).length;
     const confirmedAppointments = appointments.filter(a => a.confirmed).length;
-    const totalAdSpend = adSpendRecords.reduce((sum, record) => sum + parseFloat(record.spend || '0'), 0);
+    const totalAdSpend = adSpendRecords.reduce((sum, record) => {
+      const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
+      return sum + (isNaN(spendValue) ? 0 : spendValue);
+    }, 0);
 
     const showRate = totalAppointments > 0 ? (showedAppointments / totalAppointments) * 100 : 0;
 

@@ -77,8 +77,10 @@ const ProjectsManager = () => {
             .eq('project_name', project.project_name)
         ]);
 
-        const totalAdSpend = adSpendResult.data?.reduce((sum, record) => 
-          sum + parseFloat(record.spend || '0'), 0) || 0;
+        const totalAdSpend = adSpendResult.data?.reduce((sum, record) => {
+          const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
+          return sum + (isNaN(spendValue) ? 0 : spendValue);
+        }, 0) || 0;
 
         return {
           project_name: project.project_name,
