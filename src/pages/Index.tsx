@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText } from "lucide-react";
+import { FileText, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
@@ -90,6 +90,12 @@ const Index = () => {
                 <Button variant="outline" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   CSV Import History
+                </Button>
+              </Link>
+              <Link to="/undo-import">
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Undo2 className="h-4 w-4" />
+                  Undo Last Import
                 </Button>
               </Link>
               <Link to="/api-docs">
