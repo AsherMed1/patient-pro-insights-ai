@@ -6,13 +6,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { parseCSV } from '@/utils/csvParser';
 import { validateAndTransformAppointmentRow } from '@/utils/appointmentValidator';
 import { trackCsvImport } from '@/utils/csvImportTracker';
+import { exportFailedRecordsToCsv } from '@/utils/failedRecordsExporter';
 import CsvFileUpload from './appointments/CsvFileUpload';
 import ImportResult from './appointments/ImportResult';
 import ImportGuidelines from './appointments/ImportGuidelines';
 
+interface FailedRecord {
+  originalData: any;
+  error: string;
+  rowIndex: number;
+}
+
 interface CsvImportResult {
   success: number;
   errors: string[];
+  failedRecords: FailedRecord[];
+  originalHeaders: string[];
 }
 
 const AppointmentsCsvImport = () => {
@@ -42,8 +51,12 @@ const AppointmentsCsvImport = () => {
         throw new Error('No data found in CSV file');
       }
 
+      // Extract headers from the first row for export purposes
+      const originalHeaders = Object.keys(rows[0]);
+
       const errors: string[] = [];
       const validRows: any[] = [];
+      const failedRecords: FailedRecord[] = [];
       const importedRecordIds: string[] = [];
 
       // Validate and transform each row
@@ -52,7 +65,13 @@ const AppointmentsCsvImport = () => {
           const transformedRow = validateAndTransformAppointmentRow(row);
           validRows.push(transformedRow);
         } catch (error) {
-          errors.push(`Row ${index + 2}: ${error.message}`);
+          const errorMessage = `Row ${index + 2}: ${error.message}`;
+          errors.push(errorMessage);
+          failedRecords.push({
+            originalData: row,
+            error: error.message,
+            rowIndex: index + 2
+          });
         }
       });
 
@@ -103,20 +122,23 @@ const AppointmentsCsvImport = () => {
           importType: 'appointments',
           fileName: file.name,
           recordsImported: successCount,
-          recordsFailed: errors.length,
+          recordsFailed: failedRecords.length,
           importedRecordIds: importedRecordIds,
           importSummary: {
             totalRecords: rows.length,
             validRecords: validRows.length,
             batchesProcessed: Math.ceil(validRows.length / batchSize),
-            errors: errors
+            errors: errors,
+            failedRecordsCount: failedRecords.length
           }
         });
       }
 
       setResult({
         success: successCount,
-        errors
+        errors,
+        failedRecords,
+        originalHeaders
       });
 
       toast({
@@ -137,6 +159,12 @@ const AppointmentsCsvImport = () => {
     }
   };
 
+  const handleDownloadFailedRecords = () => {
+    if (result?.failedRecords && result.originalHeaders) {
+      exportFailedRecordsToCsv(result.failedRecords, result.originalHeaders);
+    }
+  };
+
   return (
     <Card className="w-full max-w-2xl">
       <CardHeader>
@@ -153,7 +181,12 @@ const AppointmentsCsvImport = () => {
           importing={importing}
         />
 
-        {result && <ImportResult result={result} />}
+        {result && (
+          <ImportResult 
+            result={result} 
+            onDownloadFailedRecords={handleDownloadFailedRecords}
+          />
+        )}
 
         <ImportGuidelines />
       </CardContent>
