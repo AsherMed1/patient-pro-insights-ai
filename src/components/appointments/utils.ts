@@ -39,25 +39,32 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
       case 'future':
         // Exclude cancelled appointments from future tab
         return isAppointmentInFuture(appointment.date_of_appointment) && 
-               appointment.status !== 'Cancelled';
+               !isCancelledStatus(appointment.status);
       case 'past':
         // Exclude cancelled appointments from past tab
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               appointment.status !== 'Cancelled' &&
+               !isCancelledStatus(appointment.status) &&
                isStatusUpdated(appointment) && 
                isProcedureUpdated(appointment);
       case 'needs-review':
         // Exclude cancelled appointments from needs-review tab
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               appointment.status !== 'Cancelled' &&
+               !isCancelledStatus(appointment.status) &&
                (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
       case 'cancelled':
         // Show all appointments with Cancelled status regardless of date
-        return appointment.status === 'Cancelled';
+        return isCancelledStatus(appointment.status);
       default:
         return true;
     }
   });
+};
+
+// Helper function to check if status indicates cancelled
+const isCancelledStatus = (status: string | null) => {
+  if (!status) return false;
+  const normalizedStatus = status.toLowerCase().trim();
+  return normalizedStatus === 'cancelled' || normalizedStatus === 'canceled';
 };
 
 export const getAppointmentStatus = (appointment: AllAppointment) => {
