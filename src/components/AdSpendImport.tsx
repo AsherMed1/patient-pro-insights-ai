@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -159,20 +160,28 @@ const AdSpendImport = () => {
       }
 
       // Track the import in history
-      if (importedRecordIds.length > 0 || results.errors.length > 0) {
-        await trackCsvImport({
-          importType: 'ad_spend',
-          fileName: file.name,
-          recordsImported: results.success,
-          recordsFailed: results.errors.length,
-          importedRecordIds: importedRecordIds,
-          importSummary: {
-            totalRecords: records.length,
-            validRecords: validatedRecords.length,
-            errors: results.errors
-          }
-        });
-      }
+      console.log('About to track ad spend import with:', {
+        importType: 'ad_spend',
+        fileName: file.name,
+        recordsImported: results.success,
+        recordsFailed: results.errors.length,
+        importedRecordIds: importedRecordIds
+      });
+
+      const trackingResult = await trackCsvImport({
+        importType: 'ad_spend',
+        fileName: file.name,
+        recordsImported: results.success,
+        recordsFailed: results.errors.length,
+        importedRecordIds: importedRecordIds,
+        importSummary: {
+          totalRecords: records.length,
+          validRecords: validatedRecords.length,
+          errors: results.errors
+        }
+      });
+
+      console.log('Ad spend import tracking result:', trackingResult);
 
       setImportResults(results);
 

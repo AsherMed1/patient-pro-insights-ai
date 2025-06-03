@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+import { trackCsvImport } from '@/utils/csvImportTracker';
 
 interface CsvImportResult {
   success: number;
@@ -167,6 +168,7 @@ const LeadsCsvImport = () => {
 
       const errors: string[] = [];
       const validRows: any[] = [];
+      const importedRecordIds: string[] = [];
 
       // Validate and transform each row
       rows.forEach((row, index) => {
@@ -202,17 +204,47 @@ const LeadsCsvImport = () => {
         const batch = validRows.slice(i, i + batchSize);
         
         try {
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from('new_leads')
-            .insert(batch);
+            .insert(batch)
+            .select('id');
 
           if (error) throw error;
+          
           successCount += batch.length;
+          if (data) {
+            importedRecordIds.push(...data.map(record => record.id));
+          }
         } catch (error) {
           console.error('Batch insert error:', error);
           errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
         }
       }
+
+      // Track the import in history
+      console.log('About to track import with:', {
+        importType: 'leads',
+        fileName: file.name,
+        recordsImported: successCount,
+        recordsFailed: errors.length,
+        importedRecordIds: importedRecordIds
+      });
+
+      const trackingResult = await trackCsvImport({
+        importType: 'leads',
+        fileName: file.name,
+        recordsImported: successCount,
+        recordsFailed: errors.length,
+        importedRecordIds: importedRecordIds,
+        importSummary: {
+          totalRecords: rows.length,
+          validRecords: validRows.length,
+          batchesProcessed: Math.ceil(validRows.length / batchSize),
+          errors: errors
+        }
+      });
+
+      console.log('Import tracking result:', trackingResult);
 
       setResult({
         success: successCount,

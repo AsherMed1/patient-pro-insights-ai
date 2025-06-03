@@ -13,6 +13,8 @@ export interface ImportTrackingData {
 
 export const trackCsvImport = async (data: ImportTrackingData): Promise<string | null> => {
   try {
+    console.log('Tracking CSV import with data:', data);
+    
     const { data: result, error } = await supabase
       .from('csv_import_history')
       .insert([{
@@ -32,6 +34,7 @@ export const trackCsvImport = async (data: ImportTrackingData): Promise<string |
       return null;
     }
 
+    console.log('Successfully tracked CSV import with ID:', result.id);
     return result.id;
   } catch (error) {
     console.error('Error tracking CSV import:', error);
