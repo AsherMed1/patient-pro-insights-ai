@@ -53,6 +53,17 @@ export const useUndoImport = () => {
     }
   };
 
+  const deleteBatch = async (tableName: string, batchIds: string[]) => {
+    const { error } = await supabase
+      .from(tableName)
+      .delete()
+      .in('id', batchIds);
+    
+    if (error) {
+      throw error;
+    }
+  };
+
   const undoImport = async () => {
     if (!lastImport || !lastImport.imported_record_ids || lastImport.imported_record_ids.length === 0) {
       toast({
@@ -75,18 +86,33 @@ export const useUndoImport = () => {
 
     try {
       setLoading(true);
-      console.log(`Deleting ${lastImport.imported_record_ids.length} records from ${tableName}`);
+      const totalRecords = lastImport.imported_record_ids.length;
+      console.log(`Starting batch deletion of ${totalRecords} records from ${tableName}`);
 
-      // Delete the imported records
-      const { error: deleteError } = await supabase
-        .from(tableName)
-        .delete()
-        .in('id', lastImport.imported_record_ids);
-
-      if (deleteError) {
-        console.error('Delete error:', deleteError);
-        throw deleteError;
+      // Delete in batches of 100 to avoid URL length limits and improve reliability
+      const batchSize = 100;
+      const batches = [];
+      
+      for (let i = 0; i < lastImport.imported_record_ids.length; i += batchSize) {
+        batches.push(lastImport.imported_record_ids.slice(i, i + batchSize));
       }
+
+      console.log(`Processing ${batches.length} batches of up to ${batchSize} records each`);
+
+      // Process batches sequentially to avoid overwhelming the database
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`Deleting batch ${i + 1}/${batches.length} (${batch.length} records)`);
+        
+        await deleteBatch(tableName, batch);
+        
+        // Small delay between batches to be gentle on the database
+        if (i < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      console.log('All batches deleted successfully, marking import as undone');
 
       // Mark the import as undone
       const { error: updateError } = await supabase
@@ -105,7 +131,7 @@ export const useUndoImport = () => {
 
       toast({
         title: "Import Undone",
-        description: `Successfully removed ${lastImport.imported_record_ids.length} ${getDisplayName(lastImport.import_type).toLowerCase()} records`,
+        description: `Successfully removed ${totalRecords} ${getDisplayName(lastImport.import_type).toLowerCase()} records`,
       });
 
       setLastImport(null);
