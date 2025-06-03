@@ -46,14 +46,15 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         return isAppointmentInFuture(appointment.date_of_appointment) && 
                !isCancelledStatus(appointment.status);
       case 'past':
-        // Exclude cancelled appointments from past tab
+        // Include cancelled appointments and unconfirmed past appointments (now marked as No Show)
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               !isCancelledStatus(appointment.status) &&
-               isStatusUpdated(appointment) && 
-               isProcedureUpdated(appointment);
+               (isCancelledStatus(appointment.status) || 
+                (!appointment.confirmed && !isStatusUpdated(appointment)) ||
+                (isStatusUpdated(appointment) && isProcedureUpdated(appointment)));
       case 'needs-review':
-        // Exclude cancelled appointments from needs-review tab
+        // Only show confirmed past appointments that need review
         return isAppointmentInPast(appointment.date_of_appointment) && 
+               appointment.confirmed === true &&
                !isCancelledStatus(appointment.status) &&
                (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
       case 'cancelled':
@@ -73,6 +74,14 @@ const isCancelledStatus = (status: string | null) => {
 };
 
 export const getAppointmentStatus = (appointment: AllAppointment) => {
+  // If appointment is in the past and was never confirmed, mark as No Show
+  if (isAppointmentInPast(appointment.date_of_appointment) && !appointment.confirmed && !appointment.status) {
+    return {
+      text: 'No Show',
+      variant: 'destructive' as const
+    };
+  }
+  
   if (appointment.status) {
     return {
       text: appointment.status,
