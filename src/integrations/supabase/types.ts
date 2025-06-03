@@ -316,6 +316,54 @@ export type Database = {
         }
         Relationships: []
       }
+      csv_import_history: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          import_summary: Json | null
+          import_type: string
+          imported_at: string
+          imported_by: string | null
+          imported_record_ids: string[]
+          is_undone: boolean
+          records_failed: number
+          records_imported: number
+          undone_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          import_summary?: Json | null
+          import_type: string
+          imported_at?: string
+          imported_by?: string | null
+          imported_record_ids?: string[]
+          is_undone?: boolean
+          records_failed?: number
+          records_imported?: number
+          undone_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          import_summary?: Json | null
+          import_type?: string
+          imported_at?: string
+          imported_by?: string | null
+          imported_record_ids?: string[]
+          is_undone?: boolean
+          records_failed?: number
+          records_imported?: number
+          undone_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       facebook_ad_spend: {
         Row: {
           created_at: string

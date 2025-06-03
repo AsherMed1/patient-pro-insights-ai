@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { parseCSV } from '@/utils/csvParser';
+import { trackCsvImport } from '@/utils/csvImportTracker';
 
 interface AdSpendRecord {
   date: string;
@@ -76,7 +76,7 @@ const AdSpendImport = () => {
     return { isValid: true };
   };
 
-  const submitAdSpendRecord = async (record: AdSpendRecord): Promise<boolean> => {
+  const submitAdSpendRecord = async (record: AdSpendRecord): Promise<{ success: boolean; recordId?: string }> => {
     try {
       const response = await fetch('https://bhabbokbhnqioykjimix.supabase.co/functions/v1/facebook-ad-spend-api', {
         method: 'POST',
@@ -87,10 +87,15 @@ const AdSpendImport = () => {
         body: JSON.stringify(record)
       });
 
-      return response.ok;
+      if (response.ok) {
+        const result = await response.json();
+        return { success: true, recordId: result.data?.id };
+      }
+
+      return { success: false };
     } catch (error) {
       console.error('Error submitting ad spend record:', error);
-      return false;
+      return { success: false };
     }
   };
 
@@ -118,6 +123,8 @@ const AdSpendImport = () => {
         errors: [] as Array<{ row: number; error: string }>
       };
 
+      const importedRecordIds: string[] = [];
+
       // Validate all records first
       const validatedRecords: Array<{ record: AdSpendRecord; rowIndex: number }> = [];
       
@@ -139,15 +146,32 @@ const AdSpendImport = () => {
 
       // Submit valid records
       for (const { record } of validatedRecords) {
-        const success = await submitAdSpendRecord(record);
-        if (success) {
+        const result = await submitAdSpendRecord(record);
+        if (result.success && result.recordId) {
           results.success++;
+          importedRecordIds.push(result.recordId);
         } else {
           results.errors.push({ 
             row: validatedRecords.findIndex(vr => vr.record === record) + 1, 
             error: 'Failed to save record to database' 
           });
         }
+      }
+
+      // Track the import in history
+      if (importedRecordIds.length > 0 || results.errors.length > 0) {
+        await trackCsvImport({
+          importType: 'ad_spend',
+          fileName: file.name,
+          recordsImported: results.success,
+          recordsFailed: results.errors.length,
+          importedRecordIds: importedRecordIds,
+          importSummary: {
+            totalRecords: records.length,
+            validRecords: validatedRecords.length,
+            errors: results.errors
+          }
+        });
       }
 
       setImportResults(results);

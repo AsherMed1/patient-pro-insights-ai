@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { parseCSV } from '@/utils/csvParser';
+import { trackCsvImport } from '@/utils/csvImportTracker';
 
 interface CallRecord {
   lead_name: string;
@@ -142,7 +142,7 @@ const AllCallsImport = () => {
     return { isValid: true };
   };
 
-  const submitCallRecord = async (record: CallRecord): Promise<{ success: boolean; isDuplicate?: boolean }> => {
+  const submitCallRecord = async (record: CallRecord): Promise<{ success: boolean; isDuplicate?: boolean; recordId?: string }> => {
     try {
       const response = await fetch('https://bhabbokbhnqioykjimix.supabase.co/functions/v1/all-calls-api', {
         method: 'POST',
@@ -154,11 +154,15 @@ const AllCallsImport = () => {
       });
 
       if (response.status === 409) {
-        // Conflict - likely a duplicate
         return { success: false, isDuplicate: true };
       }
 
-      return { success: response.ok };
+      if (response.ok) {
+        const result = await response.json();
+        return { success: true, recordId: result.data?.id };
+      }
+
+      return { success: false };
     } catch (error) {
       console.error('Error submitting call record:', error);
       return { success: false };
@@ -190,6 +194,8 @@ const AllCallsImport = () => {
         skipped: 0
       };
 
+      const importedRecordIds: string[] = [];
+
       // Validate all records first
       const validatedRecords: Array<{ record: CallRecord; rowIndex: number }> = [];
       
@@ -220,8 +226,9 @@ const AllCallsImport = () => {
       // Submit valid records
       for (const { record, rowIndex } of validatedRecords) {
         const result = await submitCallRecord(record);
-        if (result.success) {
+        if (result.success && result.recordId) {
           results.success++;
+          importedRecordIds.push(result.recordId);
         } else if (result.isDuplicate) {
           results.skipped++;
         } else {
@@ -230,6 +237,23 @@ const AllCallsImport = () => {
             error: 'Failed to save record to database' 
           });
         }
+      }
+
+      // Track the import in history
+      if (importedRecordIds.length > 0 || results.errors.length > 0) {
+        await trackCsvImport({
+          importType: 'calls',
+          fileName: file.name,
+          recordsImported: results.success,
+          recordsFailed: results.errors.length,
+          importedRecordIds: importedRecordIds,
+          importSummary: {
+            totalRecords: records.length,
+            validRecords: validatedRecords.length,
+            skippedDuplicates: results.skipped,
+            errors: results.errors
+          }
+        });
       }
 
       setImportResults(results);

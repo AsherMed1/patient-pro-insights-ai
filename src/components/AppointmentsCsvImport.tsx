@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { parseCSV } from '@/utils/csvParser';
 import { validateAndTransformAppointmentRow } from '@/utils/appointmentValidator';
+import { trackCsvImport } from '@/utils/csvImportTracker';
 import CsvFileUpload from './appointments/CsvFileUpload';
 import ImportResult from './appointments/ImportResult';
 import ImportGuidelines from './appointments/ImportGuidelines';
@@ -43,6 +44,7 @@ const AppointmentsCsvImport = () => {
 
       const errors: string[] = [];
       const validRows: any[] = [];
+      const importedRecordIds: string[] = [];
 
       // Validate and transform each row
       rows.forEach((row, index) => {
@@ -78,16 +80,38 @@ const AppointmentsCsvImport = () => {
         const batch = validRows.slice(i, i + batchSize);
         
         try {
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from('all_appointments')
-            .insert(batch);
+            .insert(batch)
+            .select('id');
 
           if (error) throw error;
+          
           successCount += batch.length;
+          if (data) {
+            importedRecordIds.push(...data.map(record => record.id));
+          }
         } catch (error) {
           console.error('Batch insert error:', error);
           errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
         }
+      }
+
+      // Track the import in history
+      if (importedRecordIds.length > 0 || errors.length > 0) {
+        await trackCsvImport({
+          importType: 'appointments',
+          fileName: file.name,
+          recordsImported: successCount,
+          recordsFailed: errors.length,
+          importedRecordIds: importedRecordIds,
+          importSummary: {
+            totalRecords: rows.length,
+            validRecords: validRows.length,
+            batchesProcessed: Math.ceil(validRows.length / batchSize),
+            errors: errors
+          }
+        });
       }
 
       setResult({
