@@ -316,6 +316,33 @@ export type Database = {
         }
         Relationships: []
       }
+      facebook_ad_spend: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          project_name: string
+          spend: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          project_name: string
+          spend?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          project_name?: string
+          spend?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       new_leads: {
         Row: {
           address: string | null

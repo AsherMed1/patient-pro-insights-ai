@@ -20,6 +20,7 @@ interface ProjectStats {
   leads_count: number;
   calls_count: number;
   appointments_count: number;
+  ad_spend: number;
   last_activity: string | null;
 }
 
@@ -55,7 +56,7 @@ const ProjectsManager = () => {
 
       // Fetch stats for each project
       const statsPromises = (projectsData || []).map(async (project) => {
-        const [leadsResult, callsResult, appointmentsResult] = await Promise.all([
+        const [leadsResult, callsResult, appointmentsResult, adSpendResult] = await Promise.all([
           supabase
             .from('new_leads')
             .select('id', { count: 'exact', head: true })
@@ -69,14 +70,22 @@ const ProjectsManager = () => {
           supabase
             .from('all_appointments')
             .select('id', { count: 'exact', head: true })
+            .eq('project_name', project.project_name),
+          supabase
+            .from('facebook_ad_spend')
+            .select('spend')
             .eq('project_name', project.project_name)
         ]);
+
+        const totalAdSpend = adSpendResult.data?.reduce((sum, record) => 
+          sum + parseFloat(record.spend || '0'), 0) || 0;
 
         return {
           project_name: project.project_name,
           leads_count: leadsResult.count || 0,
           calls_count: callsResult.count || 0,
           appointments_count: appointmentsResult.count || 0,
+          ad_spend: totalAdSpend,
           last_activity: callsResult.data?.[0]?.call_datetime || null
         };
       });
