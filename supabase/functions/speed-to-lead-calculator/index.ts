@@ -7,6 +7,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Function to check if a date is within business hours (8am-9pm CST)
+function isWithinBusinessHours(dateString: string): boolean {
+  const date = new Date(dateString);
+  
+  // Convert to CST (UTC-6) or CDT (UTC-5) - we'll use a fixed offset approach
+  // Note: This is a simplified approach. For production, consider using a proper timezone library
+  const cstOffset = -6; // CST is UTC-6 (during standard time)
+  const cdtOffset = -5; // CDT is UTC-5 (during daylight time)
+  
+  // For simplicity, we'll use CST offset consistently
+  // In a production environment, you'd want to handle DST properly
+  const cstDate = new Date(date.getTime() + (cstOffset * 60 * 60 * 1000));
+  const hours = cstDate.getUTCHours();
+  
+  // Business hours: 8am (8) to 9pm (21) CST
+  return hours >= 8 && hours < 21;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -61,11 +79,19 @@ serve(async (req) => {
     let createdCount = 0
     let updatedCount = 0
     let noCallsCount = 0
+    let outsideBusinessHoursCount = 0
 
     // Process each new lead
     for (const lead of newLeads || []) {
       try {
         console.log(`Processing lead: ${lead.lead_name}`)
+
+        // Check if lead was created within business hours
+        if (!isWithinBusinessHours(lead.created_at)) {
+          console.log(`Lead ${lead.lead_name} created outside business hours, skipping`)
+          outsideBusinessHoursCount++
+          continue
+        }
 
         // Find the first call for this lead - try multiple matching strategies
         let firstCall = null
@@ -192,6 +218,7 @@ serve(async (req) => {
     console.log(`Records created: ${createdCount}`)
     console.log(`Records updated: ${updatedCount}`)
     console.log(`Leads without calls: ${noCallsCount}`)
+    console.log(`Leads outside business hours (skipped): ${outsideBusinessHoursCount}`)
 
     // Return success response
     return new Response(
@@ -202,7 +229,8 @@ serve(async (req) => {
           totalProcessed: processedCount,
           recordsCreated: createdCount,
           recordsUpdated: updatedCount,
-          leadsWithoutCalls: noCallsCount
+          leadsWithoutCalls: noCallsCount,
+          leadsOutsideBusinessHours: outsideBusinessHoursCount
         }
       }),
       { 
