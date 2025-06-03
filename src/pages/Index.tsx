@@ -26,31 +26,6 @@ const Index = () => {
           <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
         </div>
 
-        {/* Quick Actions Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Link to="/csv-import-history">
-                <Button variant="outline" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  CSV Import History
-                </Button>
-              </Link>
-              <Link to="/api-docs">
-                <Button variant="outline">
-                  API Documentation
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
@@ -100,6 +75,31 @@ const Index = () => {
             <AIAssistant clientId="project-1" />
           </TabsContent>
         </Tabs>
+
+        {/* Quick Actions Card - moved to bottom */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Link to="/csv-import-history">
+                <Button variant="outline" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  CSV Import History
+                </Button>
+              </Link>
+              <Link to="/api-docs">
+                <Button variant="outline">
+                  API Documentation
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
