@@ -28,6 +28,7 @@ const AllCallsImport = () => {
   const [importResults, setImportResults] = useState<{
     success: number;
     errors: Array<{ row: number; error: string }>;
+    skipped?: number;
   } | null>(null);
   const { toast } = useToast();
 
@@ -141,7 +142,7 @@ const AllCallsImport = () => {
     return { isValid: true };
   };
 
-  const submitCallRecord = async (record: CallRecord): Promise<boolean> => {
+  const submitCallRecord = async (record: CallRecord): Promise<{ success: boolean; isDuplicate?: boolean }> => {
     try {
       const response = await fetch('https://bhabbokbhnqioykjimix.supabase.co/functions/v1/all-calls-api', {
         method: 'POST',
@@ -152,10 +153,15 @@ const AllCallsImport = () => {
         body: JSON.stringify(record)
       });
 
-      return response.ok;
+      if (response.status === 409) {
+        // Conflict - likely a duplicate
+        return { success: false, isDuplicate: true };
+      }
+
+      return { success: response.ok };
     } catch (error) {
       console.error('Error submitting call record:', error);
-      return false;
+      return { success: false };
     }
   };
 
@@ -180,7 +186,8 @@ const AllCallsImport = () => {
 
       const results = {
         success: 0,
-        errors: [] as Array<{ row: number; error: string }>
+        errors: [] as Array<{ row: number; error: string }>,
+        skipped: 0
       };
 
       // Validate all records first
@@ -211,13 +218,15 @@ const AllCallsImport = () => {
       }
 
       // Submit valid records
-      for (const { record } of validatedRecords) {
-        const success = await submitCallRecord(record);
-        if (success) {
+      for (const { record, rowIndex } of validatedRecords) {
+        const result = await submitCallRecord(record);
+        if (result.success) {
           results.success++;
+        } else if (result.isDuplicate) {
+          results.skipped++;
         } else {
           results.errors.push({ 
-            row: validatedRecords.findIndex(vr => vr.record === record) + 1, 
+            row: rowIndex + 1, 
             error: 'Failed to save record to database' 
           });
         }
@@ -228,7 +237,7 @@ const AllCallsImport = () => {
       if (results.success > 0) {
         toast({
           title: "Import Complete",
-          description: `Successfully imported ${results.success} call records`,
+          description: `Successfully imported ${results.success} call records${results.skipped ? `, skipped ${results.skipped} duplicates` : ''}`,
         });
       }
 
@@ -311,11 +320,17 @@ const AllCallsImport = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">{importResults.success}</div>
                 <div className="text-sm text-green-700">Successfully Imported</div>
               </div>
+              {importResults.skipped !== undefined && importResults.skipped > 0 && (
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-600">{importResults.skipped}</div>
+                  <div className="text-sm text-yellow-700">Skipped (Duplicates)</div>
+                </div>
+              )}
               <div className="text-center p-4 bg-red-50 rounded-lg">
                 <div className="text-2xl font-bold text-red-600">{importResults.errors.length}</div>
                 <div className="text-sm text-red-700">Errors</div>

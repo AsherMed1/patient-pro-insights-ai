@@ -80,6 +80,16 @@ serve(async (req) => {
       )
     }
 
+    // Extract time from requested_time if it contains both date and time
+    let extractedTime = null
+    if (body.requested_time) {
+      // Handle both "HH:MM" and "YYYY-MM-DD HH:MM" formats
+      const timeMatch = body.requested_time.match(/(\d{2}:\d{2})(?::\d{2})?$/)
+      if (timeMatch) {
+        extractedTime = timeMatch[1] + ':00' // Ensure HH:MM:SS format
+      }
+    }
+
     // Prepare appointment data
     const appointmentData = {
       date_appointment_created: body.date_appointment_created,
@@ -89,7 +99,7 @@ serve(async (req) => {
       lead_email: body.lead_email || null,
       lead_phone_number: body.lead_phone_number || null,
       calendar_name: body.calendar_name || null,
-      requested_time: body.requested_time || null,
+      requested_time: extractedTime,
       stage_booked: body.stage_booked || null,
       showed: body.showed || false,
       confirmed: body.confirmed || false,
@@ -97,6 +107,37 @@ serve(async (req) => {
       agent_number: body.agent_number || null,
       ghl_id: body.ghl_id || null,
       confirmed_number: body.confirmed_number || null
+    }
+
+    // Check for existing appointment with same ghl_id, date, and time if all are provided
+    if (appointmentData.ghl_id && appointmentData.date_of_appointment && appointmentData.requested_time) {
+      const { data: existingAppointment } = await supabase
+        .from('all_appointments')
+        .select('id, lead_name, project_name')
+        .eq('ghl_id', appointmentData.ghl_id)
+        .eq('date_of_appointment', appointmentData.date_of_appointment)
+        .eq('requested_time', appointmentData.requested_time)
+        .maybeSingle()
+
+      if (existingAppointment) {
+        console.log('Duplicate appointment detected:', existingAppointment)
+        return new Response(
+          JSON.stringify({ 
+            error: 'Duplicate appointment', 
+            message: 'An appointment with the same GHL ID, date, and time already exists',
+            existing: existingAppointment,
+            duplicate_key: {
+              ghl_id: appointmentData.ghl_id,
+              date_of_appointment: appointmentData.date_of_appointment,
+              requested_time: appointmentData.requested_time
+            }
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
     }
 
     // Insert into all_appointments table
@@ -107,6 +148,22 @@ serve(async (req) => {
 
     if (error) {
       console.error('Database error:', error)
+      
+      // Handle unique constraint violation specifically
+      if (error.code === '23505' && error.message.includes('unique_appointment_ghl_datetime')) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Duplicate appointment', 
+            message: 'An appointment with the same GHL ID, date, and time already exists',
+            details: error.message 
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Database error', 
