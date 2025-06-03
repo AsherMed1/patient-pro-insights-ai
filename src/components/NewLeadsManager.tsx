@@ -7,6 +7,7 @@ import CallDetailsModal from './CallDetailsModal';
 import LeadDetailsModal from './LeadDetailsModal';
 import LeadCard from './leads/LeadCard';
 import LeadsCsvImport from './LeadsCsvImport';
+import AppointmentsPagination from './appointments/AppointmentsPagination';
 import { useLeads } from '@/hooks/useLeads';
 
 interface NewLeadsManagerProps {
@@ -19,6 +20,10 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
   const {
     leads,
     loading,
+    currentPage,
+    totalPages,
+    totalRecords,
+    recordsPerPage,
     selectedLeadCalls,
     selectedLeadName,
     showCallsModal,
@@ -28,12 +33,13 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
-    fetchLeadsWithCallCounts
+    fetchLeadsWithCallCounts,
+    handlePageChange
   } = useLeads(projectFilter);
 
   const handleImportComplete = () => {
     setShowImport(false);
-    fetchLeadsWithCallCounts(); // Refresh the leads list
+    fetchLeadsWithCallCounts(1); // Refresh the leads list and go back to page 1
   };
 
   return (
@@ -81,7 +87,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
             {projectFilter ? `${projectFilter} - New Leads` : 'New Leads'}
           </CardTitle>
           <CardDescription>
-            {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+            {totalRecords} lead{totalRecords !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
             {projectFilter && ` for ${projectFilter}`}
           </CardDescription>
@@ -91,21 +97,31 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
             <div className="text-center py-8">
               <div className="text-gray-500">Loading leads...</div>
             </div>
-          ) : leads.length === 0 ? (
+          ) : totalRecords === 0 ? (
             <div className="text-center py-8">
               <div className="text-gray-500">No leads recorded yet</div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {leads.map((lead) => (
-                <LeadCard
-                  key={lead.id}
-                  lead={lead}
-                  onViewCalls={handleViewCalls}
-                  onViewFullDetails={handleViewFullDetails}
-                />
-              ))}
-            </div>
+            <>
+              <div className="space-y-4">
+                {leads.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onViewCalls={handleViewCalls}
+                    onViewFullDetails={handleViewFullDetails}
+                  />
+                ))}
+              </div>
+              
+              <AppointmentsPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalRecords}
+                recordsPerPage={recordsPerPage}
+                onPageChange={handlePageChange}
+              />
+            </>
           )}
         </CardContent>
       </Card>
