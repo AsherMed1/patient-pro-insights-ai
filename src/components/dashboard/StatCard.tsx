@@ -10,6 +10,7 @@ interface StatCardProps {
   isPercentage?: boolean;
   isCurrency?: boolean;
   isMinutes?: boolean;
+  onClick?: () => void;
 }
 
 const StatCard = ({ 
@@ -19,7 +20,8 @@ const StatCard = ({
   color = "blue",
   isPercentage = false,
   isCurrency = false,
-  isMinutes = false 
+  isMinutes = false,
+  onClick 
 }: StatCardProps) => {
   const formatValue = () => {
     if (isCurrency) return `$${value.toFixed(2)}`;
@@ -29,7 +31,10 @@ const StatCard = ({
   };
 
   return (
-    <Card>
+    <Card 
+      className={`${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div>
@@ -37,6 +42,9 @@ const StatCard = ({
             <p className={`text-2xl font-bold text-${color}-600`}>
               {formatValue()}
             </p>
+            {onClick && (
+              <p className="text-xs text-gray-500 mt-1">Click to view details</p>
+            )}
           </div>
           <Icon className={`h-8 w-8 text-${color}-500`} />
         </div>
