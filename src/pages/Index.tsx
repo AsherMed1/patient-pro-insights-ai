@@ -8,7 +8,6 @@ import NewLeadsManager from "@/components/NewLeadsManager";
 import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
-import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import AIAssistant from "@/components/AIAssistant";
 
 const Index = () => {
@@ -35,7 +34,6 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
-            <MasterDatabaseStats />
             <CallCenterDashboard projectId="project-1" />
           </TabsContent>
 
