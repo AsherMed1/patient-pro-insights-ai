@@ -122,8 +122,29 @@ const ProjectsDashboard = () => {
       const appointmentsToTakePlace = appointments.filter(apt => 
         new Date(apt.date_of_appointment) >= new Date()
       ).length;
-      const shows = appointments.filter(apt => apt.showed).length;
-      const noShows = appointments.filter(apt => apt.showed === false).length;
+
+      // Fixed shows and no-shows calculation logic
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to beginning of today for accurate comparison
+
+      // Only count appointments that have occurred (past appointment date)
+      const pastAppointments = appointments.filter(apt => {
+        if (!apt.date_of_appointment) return false;
+        const appointmentDate = new Date(apt.date_of_appointment);
+        appointmentDate.setHours(0, 0, 0, 0);
+        return appointmentDate < today;
+      });
+
+      // Shows: appointments that actually showed up (status = 'Showed' OR showed = true)
+      const shows = pastAppointments.filter(apt => 
+        apt.status === 'Showed' || apt.showed === true
+      ).length;
+
+      // No Shows: past appointments that didn't show and weren't cancelled
+      const noShows = pastAppointments.filter(apt => 
+        (apt.status === 'No Show' || (apt.showed === false && apt.status !== 'Cancelled')) &&
+        apt.status !== 'Showed' && apt.showed !== true
+      ).length;
       
       const outboundDials = calls.filter(call => call.direction === 'outbound').length;
       const pickups40Plus = calls.filter(call => 
