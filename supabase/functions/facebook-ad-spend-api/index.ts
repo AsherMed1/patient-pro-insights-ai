@@ -80,6 +80,25 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate that the project exists in the projects table
+    const { data: projectExists, error: projectError } = await supabase
+      .from('projects')
+      .select('project_name')
+      .eq('project_name', body.project_name)
+      .single();
+
+    if (projectError || !projectExists) {
+      return new Response(
+        JSON.stringify({ 
+          error: `Project '${body.project_name}' does not exist. Please use an existing project name.` 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     const adSpendData: AdSpendData = {
       date: body.date,
       project_name: body.project_name,
