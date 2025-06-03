@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Upload, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+import { parseCSV } from '@/utils/csvParser';
+import { validateAndTransformAppointmentRow } from '@/utils/appointmentValidator';
+import CsvFileUpload from './appointments/CsvFileUpload';
+import ImportResult from './appointments/ImportResult';
+import ImportGuidelines from './appointments/ImportGuidelines';
 
 interface CsvImportResult {
   success: number;
@@ -18,89 +19,6 @@ const AppointmentsCsvImport = () => {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<CsvImportResult | null>(null);
   const { toast } = useToast();
-
-  const downloadTemplate = () => {
-    const headers = [
-      'date_appointment_created',
-      'date_of_appointment',
-      'project_name',
-      'lead_name',
-      'lead_email',
-      'lead_phone_number',
-      'calendar_name',
-      'requested_time',
-      'stage_booked',
-      'showed',
-      'confirmed',
-      'agent',
-      'agent_number',
-      'ghl_id',
-      'confirmed_number',
-      'status',
-      'procedure_ordered'
-    ];
-
-    const csvContent = headers.join(',') + '\n';
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'appointments_import_template.csv';
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const parseCSV = (csvText: string): any[] => {
-    const lines = csvText.trim().split('\n');
-    if (lines.length < 2) return [];
-
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    const rows = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-      const row: any = {};
-      
-      headers.forEach((header, index) => {
-        const value = values[index] || '';
-        row[header] = value === '' ? null : value;
-      });
-
-      rows.push(row);
-    }
-
-    return rows;
-  };
-
-  const validateAndTransformRow = (row: any): any => {
-    // Required fields validation
-    if (!row.date_appointment_created || !row.project_name || !row.lead_name) {
-      throw new Error('Missing required fields: date_appointment_created, project_name, or lead_name');
-    }
-
-    // Transform and validate data types
-    const transformedRow: any = {
-      date_appointment_created: row.date_appointment_created,
-      date_of_appointment: row.date_of_appointment || null,
-      project_name: row.project_name,
-      lead_name: row.lead_name,
-      lead_email: row.lead_email || null,
-      lead_phone_number: row.lead_phone_number || null,
-      calendar_name: row.calendar_name || null,
-      requested_time: row.requested_time || null,
-      stage_booked: row.stage_booked || null,
-      showed: row.showed === 'true' || row.showed === '1' ? true : row.showed === 'false' || row.showed === '0' ? false : null,
-      confirmed: row.confirmed === 'true' || row.confirmed === '1' ? true : row.confirmed === 'false' || row.confirmed === '0' ? false : null,
-      agent: row.agent || null,
-      agent_number: row.agent_number || null,
-      ghl_id: row.ghl_id || null,
-      confirmed_number: row.confirmed_number || null,
-      status: row.status || null,
-      procedure_ordered: row.procedure_ordered === 'true' || row.procedure_ordered === '1' ? true : row.procedure_ordered === 'false' || row.procedure_ordered === '0' ? false : null
-    };
-
-    return transformedRow;
-  };
 
   const handleImport = async () => {
     if (!file) {
@@ -129,7 +47,7 @@ const AppointmentsCsvImport = () => {
       // Validate and transform each row
       rows.forEach((row, index) => {
         try {
-          const transformedRow = validateAndTransformRow(row);
+          const transformedRow = validateAndTransformAppointmentRow(row);
           validRows.push(transformedRow);
         } catch (error) {
           errors.push(`Row ${index + 2}: ${error.message}`);
@@ -204,73 +122,16 @@ const AppointmentsCsvImport = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="csv-file">CSV File</Label>
-            <Input
-              id="csv-file"
-              type="file"
-              accept=".csv"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              disabled={importing}
-            />
-          </div>
+        <CsvFileUpload
+          file={file}
+          onFileChange={setFile}
+          onImport={handleImport}
+          importing={importing}
+        />
 
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              onClick={downloadTemplate}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download Template
-            </Button>
-            <Button 
-              onClick={handleImport} 
-              disabled={!file || importing}
-              className="flex items-center gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {importing ? 'Importing...' : 'Import CSV'}
-            </Button>
-          </div>
-        </div>
+        {result && <ImportResult result={result} />}
 
-        {result && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="h-5 w-5" />
-              <span className="font-medium">
-                Successfully imported {result.success} appointments
-              </span>
-            </div>
-
-            {result.errors.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="h-5 w-5" />
-                  <span className="font-medium">
-                    {result.errors.length} errors occurred:
-                  </span>
-                </div>
-                <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-40 overflow-y-auto">
-                  {result.errors.map((error, index) => (
-                    <div key={index} className="text-sm text-red-700">
-                      {error}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="text-sm text-gray-600 space-y-2">
-          <p><strong>Required fields:</strong> date_appointment_created, project_name, lead_name</p>
-          <p><strong>Date format:</strong> YYYY-MM-DD</p>
-          <p><strong>Time format:</strong> HH:MM:SS</p>
-          <p><strong>Boolean fields:</strong> Use 'true'/'false' or '1'/'0'</p>
-        </div>
+        <ImportGuidelines />
       </CardContent>
     </Card>
   );
