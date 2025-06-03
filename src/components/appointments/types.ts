@@ -24,4 +24,5 @@ export interface AllAppointment {
 
 export interface AllAppointmentsManagerProps {
   projectFilter?: string;
+  isProjectPortal?: boolean;
 }

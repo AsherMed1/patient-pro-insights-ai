@@ -1,19 +1,20 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { AllAppointment } from './types';
 import { filterAppointments } from './utils';
 import AppointmentsList from './AppointmentsList';
-import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppointmentsTabsProps {
   appointments: AllAppointment[];
   loading: boolean;
   activeTab: string;
-  onTabChange: (tab: string) => void;
+  onTabChange: (value: string) => void;
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  isProjectPortal?: boolean;
 }
 
 const AppointmentsTabs = ({
@@ -23,45 +24,46 @@ const AppointmentsTabs = ({
   onTabChange,
   projectFilter,
   onUpdateStatus,
-  onUpdateProcedure
+  onUpdateProcedure,
+  isProjectPortal = false
 }: AppointmentsTabsProps) => {
-  const isMobile = useIsMobile();
-  
-  const futureAppointments = filterAppointments(appointments, 'future');
-  const pastAppointments = filterAppointments(appointments, 'past');
-  const needsReviewAppointments = filterAppointments(appointments, 'needs-review');
-  const cancelledAppointments = filterAppointments(appointments, 'cancelled');
+  const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
+  const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
+  const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
+  const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1' : 'grid-cols-4'}`}>
-        <TabsTrigger 
-          value="needs-review" 
-          className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
-        >
-          Needs Review ({needsReviewAppointments.length})
+      <TabsList className="grid w-full grid-cols-4">
+        <TabsTrigger value="needs-review" className="relative">
+          Needs Review
+          {needsReviewAppointments.length > 0 && (
+            <Badge variant="destructive" className="ml-2 text-xs">
+              {needsReviewAppointments.length}
+            </Badge>
+          )}
         </TabsTrigger>
-        <TabsTrigger 
-          value="future" 
-          className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
-        >
-          Future ({futureAppointments.length})
+        <TabsTrigger value="future" className="relative">
+          Future
+          <Badge variant="secondary" className="ml-2 text-xs">
+            {futureAppointments.length}
+          </Badge>
         </TabsTrigger>
-        <TabsTrigger 
-          value="past" 
-          className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
-        >
-          Past ({pastAppointments.length})
+        <TabsTrigger value="past" className="relative">
+          Past
+          <Badge variant="secondary" className="ml-2 text-xs">
+            {pastAppointments.length}
+          </Badge>
         </TabsTrigger>
-        <TabsTrigger 
-          value="cancelled" 
-          className={`${isMobile ? 'w-full py-3 text-sm' : 'text-xs md:text-sm'}`}
-        >
-          Cancelled ({cancelledAppointments.length})
+        <TabsTrigger value="cancelled" className="relative">
+          Cancelled
+          <Badge variant="secondary" className="ml-2 text-xs">
+            {cancelledAppointments.length}
+          </Badge>
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="needs-review" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+      <TabsContent value="needs-review" className="mt-4">
         <AppointmentsList
           appointments={needsReviewAppointments}
           loading={loading}
@@ -71,7 +73,7 @@ const AppointmentsTabs = ({
         />
       </TabsContent>
 
-      <TabsContent value="future" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+      <TabsContent value="future" className="mt-4">
         <AppointmentsList
           appointments={futureAppointments}
           loading={loading}
@@ -81,7 +83,7 @@ const AppointmentsTabs = ({
         />
       </TabsContent>
 
-      <TabsContent value="past" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+      <TabsContent value="past" className="mt-4">
         <AppointmentsList
           appointments={pastAppointments}
           loading={loading}
@@ -91,7 +93,7 @@ const AppointmentsTabs = ({
         />
       </TabsContent>
 
-      <TabsContent value="cancelled" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+      <TabsContent value="cancelled" className="mt-4">
         <AppointmentsList
           appointments={cancelledAppointments}
           loading={loading}

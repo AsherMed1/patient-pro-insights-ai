@@ -33,8 +33,13 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
   return appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
 };
 
-export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
+export const filterAppointments = (appointments: AllAppointment[], filterType: string, isProjectPortal: boolean = false) => {
   return appointments.filter(appointment => {
+    // For project portals, only show confirmed appointments
+    if (isProjectPortal && !appointment.confirmed) {
+      return false;
+    }
+
     switch (filterType) {
       case 'future':
         // Exclude cancelled appointments from future tab

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,8 @@ import AppointmentsTabs from './appointments/AppointmentsTabs';
 import AppointmentsCsvImport from './AppointmentsCsvImport';
 
 const AllAppointmentsManager = ({
-  projectFilter
+  projectFilter,
+  isProjectPortal = false
 }: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,8 +147,8 @@ const AllAppointmentsManager = ({
 
   return (
     <div className="space-y-6">
-      {/* Import Section */}
-      {!showImport && (
+      {/* Import Section - Only show in main dashboard, not project portals */}
+      {!showImport && !isProjectPortal && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -166,8 +168,8 @@ const AllAppointmentsManager = ({
         </Card>
       )}
 
-      {/* CSV Import Component */}
-      {showImport && (
+      {/* CSV Import Component - Only show in main dashboard */}
+      {showImport && !isProjectPortal && (
         <div className="space-y-4">
           <AppointmentsCsvImport />
           <div className="flex gap-2">
@@ -190,6 +192,7 @@ const AllAppointmentsManager = ({
           <CardDescription className="text-sm">
             {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
             {projectFilter && ` for ${projectFilter}`}
+            {isProjectPortal && ' (Only confirmed appointments shown)'}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0">
@@ -201,6 +204,7 @@ const AllAppointmentsManager = ({
             projectFilter={projectFilter}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}
+            isProjectPortal={isProjectPortal}
           />
         </CardContent>
       </Card>

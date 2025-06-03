@@ -83,10 +83,12 @@ const ProjectPortal = () => {
 
   const fetchAppointmentStats = async () => {
     try {
+      // Only fetch confirmed appointments for project portal stats
       const { data, error } = await supabase
         .from('all_appointments')
         .select('showed, procedure_ordered')
-        .eq('project_name', decodeURIComponent(projectName!));
+        .eq('project_name', decodeURIComponent(projectName!))
+        .eq('confirmed', true);
       
       if (error) throw error;
       
@@ -174,8 +176,11 @@ const ProjectPortal = () => {
           </ProjectDetailedDashboard>
         </div>
 
-        {/* Appointments Section */}
-        <AllAppointmentsManager projectFilter={project.project_name} />
+        {/* Appointments Section - Only confirmed appointments */}
+        <AllAppointmentsManager 
+          projectFilter={project.project_name} 
+          isProjectPortal={true}
+        />
       </div>
     </div>
   );
