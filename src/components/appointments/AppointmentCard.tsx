@@ -4,16 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info } from 'lucide-react';
 import { AllAppointment } from './types';
-import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, statusOptions } from './utils';
+import { formatDate, formatTime, getStatusVariant, statusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
+
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
 }
+
 interface NewLead {
   id: string;
   date: string;
@@ -56,6 +58,7 @@ interface NewLead {
   plantar_fasciitis_imaging?: boolean;
   email?: string;
 }
+
 const AppointmentCard = ({
   appointment,
   projectFilter,
@@ -68,11 +71,24 @@ const AppointmentCard = ({
   const {
     toast
   } = useToast();
-  const appointmentStatus = getAppointmentStatus(appointment);
 
   // Check if status and procedure have been updated
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
   const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+
+  // Get the actual status or show "No Status Set"
+  const getDisplayStatus = () => {
+    if (appointment.status && appointment.status.trim() !== '') {
+      return {
+        text: appointment.status,
+        variant: getStatusVariant(appointment.status)
+      };
+    }
+    return {
+      text: 'No Status Set',
+      variant: 'secondary' as const
+    };
+  };
 
   // Get styling classes for dropdowns
   const getStatusTriggerClass = () => {
@@ -93,6 +109,7 @@ const AppointmentCard = ({
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     }
   };
+
   const handleViewDetails = async () => {
     try {
       setLoadingLeadData(true);
@@ -134,6 +151,7 @@ const AppointmentCard = ({
       setLoadingLeadData(false);
     }
   };
+
   return <>
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
         <div className="space-y-2">
@@ -194,12 +212,11 @@ const AppointmentCard = ({
               Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
             </div>}
 
-          {/* Status and Procedure Badges - Responsive layout */}
+          {/* Status Badge - Now shows actual status field */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
-            <Badge variant={appointmentStatus.variant} className="text-xs w-fit">
-              {appointmentStatus.text}
+            <Badge variant={displayStatus.variant} className="text-xs w-fit">
+              {displayStatus.text}
             </Badge>
-            
           </div>
 
           {/* Status Update Section - Better mobile layout */}
@@ -243,4 +260,5 @@ const AppointmentCard = ({
       <LeadDetailsModal isOpen={showLeadDetails} onClose={() => setShowLeadDetails(false)} lead={leadData} />
     </>;
 };
+
 export default AppointmentCard;
