@@ -68,9 +68,7 @@ const AppointmentCard = ({
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
 
   // Check if status and procedure have been updated
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
@@ -89,6 +87,8 @@ const AppointmentCard = ({
       variant: 'secondary' as const
     };
   };
+
+  const displayStatus = getDisplayStatus();
 
   // Get styling classes for dropdowns
   const getStatusTriggerClass = () => {
