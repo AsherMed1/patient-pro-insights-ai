@@ -30,10 +30,11 @@ const AppointmentsTabs = ({
   const futureAppointments = filterAppointments(appointments, 'future');
   const pastAppointments = filterAppointments(appointments, 'past');
   const needsReviewAppointments = filterAppointments(appointments, 'needs-review');
+  const cancelledAppointments = filterAppointments(appointments, 'cancelled');
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1' : 'grid-cols-3'}`}>
+      <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1' : 'grid-cols-4'}`}>
         <TabsTrigger 
           value="needs-review" 
           className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
@@ -48,9 +49,15 @@ const AppointmentsTabs = ({
         </TabsTrigger>
         <TabsTrigger 
           value="past" 
-          className={`${isMobile ? 'w-full py-3 text-sm' : 'text-xs md:text-sm'}`}
+          className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
         >
           Past ({pastAppointments.length})
+        </TabsTrigger>
+        <TabsTrigger 
+          value="cancelled" 
+          className={`${isMobile ? 'w-full py-3 text-sm' : 'text-xs md:text-sm'}`}
+        >
+          Cancelled ({cancelledAppointments.length})
         </TabsTrigger>
       </TabsList>
 
@@ -77,6 +84,16 @@ const AppointmentsTabs = ({
       <TabsContent value="past" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
         <AppointmentsList
           appointments={pastAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
+
+      <TabsContent value="cancelled" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+        <AppointmentsList
+          appointments={cancelledAppointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}

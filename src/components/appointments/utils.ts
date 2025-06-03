@@ -1,4 +1,3 @@
-
 import { AllAppointment } from './types';
 import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
@@ -38,14 +37,23 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
   return appointments.filter(appointment => {
     switch (filterType) {
       case 'future':
-        return isAppointmentInFuture(appointment.date_of_appointment);
+        // Exclude cancelled appointments from future tab
+        return isAppointmentInFuture(appointment.date_of_appointment) && 
+               appointment.status !== 'Cancelled';
       case 'past':
+        // Exclude cancelled appointments from past tab
         return isAppointmentInPast(appointment.date_of_appointment) && 
+               appointment.status !== 'Cancelled' &&
                isStatusUpdated(appointment) && 
                isProcedureUpdated(appointment);
       case 'needs-review':
+        // Exclude cancelled appointments from needs-review tab
         return isAppointmentInPast(appointment.date_of_appointment) && 
+               appointment.status !== 'Cancelled' &&
                (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
+      case 'cancelled':
+        // Show all appointments with Cancelled status regardless of date
+        return appointment.status === 'Cancelled';
       default:
         return true;
     }
