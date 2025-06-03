@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Phone, CheckCircle, Clock, Users, TrendingUp } from 'lucide-react';
+import AgentFilters from './AgentFilters';
+import AgentStatsDisplay from './AgentStatsDisplay';
 
 interface AgentStats {
   answeredCallsVM: number;
@@ -124,114 +123,20 @@ const AgentsDashboard = () => {
     }
   };
 
-  const StatCard = ({ 
-    title, 
-    value, 
-    icon: Icon, 
-    color = "blue",
-    isMinutes = false 
-  }: {
-    title: string;
-    value: number;
-    icon: any;
-    color?: string;
-    isMinutes?: boolean;
-  }) => {
-    const formatValue = () => {
-      if (isMinutes) return `${Math.round(value)} min`;
-      return Math.round(value).toString();
-    };
-
-    return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">{title}</p>
-              <p className={`text-2xl font-bold text-${color}-600`}>
-                {formatValue()}
-              </p>
-            </div>
-            <Icon className={`h-8 w-8 text-${color}-500`} />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Agent Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium">Agent:</label>
-            <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select agent" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Agents (Collective)</SelectItem>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.agent_name}>
-                    {agent.agent_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <AgentFilters
+        agents={agents}
+        selectedAgent={selectedAgent}
+        onAgentChange={setSelectedAgent}
+      />
 
-      {/* Stats */}
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <p>Loading agent statistics...</p>
         </div>
       ) : stats ? (
-        <div className="space-y-6">
-          {/* Call Performance */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-              <Phone className="h-5 w-5" />
-              <span>Call Performance</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard title="Answered Calls + VM" value={stats.answeredCallsVM} icon={Phone} color="blue" />
-              <StatCard title="Pickups (40+ Seconds)" value={stats.pickups40Plus} icon={CheckCircle} color="green" />
-              <StatCard title="Conversations (2+ Minutes)" value={stats.conversations2Plus} icon={Clock} color="purple" />
-              <StatCard title="Avg Duration Per Call" value={stats.avgDurationPerCall} icon={TrendingUp} color="orange" isMinutes />
-            </div>
-          </div>
-
-          {/* Appointment Performance */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Appointment Performance</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Booked Appointments" value={stats.bookedAppointments} icon={Users} color="blue" />
-              <StatCard title="Shows" value={stats.shows} icon={CheckCircle} color="green" />
-              <StatCard title="No Shows" value={stats.noShows} icon={Phone} color="red" />
-            </div>
-          </div>
-
-          {/* Activity Metrics */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5" />
-              <span>Activity Metrics</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <StatCard title="Total Dials Made" value={stats.totalDialsMade} icon={Phone} color="blue" />
-              <StatCard title="Time on Phone" value={stats.timeOnPhoneMinutes} icon={Clock} color="purple" isMinutes />
-            </div>
-          </div>
-        </div>
+        <AgentStatsDisplay stats={stats} />
       ) : (
         <div className="text-center py-8 text-gray-500">
           <p>No data available</p>
