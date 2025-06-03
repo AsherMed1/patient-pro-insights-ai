@@ -54,8 +54,9 @@ export const useUndoImport = () => {
   };
 
   const deleteBatch = async (tableName: string, batchIds: string[]) => {
+    // Use type assertion to tell TypeScript the table name is valid
     const { error } = await supabase
-      .from(tableName)
+      .from(tableName as any)
       .delete()
       .in('id', batchIds);
     
