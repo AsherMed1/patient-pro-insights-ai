@@ -16,19 +16,34 @@ interface Agent {
   agent_number: string;
 }
 
-interface AgentStats {
+interface CallRecord {
   id: string;
-  agent_name: string;
   date: string;
-  answered_calls_vm: number;
-  pickups_40_seconds_plus: number;
-  conversations_2_minutes_plus: number;
-  booked_appointments: number;
-  average_duration_per_call_minutes: number;
+  call_datetime: string;
+  duration_seconds: number;
+  status: string;
+  agent: string;
+  direction: string;
+}
+
+interface AppointmentRecord {
+  id: string;
+  date_of_appointment: string;
+  showed: boolean | null;
+  agent: string;
+  agent_number: string;
+}
+
+interface CalculatedStats {
+  answeredCallsAndVm: number;
+  pickups40SecondsPlus: number;
+  conversations2MinutesPlus: number;
+  bookedAppointments: number;
+  averageDurationPerCall: number;
   shows: number;
-  no_shows: number;
-  total_dials_made: number;
-  time_on_phone_minutes: number;
+  noShows: number;
+  totalDialsMade: number;
+  timeOnPhoneMinutes: number;
 }
 
 interface AgentStatsPageProps {
@@ -37,10 +52,12 @@ interface AgentStatsPageProps {
 
 const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [selectedAgentName, setSelectedAgentName] = useState<string>('');
   const [startDate, setStartDate] = useState<string>(format(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-  const [stats, setStats] = useState<AgentStats[]>([]);
+  const [calls, setCalls] = useState<CallRecord[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
+  const [stats, setStats] = useState<CalculatedStats | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -68,8 +85,8 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
     }
   };
 
-  const fetchAgentStats = async () => {
-    if (!selectedAgentId || !startDate || !endDate) {
+  const fetchAgentData = async () => {
+    if (!selectedAgentName || !startDate || !endDate) {
       toast({
         title: "Missing Information",
         description: "Please select an agent and date range",
@@ -80,21 +97,38 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('agent_performance_stats')
+      
+      // Fetch calls for the selected agent in date range
+      const { data: callsData, error: callsError } = await supabase
+        .from('all_calls')
         .select('*')
-        .eq('agent_id', selectedAgentId)
+        .eq('agent', selectedAgentName)
         .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: false });
+        .lte('date', endDate);
 
-      if (error) throw error;
-      setStats(data || []);
+      if (callsError) throw callsError;
+
+      // Fetch appointments for the selected agent in date range
+      const { data: appointmentsData, error: appointmentsError } = await supabase
+        .from('all_appointments')
+        .select('*')
+        .eq('agent', selectedAgentName)
+        .gte('date_of_appointment', startDate)
+        .lte('date_of_appointment', endDate);
+
+      if (appointmentsError) throw appointmentsError;
+
+      setCalls(callsData || []);
+      setAppointments(appointmentsData || []);
+      
+      // Calculate stats from the fetched data
+      calculateStats(callsData || [], appointmentsData || []);
+      
     } catch (error) {
-      console.error('Error fetching agent stats:', error);
+      console.error('Error fetching agent data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch agent statistics",
+        description: "Failed to fetch agent data",
         variant: "destructive",
       });
     } finally {
@@ -102,31 +136,48 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
     }
   };
 
-  const selectedAgent = agents.find(agent => agent.id === selectedAgentId);
+  const calculateStats = (callsData: CallRecord[], appointmentsData: AppointmentRecord[]) => {
+    // Calculate call-based metrics
+    const answeredCallsAndVm = callsData.filter(call => 
+      call.status === 'answered' || call.status === 'voicemail' || call.status === 'completed'
+    ).length;
 
-  const totalStats = stats.reduce((acc, stat) => ({
-    answered_calls_vm: acc.answered_calls_vm + stat.answered_calls_vm,
-    pickups_40_seconds_plus: acc.pickups_40_seconds_plus + stat.pickups_40_seconds_plus,
-    conversations_2_minutes_plus: acc.conversations_2_minutes_plus + stat.conversations_2_minutes_plus,
-    booked_appointments: acc.booked_appointments + stat.booked_appointments,
-    shows: acc.shows + stat.shows,
-    no_shows: acc.no_shows + stat.no_shows,
-    total_dials_made: acc.total_dials_made + stat.total_dials_made,
-    time_on_phone_minutes: acc.time_on_phone_minutes + stat.time_on_phone_minutes,
-  }), {
-    answered_calls_vm: 0,
-    pickups_40_seconds_plus: 0,
-    conversations_2_minutes_plus: 0,
-    booked_appointments: 0,
-    shows: 0,
-    no_shows: 0,
-    total_dials_made: 0,
-    time_on_phone_minutes: 0,
-  });
+    const pickups40SecondsPlus = callsData.filter(call => 
+      call.duration_seconds >= 40 && (call.status === 'answered' || call.status === 'completed')
+    ).length;
 
-  const avgDurationPerCall = stats.length > 0 
-    ? stats.reduce((acc, stat) => acc + stat.average_duration_per_call_minutes, 0) / stats.length 
-    : 0;
+    const conversations2MinutesPlus = callsData.filter(call => 
+      call.duration_seconds >= 120 && (call.status === 'answered' || call.status === 'completed')
+    ).length;
+
+    const totalDialsMade = callsData.filter(call => call.direction === 'outbound').length;
+    
+    const totalCallDuration = callsData.reduce((sum, call) => sum + call.duration_seconds, 0);
+    const timeOnPhoneMinutes = Math.round(totalCallDuration / 60);
+    
+    const averageDurationPerCall = answeredCallsAndVm > 0 
+      ? Math.round((totalCallDuration / answeredCallsAndVm) / 60 * 10) / 10 
+      : 0;
+
+    // Calculate appointment-based metrics
+    const bookedAppointments = appointmentsData.length;
+    const shows = appointmentsData.filter(apt => apt.showed === true).length;
+    const noShows = appointmentsData.filter(apt => apt.showed === false).length;
+
+    setStats({
+      answeredCallsAndVm,
+      pickups40SecondsPlus,
+      conversations2MinutesPlus,
+      bookedAppointments,
+      averageDurationPerCall,
+      shows,
+      noShows,
+      totalDialsMade,
+      timeOnPhoneMinutes,
+    });
+  };
+
+  const selectedAgent = agents.find(agent => agent.agent_name === selectedAgentName);
 
   return (
     <div className="space-y-6">
@@ -150,13 +201,13 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="agent">Agent</Label>
-              <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+              <Select value={selectedAgentName} onValueChange={setSelectedAgentName}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an agent" />
                 </SelectTrigger>
                 <SelectContent>
                   {agents.map((agent) => (
-                    <SelectItem key={agent.id} value={agent.id}>
+                    <SelectItem key={agent.id} value={agent.agent_name}>
                       {agent.agent_number} - {agent.agent_name}
                     </SelectItem>
                   ))}
@@ -182,7 +233,7 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
               />
             </div>
             <div className="flex items-end">
-              <Button onClick={fetchAgentStats} disabled={loading} className="w-full">
+              <Button onClick={fetchAgentData} disabled={loading} className="w-full">
                 <Calendar className="h-4 w-4 mr-2" />
                 {loading ? 'Loading...' : 'Load Statistics'}
               </Button>
@@ -191,82 +242,114 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
         </CardContent>
       </Card>
 
-      {selectedAgent && stats.length > 0 && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Performance Summary for {selectedAgent.agent_name} ({selectedAgent.agent_number})
-              </CardTitle>
-              <CardDescription>
-                {format(new Date(startDate), 'MMM dd, yyyy')} - {format(new Date(endDate), 'MMM dd, yyyy')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-blue-600">{totalStats.answered_calls_vm}</div>
-                  <div className="text-sm text-gray-600">Answered Calls + VM</div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-green-600">{totalStats.pickups_40_seconds_plus}</div>
-                  <div className="text-sm text-gray-600">Pickups (40+ Seconds)</div>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-purple-600">{totalStats.conversations_2_minutes_plus}</div>
-                  <div className="text-sm text-gray-600">Conversations (2+ Minutes)</div>
-                </div>
-                <div className="bg-orange-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-orange-600">{totalStats.booked_appointments}</div>
-                  <div className="text-sm text-gray-600">Booked Appointments</div>
-                </div>
-                <div className="bg-indigo-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-indigo-600">{avgDurationPerCall.toFixed(1)}m</div>
-                  <div className="text-sm text-gray-600">Avg Duration Per Call</div>
-                </div>
-                <div className="bg-emerald-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-emerald-600">{totalStats.shows}</div>
-                  <div className="text-sm text-gray-600">Shows</div>
-                </div>
-                <div className="bg-red-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-red-600">{totalStats.no_shows}</div>
-                  <div className="text-sm text-gray-600">No Shows</div>
-                </div>
-                <div className="bg-yellow-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-yellow-600">{totalStats.total_dials_made}</div>
-                  <div className="text-sm text-gray-600">Total Dials Made</div>
-                </div>
-                <div className="bg-cyan-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-cyan-600">{totalStats.time_on_phone_minutes}</div>
-                  <div className="text-sm text-gray-600">Time on Phone (Minutes)</div>
-                </div>
+      {selectedAgent && stats && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Performance Summary for {selectedAgent.agent_name} ({selectedAgent.agent_number})
+            </CardTitle>
+            <CardDescription>
+              {format(new Date(startDate), 'MMM dd, yyyy')} - {format(new Date(endDate), 'MMM dd, yyyy')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-blue-600">{stats.answeredCallsAndVm}</div>
+                <div className="text-sm text-gray-600">Answered Calls + VM</div>
               </div>
-            </CardContent>
-          </Card>
+              <div className="bg-green-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-green-600">{stats.pickups40SecondsPlus}</div>
+                <div className="text-sm text-gray-600">Pickups (40+ Seconds)</div>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-purple-600">{stats.conversations2MinutesPlus}</div>
+                <div className="text-sm text-gray-600">Conversations (2+ Minutes)</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-orange-600">{stats.bookedAppointments}</div>
+                <div className="text-sm text-gray-600">Booked Appointments</div>
+              </div>
+              <div className="bg-indigo-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-indigo-600">{stats.averageDurationPerCall}m</div>
+                <div className="text-sm text-gray-600">Avg Duration Per Call</div>
+              </div>
+              <div className="bg-emerald-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-emerald-600">{stats.shows}</div>
+                <div className="text-sm text-gray-600">Shows</div>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-red-600">{stats.noShows}</div>
+                <div className="text-sm text-gray-600">No Shows</div>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-yellow-600">{stats.totalDialsMade}</div>
+                <div className="text-sm text-gray-600">Total Dials Made</div>
+              </div>
+              <div className="bg-cyan-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-cyan-600">{stats.timeOnPhoneMinutes}</div>
+                <div className="text-sm text-gray-600">Time on Phone (Minutes)</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {stats.length > 1 && (
+      {selectedAgent && stats === null && !loading && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-gray-500">Click "Load Statistics" to view agent performance data.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedAgent && stats && (calls.length > 0 || appointments.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {calls.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Daily Breakdown</CardTitle>
-                <CardDescription>Performance statistics by date</CardDescription>
+                <CardTitle>Call Details</CardTitle>
+                <CardDescription>{calls.length} calls made in selected period</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {stats.map((stat) => (
-                    <div key={stat.id} className="border rounded-lg p-4">
-                      <div className="font-semibold text-lg mb-2">
-                        {format(new Date(stat.date), 'EEEE, MMM dd, yyyy')}
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {calls.map((call) => (
+                    <div key={call.id} className="flex justify-between items-center text-sm border-b pb-2">
+                      <div>
+                        <div className="font-medium">{format(new Date(call.call_datetime), 'MMM dd, HH:mm')}</div>
+                        <div className="text-gray-500">{call.status} - {Math.round(call.duration_seconds / 60)}m {call.duration_seconds % 60}s</div>
                       </div>
-                      <div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-sm">
-                        <div>Calls + VM: <span className="font-medium">{stat.answered_calls_vm}</span></div>
-                        <div>Pickups: <span className="font-medium">{stat.pickups_40_seconds_plus}</span></div>
-                        <div>Conversations: <span className="font-medium">{stat.conversations_2_minutes_plus}</span></div>
-                        <div>Appointments: <span className="font-medium">{stat.booked_appointments}</span></div>
-                        <div>Avg Duration: <span className="font-medium">{stat.average_duration_per_call_minutes}m</span></div>
-                        <div>Shows: <span className="font-medium">{stat.shows}</span></div>
-                        <div>No Shows: <span className="font-medium">{stat.no_shows}</span></div>
-                        <div>Total Dials: <span className="font-medium">{stat.total_dials_made}</span></div>
-                        <div>Time on Phone: <span className="font-medium">{stat.time_on_phone_minutes}m</span></div>
+                      <div className="text-right">
+                        <div className="capitalize">{call.direction}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {appointments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Appointment Details</CardTitle>
+                <CardDescription>{appointments.length} appointments in selected period</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {appointments.map((appointment) => (
+                    <div key={appointment.id} className="flex justify-between items-center text-sm border-b pb-2">
+                      <div>
+                        <div className="font-medium">{format(new Date(appointment.date_of_appointment), 'MMM dd, yyyy')}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`capitalize ${
+                          appointment.showed === true ? 'text-green-600' : 
+                          appointment.showed === false ? 'text-red-600' : 'text-gray-500'
+                        }`}>
+                          {appointment.showed === true ? 'Showed' : 
+                           appointment.showed === false ? 'No Show' : 'Pending'}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -275,14 +358,6 @@ const AgentStatsPage = ({ onBack }: AgentStatsPageProps) => {
             </Card>
           )}
         </div>
-      )}
-
-      {selectedAgent && stats.length === 0 && !loading && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-gray-500">No statistics found for the selected agent and date range.</p>
-          </CardContent>
-        </Card>
       )}
     </div>
   );
