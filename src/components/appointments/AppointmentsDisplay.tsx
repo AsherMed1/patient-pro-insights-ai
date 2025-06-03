@@ -3,14 +3,20 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AllAppointment } from './types';
 import AppointmentsTabs from './AppointmentsTabs';
+import AppointmentsPagination from './AppointmentsPagination';
 
 interface AppointmentsDisplayProps {
   appointments: AllAppointment[];
   loading: boolean;
   projectFilter?: string;
   isProjectPortal?: boolean;
+  currentPage: number;
+  totalPages: number;
+  totalRecords: number;
+  recordsPerPage: number;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  onPageChange: (page: number) => void;
 }
 
 const AppointmentsDisplay = ({
@@ -18,8 +24,13 @@ const AppointmentsDisplay = ({
   loading,
   projectFilter,
   isProjectPortal = false,
+  currentPage,
+  totalPages,
+  totalRecords,
+  recordsPerPage,
   onUpdateStatus,
-  onUpdateProcedure
+  onUpdateProcedure,
+  onPageChange
 }: AppointmentsDisplayProps) => {
   const [activeTab, setActiveTab] = useState("needs-review");
 
@@ -30,7 +41,7 @@ const AppointmentsDisplay = ({
           {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
         </CardTitle>
         <CardDescription className="text-sm">
-          {appointments.length} appointment{appointments.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+          {totalRecords} appointment{totalRecords !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
           {projectFilter && ` for ${projectFilter}`}
           {isProjectPortal && ' (Only confirmed appointments shown)'}
         </CardDescription>
@@ -45,6 +56,14 @@ const AppointmentsDisplay = ({
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
           isProjectPortal={isProjectPortal}
+        />
+        
+        <AppointmentsPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          recordsPerPage={recordsPerPage}
+          onPageChange={onPageChange}
         />
       </CardContent>
     </Card>

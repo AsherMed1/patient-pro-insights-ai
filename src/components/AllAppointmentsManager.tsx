@@ -12,16 +12,21 @@ const AllAppointmentsManager = ({
   const {
     appointments,
     loading,
+    currentPage,
+    totalPages,
+    totalRecords,
+    recordsPerPage,
     fetchAppointments,
     updateAppointmentStatus,
-    updateProcedureOrdered
+    updateProcedureOrdered,
+    handlePageChange
   } = useAppointments(projectFilter);
 
   return (
     <div className="space-y-6">
       {/* Import Section - Only show in main dashboard, not project portals */}
       {!isProjectPortal && (
-        <AppointmentsImportSection onImportComplete={fetchAppointments} />
+        <AppointmentsImportSection onImportComplete={() => fetchAppointments(1)} />
       )}
 
       {/* Appointments List */}
@@ -30,8 +35,13 @@ const AllAppointmentsManager = ({
         loading={loading}
         projectFilter={projectFilter}
         isProjectPortal={isProjectPortal}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalRecords={totalRecords}
+        recordsPerPage={recordsPerPage}
         onUpdateStatus={updateAppointmentStatus}
         onUpdateProcedure={updateProcedureOrdered}
+        onPageChange={handlePageChange}
       />
     </div>
   );

@@ -65,12 +65,13 @@ export const useMasterDatabase = () => {
     }
   };
 
-  const searchAppointments = async (filters: AppointmentFilters) => {
+  const searchAppointments = async (filters: AppointmentFilters, limit?: number) => {
     let query = supabase
       .from('all_appointments')
       .select('*')
       .order('date_appointment_created', { ascending: false });
 
+    // Apply filters without any default limit
     if (filters.projectName) {
       query = query.eq('project_name', filters.projectName);
     }
@@ -91,6 +92,11 @@ export const useMasterDatabase = () => {
       } else if (filters.status === 'no-show') {
         query = query.eq('showed', false);
       }
+    }
+
+    // Only apply limit if specified
+    if (limit) {
+      query = query.limit(limit);
     }
 
     const { data, error } = await query;
