@@ -39,6 +39,8 @@ export const useUndoImport = () => {
       }
 
       console.log('Found import:', data);
+      console.log('Import type from database:', data.import_type);
+      console.log('Table name for this import type:', getTableName(data.import_type));
       setLastImport(data);
     } catch (error) {
       console.error('Error finding last import:', error);
@@ -54,6 +56,8 @@ export const useUndoImport = () => {
   };
 
   const deleteBatch = async (tableName: string, batchIds: string[]) => {
+    console.log(`Attempting to delete from table: ${tableName} with ${batchIds.length} IDs`);
+    
     // Use type assertion to tell TypeScript the table name is valid
     const { error } = await supabase
       .from(tableName as any)
@@ -61,8 +65,11 @@ export const useUndoImport = () => {
       .in('id', batchIds);
     
     if (error) {
+      console.error(`Error deleting from ${tableName}:`, error);
       throw error;
     }
+    
+    console.log(`Successfully deleted ${batchIds.length} records from ${tableName}`);
   };
 
   const undoImport = async () => {
@@ -76,6 +83,9 @@ export const useUndoImport = () => {
     }
 
     const tableName = getTableName(lastImport.import_type);
+    console.log('Import type:', lastImport.import_type);
+    console.log('Resolved table name:', tableName);
+    
     if (!tableName) {
       toast({
         title: "Error",
@@ -89,6 +99,12 @@ export const useUndoImport = () => {
       setLoading(true);
       const totalRecords = lastImport.imported_record_ids.length;
       console.log(`Starting batch deletion of ${totalRecords} records from ${tableName}`);
+      console.log('Import details:', {
+        id: lastImport.id,
+        import_type: lastImport.import_type,
+        file_name: lastImport.file_name,
+        imported_at: lastImport.imported_at
+      });
 
       // Delete in batches of 100 to avoid URL length limits and improve reliability
       const batchSize = 100;
@@ -103,7 +119,7 @@ export const useUndoImport = () => {
       // Process batches sequentially to avoid overwhelming the database
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        console.log(`Deleting batch ${i + 1}/${batches.length} (${batch.length} records)`);
+        console.log(`Deleting batch ${i + 1}/${batches.length} (${batch.length} records) from table ${tableName}`);
         
         await deleteBatch(tableName, batch);
         
@@ -132,7 +148,7 @@ export const useUndoImport = () => {
 
       toast({
         title: "Import Undone",
-        description: `Successfully removed ${totalRecords} ${getDisplayName(lastImport.import_type).toLowerCase()} records`,
+        description: `Successfully removed ${totalRecords} ${getDisplayName(lastImport.import_type).toLowerCase()} records from ${tableName}`,
       });
 
       setLastImport(null);
