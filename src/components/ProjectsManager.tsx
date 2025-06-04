@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
@@ -56,7 +57,7 @@ const ProjectsManager = () => {
 
       // Fetch stats for each project
       const statsPromises = (projectsData || []).map(async (project) => {
-        const [leadsResult, callsResult, appointmentsResult, confirmedAppointmentsResult, adSpendResult] = await Promise.all([
+        const [leadsResult, callsResult, appointmentsResult, adSpendResult] = await Promise.all([
           supabase
             .from('new_leads')
             .select('id', { count: 'exact', head: true })
@@ -72,15 +73,22 @@ const ProjectsManager = () => {
             .select('id', { count: 'exact', head: true })
             .eq('project_name', project.project_name),
           supabase
-            .from('all_appointments')
-            .select('id', { count: 'exact', head: true })
-            .eq('project_name', project.project_name)
-            .eq('status', 'Confirmed'),
-          supabase
             .from('facebook_ad_spend')
             .select('spend')
             .eq('project_name', project.project_name)
         ]);
+
+        // Fetch confirmed appointments - check both confirmed boolean and status field
+        const confirmedAppointmentsResult = await supabase
+          .from('all_appointments')
+          .select('confirmed, status')
+          .eq('project_name', project.project_name);
+
+        const confirmedCount = confirmedAppointmentsResult.data?.filter(apt => {
+          // Count as confirmed if confirmed boolean is true OR status is "Confirmed" (case-insensitive)
+          return apt.confirmed === true || 
+                 (apt.status && apt.status.toLowerCase() === 'confirmed');
+        }).length || 0;
 
         const totalAdSpend = adSpendResult.data?.reduce((sum, record) => {
           const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
@@ -92,7 +100,7 @@ const ProjectsManager = () => {
           leads_count: leadsResult.count || 0,
           calls_count: callsResult.count || 0,
           appointments_count: appointmentsResult.count || 0,
-          confirmed_appointments_count: confirmedAppointmentsResult.count || 0,
+          confirmed_appointments_count: confirmedCount,
           ad_spend: totalAdSpend,
           last_activity: callsResult.data?.[0]?.call_datetime || null
         };
