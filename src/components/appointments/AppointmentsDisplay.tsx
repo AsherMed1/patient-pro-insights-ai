@@ -65,9 +65,19 @@ const AppointmentsDisplay = ({
 
     // Apply status filter
     if (filters.status) {
-      filtered = filtered.filter(appointment => 
-        appointment.status === filters.status
-      );
+      filtered = filtered.filter(appointment => {
+        // Check the status field first
+        if (appointment.status && appointment.status.toLowerCase() === filters.status!.toLowerCase()) {
+          return true;
+        }
+        
+        // For "Confirmed" status, also check the confirmed boolean field
+        if (filters.status.toLowerCase() === 'confirmed' && appointment.confirmed === true) {
+          return true;
+        }
+        
+        return false;
+      });
     }
 
     // Apply single date filter
