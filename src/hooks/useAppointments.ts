@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -27,20 +26,17 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
         query = query.eq('project_name', projectFilter);
       }
 
+      // For project portals, filter confirmed appointments at the database level
+      if (isProjectPortal) {
+        query = query.or('confirmed.eq.true,status.ilike.confirmed');
+      }
+
       const { data, error, count } = await query
         .range((page - 1) * recordsPerPage, page * recordsPerPage - 1);
 
       if (error) throw error;
 
-      let filteredData = data || [];
-
-      // For project portals, only show confirmed appointments
-      if (isProjectPortal) {
-        filteredData = filteredData.filter(apt => {
-          return apt.confirmed === true || 
-                 (apt.status && apt.status.toLowerCase() === 'confirmed');
-        });
-      }
+      const filteredData = data || [];
 
       setAppointments(filteredData);
       setTotalRecords(count || 0);
