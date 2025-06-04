@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -82,13 +81,15 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       
       if (adSpendError) throw adSpendError;
 
-      // Calculate stats
+      // Calculate stats using status instead of confirmed boolean
       const newLeads = leads?.length || 0;
       const bookedAppointments = appointments?.length || 0;
-      const shows = appointments?.filter(apt => apt.showed).length || 0;
-      const noShows = appointments?.filter(apt => apt.showed === false).length || 0;
-      const confirmedAppointments = appointments?.filter(apt => apt.confirmed).length || 0;
-      const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
+      const shows = appointments?.filter(apt => apt.status === 'Showed').length || 0;
+      const noShows = appointments?.filter(apt => apt.status === 'No Show').length || 0;
+      const confirmedAppointments = appointments?.filter(apt => apt.status === 'Confirmed').length || 0;
+      const unconfirmedAppointments = appointments?.filter(apt => 
+        apt.status && !['Confirmed', 'Showed', 'No Show', 'Cancelled'].includes(apt.status)
+      ).length || 0;
       const appointmentsToTakePlace = appointments?.filter(apt => 
         new Date(apt.date_of_appointment) >= new Date()
       ).length || 0;

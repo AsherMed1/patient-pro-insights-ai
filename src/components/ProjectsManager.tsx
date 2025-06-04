@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +19,7 @@ interface ProjectStats {
   leads_count: number;
   calls_count: number;
   appointments_count: number;
+  confirmed_appointments_count: number;
   ad_spend: number;
   last_activity: string | null;
 }
@@ -56,7 +56,7 @@ const ProjectsManager = () => {
 
       // Fetch stats for each project
       const statsPromises = (projectsData || []).map(async (project) => {
-        const [leadsResult, callsResult, appointmentsResult, adSpendResult] = await Promise.all([
+        const [leadsResult, callsResult, appointmentsResult, confirmedAppointmentsResult, adSpendResult] = await Promise.all([
           supabase
             .from('new_leads')
             .select('id', { count: 'exact', head: true })
@@ -71,6 +71,11 @@ const ProjectsManager = () => {
             .from('all_appointments')
             .select('id', { count: 'exact', head: true })
             .eq('project_name', project.project_name),
+          supabase
+            .from('all_appointments')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_name', project.project_name)
+            .eq('status', 'Confirmed'),
           supabase
             .from('facebook_ad_spend')
             .select('spend')
@@ -87,6 +92,7 @@ const ProjectsManager = () => {
           leads_count: leadsResult.count || 0,
           calls_count: callsResult.count || 0,
           appointments_count: appointmentsResult.count || 0,
+          confirmed_appointments_count: confirmedAppointmentsResult.count || 0,
           ad_spend: totalAdSpend,
           last_activity: callsResult.data?.[0]?.call_datetime || null
         };

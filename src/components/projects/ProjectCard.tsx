@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ interface ProjectStats {
   leads_count: number;
   calls_count: number;
   appointments_count: number;
+  confirmed_appointments_count: number;
   last_activity: string | null;
 }
 
@@ -86,7 +88,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center">
           <div className="bg-blue-50 p-2 rounded">
             <div className="text-lg font-semibold text-blue-600">
               {stats?.leads_count || 0}
@@ -104,6 +106,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               {stats?.appointments_count || 0}
             </div>
             <div className="text-xs text-purple-600">Appointments</div>
+          </div>
+          <div className="bg-orange-50 p-2 rounded">
+            <div className="text-lg font-semibold text-orange-600">
+              {stats?.confirmed_appointments_count || 0}
+            </div>
+            <div className="text-xs text-orange-600">Confirmed</div>
           </div>
         </div>
         
