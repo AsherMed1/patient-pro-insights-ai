@@ -19,6 +19,12 @@ interface AppointmentsDisplayProps {
   onPageChange: (page: number) => void;
 }
 
+interface FilterState {
+  status: string | null;
+  date: Date | null;
+  dateRange: { start: Date | null; end: Date | null };
+}
+
 const AppointmentsDisplay = ({
   appointments,
   loading,
@@ -33,6 +39,63 @@ const AppointmentsDisplay = ({
   onPageChange
 }: AppointmentsDisplayProps) => {
   const [activeTab, setActiveTab] = useState("all");
+  const [filters, setFilters] = useState<FilterState>({
+    status: null,
+    date: null,
+    dateRange: { start: null, end: null }
+  });
+
+  const handleStatusFilter = (status: string | null) => {
+    setFilters(prev => ({ ...prev, status }));
+  };
+
+  const handleDateFilter = (date: Date | null) => {
+    setFilters(prev => ({ ...prev, date }));
+  };
+
+  const handleDateRangeFilter = (startDate: Date | null, endDate: Date | null) => {
+    setFilters(prev => ({
+      ...prev,
+      dateRange: { start: startDate, end: endDate }
+    }));
+  };
+
+  const applyFilters = (appointmentsList: AllAppointment[]) => {
+    let filtered = [...appointmentsList];
+
+    // Apply status filter
+    if (filters.status) {
+      filtered = filtered.filter(appointment => 
+        appointment.status === filters.status
+      );
+    }
+
+    // Apply single date filter
+    if (filters.date) {
+      const filterDate = filters.date.toISOString().split('T')[0];
+      filtered = filtered.filter(appointment => {
+        if (!appointment.date_of_appointment) return false;
+        const appointmentDate = new Date(appointment.date_of_appointment).toISOString().split('T')[0];
+        return appointmentDate === filterDate;
+      });
+    }
+
+    // Apply date range filter
+    if (filters.dateRange.start && filters.dateRange.end) {
+      const startDate = filters.dateRange.start.toISOString().split('T')[0];
+      const endDate = filters.dateRange.end.toISOString().split('T')[0];
+      
+      filtered = filtered.filter(appointment => {
+        if (!appointment.date_of_appointment) return false;
+        const appointmentDate = new Date(appointment.date_of_appointment).toISOString().split('T')[0];
+        return appointmentDate >= startDate && appointmentDate <= endDate;
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredAppointments = applyFilters(appointments);
 
   return (
     <Card className="w-full">
@@ -41,14 +104,14 @@ const AppointmentsDisplay = ({
           {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
         </CardTitle>
         <CardDescription className="text-sm">
-          {totalRecords} appointment{totalRecords !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+          {filteredAppointments.length} of {totalRecords} appointment{totalRecords !== 1 ? 's' : ''} shown (Times in Central Time Zone)
           {projectFilter && ` for ${projectFilter}`}
           {isProjectPortal && ' (Only confirmed appointments shown)'}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-3 md:p-6 pt-0">
         <AppointmentsTabs
-          appointments={appointments}
+          appointments={filteredAppointments}
           loading={loading}
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -56,6 +119,9 @@ const AppointmentsDisplay = ({
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
           isProjectPortal={isProjectPortal}
+          onStatusFilter={handleStatusFilter}
+          onDateFilter={handleDateFilter}
+          onDateRangeFilter={handleDateRangeFilter}
         />
         
         <AppointmentsPagination

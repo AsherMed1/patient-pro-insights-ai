@@ -16,6 +16,9 @@ interface AppointmentsTabsProps {
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   isProjectPortal?: boolean;
+  onStatusFilter?: (status: string | null) => void;
+  onDateFilter?: (date: Date | null) => void;
+  onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
 }
 
 const AppointmentsTabs = ({
@@ -26,7 +29,10 @@ const AppointmentsTabs = ({
   projectFilter,
   onUpdateStatus,
   onUpdateProcedure,
-  isProjectPortal = false
+  isProjectPortal = false,
+  onStatusFilter,
+  onDateFilter,
+  onDateRangeFilter
 }: AppointmentsTabsProps) => {
   const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
   const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
@@ -62,7 +68,11 @@ const AppointmentsTabs = ({
       </TabsList>
 
       <TabsContent value="all" className="mt-4">
-        <AppointmentsFilters />
+        <AppointmentsFilters
+          onStatusFilter={onStatusFilter}
+          onDateFilter={onDateFilter}
+          onDateRangeFilter={onDateRangeFilter}
+        />
         <AppointmentsList
           appointments={appointments}
           loading={loading}
