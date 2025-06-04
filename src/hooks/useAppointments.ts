@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +20,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
       let query = supabase
         .from('all_appointments')
         .select('*', { count: 'exact' })
-        .order('date_of_appointment', { ascending: false, nullsLast: true })
+        .order('date_of_appointment', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
       if (projectFilter) {
