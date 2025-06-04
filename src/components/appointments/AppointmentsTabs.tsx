@@ -1,9 +1,12 @@
+
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { AllAppointment } from './types';
 import { filterAppointments } from './utils';
 import AppointmentsList from './AppointmentsList';
+import AppointmentsFilters from './AppointmentsFilters';
+
 interface AppointmentsTabsProps {
   appointments: AllAppointment[];
   loading: boolean;
@@ -14,6 +17,7 @@ interface AppointmentsTabsProps {
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   isProjectPortal?: boolean;
 }
+
 const AppointmentsTabs = ({
   appointments,
   loading,
@@ -28,43 +32,87 @@ const AppointmentsTabs = ({
   const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
   const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
   const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
-  return <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
+
+  return (
+    <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+      <TabsList className="grid w-full grid-cols-5">
+        <TabsTrigger value="all" className="relative">
+          All
+          <Badge variant="outline" className="ml-2 text-xs">
+            {appointments.length}
+          </Badge>
+        </TabsTrigger>
         <TabsTrigger value="needs-review" className="relative">
           Needs Review
-          {needsReviewAppointments.length > 0 && <Badge variant="destructive" className="ml-2 text-xs">
+          {needsReviewAppointments.length > 0 && (
+            <Badge variant="destructive" className="ml-2 text-xs">
               {needsReviewAppointments.length}
-            </Badge>}
+            </Badge>
+          )}
         </TabsTrigger>
         <TabsTrigger value="future" className="relative">
           Future
-          
         </TabsTrigger>
         <TabsTrigger value="past" className="relative">
           Past
-          
         </TabsTrigger>
         <TabsTrigger value="cancelled" className="relative">
           Cancelled
-          
         </TabsTrigger>
       </TabsList>
 
+      <TabsContent value="all" className="mt-4">
+        <AppointmentsFilters />
+        <AppointmentsList
+          appointments={appointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
+
       <TabsContent value="needs-review" className="mt-4">
-        <AppointmentsList appointments={needsReviewAppointments} loading={loading} projectFilter={projectFilter} onUpdateStatus={onUpdateStatus} onUpdateProcedure={onUpdateProcedure} />
+        <AppointmentsList
+          appointments={needsReviewAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
       </TabsContent>
 
       <TabsContent value="future" className="mt-4">
-        <AppointmentsList appointments={futureAppointments} loading={loading} projectFilter={projectFilter} onUpdateStatus={onUpdateStatus} onUpdateProcedure={onUpdateProcedure} />
+        <AppointmentsList
+          appointments={futureAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
       </TabsContent>
 
       <TabsContent value="past" className="mt-4">
-        <AppointmentsList appointments={pastAppointments} loading={loading} projectFilter={projectFilter} onUpdateStatus={onUpdateStatus} onUpdateProcedure={onUpdateProcedure} />
+        <AppointmentsList
+          appointments={pastAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
       </TabsContent>
 
       <TabsContent value="cancelled" className="mt-4">
-        <AppointmentsList appointments={cancelledAppointments} loading={loading} projectFilter={projectFilter} onUpdateStatus={onUpdateStatus} onUpdateProcedure={onUpdateProcedure} />
+        <AppointmentsList
+          appointments={cancelledAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
       </TabsContent>
-    </Tabs>;
+    </Tabs>
+  );
 };
+
 export default AppointmentsTabs;

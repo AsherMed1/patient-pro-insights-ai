@@ -32,7 +32,7 @@ const AppointmentsDisplay = ({
   onUpdateProcedure,
   onPageChange
 }: AppointmentsDisplayProps) => {
-  const [activeTab, setActiveTab] = useState("needs-review");
+  const [activeTab, setActiveTab] = useState("all");
 
   return (
     <Card className="w-full">
