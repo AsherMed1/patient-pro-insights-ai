@@ -39,15 +39,20 @@ const AppointmentsTabs = ({
   const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
   const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
 
+  // For project portal, default to future tab if all tab is selected
+  const currentTab = isProjectPortal && activeTab === "all" ? "future" : activeTab;
+
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
-        <TabsTrigger value="all" className="relative">
-          All
-          <Badge variant="outline" className="ml-2 text-xs">
-            {appointments.length}
-          </Badge>
-        </TabsTrigger>
+    <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
+      <TabsList className={`grid w-full ${isProjectPortal ? 'grid-cols-4' : 'grid-cols-5'}`}>
+        {!isProjectPortal && (
+          <TabsTrigger value="all" className="relative">
+            All
+            <Badge variant="outline" className="ml-2 text-xs">
+              {appointments.length}
+            </Badge>
+          </TabsTrigger>
+        )}
         <TabsTrigger value="needs-review" className="relative">
           Needs Review
           {needsReviewAppointments.length > 0 && (
@@ -67,20 +72,22 @@ const AppointmentsTabs = ({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="all" className="mt-4">
-        <AppointmentsFilters
-          onStatusFilter={onStatusFilter}
-          onDateFilter={onDateFilter}
-          onDateRangeFilter={onDateRangeFilter}
-        />
-        <AppointmentsList
-          appointments={appointments}
-          loading={loading}
-          projectFilter={projectFilter}
-          onUpdateStatus={onUpdateStatus}
-          onUpdateProcedure={onUpdateProcedure}
-        />
-      </TabsContent>
+      {!isProjectPortal && (
+        <TabsContent value="all" className="mt-4">
+          <AppointmentsFilters
+            onStatusFilter={onStatusFilter}
+            onDateFilter={onDateFilter}
+            onDateRangeFilter={onDateRangeFilter}
+          />
+          <AppointmentsList
+            appointments={appointments}
+            loading={loading}
+            projectFilter={projectFilter}
+            onUpdateStatus={onUpdateStatus}
+            onUpdateProcedure={onUpdateProcedure}
+          />
+        </TabsContent>
+      )}
 
       <TabsContent value="needs-review" className="mt-4">
         <AppointmentsList

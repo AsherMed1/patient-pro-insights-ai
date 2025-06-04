@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
@@ -83,18 +82,23 @@ const ProjectPortal = () => {
 
   const fetchAppointmentStats = async () => {
     try {
-      // Only fetch confirmed appointments for project portal stats
+      // Fetch all appointments for this project and filter for confirmed ones
       const { data, error } = await supabase
         .from('all_appointments')
-        .select('showed, procedure_ordered')
-        .eq('project_name', decodeURIComponent(projectName!))
-        .eq('confirmed', true);
+        .select('showed, procedure_ordered, confirmed, status')
+        .eq('project_name', decodeURIComponent(projectName!));
       
       if (error) throw error;
       
-      const totalAppointments = data?.length || 0;
-      const totalShowed = data?.filter(apt => apt.showed === true).length || 0;
-      const totalProceduresOrdered = data?.filter(apt => apt.procedure_ordered === true).length || 0;
+      // Filter for confirmed appointments (either confirmed boolean is true OR status is 'Confirmed')
+      const confirmedAppointments = data?.filter(apt => {
+        return apt.confirmed === true || 
+               (apt.status && apt.status.toLowerCase() === 'confirmed');
+      }) || [];
+      
+      const totalAppointments = confirmedAppointments.length;
+      const totalShowed = confirmedAppointments.filter(apt => apt.showed === true).length;
+      const totalProceduresOrdered = confirmedAppointments.filter(apt => apt.procedure_ordered === true).length;
       const projectedRevenue = totalProceduresOrdered * 7000;
       
       setStats({

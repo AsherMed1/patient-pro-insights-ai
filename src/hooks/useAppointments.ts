@@ -1,123 +1,87 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
 import { AllAppointment } from '@/components/appointments/types';
 
-const RECORDS_PER_PAGE = 50;
-
-export const useAppointments = (projectFilter?: string) => {
+export const useAppointments = (projectFilter?: string, isProjectPortal: boolean = false) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const recordsPerPage = 50;
   const { toast } = useToast();
-
-  const totalPages = Math.ceil(totalRecords / RECORDS_PER_PAGE);
 
   const fetchAppointments = async (page: number = 1) => {
     try {
       setLoading(true);
       
-      // First get the total count
-      let countQuery = supabase
+      let query = supabase
         .from('all_appointments')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact' })
+        .order('date_of_appointment', { ascending: false, nullsLast: true })
+        .order('created_at', { ascending: false });
 
       if (projectFilter) {
-        countQuery = countQuery.eq('project_name', projectFilter);
+        query = query.eq('project_name', projectFilter);
       }
 
-      const { count, error: countError } = await countQuery;
-      if (countError) throw countError;
-      
-      setTotalRecords(count || 0);
+      const { data, error, count } = await query
+        .range((page - 1) * recordsPerPage, page * recordsPerPage - 1);
 
-      // Then get the paginated data
-      const from = (page - 1) * RECORDS_PER_PAGE;
-      const to = from + RECORDS_PER_PAGE - 1;
-
-      let appointmentsQuery = supabase
-        .from('all_appointments')
-        .select(`
-          id,
-          date_appointment_created,
-          date_of_appointment,
-          project_name,
-          lead_name,
-          lead_email,
-          lead_phone_number,
-          calendar_name,
-          requested_time,
-          stage_booked,
-          showed,
-          confirmed,
-          agent,
-          agent_number,
-          ghl_id,
-          confirmed_number,
-          created_at,
-          updated_at,
-          status,
-          procedure_ordered
-        `)
-        .order('date_appointment_created', { ascending: false })
-        .range(from, to);
-
-      if (projectFilter) {
-        appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
-      }
-
-      const { data, error } = await appointmentsQuery;
       if (error) throw error;
-      
-      setAppointments(data || []);
+
+      let filteredData = data || [];
+
+      // For project portals, only show confirmed appointments
+      if (isProjectPortal) {
+        filteredData = filteredData.filter(apt => {
+          return apt.confirmed === true || 
+                 (apt.status && apt.status.toLowerCase() === 'confirmed');
+        });
+      }
+
+      setAppointments(filteredData);
+      setTotalRecords(count || 0);
+      setTotalPages(Math.ceil((count || 0) / recordsPerPage));
       setCurrentPage(page);
     } catch (error) {
       console.error('Error fetching appointments:', error);
       toast({
         title: "Error",
         description: "Failed to fetch appointments",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchAppointments();
+  }, [projectFilter]);
+
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
       const { error } = await supabase
         .from('all_appointments')
-        .update({
-          status,
-          showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
-          updated_at: new Date().toISOString()
-        })
+        .update({ status, updated_at: new Date().toISOString() })
         .eq('id', appointmentId);
 
       if (error) throw error;
 
-      setAppointments(prev => prev.map(appointment =>
-        appointment.id === appointmentId
-          ? {
-              ...appointment,
-              status,
-              showed: status === 'Showed' ? true : status === 'No Show' ? false : null
-            }
-          : appointment
-      ));
-
       toast({
         title: "Success",
-        description: "Appointment status updated successfully"
+        description: "Appointment status updated successfully",
       });
+
+      await fetchAppointments(currentPage);
     } catch (error) {
       console.error('Error updating appointment status:', error);
       toast({
         title: "Error",
         description: "Failed to update appointment status",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -126,30 +90,23 @@ export const useAppointments = (projectFilter?: string) => {
     try {
       const { error } = await supabase
         .from('all_appointments')
-        .update({
-          procedure_ordered: procedureOrdered,
-          updated_at: new Date().toISOString()
-        })
+        .update({ procedure_ordered: procedureOrdered, updated_at: new Date().toISOString() })
         .eq('id', appointmentId);
 
       if (error) throw error;
 
-      setAppointments(prev => prev.map(appointment =>
-        appointment.id === appointmentId
-          ? { ...appointment, procedure_ordered: procedureOrdered }
-          : appointment
-      ));
-
       toast({
         title: "Success",
-        description: "Procedure information updated successfully"
+        description: "Procedure status updated successfully",
       });
+
+      await fetchAppointments(currentPage);
     } catch (error) {
-      console.error('Error updating procedure information:', error);
+      console.error('Error updating procedure status:', error);
       toast({
         title: "Error",
-        description: "Failed to update procedure information",
-        variant: "destructive"
+        description: "Failed to update procedure status",
+        variant: "destructive",
       });
     }
   };
@@ -158,18 +115,13 @@ export const useAppointments = (projectFilter?: string) => {
     fetchAppointments(page);
   };
 
-  useEffect(() => {
-    fetchAppointments(1);
-    setCurrentPage(1);
-  }, [projectFilter]);
-
   return {
     appointments,
     loading,
     currentPage,
     totalPages,
     totalRecords,
-    recordsPerPage: RECORDS_PER_PAGE,
+    recordsPerPage,
     fetchAppointments,
     updateAppointmentStatus,
     updateProcedureOrdered,

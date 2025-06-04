@@ -20,7 +20,7 @@ const AllAppointmentsManager = ({
     updateAppointmentStatus,
     updateProcedureOrdered,
     handlePageChange
-  } = useAppointments(projectFilter);
+  } = useAppointments(projectFilter, isProjectPortal);
 
   return (
     <div className="space-y-6">
