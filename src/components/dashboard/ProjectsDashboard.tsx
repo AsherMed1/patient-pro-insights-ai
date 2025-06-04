@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -61,6 +60,30 @@ const ProjectsDashboard = () => {
     }
   };
 
+  const fetchAllCalls = async (baseQuery: any) => {
+    let allCalls: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await baseQuery
+        .range(from, from + batchSize - 1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allCalls = [...allCalls, ...data];
+        from += batchSize;
+        hasMore = data.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allCalls;
+  };
+
   const fetchStats = async () => {
     try {
       setLoading(true);
@@ -68,14 +91,14 @@ const ProjectsDashboard = () => {
       // Build base queries
       let leadsQuery = supabase.from('new_leads').select('*');
       let appointmentsQuery = supabase.from('all_appointments').select('*');
-      let callsQuery = supabase.from('all_calls').select('*');
+      let callsBaseQuery = supabase.from('all_calls').select('*');
       let adSpendQuery = supabase.from('facebook_ad_spend').select('spend');
 
       // Apply project filter if not ALL
       if (selectedProject !== 'ALL') {
         leadsQuery = leadsQuery.eq('project_name', selectedProject);
         appointmentsQuery = appointmentsQuery.eq('project_name', selectedProject);
-        callsQuery = callsQuery.eq('project_name', selectedProject);
+        callsBaseQuery = callsBaseQuery.eq('project_name', selectedProject);
         adSpendQuery = adSpendQuery.eq('project_name', selectedProject);
       }
 
@@ -84,7 +107,7 @@ const ProjectsDashboard = () => {
         const fromDate = dateRange.from.toISOString().split('T')[0];
         leadsQuery = leadsQuery.gte('date', fromDate);
         appointmentsQuery = appointmentsQuery.gte('date_of_appointment', fromDate);
-        callsQuery = callsQuery.gte('date', fromDate);
+        callsBaseQuery = callsBaseQuery.gte('date', fromDate);
         adSpendQuery = adSpendQuery.gte('date', fromDate);
       }
 
@@ -92,27 +115,29 @@ const ProjectsDashboard = () => {
         const toDate = dateRange.to.toISOString().split('T')[0];
         leadsQuery = leadsQuery.lte('date', toDate);
         appointmentsQuery = appointmentsQuery.lte('date_of_appointment', toDate);
-        callsQuery = callsQuery.lte('date', toDate);
+        callsBaseQuery = callsBaseQuery.lte('date', toDate);
         adSpendQuery = adSpendQuery.lte('date', toDate);
       }
 
-      // Execute queries
-      const [leadsResult, appointmentsResult, callsResult, adSpendResult] = await Promise.all([
+      // Execute queries - fetch all calls with pagination
+      const [leadsResult, appointmentsResult, adSpendResult] = await Promise.all([
         leadsQuery,
         appointmentsQuery,
-        callsQuery,
         adSpendQuery
       ]);
 
+      // Fetch all calls using pagination
+      const calls = await fetchAllCalls(callsBaseQuery);
+
       if (leadsResult.error) throw leadsResult.error;
       if (appointmentsResult.error) throw appointmentsResult.error;
-      if (callsResult.error) throw callsResult.error;
       if (adSpendResult.error) throw adSpendResult.error;
 
       const leads = leadsResult.data || [];
       const appointments = appointmentsResult.data || [];
-      const calls = callsResult.data || [];
       const adSpendData = adSpendResult.data || [];
+
+      console.log(`Total calls fetched: ${calls.length}`);
 
       // Calculate metrics
       const newLeads = leads.length;
