@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -111,8 +110,7 @@ const AgentsDashboard = () => {
       ).length;
       
       const pickups40Plus = calls.filter(call => 
-        (call.status === 'answered' || call.status === 'connected' || call.status === 'pickup') && 
-        call.duration_seconds >= 40
+        call.status === 'completed' && call.duration_seconds >= 40
       ).length;
       
       const conversations2Plus = calls.filter(call => call.duration_seconds >= 120).length;

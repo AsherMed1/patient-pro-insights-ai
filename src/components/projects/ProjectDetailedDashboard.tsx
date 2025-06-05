@@ -96,8 +96,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       
       const outboundDials = calls?.filter(call => call.direction === 'outbound').length || 0;
       const pickups40Plus = calls?.filter(call => 
-        (call.status === 'answered' || call.status === 'connected' || call.status === 'pickup') && 
-        call.duration_seconds >= 40
+        call.status === 'completed' && call.duration_seconds >= 40
       ).length || 0;
       const conversations2Plus = calls?.filter(call => 
         call.duration_seconds >= 120
