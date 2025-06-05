@@ -52,30 +52,56 @@ const AgentsDashboard = () => {
     }
   };
 
+  const fetchAllCalls = async (baseQuery: any) => {
+    let allCalls: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await baseQuery
+        .range(from, from + batchSize - 1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allCalls = [...allCalls, ...data];
+        from += batchSize;
+        hasMore = data.length === batchSize; // Continue if we got a full batch
+        console.log(`Fetched batch: ${data.length} calls, total so far: ${allCalls.length}`);
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`Total calls fetched: ${allCalls.length}`);
+    return allCalls;
+  };
+
   const fetchStats = async () => {
     try {
       setLoading(true);
       
       // Build base queries
-      let callsQuery = supabase.from('all_calls').select('*');
+      let callsBaseQuery = supabase.from('all_calls').select('*');
       let appointmentsQuery = supabase.from('all_appointments').select('*');
 
       // Apply agent filter if not ALL
       if (selectedAgent !== 'ALL') {
-        callsQuery = callsQuery.eq('agent', selectedAgent);
+        callsBaseQuery = callsBaseQuery.eq('agent', selectedAgent);
         appointmentsQuery = appointmentsQuery.eq('agent', selectedAgent);
       }
 
-      // Execute queries
-      const [callsResult, appointmentsResult] = await Promise.all([
-        callsQuery,
+      // Execute queries - fetch all calls with pagination
+      const [appointmentsResult] = await Promise.all([
         appointmentsQuery
       ]);
 
-      if (callsResult.error) throw callsResult.error;
+      // Fetch all calls using improved pagination
+      const calls = await fetchAllCalls(callsBaseQuery);
+
       if (appointmentsResult.error) throw appointmentsResult.error;
 
-      const calls = callsResult.data || [];
       const appointments = appointmentsResult.data || [];
 
       // Calculate metrics
