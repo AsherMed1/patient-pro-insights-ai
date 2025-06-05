@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -108,7 +109,8 @@ const ProjectsDashboard = () => {
       if (dateRange.from) {
         const fromDate = dateRange.from.toISOString().split('T')[0];
         leadsQuery = leadsQuery.gte('date', fromDate);
-        appointmentsQuery = appointmentsQuery.gte('date_of_appointment', fromDate);
+        // Filter appointments by when they were created (booked), not appointment date
+        appointmentsQuery = appointmentsQuery.gte('date_appointment_created', fromDate);
         callsBaseQuery = callsBaseQuery.gte('date', fromDate);
         adSpendQuery = adSpendQuery.gte('date', fromDate);
       }
@@ -116,7 +118,8 @@ const ProjectsDashboard = () => {
       if (dateRange.to) {
         const toDate = dateRange.to.toISOString().split('T')[0];
         leadsQuery = leadsQuery.lte('date', toDate);
-        appointmentsQuery = appointmentsQuery.lte('date_of_appointment', toDate);
+        // Filter appointments by when they were created (booked), not appointment date
+        appointmentsQuery = appointmentsQuery.lte('date_appointment_created', toDate);
         callsBaseQuery = callsBaseQuery.lte('date', toDate);
         adSpendQuery = adSpendQuery.lte('date', toDate);
       }
@@ -144,8 +147,10 @@ const ProjectsDashboard = () => {
       const bookedAppointments = appointments.length;
       const confirmedAppointments = appointments.filter(apt => apt.confirmed).length;
       const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
+      
+      // For appointments to take place, we need to check the actual appointment date in the future
       const appointmentsToTakePlace = appointments.filter(apt => 
-        new Date(apt.date_of_appointment) >= new Date()
+        apt.date_of_appointment && new Date(apt.date_of_appointment) >= new Date()
       ).length;
 
       // Fixed shows and no-shows calculation logic
