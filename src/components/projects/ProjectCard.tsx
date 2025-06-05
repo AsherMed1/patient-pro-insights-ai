@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +70,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               {project.project_name}
             </CardTitle>
             {hasNoAdSpend && (
-              <AlertCircle className="h-4 w-4 text-orange-500" title="No ad spend data" />
+              <AlertCircle className="h-4 w-4 text-orange-500" />
             )}
           </div>
           <div className="flex items-center space-x-2">
