@@ -38,7 +38,8 @@ const AppointmentsDisplay = ({
   onUpdateProcedure,
   onPageChange
 }: AppointmentsDisplayProps) => {
-  const [activeTab, setActiveTab] = useState("all");
+  // For project portal, default to future tab instead of all
+  const [activeTab, setActiveTab] = useState(isProjectPortal ? "future" : "all");
   const [filters, setFilters] = useState<FilterState>({
     status: null,
     date: null,

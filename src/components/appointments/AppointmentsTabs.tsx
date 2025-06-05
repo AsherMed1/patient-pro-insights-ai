@@ -53,6 +53,22 @@ const AppointmentsTabs = ({
             </Badge>
           </TabsTrigger>
         )}
+        <TabsTrigger value="future" className="relative">
+          Future
+          {futureAppointments.length > 0 && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {futureAppointments.length}
+            </Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="past" className="relative">
+          Past
+          {pastAppointments.length > 0 && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {pastAppointments.length}
+            </Badge>
+          )}
+        </TabsTrigger>
         <TabsTrigger value="needs-review" className="relative">
           Needs Review
           {needsReviewAppointments.length > 0 && (
@@ -61,14 +77,13 @@ const AppointmentsTabs = ({
             </Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="future" className="relative">
-          Future
-        </TabsTrigger>
-        <TabsTrigger value="past" className="relative">
-          Past
-        </TabsTrigger>
         <TabsTrigger value="cancelled" className="relative">
           Cancelled
+          {cancelledAppointments.length > 0 && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {cancelledAppointments.length}
+            </Badge>
+          )}
         </TabsTrigger>
       </TabsList>
 
@@ -89,16 +104,6 @@ const AppointmentsTabs = ({
         </TabsContent>
       )}
 
-      <TabsContent value="needs-review" className="mt-4">
-        <AppointmentsList
-          appointments={needsReviewAppointments}
-          loading={loading}
-          projectFilter={projectFilter}
-          onUpdateStatus={onUpdateStatus}
-          onUpdateProcedure={onUpdateProcedure}
-        />
-      </TabsContent>
-
       <TabsContent value="future" className="mt-4">
         <AppointmentsList
           appointments={futureAppointments}
@@ -112,6 +117,16 @@ const AppointmentsTabs = ({
       <TabsContent value="past" className="mt-4">
         <AppointmentsList
           appointments={pastAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
+
+      <TabsContent value="needs-review" className="mt-4">
+        <AppointmentsList
+          appointments={needsReviewAppointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}

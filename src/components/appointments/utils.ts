@@ -1,3 +1,4 @@
+
 import { AllAppointment } from './types';
 import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
@@ -35,9 +36,13 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string, isProjectPortal: boolean = false) => {
   return appointments.filter(appointment => {
-    // For project portals, only show confirmed appointments
-    if (isProjectPortal && !appointment.confirmed) {
-      return false;
+    // For project portals, only show confirmed appointments (confirmed boolean OR status = 'Confirmed')
+    if (isProjectPortal) {
+      const isConfirmed = appointment.confirmed === true || 
+                         (appointment.status && appointment.status.toLowerCase() === 'confirmed');
+      if (!isConfirmed) {
+        return false;
+      }
     }
 
     switch (filterType) {
@@ -46,15 +51,12 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         return isAppointmentInFuture(appointment.date_of_appointment) && 
                !isCancelledStatus(appointment.status);
       case 'past':
-        // Include cancelled appointments and unconfirmed past appointments (now marked as No Show)
+        // Include past appointments that are not cancelled
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               (isCancelledStatus(appointment.status) || 
-                (!appointment.confirmed && !isStatusUpdated(appointment)) ||
-                (isStatusUpdated(appointment) && isProcedureUpdated(appointment)));
+               !isCancelledStatus(appointment.status);
       case 'needs-review':
-        // Only show confirmed past appointments that need review
+        // Only show confirmed past appointments that need review (no status or no procedure info)
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               appointment.confirmed === true &&
                !isCancelledStatus(appointment.status) &&
                (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
       case 'cancelled':
