@@ -1,3 +1,4 @@
+
 import { AllAppointment } from './types';
 import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
@@ -30,7 +31,7 @@ export const isStatusUpdated = (appointment: AllAppointment) => {
 };
 
 export const isProcedureUpdated = (appointment: AllAppointment) => {
-  // Only consider it updated if procedure_ordered is not null
+  // After database migration: null means "not set", true/false means "explicitly set"
   return appointment.procedure_ordered !== null;
 };
 

@@ -72,9 +72,7 @@ const AppointmentCard = ({
 
   // Check if status and procedure have been updated
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
-  // Updated logic: only consider procedure updated if it's explicitly been set to true or false
-  // We'll assume null means "not set" and false could mean either "not set" or "explicitly set to No"
-  // For now, we'll treat any non-null value as "updated"
+  // Now that we've migrated the data, null means "not set", and true/false means "explicitly set"
   const isProcedureUpdated = appointment.procedure_ordered !== null;
 
   // Get the actual status or show "No Status Set"
@@ -242,7 +240,7 @@ const AppointmentCard = ({
                 <div className="space-y-2">
                   <label className="text-sm font-medium block">Procedure Ordered:</label>
                   <Select 
-                    value={isProcedureUpdated ? (appointment.procedure_ordered === true ? 'yes' : 'no') : ''} 
+                    value={appointment.procedure_ordered === null ? '' : (appointment.procedure_ordered ? 'yes' : 'no')} 
                     onValueChange={value => {
                       if (value === 'yes' || value === 'no') {
                         onUpdateProcedure(appointment.id, value === 'yes');
