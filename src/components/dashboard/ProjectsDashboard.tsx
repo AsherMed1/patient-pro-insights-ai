@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -75,12 +76,14 @@ const ProjectsDashboard = () => {
       if (data && data.length > 0) {
         allCalls = [...allCalls, ...data];
         from += batchSize;
-        hasMore = data.length === batchSize;
+        hasMore = data.length === batchSize; // Continue if we got a full batch
+        console.log(`Fetched batch: ${data.length} calls, total so far: ${allCalls.length}`);
       } else {
         hasMore = false;
       }
     }
 
+    console.log(`Total calls fetched: ${allCalls.length}`);
     return allCalls;
   };
 
@@ -126,7 +129,7 @@ const ProjectsDashboard = () => {
         adSpendQuery
       ]);
 
-      // Fetch all calls using pagination
+      // Fetch all calls using improved pagination
       const calls = await fetchAllCalls(callsBaseQuery);
 
       if (leadsResult.error) throw leadsResult.error;
@@ -136,8 +139,6 @@ const ProjectsDashboard = () => {
       const leads = leadsResult.data || [];
       const appointments = appointmentsResult.data || [];
       const adSpendData = adSpendResult.data || [];
-
-      console.log(`Total calls fetched: ${calls.length}`);
 
       // Calculate metrics
       const newLeads = leads.length;
