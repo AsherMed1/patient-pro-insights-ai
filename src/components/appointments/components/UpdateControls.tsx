@@ -47,7 +47,7 @@ const UpdateControls = ({
       <div className="space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium block">Status:</label>
-          <Select value={appointment.status || ''} onValueChange={value => onUpdateStatus(appointment.id, value)}>
+          <Select value={appointment.status || undefined} onValueChange={value => onUpdateStatus(appointment.id, value)}>
             <SelectTrigger className={getStatusTriggerClass()}>
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
@@ -64,7 +64,7 @@ const UpdateControls = ({
         <div className="space-y-2">
           <label className="text-sm font-medium block">Procedure Ordered:</label>
           <Select 
-            value={appointment.procedure_ordered === null ? '' : (appointment.procedure_ordered ? 'yes' : 'no')} 
+            value={appointment.procedure_ordered === null ? undefined : (appointment.procedure_ordered ? 'yes' : 'no')} 
             onValueChange={value => {
               if (value === 'yes' || value === 'no') {
                 onUpdateProcedure(appointment.id, value === 'yes');
