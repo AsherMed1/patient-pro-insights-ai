@@ -522,18 +522,21 @@ export type Database = {
       }
       projects: {
         Row: {
+          active: boolean
           created_at: string
           id: string
           project_name: string
           updated_at: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           id?: string
           project_name: string
           updated_at?: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           id?: string
           project_name?: string

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { FolderOpen } from 'lucide-react';
@@ -11,6 +12,7 @@ import { EditProjectDialog } from './projects/EditProjectDialog';
 interface Project {
   id: string;
   project_name: string;
+  active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +38,7 @@ const ProjectsManager = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [activeTab, setActiveTab] = useState('active');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -125,7 +128,8 @@ const ProjectsManager = () => {
       const { error } = await supabase
         .from('projects')
         .insert({
-          project_name: data.project_name
+          project_name: data.project_name,
+          active: true
         });
 
       if (error) throw error;
@@ -179,6 +183,34 @@ const ProjectsManager = () => {
     }
   };
 
+  const handleToggleProjectStatus = async (project: Project) => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          active: !project.active,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', project.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Project ${!project.active ? 'activated' : 'deactivated'} successfully`,
+      });
+
+      await fetchProjectsAndStats();
+    } catch (error) {
+      console.error('Error toggling project status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update project status",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteProject = async (project: Project) => {
     try {
       const { error } = await supabase
@@ -209,6 +241,9 @@ const ProjectsManager = () => {
     setIsEditDialogOpen(true);
   };
 
+  const activeProjects = projects.filter(p => p.active);
+  const inactiveProjects = projects.filter(p => !p.active);
+
   if (loading) {
     return (
       <Card>
@@ -226,10 +261,10 @@ const ProjectsManager = () => {
           <div>
             <CardTitle className="flex items-center space-x-2">
               <FolderOpen className="h-5 w-5" />
-              <span>Active Projects</span>
+              <span>Projects Management</span>
             </CardTitle>
             <CardDescription>
-              Overview of all projects and their activity status
+              Manage your active and inactive projects
             </CardDescription>
           </div>
           <AddProjectDialog
@@ -240,28 +275,68 @@ const ProjectsManager = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {projects.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>No projects found.</p>
-            <p className="text-sm">Click "Add Project" to create your first project.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((project) => {
-              const stats = projectStats.find(s => s.project_name === project.project_name);
-              
-              return (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  stats={stats}
-                  onEdit={openEditDialog}
-                  onDelete={handleDeleteProject}
-                />
-              );
-            })}
-          </div>
-        )}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="active">
+              Active Projects ({activeProjects.length})
+            </TabsTrigger>
+            <TabsTrigger value="inactive">
+              Inactive Projects ({inactiveProjects.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="space-y-4">
+            {activeProjects.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No active projects found.</p>
+                <p className="text-sm">Click "Add Project" to create your first project.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {activeProjects.map((project) => {
+                  const stats = projectStats.find(s => s.project_name === project.project_name);
+                  
+                  return (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      stats={stats}
+                      onEdit={openEditDialog}
+                      onDelete={handleDeleteProject}
+                      onToggleStatus={handleToggleProjectStatus}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="inactive" className="space-y-4">
+            {inactiveProjects.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No inactive projects found.</p>
+                <p className="text-sm">Projects you deactivate will appear here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {inactiveProjects.map((project) => {
+                  const stats = projectStats.find(s => s.project_name === project.project_name);
+                  
+                  return (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      stats={stats}
+                      onEdit={openEditDialog}
+                      onDelete={handleDeleteProject}
+                      onToggleStatus={handleToggleProjectStatus}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
         <EditProjectDialog
           open={isEditDialogOpen}

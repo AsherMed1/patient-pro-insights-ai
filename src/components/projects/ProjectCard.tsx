@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, AlertCircle } from 'lucide-react';
+import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, AlertCircle, Power, PowerOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
@@ -10,6 +11,7 @@ import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
 interface Project {
   id: string;
   project_name: string;
+  active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -29,13 +31,15 @@ interface ProjectCardProps {
   stats?: ProjectStats;
   onEdit: (project: Project) => void;
   onDelete: (project: Project) => void;
+  onToggleStatus: (project: Project) => void;
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({
   project,
   stats,
   onEdit,
-  onDelete
+  onDelete,
+  onToggleStatus
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -62,22 +66,47 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const hasNoAdSpend = (stats?.ad_spend || 0) === 0;
 
   return (
-    <Card className={`border-l-4 ${hasNoAdSpend ? 'border-l-orange-400 bg-orange-50/30' : 'border-l-blue-500'}`}>
+    <Card className={`border-l-4 ${
+      !project.active 
+        ? 'border-l-gray-400 bg-gray-50/50 opacity-75' 
+        : hasNoAdSpend 
+          ? 'border-l-orange-400 bg-orange-50/30' 
+          : 'border-l-blue-500'
+    }`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-2">
             <CardTitle className="text-lg font-medium">
               {project.project_name}
             </CardTitle>
-            {hasNoAdSpend && (
+            {!project.active && (
+              <Badge variant="secondary" className="text-xs">
+                Inactive
+              </Badge>
+            )}
+            {project.active && hasNoAdSpend && (
               <AlertCircle className="h-4 w-4 text-orange-500" />
             )}
           </div>
           <div className="flex items-center space-x-2">
-            <Badge className={`text-xs ${activityStatus.color}`}>
-              {activityStatus.status}
-            </Badge>
+            {project.active && (
+              <Badge className={`text-xs ${activityStatus.color}`}>
+                {activityStatus.status}
+              </Badge>
+            )}
             <div className="flex space-x-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onToggleStatus(project)}
+                title={project.active ? 'Deactivate project' : 'Activate project'}
+              >
+                {project.active ? (
+                  <PowerOff className="h-3 w-3 text-red-500" />
+                ) : (
+                  <Power className="h-3 w-3 text-green-500" />
+                )}
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -122,10 +151,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
         
         {/* Ad Spend Display with subtle indicator */}
-        <div className={`text-sm p-2 rounded ${hasNoAdSpend ? 'bg-orange-50 border border-orange-200' : 'bg-gray-50'}`}>
+        <div className={`text-sm p-2 rounded ${
+          project.active && hasNoAdSpend 
+            ? 'bg-orange-50 border border-orange-200' 
+            : 'bg-gray-50'
+        }`}>
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Ad Spend:</span>
-            <span className={`font-mono font-medium ${hasNoAdSpend ? 'text-orange-600' : 'text-gray-900'}`}>
+            <span className={`font-mono font-medium ${
+              project.active && hasNoAdSpend 
+                ? 'text-orange-600' 
+                : 'text-gray-900'
+            }`}>
               ${(stats?.ad_spend || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
@@ -145,30 +182,41 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           </div>
         )}
 
-        {/* Project Portal and Detailed Stats Buttons */}
-        <div className="pt-2 space-y-2">
-          <Link to={`/project/${encodeURIComponent(project.project_name)}`}>
-            <Button 
-              variant="default" 
-              size="sm" 
-              className="w-full"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Open Project Portal
-            </Button>
-          </Link>
-          
-          <ProjectDetailedDashboard project={project}>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full"
-            >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              View Detailed Stats
-            </Button>
-          </ProjectDetailedDashboard>
-        </div>
+        {/* Project Portal and Detailed Stats Buttons - only show for active projects */}
+        {project.active && (
+          <div className="pt-2 space-y-2">
+            <Link to={`/project/${encodeURIComponent(project.project_name)}`}>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="w-full"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Project Portal
+              </Button>
+            </Link>
+            
+            <ProjectDetailedDashboard project={project}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                View Detailed Stats
+              </Button>
+            </ProjectDetailedDashboard>
+          </div>
+        )}
+
+        {/* For inactive projects, show reactivation message */}
+        {!project.active && (
+          <div className="pt-2">
+            <div className="text-sm text-gray-500 text-center p-2 bg-gray-100 rounded">
+              Project is inactive. Click the power button to reactivate.
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
