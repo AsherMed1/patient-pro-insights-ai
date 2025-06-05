@@ -11,6 +11,7 @@ interface AdSpendRecord {
   date: string;
   project_name: string;
   spend: number;
+  campaign_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,7 +64,7 @@ const AdSpendManager = () => {
         <CardHeader>
           <CardTitle>Ad Spend Management</CardTitle>
           <CardDescription>
-            Import and manage Facebook ad spend data for your projects
+            Import and manage Facebook ad spend data for your projects. Multiple records per day are supported for different campaigns.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -102,6 +103,7 @@ const AdSpendManager = () => {
                       <tr className="bg-gray-50">
                         <th className="border border-gray-200 px-4 py-2 text-left">Date</th>
                         <th className="border border-gray-200 px-4 py-2 text-left">Project</th>
+                        <th className="border border-gray-200 px-4 py-2 text-left">Campaign</th>
                         <th className="border border-gray-200 px-4 py-2 text-right">Spend</th>
                         <th className="border border-gray-200 px-4 py-2 text-left">Last Updated</th>
                       </tr>
@@ -114,6 +116,9 @@ const AdSpendManager = () => {
                           </td>
                           <td className="border border-gray-200 px-4 py-2">
                             {record.project_name}
+                          </td>
+                          <td className="border border-gray-200 px-4 py-2">
+                            {record.campaign_name || 'N/A'}
                           </td>
                           <td className="border border-gray-200 px-4 py-2 text-right font-mono">
                             {formatCurrency(Number(record.spend))}

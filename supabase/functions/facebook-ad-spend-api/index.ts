@@ -10,6 +10,7 @@ interface AdSpendData {
   date: string;
   project_name: string;
   spend: number;
+  campaign_name?: string;
 }
 
 Deno.serve(async (req) => {
@@ -102,23 +103,20 @@ Deno.serve(async (req) => {
     const adSpendData: AdSpendData = {
       date: body.date,
       project_name: body.project_name,
-      spend: spend
+      spend: spend,
+      campaign_name: body.campaign_name || null
     };
 
-    // Insert or update the ad spend data (upsert)
+    // Insert the ad spend data (no longer using upsert, allowing multiple records per day)
     const { data, error } = await supabase
       .from('facebook_ad_spend')
-      .upsert(
-        {
-          date: adSpendData.date,
-          project_name: adSpendData.project_name,
-          spend: adSpendData.spend,
-          updated_at: new Date().toISOString()
-        },
-        {
-          onConflict: 'project_name,date'
-        }
-      )
+      .insert({
+        date: adSpendData.date,
+        project_name: adSpendData.project_name,
+        spend: adSpendData.spend,
+        campaign_name: adSpendData.campaign_name,
+        updated_at: new Date().toISOString()
+      })
       .select();
 
     if (error) {

@@ -13,6 +13,7 @@ interface AdSpendRecord {
   date: string;
   project_name: string;
   spend: number;
+  campaign_name?: string;
 }
 
 const AdSpendImport = () => {
@@ -25,11 +26,11 @@ const AdSpendImport = () => {
   const { toast } = useToast();
 
   const downloadTemplate = () => {
-    const headers = ['date', 'project_name', 'spend'];
+    const headers = ['date', 'project_name', 'spend', 'campaign_name'];
     const sampleData = [
-      ['2024-01-01', 'Project Alpha', '150.00'],
-      ['2024-01-02', 'Project Beta', '200.50'],
-      ['2024-01-03', 'Project Alpha', '175.25']
+      ['2024-01-01', 'Project Alpha', '150.00', 'Campaign 1'],
+      ['2024-01-02', 'Project Beta', '200.50', 'Campaign A'],
+      ['2024-01-03', 'Project Alpha', '175.25', 'Campaign 2']
     ];
     
     const csvContent = [headers, ...sampleData]
@@ -136,7 +137,8 @@ const AdSpendImport = () => {
             record: {
               date: records[i].date,
               project_name: records[i].project_name,
-              spend: parseFloat(records[i].spend)
+              spend: parseFloat(records[i].spend),
+              campaign_name: records[i].campaign_name || undefined
             },
             rowIndex: i
           });
@@ -221,7 +223,7 @@ const AdSpendImport = () => {
             Import Ad Spend Data
           </CardTitle>
           <CardDescription>
-            Upload CSV files containing ad spend data. The CSV should have columns: date, project_name, spend
+            Upload CSV files containing ad spend data. The CSV should have columns: date, project_name, spend, campaign_name (optional). Multiple records per project per day are now supported for different campaigns.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

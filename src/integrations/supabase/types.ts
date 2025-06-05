@@ -366,6 +366,7 @@ export type Database = {
       }
       facebook_ad_spend: {
         Row: {
+          campaign_name: string | null
           created_at: string
           date: string
           id: string
@@ -374,6 +375,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          campaign_name?: string | null
           created_at?: string
           date: string
           id?: string
@@ -382,6 +384,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          campaign_name?: string | null
           created_at?: string
           date?: string
           id?: string
