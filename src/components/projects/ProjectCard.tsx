@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink } from 'lucide-react';
+import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
@@ -21,6 +21,7 @@ interface ProjectStats {
   calls_count: number;
   appointments_count: number;
   confirmed_appointments_count: number;
+  ad_spend: number;
   last_activity: string | null;
 }
 
@@ -59,14 +60,20 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   };
 
   const activityStatus = getActivityStatus(stats?.last_activity || null);
+  const hasNoAdSpend = (stats?.ad_spend || 0) === 0;
 
   return (
-    <Card className="border-l-4 border-l-blue-500">
+    <Card className={`border-l-4 ${hasNoAdSpend ? 'border-l-orange-400 bg-orange-50/30' : 'border-l-blue-500'}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <CardTitle className="text-lg font-medium">
-            {project.project_name}
-          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <CardTitle className="text-lg font-medium">
+              {project.project_name}
+            </CardTitle>
+            {hasNoAdSpend && (
+              <AlertCircle className="h-4 w-4 text-orange-500" title="No ad spend data" />
+            )}
+          </div>
           <div className="flex items-center space-x-2">
             <Badge className={`text-xs ${activityStatus.color}`}>
               {activityStatus.status}
@@ -112,6 +119,16 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               {stats?.confirmed_appointments_count || 0}
             </div>
             <div className="text-xs text-orange-600">Confirmed</div>
+          </div>
+        </div>
+        
+        {/* Ad Spend Display with subtle indicator */}
+        <div className={`text-sm p-2 rounded ${hasNoAdSpend ? 'bg-orange-50 border border-orange-200' : 'bg-gray-50'}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">Ad Spend:</span>
+            <span className={`font-mono font-medium ${hasNoAdSpend ? 'text-orange-600' : 'text-gray-900'}`}>
+              ${(stats?.ad_spend || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
           </div>
         </div>
         
