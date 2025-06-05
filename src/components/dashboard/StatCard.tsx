@@ -10,6 +10,7 @@ interface StatCardProps {
   isPercentage?: boolean;
   isCurrency?: boolean;
   isMinutes?: boolean;
+  isSeconds?: boolean;
   onClick?: () => void;
 }
 
@@ -21,11 +22,13 @@ const StatCard = ({
   isPercentage = false,
   isCurrency = false,
   isMinutes = false,
+  isSeconds = false,
   onClick 
 }: StatCardProps) => {
   const formatValue = () => {
     if (isCurrency) return `$${value.toFixed(2)}`;
     if (isPercentage) return `${value.toFixed(1)}%`;
+    if (isSeconds) return `${Math.round(value)}s`;
     if (isMinutes) return `${Math.round(value)} min`;
     return Math.round(value).toString();
   };

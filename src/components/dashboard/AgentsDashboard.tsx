@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -120,7 +121,8 @@ const AgentsDashboard = () => {
       const noShows = appointments.filter(apt => apt.showed === false).length;
       
       const totalCallDuration = calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0);
-      const avgDurationPerCall = totalDialsMade > 0 ? totalCallDuration / totalDialsMade : 0;
+      // Convert average duration from seconds to minutes for display
+      const avgDurationPerCall = totalDialsMade > 0 ? (totalCallDuration / totalDialsMade) / 60 : 0;
       const timeOnPhoneMinutes = totalCallDuration / 60;
 
       setStats({
