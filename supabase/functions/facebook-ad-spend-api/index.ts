@@ -107,7 +107,9 @@ Deno.serve(async (req) => {
       campaign_name: body.campaign_name || null
     };
 
-    // Insert the ad spend data (no longer using upsert, allowing multiple records per day)
+    console.log('Prepared ad spend data for insert:', adSpendData);
+
+    // Insert the ad spend data (allowing multiple records per day per project)
     const { data, error } = await supabase
       .from('facebook_ad_spend')
       .insert({
@@ -121,6 +123,21 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error('Database error:', error);
+      
+      // Check if it's still a unique constraint error and provide helpful message
+      if (error.code === '23505') {
+        return new Response(
+          JSON.stringify({ 
+            error: 'A record with this project and date combination already exists. Please use a different campaign name or check if the record already exists.',
+            details: error.message 
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Failed to save ad spend data',
