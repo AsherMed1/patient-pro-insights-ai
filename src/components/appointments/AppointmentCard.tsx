@@ -72,7 +72,10 @@ const AppointmentCard = ({
 
   // Check if status and procedure have been updated
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
-  const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+  // Updated logic: only consider procedure updated if it's explicitly been set to true or false
+  // We'll assume null means "not set" and false could mean either "not set" or "explicitly set to No"
+  // For now, we'll treat any non-null value as "updated"
+  const isProcedureUpdated = appointment.procedure_ordered !== null;
 
   // Get the actual status or show "No Status Set"
   const getDisplayStatus = () => {
@@ -238,11 +241,14 @@ const AppointmentCard = ({
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium block">Procedure Ordered:</label>
-                  <Select value={isProcedureUpdated ? appointment.procedure_ordered === true ? 'yes' : 'no' : ''} onValueChange={value => {
-                if (value === 'yes' || value === 'no') {
-                  onUpdateProcedure(appointment.id, value === 'yes');
-                }
-              }}>
+                  <Select 
+                    value={isProcedureUpdated ? (appointment.procedure_ordered === true ? 'yes' : 'no') : ''} 
+                    onValueChange={value => {
+                      if (value === 'yes' || value === 'no') {
+                        onUpdateProcedure(appointment.id, value === 'yes');
+                      }
+                    }}
+                  >
                     <SelectTrigger className={getProcedureTriggerClass()}>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>

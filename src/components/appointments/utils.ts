@@ -1,4 +1,3 @@
-
 import { AllAppointment } from './types';
 import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
@@ -31,7 +30,8 @@ export const isStatusUpdated = (appointment: AllAppointment) => {
 };
 
 export const isProcedureUpdated = (appointment: AllAppointment) => {
-  return appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+  // Only consider it updated if procedure_ordered is not null
+  return appointment.procedure_ordered !== null;
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string, isProjectPortal: boolean = false) => {
