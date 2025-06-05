@@ -42,12 +42,23 @@ const UpdateControls = ({
     }
   };
 
+  // Normalize status value to match dropdown options (case-insensitive)
+  const getNormalizedStatusValue = () => {
+    if (!appointment.status) return undefined;
+    
+    const normalizedStatus = statusOptions.find(
+      option => option.toLowerCase() === appointment.status?.toLowerCase()
+    );
+    
+    return normalizedStatus || appointment.status;
+  };
+
   return (
     <div className="border-t pt-3 mt-3">
       <div className="space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium block">Status:</label>
-          <Select value={appointment.status || undefined} onValueChange={value => onUpdateStatus(appointment.id, value)}>
+          <Select value={getNormalizedStatusValue()} onValueChange={value => onUpdateStatus(appointment.id, value)}>
             <SelectTrigger className={getStatusTriggerClass()}>
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
