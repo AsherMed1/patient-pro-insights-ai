@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,13 +7,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
+import type { Project, DateRange } from './types';
 
 interface ProjectFiltersProps {
-  projects: Array<{ id: string; project_name: string }>;
+  projects: Project[];
   selectedProject: string;
   onProjectChange: (project: string) => void;
-  dateRange: { from: Date | undefined; to: Date | undefined };
-  onDateRangeChange: (range: { from: Date | undefined; to: Date | undefined }) => void;
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
   onQuickDateRange: (type: string) => void;
 }
 
