@@ -1,7 +1,5 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from '@/integrations/supabase/client';
 import SpeedToLeadHeader from './speedtolead/SpeedToLeadHeader';
 import SpeedToLeadDateFilter from './speedtolead/SpeedToLeadDateFilter';
 import SpeedToLeadDashboardCards from './speedtolead/SpeedToLeadDashboardCards';
@@ -9,268 +7,68 @@ import SpeedToLeadCharts from './speedtolead/SpeedToLeadCharts';
 import SpeedToLeadDataTable from './speedtolead/SpeedToLeadDataTable';
 import SpeedToLeadEmptyState from './speedtolead/SpeedToLeadEmptyState';
 import SpeedToLeadOutliersModal from './speedtolead/SpeedToLeadOutliersModal';
-
-interface SpeedToLeadStat {
-  id: string;
-  date: string;
-  project_name: string;
-  lead_name: string;
-  lead_phone_number: string;
-  date_time_in: string;
-  date_time_of_first_call: string | null;
-  speed_to_lead_time_min: number | null;
-  created_at: string;
-  updated_at: string;
-}
+import { useSpeedToLeadData } from './speedtolead/hooks/useSpeedToLeadData';
+import { useSpeedToLeadCalculation } from './speedtolead/hooks/useSpeedToLeadCalculation';
+import { useSpeedToLeadRealtime } from './speedtolead/hooks/useSpeedToLeadRealtime';
+import { filterValidStats, filterOutlierStats, generateSpeedRangeData } from './speedtolead/utils/speedToLeadUtils';
+import type { DateRange } from './speedtolead/types';
 
 interface SpeedToLeadManagerProps {
   viewOnly?: boolean;
 }
 
 const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
-  const [stats, setStats] = useState<SpeedToLeadStat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [calculating, setCalculating] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
   const [showOutliersModal, setShowOutliersModal] = useState(false);
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
-  const [dateRange, setDateRange] = useState<{
-    from: Date | undefined;
-    to: Date | undefined;
-  }>({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined
   });
-  const { toast } = useToast();
 
-  const fetchStats = useCallback(async (isForceRefresh = false) => {
-    try {
-      setLoading(true);
-      
-      if (isForceRefresh) {
-        console.log('Force refreshing speed-to-lead data...');
-      }
-      
-      let query = supabase
-        .from('speed_to_lead_stats')
-        .select('*')
-        .not('date_time_of_first_call', 'is', null)
-        .not('speed_to_lead_time_min', 'is', null)
-        .gte('speed_to_lead_time_min', 0);
+  const { stats, setStats, loading, lastUpdateTime, fetchStats } = useSpeedToLeadData();
+  const { calculating, triggerSpeedToLeadCalculation } = useSpeedToLeadCalculation();
 
-      // Apply date filters if set
-      if (dateRange.from) {
-        const fromDate = dateRange.from.toISOString().split('T')[0];
-        query = query.gte('date', fromDate);
-      }
-
-      if (dateRange.to) {
-        const toDate = dateRange.to.toISOString().split('T')[0];
-        query = query.lte('date', toDate);
-      }
-
-      const { data, error } = await query.order('date_time_in', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching speed to lead stats:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch speed to lead statistics",
-          variant: "destructive",
-        });
-      } else {
-        console.log(`Fetched ${data?.length || 0} speed-to-lead records`);
-        setStats(data || []);
-        setLastUpdateTime(new Date().toLocaleTimeString());
-        
-        if (isForceRefresh) {
-          toast({
-            title: "Data Refreshed",
-            description: `Refreshed speed-to-lead data. ${data?.length || 0} records loaded.`,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange, toast]);
+  const fetchStatsWithDateRange = useCallback((isForceRefresh = false) => {
+    fetchStats(dateRange, isForceRefresh);
+  }, [fetchStats, dateRange]);
 
   const forceRefresh = useCallback(() => {
     setForceRefreshKey(prev => prev + 1);
-    fetchStats(true);
-  }, [fetchStats]);
+    fetchStatsWithDateRange(true);
+  }, [fetchStatsWithDateRange]);
 
-  const triggerSpeedToLeadCalculation = async () => {
-    try {
-      setCalculating(true);
-      
-      const { data, error } = await supabase.functions.invoke('speed-to-lead-calculator');
-      
-      if (error) {
-        console.error('Error triggering speed-to-lead calculation:', error);
-        toast({
-          title: "Error",
-          description: "Failed to trigger speed-to-lead calculation",
-          variant: "destructive",
-        });
-      } else {
-        console.log('Speed-to-lead calculation result:', data);
-        toast({
-          title: "Success",
-          description: `Speed-to-lead calculation completed. ${data?.stats?.totalProcessed || 0} leads processed.`,
-        });
-        // Force refresh the data after calculation
-        setTimeout(() => {
-          forceRefresh();
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to trigger speed-to-lead calculation",
-        variant: "destructive",
-      });
-    } finally {
-      setCalculating(false);
+  const handleTriggerCalculation = async () => {
+    const success = await triggerSpeedToLeadCalculation();
+    if (success) {
+      // Force refresh the data after calculation
+      setTimeout(() => {
+        forceRefresh();
+      }, 1000);
     }
   };
 
-  const setupRealtimeSubscription = useCallback(() => {
-    const channel = supabase
-      .channel(`speed-to-lead-changes-${forceRefreshKey}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'speed_to_lead_stats'
-        },
-        (payload) => {
-          console.log('Real-time speed-to-lead update:', payload);
-          
-          // Handle different event types
-          if (payload.eventType === 'DELETE') {
-            console.log('Record deleted, removing from state:', payload.old);
-            setStats(prevStats => prevStats.filter(stat => stat.id !== payload.old.id));
-            toast({
-              title: "Live Update",
-              description: "Speed-to-lead record deleted",
-            });
-          } else if (payload.eventType === 'INSERT') {
-            console.log('Record inserted:', payload.new);
-            fetchStats();
-            toast({
-              title: "Live Update",
-              description: "New speed-to-lead record added",
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            console.log('Record updated:', payload.new);
-            fetchStats();
-            toast({
-              title: "Live Update",
-              description: "Speed-to-lead record updated",
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'new_leads'
-        },
-        (payload) => {
-          console.log('New lead detected:', payload);
-          toast({
-            title: "New Lead Detected",
-            description: "New lead added - speed-to-lead calculation may be needed",
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'all_calls'
-        },
-        (payload) => {
-          console.log('New call detected:', payload);
-          toast({
-            title: "New Call Detected",
-            description: "New call recorded - speed-to-lead calculation may be needed",
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [forceRefreshKey, fetchStats, toast]);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  useEffect(() => {
-    const cleanup = setupRealtimeSubscription();
-    return cleanup;
-  }, [setupRealtimeSubscription]);
-
-  const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined }) => {
+  const handleDateRangeChange = (range: DateRange) => {
     setDateRange(range);
   };
 
-  // Filter out outliers (> 5 hours = 300 minutes) for calculations
-  const validStats = stats.filter(s => 
-    s.date_time_of_first_call && 
-    s.speed_to_lead_time_min !== null && 
-    s.speed_to_lead_time_min >= 0 &&
-    s.speed_to_lead_time_min <= 300 // 5 hours
-  );
+  // Set up real-time subscription
+  useSpeedToLeadRealtime(forceRefreshKey, fetchStatsWithDateRange, setStats);
 
-  // Get outliers (> 5 hours = 300 minutes)
-  const outlierStats = stats.filter(s => 
-    s.date_time_of_first_call && 
-    s.speed_to_lead_time_min !== null && 
-    s.speed_to_lead_time_min > 300 // > 5 hours
-  );
+  useEffect(() => {
+    fetchStatsWithDateRange();
+  }, [fetchStatsWithDateRange]);
 
-  // Data for charts
-  const speedRangeData = [
-    {
-      range: '≤ 5 min',
-      count: validStats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min <= 5).length,
-      color: '#22c55e'
-    },
-    {
-      range: '5-15 min',
-      count: validStats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 5 && s.speed_to_lead_time_min <= 15).length,
-      color: '#eab308'
-    },
-    {
-      range: '15-60 min',
-      count: validStats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 15 && s.speed_to_lead_time_min <= 60).length,
-      color: '#f97316'
-    },
-    {
-      range: '1-5 hours',
-      count: validStats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 60 && s.speed_to_lead_time_min <= 300).length,
-      color: '#ef4444'
-    }
-  ];
+  // Process stats data
+  const validStats = filterValidStats(stats);
+  const outlierStats = filterOutlierStats(stats);
+  const speedRangeData = generateSpeedRangeData(validStats);
 
   return (
     <div className="space-y-6">
       <SpeedToLeadHeader
         lastUpdateTime={lastUpdateTime}
         calculating={calculating}
-        onTriggerCalculation={triggerSpeedToLeadCalculation}
+        onTriggerCalculation={handleTriggerCalculation}
         outlierCount={outlierStats.length}
         onViewOutliers={() => setShowOutliersModal(true)}
         onForceRefresh={forceRefresh}
@@ -286,7 +84,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
       ) : validStats.length === 0 ? (
         <SpeedToLeadEmptyState
           calculating={calculating}
-          onTriggerCalculation={triggerSpeedToLeadCalculation}
+          onTriggerCalculation={handleTriggerCalculation}
         />
       ) : (
         <>

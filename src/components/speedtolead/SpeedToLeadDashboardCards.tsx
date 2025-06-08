@@ -1,28 +1,11 @@
-
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Target, TrendingUp, Users } from 'lucide-react';
-
-interface SpeedToLeadStat {
-  id: string;
-  date: string;
-  project_name: string;
-  lead_name: string;
-  lead_phone_number: string;
-  date_time_in: string;
-  date_time_of_first_call: string | null;
-  speed_to_lead_time_min: number | null;
-  created_at: string;
-  updated_at: string;
-}
+import type { SpeedToLeadStat, SpeedRangeData } from './types';
 
 interface SpeedToLeadDashboardCardsProps {
   validStats: SpeedToLeadStat[];
-  speedRangeData: Array<{
-    range: string;
-    count: number;
-    color: string;
-  }>;
+  speedRangeData: SpeedRangeData[];
 }
 
 const SpeedToLeadDashboardCards = ({ validStats, speedRangeData }: SpeedToLeadDashboardCardsProps) => {
