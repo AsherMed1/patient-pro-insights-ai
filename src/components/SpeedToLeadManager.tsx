@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import SpeedToLeadHeader from './speedtolead/SpeedToLeadHeader';
@@ -32,6 +33,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   const [calculating, setCalculating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
   const [showOutliersModal, setShowOutliersModal] = useState(false);
+  const [forceRefreshKey, setForceRefreshKey] = useState(0);
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -41,14 +43,13 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   });
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchStats();
-    setupRealtimeSubscription();
-  }, [dateRange]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async (isForceRefresh = false) => {
     try {
       setLoading(true);
+      
+      if (isForceRefresh) {
+        console.log('Force refreshing speed-to-lead data...');
+      }
       
       let query = supabase
         .from('speed_to_lead_stats')
@@ -78,15 +79,28 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
           variant: "destructive",
         });
       } else {
+        console.log(`Fetched ${data?.length || 0} speed-to-lead records`);
         setStats(data || []);
         setLastUpdateTime(new Date().toLocaleTimeString());
+        
+        if (isForceRefresh) {
+          toast({
+            title: "Data Refreshed",
+            description: `Refreshed speed-to-lead data. ${data?.length || 0} records loaded.`,
+          });
+        }
       }
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, toast]);
+
+  const forceRefresh = useCallback(() => {
+    setForceRefreshKey(prev => prev + 1);
+    fetchStats(true);
+  }, [fetchStats]);
 
   const triggerSpeedToLeadCalculation = async () => {
     try {
@@ -107,9 +121,9 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
           title: "Success",
           description: `Speed-to-lead calculation completed. ${data?.stats?.totalProcessed || 0} leads processed.`,
         });
-        // Refresh the data after calculation
+        // Force refresh the data after calculation
         setTimeout(() => {
-          fetchStats();
+          forceRefresh();
         }, 1000);
       }
     } catch (error) {
@@ -124,9 +138,9 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
     }
   };
 
-  const setupRealtimeSubscription = () => {
+  const setupRealtimeSubscription = useCallback(() => {
     const channel = supabase
-      .channel('speed-to-lead-changes')
+      .channel(`speed-to-lead-changes-${forceRefreshKey}`)
       .on(
         'postgres_changes',
         {
@@ -136,11 +150,30 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         },
         (payload) => {
           console.log('Real-time speed-to-lead update:', payload);
-          fetchStats();
-          toast({
-            title: "Live Update",
-            description: "Speed-to-lead data updated in real-time",
-          });
+          
+          // Handle different event types
+          if (payload.eventType === 'DELETE') {
+            console.log('Record deleted, removing from state:', payload.old);
+            setStats(prevStats => prevStats.filter(stat => stat.id !== payload.old.id));
+            toast({
+              title: "Live Update",
+              description: "Speed-to-lead record deleted",
+            });
+          } else if (payload.eventType === 'INSERT') {
+            console.log('Record inserted:', payload.new);
+            fetchStats();
+            toast({
+              title: "Live Update",
+              description: "New speed-to-lead record added",
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            console.log('Record updated:', payload.new);
+            fetchStats();
+            toast({
+              title: "Live Update",
+              description: "Speed-to-lead record updated",
+            });
+          }
         }
       )
       .on(
@@ -178,7 +211,16 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  };
+  }, [forceRefreshKey, fetchStats, toast]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
+    const cleanup = setupRealtimeSubscription();
+    return cleanup;
+  }, [setupRealtimeSubscription]);
 
   const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined }) => {
     setDateRange(range);
@@ -231,6 +273,7 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         onTriggerCalculation={triggerSpeedToLeadCalculation}
         outlierCount={outlierStats.length}
         onViewOutliers={() => setShowOutliersModal(true)}
+        onForceRefresh={forceRefresh}
       />
 
       <SpeedToLeadDateFilter
