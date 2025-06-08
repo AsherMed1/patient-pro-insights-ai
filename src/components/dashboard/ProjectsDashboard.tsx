@@ -61,8 +61,8 @@ const ProjectsDashboard = () => {
     }
   };
 
-  const fetchAllCalls = async (baseQuery: any) => {
-    let allCalls: any[] = [];
+  const fetchAllRecords = async (baseQuery: any, tableName: string) => {
+    let allRecords: any[] = [];
     let from = 0;
     const batchSize = 1000;
     let hasMore = true;
@@ -74,17 +74,17 @@ const ProjectsDashboard = () => {
       if (error) throw error;
       
       if (data && data.length > 0) {
-        allCalls = [...allCalls, ...data];
+        allRecords = [...allRecords, ...data];
         from += batchSize;
-        hasMore = data.length === batchSize; // Continue if we got a full batch
-        console.log(`Fetched batch: ${data.length} calls, total so far: ${allCalls.length}`);
+        hasMore = data.length === batchSize;
+        console.log(`Fetched ${tableName} batch: ${data.length} records, total so far: ${allRecords.length}`);
       } else {
         hasMore = false;
       }
     }
 
-    console.log(`Total calls fetched: ${allCalls.length}`);
-    return allCalls;
+    console.log(`Total ${tableName} fetched: ${allRecords.length}`);
+    return allRecords;
   };
 
   const fetchStats = async () => {
@@ -109,7 +109,6 @@ const ProjectsDashboard = () => {
       if (dateRange.from) {
         const fromDate = dateRange.from.toISOString().split('T')[0];
         leadsQuery = leadsQuery.gte('date', fromDate);
-        // Filter appointments by when they were created (booked), not appointment date
         appointmentsQuery = appointmentsQuery.gte('date_appointment_created', fromDate);
         callsBaseQuery = callsBaseQuery.gte('date', fromDate);
         adSpendQuery = adSpendQuery.gte('date', fromDate);
@@ -118,29 +117,22 @@ const ProjectsDashboard = () => {
       if (dateRange.to) {
         const toDate = dateRange.to.toISOString().split('T')[0];
         leadsQuery = leadsQuery.lte('date', toDate);
-        // Filter appointments by when they were created (booked), not appointment date
         appointmentsQuery = appointmentsQuery.lte('date_appointment_created', toDate);
         callsBaseQuery = callsBaseQuery.lte('date', toDate);
         adSpendQuery = adSpendQuery.lte('date', toDate);
       }
 
-      // Execute queries - fetch all calls with pagination
-      const [leadsResult, appointmentsResult, adSpendResult] = await Promise.all([
-        leadsQuery,
-        appointmentsQuery,
-        adSpendQuery
+      // Execute queries - fetch all records with pagination for large datasets
+      console.log('Starting to fetch all data with proper pagination...');
+      
+      const [leads, appointments, calls, adSpendData] = await Promise.all([
+        fetchAllRecords(leadsQuery, 'leads'),
+        fetchAllRecords(appointmentsQuery, 'appointments'),
+        fetchAllRecords(callsBaseQuery, 'calls'),
+        fetchAllRecords(adSpendQuery, 'ad_spend')
       ]);
 
-      // Fetch all calls using improved pagination
-      const calls = await fetchAllCalls(callsBaseQuery);
-
-      if (leadsResult.error) throw leadsResult.error;
-      if (appointmentsResult.error) throw appointmentsResult.error;
-      if (adSpendResult.error) throw adSpendResult.error;
-
-      const leads = leadsResult.data || [];
-      const appointments = appointmentsResult.data || [];
-      const adSpendData = adSpendResult.data || [];
+      console.log(`Final counts - Leads: ${leads.length}, Appointments: ${appointments.length}, Calls: ${calls.length}, Ad Spend: ${adSpendData.length}`);
 
       // Calculate metrics
       const newLeads = leads.length;
@@ -155,7 +147,7 @@ const ProjectsDashboard = () => {
 
       // Fixed shows and no-shows calculation logic
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to beginning of today for accurate comparison
+      today.setHours(0, 0, 0, 0);
 
       // Only count appointments that have occurred (past appointment date)
       const pastAppointments = appointments.filter(apt => {
