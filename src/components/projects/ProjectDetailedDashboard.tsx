@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import ProjectStatsCards from './ProjectStatsCards';
+import { ProjectStatsCards } from './ProjectStatsCards';
 import FormManagement from '@/components/forms/FormManagement';
 
 interface Project {
@@ -91,7 +91,12 @@ const ProjectDetailedDashboard = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <ProjectStatsCards projectName={project.project_name} />
+          <ProjectStatsCards stats={{
+            totalAppointments: 0,
+            totalShowed: 0,
+            totalProceduresOrdered: 0,
+            projectedRevenue: 0
+          }} />
         </TabsContent>
 
         <TabsContent value="questionnaires" className="space-y-6">

@@ -32,7 +32,7 @@ function App() {
             <Route path="/agent-claim" element={<AgentClaim />} />
             <Route path="/undo-import" element={<UndoImport />} />
             <Route path="/csv-import-history" element={<CsvImportHistory />} />
-            <Route path="/agent-stats" element={<AgentStatsPage />} />
+            <Route path="/agent-stats" element={<AgentStatsPage onBack={() => window.history.back()} />} />
             <Route path="/form/:slug" element={<PublicForm />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

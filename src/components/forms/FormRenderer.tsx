@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +42,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
       if (error) throw error;
       if (!projectForm?.form_templates) throw new Error('Form template not found');
 
-      setFormTemplate(projectForm.form_templates);
+      // Type cast the form_data to our expected structure
+      const typedTemplate = {
+        ...projectForm.form_templates,
+        form_data: projectForm.form_templates.form_data as { slides: FormSlide[] }
+      } as FormTemplate;
+
+      setFormTemplate(typedTemplate);
     } catch (error) {
       console.error('Error fetching form template:', error);
       toast({

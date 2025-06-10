@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,14 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
         .select('*');
       
       if (templatesError) throw templatesError;
-      setFormTemplates(templates || []);
+      
+      // Type cast the form_data to our expected structure
+      const typedTemplates = (templates || []).map(template => ({
+        ...template,
+        form_data: template.form_data as { slides: any[] }
+      })) as FormTemplate[];
+      
+      setFormTemplates(typedTemplates);
 
       // Fetch project forms
       const { data: forms, error: formsError } = await supabase
@@ -50,7 +56,17 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
         .eq('project_id', projectId);
       
       if (formsError) throw formsError;
-      setProjectForms(forms || []);
+      
+      // Type cast the nested form_templates data
+      const typedForms = (forms || []).map(form => ({
+        ...form,
+        form_templates: form.form_templates ? {
+          ...form.form_templates,
+          form_data: form.form_templates.form_data as { slides: any[] }
+        } : undefined
+      })) as ProjectForm[];
+      
+      setProjectForms(typedForms);
 
       // Fetch submissions for project forms
       if (forms && forms.length > 0) {
@@ -62,7 +78,16 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
           .order('submitted_at', { ascending: false });
         
         if (submissionsError) throw submissionsError;
-        setSubmissions(submissionData || []);
+        
+        // Type cast the submission data
+        const typedSubmissions = (submissionData || []).map(submission => ({
+          ...submission,
+          submission_data: submission.submission_data as Record<string, any>,
+          contact_info: submission.contact_info as Record<string, any>,
+          tags: Array.isArray(submission.tags) ? submission.tags : []
+        })) as FormSubmission[];
+        
+        setSubmissions(typedSubmissions);
       }
     } catch (error) {
       console.error('Error fetching form data:', error);
