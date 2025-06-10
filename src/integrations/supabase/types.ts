@@ -394,6 +394,80 @@ export type Database = {
         }
         Relationships: []
       }
+      form_submissions: {
+        Row: {
+          ai_summary: string | null
+          contact_info: Json | null
+          created_at: string
+          id: string
+          project_form_id: string
+          submission_data: Json
+          submitted_at: string
+          tags: Json | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          contact_info?: Json | null
+          created_at?: string
+          id?: string
+          project_form_id: string
+          submission_data: Json
+          submitted_at?: string
+          tags?: Json | null
+        }
+        Update: {
+          ai_summary?: string | null
+          contact_info?: Json | null
+          created_at?: string
+          id?: string
+          project_form_id?: string
+          submission_data?: Json
+          submitted_at?: string
+          tags?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_project_form_id_fkey"
+            columns: ["project_form_id"]
+            isOneToOne: false
+            referencedRelation: "project_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          form_data: Json
+          form_type: string
+          id: string
+          title: string
+          total_steps: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          form_data: Json
+          form_type: string
+          id?: string
+          title: string
+          total_steps?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          form_data?: Json
+          form_type?: string
+          id?: string
+          title?: string
+          total_steps?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       new_leads: {
         Row: {
           address: string | null
@@ -520,12 +594,58 @@ export type Database = {
         }
         Relationships: []
       }
+      project_forms: {
+        Row: {
+          created_at: string
+          form_template_id: string
+          id: string
+          is_active: boolean
+          project_id: string
+          public_url_slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          form_template_id: string
+          id?: string
+          is_active?: boolean
+          project_id: string
+          public_url_slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          form_template_id?: string
+          id?: string
+          is_active?: boolean
+          project_id?: string
+          public_url_slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_forms_form_template_id_fkey"
+            columns: ["form_template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_forms_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           active: boolean
           created_at: string
           id: string
           project_name: string
+          selected_form_types: string[] | null
           updated_at: string
         }
         Insert: {
@@ -533,6 +653,7 @@ export type Database = {
           created_at?: string
           id?: string
           project_name: string
+          selected_form_types?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -540,6 +661,7 @@ export type Database = {
           created_at?: string
           id?: string
           project_name?: string
+          selected_form_types?: string[] | null
           updated_at?: string
         }
         Relationships: []

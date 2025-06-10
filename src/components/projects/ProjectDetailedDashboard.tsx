@@ -1,140 +1,51 @@
+
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useParams } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, TrendingUp, Phone, Users, Target, DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
+import ProjectStatsCards from './ProjectStatsCards';
+import FormManagement from '@/components/forms/FormManagement';
 
 interface Project {
   id: string;
   project_name: string;
+  active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-interface ProjectDetailedDashboardProps {
-  project: Project;
-  children: React.ReactNode;
-}
-
-interface DashboardStats {
-  adSpend: number;
-  newLeads: number;
-  bookedAppointments: number;
-  noShows: number;
-  confirmedAppointments: number;
-  costPerLead: number;
-  bookingPercentage: number;
-  shows: number;
-  unconfirmedAppointments: number;
-  appointmentsToTakePlace: number;
-  confirmedPercentage: number;
-  outboundDials: number;
-  pickups40Plus: number;
-  conversations2Plus: number;
-}
-
-export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> = ({
-  project,
-  children
-}) => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+const ProjectDetailedDashboard = () => {
+  const { projectName } = useParams<{ projectName: string }>();
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchDetailedStats = async () => {
+  useEffect(() => {
+    if (projectName) {
+      fetchProject();
+    }
+  }, [projectName]);
+
+  const fetchProject = async () => {
     try {
-      setLoading(true);
-      
-      // Fetch leads
-      const { data: leads, error: leadsError } = await supabase
-        .from('new_leads')
+      const decodedProjectName = decodeURIComponent(projectName!);
+      const { data, error } = await supabase
+        .from('projects')
         .select('*')
-        .eq('project_name', project.project_name);
-      
-      if (leadsError) throw leadsError;
+        .eq('project_name', decodedProjectName)
+        .single();
 
-      // Fetch appointments
-      const { data: appointments, error: appointmentsError } = await supabase
-        .from('all_appointments')
-        .select('*')
-        .eq('project_name', project.project_name);
-      
-      if (appointmentsError) throw appointmentsError;
-
-      // Fetch calls
-      const { data: calls, error: callsError } = await supabase
-        .from('all_calls')
-        .select('*')
-        .eq('project_name', project.project_name);
-      
-      if (callsError) throw callsError;
-
-      // Fetch ad spend data
-      const { data: adSpendData, error: adSpendError } = await supabase
-        .from('facebook_ad_spend')
-        .select('spend')
-        .eq('project_name', project.project_name);
-      
-      if (adSpendError) throw adSpendError;
-
-      // Calculate stats using status instead of confirmed boolean
-      const newLeads = leads?.length || 0;
-      const bookedAppointments = appointments?.length || 0;
-      const shows = appointments?.filter(apt => apt.status === 'Showed').length || 0;
-      const noShows = appointments?.filter(apt => apt.status === 'No Show').length || 0;
-      const confirmedAppointments = appointments?.filter(apt => apt.status === 'Confirmed').length || 0;
-      const unconfirmedAppointments = appointments?.filter(apt => 
-        apt.status && !['Confirmed', 'Showed', 'No Show', 'Cancelled'].includes(apt.status)
-      ).length || 0;
-      const appointmentsToTakePlace = appointments?.filter(apt => 
-        new Date(apt.date_of_appointment) >= new Date()
-      ).length || 0;
-      
-      const outboundDials = calls?.filter(call => call.direction === 'outbound').length || 0;
-      const pickups40Plus = calls?.filter(call => 
-        call.status === 'completed' && call.duration_seconds >= 40
-      ).length || 0;
-      const conversations2Plus = calls?.filter(call => 
-        call.duration_seconds >= 120
-      ).length || 0;
-
-      // Calculate total ad spend
-      const adSpend = adSpendData?.reduce((sum, record) => {
-        const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
-        return sum + (isNaN(spendValue) ? 0 : spendValue);
-      }, 0) || 0;
-
-      // Calculate percentages
-      const bookingPercentage = newLeads > 0 ? (bookedAppointments / newLeads) * 100 : 0;
-      const confirmedPercentage = bookedAppointments > 0 ? (confirmedAppointments / bookedAppointments) * 100 : 0;
-      const costPerLead = newLeads > 0 && adSpend > 0 ? adSpend / newLeads : 0;
-
-      setStats({
-        adSpend,
-        newLeads,
-        bookedAppointments,
-        noShows,
-        confirmedAppointments,
-        costPerLead,
-        bookingPercentage,
-        shows,
-        unconfirmedAppointments,
-        appointmentsToTakePlace,
-        confirmedPercentage,
-        outboundDials,
-        pickups40Plus,
-        conversations2Plus
-      });
-
+      if (error) throw error;
+      setProject(data);
     } catch (error) {
-      console.error('Error fetching detailed stats:', error);
+      console.error('Error fetching project:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch detailed statistics",
+        description: "Failed to load project details",
         variant: "destructive",
       });
     } finally {
@@ -142,204 +53,81 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     }
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (newOpen && !stats) {
-      fetchDetailedStats();
-    }
-  };
-
-  const StatCard = ({ 
-    title, 
-    value, 
-    icon: Icon, 
-    color = "blue",
-    isPercentage = false,
-    isCurrency = false 
-  }: {
-    title: string;
-    value: number;
-    icon: any;
-    color?: string;
-    isPercentage?: boolean;
-    isCurrency?: boolean;
-  }) => {
-    const formatValue = () => {
-      if (isCurrency) return `$${value.toFixed(2)}`;
-      if (isPercentage) return `${value.toFixed(1)}%`;
-      return value.toString();
-    };
-
+  if (loading) {
     return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">{title}</p>
-              <p className={`text-2xl font-bold text-${color}-600`}>
-                {formatValue()}
-              </p>
-            </div>
-            <Icon className={`h-8 w-8 text-${color}-500`} />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-8">
+        <span>Loading project...</span>
+      </div>
     );
-  };
+  }
+
+  if (!project) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <span>Project not found</span>
+      </div>
+    );
+  }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <TrendingUp className="h-5 w-5" />
-            <span>Detailed Stats - {project.project_name}</span>
-          </DialogTitle>
-        </DialogHeader>
-        
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <span>Loading detailed statistics...</span>
-          </div>
-        ) : stats ? (
-          <div className="space-y-6">
-            {/* Marketing Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <DollarSign className="h-5 w-5" />
-                <span>Marketing Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatCard
-                  title="Ad Spend"
-                  value={stats.adSpend}
-                  icon={DollarSign}
-                  color="green"
-                  isCurrency
-                />
-                <StatCard
-                  title="New Leads"
-                  value={stats.newLeads}
-                  icon={Users}
-                  color="blue"
-                />
-                <StatCard
-                  title="Cost Per Lead"
-                  value={stats.costPerLead}
-                  icon={Target}
-                  color="purple"
-                  isCurrency
-                />
-              </div>
-            </div>
+    <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="flex items-center space-x-4">
+        <Button variant="outline" onClick={() => window.history.back()}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">{project.project_name}</h1>
+          <p className="text-muted-foreground">Project Dashboard</p>
+        </div>
+      </div>
 
-            {/* Appointment Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <Calendar className="h-5 w-5" />
-                <span>Appointment Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard
-                  title="Booked Appointments"
-                  value={stats.bookedAppointments}
-                  icon={Calendar}
-                  color="blue"
-                />
-                <StatCard
-                  title="Confirmed Appointments"
-                  value={stats.confirmedAppointments}
-                  icon={CheckCircle}
-                  color="green"
-                />
-                <StatCard
-                  title="Unconfirmed Appointments"
-                  value={stats.unconfirmedAppointments}
-                  icon={Clock}
-                  color="yellow"
-                />
-                <StatCard
-                  title="Appointments To Take Place"
-                  value={stats.appointmentsToTakePlace}
-                  icon={Calendar}
-                  color="purple"
-                />
-              </div>
-            </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="questionnaires">Questionnaires</TabsTrigger>
+          <TabsTrigger value="leads">Leads</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
 
-            {/* Show Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5" />
-                <span>Show Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatCard
-                  title="Shows"
-                  value={stats.shows}
-                  icon={CheckCircle}
-                  color="green"
-                />
-                <StatCard
-                  title="No Shows"
-                  value={stats.noShows}
-                  icon={XCircle}
-                  color="red"
-                />
-                <StatCard
-                  title="Confirmed Percentage"
-                  value={stats.confirmedPercentage}
-                  icon={Target}
-                  color="blue"
-                  isPercentage
-                />
-              </div>
-            </div>
+        <TabsContent value="overview" className="space-y-6">
+          <ProjectStatsCards projectName={project.project_name} />
+        </TabsContent>
 
-            {/* Call Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <Phone className="h-5 w-5" />
-                <span>Call Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard
-                  title="Outbound Dials"
-                  value={stats.outboundDials}
-                  icon={Phone}
-                  color="blue"
-                />
-                <StatCard
-                  title="Pickups (40+ Seconds)"
-                  value={stats.pickups40Plus}
-                  icon={CheckCircle}
-                  color="green"
-                />
-                <StatCard
-                  title="Conversations (2+ Minutes)"
-                  value={stats.conversations2Plus}
-                  icon={Clock}
-                  color="purple"
-                />
-                <StatCard
-                  title="Booking Percentage"
-                  value={stats.bookingPercentage}
-                  icon={Target}
-                  color="orange"
-                  isPercentage
-                />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <p>No data available</p>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        <TabsContent value="questionnaires" className="space-y-6">
+          <FormManagement projectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="leads" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lead Management</CardTitle>
+              <CardDescription>
+                Manage leads and submissions for this project
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Lead management features coming soon...</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Analytics & Reports</CardTitle>
+              <CardDescription>
+                Detailed analytics and reporting for this project
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Analytics features coming soon...</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
+
+export default ProjectDetailedDashboard;

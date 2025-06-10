@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -236,6 +235,10 @@ const ProjectsManager = () => {
     }
   };
 
+  const handleViewProject = (project: Project) => {
+    window.location.href = `/project/${encodeURIComponent(project.project_name)}/dashboard`;
+  };
+
   const openEditDialog = (project: Project) => {
     setEditingProject(project);
     setIsEditDialogOpen(true);
@@ -304,6 +307,7 @@ const ProjectsManager = () => {
                       onEdit={openEditDialog}
                       onDelete={handleDeleteProject}
                       onToggleStatus={handleToggleProjectStatus}
+                      onView={handleViewProject}
                     />
                   );
                 })}
@@ -330,6 +334,7 @@ const ProjectsManager = () => {
                       onEdit={openEditDialog}
                       onDelete={handleDeleteProject}
                       onToggleStatus={handleToggleProjectStatus}
+                      onView={handleViewProject}
                     />
                   );
                 })}
@@ -350,3 +355,5 @@ const ProjectsManager = () => {
 };
 
 export default ProjectsManager;
+
+}
