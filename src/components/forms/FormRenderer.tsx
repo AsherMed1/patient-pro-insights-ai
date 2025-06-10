@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle, Star, Shield, Users } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { FormTemplate, FormSlide } from './types';
@@ -42,7 +42,6 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
       if (error) throw error;
       if (!projectForm?.form_templates) throw new Error('Form template not found');
 
-      // Type cast the form_data to our expected structure
       const typedTemplate = {
         ...projectForm.form_templates,
         form_data: projectForm.form_templates.form_data as unknown as { slides: FormSlide[] }
@@ -67,7 +66,6 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
       [fieldName]: value
     }));
 
-    // Check for conditional follow-ups
     const slide = formTemplate?.form_data.slides[currentSlide];
     if (slide?.conditional_follow_up) {
       const { condition, value: conditionValue, values } = slide.conditional_follow_up;
@@ -117,7 +115,6 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
       if (!projectForm) throw new Error('Project form not found');
 
-      // Extract contact info and tags from form data
       const contactInfo = {
         first_name: formData.first_name,
         last_name: formData.last_name,
@@ -126,7 +123,6 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
         zip_code: formData.zip_code
       };
 
-      // Extract tags based on responses
       const tags: string[] = [];
       Object.entries(formData).forEach(([key, value]) => {
         const slide = formTemplate?.form_data.slides.find(s => s.field_name === key);
@@ -157,7 +153,6 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
         description: "Your assessment has been submitted successfully!",
       });
 
-      // Reset form or redirect
       setFormData({});
       setCurrentSlide(0);
     } catch (error) {
@@ -174,54 +169,86 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
     switch (slide.type) {
       case 'welcome':
         return (
-          <div className="text-center space-y-6">
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold text-primary">{slide.title}</h1>
-              {slide.description && (
-                <p className="text-lg text-muted-foreground">{slide.description}</p>
-              )}
+          <div className="text-center space-y-8 max-w-2xl mx-auto">
+            <div className="space-y-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <div className="space-y-4">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  {slide.title}
+                </h1>
+                {slide.description && (
+                  <p className="text-xl text-muted-foreground leading-relaxed">
+                    {slide.description}
+                  </p>
+                )}
+              </div>
             </div>
+            
             {slide.image_placeholder && (
-              <div className="bg-gray-100 rounded-lg p-8 text-gray-500">
-                📷 {slide.image_placeholder}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-12 border border-blue-200">
+                <div className="text-6xl mb-4">🏥</div>
+                <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
             )}
-            <Button onClick={handleNext} size="lg" className="w-full">
-              {slide.cta || 'Continue'}
+            
+            <div className="flex items-center justify-center space-x-8 text-sm text-muted-foreground">
+              <div className="flex items-center space-x-2">
+                <Shield className="w-4 h-4" />
+                <span>HIPAA Compliant</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Star className="w-4 h-4" />
+                <span>Trusted by 10k+ patients</span>
+              </div>
+            </div>
+            
+            <Button onClick={handleNext} size="lg" className="w-full max-w-md h-14 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
+              {slide.cta || 'Start Assessment'} →
             </Button>
           </div>
         );
 
       case 'educator':
         return (
-          <div className="space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold">{slide.title}</h2>
+          <div className="space-y-8 max-w-3xl mx-auto">
+            <div className="text-center space-y-4">
+              <h2 className="text-3xl font-bold text-gray-900">{slide.title}</h2>
               {slide.description && (
-                <p className="text-lg text-muted-foreground">{slide.description}</p>
+                <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+                  {slide.description}
+                </p>
               )}
             </div>
+            
             {slide.image_placeholder && (
-              <div className="bg-gray-100 rounded-lg p-8 text-gray-500 text-center">
-                📷 {slide.image_placeholder}
+              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-12 border border-green-200 text-center">
+                <div className="text-6xl mb-4">👩‍⚕️</div>
+                <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
             )}
+            
             {slide.doctors && (
-              <div className="space-y-2">
+              <div className="grid md:grid-cols-2 gap-6">
                 {slide.doctors.map((doctor, index) => (
-                  <div key={index} className="text-center">
-                    <p className="font-semibold">{doctor.name}</p>
-                    <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
+                  <div key={index} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-lg text-gray-900">{doctor.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{doctor.specialty}</p>
                   </div>
                 ))}
               </div>
             )}
+            
             <div className="flex gap-4">
-              <Button variant="outline" onClick={handlePrevious} className="flex-1">
+              <Button variant="outline" onClick={handlePrevious} className="flex-1 h-12">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
-              <Button onClick={handleNext} className="flex-1">
+              <Button onClick={handleNext} className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -231,32 +258,48 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
       case 'question':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-center">{slide.title}</h2>
+          <div className="space-y-8 max-w-2xl mx-auto">
+            <div className="text-center space-y-4">
+              <h2 className="text-3xl font-bold text-gray-900">{slide.title}</h2>
+            </div>
             
             {slide.image_placeholder && (
-              <div className="bg-gray-100 rounded-lg p-8 text-gray-500 text-center">
-                📷 {slide.image_placeholder}
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-12 border border-purple-200 text-center">
+                <div className="text-6xl mb-4">🩺</div>
+                <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
             )}
 
             {slide.field_type === 'radio' && slide.options && (
               <div className="space-y-3">
                 {slide.options.map((option) => (
-                  <div key={option.value} className="flex items-center space-x-2">
+                  <label
+                    key={option.value}
+                    className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-gray-50 ${
+                      formData[slide.field_name!] === option.value 
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                        : 'border-gray-200'
+                    }`}
+                  >
                     <input
                       type="radio"
-                      id={`${slide.field_name}-${option.value}`}
                       name={slide.field_name}
                       value={option.value}
                       checked={formData[slide.field_name!] === option.value}
                       onChange={(e) => handleInputChange(slide.field_name!, e.target.value)}
-                      className="w-4 h-4"
+                      className="sr-only"
                     />
-                    <Label htmlFor={`${slide.field_name}-${option.value}`} className="flex-1 cursor-pointer">
-                      {option.label}
-                    </Label>
-                  </div>
+                    <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
+                      formData[slide.field_name!] === option.value 
+                        ? 'border-blue-500 bg-blue-500' 
+                        : 'border-gray-300'
+                    }`}>
+                      {formData[slide.field_name!] === option.value && (
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      )}
+                    </div>
+                    <span className="text-lg font-medium text-gray-900">{option.label}</span>
+                  </label>
                 ))}
               </div>
             )}
@@ -264,7 +307,14 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
             {slide.field_type === 'checkbox' && slide.options && (
               <div className="space-y-3">
                 {slide.options.map((option) => (
-                  <div key={option.value} className="flex items-center space-x-2">
+                  <label
+                    key={option.value}
+                    className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-gray-50 ${
+                      formData[slide.field_name!]?.includes(option.value) 
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                        : 'border-gray-200'
+                    }`}
+                  >
                     <Checkbox
                       id={`${slide.field_name}-${option.value}`}
                       checked={formData[slide.field_name!]?.includes(option.value) || false}
@@ -275,62 +325,83 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                           : current.filter((v: string) => v !== option.value);
                         handleInputChange(slide.field_name!, updated);
                       }}
+                      className="mr-4"
                     />
-                    <Label htmlFor={`${slide.field_name}-${option.value}`} className="flex-1 cursor-pointer">
-                      {option.label}
-                    </Label>
-                  </div>
+                    <span className="text-lg font-medium text-gray-900">{option.label}</span>
+                  </label>
                 ))}
               </div>
             )}
 
             {slide.field_type === 'range' && (
-              <div className="space-y-4">
-                <input
-                  type="range"
-                  min={slide.min || 1}
-                  max={slide.max || 10}
-                  value={formData[slide.field_name!] || slide.min || 1}
-                  onChange={(e) => handleInputChange(slide.field_name!, Number(e.target.value))}
-                  className="w-full"
-                />
-                <div className="text-center text-2xl font-bold">
-                  {formData[slide.field_name!] || slide.min || 1}
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-8 rounded-2xl border border-blue-200">
+                  <input
+                    type="range"
+                    min={slide.min || 1}
+                    max={slide.max || 10}
+                    value={formData[slide.field_name!] || slide.min || 1}
+                    onChange={(e) => handleInputChange(slide.field_name!, Number(e.target.value))}
+                    className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-sm text-gray-600 mt-2">
+                    <span>{slide.min || 1}</span>
+                    <span>{slide.max || 10}</span>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-6xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    {formData[slide.field_name!] || slide.min || 1}
+                  </div>
+                  <p className="text-gray-600 mt-2">Selected Value</p>
                 </div>
               </div>
             )}
 
             {/* Conditional follow-up */}
             {showFollowUp[currentSlide] && slide.conditional_follow_up && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg space-y-4">
-                <h3 className="font-semibold">{slide.conditional_follow_up.question.title}</h3>
-                <div className="space-y-2">
+              <div className="mt-8 p-6 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl border border-yellow-200">
+                <h3 className="font-semibold text-lg mb-4 text-gray-900">{slide.conditional_follow_up.question.title}</h3>
+                <div className="space-y-3">
                   {slide.conditional_follow_up.question.options.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-2">
+                    <label
+                      key={option.value}
+                      className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white ${
+                        formData[slide.conditional_follow_up!.question.field_name] === option.value 
+                          ? 'border-orange-500 bg-orange-50' 
+                          : 'border-orange-200'
+                      }`}
+                    >
                       <input
                         type="radio"
-                        id={`${slide.conditional_follow_up!.question.field_name}-${option.value}`}
-                        name={slide.conditional_follow_up!.question.field_name}
+                        name={slide.conditional_follow_up.question.field_name}
                         value={option.value}
-                        checked={formData[slide.conditional_follow_up!.question.field_name] === option.value}
+                        checked={formData[slide.conditional_follow_up.question.field_name] === option.value}
                         onChange={(e) => handleInputChange(slide.conditional_follow_up!.question.field_name, e.target.value)}
-                        className="w-4 h-4"
+                        className="sr-only"
                       />
-                      <Label htmlFor={`${slide.conditional_follow_up!.question.field_name}-${option.value}`} className="flex-1 cursor-pointer">
-                        {option.label}
-                      </Label>
-                    </div>
+                      <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
+                        formData[slide.conditional_follow_up.question.field_name] === option.value 
+                          ? 'border-orange-500 bg-orange-500' 
+                          : 'border-orange-300'
+                      }`}>
+                        {formData[slide.conditional_follow_up.question.field_name] === option.value && (
+                          <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                        )}
+                      </div>
+                      <span className="font-medium text-gray-900">{option.label}</span>
+                    </label>
                   ))}
                 </div>
               </div>
             )}
 
             <div className="flex gap-4">
-              <Button variant="outline" onClick={handlePrevious} className="flex-1">
+              <Button variant="outline" onClick={handlePrevious} className="flex-1 h-12">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
-              <Button onClick={handleNext} className="flex-1">
+              <Button onClick={handleNext} className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -340,51 +411,61 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
       case 'lead_capture':
         return (
-          <div className="space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold">{slide.title}</h2>
+          <div className="space-y-8 max-w-2xl mx-auto">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900">{slide.title}</h2>
               {slide.description && (
-                <p className="text-muted-foreground">{slide.description}</p>
+                <p className="text-lg text-muted-foreground leading-relaxed">{slide.description}</p>
               )}
             </div>
 
             {slide.image_placeholder && (
-              <div className="bg-gray-100 rounded-lg p-8 text-gray-500 text-center">
-                📷 {slide.image_placeholder}
+              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-12 border border-green-200 text-center">
+                <div className="text-6xl mb-4">📋</div>
+                <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {slide.fields?.map((field) => (
-                <div key={field.field_name} className="space-y-2">
-                  <Label htmlFor={field.field_name}>{field.label}</Label>
-                  {field.field_type === 'select' ? (
-                    <Select
-                      value={formData[field.field_name] || ''}
-                      onValueChange={(value) => handleInputChange(field.field_name, value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={`Select ${field.label}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {field.options?.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id={field.field_name}
-                      type={field.field_type}
-                      value={formData[field.field_name] || ''}
-                      onChange={(e) => handleInputChange(field.field_name, e.target.value)}
-                      required={field.required}
-                    />
-                  )}
-                </div>
-              ))}
+            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {slide.fields?.map((field) => (
+                  <div key={field.field_name} className="space-y-2">
+                    <Label htmlFor={field.field_name} className="text-sm font-semibold text-gray-700">
+                      {field.label}
+                    </Label>
+                    {field.field_type === 'select' ? (
+                      <Select
+                        value={formData[field.field_name] || ''}
+                        onValueChange={(value) => handleInputChange(field.field_name, value)}
+                      >
+                        <SelectTrigger className="h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-200">
+                          <SelectValue placeholder={`Select ${field.label}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {field.options?.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id={field.field_name}
+                        type={field.field_type}
+                        value={formData[field.field_name] || ''}
+                        onChange={(e) => handleInputChange(field.field_name, e.target.value)}
+                        required={field.required}
+                        className="h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-200"
+                        placeholder={`Enter your ${field.label.toLowerCase()}`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -392,10 +473,10 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                 <Button 
                   key={cta.value} 
                   onClick={handleSubmit} 
-                  className="w-full" 
+                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 shadow-lg"
                   size="lg"
                 >
-                  {cta.label}
+                  {cta.label} →
                 </Button>
               ))}
             </div>
@@ -404,26 +485,34 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
       case 'ai_summary':
         return (
-          <div className="space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold">{slide.title}</h2>
+          <div className="space-y-8 max-w-2xl mx-auto">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto">
+                <Star className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900">{slide.title}</h2>
               {slide.description && (
-                <p className="text-muted-foreground">{slide.description}</p>
+                <p className="text-lg text-muted-foreground leading-relaxed">{slide.description}</p>
               )}
             </div>
             
-            <div className="bg-blue-50 p-6 rounded-lg">
-              <p className="text-lg">
-                Based on your responses, our care team will review your assessment and provide personalized recommendations for your knee pain treatment options.
-              </p>
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-8 rounded-2xl border border-purple-200">
+              <div className="text-center space-y-4">
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto">
+                  <Star className="w-6 h-6 text-white" />
+                </div>
+                <p className="text-lg leading-relaxed text-gray-700">
+                  Based on your responses, our care team will review your assessment and provide personalized recommendations for your knee pain treatment options.
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-4">
-              <Button variant="outline" onClick={handlePrevious} className="flex-1">
+              <Button variant="outline" onClick={handlePrevious} className="flex-1 h-12">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
-              <Button onClick={handleNext} className="flex-1">
+              <Button onClick={handleNext} className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -438,10 +527,15 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-          <p className="mt-4 text-muted-foreground">Loading assessment...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center space-y-6">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-spin flex items-center justify-center mx-auto">
+            <div className="w-8 h-8 bg-white rounded-full"></div>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-gray-900">Loading Assessment</h2>
+            <p className="text-muted-foreground">Preparing your personalized experience...</p>
+          </div>
         </div>
       </div>
     );
@@ -449,10 +543,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
   if (!formTemplate) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center">
-            <h2 className="text-xl font-semibold mb-2">Form Not Found</h2>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-gradient-to-r from-red-500 to-orange-600 rounded-full flex items-center justify-center mx-auto">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900">Form Not Found</h2>
             <p className="text-muted-foreground">
               The requested form is not available or has been disabled.
             </p>
@@ -466,25 +563,30 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
   const progress = ((currentSlide + 1) / formTemplate.total_steps) * 100;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
           {/* Progress bar */}
           <div className="mb-8">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-muted-foreground">
                 Step {currentSlide + 1} of {formTemplate.total_steps}
               </span>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm font-medium text-muted-foreground">
                 {Math.round(progress)}% Complete
               </span>
             </div>
-            <Progress value={progress} className="w-full" />
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
           </div>
 
           {/* Form content */}
-          <Card>
-            <CardContent className="p-8">
+          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-8 md:p-12">
               {renderSlide(currentSlideData)}
             </CardContent>
           </Card>
