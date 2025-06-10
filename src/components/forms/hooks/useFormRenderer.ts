@@ -101,9 +101,128 @@ export const useFormRenderer = (slug: string) => {
     }
   };
 
+  const generateAISummary = (data: Record<string, any>, template: FormTemplate) => {
+    // Generate AI summary based on form responses for PFE survey
+    if (template.form_type === 'pfe_screening') {
+      const painDuration = data.pain_duration;
+      const treatments = Array.isArray(data.treatment_history) ? data.treatment_history : [];
+      const mainMotivators = Array.isArray(data.main_motivator) ? data.main_motivator : [];
+      const activityLimitation = data.activity_limitation;
+      const mobilityLimitation = data.mobility_limitation;
+
+      let summary = `Based on your answers, you've had `;
+      
+      // Pain duration
+      switch (painDuration) {
+        case 'less_than_1_month':
+          summary += 'heel pain for less than 1 month';
+          break;
+        case '1_to_3_months':
+          summary += 'heel pain for 1-3 months';
+          break;
+        case '3_to_6_months':
+          summary += 'chronic heel pain for 3-6 months';
+          break;
+        case 'more_than_6_months':
+          summary += 'chronic heel pain for more than 6 months';
+          break;
+        default:
+          summary += 'ongoing heel pain';
+      }
+
+      // Treatment history
+      if (treatments.length > 0) {
+        const treatmentLabels = treatments.map((t: string) => {
+          switch (t) {
+            case 'orthotics': return 'orthotics';
+            case 'ice_therapy': return 'ice therapy';
+            case 'otc_pain_meds': return 'over-the-counter pain medications';
+            case 'cortisone_injections': return 'cortisone injections';
+            case 'physical_therapy': return 'physical therapy';
+            case 'night_splints': return 'night splints';
+            default: return t;
+          }
+        });
+        summary += `, have tried ${treatmentLabels.join(', ')}`;
+      }
+
+      // Impact on life
+      const impacts = [];
+      if (activityLimitation === 'often' || activityLimitation === 'always') {
+        impacts.push('exercise and activity limitations');
+      }
+      if (mobilityLimitation === 'often' || mobilityLimitation === 'always') {
+        impacts.push('difficulty with standing and walking');
+      }
+      if (mainMotivators.includes('missing_activities')) {
+        impacts.push('missing out on activities');
+      }
+      if (mainMotivators.includes('work_exercise_impact')) {
+        impacts.push('work and exercise limitations');
+      }
+
+      if (impacts.length > 0) {
+        summary += `, and it's causing ${impacts.join(', ')}`;
+      }
+
+      summary += '. You may be a strong candidate for Plantar Fascia Embolization.';
+      
+      return summary;
+    }
+
+    return 'Thank you for completing the assessment. Our team will review your responses.';
+  };
+
+  const collectTags = (data: Record<string, any>, template: FormTemplate): string[] => {
+    const tags: string[] = [];
+    
+    // Process each slide's responses for tags
+    template.form_data.slides.forEach(slide => {
+      if (slide.field_name && data[slide.field_name] && slide.options) {
+        const fieldValue = data[slide.field_name];
+        
+        if (Array.isArray(fieldValue)) {
+          // Multi-select field (checkbox)
+          fieldValue.forEach(value => {
+            const option = slide.options?.find(o => o.value === value);
+            if (option?.tags) {
+              tags.push(...option.tags);
+            }
+          });
+        } else {
+          // Single select field (radio)
+          const option = slide.options?.find(o => o.value === fieldValue);
+          if (option?.tags) {
+            tags.push(...option.tags);
+          }
+        }
+      }
+    });
+
+    // Add special logic tags for PFE survey
+    if (template.form_type === 'pfe_screening') {
+      // Failed conservative treatment if 3+ treatments tried
+      const treatments = data.treatment_history;
+      if (Array.isArray(treatments) && treatments.length >= 3) {
+        tags.push('Failed_Conservative_Tx');
+      }
+
+      // Likely PFE candidate based on multiple factors
+      const chronicPain = tags.includes('Chronic_Pain');
+      const hasSymptoms = tags.includes('Classic_PF_Symptoms');
+      const activityLimited = tags.includes('Activity_Limited') || tags.includes('Mobility_Limited');
+      
+      if (chronicPain && (hasSymptoms || activityLimited)) {
+        tags.push('Likely_PFE_Candidate');
+      }
+    }
+
+    return [...new Set(tags)]; // Remove duplicates
+  };
+
   const handleSubmit = async () => {
     try {
-      if (!projectForm) throw new Error('Project form not found');
+      if (!projectForm || !formTemplate) throw new Error('Project form not found');
 
       const contactInfo = {
         first_name: formData.first_name,
@@ -113,19 +232,8 @@ export const useFormRenderer = (slug: string) => {
         zip_code: formData.zip_code
       };
 
-      const tags: string[] = [];
-      Object.entries(formData).forEach(([key, value]) => {
-        const slide = formTemplate?.form_data.slides.find(s => s.field_name === key);
-        if (slide?.options) {
-          const selectedOptions = Array.isArray(value) ? value : [value];
-          selectedOptions.forEach(selectedValue => {
-            const option = slide.options?.find(o => o.value === selectedValue);
-            if (option?.tags) {
-              tags.push(...option.tags);
-            }
-          });
-        }
-      });
+      const tags = collectTags(formData, formTemplate);
+      const aiSummary = generateAISummary(formData, formTemplate);
 
       const { error } = await supabase
         .from('form_submissions')
@@ -133,6 +241,7 @@ export const useFormRenderer = (slug: string) => {
           project_form_id: projectForm.id,
           submission_data: formData,
           tags,
+          ai_summary: aiSummary,
           contact_info: contactInfo
         });
 
