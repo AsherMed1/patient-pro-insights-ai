@@ -1,94 +1,66 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, ExternalLink, FileText, Users } from 'lucide-react';
-import type { FormTemplate, ProjectForm, FormSubmission } from './types';
+import { Eye, Settings2, Copy, ExternalLink, Palette } from 'lucide-react';
+import ProjectBrandingEditor from './ProjectBrandingEditor';
+import type { ProjectForm } from './types';
 
-interface FormManagementProps {
-  projectId: string;
+interface Project {
+  id: string;
+  project_name: string;
+  custom_logo_url?: string;
+  brand_primary_color?: string;
+  brand_secondary_color?: string;
+  custom_insurance_list?: any[];
+  custom_doctors?: any[];
+  custom_facility_info?: any;
 }
 
-const FormManagement = ({ projectId }: FormManagementProps) => {
-  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+const FormManagement = () => {
   const [projectForms, setProjectForms] = useState<ProjectForm[]>([]);
-  const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [brandingEditorOpen, setBrandingEditorOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchData();
-  }, [projectId]);
+    fetchProjectForms();
+    fetchProjects();
+  }, []);
 
-  const fetchData = async () => {
+  const fetchProjectForms = async () => {
     try {
-      setLoading(true);
-      
-      // Fetch available form templates
-      const { data: templates, error: templatesError } = await supabase
-        .from('form_templates')
-        .select('*')
-        .neq('form_type', 'insurance_reference');
-      
-      if (templatesError) throw templatesError;
-      
-      const typedTemplates = (templates || []).map(template => ({
-        ...template,
-        form_data: template.form_data as { slides: any[] }
-      })) as FormTemplate[];
-      
-      setFormTemplates(typedTemplates);
-
-      // Fetch project forms
-      const { data: forms, error: formsError } = await supabase
+      const { data, error } = await supabase
         .from('project_forms')
         .select(`
           *,
-          form_templates (*)
+          form_templates (*),
+          projects (
+            id,
+            project_name,
+            custom_logo_url,
+            brand_primary_color,
+            brand_secondary_color,
+            custom_insurance_list,
+            custom_doctors,
+            custom_facility_info
+          )
         `)
-        .eq('project_id', projectId);
-      
-      if (formsError) throw formsError;
-      
-      const typedForms = (forms || []).map(form => ({
-        ...form,
-        form_templates: form.form_templates ? {
-          ...form.form_templates,
-          form_data: form.form_templates.form_data as { slides: any[] }
-        } : undefined
-      })) as ProjectForm[];
-      
-      setProjectForms(typedForms);
+        .order('created_at', { ascending: false });
 
-      // Fetch submissions for project forms
-      if (forms && forms.length > 0) {
-        const formIds = forms.map(f => f.id);
-        const { data: submissionData, error: submissionsError } = await supabase
-          .from('form_submissions')
-          .select('*')
-          .in('project_form_id', formIds)
-          .order('submitted_at', { ascending: false });
-        
-        if (submissionsError) throw submissionsError;
-        
-        const typedSubmissions = (submissionData || []).map(submission => ({
-          ...submission,
-          submission_data: submission.submission_data as Record<string, any>,
-          contact_info: submission.contact_info as Record<string, any>,
-          tags: Array.isArray(submission.tags) ? submission.tags : []
-        })) as FormSubmission[];
-        
-        setSubmissions(typedSubmissions);
-      }
+      if (error) throw error;
+      setProjectForms(data || []);
     } catch (error) {
-      console.error('Error fetching form data:', error);
+      console.error('Error fetching project forms:', error);
       toast({
         title: "Error",
-        description: "Failed to load form data",
+        description: "Failed to fetch forms",
         variant: "destructive",
       });
     } finally {
@@ -96,262 +68,183 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
     }
   };
 
-  const createProjectForm = async (templateId: string) => {
+  const fetchProjects = async () => {
     try {
-      const template = formTemplates.find(t => t.id === templateId);
-      if (!template) return;
-
-      const slug = `${template.form_type}-${Date.now()}`;
-
-      const { error } = await supabase
-        .from('project_forms')
-        .insert({
-          project_id: projectId,
-          form_template_id: templateId,
-          public_url_slug: slug,
-          is_active: true
-        });
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('project_name');
 
       if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Form created successfully!",
-      });
-
-      await fetchData();
+      setProjects(data || []);
     } catch (error) {
-      console.error('Error creating form:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create form",
-        variant: "destructive",
-      });
+      console.error('Error fetching projects:', error);
     }
   };
 
-  const toggleFormStatus = async (formId: string, isActive: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('project_forms')
-        .update({ is_active: !isActive })
-        .eq('id', formId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Form ${!isActive ? 'activated' : 'deactivated'} successfully`,
-      });
-
-      await fetchData();
-    } catch (error) {
-      console.error('Error updating form status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update form status",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const copyPublicUrl = (slug: string) => {
-    const url = `${window.location.origin}/form/${slug}`;
-    navigator.clipboard.writeText(url);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
     toast({
       title: "Copied!",
-      description: "Form URL copied to clipboard",
+      description: "URL copied to clipboard",
     });
   };
 
-  const openForm = (slug: string) => {
-    const url = `${window.location.origin}/form/${slug}`;
-    window.open(url, '_blank');
+  const openBrandingEditor = (project: Project) => {
+    setSelectedProject(project);
+    setBrandingEditorOpen(true);
+  };
+
+  const handleBrandingSaved = () => {
+    fetchProjectForms();
+    fetchProjects();
   };
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <span>Loading forms...</span>
-        </CardContent>
-      </Card>
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">Loading forms...</div>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Form Management</h1>
+          <p className="text-muted-foreground">Manage your project forms and branding</p>
+        </div>
+      </div>
+
+      {/* Project Branding Section */}
+      <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <FileText className="h-5 w-5" />
-            <span>Questionnaire Management</span>
+            <Palette className="w-5 h-5" />
+            <span>Project Branding</span>
           </CardTitle>
-          <CardDescription>
-            Create and manage public forms for lead capture and assessments. All forms inherit your project's branding settings.
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="active" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="active">Active Forms</TabsTrigger>
-              <TabsTrigger value="templates">Available Templates</TabsTrigger>
-              <TabsTrigger value="submissions">Submissions</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="active" className="space-y-4">
-              {projectForms.filter(f => f.is_active).length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No active forms found.</p>
-                  <p className="text-sm">Create a form from the templates tab.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map((project) => (
+              <div key={project.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold">{project.project_name}</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openBrandingEditor(project)}
+                    className="flex items-center space-x-1"
+                  >
+                    <Settings2 className="w-4 h-4" />
+                    <span>Edit Branding</span>
+                  </Button>
                 </div>
-              ) : (
-                <div className="grid gap-4">
-                  {projectForms.filter(f => f.is_active).map((form) => (
-                    <Card key={form.id} className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <h3 className="font-semibold">{form.form_templates?.title}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {form.form_templates?.description}
-                          </p>
-                          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                            <span>{form.form_templates?.total_steps} steps</span>
-                            <span>•</span>
-                            <span>{submissions.filter(s => s.project_form_id === form.id).length} submissions</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant={form.is_active ? "default" : "secondary"}>
-                            {form.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copyPublicUrl(form.public_url_slug)}
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openForm(form.public_url_slug)}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant={form.is_active ? "destructive" : "default"}
-                            size="sm"
-                            onClick={() => toggleFormStatus(form.id, form.is_active)}
-                          >
-                            {form.is_active ? "Deactivate" : "Activate"}
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="mt-3 p-2 bg-gray-50 rounded text-xs font-mono">
-                        {`${window.location.origin}/form/${form.public_url_slug}`}
-                      </div>
-                    </Card>
-                  ))}
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: project.brand_primary_color || '#3B82F6' }}
+                    ></div>
+                    <span>Primary: {project.brand_primary_color || '#3B82F6'}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: project.brand_secondary_color || '#8B5CF6' }}
+                    ></div>
+                    <span>Secondary: {project.brand_secondary_color || '#8B5CF6'}</span>
+                  </div>
+                  {project.custom_logo_url && (
+                    <div>✓ Custom logo configured</div>
+                  )}
+                  <div>
+                    Insurance providers: {(project.custom_insurance_list as any[])?.length || 0}
+                  </div>
+                  <div>
+                    Doctors: {(project.custom_doctors as any[])?.length || 0}
+                  </div>
                 </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="templates" className="space-y-4">
-              <div className="grid gap-4">
-                {formTemplates.map((template) => {
-                  const hasForm = projectForms.some(f => f.form_template_id === template.id);
-                  
-                  return (
-                    <Card key={template.id} className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <h3 className="font-semibold">{template.title}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {template.description}
-                          </p>
-                          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                            <span>{template.total_steps} steps</span>
-                            <span>•</span>
-                            <span>Type: {template.form_type}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {hasForm && (
-                            <Badge variant="secondary">Already Created</Badge>
-                          )}
-                          <Button
-                            onClick={() => createProjectForm(template.id)}
-                            disabled={hasForm}
-                          >
-                            {hasForm ? "Created" : "Create Form"}
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
               </div>
-            </TabsContent>
-
-            <TabsContent value="submissions" className="space-y-4">
-              <div className="flex items-center space-x-2 mb-4">
-                <Users className="h-5 w-5" />
-                <span className="font-semibold">
-                  {submissions.length} Total Submissions
-                </span>
-              </div>
-              
-              {submissions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No submissions yet.</p>
-                  <p className="text-sm">Share your forms to start collecting responses.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {submissions.map((submission) => {
-                    const form = projectForms.find(f => f.id === submission.project_form_id);
-                    
-                    return (
-                      <Card key={submission.id} className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <h3 className="font-semibold">
-                              {submission.contact_info?.first_name} {submission.contact_info?.last_name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              {form?.form_templates?.title}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Submitted: {new Date(submission.submitted_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="text-right space-y-1">
-                            <p className="text-sm">{submission.contact_info?.email}</p>
-                            <p className="text-sm">{submission.contact_info?.phone}</p>
-                            <div className="flex flex-wrap gap-1">
-                              {submission.tags.slice(0, 3).map((tag, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {submission.tags.length > 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{submission.tags.length - 3}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+            ))}
+          </div>
         </CardContent>
       </Card>
+
+      {/* Forms Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {projectForms.map((projectForm) => (
+          <Card key={projectForm.id} className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">
+                  {projectForm.form_templates?.title}
+                </CardTitle>
+                <Badge variant={projectForm.is_active ? "default" : "secondary"}>
+                  {projectForm.is_active ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {projectForm.projects?.project_name}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                {projectForm.form_templates?.description}
+              </p>
+              
+              <div className="text-xs text-muted-foreground">
+                Form Type: {projectForm.form_templates?.form_type}
+              </div>
+
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard(`${window.location.origin}/form/${projectForm.public_url_slug}`)}
+                    className="flex-1"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy URL
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(`/form/${projectForm.public_url_slug}`, '_blank')}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="text-xs text-muted-foreground break-all">
+                  /form/{projectForm.public_url_slug}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {projectForms.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-gray-500">No forms found</div>
+          <p className="text-sm text-muted-foreground mt-2">
+            Create forms by assigning form templates to your projects
+          </p>
+        </div>
+      )}
+
+      {/* Project Branding Editor */}
+      {selectedProject && (
+        <ProjectBrandingEditor
+          project={selectedProject}
+          isOpen={brandingEditorOpen}
+          onClose={() => setBrandingEditorOpen(false)}
+          onSave={handleBrandingSaved}
+        />
+      )}
     </div>
   );
 };
