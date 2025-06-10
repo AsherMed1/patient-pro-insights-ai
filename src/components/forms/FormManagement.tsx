@@ -21,7 +21,11 @@ interface Project {
   custom_facility_info?: any;
 }
 
-const FormManagement = () => {
+interface FormManagementProps {
+  projectId?: string;
+}
+
+const FormManagement = ({ projectId }: FormManagementProps) => {
   const [projectForms, setProjectForms] = useState<ProjectForm[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -32,11 +36,11 @@ const FormManagement = () => {
   useEffect(() => {
     fetchProjectForms();
     fetchProjects();
-  }, []);
+  }, [projectId]);
 
   const fetchProjectForms = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('project_forms')
         .select(`
           *,
@@ -54,8 +58,24 @@ const FormManagement = () => {
         `)
         .order('created_at', { ascending: false });
 
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      setProjectForms(data || []);
+      
+      // Transform the data to match our types
+      const transformedData = (data || []).map(item => ({
+        ...item,
+        form_templates: {
+          ...item.form_templates,
+          form_data: item.form_templates?.form_data as unknown as { slides: any[] }
+        }
+      })) as ProjectForm[];
+
+      setProjectForms(transformedData);
     } catch (error) {
       console.error('Error fetching project forms:', error);
       toast({
@@ -70,13 +90,34 @@ const FormManagement = () => {
 
   const fetchProjects = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('projects')
         .select('*')
         .order('project_name');
 
+      if (projectId) {
+        query = query.eq('id', projectId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      setProjects(data || []);
+      
+      // Transform the data to match our types
+      const transformedData = (data || []).map(project => ({
+        ...project,
+        custom_insurance_list: Array.isArray(project.custom_insurance_list) 
+          ? project.custom_insurance_list 
+          : [],
+        custom_doctors: Array.isArray(project.custom_doctors) 
+          ? project.custom_doctors 
+          : [],
+        custom_facility_info: typeof project.custom_facility_info === 'object' 
+          ? project.custom_facility_info 
+          : {}
+      })) as Project[];
+
+      setProjects(transformedData);
     } catch (error) {
       console.error('Error fetching projects:', error);
     }
@@ -160,10 +201,10 @@ const FormManagement = () => {
                     <div>✓ Custom logo configured</div>
                   )}
                   <div>
-                    Insurance providers: {(project.custom_insurance_list as any[])?.length || 0}
+                    Insurance providers: {project.custom_insurance_list?.length || 0}
                   </div>
                   <div>
-                    Doctors: {(project.custom_doctors as any[])?.length || 0}
+                    Doctors: {project.custom_doctors?.length || 0}
                   </div>
                 </div>
               </div>
