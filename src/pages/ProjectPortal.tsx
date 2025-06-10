@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
-import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
+import ProjectDetailedDashboard from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 
@@ -173,11 +173,11 @@ const ProjectPortal = () => {
 
         {/* Small detailed analytics link below stats */}
         <div className="text-center">
-          <ProjectDetailedDashboard project={project}>
+          <Link to={`/project/${encodeURIComponent(project.project_name)}/dashboard`}>
             <button className="text-sm text-blue-600 hover:text-blue-800 underline">
               View detailed analytics
             </button>
-          </ProjectDetailedDashboard>
+          </Link>
         </div>
 
         {/* Appointments Section - Only confirmed appointments */}

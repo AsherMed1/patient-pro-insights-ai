@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Edit, Trash2, Power, PowerOff, Eye } from "lucide-react";
 import { DeleteProjectDialog } from './DeleteProjectDialog';
-import { useState } from 'react';
 
 interface Project {
   id: string;
@@ -43,8 +42,6 @@ export const ProjectCard = ({
   onToggleStatus,
   onView 
 }: ProjectCardProps) => {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -60,108 +57,93 @@ export const ProjectCard = ({
   };
 
   return (
-    <>
-      <Card className={`transition-all duration-200 hover:shadow-md ${!project.active ? 'opacity-60' : ''}`}>
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1 flex-1">
-              <CardTitle className="text-lg line-clamp-1">{project.project_name}</CardTitle>
-              <div className="flex items-center space-x-2">
-                <Badge variant={project.active ? "default" : "secondary"}>
-                  {project.active ? "Active" : "Inactive"}
-                </Badge>
-              </div>
+    <Card className={`transition-all duration-200 hover:shadow-md ${!project.active ? 'opacity-60' : ''}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1 flex-1">
+            <CardTitle className="text-lg line-clamp-1">{project.project_name}</CardTitle>
+            <div className="flex items-center space-x-2">
+              <Badge variant={project.active ? "default" : "secondary"}>
+                {project.active ? "Active" : "Inactive"}
+              </Badge>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onView && (
-                  <DropdownMenuItem onClick={() => onView(project)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    View Dashboard
-                  </DropdownMenuItem>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onView && (
+                <DropdownMenuItem onClick={() => onView(project)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Dashboard
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onEdit(project)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onToggleStatus(project)}>
+                {project.active ? (
+                  <>
+                    <PowerOff className="mr-2 h-4 w-4" />
+                    Deactivate
+                  </>
+                ) : (
+                  <>
+                    <Power className="mr-2 h-4 w-4" />
+                    Activate
+                  </>
                 )}
-                <DropdownMenuItem onClick={() => onEdit(project)}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onToggleStatus(project)}>
-                  {project.active ? (
-                    <>
-                      <PowerOff className="mr-2 h-4 w-4" />
-                      Deactivate
-                    </>
-                  ) : (
-                    <>
-                      <Power className="mr-2 h-4 w-4" />
-                      Activate
-                    </>
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {stats && (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Leads:</span>
-                  <span className="font-medium">{stats.leads_count}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Calls:</span>
-                  <span className="font-medium">{stats.calls_count}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Appointments:</span>
-                  <span className="font-medium">{stats.appointments_count}</span>
-                </div>
+              </DropdownMenuItem>
+              <DeleteProjectDialog
+                project={project}
+                onDelete={onDelete}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {stats && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Leads:</span>
+                <span className="font-medium">{stats.leads_count}</span>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Confirmed:</span>
-                  <span className="font-medium">{stats.confirmed_appointments_count}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Ad Spend:</span>
-                  <span className="font-medium">{formatCurrency(stats.ad_spend)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Last Activity:</span>
-                  <span className="font-medium text-xs">{formatDate(stats.last_activity)}</span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Calls:</span>
+                <span className="font-medium">{stats.calls_count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Appointments:</span>
+                <span className="font-medium">{stats.appointments_count}</span>
               </div>
             </div>
-          )}
-          
-          <div className="text-xs text-muted-foreground">
-            Created: {new Date(project.created_at).toLocaleDateString()}
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Confirmed:</span>
+                <span className="font-medium">{stats.confirmed_appointments_count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Ad Spend:</span>
+                <span className="font-medium">{formatCurrency(stats.ad_spend)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last Activity:</span>
+                <span className="font-medium text-xs">{formatDate(stats.last_activity)}</span>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <DeleteProjectDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-        project={project}
-        onConfirm={() => {
-          onDelete(project);
-          setIsDeleteDialogOpen(false);
-        }}
-      />
-    </>
+        )}
+        
+        <div className="text-xs text-muted-foreground">
+          Created: {new Date(project.created_at).toLocaleDateString()}
+        </div>
+      </CardContent>
+    </Card>
   );
 };

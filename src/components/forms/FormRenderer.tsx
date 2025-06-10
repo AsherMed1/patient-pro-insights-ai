@@ -45,7 +45,7 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
       // Type cast the form_data to our expected structure
       const typedTemplate = {
         ...projectForm.form_templates,
-        form_data: projectForm.form_templates.form_data as { slides: FormSlide[] }
+        form_data: projectForm.form_templates.form_data as unknown as { slides: FormSlide[] }
       } as FormTemplate;
 
       setFormTemplate(typedTemplate);
