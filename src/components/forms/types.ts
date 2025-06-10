@@ -28,7 +28,7 @@ export interface FormSlide {
   cta_options?: { value: string; label: string; }[];
   conditional_follow_up?: ConditionalFollowUp;
   conditional_follow_ups?: Record<string, { questions: FormField[] }>;
-  doctors?: { name: string; specialty: string; }[];
+  doctors?: { name: string; specialty: string; image?: string; }[];
   min?: number;
   max?: number;
 }
@@ -78,5 +78,14 @@ export interface ProjectForm {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // New customization fields
+  custom_logo_url?: string;
+  brand_primary_color?: string;
+  brand_secondary_color?: string;
+  custom_insurance_list?: any[];
+  custom_doctors?: any[];
+  custom_facility_info?: any;
+  form_customizations?: any;
+  is_template_locked?: boolean;
   form_templates?: FormTemplate;
 }

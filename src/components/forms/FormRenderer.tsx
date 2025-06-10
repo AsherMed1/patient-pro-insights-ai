@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, CheckCircle, Star, Shield, Users } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { FormTemplate, FormSlide } from './types';
+import type { FormTemplate, FormSlide, ProjectForm } from './types';
 
 interface FormRendererProps {
   slug: string;
@@ -17,6 +17,7 @@ interface FormRendererProps {
 
 const FormRenderer = ({ slug }: FormRendererProps) => {
   const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
+  const [projectForm, setProjectForm] = useState<ProjectForm | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [showFollowUp, setShowFollowUp] = useState<Record<number, boolean>>({});
@@ -29,7 +30,7 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
   const fetchFormTemplate = async () => {
     try {
-      const { data: projectForm, error } = await supabase
+      const { data: projectFormData, error } = await supabase
         .from('project_forms')
         .select(`
           *,
@@ -40,13 +41,19 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
         .single();
 
       if (error) throw error;
-      if (!projectForm?.form_templates) throw new Error('Form template not found');
+      if (!projectFormData?.form_templates) throw new Error('Form template not found');
 
-      const typedTemplate = {
-        ...projectForm.form_templates,
-        form_data: projectForm.form_templates.form_data as unknown as { slides: FormSlide[] }
-      } as FormTemplate;
+      const typedProjectForm = {
+        ...projectFormData,
+        form_templates: {
+          ...projectFormData.form_templates,
+          form_data: projectFormData.form_templates.form_data as unknown as { slides: FormSlide[] }
+        } as FormTemplate
+      } as ProjectForm;
 
+      const typedTemplate = typedProjectForm.form_templates;
+
+      setProjectForm(typedProjectForm);
       setFormTemplate(typedTemplate);
     } catch (error) {
       console.error('Error fetching form template:', error);
@@ -58,6 +65,48 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get custom branding colors
+  const brandColors = {
+    primary: projectForm?.brand_primary_color || '#3B82F6',
+    secondary: projectForm?.brand_secondary_color || '#8B5CF6'
+  };
+
+  // Get custom logo
+  const customLogo = projectForm?.custom_logo_url;
+
+  // Get custom doctors or use template defaults
+  const getDoctors = () => {
+    if (projectForm?.custom_doctors && (projectForm.custom_doctors as any[]).length > 0) {
+      return projectForm.custom_doctors;
+    }
+    return null; // Will use template doctors
+  };
+
+  // Get custom insurance list
+  const getInsuranceOptions = () => {
+    if (projectForm?.custom_insurance_list && (projectForm.custom_insurance_list as any[]).length > 0) {
+      return projectForm.custom_insurance_list;
+    }
+    // Return default insurance options
+    return [
+      { value: "aetna", label: "Aetna" },
+      { value: "anthem", label: "Anthem Blue Cross Blue Shield" },
+      { value: "cigna", label: "Cigna" },
+      { value: "humana", label: "Humana" },
+      { value: "kaiser", label: "Kaiser Permanente" },
+      { value: "medicare", label: "Medicare" },
+      { value: "medicaid", label: "Medicaid" },
+      { value: "united", label: "UnitedHealthcare" },
+      { value: "bcbs", label: "Blue Cross Blue Shield" },
+      { value: "other", label: "Other" }
+    ];
+  };
+
+  // Get facility info
+  const getFacilityInfo = () => {
+    return projectForm?.custom_facility_info as any || {};
   };
 
   const handleInputChange = (fieldName: string, value: any) => {
@@ -107,12 +156,6 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
   const handleSubmit = async () => {
     try {
-      const { data: projectForm } = await supabase
-        .from('project_forms')
-        .select('id')
-        .eq('public_url_slug', slug)
-        .single();
-
       if (!projectForm) throw new Error('Project form not found');
 
       const contactInfo = {
@@ -166,13 +209,25 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
   };
 
   const renderSlide = (slide: FormSlide) => {
+    const facilityInfo = getFacilityInfo();
+    const customDoctors = getDoctors();
+    
     switch (slide.type) {
       case 'welcome':
         return (
           <div className="text-center space-y-8 max-w-2xl mx-auto">
             <div className="space-y-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle className="w-8 h-8 text-white" />
+              <div 
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
+              >
+                {customLogo ? (
+                  <img src={customLogo} alt="Logo" className="w-10 h-10 object-contain" />
+                ) : (
+                  <CheckCircle className="w-8 h-8 text-white" />
+                )}
               </div>
               <div className="space-y-4">
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
@@ -183,11 +238,22 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                     {slide.description}
                   </p>
                 )}
+                {facilityInfo.name && (
+                  <p className="text-lg font-semibold" style={{ color: brandColors.primary }}>
+                    {facilityInfo.name}
+                  </p>
+                )}
               </div>
             </div>
             
             {slide.image_placeholder && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-12 border border-blue-200">
+              <div 
+                className="rounded-2xl p-12 border"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}15, ${brandColors.secondary}15)`,
+                  borderColor: `${brandColors.primary}30`
+                }}
+              >
                 <div className="text-6xl mb-4">🏥</div>
                 <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
@@ -200,11 +266,18 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
               </div>
               <div className="flex items-center space-x-2">
                 <Star className="w-4 h-4" />
-                <span>Trusted by 10k+ patients</span>
+                <span>Trusted by patients</span>
               </div>
             </div>
             
-            <Button onClick={handleNext} size="lg" className="w-full max-w-md h-14 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
+            <Button 
+              onClick={handleNext} 
+              size="lg" 
+              className="w-full max-w-md h-14 text-lg font-semibold shadow-lg text-white"
+              style={{
+                background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+              }}
+            >
               {slide.cta || 'Start Assessment'} →
             </Button>
           </div>
@@ -223,21 +296,44 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
             </div>
             
             {slide.image_placeholder && (
-              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-12 border border-green-200 text-center">
+              <div 
+                className="rounded-2xl p-12 border text-center"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}10, ${brandColors.secondary}10)`,
+                  borderColor: `${brandColors.primary}30`
+                }}
+              >
                 <div className="text-6xl mb-4">👩‍⚕️</div>
                 <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
             )}
             
-            {slide.doctors && (
+            {(customDoctors || slide.doctors) && (
               <div className="grid md:grid-cols-2 gap-6">
-                {slide.doctors.map((doctor, index) => (
+                {(customDoctors || slide.doctors)?.map((doctor: any, index: number) => (
                   <div key={index} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                      <Users className="w-6 h-6 text-white" />
+                    <div className="flex items-center space-x-4">
+                      {doctor.image ? (
+                        <img 
+                          src={doctor.image} 
+                          alt={doctor.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div 
+                          className="w-12 h-12 rounded-full flex items-center justify-center"
+                          style={{
+                            background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                          }}
+                        >
+                          <Users className="w-6 h-6 text-white" />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-lg text-gray-900">{doctor.name}</h3>
+                        <p className="text-sm text-muted-foreground">{doctor.specialty}</p>
+                      </div>
                     </div>
-                    <h3 className="font-semibold text-lg text-gray-900">{doctor.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{doctor.specialty}</p>
                   </div>
                 ))}
               </div>
@@ -248,7 +344,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
-              <Button onClick={handleNext} className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Button 
+                onClick={handleNext} 
+                className="flex-1 h-12 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
+              >
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -264,7 +366,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
             </div>
             
             {slide.image_placeholder && (
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-12 border border-purple-200 text-center">
+              <div 
+                className="rounded-2xl p-12 border text-center"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}10, ${brandColors.secondary}10)`,
+                  borderColor: `${brandColors.primary}30`
+                }}
+              >
                 <div className="text-6xl mb-4">🩺</div>
                 <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
@@ -277,9 +385,12 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                     key={option.value}
                     className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-gray-50 ${
                       formData[slide.field_name!] === option.value 
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                        ? 'bg-blue-50 ring-2 ring-blue-200' 
                         : 'border-gray-200'
                     }`}
+                    style={{
+                      borderColor: formData[slide.field_name!] === option.value ? brandColors.primary : undefined
+                    }}
                   >
                     <input
                       type="radio"
@@ -289,11 +400,17 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                       onChange={(e) => handleInputChange(slide.field_name!, e.target.value)}
                       className="sr-only"
                     />
-                    <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
-                      formData[slide.field_name!] === option.value 
-                        ? 'border-blue-500 bg-blue-500' 
-                        : 'border-gray-300'
-                    }`}>
+                    <div 
+                      className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
+                        formData[slide.field_name!] === option.value 
+                          ? 'border-gray-300' 
+                          : 'border-gray-300'
+                      }`}
+                      style={{
+                        borderColor: formData[slide.field_name!] === option.value ? brandColors.primary : undefined,
+                        backgroundColor: formData[slide.field_name!] === option.value ? brandColors.primary : undefined
+                      }}
+                    >
                       {formData[slide.field_name!] === option.value && (
                         <div className="w-2 h-2 bg-white rounded-full"></div>
                       )}
@@ -311,9 +428,12 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                     key={option.value}
                     className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-gray-50 ${
                       formData[slide.field_name!]?.includes(option.value) 
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                        ? 'bg-blue-50 ring-2 ring-blue-200' 
                         : 'border-gray-200'
                     }`}
+                    style={{
+                      borderColor: formData[slide.field_name!]?.includes(option.value) ? brandColors.primary : undefined
+                    }}
                   >
                     <Checkbox
                       id={`${slide.field_name}-${option.value}`}
@@ -335,7 +455,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
             {slide.field_type === 'range' && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-8 rounded-2xl border border-blue-200">
+                <div 
+                  className="p-8 rounded-2xl border"
+                  style={{
+                    background: `linear-gradient(135deg, ${brandColors.primary}15, ${brandColors.secondary}15)`,
+                    borderColor: `${brandColors.primary}30`
+                  }}
+                >
                   <input
                     type="range"
                     min={slide.min || 1}
@@ -350,7 +476,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-6xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  <div 
+                    className="text-6xl font-bold bg-clip-text text-transparent"
+                    style={{
+                      background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`,
+                      WebkitBackgroundClip: 'text'
+                    }}
+                  >
                     {formData[slide.field_name!] || slide.min || 1}
                   </div>
                   <p className="text-gray-600 mt-2">Selected Value</p>
@@ -401,7 +533,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
-              <Button onClick={handleNext} className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Button 
+                onClick={handleNext} 
+                className="flex-1 h-12 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
+              >
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -413,7 +551,12 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
         return (
           <div className="space-y-8 max-w-2xl mx-auto">
             <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mx-auto">
+              <div 
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
+              >
                 <CheckCircle className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900">{slide.title}</h2>
@@ -423,7 +566,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
             </div>
 
             {slide.image_placeholder && (
-              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-12 border border-green-200 text-center">
+              <div 
+                className="rounded-2xl p-12 border text-center"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}10, ${brandColors.secondary}10)`,
+                  borderColor: `${brandColors.primary}30`
+                }}
+              >
                 <div className="text-6xl mb-4">📋</div>
                 <p className="text-gray-600 font-medium">{slide.image_placeholder}</p>
               </div>
@@ -441,15 +590,29 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                         value={formData[field.field_name] || ''}
                         onValueChange={(value) => handleInputChange(field.field_name, value)}
                       >
-                        <SelectTrigger className="h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-200">
+                        <SelectTrigger 
+                          className="h-12 border-gray-300"
+                          style={{
+                            borderColor: formData[field.field_name] ? brandColors.primary : undefined
+                          }}
+                        >
                           <SelectValue placeholder={`Select ${field.label}`} />
                         </SelectTrigger>
                         <SelectContent>
-                          {field.options?.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
+                          {/* Use custom insurance list if this is an insurance field */}
+                          {field.field_name === 'insurance_provider' ? (
+                            getInsuranceOptions().map((option: any) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            field.options?.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     ) : (
@@ -459,7 +622,10 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                         value={formData[field.field_name] || ''}
                         onChange={(e) => handleInputChange(field.field_name, e.target.value)}
                         required={field.required}
-                        className="h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-200"
+                        className="h-12 border-gray-300"
+                        style={{
+                          borderColor: formData[field.field_name] ? brandColors.primary : undefined
+                        }}
                         placeholder={`Enter your ${field.label.toLowerCase()}`}
                       />
                     )}
@@ -473,7 +639,10 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                 <Button 
                   key={cta.value} 
                   onClick={handleSubmit} 
-                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 shadow-lg"
+                  className="w-full h-14 text-lg font-semibold shadow-lg text-white"
+                  style={{
+                    background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                  }}
                   size="lg"
                 >
                   {cta.label} →
@@ -487,7 +656,12 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
         return (
           <div className="space-y-8 max-w-2xl mx-auto">
             <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto">
+              <div 
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
+              >
                 <Star className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900">{slide.title}</h2>
@@ -496,14 +670,30 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
               )}
             </div>
             
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-8 rounded-2xl border border-purple-200">
+            <div 
+              className="p-8 rounded-2xl border"
+              style={{
+                background: `linear-gradient(135deg, ${brandColors.primary}10, ${brandColors.secondary}10)`,
+                borderColor: `${brandColors.primary}30`
+              }}
+            >
               <div className="text-center space-y-4">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto">
+                <div 
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto"
+                  style={{
+                    background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                  }}
+                >
                   <Star className="w-6 h-6 text-white" />
                 </div>
                 <p className="text-lg leading-relaxed text-gray-700">
-                  Based on your responses, our care team will review your assessment and provide personalized recommendations for your knee pain treatment options.
+                  Based on your responses, our care team will review your assessment and provide personalized recommendations for your treatment options.
                 </p>
+                {facilityInfo.name && (
+                  <p className="font-semibold" style={{ color: brandColors.primary }}>
+                    {facilityInfo.name}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -512,7 +702,13 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
-              <Button onClick={handleNext} className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+              <Button 
+                onClick={handleNext} 
+                className="flex-1 h-12 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
+              >
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -529,7 +725,12 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center space-y-6">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-spin flex items-center justify-center mx-auto">
+          <div 
+            className="w-16 h-16 rounded-full animate-spin flex items-center justify-center mx-auto"
+            style={{
+              background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+            }}
+          >
             <div className="w-8 h-8 bg-white rounded-full"></div>
           </div>
           <div className="space-y-2">
@@ -578,8 +779,11 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${progress}%` }}
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{ 
+                  width: `${progress}%`,
+                  background: `linear-gradient(135deg, ${brandColors.primary}, ${brandColors.secondary})`
+                }}
               ></div>
             </div>
           </div>
@@ -597,3 +801,5 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 };
 
 export default FormRenderer;
+
+}

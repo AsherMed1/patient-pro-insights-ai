@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, ExternalLink, FileText, Users } from 'lucide-react';
+import { Copy, ExternalLink, FileText, Users, Edit3, Palette } from 'lucide-react';
+import FormEditor from './FormEditor';
 import type { FormTemplate, ProjectForm, FormSubmission } from './types';
 
 interface FormManagementProps {
@@ -21,6 +22,7 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedForm, setSelectedForm] = useState<ProjectForm | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -34,7 +36,8 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
       // Fetch available form templates
       const { data: templates, error: templatesError } = await supabase
         .from('form_templates')
-        .select('*');
+        .select('*')
+        .neq('form_type', 'insurance_reference'); // Exclude the insurance reference template
       
       if (templatesError) throw templatesError;
       
@@ -46,7 +49,7 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
       
       setFormTemplates(typedTemplates);
 
-      // Fetch project forms
+      // Fetch project forms with all customization fields
       const { data: forms, error: formsError } = await supabase
         .from('project_forms')
         .select(`
@@ -175,6 +178,27 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
     window.open(url, '_blank');
   };
 
+  const openEditor = (form: ProjectForm) => {
+    setSelectedForm(form);
+    setShowEditor(true);
+  };
+
+  const closeEditor = () => {
+    setShowEditor(false);
+    setSelectedForm(null);
+  };
+
+  const handleEditorSave = () => {
+    fetchData(); // Refresh data after save
+  };
+
+  const hasCustomizations = (form: ProjectForm) => {
+    return form.custom_logo_url || 
+           (form.custom_insurance_list && (form.custom_insurance_list as any[]).length > 0) ||
+           (form.custom_doctors && (form.custom_doctors as any[]).length > 0) ||
+           (form.custom_facility_info && Object.keys(form.custom_facility_info as any).length > 0);
+  };
+
   if (loading) {
     return (
       <Card>
@@ -194,7 +218,7 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
             <span>Questionnaire Management</span>
           </CardTitle>
           <CardDescription>
-            Create and manage public forms for lead capture and assessments
+            Create and manage public forms for lead capture and assessments. Customize branding, doctors, and insurance lists.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -217,7 +241,15 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
                     <Card key={form.id} className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <h3 className="font-semibold">{form.form_templates?.title}</h3>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="font-semibold">{form.form_templates?.title}</h3>
+                            {hasCustomizations(form) && (
+                              <Badge variant="secondary" className="flex items-center space-x-1">
+                                <Palette className="w-3 h-3" />
+                                <span>Customized</span>
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {form.form_templates?.description}
                           </p>
@@ -225,12 +257,27 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
                             <span>{form.form_templates?.total_steps} steps</span>
                             <span>•</span>
                             <span>{submissions.filter(s => s.project_form_id === form.id).length} submissions</span>
+                            {form.custom_logo_url && (
+                              <>
+                                <span>•</span>
+                                <span>Custom logo</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Badge variant={form.is_active ? "default" : "secondary"}>
                             {form.is_active ? "Active" : "Inactive"}
                           </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditor(form)}
+                            className="flex items-center space-x-1"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            <span>Customize</span>
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -358,6 +405,16 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Form Editor Dialog */}
+      {selectedForm && (
+        <FormEditor
+          projectForm={selectedForm}
+          isOpen={showEditor}
+          onClose={closeEditor}
+          onSave={handleEditorSave}
+        />
+      )}
     </div>
   );
 };
