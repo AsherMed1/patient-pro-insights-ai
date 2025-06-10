@@ -801,5 +801,3 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 };
 
 export default FormRenderer;
-
-}
