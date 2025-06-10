@@ -12,25 +12,29 @@ export const getDefaultInsuranceOptions = () => [
   { value: "other", label: "Other" }
 ];
 
-export const getBrandColors = (projectForm: any) => ({
-  primary: projectForm?.brand_primary_color || '#3B82F6',
-  secondary: projectForm?.brand_secondary_color || '#8B5CF6'
+export const getBrandColors = (project: any) => ({
+  primary: project?.brand_primary_color || '#3B82F6',
+  secondary: project?.brand_secondary_color || '#8B5CF6'
 });
 
-export const getDoctors = (projectForm: any) => {
-  if (projectForm?.custom_doctors && (projectForm.custom_doctors as any[]).length > 0) {
-    return projectForm.custom_doctors;
+export const getDoctors = (project: any) => {
+  if (project?.custom_doctors && (project.custom_doctors as any[]).length > 0) {
+    return project.custom_doctors;
   }
   return null;
 };
 
-export const getInsuranceOptions = (projectForm: any) => {
-  if (projectForm?.custom_insurance_list && (projectForm.custom_insurance_list as any[]).length > 0) {
-    return projectForm.custom_insurance_list;
+export const getInsuranceOptions = (project: any) => {
+  if (project?.custom_insurance_list && (project.custom_insurance_list as any[]).length > 0) {
+    return project.custom_insurance_list;
   }
   return getDefaultInsuranceOptions();
 };
 
-export const getFacilityInfo = (projectForm: any) => {
-  return projectForm?.custom_facility_info as any || {};
+export const getFacilityInfo = (project: any) => {
+  return project?.custom_facility_info as any || {};
+};
+
+export const getCustomLogo = (project: any) => {
+  return project?.custom_logo_url;
 };

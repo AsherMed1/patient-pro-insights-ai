@@ -394,41 +394,6 @@ export type Database = {
         }
         Relationships: []
       }
-      form_customization_history: {
-        Row: {
-          changed_at: string
-          changed_by: string | null
-          changes_made: Json
-          created_at: string
-          id: string
-          project_form_id: string
-        }
-        Insert: {
-          changed_at?: string
-          changed_by?: string | null
-          changes_made: Json
-          created_at?: string
-          id?: string
-          project_form_id: string
-        }
-        Update: {
-          changed_at?: string
-          changed_by?: string | null
-          changes_made?: Json
-          created_at?: string
-          id?: string
-          project_form_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_customization_history_project_form_id_fkey"
-            columns: ["project_form_id"]
-            isOneToOne: false
-            referencedRelation: "project_forms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       form_submissions: {
         Row: {
           ai_summary: string | null
@@ -631,52 +596,28 @@ export type Database = {
       }
       project_forms: {
         Row: {
-          brand_primary_color: string | null
-          brand_secondary_color: string | null
           created_at: string
-          custom_doctors: Json | null
-          custom_facility_info: Json | null
-          custom_insurance_list: Json | null
-          custom_logo_url: string | null
-          form_customizations: Json | null
           form_template_id: string
           id: string
           is_active: boolean
-          is_template_locked: boolean | null
           project_id: string
           public_url_slug: string
           updated_at: string
         }
         Insert: {
-          brand_primary_color?: string | null
-          brand_secondary_color?: string | null
           created_at?: string
-          custom_doctors?: Json | null
-          custom_facility_info?: Json | null
-          custom_insurance_list?: Json | null
-          custom_logo_url?: string | null
-          form_customizations?: Json | null
           form_template_id: string
           id?: string
           is_active?: boolean
-          is_template_locked?: boolean | null
           project_id: string
           public_url_slug: string
           updated_at?: string
         }
         Update: {
-          brand_primary_color?: string | null
-          brand_secondary_color?: string | null
           created_at?: string
-          custom_doctors?: Json | null
-          custom_facility_info?: Json | null
-          custom_insurance_list?: Json | null
-          custom_logo_url?: string | null
-          form_customizations?: Json | null
           form_template_id?: string
           id?: string
           is_active?: boolean
-          is_template_locked?: boolean | null
           project_id?: string
           public_url_slug?: string
           updated_at?: string
@@ -701,7 +642,13 @@ export type Database = {
       projects: {
         Row: {
           active: boolean
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
           created_at: string
+          custom_doctors: Json | null
+          custom_facility_info: Json | null
+          custom_insurance_list: Json | null
+          custom_logo_url: string | null
           id: string
           project_name: string
           selected_form_types: string[] | null
@@ -709,7 +656,13 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
           created_at?: string
+          custom_doctors?: Json | null
+          custom_facility_info?: Json | null
+          custom_insurance_list?: Json | null
+          custom_logo_url?: string | null
           id?: string
           project_name: string
           selected_form_types?: string[] | null
@@ -717,7 +670,13 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
           created_at?: string
+          custom_doctors?: Json | null
+          custom_facility_info?: Json | null
+          custom_insurance_list?: Json | null
+          custom_logo_url?: string | null
           id?: string
           project_name?: string
           selected_form_types?: string[] | null

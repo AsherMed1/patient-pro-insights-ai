@@ -4,9 +4,21 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { FormTemplate, ProjectForm } from '../types';
 
+interface Project {
+  id: string;
+  project_name: string;
+  custom_logo_url?: string;
+  brand_primary_color?: string;
+  brand_secondary_color?: string;
+  custom_insurance_list?: any[];
+  custom_doctors?: any[];
+  custom_facility_info?: any;
+}
+
 export const useFormRenderer = (slug: string) => {
   const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
   const [projectForm, setProjectForm] = useState<ProjectForm | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [showFollowUp, setShowFollowUp] = useState<Record<number, boolean>>({});
@@ -23,7 +35,17 @@ export const useFormRenderer = (slug: string) => {
         .from('project_forms')
         .select(`
           *,
-          form_templates (*)
+          form_templates (*),
+          projects (
+            id,
+            project_name,
+            custom_logo_url,
+            brand_primary_color,
+            brand_secondary_color,
+            custom_insurance_list,
+            custom_doctors,
+            custom_facility_info
+          )
         `)
         .eq('public_url_slug', slug)
         .eq('is_active', true)
@@ -41,9 +63,11 @@ export const useFormRenderer = (slug: string) => {
       } as ProjectForm;
 
       const typedTemplate = typedProjectForm.form_templates;
+      const typedProject = projectFormData.projects as Project;
 
       setProjectForm(typedProjectForm);
       setFormTemplate(typedTemplate);
+      setProject(typedProject);
     } catch (error) {
       console.error('Error fetching form template:', error);
       toast({
@@ -267,6 +291,7 @@ export const useFormRenderer = (slug: string) => {
   return {
     formTemplate,
     projectForm,
+    project,
     currentSlide,
     formData,
     showFollowUp,

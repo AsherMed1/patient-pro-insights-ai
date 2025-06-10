@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useFormRenderer } from './hooks/useFormRenderer';
-import { getBrandColors, getDoctors, getInsuranceOptions, getFacilityInfo } from './utils/formUtils';
+import { getBrandColors, getDoctors, getInsuranceOptions, getFacilityInfo, getCustomLogo } from './utils/formUtils';
 import WelcomeSlide from './slides/WelcomeSlide';
 import EducatorSlide from './slides/EducatorSlide';
 import QuestionSlide from './slides/QuestionSlide';
@@ -18,6 +18,7 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
   const {
     formTemplate,
     projectForm,
+    project,
     currentSlide,
     formData,
     showFollowUp,
@@ -29,7 +30,7 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
   } = useFormRenderer(slug);
 
   if (loading) {
-    const brandColors = getBrandColors(projectForm);
+    const brandColors = getBrandColors(project);
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center space-y-6">
@@ -70,11 +71,11 @@ const FormRenderer = ({ slug }: FormRendererProps) => {
 
   const currentSlideData = formTemplate.form_data.slides[currentSlide];
   const progress = ((currentSlide + 1) / formTemplate.total_steps) * 100;
-  const brandColors = getBrandColors(projectForm);
-  const customLogo = projectForm?.custom_logo_url;
-  const customDoctors = getDoctors(projectForm);
-  const insuranceOptions = getInsuranceOptions(projectForm);
-  const facilityInfo = getFacilityInfo(projectForm);
+  const brandColors = getBrandColors(project);
+  const customLogo = getCustomLogo(project);
+  const customDoctors = getDoctors(project);
+  const insuranceOptions = getInsuranceOptions(project);
+  const facilityInfo = getFacilityInfo(project);
 
   const renderSlide = () => {
     switch (currentSlideData.type) {
