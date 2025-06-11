@@ -52,6 +52,12 @@ export const useFormRenderer = (slug: string) => {
         form_templates: projectFormData.form_templates ? {
           ...projectFormData.form_templates,
           form_data: projectFormData.form_templates.form_data as { slides: any[] }
+        } : undefined,
+        projects: projectFormData.projects ? {
+          ...projectFormData.projects,
+          custom_insurance_list: projectFormData.projects.custom_insurance_list as any[],
+          custom_doctors: projectFormData.projects.custom_doctors as any[],
+          custom_facility_info: projectFormData.projects.custom_facility_info as any
         } : undefined
       };
 
