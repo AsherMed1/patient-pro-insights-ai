@@ -38,6 +38,7 @@ const ProjectPortal = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('ProjectPortal mounted with projectName:', projectName);
     if (projectName) {
       fetchProject();
       fetchAppointmentStats();
@@ -47,14 +48,19 @@ const ProjectPortal = () => {
   const fetchProject = async () => {
     try {
       setLoading(true);
+      console.log('Fetching project with name:', projectName);
+      
+      const decodedProjectName = decodeURIComponent(projectName!);
+      console.log('Decoded project name:', decodedProjectName);
       
       const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('project_name', decodeURIComponent(projectName!))
+        .eq('project_name', decodedProjectName)
         .single();
       
       if (error) {
+        console.error('Error fetching project:', error);
         if (error.code === 'PGRST116') {
           toast({
             title: "Project Not Found",
@@ -67,6 +73,7 @@ const ProjectPortal = () => {
         return;
       }
       
+      console.log('Project data fetched:', data);
       setProject(data);
     } catch (error) {
       console.error('Error fetching project:', error);
@@ -82,13 +89,21 @@ const ProjectPortal = () => {
 
   const fetchAppointmentStats = async () => {
     try {
+      const decodedProjectName = decodeURIComponent(projectName!);
+      console.log('Fetching appointment stats for project:', decodedProjectName);
+      
       // Fetch all appointments for this project and filter for confirmed ones
       const { data, error } = await supabase
         .from('all_appointments')
         .select('showed, procedure_ordered, confirmed, status')
-        .eq('project_name', decodeURIComponent(projectName!));
+        .eq('project_name', decodedProjectName);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching appointment stats:', error);
+        throw error;
+      }
+      
+      console.log('Raw appointment data:', data);
       
       // Filter for confirmed appointments (either confirmed boolean is true OR status is 'Confirmed')
       const confirmedAppointments = data?.filter(apt => {
@@ -96,17 +111,22 @@ const ProjectPortal = () => {
                (apt.status && apt.status.toLowerCase() === 'confirmed');
       }) || [];
       
+      console.log('Confirmed appointments:', confirmedAppointments);
+      
       const totalAppointments = confirmedAppointments.length;
       const totalShowed = confirmedAppointments.filter(apt => apt.showed === true).length;
       const totalProceduresOrdered = confirmedAppointments.filter(apt => apt.procedure_ordered === true).length;
       const projectedRevenue = totalProceduresOrdered * 7000;
       
-      setStats({
+      const calculatedStats = {
         totalAppointments,
         totalShowed,
         totalProceduresOrdered,
         projectedRevenue
-      });
+      };
+      
+      console.log('Calculated stats:', calculatedStats);
+      setStats(calculatedStats);
     } catch (error) {
       console.error('Error fetching appointment stats:', error);
       toast({
