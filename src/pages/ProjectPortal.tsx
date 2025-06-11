@@ -188,9 +188,6 @@ const ProjectPortal = () => {
         {/* Project Header */}
         <ProjectHeader projectName={project.project_name} />
 
-        {/* Stats Cards */}
-        <ProjectStatsCards stats={stats} />
-
         {/* Instructions for project team */}
         <Card>
           <CardContent className="p-4">
@@ -203,6 +200,9 @@ const ProjectPortal = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Stats Cards */}
+        <ProjectStatsCards stats={stats} />
 
         {/* Appointments Section - Only confirmed appointments for status updates */}
         <AllAppointmentsManager 
