@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { FolderOpen } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ProjectCard } from './projects/ProjectCard';
 import { AddProjectDialog } from './projects/AddProjectDialog';
 import { EditProjectDialog } from './projects/EditProjectDialog';
@@ -40,6 +40,7 @@ const ProjectsManager = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [activeTab, setActiveTab] = useState('active');
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProjectsAndStats();
@@ -237,7 +238,7 @@ const ProjectsManager = () => {
   };
 
   const handleViewProject = (project: Project) => {
-    window.location.href = `/project/${encodeURIComponent(project.project_name)}/dashboard`;
+    navigate(`/project/${encodeURIComponent(project.project_name)}`);
   };
 
   const openEditDialog = (project: Project) => {
