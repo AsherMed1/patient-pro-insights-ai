@@ -46,11 +46,24 @@ export const useFormRenderer = (slug: string) => {
         return;
       }
 
-      setProjectForm(projectFormData);
+      // Transform the data to match our types
+      const transformedProjectForm: ProjectForm = {
+        ...projectFormData,
+        form_templates: projectFormData.form_templates ? {
+          ...projectFormData.form_templates,
+          form_data: projectFormData.form_templates.form_data as { slides: any[] }
+        } : undefined
+      };
+
+      setProjectForm(transformedProjectForm);
       setProject(projectFormData.projects);
       
       if (projectFormData.form_templates) {
-        setFormTemplate(projectFormData.form_templates);
+        const transformedFormTemplate: FormTemplate = {
+          ...projectFormData.form_templates,
+          form_data: projectFormData.form_templates.form_data as { slides: any[] }
+        };
+        setFormTemplate(transformedFormTemplate);
       }
 
     } catch (error) {
