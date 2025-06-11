@@ -4,6 +4,7 @@ import { useFormManagement } from './hooks/useFormManagement';
 import ProjectBrandingSection from './ProjectBrandingSection';
 import FormsGrid from './FormsGrid';
 import ProjectBrandingEditor from './ProjectBrandingEditor';
+import AddFormTemplateToProject from './AddFormTemplateToProject';
 
 interface Project {
   id: string;
@@ -34,6 +35,10 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
     refreshData();
   };
 
+  const handleFormAdded = () => {
+    refreshData();
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -50,6 +55,11 @@ const FormManagement = ({ projectId }: FormManagementProps) => {
           <p className="text-muted-foreground">Manage your project forms and branding</p>
         </div>
       </div>
+
+      <AddFormTemplateToProject 
+        projects={projects} 
+        onFormAdded={handleFormAdded} 
+      />
 
       <ProjectBrandingSection 
         projects={projects} 
