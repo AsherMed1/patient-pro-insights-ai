@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Undo2, UserPlus, LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AllCallsManager from "@/components/AllCallsManager";
