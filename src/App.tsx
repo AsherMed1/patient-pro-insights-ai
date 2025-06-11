@@ -4,40 +4,70 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
 import ProjectPortal from "./pages/ProjectPortal";
+import PublicForm from "./pages/PublicForm";
 import ApiDocs from "./pages/ApiDocs";
 import AgentClaim from "./pages/AgentClaim";
 import UndoImport from "./pages/UndoImport";
 import CsvImportHistory from "./pages/CsvImportHistory";
-import AgentStatsPage from "./components/AgentStatsPage";
-import PublicForm from "./pages/PublicForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/project/:projectName" element={<ProjectPortal />} />
-            <Route path="/api-docs" element={<ApiDocs />} />
-            <Route path="/agent-claim" element={<AgentClaim />} />
-            <Route path="/undo-import" element={<UndoImport />} />
-            <Route path="/csv-import-history" element={<CsvImportHistory />} />
-            <Route path="/agent-stats" element={<AgentStatsPage onBack={() => window.history.back()} />} />
+            {/* Public routes */}
+            <Route path="/auth" element={<Auth />} />
             <Route path="/form/:slug" element={<PublicForm />} />
+            <Route path="/agent-claim" element={<AgentClaim />} />
+            
+            {/* Protected routes */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Index />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/project/:projectName" element={
+              <ProtectedRoute>
+                <ProjectPortal />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/api-docs" element={
+              <ProtectedRoute requiredRole="manager">
+                <ApiDocs />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/undo-import" element={
+              <ProtectedRoute requiredRole="manager">
+                <UndoImport />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/csv-import-history" element={
+              <ProtectedRoute requiredRole="manager">
+                <CsvImportHistory />
+              </ProtectedRoute>
+            } />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
+    </AuthProvider>
+  </QueryClientProvider>
+);
 
 export default App;

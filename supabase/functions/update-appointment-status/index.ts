@@ -1,190 +1,148 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { corsHeaders } from '../_shared/cors.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    if (req.method !== 'PUT' && req.method !== 'PATCH') {
+    // Verify JWT token
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Method not allowed', 
-          message: 'Use PUT or PATCH to update appointment status',
-          endpoint: 'PUT/PATCH /functions/v1/update-appointment-status'
-        }),
+        JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    const token = authHeader.split(' ')[1]
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    
+    // Verify the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Check user role - only admin and manager can update appointments
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!roleData || !['admin', 'manager'].includes(roleData.role)) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - Insufficient permissions' }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    if (req.method !== 'PUT') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed. Use PUT.' }),
         { 
           status: 405, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    // Get the raw body text first for debugging
-    const bodyText = await req.text()
-    console.log('Raw request body:', bodyText)
-    console.log('Content-Type header:', req.headers.get('content-type'))
+    const { appointment_id, showed, procedure_ordered } = await req.json()
 
-    // Try to parse JSON with better error handling
-    let body
-    try {
-      body = JSON.parse(bodyText)
-    } catch (parseError) {
-      console.error('JSON Parse Error:', parseError)
-      console.error('Body that failed to parse:', bodyText)
+    if (!appointment_id) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Invalid JSON format', 
-          message: 'Request body must be valid JSON',
-          details: parseError.message,
-          receivedBody: bodyText.substring(0, 500) // First 500 chars for debugging
-        }),
+        JSON.stringify({ error: 'appointment_id is required' }),
         { 
           status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    console.log('Parsed appointment update data:', body)
-
-    // Validate required fields - need either id or combination of identifiers
-    if (!body.id && !body.ghl_id && !body.lead_name) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Missing required identifier', 
-          message: 'Must provide either "id" or "ghl_id" or "lead_name" to identify the appointment',
-          example: {
-            id: 'uuid-of-appointment',
-            // OR
-            ghl_id: 'ghl_appointment_id',
-            // OR 
-            lead_name: 'John Doe'
-          }
-        }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Build the update data object with only valid fields
+    // Prepare update data
     const updateData: any = {}
-    
-    // Allow updating these status fields
-    if (body.showed !== undefined) updateData.showed = body.showed
-    if (body.confirmed !== undefined) updateData.confirmed = body.confirmed
-    if (body.agent !== undefined) updateData.agent = body.agent
-    if (body.agent_number !== undefined) updateData.agent_number = body.agent_number
-    if (body.confirmed_number !== undefined) updateData.confirmed_number = body.confirmed_number
-    if (body.stage_booked !== undefined) updateData.stage_booked = body.stage_booked
-    if (body.date_of_appointment !== undefined) updateData.date_of_appointment = body.date_of_appointment
-    if (body.requested_time !== undefined) updateData.requested_time = body.requested_time
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.procedure_ordered !== undefined) updateData.procedure_ordered = body.procedure_ordered
+    if (typeof showed === 'boolean') {
+      updateData.showed = showed
+    }
+    if (typeof procedure_ordered === 'boolean') {
+      updateData.procedure_ordered = procedure_ordered
+    }
 
-    // Always update the updated_at timestamp
-    updateData.updated_at = new Date().toISOString()
-
-    if (Object.keys(updateData).length <= 1) { // Only updated_at
+    if (Object.keys(updateData).length === 0) {
       return new Response(
-        JSON.stringify({ 
-          error: 'No valid fields to update', 
-          message: 'Please provide at least one valid field to update',
-          validFields: ['showed', 'confirmed', 'agent', 'agent_number', 'confirmed_number', 'stage_booked', 'date_of_appointment', 'requested_time', 'status', 'procedure_ordered']
-        }),
+        JSON.stringify({ error: 'No valid fields to update' }),
         { 
           status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    // Build the query based on available identifier
-    let updateQuery = supabase.from('all_appointments').update(updateData)
-
-    if (body.id) {
-      updateQuery = updateQuery.eq('id', body.id)
-    } else if (body.ghl_id) {
-      updateQuery = updateQuery.eq('ghl_id', body.ghl_id)
-    } else if (body.lead_name) {
-      updateQuery = updateQuery.eq('lead_name', body.lead_name)
-      // Optionally filter by project_name if provided for more precision
-      if (body.project_name) {
-        updateQuery = updateQuery.eq('project_name', body.project_name)
-      }
-    }
-
-    // Execute the update query
-    const { data, error } = await updateQuery.select()
+    // Update the appointment
+    const { data, error } = await supabase
+      .from('all_appointments')
+      .update(updateData)
+      .eq('id', appointment_id)
+      .select()
 
     if (error) {
       console.error('Database error:', error)
       return new Response(
-        JSON.stringify({ 
-          error: 'Database error', 
-          details: error.message 
-        }),
+        JSON.stringify({ error: 'Failed to update appointment', details: error.message }),
         { 
           status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    if (!data || data.length === 0) {
+    if (data.length === 0) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Appointment not found', 
-          message: 'No appointment found with the provided identifier'
-        }),
+        JSON.stringify({ error: 'Appointment not found' }),
         { 
           status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
-
-    console.log('Successfully updated appointment:', data[0])
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        message: 'Appointment status updated successfully',
-        data: data[0],
-        updated_fields: Object.keys(updateData).filter(key => key !== 'updated_at')
+        message: 'Appointment updated successfully', 
+        appointment: data[0] 
       }),
       { 
         status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
 
   } catch (error) {
-    console.error('API error:', error)
+    console.error('Unexpected error:', error)
     return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        message: error.message 
-      }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
   }
