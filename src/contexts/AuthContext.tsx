@@ -35,14 +35,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user role from profiles table
-          const { data: profile } = await supabase
-            .from('profiles')
+          // Fetch user role from user_roles table
+          const { data: userRoleData } = await supabase
+            .from('user_roles')
             .select('role')
-            .eq('id', session.user.id)
+            .eq('user_id', session.user.id)
             .single();
           
-          setUserRole(profile?.role || null);
+          setUserRole(userRoleData?.role || null);
         } else {
           setUserRole(null);
         }
