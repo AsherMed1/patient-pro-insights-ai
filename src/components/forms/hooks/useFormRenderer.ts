@@ -3,76 +3,61 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { FormTemplate, ProjectForm } from '../types';
-
-interface Project {
-  id: string;
-  project_name: string;
-  custom_logo_url?: string;
-  brand_primary_color?: string;
-  brand_secondary_color?: string;
-  custom_insurance_list?: any[];
-  custom_doctors?: any[];
-  custom_facility_info?: any;
-}
+import { useFormData } from './useFormData';
+import { useFormNavigation } from './useFormNavigation';
+import { useFormSubmission } from './useFormSubmission';
 
 export const useFormRenderer = (slug: string) => {
   const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
   const [projectForm, setProjectForm] = useState<ProjectForm | null>(null);
-  const [project, setProject] = useState<Project | null>(null);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [formData, setFormData] = useState<Record<string, any>>({});
-  const [showFollowUp, setShowFollowUp] = useState<Record<number, boolean>>({});
+  const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchFormTemplate();
-  }, [slug]);
+  const {
+    formData,
+    showFollowUp,
+    handleInputChange,
+    updateFollowUpVisibility
+  } = useFormData();
 
-  const fetchFormTemplate = async () => {
+  const fetchFormData = async () => {
     try {
-      const { data: projectFormData, error } = await supabase
+      setLoading(true);
+
+      const { data: projectFormData, error: projectFormError } = await supabase
         .from('project_forms')
         .select(`
           *,
           form_templates (*),
-          projects (
-            id,
-            project_name,
-            custom_logo_url,
-            brand_primary_color,
-            brand_secondary_color,
-            custom_insurance_list,
-            custom_doctors,
-            custom_facility_info
-          )
+          projects (*)
         `)
         .eq('public_url_slug', slug)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      if (!projectFormData?.form_templates) throw new Error('Form template not found');
+      if (projectFormError) {
+        console.error('Error fetching project form:', projectFormError);
+        return;
+      }
 
-      const typedProjectForm = {
-        ...projectFormData,
-        form_templates: {
-          ...projectFormData.form_templates,
-          form_data: projectFormData.form_templates.form_data as unknown as { slides: any[] }
-        } as FormTemplate
-      } as ProjectForm;
+      if (!projectFormData) {
+        console.log('No active form found for slug:', slug);
+        return;
+      }
 
-      const typedTemplate = typedProjectForm.form_templates;
-      const typedProject = projectFormData.projects as Project;
+      setProjectForm(projectFormData);
+      setProject(projectFormData.projects);
+      
+      if (projectFormData.form_templates) {
+        setFormTemplate(projectFormData.form_templates);
+      }
 
-      setProjectForm(typedProjectForm);
-      setFormTemplate(typedTemplate);
-      setProject(typedProject);
     } catch (error) {
-      console.error('Error fetching form template:', error);
+      console.error('Error in fetchFormData:', error);
       toast({
         title: "Error",
-        description: "Form not found or unavailable",
+        description: "Failed to load form",
         variant: "destructive",
       });
     } finally {
@@ -80,349 +65,31 @@ export const useFormRenderer = (slug: string) => {
     }
   };
 
-  const handleInputChange = (fieldName: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
+  const slides = formTemplate?.form_data?.slides || [];
+  const totalSteps = formTemplate?.total_steps || 0;
 
-    const slide = formTemplate?.form_data.slides[currentSlide];
-    if (slide?.conditional_follow_up) {
-      const { condition, value: conditionValue, values } = slide.conditional_follow_up;
-      let shouldShow = false;
+  const {
+    currentSlide,
+    handleNext,
+    handlePrevious
+  } = useFormNavigation({
+    totalSteps,
+    slides,
+    formData,
+    updateFollowUpVisibility
+  });
 
-      switch (condition) {
-        case 'equals':
-          shouldShow = value === conditionValue;
-          break;
-        case 'value_in':
-          shouldShow = values?.includes(value) || false;
-          break;
-        case 'includes_any':
-          shouldShow = Array.isArray(value) && values?.some(v => value.includes(v)) || false;
-          break;
-        case 'greater_than_equal':
-          shouldShow = Number(value) >= Number(conditionValue);
-          break;
-      }
+  const { handleSubmit } = useFormSubmission({
+    projectForm,
+    formData,
+    slides
+  });
 
-      setShowFollowUp(prev => ({
-        ...prev,
-        [currentSlide]: shouldShow
-      }));
+  useEffect(() => {
+    if (slug) {
+      fetchFormData();
     }
-  };
-
-  const handleNext = () => {
-    if (formTemplate && currentSlide < formTemplate.form_data.slides.length - 1) {
-      setCurrentSlide(prev => prev + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentSlide > 0) {
-      setCurrentSlide(prev => prev - 1);
-    }
-  };
-
-  const generateAISummary = (data: Record<string, any>, template: FormTemplate) => {
-    // Generate AI summary based on form responses for PFE survey
-    if (template.form_type === 'pfe_screening') {
-      const painDuration = data.pain_duration;
-      const treatments = Array.isArray(data.treatment_history) ? data.treatment_history : [];
-      const mainMotivators = Array.isArray(data.main_motivator) ? data.main_motivator : [];
-      const activityLimitation = data.activity_limitation;
-      const mobilityLimitation = data.mobility_limitation;
-
-      let summary = `Based on your answers, you've had `;
-      
-      // Pain duration
-      switch (painDuration) {
-        case 'less_than_1_month':
-          summary += 'heel pain for less than 1 month';
-          break;
-        case '1_to_3_months':
-          summary += 'heel pain for 1-3 months';
-          break;
-        case '3_to_6_months':
-          summary += 'chronic heel pain for 3-6 months';
-          break;
-        case 'more_than_6_months':
-          summary += 'chronic heel pain for more than 6 months';
-          break;
-        default:
-          summary += 'ongoing heel pain';
-      }
-
-      // Treatment history
-      if (treatments.length > 0) {
-        const treatmentLabels = treatments.map((t: string) => {
-          switch (t) {
-            case 'orthotics': return 'orthotics';
-            case 'ice_therapy': return 'ice therapy';
-            case 'otc_pain_meds': return 'over-the-counter pain medications';
-            case 'cortisone_injections': return 'cortisone injections';
-            case 'physical_therapy': return 'physical therapy';
-            case 'night_splints': return 'night splints';
-            default: return t;
-          }
-        });
-        summary += `, have tried ${treatmentLabels.join(', ')}`;
-      }
-
-      // Impact on life
-      const impacts = [];
-      if (activityLimitation === 'often' || activityLimitation === 'always') {
-        impacts.push('exercise and activity limitations');
-      }
-      if (mobilityLimitation === 'often' || mobilityLimitation === 'always') {
-        impacts.push('difficulty with standing and walking');
-      }
-      if (mainMotivators.includes('missing_activities')) {
-        impacts.push('missing out on activities');
-      }
-      if (mainMotivators.includes('work_exercise_impact')) {
-        impacts.push('work and exercise limitations');
-      }
-
-      if (impacts.length > 0) {
-        summary += `, and it's causing ${impacts.join(', ')}`;
-      }
-
-      summary += '. You may be a strong candidate for Plantar Fascia Embolization.';
-      
-      return summary;
-    }
-
-    // Generate AI summary for UFE screening
-    if (template.form_type === 'ufe_screening') {
-      const periodDuration = data.period_duration;
-      const periodFlow = data.period_flow;
-      const treatments = Array.isArray(data.treatments_tried) ? data.treatments_tried : [];
-      const motivators = Array.isArray(data.emotional_motivators) ? data.emotional_motivators : [];
-      const lifeInterference = data.life_interference;
-      const impactAreas = Array.isArray(data.impact_areas) ? data.impact_areas : [];
-
-      let summary = `Based on your responses, you've experienced `;
-
-      // Period characteristics
-      const periodDetails = [];
-      if (periodDuration === '8_plus_days') {
-        periodDetails.push('periods lasting 8+ days');
-      } else if (periodDuration === '6_7_days') {
-        periodDetails.push('periods lasting 6-7 days');
-      }
-
-      if (periodFlow === 'heavy' || periodFlow === 'very_heavy') {
-        periodDetails.push('heavy menstrual bleeding');
-      }
-
-      if (periodDetails.length > 0) {
-        summary += periodDetails.join(' and ');
-      } else {
-        summary += 'fibroid-related symptoms';
-      }
-
-      // Treatment history
-      if (treatments.length > 0) {
-        const treatmentLabels = treatments.map((t: string) => {
-          switch (t) {
-            case 'pain_relievers': return 'pain relievers';
-            case 'birth_control': return 'hormonal birth control';
-            case 'heating_pads': return 'heating pads';
-            case 'diet_exercise': return 'diet/exercise changes';
-            default: return t;
-          }
-        });
-        summary += `, and have tried ${treatmentLabels.join(', ')}`;
-      }
-
-      // Life impact
-      if (lifeInterference === 'frequently' || lifeInterference === 'constantly') {
-        summary += '. These symptoms are significantly impacting your daily life';
-        
-        if (impactAreas.length > 0) {
-          const impactLabels = impactAreas.map((area: string) => {
-            switch (area) {
-              case 'motherhood': return 'being a mom';
-              case 'work': return 'work performance';
-              case 'social': return 'social activities';
-              case 'intimacy': return 'intimate relationships';
-              case 'sleep': return 'sleep quality';
-              default: return area;
-            }
-          });
-          summary += `, particularly affecting ${impactLabels.join(', ')}`;
-        }
-      }
-
-      // Motivators
-      if (motivators.length > 0) {
-        const motivatorLabels = motivators.map((m: string) => {
-          switch (m) {
-            case 'work_focus': return 'focus better at work';
-            case 'active_with_kids': return 'be more active with your children';
-            case 'enjoy_intimacy': return 'enjoy intimacy again';
-            case 'travel_plan': return 'travel and plan events confidently';
-            case 'sleep_better': return 'sleep without interruption';
-            default: return m;
-          }
-        });
-        summary += `. Relief would allow you to ${motivatorLabels.join(', ')}`;
-      }
-
-      summary += '. UFE may be a minimally invasive solution to help you regain your quality of life.';
-      
-      return summary;
-    }
-
-    return 'Thank you for completing the assessment. Our team will review your responses.';
-  };
-
-  const collectTags = (data: Record<string, any>, template: FormTemplate): string[] => {
-    const tags: string[] = [];
-    
-    // Process each slide's responses for tags
-    template.form_data.slides.forEach(slide => {
-      if (slide.field_name && data[slide.field_name] && slide.options) {
-        const fieldValue = data[slide.field_name];
-        
-        if (Array.isArray(fieldValue)) {
-          // Multi-select field (checkbox)
-          fieldValue.forEach(value => {
-            const option = slide.options?.find(o => o.value === value);
-            if (option?.tags) {
-              tags.push(...option.tags);
-            }
-          });
-        } else {
-          // Single select field (radio)
-          const option = slide.options?.find(o => o.value === fieldValue);
-          if (option?.tags) {
-            tags.push(...option.tags);
-          }
-        }
-      }
-
-      // Handle additional fields for complex slides
-      if (slide.fields) {
-        slide.fields.forEach(field => {
-          if (data[field.field_name] && field.options) {
-            const fieldValue = data[field.field_name];
-            
-            if (Array.isArray(fieldValue)) {
-              fieldValue.forEach(value => {
-                const option = field.options?.find(o => o.value === value);
-                if (option?.tags) {
-                  tags.push(...option.tags);
-                }
-              });
-            }
-          }
-        });
-      }
-    });
-
-    // Add special logic tags for PFE survey
-    if (template.form_type === 'pfe_screening') {
-      // Failed conservative treatment if 3+ treatments tried
-      const treatments = data.treatment_history;
-      if (Array.isArray(treatments) && treatments.length >= 3) {
-        tags.push('Failed_Conservative_Tx');
-      }
-
-      // Likely PFE candidate based on multiple factors
-      const chronicPain = tags.includes('Chronic_Pain');
-      const hasSymptoms = tags.includes('Classic_PF_Symptoms');
-      const activityLimited = tags.includes('Activity_Limited') || tags.includes('Mobility_Limited');
-      
-      if (chronicPain && (hasSymptoms || activityLimited)) {
-        tags.push('Likely_PFE_Candidate');
-      }
-    }
-
-    // Add special logic tags for UFE survey
-    if (template.form_type === 'ufe_screening') {
-      // Failed conservative treatment if multiple treatments tried without success
-      const treatments = data.treatments_tried;
-      const treatmentEffectiveness = data.treatment_effectiveness;
-      
-      if (Array.isArray(treatments) && treatments.length >= 2 && 
-          (treatmentEffectiveness === 'temporarily' || treatmentEffectiveness === 'not_at_all')) {
-        tags.push('Failed_Conservative_Tx');
-      }
-
-      // Likely UFE candidate based on multiple factors
-      const heavyBleeding = tags.includes('Heavy_Bleeding') || tags.includes('Long_Bleeding');
-      const significantSymptoms = tags.includes('Pelvic_Pain') || tags.includes('Pelvic_Pressure');
-      const lifeDisruption = tags.includes('Life_Disruption');
-      const relationshipImpact = tags.includes('Dyspareunia') || tags.includes('Relationship_Impact');
-      
-      if (heavyBleeding && (significantSymptoms || lifeDisruption || relationshipImpact)) {
-        tags.push('Likely_UFE_Candidate');
-      }
-
-      // Strong candidate if multiple severe symptoms
-      const severeSymptoms = [
-        tags.includes('Heavy_Bleeding'),
-        tags.includes('Pelvic_Pain'),
-        tags.includes('Life_Disruption'),
-        tags.includes('Fatigue_Symptom'),
-        tags.includes('Failed_Conservative_Tx')
-      ].filter(Boolean).length;
-
-      if (severeSymptoms >= 3) {
-        tags.push('Strong_UFE_Candidate');
-      }
-    }
-
-    return [...new Set(tags)]; // Remove duplicates
-  };
-
-  const handleSubmit = async () => {
-    try {
-      if (!projectForm || !formTemplate) throw new Error('Project form not found');
-
-      const contactInfo = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        phone: formData.phone,
-        zip_code: formData.zip_code,
-        date_of_birth: formData.date_of_birth
-      };
-
-      const tags = collectTags(formData, formTemplate);
-      const aiSummary = generateAISummary(formData, formTemplate);
-
-      const { error } = await supabase
-        .from('form_submissions')
-        .insert({
-          project_form_id: projectForm.id,
-          submission_data: formData,
-          tags,
-          ai_summary: aiSummary,
-          contact_info: contactInfo
-        });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Your assessment has been submitted successfully!",
-      });
-
-      setFormData({});
-      setCurrentSlide(0);
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      toast({
-        title: "Error",
-        description: "Failed to submit assessment. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  }, [slug]);
 
   return {
     formTemplate,
