@@ -78,31 +78,51 @@ const AgentsDashboard = () => {
     return allCalls;
   };
 
+  const fetchAllAppointments = async (baseQuery: any) => {
+    let allAppointments: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await baseQuery
+        .range(from, from + batchSize - 1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allAppointments = [...allAppointments, ...data];
+        from += batchSize;
+        hasMore = data.length === batchSize; // Continue if we got a full batch
+        console.log(`Fetched appointments batch: ${data.length} records, total so far: ${allAppointments.length}`);
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`Total appointments fetched: ${allAppointments.length}`);
+    return allAppointments;
+  };
+
   const fetchStats = async () => {
     try {
       setLoading(true);
       
       // Build base queries
       let callsBaseQuery = supabase.from('all_calls').select('*');
-      let appointmentsQuery = supabase.from('all_appointments').select('*');
+      let appointmentsBaseQuery = supabase.from('all_appointments').select('*');
 
       // Apply agent filter if not ALL
       if (selectedAgent !== 'ALL') {
         callsBaseQuery = callsBaseQuery.eq('agent', selectedAgent);
-        appointmentsQuery = appointmentsQuery.eq('agent', selectedAgent);
+        appointmentsBaseQuery = appointmentsBaseQuery.eq('agent', selectedAgent);
       }
 
-      // Execute queries - fetch all calls with pagination
-      const [appointmentsResult] = await Promise.all([
-        appointmentsQuery
+      // Execute queries - fetch all data with proper pagination
+      const [calls, appointments] = await Promise.all([
+        fetchAllCalls(callsBaseQuery),
+        fetchAllAppointments(appointmentsBaseQuery)
       ]);
-
-      // Fetch all calls using improved pagination
-      const calls = await fetchAllCalls(callsBaseQuery);
-
-      if (appointmentsResult.error) throw appointmentsResult.error;
-
-      const appointments = appointmentsResult.data || [];
 
       // Calculate metrics
       const totalDialsMade = calls.length;
