@@ -40,7 +40,14 @@ const AddFormTemplateToProject = ({ projects, onFormAdded }: AddFormTemplateToPr
         .order('title');
 
       if (error) throw error;
-      setFormTemplates(data || []);
+      
+      // Transform the data to match FormTemplate interface
+      const transformedData: FormTemplate[] = (data || []).map(template => ({
+        ...template,
+        form_data: template.form_data as { slides: any[] }
+      }));
+      
+      setFormTemplates(transformedData);
     } catch (error) {
       console.error('Error fetching form templates:', error);
       toast({
