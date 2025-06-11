@@ -63,7 +63,7 @@ const AddFormTemplateToProject = ({ projects, onFormAdded }: AddFormTemplateToPr
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
-      .trim('-');
+      .replace(/^-+|-+$/g, '');
     return slug;
   };
 
@@ -109,7 +109,7 @@ const AddFormTemplateToProject = ({ projects, onFormAdded }: AddFormTemplateToPr
         .from('project_forms')
         .select('id')
         .eq('public_url_slug', urlSlug)
-        .single();
+        .maybeSingle();
 
       if (existingForm) {
         toast({
