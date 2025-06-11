@@ -12,7 +12,6 @@ import UndoImport from "./pages/UndoImport";
 import CsvImportHistory from "./pages/CsvImportHistory";
 import AgentStatsPage from "./components/AgentStatsPage";
 import PublicForm from "./pages/PublicForm";
-import ProjectDetailedDashboard from "./components/projects/ProjectDetailedDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,7 +26,6 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/project/:projectName" element={<ProjectPortal />} />
-            <Route path="/project/:projectName/dashboard" element={<ProjectDetailedDashboard />} />
             <Route path="/api-docs" element={<ApiDocs />} />
             <Route path="/agent-claim" element={<AgentClaim />} />
             <Route path="/undo-import" element={<UndoImport />} />

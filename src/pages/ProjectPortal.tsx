@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +8,6 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
-import ProjectDetailedDashboard from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 
@@ -155,7 +155,7 @@ const ProjectPortal = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header with back button only */}
+        {/* Header with back button */}
         <div className="flex items-center justify-between">
           <Link to="/">
             <Button variant="outline">
@@ -171,16 +171,20 @@ const ProjectPortal = () => {
         {/* Stats Cards */}
         <ProjectStatsCards stats={stats} />
 
-        {/* Small detailed analytics link below stats */}
-        <div className="text-center">
-          <Link to={`/project/${encodeURIComponent(project.project_name)}/dashboard`}>
-            <button className="text-sm text-blue-600 hover:text-blue-800 underline">
-              View detailed analytics
-            </button>
-          </Link>
-        </div>
+        {/* Instructions for project team */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-center text-gray-600">
+              <h3 className="text-lg font-medium mb-2">Appointment Management Portal</h3>
+              <p className="text-sm">
+                Update the status of your confirmed appointments below. Mark appointments as "Showed" or "No Show" 
+                and indicate whether procedures were ordered.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Appointments Section - Only confirmed appointments */}
+        {/* Appointments Section - Only confirmed appointments for status updates */}
         <AllAppointmentsManager 
           projectFilter={project.project_name} 
           isProjectPortal={true}
