@@ -194,6 +194,88 @@ export const useFormRenderer = (slug: string) => {
       return summary;
     }
 
+    // Generate AI summary for UFE screening
+    if (template.form_type === 'ufe_screening') {
+      const periodDuration = data.period_duration;
+      const periodFlow = data.period_flow;
+      const treatments = Array.isArray(data.treatments_tried) ? data.treatments_tried : [];
+      const motivators = Array.isArray(data.emotional_motivators) ? data.emotional_motivators : [];
+      const lifeInterference = data.life_interference;
+      const impactAreas = Array.isArray(data.impact_areas) ? data.impact_areas : [];
+
+      let summary = `Based on your responses, you've experienced `;
+
+      // Period characteristics
+      const periodDetails = [];
+      if (periodDuration === '8_plus_days') {
+        periodDetails.push('periods lasting 8+ days');
+      } else if (periodDuration === '6_7_days') {
+        periodDetails.push('periods lasting 6-7 days');
+      }
+
+      if (periodFlow === 'heavy' || periodFlow === 'very_heavy') {
+        periodDetails.push('heavy menstrual bleeding');
+      }
+
+      if (periodDetails.length > 0) {
+        summary += periodDetails.join(' and ');
+      } else {
+        summary += 'fibroid-related symptoms';
+      }
+
+      // Treatment history
+      if (treatments.length > 0) {
+        const treatmentLabels = treatments.map((t: string) => {
+          switch (t) {
+            case 'pain_relievers': return 'pain relievers';
+            case 'birth_control': return 'hormonal birth control';
+            case 'heating_pads': return 'heating pads';
+            case 'diet_exercise': return 'diet/exercise changes';
+            default: return t;
+          }
+        });
+        summary += `, and have tried ${treatmentLabels.join(', ')}`;
+      }
+
+      // Life impact
+      if (lifeInterference === 'frequently' || lifeInterference === 'constantly') {
+        summary += '. These symptoms are significantly impacting your daily life';
+        
+        if (impactAreas.length > 0) {
+          const impactLabels = impactAreas.map((area: string) => {
+            switch (area) {
+              case 'motherhood': return 'being a mom';
+              case 'work': return 'work performance';
+              case 'social': return 'social activities';
+              case 'intimacy': return 'intimate relationships';
+              case 'sleep': return 'sleep quality';
+              default: return area;
+            }
+          });
+          summary += `, particularly affecting ${impactLabels.join(', ')}`;
+        }
+      }
+
+      // Motivators
+      if (motivators.length > 0) {
+        const motivatorLabels = motivators.map((m: string) => {
+          switch (m) {
+            case 'work_focus': return 'focus better at work';
+            case 'active_with_kids': return 'be more active with your children';
+            case 'enjoy_intimacy': return 'enjoy intimacy again';
+            case 'travel_plan': return 'travel and plan events confidently';
+            case 'sleep_better': return 'sleep without interruption';
+            default: return m;
+          }
+        });
+        summary += `. Relief would allow you to ${motivatorLabels.join(', ')}`;
+      }
+
+      summary += '. UFE may be a minimally invasive solution to help you regain your quality of life.';
+      
+      return summary;
+    }
+
     return 'Thank you for completing the assessment. Our team will review your responses.';
   };
 
@@ -221,6 +303,24 @@ export const useFormRenderer = (slug: string) => {
           }
         }
       }
+
+      // Handle additional fields for complex slides
+      if (slide.fields) {
+        slide.fields.forEach(field => {
+          if (data[field.field_name] && field.options) {
+            const fieldValue = data[field.field_name];
+            
+            if (Array.isArray(fieldValue)) {
+              fieldValue.forEach(value => {
+                const option = field.options?.find(o => o.value === value);
+                if (option?.tags) {
+                  tags.push(...option.tags);
+                }
+              });
+            }
+          }
+        });
+      }
     });
 
     // Add special logic tags for PFE survey
@@ -241,6 +341,41 @@ export const useFormRenderer = (slug: string) => {
       }
     }
 
+    // Add special logic tags for UFE survey
+    if (template.form_type === 'ufe_screening') {
+      // Failed conservative treatment if multiple treatments tried without success
+      const treatments = data.treatments_tried;
+      const treatmentEffectiveness = data.treatment_effectiveness;
+      
+      if (Array.isArray(treatments) && treatments.length >= 2 && 
+          (treatmentEffectiveness === 'temporarily' || treatmentEffectiveness === 'not_at_all')) {
+        tags.push('Failed_Conservative_Tx');
+      }
+
+      // Likely UFE candidate based on multiple factors
+      const heavyBleeding = tags.includes('Heavy_Bleeding') || tags.includes('Long_Bleeding');
+      const significantSymptoms = tags.includes('Pelvic_Pain') || tags.includes('Pelvic_Pressure');
+      const lifeDisruption = tags.includes('Life_Disruption');
+      const relationshipImpact = tags.includes('Dyspareunia') || tags.includes('Relationship_Impact');
+      
+      if (heavyBleeding && (significantSymptoms || lifeDisruption || relationshipImpact)) {
+        tags.push('Likely_UFE_Candidate');
+      }
+
+      // Strong candidate if multiple severe symptoms
+      const severeSymptoms = [
+        tags.includes('Heavy_Bleeding'),
+        tags.includes('Pelvic_Pain'),
+        tags.includes('Life_Disruption'),
+        tags.includes('Fatigue_Symptom'),
+        tags.includes('Failed_Conservative_Tx')
+      ].filter(Boolean).length;
+
+      if (severeSymptoms >= 3) {
+        tags.push('Strong_UFE_Candidate');
+      }
+    }
+
     return [...new Set(tags)]; // Remove duplicates
   };
 
@@ -253,7 +388,8 @@ export const useFormRenderer = (slug: string) => {
         last_name: formData.last_name,
         email: formData.email,
         phone: formData.phone,
-        zip_code: formData.zip_code
+        zip_code: formData.zip_code,
+        date_of_birth: formData.date_of_birth
       };
 
       const tags = collectTags(formData, formTemplate);
