@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Refresh, User } from 'lucide-react';
+import { RefreshCw, User } from 'lucide-react';
 
 interface Lead {
   id: string;
@@ -94,7 +93,7 @@ const NewLeadsManager = () => {
               className="flex items-center gap-2"
               variant="outline"
             >
-              <Refresh className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
           </div>

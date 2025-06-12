@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, Refresh } from 'lucide-react';
+import { Download, Upload, RefreshCw } from 'lucide-react';
 
 interface Call {
   id: string;
@@ -97,7 +96,7 @@ const AllCallsManager = () => {
               className="flex items-center gap-2"
               variant="outline"
             >
-              <Refresh className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
           </div>
