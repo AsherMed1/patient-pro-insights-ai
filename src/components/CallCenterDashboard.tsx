@@ -1,19 +1,31 @@
 
 import React, { useState } from 'react';
-import DashboardHeader from './dashboard/DashboardHeader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DashboardTabs from './dashboard/DashboardTabs';
 
 interface CallCenterDashboardProps {
-  projectId: string;
+  projectId?: string;
 }
 
-const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
+const CallCenterDashboard = ({ projectId = "project-1" }: CallCenterDashboardProps) => {
   const [activeTab, setActiveTab] = useState("projects");
 
   return (
     <div className="space-y-6">
-      <DashboardHeader />
-      <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Call Center Analytics Dashboard</CardTitle>
+          <CardDescription>
+            Overview of call center performance and metrics
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DashboardTabs 
+            activeTab={activeTab} 
+            onTabChange={setActiveTab} 
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 };
