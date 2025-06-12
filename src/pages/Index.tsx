@@ -3,9 +3,8 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Undo2, UserPlus, LogIn } from "lucide-react";
+import { FileText, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AllCallsManager from "@/components/AllCallsManager";
@@ -19,32 +18,6 @@ import FormManagement from "@/components/forms/FormManagement";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const { user } = useAuth();
-
-  // If user is not authenticated, show sign-up prompt
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Welcome to Call Center Analytics</CardTitle>
-            <p className="text-gray-600">Please sign up or log in to access the dashboard</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Link to="/auth" className="w-full">
-              <Button className="w-full flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Sign Up / Log In
-              </Button>
-            </Link>
-            <p className="text-sm text-gray-500 text-center">
-              The first user to sign up will automatically become an admin.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -109,7 +82,7 @@ const Index = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Quick Actions Card - moved to bottom */}
+        {/* Quick Actions Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
