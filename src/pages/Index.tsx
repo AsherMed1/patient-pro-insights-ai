@@ -15,6 +15,7 @@ import ProjectsManager from "@/components/ProjectsManager";
 import AdSpendManager from "@/components/AdSpendManager";
 import AIAssistant from "@/components/AIAssistant";
 import FormManagement from "@/components/forms/FormManagement";
+import AgentPerformanceDashboard from "@/components/AgentPerformanceDashboard";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -28,13 +29,14 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-11">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="agent-performance">Agent Performance</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="forms">Forms</TabsTrigger>
             <TabsTrigger value="adspend">Ad Spend</TabsTrigger>
@@ -63,6 +65,10 @@ const Index = () => {
 
           <TabsContent value="agents" className="space-y-6">
             <AgentManager />
+          </TabsContent>
+
+          <TabsContent value="agent-performance" className="space-y-6">
+            <AgentPerformanceDashboard />
           </TabsContent>
 
           <TabsContent value="projects" className="space-y-6">

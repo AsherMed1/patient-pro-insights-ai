@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, User } from 'lucide-react';
+import { RefreshCw, User, Phone, Calendar } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Lead {
   id: string;
@@ -129,32 +131,78 @@ const NewLeadsManager = () => {
                 <p>No leads found</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {leads.map((lead) => (
-                  <div key={lead.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3">
-                        <User className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <h3 className="font-semibold">{lead.lead_name}</h3>
-                          <p className="text-sm text-gray-600">{lead.project_name}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(lead.date).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">Called: {lead.times_called} times</p>
-                        {lead.phone_number && (
-                          <p className="text-sm text-gray-500">{lead.phone_number}</p>
-                        )}
-                        {lead.status && (
-                          <p className="text-sm text-gray-500">Status: {lead.status}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Lead Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Phone Number</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Times Called</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {leads.map((lead) => (
+                      <TableRow key={lead.id}>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">
+                              {new Date(lead.date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <span className="font-medium">{lead.lead_name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {lead.project_name}
+                        </TableCell>
+                        <TableCell>
+                          {lead.phone_number ? (
+                            <div className="flex items-center space-x-2">
+                              <Phone className="h-4 w-4 text-blue-500" />
+                              <span className="text-sm">{lead.phone_number}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">No phone</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {lead.email || 'No email'}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            lead.times_called === 0 
+                              ? 'bg-red-100 text-red-800' 
+                              : lead.times_called < 3
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {lead.times_called} calls
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            lead.status === 'contacted'
+                              ? 'bg-green-100 text-green-800'
+                              : lead.status === 'attempted'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {lead.status || 'New'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>
