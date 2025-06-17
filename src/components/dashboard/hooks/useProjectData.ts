@@ -64,45 +64,79 @@ export const useProjectData = (selectedProject: string, dateRange: DateRange) =>
     try {
       setLoading(true);
       
-      // Build base queries
-      let leadsQuery = supabase.from('new_leads').select('*');
-      let appointmentsQuery = supabase.from('all_appointments').select('*');
-      let callsBaseQuery = supabase.from('all_calls').select('*');
-      let adSpendQuery = supabase.from('facebook_ad_spend').select('spend');
+      // Build base queries - clone them for each pagination call
+      const buildLeadsQuery = () => {
+        let query = supabase.from('new_leads').select('*');
+        if (selectedProject !== 'ALL') {
+          query = query.eq('project_name', selectedProject);
+        }
+        if (dateRange.from) {
+          const fromDate = dateRange.from.toISOString().split('T')[0];
+          query = query.gte('date', fromDate);
+        }
+        if (dateRange.to) {
+          const toDate = dateRange.to.toISOString().split('T')[0];
+          query = query.lte('date', toDate);
+        }
+        return query;
+      };
 
-      // Apply project filter if not ALL
-      if (selectedProject !== 'ALL') {
-        leadsQuery = leadsQuery.eq('project_name', selectedProject);
-        appointmentsQuery = appointmentsQuery.eq('project_name', selectedProject);
-        callsBaseQuery = callsBaseQuery.eq('project_name', selectedProject);
-        adSpendQuery = adSpendQuery.eq('project_name', selectedProject);
-      }
+      const buildAppointmentsQuery = () => {
+        let query = supabase.from('all_appointments').select('*');
+        if (selectedProject !== 'ALL') {
+          query = query.eq('project_name', selectedProject);
+        }
+        if (dateRange.from) {
+          const fromDate = dateRange.from.toISOString().split('T')[0];
+          query = query.gte('date_appointment_created', fromDate);
+        }
+        if (dateRange.to) {
+          const toDate = dateRange.to.toISOString().split('T')[0];
+          query = query.lte('date_appointment_created', toDate);
+        }
+        return query;
+      };
 
-      // Apply date filters
-      if (dateRange.from) {
-        const fromDate = dateRange.from.toISOString().split('T')[0];
-        leadsQuery = leadsQuery.gte('date', fromDate);
-        appointmentsQuery = appointmentsQuery.gte('date_appointment_created', fromDate);
-        callsBaseQuery = callsBaseQuery.gte('date', fromDate);
-        adSpendQuery = adSpendQuery.gte('date', fromDate);
-      }
+      const buildCallsQuery = () => {
+        let query = supabase.from('all_calls').select('*');
+        if (selectedProject !== 'ALL') {
+          query = query.eq('project_name', selectedProject);
+        }
+        if (dateRange.from) {
+          const fromDate = dateRange.from.toISOString().split('T')[0];
+          query = query.gte('date', fromDate);
+        }
+        if (dateRange.to) {
+          const toDate = dateRange.to.toISOString().split('T')[0];
+          query = query.lte('date', toDate);
+        }
+        return query;
+      };
 
-      if (dateRange.to) {
-        const toDate = dateRange.to.toISOString().split('T')[0];
-        leadsQuery = leadsQuery.lte('date', toDate);
-        appointmentsQuery = appointmentsQuery.lte('date_appointment_created', toDate);
-        callsBaseQuery = callsBaseQuery.lte('date', toDate);
-        adSpendQuery = adSpendQuery.lte('date', toDate);
-      }
+      const buildAdSpendQuery = () => {
+        let query = supabase.from('facebook_ad_spend').select('spend');
+        if (selectedProject !== 'ALL') {
+          query = query.eq('project_name', selectedProject);
+        }
+        if (dateRange.from) {
+          const fromDate = dateRange.from.toISOString().split('T')[0];
+          query = query.gte('date', fromDate);
+        }
+        if (dateRange.to) {
+          const toDate = dateRange.to.toISOString().split('T')[0];
+          query = query.lte('date', toDate);
+        }
+        return query;
+      };
 
       // Execute queries - fetch all records with pagination for large datasets
       console.log('Starting to fetch all data with proper pagination...');
       
       const [leads, appointments, calls, adSpendData] = await Promise.all([
-        fetchAllRecords(leadsQuery, 'leads'),
-        fetchAllRecords(appointmentsQuery, 'appointments'),
-        fetchAllRecords(callsBaseQuery, 'calls'),
-        fetchAllRecords(adSpendQuery, 'ad_spend')
+        fetchAllRecords(buildLeadsQuery(), 'leads'),
+        fetchAllRecords(buildAppointmentsQuery(), 'appointments'),
+        fetchAllRecords(buildCallsQuery(), 'calls'),
+        fetchAllRecords(buildAdSpendQuery(), 'ad_spend')
       ]);
 
       console.log(`Final counts - Leads: ${leads.length}, Appointments: ${appointments.length}, Calls: ${calls.length}, Ad Spend: ${adSpendData.length}`);
@@ -132,6 +166,8 @@ export const useProjectData = (selectedProject: string, dateRange: DateRange) =>
         return appointmentDate < today;
       });
 
+      console.log(`Past appointments for shows/no-shows calculation: ${pastAppointments.length}`);
+
       // Shows: appointments that actually showed up (status = 'Showed' OR showed = true)
       const shows = pastAppointments.filter(apt => 
         apt.status === 'Showed' || apt.showed === true
@@ -142,6 +178,8 @@ export const useProjectData = (selectedProject: string, dateRange: DateRange) =>
         (apt.status === 'No Show' || (apt.showed === false && apt.status !== 'Cancelled')) &&
         apt.status !== 'Showed' && apt.showed !== true
       ).length;
+
+      console.log(`Shows: ${shows}, No Shows: ${noShows}`);
       
       const outboundDials = calls.filter(call => call.direction === 'outbound').length;
       const pickups40Plus = calls.filter(call => 

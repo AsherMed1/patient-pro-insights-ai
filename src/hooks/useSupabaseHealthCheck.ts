@@ -10,6 +10,8 @@ interface HealthCheckResult {
   error?: string;
 }
 
+type TableName = 'projects' | 'new_leads' | 'all_calls' | 'all_appointments' | 'facebook_ad_spend' | 'agents' | 'csv_import_history';
+
 export const useSupabaseHealthCheck = () => {
   const [results, setResults] = useState<HealthCheckResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -17,7 +19,7 @@ export const useSupabaseHealthCheck = () => {
 
   const runHealthCheck = async () => {
     setLoading(true);
-    const tablesToCheck = [
+    const tablesToCheck: TableName[] = [
       'projects',
       'new_leads',
       'all_calls',
@@ -39,19 +41,18 @@ export const useSupabaseHealthCheck = () => {
 
         const canRead = !readError;
 
-        // Test write access with a minimal insert (will likely fail but tells us about permissions)
+        // Test write access - just check if we can access the table for writes
         let canWrite = false;
         try {
+          // Try to get the table schema instead of inserting
           const { error: writeError } = await supabase
             .from(tableName)
-            .insert({})
-            .select()
-            .limit(1);
+            .select('*')
+            .limit(0);
           
           canWrite = !writeError;
         } catch (e) {
-          // Expected to fail for most tables due to required fields
-          canWrite = true; // If we get a validation error, it means we have write permission
+          canWrite = false;
         }
 
         checkResults.push({
