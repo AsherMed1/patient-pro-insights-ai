@@ -5,12 +5,80 @@ import { AllAppointment } from '@/components/appointments/types';
 
 export const useAppointments = (projectFilter?: string, isProjectPortal: boolean = false) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
+  const [totalCounts, setTotalCounts] = useState({
+    all: 0,
+    future: 0,
+    past: 0,
+    needsReview: 0,
+    cancelled: 0
+  });
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const recordsPerPage = 50;
   const { toast } = useToast();
+
+  const fetchTotalCounts = async () => {
+    try {
+      let baseQuery = supabase.from('all_appointments').select('*', { count: 'exact' });
+      
+      if (projectFilter) {
+        baseQuery = baseQuery.eq('project_name', projectFilter);
+      }
+
+      // For project portals, filter confirmed appointments
+      if (isProjectPortal) {
+        baseQuery = baseQuery.or('confirmed.eq.true,status.ilike.confirmed');
+      }
+
+      const { data: allData, error } = await baseQuery;
+      
+      if (error) throw error;
+
+      const appointments = allData || [];
+      
+      // Calculate counts using the same logic as the filter functions
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const counts = {
+        all: appointments.length,
+        future: 0,
+        past: 0,
+        needsReview: 0,
+        cancelled: 0
+      };
+
+      appointments.forEach(appointment => {
+        const appointmentDate = appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : null;
+        if (appointmentDate) {
+          appointmentDate.setHours(0, 0, 0, 0);
+        }
+        
+        const isPast = appointmentDate ? appointmentDate < today : false;
+        const isFuture = appointmentDate ? appointmentDate >= today : false;
+        const isCancelled = appointment.status && appointment.status.toLowerCase().trim() === 'cancelled';
+        const hasStatus = appointment.status && appointment.status.trim() !== '';
+        const hasProcedure = appointment.procedure_ordered !== null;
+
+        if (isCancelled) {
+          counts.cancelled++;
+        } else if (isFuture) {
+          counts.future++;
+        } else if (isPast) {
+          counts.past++;
+          if (!hasStatus || !hasProcedure) {
+            counts.needsReview++;
+          }
+        }
+      });
+
+      setTotalCounts(counts);
+    } catch (error) {
+      console.error('Error fetching total counts:', error);
+    }
+  };
 
   const fetchAppointments = async (page: number = 1) => {
     try {
@@ -42,6 +110,9 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
       setTotalRecords(count || 0);
       setTotalPages(Math.ceil((count || 0) / recordsPerPage));
       setCurrentPage(page);
+
+      // Fetch total counts for badges
+      await fetchTotalCounts();
     } catch (error) {
       console.error('Error fetching appointments:', error);
       toast({
@@ -114,6 +185,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
 
   return {
     appointments,
+    totalCounts,
     loading,
     currentPage,
     totalPages,

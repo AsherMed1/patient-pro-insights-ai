@@ -2,54 +2,44 @@
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { AllAppointment } from './types';
-import { filterAppointments } from './utils';
 
 interface AppointmentsStatsProps {
-  appointments: AllAppointment[];
+  totalCounts: {
+    all: number;
+    future: number;
+    past: number;
+    needsReview: number;
+    cancelled: number;
+  };
   isProjectPortal?: boolean;
 }
 
-const AppointmentsStats = ({ appointments, isProjectPortal = false }: AppointmentsStatsProps) => {
-  console.log('AppointmentsStats - Total appointments:', appointments.length);
-  
-  const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
-  const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
-  const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
-  const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
-
-  console.log('AppointmentsStats - Filtered counts:', {
-    future: futureAppointments.length,
-    past: pastAppointments.length,
-    needsReview: needsReviewAppointments.length,
-    cancelled: cancelledAppointments.length
-  });
-
+const AppointmentsStats = ({ totalCounts, isProjectPortal = false }: AppointmentsStatsProps) => {
   const stats = [
     {
       label: 'Upcoming',
-      count: futureAppointments.length,
+      count: totalCounts.future,
       icon: Calendar,
       variant: 'default' as const,
       color: 'text-blue-600'
     },
     {
       label: 'Past',
-      count: pastAppointments.length,
+      count: totalCounts.past,
       icon: Clock,
       variant: 'secondary' as const,
       color: 'text-gray-600'
     },
     {
       label: 'Needs Review',
-      count: needsReviewAppointments.length,
+      count: totalCounts.needsReview,
       icon: AlertCircle,
       variant: 'destructive' as const,
       color: 'text-red-600'
     },
     {
       label: 'Cancelled',
-      count: cancelledAppointments.length,
+      count: totalCounts.cancelled,
       icon: XCircle,
       variant: 'outline' as const,
       color: 'text-gray-500'

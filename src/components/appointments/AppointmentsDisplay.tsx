@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { AllAppointment } from './types';
@@ -9,6 +8,13 @@ import AppointmentsPagination from './AppointmentsPagination';
 
 interface AppointmentsDisplayProps {
   appointments: AllAppointment[];
+  totalCounts: {
+    all: number;
+    future: number;
+    past: number;
+    needsReview: number;
+    cancelled: number;
+  };
   loading: boolean;
   projectFilter?: string;
   isProjectPortal?: boolean;
@@ -29,6 +35,7 @@ interface FilterState {
 
 const AppointmentsDisplay = ({
   appointments,
+  totalCounts,
   loading,
   projectFilter,
   isProjectPortal = false,
@@ -121,12 +128,13 @@ const AppointmentsDisplay = ({
       
       <CardContent className="p-4 md:p-6 pt-0 space-y-6">
         <AppointmentsStats 
-          appointments={filteredAppointments} 
+          totalCounts={totalCounts}
           isProjectPortal={isProjectPortal} 
         />
         
         <AppointmentsTabs
           appointments={filteredAppointments}
+          totalCounts={totalCounts}
           loading={loading}
           activeTab={activeTab}
           onTabChange={setActiveTab}

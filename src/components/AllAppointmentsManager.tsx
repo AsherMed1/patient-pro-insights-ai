@@ -11,6 +11,7 @@ const AllAppointmentsManager = ({
 }: AllAppointmentsManagerProps) => {
   const {
     appointments,
+    totalCounts,
     loading,
     currentPage,
     totalPages,
@@ -32,6 +33,7 @@ const AllAppointmentsManager = ({
       {/* Appointments List */}
       <AppointmentsDisplay
         appointments={appointments}
+        totalCounts={totalCounts}
         loading={loading}
         projectFilter={projectFilter}
         isProjectPortal={isProjectPortal}

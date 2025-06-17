@@ -9,6 +9,13 @@ import AppointmentsFilters from './AppointmentsFilters';
 
 interface AppointmentsTabsProps {
   appointments: AllAppointment[];
+  totalCounts: {
+    all: number;
+    future: number;
+    past: number;
+    needsReview: number;
+    cancelled: number;
+  };
   loading: boolean;
   activeTab: string;
   onTabChange: (value: string) => void;
@@ -23,6 +30,7 @@ interface AppointmentsTabsProps {
 
 const AppointmentsTabs = ({
   appointments,
+  totalCounts,
   loading,
   activeTab,
   onTabChange,
@@ -34,20 +42,11 @@ const AppointmentsTabs = ({
   onDateFilter,
   onDateRangeFilter
 }: AppointmentsTabsProps) => {
-  console.log('AppointmentsTabs - Total appointments:', appointments.length);
-  
+  // Filter the current page's appointments for display
   const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
   const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
   const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
   const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
-
-  console.log('AppointmentsTabs - Tab counts:', {
-    all: appointments.length,
-    future: futureAppointments.length,
-    past: pastAppointments.length,
-    needsReview: needsReviewAppointments.length,
-    cancelled: cancelledAppointments.length
-  });
 
   // For project portal, default to future tab if all tab is selected
   const currentTab = isProjectPortal && activeTab === "all" ? "future" : activeTab;
@@ -59,39 +58,39 @@ const AppointmentsTabs = ({
           <TabsTrigger value="all" className="relative">
             All
             <Badge variant="outline" className="ml-2 text-xs">
-              {appointments.length}
+              {totalCounts.all}
             </Badge>
           </TabsTrigger>
         )}
         <TabsTrigger value="future" className="relative">
           Future
-          {futureAppointments.length > 0 && (
+          {totalCounts.future > 0 && (
             <Badge variant="outline" className="ml-2 text-xs">
-              {futureAppointments.length}
+              {totalCounts.future}
             </Badge>
           )}
         </TabsTrigger>
         <TabsTrigger value="past" className="relative">
           Past
-          {pastAppointments.length > 0 && (
+          {totalCounts.past > 0 && (
             <Badge variant="outline" className="ml-2 text-xs">
-              {pastAppointments.length}
+              {totalCounts.past}
             </Badge>
           )}
         </TabsTrigger>
         <TabsTrigger value="needs-review" className="relative">
           Needs Review
-          {needsReviewAppointments.length > 0 && (
+          {totalCounts.needsReview > 0 && (
             <Badge variant="destructive" className="ml-2 text-xs">
-              {needsReviewAppointments.length}
+              {totalCounts.needsReview}
             </Badge>
           )}
         </TabsTrigger>
         <TabsTrigger value="cancelled" className="relative">
           Cancelled
-          {cancelledAppointments.length > 0 && (
+          {totalCounts.cancelled > 0 && (
             <Badge variant="outline" className="ml-2 text-xs">
-              {cancelledAppointments.length}
+              {totalCounts.cancelled}
             </Badge>
           )}
         </TabsTrigger>
