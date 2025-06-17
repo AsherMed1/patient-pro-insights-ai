@@ -10,6 +10,7 @@ import ContactInfo from './components/ContactInfo';
 import DateInfo from './components/DateInfo';
 import StatusDisplay from './components/StatusDisplay';
 import UpdateControls from './components/UpdateControls';
+import AppointmentNotes from './components/AppointmentNotes';
 
 interface AppointmentCardProps {
   appointment: AllAppointment;
@@ -96,6 +97,9 @@ const AppointmentCard = ({
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
         />
+
+        {/* Notes Section */}
+        <AppointmentNotes appointmentId={appointment.id} />
       </Card>
 
       <LeadDetailsModal 

@@ -227,6 +227,41 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_notes: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note_text: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note_text: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note_text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_appointment_notes_appointment_id"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           additional_fields: Json | null
