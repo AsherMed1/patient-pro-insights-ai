@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordProm
 import { useProjectPortalAuth } from '@/hooks/useProjectPortalAuth';
 import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 import TagManager from '@/components/projects/TagManager';
+import FullDataDashboard from '@/components/dashboard/FullDataDashboard';
 
 interface Project {
   id: string;
@@ -207,36 +208,53 @@ const ProjectPortal = () => {
         {/* Stats Cards */}
         <ProjectStatsCards stats={stats} />
 
-        {/* Tag Manager Section with Toggle */}
-        <Card>
-          <div className="p-4">
-            <Button
-              variant="ghost"
-              onClick={() => setShowTagManager(!showTagManager)}
-              className="flex items-center space-x-2 text-left p-0 h-auto font-medium"
-            >
-              {showTagManager ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-              <Tag className="h-4 w-4" />
-              <span>Tag Manager</span>
-            </Button>
-            
-            {showTagManager && (
-              <div className="mt-4">
-                <TagManager projectId={project.id} projectName={project.project_name} />
-              </div>
-            )}
-          </div>
-        </Card>
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="fulldata">Full Data</TabsTrigger>
+            <TabsTrigger value="appointments">Appointments</TabsTrigger>
+          </TabsList>
 
-        {/* Appointments Section - Only confirmed appointments for status updates */}
-        <AllAppointmentsManager 
-          projectFilter={project.project_name} 
-          isProjectPortal={true}
-        />
+          <TabsContent value="overview" className="space-y-6">
+            {/* Tag Manager Section with Toggle */}
+            <Card>
+              <div className="p-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowTagManager(!showTagManager)}
+                  className="flex items-center space-x-2 text-left p-0 h-auto font-medium"
+                >
+                  {showTagManager ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <Tag className="h-4 w-4" />
+                  <span>Tag Manager</span>
+                </Button>
+                
+                {showTagManager && (
+                  <div className="mt-4">
+                    <TagManager projectId={project.id} projectName={project.project_name} />
+                  </div>
+                )}
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="fulldata" className="space-y-6">
+            <FullDataDashboard projectName={project.project_name} />
+          </TabsContent>
+
+          <TabsContent value="appointments" className="space-y-6">
+            {/* Appointments Section - Only confirmed appointments for status updates */}
+            <AllAppointmentsManager 
+              projectFilter={project.project_name} 
+              isProjectPortal={true}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
