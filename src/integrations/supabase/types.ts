@@ -112,6 +112,7 @@ export type Database = {
           agent: string | null
           agent_number: string | null
           calendar_name: string | null
+          color_indicator: string | null
           confirmed: boolean | null
           confirmed_number: string | null
           created_at: string
@@ -134,6 +135,7 @@ export type Database = {
           agent?: string | null
           agent_number?: string | null
           calendar_name?: string | null
+          color_indicator?: string | null
           confirmed?: boolean | null
           confirmed_number?: string | null
           created_at?: string
@@ -156,6 +158,7 @@ export type Database = {
           agent?: string | null
           agent_number?: string | null
           calendar_name?: string | null
+          color_indicator?: string | null
           confirmed?: boolean | null
           confirmed_number?: string | null
           created_at?: string

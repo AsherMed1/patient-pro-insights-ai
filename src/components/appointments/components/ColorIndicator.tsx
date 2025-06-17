@@ -21,7 +21,8 @@ const ColorIndicator = ({ appointmentId, initialColor }: ColorIndicatorProps) =>
   const { toast } = useToast();
 
   const getCurrentColorIndex = () => {
-    return colors.findIndex(color => color.value === currentColor);
+    const index = colors.findIndex(color => color.value === currentColor);
+    return index >= 0 ? index : 0; // Default to first color if not found
   };
 
   const handleColorChange = async () => {
