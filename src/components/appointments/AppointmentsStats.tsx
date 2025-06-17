@@ -36,13 +36,6 @@ const AppointmentsStats = ({ totalCounts, isProjectPortal = false }: Appointment
       icon: AlertCircle,
       variant: 'destructive' as const,
       color: 'text-red-600'
-    },
-    {
-      label: 'Cancelled',
-      count: totalCounts.cancelled,
-      icon: XCircle,
-      variant: 'outline' as const,
-      color: 'text-gray-500'
     }
   ];
 
