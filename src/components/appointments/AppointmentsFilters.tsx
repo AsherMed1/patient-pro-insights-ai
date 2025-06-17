@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon, X, Search } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -13,12 +14,14 @@ interface AppointmentsFiltersProps {
   onStatusFilter?: (status: string | null) => void;
   onDateFilter?: (date: Date | null) => void;
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
+  onSearchFilter?: (searchTerm: string) => void;
 }
 
 const AppointmentsFilters = ({
   onStatusFilter,
   onDateFilter,
-  onDateRangeFilter
+  onDateRangeFilter,
+  onSearchFilter
 }: AppointmentsFiltersProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -26,6 +29,7 @@ const AppointmentsFilters = ({
     start: null,
     end: null
   });
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   const statusOptions = [
     'Showed',
@@ -59,19 +63,41 @@ const AppointmentsFilters = ({
     onDateRangeFilter?.(newDateRange.start, newDateRange.end);
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    onSearchFilter?.(value);
+  };
+
   const clearFilters = () => {
     setSelectedStatus(null);
     setSelectedDate(null);
     setDateRange({ start: null, end: null });
+    setSearchTerm('');
     onStatusFilter?.(null);
     onDateFilter?.(null);
     onDateRangeFilter?.(null, null);
+    onSearchFilter?.('');
   };
 
   return (
     <Card className="mb-4">
       <CardContent className="p-4">
         <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-sm font-medium mb-2 block">Search by Name</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Search appointments by lead name..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
           <div className="flex-1 min-w-[200px]">
             <label className="text-sm font-medium mb-2 block">Filter by Status</label>
             <Select value={selectedStatus || 'all'} onValueChange={handleStatusChange}>

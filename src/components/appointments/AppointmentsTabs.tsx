@@ -17,7 +17,7 @@ interface AppointmentsTabsProps {
   };
   loading: boolean;
   activeTab: string;
-  onTabChange: (value: string) => void;
+  onTabChange: (tab: string) => void;
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
@@ -25,6 +25,7 @@ interface AppointmentsTabsProps {
   onStatusFilter?: (status: string | null) => void;
   onDateFilter?: (date: Date | null) => void;
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
+  onSearchFilter?: (searchTerm: string) => void;
 }
 
 const AppointmentsTabs = ({
@@ -39,63 +40,43 @@ const AppointmentsTabs = ({
   isProjectPortal = false,
   onStatusFilter,
   onDateFilter,
-  onDateRangeFilter
+  onDateRangeFilter,
+  onSearchFilter
 }: AppointmentsTabsProps) => {
-  // For project portal, default to future tab if all tab is selected
-  const currentTab = isProjectPortal && activeTab === "all" ? "future" : activeTab;
+  const tabs = [
+    { id: 'all', label: 'All Appointments', count: totalCounts.all },
+    { id: 'future', label: 'Future', count: totalCounts.future },
+    { id: 'past', label: 'Past', count: totalCounts.past },
+    { id: 'needs-review', label: 'Needs Review', count: totalCounts.needsReview },
+    { id: 'cancelled', label: 'Cancelled', count: totalCounts.cancelled }
+  ];
+
+  // Filter tabs for project portal
+  const visibleTabs = isProjectPortal ? tabs.filter(tab => tab.id !== 'all') : tabs;
 
   return (
-    <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className={`grid w-full ${isProjectPortal ? 'grid-cols-4' : 'grid-cols-5'}`}>
-        {!isProjectPortal && (
-          <TabsTrigger value="all" className="relative">
-            All
-            <Badge variant="outline" className="ml-2 text-xs">
-              {totalCounts.all}
+    <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+      <TabsList className="grid w-full grid-cols-4 lg:grid-cols-5">
+        {visibleTabs.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
+            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
+            <Badge variant="secondary" className="ml-1">
+              {tab.count}
             </Badge>
           </TabsTrigger>
-        )}
-        <TabsTrigger value="future" className="relative">
-          Future
-          {totalCounts.future > 0 && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              {totalCounts.future}
-            </Badge>
-          )}
-        </TabsTrigger>
-        <TabsTrigger value="past" className="relative">
-          Past
-          {totalCounts.past > 0 && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              {totalCounts.past}
-            </Badge>
-          )}
-        </TabsTrigger>
-        <TabsTrigger value="needs-review" className="relative">
-          Needs Review
-          {totalCounts.needsReview > 0 && (
-            <Badge variant="destructive" className="ml-2 text-xs">
-              {totalCounts.needsReview}
-            </Badge>
-          )}
-        </TabsTrigger>
-        <TabsTrigger value="cancelled" className="relative">
-          Cancelled
-          {totalCounts.cancelled > 0 && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              {totalCounts.cancelled}
-            </Badge>
-          )}
-        </TabsTrigger>
+        ))}
       </TabsList>
 
-      {!isProjectPortal && (
-        <TabsContent value="all" className="mt-4">
+      {visibleTabs.map((tab) => (
+        <TabsContent key={tab.id} value={tab.id} className="space-y-4">
           <AppointmentsFilters
             onStatusFilter={onStatusFilter}
             onDateFilter={onDateFilter}
             onDateRangeFilter={onDateRangeFilter}
+            onSearchFilter={onSearchFilter}
           />
+          
           <AppointmentsList
             appointments={appointments}
             loading={loading}
@@ -104,47 +85,7 @@ const AppointmentsTabs = ({
             onUpdateProcedure={onUpdateProcedure}
           />
         </TabsContent>
-      )}
-
-      <TabsContent value="future" className="mt-4">
-        <AppointmentsList
-          appointments={appointments}
-          loading={loading}
-          projectFilter={projectFilter}
-          onUpdateStatus={onUpdateStatus}
-          onUpdateProcedure={onUpdateProcedure}
-        />
-      </TabsContent>
-
-      <TabsContent value="past" className="mt-4">
-        <AppointmentsList
-          appointments={appointments}
-          loading={loading}
-          projectFilter={projectFilter}
-          onUpdateStatus={onUpdateStatus}
-          onUpdateProcedure={onUpdateProcedure}
-        />
-      </TabsContent>
-
-      <TabsContent value="needs-review" className="mt-4">
-        <AppointmentsList
-          appointments={appointments}
-          loading={loading}
-          projectFilter={projectFilter}
-          onUpdateStatus={onUpdateStatus}
-          onUpdateProcedure={onUpdateProcedure}
-        />
-      </TabsContent>
-
-      <TabsContent value="cancelled" className="mt-4">
-        <AppointmentsList
-          appointments={appointments}
-          loading={loading}
-          projectFilter={projectFilter}
-          onUpdateStatus={onUpdateStatus}
-          onUpdateProcedure={onUpdateProcedure}
-        />
-      </TabsContent>
+      ))}
     </Tabs>
   );
 };

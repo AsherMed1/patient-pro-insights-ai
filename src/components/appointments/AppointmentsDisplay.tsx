@@ -33,6 +33,7 @@ interface FilterState {
   status: string | null;
   date: Date | null;
   dateRange: { start: Date | null; end: Date | null };
+  search: string;
 }
 
 const AppointmentsDisplay = ({
@@ -55,7 +56,8 @@ const AppointmentsDisplay = ({
   const [filters, setFilters] = useState<FilterState>({
     status: null,
     date: null,
-    dateRange: { start: null, end: null }
+    dateRange: { start: null, end: null },
+    search: ''
   });
 
   const handleTabChange = (tab: string) => {
@@ -78,8 +80,20 @@ const AppointmentsDisplay = ({
     }));
   };
 
+  const handleSearchFilter = (searchTerm: string) => {
+    setFilters(prev => ({ ...prev, search: searchTerm }));
+  };
+
   const applyFilters = (appointmentsList: AllAppointment[]) => {
     let filtered = [...appointmentsList];
+
+    // Apply search filter
+    if (filters.search.trim()) {
+      const searchLower = filters.search.toLowerCase().trim();
+      filtered = filtered.filter(appointment => 
+        appointment.lead_name?.toLowerCase().includes(searchLower)
+      );
+    }
 
     // Apply status filter
     if (filters.status) {
@@ -153,6 +167,7 @@ const AppointmentsDisplay = ({
           onStatusFilter={handleStatusFilter}
           onDateFilter={handleDateFilter}
           onDateRangeFilter={handleDateRangeFilter}
+          onSearchFilter={handleSearchFilter}
         />
         
         <AppointmentsPagination
