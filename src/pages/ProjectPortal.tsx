@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
@@ -29,6 +31,7 @@ const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showTagManager, setShowTagManager] = useState(false);
   const [stats, setStats] = useState<AppointmentStats>({
     totalAppointments: 0,
     totalShowed: 0,
@@ -203,8 +206,30 @@ const ProjectPortal = () => {
         {/* Stats Cards */}
         <ProjectStatsCards stats={stats} />
 
-        {/* Tag Manager Section */}
-        <TagManager projectId={project.id} projectName={project.project_name} />
+        {/* Tag Manager Section with Toggle */}
+        <Card>
+          <div className="p-4">
+            <Button
+              variant="ghost"
+              onClick={() => setShowTagManager(!showTagManager)}
+              className="flex items-center space-x-2 text-left p-0 h-auto font-medium"
+            >
+              {showTagManager ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              <Tag className="h-4 w-4" />
+              <span>Tag Manager</span>
+            </Button>
+            
+            {showTagManager && (
+              <div className="mt-4">
+                <TagManager projectId={project.id} projectName={project.project_name} />
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Appointments Section - Only confirmed appointments for status updates */}
         <AllAppointmentsManager 
