@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -19,9 +20,15 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
   const recordsPerPage = 50;
   const { toast } = useToast();
 
-  const fetchTotalCounts = async () => {
+  const fetchAllAppointmentsForCounting = async () => {
     try {
-      let baseQuery = supabase.from('all_appointments').select('*', { count: 'exact' });
+      let allRecords: AllAppointment[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      // Build base query
+      let baseQuery = supabase.from('all_appointments').select('*');
       
       if (projectFilter) {
         baseQuery = baseQuery.eq('project_name', projectFilter);
@@ -32,25 +39,50 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
         baseQuery = baseQuery.or('confirmed.eq.true,status.ilike.confirmed');
       }
 
-      const { data: allData, error } = await baseQuery;
-      
-      if (error) throw error;
+      // Fetch all records in batches
+      while (hasMore) {
+        const { data, error } = await baseQuery
+          .range(from, from + batchSize - 1)
+          .order('date_of_appointment', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allRecords = [...allRecords, ...data];
+          from += batchSize;
+          hasMore = data.length === batchSize;
+          console.log(`Fetched appointments batch: ${data.length} records, total so far: ${allRecords.length}`);
+        } else {
+          hasMore = false;
+        }
+      }
 
-      const appointments = allData || [];
+      console.log(`Total appointments fetched for counting: ${allRecords.length}`);
+      return allRecords;
+    } catch (error) {
+      console.error('Error fetching all appointments for counting:', error);
+      return [];
+    }
+  };
+
+  const fetchTotalCounts = async () => {
+    try {
+      const allAppointments = await fetchAllAppointmentsForCounting();
       
       // Calculate counts using the same logic as the filter functions
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const counts = {
-        all: appointments.length,
+        all: allAppointments.length,
         future: 0,
         past: 0,
         needsReview: 0,
         cancelled: 0
       };
 
-      appointments.forEach(appointment => {
+      allAppointments.forEach(appointment => {
         const appointmentDate = appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : null;
         if (appointmentDate) {
           appointmentDate.setHours(0, 0, 0, 0);
@@ -74,6 +106,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
         }
       });
 
+      console.log('Total counts calculated:', counts);
       setTotalCounts(counts);
     } catch (error) {
       console.error('Error fetching total counts:', error);
