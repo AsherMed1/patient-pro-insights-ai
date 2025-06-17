@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
@@ -199,19 +198,6 @@ const ProjectPortal = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Project Header */}
         <ProjectHeader projectName={project.project_name} />
-
-        {/* Instructions for project team */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center text-gray-600">
-              <h3 className="text-lg font-medium mb-2">Appointment Management Portal</h3>
-              <p className="text-sm">
-                Update the status of your confirmed appointments below. Mark appointments as "Showed" or "No Show" 
-                and indicate whether procedures were ordered.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Stats Cards */}
         <ProjectStatsCards stats={stats} />
