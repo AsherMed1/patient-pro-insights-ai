@@ -120,6 +120,7 @@ export type Database = {
           date_of_appointment: string | null
           ghl_id: string | null
           id: string
+          is_viewed: boolean | null
           lead_email: string | null
           lead_name: string
           lead_phone_number: string | null
@@ -143,6 +144,7 @@ export type Database = {
           date_of_appointment?: string | null
           ghl_id?: string | null
           id?: string
+          is_viewed?: boolean | null
           lead_email?: string | null
           lead_name: string
           lead_phone_number?: string | null
@@ -166,6 +168,7 @@ export type Database = {
           date_of_appointment?: string | null
           ghl_id?: string | null
           id?: string
+          is_viewed?: boolean | null
           lead_email?: string | null
           lead_name?: string
           lead_phone_number?: string | null
