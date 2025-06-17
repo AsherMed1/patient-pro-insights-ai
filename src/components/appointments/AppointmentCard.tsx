@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { User, Building, Info } from 'lucide-react';
+import { User, Building, Info, Calendar } from 'lucide-react';
 import { AllAppointment } from './types';
 import { useLeadDetails } from './hooks/useLeadDetails';
 import LeadDetailsModal from '@/components/LeadDetailsModal';
@@ -48,9 +48,18 @@ const AppointmentCard = ({
               <h3 className="font-semibold text-lg truncate">{appointment.lead_name}</h3>
             </div>
             
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              <Building className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{appointment.project_name}</span>
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Building className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{appointment.project_name}</span>
+              </div>
+              
+              {appointment.calendar_name && (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{appointment.calendar_name}</span>
+                </div>
+              )}
             </div>
           </div>
           
