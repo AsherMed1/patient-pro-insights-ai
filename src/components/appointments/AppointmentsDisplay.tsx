@@ -67,6 +67,7 @@ const AppointmentsDisplay = ({
     sortOrder: 'asc'
   });
   const [taggedAppointmentIds, setTaggedAppointmentIds] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -237,6 +238,12 @@ const AppointmentsDisplay = ({
           onSearchFilter={handleSearchFilter}
           onTagFilter={handleTagFilter}
           onSortChange={handleSortChange}
+          searchTerm={filters.search}
+          selectedStatus={filters.status}
+          selectedDate={filters.date}
+          dateRange={filters.dateRange}
+          selectedTag={filters.tag}
+          availableTags={availableTags}
         />
         
         <AppointmentsPagination

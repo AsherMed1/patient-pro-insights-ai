@@ -28,6 +28,12 @@ interface AppointmentsTabsProps {
   onSearchFilter?: (searchTerm: string) => void;
   onTagFilter?: (tagId: string | null) => void;
   onSortChange?: (sortBy: string | null, sortOrder: 'asc' | 'desc') => void;
+  searchTerm?: string;
+  selectedStatus?: string | null;
+  selectedDate?: Date | null;
+  dateRange?: { start: Date | null; end: Date | null };
+  selectedTag?: string | null;
+  availableTags?: any[];
 }
 
 const AppointmentsTabs = ({
@@ -45,7 +51,13 @@ const AppointmentsTabs = ({
   onDateRangeFilter,
   onSearchFilter,
   onTagFilter,
-  onSortChange
+  onSortChange,
+  searchTerm,
+  selectedStatus,
+  selectedDate,
+  dateRange,
+  selectedTag,
+  availableTags
 }: AppointmentsTabsProps) => {
   const tabs = [
     { id: 'all', label: 'All Appointments', count: totalCounts.all },
@@ -82,6 +94,12 @@ const AppointmentsTabs = ({
             onTagFilter={onTagFilter}
             onSortChange={onSortChange}
             projectName={projectFilter}
+            searchTerm={searchTerm}
+            selectedStatus={selectedStatus}
+            selectedDate={selectedDate}
+            dateRange={dateRange}
+            selectedTag={selectedTag}
+            availableTags={availableTags}
           />
           
           <AppointmentsList
