@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import UpdateControls from './components/UpdateControls';
 import AppointmentNotes from './components/AppointmentNotes';
 import AppointmentTags from './components/AppointmentTags';
 import ColorIndicator from './components/ColorIndicator';
+import NewBanner from './components/NewBanner';
 
 interface AppointmentCardProps {
   appointment: AllAppointment;
@@ -34,6 +36,8 @@ const AppointmentCard = ({
     handleViewDetails
   } = useLeadDetails();
 
+  const [isViewed, setIsViewed] = React.useState(appointment.is_viewed || false);
+
   const onViewDetailsClick = () => {
     handleViewDetails(appointment.lead_name, appointment.project_name);
   };
@@ -51,9 +55,32 @@ const AppointmentCard = ({
     }
   };
 
+  const handleMarkAsViewed = () => {
+    setIsViewed(true);
+  };
+
+  // Check if appointment is new (created within last 24 hours) and not viewed
+  const isNewAppointment = () => {
+    if (isViewed) return false;
+    
+    const createdAt = new Date(appointment.created_at);
+    const now = new Date();
+    const hoursDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    
+    return hoursDiff <= 24;
+  };
+
   return (
     <>
       <Card className={`p-4 space-y-4 hover:shadow-md transition-shadow ${getCardBackgroundClass()}`}>
+        {/* NEW Banner */}
+        {isNewAppointment() && (
+          <NewBanner 
+            appointmentId={appointment.id}
+            onMarkAsViewed={handleMarkAsViewed}
+          />
+        )}
+
         {/* Header with Name and Actions */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
