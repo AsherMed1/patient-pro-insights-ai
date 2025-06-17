@@ -9,6 +9,7 @@ import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordPrompt';
 import { useProjectPortalAuth } from '@/hooks/useProjectPortalAuth';
 import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
+import TagManager from '@/components/projects/TagManager';
 
 interface Project {
   id: string;
@@ -201,6 +202,9 @@ const ProjectPortal = () => {
 
         {/* Stats Cards */}
         <ProjectStatsCards stats={stats} />
+
+        {/* Tag Manager Section */}
+        <TagManager projectId={project.id} projectName={project.project_name} />
 
         {/* Appointments Section - Only confirmed appointments for status updates */}
         <AllAppointmentsManager 

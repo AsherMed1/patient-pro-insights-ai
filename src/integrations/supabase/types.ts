@@ -262,6 +262,42 @@ export type Database = {
           },
         ]
       }
+      appointment_tags: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          project_tag_id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          project_tag_id: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          project_tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_appointment_tags_appointment_id"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_appointment_tags_project_tag_id"
+            columns: ["project_tag_id"]
+            isOneToOne: false
+            referencedRelation: "project_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           additional_fields: Json | null
@@ -723,6 +759,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_permissions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_tags: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          tag_color: string
+          tag_description: string | null
+          tag_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          tag_color?: string
+          tag_description?: string | null
+          tag_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          tag_color?: string
+          tag_description?: string | null
+          tag_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_project_tags_project_id"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"

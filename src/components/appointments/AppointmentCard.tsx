@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import DateInfo from './components/DateInfo';
 import StatusDisplay from './components/StatusDisplay';
 import UpdateControls from './components/UpdateControls';
 import AppointmentNotes from './components/AppointmentNotes';
+import AppointmentTags from './components/AppointmentTags';
 
 interface AppointmentCardProps {
   appointment: AllAppointment;
@@ -95,6 +95,12 @@ const AppointmentCard = ({
             </div>
           )}
         </div>
+
+        {/* Tags Section */}
+        <AppointmentTags 
+          appointmentId={appointment.id}
+          projectName={appointment.project_name}
+        />
 
         {/* Status Display */}
         <StatusDisplay status={appointment.status} />
