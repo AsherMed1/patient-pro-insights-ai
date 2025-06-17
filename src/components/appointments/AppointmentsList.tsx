@@ -7,6 +7,7 @@ interface AppointmentsListProps {
   appointments: AllAppointment[];
   loading: boolean;
   projectFilter?: string;
+  isProjectPortal?: boolean;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
 }
@@ -15,6 +16,7 @@ const AppointmentsList = ({
   appointments,
   loading,
   projectFilter,
+  isProjectPortal = false,
   onUpdateStatus,
   onUpdateProcedure
 }: AppointmentsListProps) => {
@@ -45,6 +47,7 @@ const AppointmentsList = ({
           key={appointment.id}
           appointment={appointment}
           projectFilter={projectFilter}
+          isProjectPortal={isProjectPortal}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
         />

@@ -20,13 +20,15 @@ interface AppointmentCardProps {
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  isProjectPortal?: boolean;
 }
 
 const AppointmentCard = ({
   appointment,
   projectFilter,
   onUpdateStatus,
-  onUpdateProcedure
+  onUpdateProcedure,
+  isProjectPortal = false
 }: AppointmentCardProps) => {
   const {
     showLeadDetails,
@@ -133,7 +135,8 @@ const AppointmentCard = ({
             requestedTime={appointment.requested_time}
           />
           
-          {appointment.agent && (
+          {/* Only show agent info if not in project portal */}
+          {!isProjectPortal && appointment.agent && (
             <div className="text-sm text-muted-foreground">
               <strong>Agent:</strong> {appointment.agent} 
               {appointment.agent_number && ` (${appointment.agent_number})`}
