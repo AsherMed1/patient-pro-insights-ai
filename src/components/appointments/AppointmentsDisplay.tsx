@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { AllAppointment } from './types';
@@ -25,6 +26,7 @@ interface AppointmentsDisplayProps {
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   onPageChange: (page: number) => void;
+  onTabChange: (filter: string) => void;
 }
 
 interface FilterState {
@@ -45,7 +47,8 @@ const AppointmentsDisplay = ({
   recordsPerPage,
   onUpdateStatus,
   onUpdateProcedure,
-  onPageChange
+  onPageChange,
+  onTabChange
 }: AppointmentsDisplayProps) => {
   // For project portal, default to future tab instead of all
   const [activeTab, setActiveTab] = useState(isProjectPortal ? "future" : "all");
@@ -54,6 +57,11 @@ const AppointmentsDisplay = ({
     date: null,
     dateRange: { start: null, end: null }
   });
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    onTabChange(tab);
+  };
 
   const handleStatusFilter = (status: string | null) => {
     setFilters(prev => ({ ...prev, status }));
@@ -137,7 +145,7 @@ const AppointmentsDisplay = ({
           totalCounts={totalCounts}
           loading={loading}
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}

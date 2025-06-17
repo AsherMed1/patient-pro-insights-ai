@@ -3,7 +3,6 @@ import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { AllAppointment } from './types';
-import { filterAppointments } from './utils';
 import AppointmentsList from './AppointmentsList';
 import AppointmentsFilters from './AppointmentsFilters';
 
@@ -42,12 +41,6 @@ const AppointmentsTabs = ({
   onDateFilter,
   onDateRangeFilter
 }: AppointmentsTabsProps) => {
-  // Filter the current page's appointments for display
-  const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
-  const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
-  const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
-  const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
-
   // For project portal, default to future tab if all tab is selected
   const currentTab = isProjectPortal && activeTab === "all" ? "future" : activeTab;
 
@@ -115,7 +108,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="future" className="mt-4">
         <AppointmentsList
-          appointments={futureAppointments}
+          appointments={appointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
@@ -125,7 +118,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="past" className="mt-4">
         <AppointmentsList
-          appointments={pastAppointments}
+          appointments={appointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
@@ -135,7 +128,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="needs-review" className="mt-4">
         <AppointmentsList
-          appointments={needsReviewAppointments}
+          appointments={appointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
@@ -145,7 +138,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="cancelled" className="mt-4">
         <AppointmentsList
-          appointments={cancelledAppointments}
+          appointments={appointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}

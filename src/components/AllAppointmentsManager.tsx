@@ -20,7 +20,8 @@ const AllAppointmentsManager = ({
     fetchAppointments,
     updateAppointmentStatus,
     updateProcedureOrdered,
-    handlePageChange
+    handlePageChange,
+    handleTabChange
   } = useAppointments(projectFilter, isProjectPortal);
 
   return (
@@ -44,6 +45,7 @@ const AllAppointmentsManager = ({
         onUpdateStatus={updateAppointmentStatus}
         onUpdateProcedure={updateProcedureOrdered}
         onPageChange={handlePageChange}
+        onTabChange={handleTabChange}
       />
     </div>
   );

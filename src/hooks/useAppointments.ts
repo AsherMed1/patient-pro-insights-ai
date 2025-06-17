@@ -17,6 +17,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const recordsPerPage = 50;
   const { toast } = useToast();
 
@@ -113,25 +114,65 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
     }
   };
 
-  const fetchAppointments = async (page: number = 1) => {
+  const buildFilteredQuery = (filter: string | null) => {
+    let query = supabase
+      .from('all_appointments')
+      .select('*', { count: 'exact' })
+      .order('date_of_appointment', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false });
+
+    if (projectFilter) {
+      query = query.eq('project_name', projectFilter);
+    }
+
+    // For project portals, filter confirmed appointments at the database level
+    if (isProjectPortal) {
+      query = query.or('confirmed.eq.true,status.ilike.confirmed');
+    }
+
+    // Apply tab-specific filters
+    if (filter) {
+      const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+      
+      switch (filter) {
+        case 'future':
+          // Future appointments that are not cancelled
+          query = query
+            .gte('date_of_appointment', today)
+            .not('status', 'ilike', 'cancelled');
+          break;
+        
+        case 'past':
+          // Past appointments that are not cancelled
+          query = query
+            .lt('date_of_appointment', today)
+            .not('status', 'ilike', 'cancelled');
+          break;
+        
+        case 'needs-review':
+          // Past appointments that need review (no status or no procedure info) and not cancelled
+          query = query
+            .lt('date_of_appointment', today)
+            .not('status', 'ilike', 'cancelled')
+            .or('status.is.null,procedure_ordered.is.null');
+          break;
+        
+        case 'cancelled':
+          // All appointments with Cancelled status regardless of date
+          query = query.ilike('status', 'cancelled');
+          break;
+      }
+    }
+
+    return query;
+  };
+
+  const fetchAppointments = async (page: number = 1, filter: string | null = null) => {
     try {
       setLoading(true);
+      setActiveFilter(filter);
       
-      let query = supabase
-        .from('all_appointments')
-        .select('*', { count: 'exact' })
-        .order('date_of_appointment', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
-
-      if (projectFilter) {
-        query = query.eq('project_name', projectFilter);
-      }
-
-      // For project portals, filter confirmed appointments at the database level
-      if (isProjectPortal) {
-        query = query.or('confirmed.eq.true,status.ilike.confirmed');
-      }
-
+      const query = buildFilteredQuery(filter);
       const { data, error, count } = await query
         .range((page - 1) * recordsPerPage, page * recordsPerPage - 1);
 
@@ -144,8 +185,10 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
       setTotalPages(Math.ceil((count || 0) / recordsPerPage));
       setCurrentPage(page);
 
-      // Fetch total counts for badges
-      await fetchTotalCounts();
+      // Only fetch total counts if not already loaded or if we're on the main view
+      if (!filter) {
+        await fetchTotalCounts();
+      }
     } catch (error) {
       console.error('Error fetching appointments:', error);
       toast({
@@ -176,7 +219,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
         description: "Appointment status updated successfully",
       });
 
-      await fetchAppointments(currentPage);
+      await fetchAppointments(currentPage, activeFilter);
     } catch (error) {
       console.error('Error updating appointment status:', error);
       toast({
@@ -201,7 +244,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
         description: "Procedure status updated successfully",
       });
 
-      await fetchAppointments(currentPage);
+      await fetchAppointments(currentPage, activeFilter);
     } catch (error) {
       console.error('Error updating procedure status:', error);
       toast({
@@ -213,7 +256,12 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
   };
 
   const handlePageChange = (page: number) => {
-    fetchAppointments(page);
+    fetchAppointments(page, activeFilter);
+  };
+
+  const handleTabChange = (filter: string) => {
+    const tabFilter = filter === 'all' ? null : filter;
+    fetchAppointments(1, tabFilter);
   };
 
   return {
@@ -227,6 +275,7 @@ export const useAppointments = (projectFilter?: string, isProjectPortal: boolean
     fetchAppointments,
     updateAppointmentStatus,
     updateProcedureOrdered,
-    handlePageChange
+    handlePageChange,
+    handleTabChange
   };
 };
