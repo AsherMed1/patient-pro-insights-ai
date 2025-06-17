@@ -55,6 +55,11 @@ export const useProjectData = (selectedProject: string, dateRange: DateRange) =>
     }
   };
 
+  const isAppointmentConfirmed = (appointment: any) => {
+    return appointment.confirmed === true || 
+           (appointment.status && appointment.status.toLowerCase() === 'confirmed');
+  };
+
   const fetchStats = async () => {
     try {
       setLoading(true);
@@ -105,7 +110,9 @@ export const useProjectData = (selectedProject: string, dateRange: DateRange) =>
       // Calculate metrics
       const newLeads = leads.length;
       const bookedAppointments = appointments.length;
-      const confirmedAppointments = appointments.filter(apt => apt.confirmed).length;
+      
+      // Use standardized confirmed logic: confirmed === true OR status === 'Confirmed'
+      const confirmedAppointments = appointments.filter(isAppointmentConfirmed).length;
       const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
       
       // For appointments to take place, we need to check the actual appointment date in the future

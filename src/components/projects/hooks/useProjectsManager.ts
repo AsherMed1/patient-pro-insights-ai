@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +18,11 @@ export const useProjectsManager = () => {
   useEffect(() => {
     fetchProjectsAndStats();
   }, []);
+
+  const isAppointmentConfirmed = (appointment: any) => {
+    return appointment.confirmed === true || 
+           (appointment.status && appointment.status.toLowerCase() === 'confirmed');
+  };
 
   const fetchProjectsAndStats = async () => {
     try {
@@ -56,17 +60,13 @@ export const useProjectsManager = () => {
             .eq('project_name', project.project_name)
         ]);
 
-        // Fetch confirmed appointments - check both confirmed boolean and status field
+        // Fetch confirmed appointments using standardized logic
         const confirmedAppointmentsResult = await supabase
           .from('all_appointments')
           .select('confirmed, status')
           .eq('project_name', project.project_name);
 
-        const confirmedCount = confirmedAppointmentsResult.data?.filter(apt => {
-          // Count as confirmed if confirmed boolean is true OR status is "Confirmed" (case-insensitive)
-          return apt.confirmed === true || 
-                 (apt.status && apt.status.toLowerCase() === 'confirmed');
-        }).length || 0;
+        const confirmedCount = confirmedAppointmentsResult.data?.filter(isAppointmentConfirmed).length || 0;
 
         const totalAdSpend = adSpendResult.data?.reduce((sum, record) => {
           const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
