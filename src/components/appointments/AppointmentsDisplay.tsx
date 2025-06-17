@@ -36,6 +36,8 @@ interface FilterState {
   dateRange: { start: Date | null; end: Date | null };
   search: string;
   tag: string | null;
+  sortBy: string | null;
+  sortOrder: 'asc' | 'desc';
 }
 
 const AppointmentsDisplay = ({
@@ -60,7 +62,9 @@ const AppointmentsDisplay = ({
     date: null,
     dateRange: { start: null, end: null },
     search: '',
-    tag: null
+    tag: null,
+    sortBy: null,
+    sortOrder: 'asc'
   });
   const [taggedAppointmentIds, setTaggedAppointmentIds] = useState<string[]>([]);
 
@@ -86,6 +90,10 @@ const AppointmentsDisplay = ({
 
   const handleSearchFilter = (searchTerm: string) => {
     setFilters(prev => ({ ...prev, search: searchTerm }));
+  };
+
+  const handleSortChange = (sortBy: string | null, sortOrder: 'asc' | 'desc') => {
+    setFilters(prev => ({ ...prev, sortBy, sortOrder }));
   };
 
   const handleTagFilter = async (tagId: string | null) => {
@@ -169,6 +177,30 @@ const AppointmentsDisplay = ({
       });
     }
 
+    // Apply sorting
+    if (filters.sortBy) {
+      filtered.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        if (filters.sortBy === 'date_of_appointment') {
+          aValue = a.date_of_appointment ? new Date(a.date_of_appointment).getTime() : 0;
+          bValue = b.date_of_appointment ? new Date(b.date_of_appointment).getTime() : 0;
+        } else if (filters.sortBy === 'date_appointment_created') {
+          aValue = new Date(a.date_appointment_created).getTime();
+          bValue = new Date(b.date_appointment_created).getTime();
+        } else {
+          return 0;
+        }
+
+        if (filters.sortOrder === 'asc') {
+          return aValue - bValue;
+        } else {
+          return bValue - aValue;
+        }
+      });
+    }
+
     return filtered;
   };
 
@@ -204,6 +236,7 @@ const AppointmentsDisplay = ({
           onDateRangeFilter={handleDateRangeFilter}
           onSearchFilter={handleSearchFilter}
           onTagFilter={handleTagFilter}
+          onSortChange={handleSortChange}
         />
         
         <AppointmentsPagination

@@ -27,6 +27,7 @@ interface AppointmentsTabsProps {
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
   onSearchFilter?: (searchTerm: string) => void;
   onTagFilter?: (tagId: string | null) => void;
+  onSortChange?: (sortBy: string | null, sortOrder: 'asc' | 'desc') => void;
 }
 
 const AppointmentsTabs = ({
@@ -43,7 +44,8 @@ const AppointmentsTabs = ({
   onDateFilter,
   onDateRangeFilter,
   onSearchFilter,
-  onTagFilter
+  onTagFilter,
+  onSortChange
 }: AppointmentsTabsProps) => {
   const tabs = [
     { id: 'all', label: 'All Appointments', count: totalCounts.all },
@@ -78,6 +80,7 @@ const AppointmentsTabs = ({
             onDateRangeFilter={onDateRangeFilter}
             onSearchFilter={onSearchFilter}
             onTagFilter={onTagFilter}
+            onSortChange={onSortChange}
             projectName={projectFilter}
           />
           
@@ -85,6 +88,7 @@ const AppointmentsTabs = ({
             appointments={appointments}
             loading={loading}
             projectFilter={projectFilter}
+            isProjectPortal={isProjectPortal}
             onUpdateStatus={onUpdateStatus}
             onUpdateProcedure={onUpdateProcedure}
           />
