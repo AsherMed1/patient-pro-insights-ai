@@ -10,6 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
+import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordPrompt';
+import { useProjectPortalAuth } from '@/hooks/useProjectPortalAuth';
+import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 
 interface Project {
   id: string;
@@ -37,13 +40,44 @@ const ProjectPortal = () => {
   });
   const { toast } = useToast();
 
+  const {
+    isAuthenticated,
+    loading: authLoading,
+    error: authError,
+    verifyPassword
+  } = useProjectPortalAuth(projectName || '');
+
   useEffect(() => {
     console.log('ProjectPortal mounted with projectName:', projectName);
-    if (projectName) {
+    if (projectName && isAuthenticated === true) {
       fetchProject();
       fetchAppointmentStats();
     }
-  }, [projectName]);
+  }, [projectName, isAuthenticated]);
+
+  // Show password prompt if authentication is required
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center py-8">
+            <span>Loading project...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated === false) {
+    return (
+      <ProjectPasswordPrompt
+        projectName={decodeURIComponent(projectName || '')}
+        onPasswordSubmit={verifyPassword}
+        error={authError}
+        loading={authLoading}
+      />
+    );
+  }
 
   const fetchProject = async () => {
     try {
@@ -105,11 +139,8 @@ const ProjectPortal = () => {
       
       console.log('Raw appointment data:', data);
       
-      // Filter for confirmed appointments (either confirmed boolean is true OR status is 'Confirmed')
-      const confirmedAppointments = data?.filter(apt => {
-        return apt.confirmed === true || 
-               (apt.status && apt.status.toLowerCase() === 'confirmed');
-      }) || [];
+      // Filter for confirmed appointments using standardized logic
+      const confirmedAppointments = data?.filter(isAppointmentConfirmed) || [];
       
       console.log('Confirmed appointments:', confirmedAppointments);
       

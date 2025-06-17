@@ -1,8 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Project, ProjectStats, ProjectFormData } from '../types';
+import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 
 export const useProjectsManager = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -18,11 +20,6 @@ export const useProjectsManager = () => {
   useEffect(() => {
     fetchProjectsAndStats();
   }, []);
-
-  const isAppointmentConfirmed = (appointment: any) => {
-    return appointment.confirmed === true || 
-           (appointment.status && appointment.status.toLowerCase() === 'confirmed');
-  };
 
   const fetchProjectsAndStats = async () => {
     try {
@@ -104,6 +101,7 @@ export const useProjectsManager = () => {
         .from('projects')
         .insert({
           project_name: data.project_name,
+          portal_password: data.portal_password || null,
           active: true
         });
 
@@ -134,6 +132,7 @@ export const useProjectsManager = () => {
         .from('projects')
         .update({
           project_name: data.project_name,
+          portal_password: data.portal_password || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingProject.id);

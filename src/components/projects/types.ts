@@ -5,6 +5,7 @@ export interface Project {
   active: boolean;
   created_at: string;
   updated_at: string;
+  portal_password?: string | null;
 }
 
 export interface ProjectStats {
@@ -19,4 +20,5 @@ export interface ProjectStats {
 
 export interface ProjectFormData {
   project_name: string;
+  portal_password?: string;
 }

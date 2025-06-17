@@ -706,6 +706,7 @@ export type Database = {
           custom_insurance_list: Json | null
           custom_logo_url: string | null
           id: string
+          portal_password: string | null
           project_name: string
           selected_form_types: string[] | null
           updated_at: string
@@ -720,6 +721,7 @@ export type Database = {
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
           id?: string
+          portal_password?: string | null
           project_name: string
           selected_form_types?: string[] | null
           updated_at?: string
@@ -734,6 +736,7 @@ export type Database = {
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
           id?: string
+          portal_password?: string | null
           project_name?: string
           selected_form_types?: string[] | null
           updated_at?: string

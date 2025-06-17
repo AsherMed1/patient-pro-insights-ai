@@ -1,81 +1,92 @@
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useForm } from 'react-hook-form';
-
-interface Project {
-  id: string;
-  project_name: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface ProjectFormData {
-  project_name: string;
-}
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Project, ProjectFormData } from './types';
 
 interface EditProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project: Project | null;
-  onSubmit: (data: ProjectFormData) => Promise<void>;
+  onSubmit: (data: ProjectFormData) => void;
 }
 
-export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
-  open,
-  onOpenChange,
-  project,
-  onSubmit
-}) => {
-  const form = useForm<ProjectFormData>();
+export const EditProjectDialog = ({ open, onOpenChange, project, onSubmit }: EditProjectDialogProps) => {
+  const [formData, setFormData] = useState<ProjectFormData>({
+    project_name: '',
+    portal_password: ''
+  });
 
   useEffect(() => {
     if (project) {
-      form.setValue('project_name', project.project_name);
+      setFormData({
+        project_name: project.project_name,
+        portal_password: project.portal_password || ''
+      });
     }
-  }, [project, form]);
+  }, [project]);
 
-  const handleSubmit = async (data: ProjectFormData) => {
-    await onSubmit(data);
-    form.reset();
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  const handleInputChange = (field: keyof ProjectFormData, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>
-            Update the project information.
+            Update the project details. Leave password empty to remove protection.
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="project_name"
-              rules={{ required: "Project name is required" }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Project Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter project name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">Update Project</Button>
-            </DialogFooter>
-          </form>
-        </Form>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="project_name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="project_name"
+                value={formData.project_name}
+                onChange={(e) => handleInputChange('project_name', e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="portal_password" className="text-right">
+                Portal Password
+              </Label>
+              <Input
+                id="portal_password"
+                type="password"
+                value={formData.portal_password}
+                onChange={(e) => handleInputChange('portal_password', e.target.value)}
+                className="col-span-3"
+                placeholder="Leave empty for no protection"
+              />
+            </div>
+            <div className="col-span-4 text-sm text-muted-foreground">
+              <p>Setting a password will require visitors to enter it before accessing the project portal.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">Update Project</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
