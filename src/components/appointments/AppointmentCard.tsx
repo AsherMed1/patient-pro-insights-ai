@@ -11,6 +11,7 @@ import StatusDisplay from './components/StatusDisplay';
 import UpdateControls from './components/UpdateControls';
 import AppointmentNotes from './components/AppointmentNotes';
 import AppointmentTags from './components/AppointmentTags';
+import ColorIndicator from './components/ColorIndicator';
 
 interface AppointmentCardProps {
   appointment: AllAppointment;
@@ -37,15 +38,32 @@ const AppointmentCard = ({
     handleViewDetails(appointment.lead_name, appointment.project_name);
   };
 
+  const getCardBackgroundClass = () => {
+    switch (appointment.color_indicator) {
+      case 'yellow':
+        return 'bg-yellow-50 border-yellow-200';
+      case 'green':
+        return 'bg-green-50 border-green-200';
+      case 'red':
+        return 'bg-red-50 border-red-200';
+      default:
+        return '';
+    }
+  };
+
   return (
     <>
-      <Card className="p-4 space-y-4 hover:shadow-md transition-shadow">
+      <Card className={`p-4 space-y-4 hover:shadow-md transition-shadow ${getCardBackgroundClass()}`}>
         {/* Header with Name and Actions */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2 mb-2">
               <User className="h-4 w-4 text-blue-600 flex-shrink-0" />
               <h3 className="font-semibold text-lg truncate">{appointment.lead_name}</h3>
+              <ColorIndicator 
+                appointmentId={appointment.id}
+                initialColor={appointment.color_indicator}
+              />
             </div>
             
             <div className="space-y-1">

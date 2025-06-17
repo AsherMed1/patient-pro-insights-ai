@@ -20,6 +20,7 @@ export interface AllAppointment {
   updated_at: string;
   status: string | null;
   procedure_ordered: boolean | null;
+  color_indicator: string | null;
 }
 
 export interface AllAppointmentsManagerProps {
