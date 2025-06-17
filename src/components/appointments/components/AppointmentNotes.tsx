@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Plus, X } from 'lucide-react';
+import { MessageSquare, Plus, X, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
@@ -25,6 +25,7 @@ const AppointmentNotes = ({ appointmentId }: AppointmentNotesProps) => {
   const [showAddNote, setShowAddNote] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchingNotes, setFetchingNotes] = useState(true);
+  const [deletingNotes, setDeletingNotes] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -86,6 +87,38 @@ const AppointmentNotes = ({ appointmentId }: AppointmentNotesProps) => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteNote = async (noteId: string) => {
+    try {
+      setDeletingNotes(prev => new Set(prev).add(noteId));
+      const { error } = await supabase
+        .from('appointment_notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Note deleted successfully",
+      });
+
+      fetchNotes(); // Refresh notes
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete note",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingNotes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(noteId);
+        return newSet;
+      });
     }
   };
 
@@ -166,6 +199,15 @@ const AppointmentNotes = ({ appointmentId }: AppointmentNotesProps) => {
                     {note.created_by && `By ${note.created_by} • `}
                     {format(new Date(note.created_at), 'MMM dd, yyyy at h:mm a')}
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteNote(note.id)}
+                    disabled={deletingNotes.has(note.id)}
+                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
