@@ -1,7 +1,9 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { AllAppointment } from './types';
+import AppointmentsHeader from './AppointmentsHeader';
+import AppointmentsStats from './AppointmentsStats';
 import AppointmentsTabs from './AppointmentsTabs';
 import AppointmentsPagination from './AppointmentsPagination';
 
@@ -110,17 +112,19 @@ const AppointmentsDisplay = ({
 
   return (
     <Card className="w-full">
-      <CardHeader className="pb-3 md:pb-6">
-        <CardTitle className="text-lg md:text-xl">
-          {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
-        </CardTitle>
-        <CardDescription className="text-sm">
-          {filteredAppointments.length} of {totalRecords} appointment{totalRecords !== 1 ? 's' : ''} shown (Times in Central Time Zone)
-          {projectFilter && ` for ${projectFilter}`}
-          {isProjectPortal && ' (Only confirmed appointments shown)'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-3 md:p-6 pt-0">
+      <AppointmentsHeader
+        projectFilter={projectFilter}
+        totalRecords={totalRecords}
+        filteredCount={filteredAppointments.length}
+        isProjectPortal={isProjectPortal}
+      />
+      
+      <CardContent className="p-4 md:p-6 pt-0 space-y-6">
+        <AppointmentsStats 
+          appointments={filteredAppointments} 
+          isProjectPortal={isProjectPortal} 
+        />
+        
         <AppointmentsTabs
           appointments={filteredAppointments}
           loading={loading}

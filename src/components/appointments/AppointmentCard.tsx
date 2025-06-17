@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { User, Building, Info } from 'lucide-react';
 import { AllAppointment } from './types';
 import { useLeadDetails } from './hooks/useLeadDetails';
@@ -37,33 +38,40 @@ const AppointmentCard = ({
 
   return (
     <>
-      <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
-        <div className="space-y-2">
-          {/* Lead Name - Prominent on mobile */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 flex-1">
-              <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
+      <Card className="p-4 space-y-4 hover:shadow-md transition-shadow">
+        {/* Header with Name and Actions */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2 mb-2">
+              <User className="h-4 w-4 text-blue-600 flex-shrink-0" />
+              <h3 className="font-semibold text-lg truncate">{appointment.lead_name}</h3>
             </div>
-            <Button variant="outline" size="sm" onClick={onViewDetailsClick} disabled={loadingLeadData} className="ml-2 flex items-center space-x-1">
-              <Info className="h-3 w-3" />
-              <span className="hidden sm:inline">View Details</span>
-            </Button>
+            
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <Building className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{appointment.project_name}</span>
+            </div>
           </div>
           
-          {/* Project Name */}
-          <div className="flex items-center space-x-2">
-            <Building className="h-4 w-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-600 break-words">{appointment.project_name}</span>
-          </div>
-          
-          {/* Contact Info */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onViewDetailsClick} 
+            disabled={loadingLeadData}
+            className="flex-shrink-0"
+          >
+            <Info className="h-3 w-3 mr-1" />
+            Details
+          </Button>
+        </div>
+
+        {/* Contact and Date Information */}
+        <div className="space-y-3">
           <ContactInfo 
             email={appointment.lead_email}
             phoneNumber={appointment.lead_phone_number}
           />
           
-          {/* Date Info */}
           <DateInfo 
             dateAppointmentCreated={appointment.date_appointment_created}
             dateOfAppointment={appointment.date_of_appointment}
@@ -71,25 +79,30 @@ const AppointmentCard = ({
           />
           
           {appointment.agent && (
-            <div className="text-sm text-gray-600">
-              Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
+            <div className="text-sm text-muted-foreground">
+              <strong>Agent:</strong> {appointment.agent} 
+              {appointment.agent_number && ` (${appointment.agent_number})`}
             </div>
           )}
-
-          {/* Status Display */}
-          <StatusDisplay status={appointment.status} />
-
-          {/* Update Controls */}
-          <UpdateControls 
-            appointment={appointment}
-            projectFilter={projectFilter}
-            onUpdateStatus={onUpdateStatus}
-            onUpdateProcedure={onUpdateProcedure}
-          />
         </div>
-      </div>
 
-      <LeadDetailsModal isOpen={showLeadDetails} onClose={() => setShowLeadDetails(false)} lead={leadData} />
+        {/* Status Display */}
+        <StatusDisplay status={appointment.status} />
+
+        {/* Update Controls */}
+        <UpdateControls 
+          appointment={appointment}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </Card>
+
+      <LeadDetailsModal 
+        isOpen={showLeadDetails} 
+        onClose={() => setShowLeadDetails(false)} 
+        lead={leadData} 
+      />
     </>
   );
 };
