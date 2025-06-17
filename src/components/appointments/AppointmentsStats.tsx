@@ -11,36 +11,45 @@ interface AppointmentsStatsProps {
 }
 
 const AppointmentsStats = ({ appointments, isProjectPortal = false }: AppointmentsStatsProps) => {
-  const futureCount = filterAppointments(appointments, 'future', isProjectPortal).length;
-  const pastCount = filterAppointments(appointments, 'past', isProjectPortal).length;
-  const needsReviewCount = filterAppointments(appointments, 'needs-review', isProjectPortal).length;
-  const cancelledCount = filterAppointments(appointments, 'cancelled', isProjectPortal).length;
+  console.log('AppointmentsStats - Total appointments:', appointments.length);
+  
+  const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
+  const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
+  const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
+  const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
+
+  console.log('AppointmentsStats - Filtered counts:', {
+    future: futureAppointments.length,
+    past: pastAppointments.length,
+    needsReview: needsReviewAppointments.length,
+    cancelled: cancelledAppointments.length
+  });
 
   const stats = [
     {
       label: 'Upcoming',
-      count: futureCount,
+      count: futureAppointments.length,
       icon: Calendar,
       variant: 'default' as const,
       color: 'text-blue-600'
     },
     {
       label: 'Past',
-      count: pastCount,
+      count: pastAppointments.length,
       icon: Clock,
       variant: 'secondary' as const,
       color: 'text-gray-600'
     },
     {
       label: 'Needs Review',
-      count: needsReviewCount,
+      count: needsReviewAppointments.length,
       icon: AlertCircle,
       variant: 'destructive' as const,
       color: 'text-red-600'
     },
     {
       label: 'Cancelled',
-      count: cancelledCount,
+      count: cancelledAppointments.length,
       icon: XCircle,
       variant: 'outline' as const,
       color: 'text-gray-500'

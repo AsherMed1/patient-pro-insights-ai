@@ -34,10 +34,20 @@ const AppointmentsTabs = ({
   onDateFilter,
   onDateRangeFilter
 }: AppointmentsTabsProps) => {
+  console.log('AppointmentsTabs - Total appointments:', appointments.length);
+  
   const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
   const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
   const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
   const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
+
+  console.log('AppointmentsTabs - Tab counts:', {
+    all: appointments.length,
+    future: futureAppointments.length,
+    past: pastAppointments.length,
+    needsReview: needsReviewAppointments.length,
+    cancelled: cancelledAppointments.length
+  });
 
   // For project portal, default to future tab if all tab is selected
   const currentTab = isProjectPortal && activeTab === "all" ? "future" : activeTab;
