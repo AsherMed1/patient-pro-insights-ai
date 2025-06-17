@@ -1,16 +1,13 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Project, ProjectFormData } from '../types';
 import { useProjectData } from './useProjectData';
 import { useProjectOperations } from './useProjectOperations';
+import { useProjectDialogs } from './useProjectDialogs';
+import { useProjectNavigation } from './useProjectNavigation';
 
 export const useProjectsManager = () => {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [activeTab, setActiveTab] = useState('active');
-  const navigate = useNavigate();
 
   const {
     projects,
@@ -25,6 +22,18 @@ export const useProjectsManager = () => {
     toggleProjectStatus,
     deleteProject
   } = useProjectOperations();
+
+  const {
+    isAddDialogOpen,
+    setIsAddDialogOpen,
+    isEditDialogOpen,
+    setIsEditDialogOpen,
+    editingProject,
+    openEditDialog,
+    closeEditDialog,
+  } = useProjectDialogs();
+
+  const { handleViewProject } = useProjectNavigation();
 
   // Initialize data fetch
   React.useEffect(() => {
@@ -44,8 +53,7 @@ export const useProjectsManager = () => {
 
     const success = await editProject(editingProject, data);
     if (success) {
-      setIsEditDialogOpen(false);
-      setEditingProject(null);
+      closeEditDialog();
       await fetchProjectsAndStats();
     }
   };
@@ -62,15 +70,6 @@ export const useProjectsManager = () => {
     if (success) {
       await fetchProjectsAndStats();
     }
-  };
-
-  const handleViewProject = (project: Project) => {
-    navigate(`/project/${encodeURIComponent(project.project_name)}`);
-  };
-
-  const openEditDialog = (project: Project) => {
-    setEditingProject(project);
-    setIsEditDialogOpen(true);
   };
 
   return {
