@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -9,19 +9,25 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, X, Search } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { supabase } from '@/integrations/supabase/client';
+import { ProjectTag } from '@/components/projects/types/tagTypes';
 
 interface AppointmentsFiltersProps {
   onStatusFilter?: (status: string | null) => void;
   onDateFilter?: (date: Date | null) => void;
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
   onSearchFilter?: (searchTerm: string) => void;
+  onTagFilter?: (tagId: string | null) => void;
+  projectName?: string;
 }
 
 const AppointmentsFilters = ({
   onStatusFilter,
   onDateFilter,
   onDateRangeFilter,
-  onSearchFilter
+  onSearchFilter,
+  onTagFilter,
+  projectName
 }: AppointmentsFiltersProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -30,6 +36,8 @@ const AppointmentsFilters = ({
     end: null
   });
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [availableTags, setAvailableTags] = useState<ProjectTag[]>([]);
 
   const statusOptions = [
     'Showed',
@@ -40,6 +48,40 @@ const AppointmentsFilters = ({
     'Welcome Call',
     'Won'
   ];
+
+  useEffect(() => {
+    if (projectName && onTagFilter) {
+      fetchProjectTags();
+    }
+  }, [projectName]);
+
+  const fetchProjectTags = async () => {
+    if (!projectName) return;
+
+    try {
+      // Get project ID first
+      const { data: project } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('project_name', projectName)
+        .single();
+
+      if (!project) return;
+
+      // Fetch tags for this project
+      const { data: tags, error } = await supabase
+        .from('project_tags')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('tag_name');
+
+      if (error) throw error;
+
+      setAvailableTags(tags || []);
+    } catch (error) {
+      console.error('Error fetching project tags:', error);
+    }
+  };
 
   const handleStatusChange = (status: string) => {
     const newStatus = status === 'all' ? null : status;
@@ -69,15 +111,23 @@ const AppointmentsFilters = ({
     onSearchFilter?.(value);
   };
 
+  const handleTagChange = (tagId: string) => {
+    const newTagId = tagId === 'all' ? null : tagId;
+    setSelectedTag(newTagId);
+    onTagFilter?.(newTagId);
+  };
+
   const clearFilters = () => {
     setSelectedStatus(null);
     setSelectedDate(null);
     setDateRange({ start: null, end: null });
     setSearchTerm('');
+    setSelectedTag(null);
     onStatusFilter?.(null);
     onDateFilter?.(null);
     onDateRangeFilter?.(null, null);
     onSearchFilter?.('');
+    onTagFilter?.(null);
   };
 
   return (
@@ -114,6 +164,31 @@ const AppointmentsFilters = ({
               </SelectContent>
             </Select>
           </div>
+
+          {onTagFilter && availableTags.length > 0 && (
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-2 block">Filter by Tag</label>
+              <Select value={selectedTag || 'all'} onValueChange={handleTagChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {availableTags.map(tag => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      <div className="flex items-center space-x-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: tag.tag_color }}
+                        />
+                        <span>{tag.tag_name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex-1 min-w-[200px]">
             <label className="text-sm font-medium mb-2 block">Filter by Date</label>

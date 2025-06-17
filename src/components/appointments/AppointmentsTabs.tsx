@@ -26,6 +26,7 @@ interface AppointmentsTabsProps {
   onDateFilter?: (date: Date | null) => void;
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
   onSearchFilter?: (searchTerm: string) => void;
+  onTagFilter?: (tagId: string | null) => void;
 }
 
 const AppointmentsTabs = ({
@@ -41,7 +42,8 @@ const AppointmentsTabs = ({
   onStatusFilter,
   onDateFilter,
   onDateRangeFilter,
-  onSearchFilter
+  onSearchFilter,
+  onTagFilter
 }: AppointmentsTabsProps) => {
   const tabs = [
     { id: 'all', label: 'All Appointments', count: totalCounts.all },
@@ -75,6 +77,8 @@ const AppointmentsTabs = ({
             onDateFilter={onDateFilter}
             onDateRangeFilter={onDateRangeFilter}
             onSearchFilter={onSearchFilter}
+            onTagFilter={onTagFilter}
+            projectName={projectFilter}
           />
           
           <AppointmentsList

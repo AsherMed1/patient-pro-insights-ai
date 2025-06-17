@@ -6,6 +6,7 @@ import AppointmentsHeader from './AppointmentsHeader';
 import AppointmentsStats from './AppointmentsStats';
 import AppointmentsTabs from './AppointmentsTabs';
 import AppointmentsPagination from './AppointmentsPagination';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AppointmentsDisplayProps {
   appointments: AllAppointment[];
@@ -34,6 +35,7 @@ interface FilterState {
   date: Date | null;
   dateRange: { start: Date | null; end: Date | null };
   search: string;
+  tag: string | null;
 }
 
 const AppointmentsDisplay = ({
@@ -57,8 +59,10 @@ const AppointmentsDisplay = ({
     status: null,
     date: null,
     dateRange: { start: null, end: null },
-    search: ''
+    search: '',
+    tag: null
   });
+  const [taggedAppointmentIds, setTaggedAppointmentIds] = useState<string[]>([]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -82,6 +86,30 @@ const AppointmentsDisplay = ({
 
   const handleSearchFilter = (searchTerm: string) => {
     setFilters(prev => ({ ...prev, search: searchTerm }));
+  };
+
+  const handleTagFilter = async (tagId: string | null) => {
+    setFilters(prev => ({ ...prev, tag: tagId }));
+    
+    if (tagId) {
+      try {
+        // Fetch appointment IDs that have this tag
+        const { data, error } = await supabase
+          .from('appointment_tags')
+          .select('appointment_id')
+          .eq('project_tag_id', tagId);
+
+        if (error) throw error;
+
+        const appointmentIds = data?.map(item => item.appointment_id) || [];
+        setTaggedAppointmentIds(appointmentIds);
+      } catch (error) {
+        console.error('Error fetching tagged appointments:', error);
+        setTaggedAppointmentIds([]);
+      }
+    } else {
+      setTaggedAppointmentIds([]);
+    }
   };
 
   const applyFilters = (appointmentsList: AllAppointment[]) => {
@@ -110,6 +138,13 @@ const AppointmentsDisplay = ({
         
         return false;
       });
+    }
+
+    // Apply tag filter
+    if (filters.tag && taggedAppointmentIds.length > 0) {
+      filtered = filtered.filter(appointment => 
+        taggedAppointmentIds.includes(appointment.id)
+      );
     }
 
     // Apply single date filter
@@ -168,6 +203,7 @@ const AppointmentsDisplay = ({
           onDateFilter={handleDateFilter}
           onDateRangeFilter={handleDateRangeFilter}
           onSearchFilter={handleSearchFilter}
+          onTagFilter={handleTagFilter}
         />
         
         <AppointmentsPagination
