@@ -16,14 +16,16 @@ interface EditProjectDialogProps {
 export const EditProjectDialog = ({ open, onOpenChange, project, onSubmit }: EditProjectDialogProps) => {
   const [formData, setFormData] = useState<ProjectFormData>({
     project_name: '',
-    portal_password: ''
+    portal_password: '',
+    ghl_api_key: ''
   });
 
   useEffect(() => {
     if (project) {
       setFormData({
         project_name: project.project_name,
-        portal_password: project.portal_password || ''
+        portal_password: project.portal_password || '',
+        ghl_api_key: project.ghl_api_key || ''
       });
     }
   }, [project]);
@@ -76,8 +78,22 @@ export const EditProjectDialog = ({ open, onOpenChange, project, onSubmit }: Edi
                 placeholder="Leave empty for no protection"
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="ghl_api_key" className="text-right">
+                GHL API Key
+              </Label>
+              <Input
+                id="ghl_api_key"
+                type="password"
+                value={formData.ghl_api_key}
+                onChange={(e) => handleInputChange('ghl_api_key', e.target.value)}
+                className="col-span-3"
+                placeholder="Leave empty to remove key"
+              />
+            </div>
             <div className="col-span-4 text-sm text-muted-foreground">
               <p>Setting a password will require visitors to enter it before accessing the project portal.</p>
+              <p>The GHL API Key will be used for updating appointment statuses via webhooks.</p>
             </div>
           </div>
           <DialogFooter>

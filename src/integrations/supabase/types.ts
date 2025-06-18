@@ -767,6 +767,7 @@ export type Database = {
           custom_facility_info: Json | null
           custom_insurance_list: Json | null
           custom_logo_url: string | null
+          ghl_api_key: string | null
           id: string
           portal_password: string | null
           project_name: string
@@ -782,6 +783,7 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
+          ghl_api_key?: string | null
           id?: string
           portal_password?: string | null
           project_name: string
@@ -797,6 +799,7 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
+          ghl_api_key?: string | null
           id?: string
           portal_password?: string | null
           project_name?: string
