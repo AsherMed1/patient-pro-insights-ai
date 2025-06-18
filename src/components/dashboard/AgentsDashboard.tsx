@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -43,7 +44,6 @@ const AgentsDashboard = () => {
       if (error) throw error;
       setAgents(data || []);
     } catch (error) {
-      console.error('Error fetching agents:', error);
       toast({
         title: "Error",
         description: "Failed to fetch agents",
@@ -55,10 +55,11 @@ const AgentsDashboard = () => {
   const fetchAllCalls = async (baseQuery: any) => {
     let allCalls: any[] = [];
     let from = 0;
-    const batchSize = 1000;
+    const batchSize = 500; // Reduced batch size for better performance
     let hasMore = true;
+    const maxRecords = 5000; // Limit total records to prevent memory issues
 
-    while (hasMore) {
+    while (hasMore && allCalls.length < maxRecords) {
       const { data, error } = await baseQuery
         .range(from, from + batchSize - 1);
       
@@ -67,24 +68,23 @@ const AgentsDashboard = () => {
       if (data && data.length > 0) {
         allCalls = [...allCalls, ...data];
         from += batchSize;
-        hasMore = data.length === batchSize; // Continue if we got a full batch
-        console.log(`Fetched batch: ${data.length} calls, total so far: ${allCalls.length}`);
+        hasMore = data.length === batchSize;
       } else {
         hasMore = false;
       }
     }
 
-    console.log(`Total calls fetched: ${allCalls.length}`);
     return allCalls;
   };
 
   const fetchAllAppointments = async (baseQuery: any) => {
     let allAppointments: any[] = [];
     let from = 0;
-    const batchSize = 1000;
+    const batchSize = 500; // Reduced batch size for better performance
     let hasMore = true;
+    const maxRecords = 2000; // Limit total records to prevent memory issues
 
-    while (hasMore) {
+    while (hasMore && allAppointments.length < maxRecords) {
       const { data, error } = await baseQuery
         .range(from, from + batchSize - 1);
       
@@ -93,14 +93,12 @@ const AgentsDashboard = () => {
       if (data && data.length > 0) {
         allAppointments = [...allAppointments, ...data];
         from += batchSize;
-        hasMore = data.length === batchSize; // Continue if we got a full batch
-        console.log(`Fetched appointments batch: ${data.length} records, total so far: ${allAppointments.length}`);
+        hasMore = data.length === batchSize;
       } else {
         hasMore = false;
       }
     }
 
-    console.log(`Total appointments fetched: ${allAppointments.length}`);
     return allAppointments;
   };
 
@@ -118,13 +116,13 @@ const AgentsDashboard = () => {
         appointmentsBaseQuery = appointmentsBaseQuery.eq('agent', selectedAgent);
       }
 
-      // Execute queries - fetch all data with proper pagination
+      // Execute queries with optimized pagination
       const [calls, appointments] = await Promise.all([
         fetchAllCalls(callsBaseQuery),
         fetchAllAppointments(appointmentsBaseQuery)
       ]);
 
-      // Calculate metrics
+      // Calculate metrics efficiently
       const totalDialsMade = calls.length;
       const answeredCallsVM = calls.filter(call => 
         call.status === 'answered' || call.status === 'connected' || call.status === 'pickup' || call.status === 'voicemail'
@@ -141,7 +139,6 @@ const AgentsDashboard = () => {
       const noShows = appointments.filter(apt => apt.showed === false).length;
       
       const totalCallDuration = calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0);
-      // Convert average duration from seconds to minutes for display
       const avgDurationPerCall = totalDialsMade > 0 ? (totalCallDuration / totalDialsMade) / 60 : 0;
       const timeOnPhoneMinutes = totalCallDuration / 60;
 
@@ -158,7 +155,6 @@ const AgentsDashboard = () => {
       });
 
     } catch (error) {
-      console.error('Error fetching agent stats:', error);
       toast({
         title: "Error",
         description: "Failed to fetch agent statistics",
@@ -189,7 +185,6 @@ const AgentsDashboard = () => {
         </div>
       )}
 
-      {/* Agent Claims Table */}
       <AgentClaimsTable />
     </div>
   );

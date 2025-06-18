@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
 
-// Lazy load page components
+// Lazy load page components with better chunking
 const Index = lazy(() => import("./pages/Index"));
 const ProjectPortal = lazy(() => import("./pages/ProjectPortal"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
@@ -17,7 +17,16 @@ const AgentStatsPage = lazy(() => import("./components/AgentStatsPage"));
 const PublicForm = lazy(() => import("./pages/PublicForm"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+// Optimized QueryClient configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes
+      retry: 1, // Reduce retries to prevent excessive API calls
+    },
+  },
+});
 
 const LoadingSpinner = () => (
   <div className="min-h-screen flex items-center justify-center">

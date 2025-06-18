@@ -7,18 +7,10 @@ import { FileText, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { lazy } from "react";
 
-// Lazy load all heavy components
+// Only lazy load the most essential components to reduce initial bundle
 const CallCenterDashboard = lazy(() => import("@/components/CallCenterDashboard"));
 const AllAppointmentsManager = lazy(() => import("@/components/AllAppointmentsManager"));
-const AllCallsManager = lazy(() => import("@/components/AllCallsManager"));
-const NewLeadsManager = lazy(() => import("@/components/NewLeadsManager"));
-const SpeedToLeadManager = lazy(() => import("@/components/SpeedToLeadManager"));
-const AgentManager = lazy(() => import("@/components/AgentManager"));
 const ProjectsManager = lazy(() => import("@/components/ProjectsManager"));
-const AdSpendManager = lazy(() => import("@/components/AdSpendManager"));
-const AIAssistant = lazy(() => import("@/components/AIAssistant"));
-const FormManagement = lazy(() => import("@/components/forms/FormManagement"));
-const AgentPerformanceDashboard = lazy(() => import("@/components/AgentPerformanceDashboard"));
 
 // Loading component for suspense fallback
 const LoadingSpinner = () => (
@@ -40,18 +32,10 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-11">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            <TabsTrigger value="calls">Calls</TabsTrigger>
-            <TabsTrigger value="leads">New Leads</TabsTrigger>
-            <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
-            <TabsTrigger value="agents">Agents</TabsTrigger>
-            <TabsTrigger value="agent-performance">Agent Performance</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="forms">Forms</TabsTrigger>
-            <TabsTrigger value="adspend">Ad Spend</TabsTrigger>
-            <TabsTrigger value="ai">AI Assistant</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -66,57 +50,9 @@ const Index = () => {
             </Suspense>
           </TabsContent>
 
-          <TabsContent value="calls" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <AllCallsManager />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="leads" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <NewLeadsManager />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="speed" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <SpeedToLeadManager />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="agents" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <AgentManager />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="agent-performance" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <AgentPerformanceDashboard />
-            </Suspense>
-          </TabsContent>
-
           <TabsContent value="projects" className="space-y-6">
             <Suspense fallback={<LoadingSpinner />}>
               <ProjectsManager />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="forms" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <FormManagement />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="adspend" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <AdSpendManager />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="ai" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <AIAssistant clientId="project-1" />
             </Suspense>
           </TabsContent>
         </Tabs>
