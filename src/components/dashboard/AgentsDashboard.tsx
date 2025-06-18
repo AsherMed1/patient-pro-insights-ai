@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import AgentFilters from './AgentFilters';
 import AgentStatsDisplay from './AgentStatsDisplay';
+import AgentClaimsTable from './AgentClaimsTable';
 
 interface AgentStats {
   answeredCallsVM: number;
@@ -188,6 +188,9 @@ const AgentsDashboard = () => {
           <p>No data available</p>
         </div>
       )}
+
+      {/* Agent Claims Table */}
+      <AgentClaimsTable />
     </div>
   );
 };
