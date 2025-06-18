@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-tabs', '@radix-ui/react-button'],
+          ui: ['@radix-ui/react-tabs'],
           charts: ['recharts'],
           router: ['react-router-dom'],
           query: ['@tanstack/react-query'],
