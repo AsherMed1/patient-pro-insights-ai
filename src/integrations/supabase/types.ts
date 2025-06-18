@@ -111,6 +111,7 @@ export type Database = {
         Row: {
           agent: string | null
           agent_number: string | null
+          appointment_id: string | null
           calendar_name: string | null
           color_indicator: string | null
           confirmed: boolean | null
@@ -135,6 +136,7 @@ export type Database = {
         Insert: {
           agent?: string | null
           agent_number?: string | null
+          appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
           confirmed?: boolean | null
@@ -159,6 +161,7 @@ export type Database = {
         Update: {
           agent?: string | null
           agent_number?: string | null
+          appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
           confirmed?: boolean | null
