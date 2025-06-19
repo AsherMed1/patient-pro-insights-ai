@@ -57,7 +57,7 @@ const ProjectsManager = () => {
           <AddProjectDialog
             open={isAddDialogOpen}
             onOpenChange={setIsAddDialogOpen}
-            onProjectAdded={handleAddProject}
+            onProjectAdded={() => handleAddProject}
           />
         </div>
       </CardHeader>
@@ -100,7 +100,7 @@ const ProjectsManager = () => {
             project={editingProject}
             open={isEditDialogOpen}
             onOpenChange={setIsEditDialogOpen}
-            onProjectUpdated={handleEditProject}
+            onProjectUpdated={() => handleEditProject}
           />
         )}
       </CardContent>
