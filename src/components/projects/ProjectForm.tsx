@@ -74,7 +74,7 @@ export const ProjectForm = ({ onSave, onCancel, initialData }: ProjectFormProps)
         <Input
           id="portal-password"
           type="password"
-          value={formData.portal_password}
+          value={formData.portal_password || ''}
           onChange={(e) => handleInputChange('portal_password', e.target.value)}
           placeholder="Optional password for project portal"
         />
@@ -105,7 +105,7 @@ export const ProjectForm = ({ onSave, onCancel, initialData }: ProjectFormProps)
         <Label htmlFor="logo-url">Logo URL</Label>
         <Input
           id="logo-url"
-          value={formData.custom_logo_url}
+          value={formData.custom_logo_url || ''}
           onChange={(e) => handleInputChange('custom_logo_url', e.target.value)}
           placeholder="https://example.com/logo.png"
         />
@@ -116,7 +116,7 @@ export const ProjectForm = ({ onSave, onCancel, initialData }: ProjectFormProps)
         <Input
           id="ghl-api-key"
           type="password"
-          value={formData.ghl_api_key}
+          value={formData.ghl_api_key || ''}
           onChange={(e) => handleInputChange('ghl_api_key', e.target.value)}
           placeholder="Optional API key for GoHighLevel integration"
         />

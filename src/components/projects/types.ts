@@ -7,6 +7,9 @@ export interface Project {
   updated_at: string;
   portal_password?: string | null;
   ghl_api_key?: string | null;
+  brand_primary_color?: string;
+  brand_secondary_color?: string;
+  custom_logo_url?: string;
 }
 
 export interface ProjectStats {
@@ -21,6 +24,10 @@ export interface ProjectStats {
 
 export interface ProjectFormData {
   project_name: string;
+  active: boolean;
   portal_password?: string;
   ghl_api_key?: string;
+  brand_primary_color: string;
+  brand_secondary_color: string;
+  custom_logo_url?: string;
 }
