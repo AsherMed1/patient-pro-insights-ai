@@ -862,6 +862,63 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limit_log: {
+        Row: {
+          action_type: string
+          count: number | null
+          created_at: string | null
+          id: string
+          identifier: string
+          window_start: string | null
+        }
+        Insert: {
+          action_type: string
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          identifier: string
+          window_start?: string | null
+        }
+        Update: {
+          action_type?: string
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          identifier?: string
+          window_start?: string | null
+        }
+        Relationships: []
+      }
+      security_audit_log: {
+        Row: {
+          created_at: string | null
+          details: Json | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          details?: Json | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          details?: Json | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       speed_to_lead_stats: {
         Row: {
           created_at: string
@@ -910,7 +967,20 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      cleanup_security_tables: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       create_portal_session: {
+        Args: {
+          project_name_param: string
+          password_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+        }
+        Returns: string
+      }
+      create_secure_portal_session: {
         Args: {
           project_name_param: string
           password_param: string
@@ -929,6 +999,14 @@ export type Database = {
       }
       verify_portal_session: {
         Args: { project_name_param: string; session_token_param: string }
+        Returns: boolean
+      }
+      verify_secure_portal_session: {
+        Args: {
+          project_name_param: string
+          session_token_param: string
+          ip_address_param?: unknown
+        }
         Returns: boolean
       }
     }
