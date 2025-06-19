@@ -38,8 +38,16 @@ export const useProjectPortalAuth = (projectName: string) => {
       const sessionKey = `project_portal_${decodedProjectName}`;
       const sessionPassword = sessionStorage.getItem(sessionKey);
       
-      if (sessionPassword === project.portal_password) {
-        setIsAuthenticated(true);
+      if (sessionPassword) {
+        // Hash the session password and compare with stored hash
+        const hashedSessionPassword = await hashPassword(sessionPassword);
+        if (hashedSessionPassword === project.portal_password) {
+          setIsAuthenticated(true);
+        } else {
+          // Remove invalid session password
+          sessionStorage.removeItem(sessionKey);
+          setIsAuthenticated(false);
+        }
       } else {
         setIsAuthenticated(false);
       }
@@ -49,6 +57,14 @@ export const useProjectPortalAuth = (projectName: string) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const hashPassword = async (password: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
   const verifyPassword = async (password: string) => {
@@ -69,8 +85,10 @@ export const useProjectPortalAuth = (projectName: string) => {
         return false;
       }
 
-      if (project.portal_password === password) {
-        // Store password in session storage
+      const hashedPassword = await hashPassword(password);
+      
+      if (project.portal_password === hashedPassword) {
+        // Store the plaintext password in session storage for this session
         const sessionKey = `project_portal_${decodedProjectName}`;
         sessionStorage.setItem(sessionKey, password);
         setIsAuthenticated(true);

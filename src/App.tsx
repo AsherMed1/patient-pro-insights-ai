@@ -1,64 +1,106 @@
-
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster as RadixToaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import "./App.css";
+import { lazy, Suspense } from "react";
 
-// Lazy load page components with better chunking
-const Index = lazy(() => import("./pages/Index"));
-const ProjectPortal = lazy(() => import("./pages/ProjectPortal"));
+// Lazy load pages for better performance
+const CsvImportHistory = lazy(() => import("./pages/CsvImportHistory"));
+const UndoImport = lazy(() => import("./pages/UndoImport"));
 const ApiDocs = lazy(() => import("./pages/ApiDocs"));
 const AgentClaim = lazy(() => import("./pages/AgentClaim"));
-const UndoImport = lazy(() => import("./pages/UndoImport"));
-const CsvImportHistory = lazy(() => import("./pages/CsvImportHistory"));
-const AgentStatsPage = lazy(() => import("./components/AgentStatsPage"));
+const FormManagement = lazy(() => import("./components/forms/FormManagement"));
 const PublicForm = lazy(() => import("./pages/PublicForm"));
+const ProjectPortal = lazy(() => import("./pages/ProjectPortal"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// Optimized QueryClient configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 10, // 10 minutes
-      retry: 1, // Reduce retries to prevent excessive API calls
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
     },
   },
 });
 
-const LoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-    <span className="ml-2">Loading...</span>
-  </div>
-);
-
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
+        <RadixToaster />
         <BrowserRouter>
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/project/:projectName" element={<ProjectPortal />} />
-              <Route path="/api-docs" element={<ApiDocs />} />
-              <Route path="/agent-claim" element={<AgentClaim />} />
-              <Route path="/undo-import" element={<UndoImport />} />
-              <Route path="/csv-import-history" element={<CsvImportHistory />} />
-              <Route path="/agent-stats" element={<AgentStatsPage onBack={() => window.history.back()} />} />
-              <Route path="/form/:slug" element={<PublicForm />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route 
+              path="/" 
+              element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } 
+            />
+            {/* Keep all other existing routes wrapped in ProtectedRoute */}
+            <Route 
+              path="/csv-import-history" 
+              element={
+                <ProtectedRoute>
+                  <CsvImportHistory />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/undo-import" 
+              element={
+                <ProtectedRoute>
+                  <UndoImport />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/api-docs" 
+              element={
+                <ProtectedRoute>
+                  <ApiDocs />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/agent-claim" 
+              element={
+                <ProtectedRoute>
+                  <AgentClaim />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/forms" 
+              element={
+                <ProtectedRoute>
+                  <FormManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/form/:slug" 
+              element={<PublicForm />} 
+            />
+            <Route 
+              path="/project-portal/:projectName" 
+              element={<ProjectPortal />} 
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
+    </AuthProvider>
+  </QueryClientProvider>
+);
 
 export default App;
