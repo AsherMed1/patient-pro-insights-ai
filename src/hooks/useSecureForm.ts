@@ -21,8 +21,8 @@ export const useSecureForm = <T extends Record<string, any>>(
   rateLimitKey?: string
 ) => {
   const [values, setValues] = useState<T>(initialValues);
-  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
-  const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof T | '_form', string>>>({});
+  const [touched, setTouchedFields] = useState<Partial<Record<keyof T, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateField = useCallback((name: keyof T, value: any): string => {
@@ -119,7 +119,7 @@ export const useSecureForm = <T extends Record<string, any>>(
   }, [config, errors]);
 
   const setTouched = useCallback((name: keyof T) => {
-    setTouched(prev => ({ ...prev, [name]: true }));
+    setTouchedFields(prev => ({ ...prev, [name]: true }));
     
     // Validate field when touched
     const error = validateField(name, values[name]);
@@ -127,7 +127,7 @@ export const useSecureForm = <T extends Record<string, any>>(
   }, [validateField, values]);
 
   const validateForm = useCallback((): boolean => {
-    const newErrors: Partial<Record<keyof T, string>> = {};
+    const newErrors: Partial<Record<keyof T | '_form', string>> = {};
     let isValid = true;
 
     Object.keys(config).forEach(key => {
@@ -190,7 +190,7 @@ export const useSecureForm = <T extends Record<string, any>>(
   const reset = useCallback(() => {
     setValues(initialValues);
     setErrors({});
-    setTouched({});
+    setTouchedFields({});
     setIsSubmitting(false);
   }, [initialValues]);
 

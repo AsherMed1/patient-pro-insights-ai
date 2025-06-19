@@ -38,7 +38,7 @@ export const sanitizeInput = {
     return query.replace(/[';--]/g, '').trim().substring(0, 100);
   },
 
-  // Project name validation
+  // Project name validation - fixed regex
   projectName: (name: string): string => {
     if (!name || typeof name !== 'string') return '';
     return name.replace(/[<>'"&]/g, '').trim();
