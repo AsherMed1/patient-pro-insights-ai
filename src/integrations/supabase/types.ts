@@ -743,6 +743,36 @@ export type Database = {
           },
         ]
       }
+      project_portal_sessions: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          project_name: string
+          session_token: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          project_name: string
+          session_token: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          project_name?: string
+          session_token?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       project_tags: {
         Row: {
           created_at: string
@@ -876,12 +906,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_portal_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      create_portal_session: {
+        Args: {
+          project_name_param: string
+          password_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+        }
+        Returns: string
+      }
       hash_password: {
         Args: { password: string }
         Returns: string
       }
       verify_password: {
         Args: { password: string; hash: string }
+        Returns: boolean
+      }
+      verify_portal_session: {
+        Args: { project_name_param: string; session_token_param: string }
         Returns: boolean
       }
     }

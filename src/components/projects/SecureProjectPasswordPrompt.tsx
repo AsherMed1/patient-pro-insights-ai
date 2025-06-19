@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Lock, AlertCircle, LogOut } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface ProjectPasswordPromptProps {
+interface SecureProjectPasswordPromptProps {
   projectName: string;
   onPasswordSubmit: (password: string) => void;
   onSignOut?: () => void;
@@ -16,14 +16,14 @@ interface ProjectPasswordPromptProps {
   isAuthenticated?: boolean;
 }
 
-export const ProjectPasswordPrompt = ({ 
+export const SecureProjectPasswordPrompt = ({ 
   projectName, 
   onPasswordSubmit, 
   onSignOut,
   error,
   loading,
   isAuthenticated 
-}: ProjectPasswordPromptProps) => {
+}: SecureProjectPasswordPromptProps) => {
   const [password, setPassword] = useState('');
   const [attempts, setAttempts] = useState(0);
   const maxAttempts = 5;

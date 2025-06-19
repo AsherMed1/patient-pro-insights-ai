@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Lock, Mail, User, AlertCircle, Zap } from 'lucide-react';
+import { Loader2, Lock, Mail, User, AlertCircle, Zap, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useSecureForm } from '@/hooks/useSecureForm';
@@ -23,18 +23,18 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
     email: {
       required: true,
       type: 'email' as const,
-      maxLength: 100
+      maxLength: 254
     },
     password: {
       required: true,
       type: 'password' as const,
-      minLength: 6
+      minLength: 8
     },
     fullName: {
       required: mode === 'signup',
       type: 'text' as const,
       minLength: 2,
-      maxLength: 50
+      maxLength: 100
     }
   };
 
@@ -42,6 +42,7 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
     values,
     errors,
     touched,
+    submitAttempts,
     setValue,
     setTouched,
     handleSubmit,
@@ -54,7 +55,7 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
 
   const handleDemoLogin = () => {
     setValue('email', 'demo@example.com');
-    setValue('password', 'demo123');
+    setValue('password', 'demo123456');
     toast({
       title: "Demo credentials loaded",
       description: "Click 'Sign In' to login with demo account",
@@ -80,6 +81,8 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
         if (error) {
           if (error.message.includes('already registered')) {
             throw new Error('An account with this email already exists. Please sign in instead.');
+          } else if (error.message.includes('Password should be at least')) {
+            throw new Error('Password must be at least 8 characters long with mixed case letters, numbers, and symbols.');
           } else {
             throw new Error(error.message);
           }
@@ -99,6 +102,8 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             throw new Error('Invalid email or password. Please try again.');
+          } else if (error.message.includes('Email not confirmed')) {
+            throw new Error('Please check your email and click the confirmation link before signing in.');
           } else {
             throw new Error(error.message);
           }
@@ -117,142 +122,157 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
     }
   };
 
+  const isLocked = submitAttempts >= 5;
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
           <Lock className="h-6 w-6 text-blue-600" />
         </div>
-        <CardTitle>
+        <CardTitle className="flex items-center justify-center gap-2">
           {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
+          <Shield className="h-4 w-4 text-green-600" />
         </CardTitle>
         <CardDescription>
           {mode === 'signin' 
-            ? 'Sign in to access your dashboard' 
-            : 'Create an account to get started'
+            ? 'Sign in to access your secure dashboard' 
+            : 'Create a secure account to get started'
           }
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit(onSubmit);
-        }} className="space-y-4">
-          {mode === 'signup' && (
+        {isLocked ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Too many failed attempts. Please refresh the page and try again later.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit(onSubmit);
+          }} className="space-y-4">
+            {mode === 'signup' && (
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="fullName"
+                    type="text"
+                    value={values.fullName}
+                    onChange={(e) => setValue('fullName', e.target.value)}
+                    onBlur={() => setTouched('fullName')}
+                    placeholder="Enter your full name"
+                    className="pl-10"
+                    disabled={loading}
+                    maxLength={100}
+                  />
+                </div>
+                {touched.fullName && errors.fullName && (
+                  <p className="text-sm text-red-600">{errors.fullName}</p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
+              <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="fullName"
-                  type="text"
-                  value={values.fullName}
-                  onChange={(e) => setValue('fullName', e.target.value)}
-                  onBlur={() => setTouched('fullName')}
-                  placeholder="Enter your full name"
+                  id="email"
+                  type="email"
+                  value={values.email}
+                  onChange={(e) => setValue('email', e.target.value)}
+                  onBlur={() => setTouched('email')}
+                  placeholder="Enter your email"
                   className="pl-10"
                   disabled={loading}
+                  required
+                  maxLength={254}
                 />
               </div>
-              {touched.fullName && errors.fullName && (
-                <p className="text-sm text-red-600">{errors.fullName}</p>
+              {touched.email && errors.email && (
+                <p className="text-sm text-red-600">{errors.email}</p>
               )}
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                id="email"
-                type="email"
-                value={values.email}
-                onChange={(e) => setValue('email', e.target.value)}
-                onBlur={() => setTouched('email')}
-                placeholder="Enter your email"
-                className="pl-10"
-                disabled={loading}
-                required
-              />
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={values.password}
+                  onChange={(e) => setValue('password', e.target.value)}
+                  onBlur={() => setTouched('password')}
+                  placeholder="Enter your password"
+                  className="pl-10"
+                  disabled={loading}
+                  required
+                  minLength={8}
+                  maxLength={128}
+                />
+              </div>
+              {touched.password && errors.password && (
+                <p className="text-sm text-red-600">{errors.password}</p>
+              )}
+              {mode === 'signup' && (
+                <p className="text-sm text-gray-500">
+                  Password must be at least 8 characters with uppercase, lowercase, number, and special character
+                </p>
+              )}
             </div>
-            {touched.email && errors.email && (
-              <p className="text-sm text-red-600">{errors.email}</p>
-            )}
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                id="password"
-                type="password"
-                value={values.password}
-                onChange={(e) => setValue('password', e.target.value)}
-                onBlur={() => setTouched('password')}
-                placeholder="Enter your password"
-                className="pl-10"
+            {(errors._form || submitAttempts > 2) && (
+              <Alert variant={errors._form ? "destructive" : "default"}>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {errors._form || `${5 - submitAttempts} attempts remaining`}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {mode === 'signin' && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleDemoLogin}
                 disabled={loading}
-                required
-                minLength={6}
-              />
-            </div>
-            {touched.password && errors.password && (
-              <p className="text-sm text-red-600">{errors.password}</p>
+              >
+                <Zap className="mr-2 h-4 w-4" />
+                Demo Login
+              </Button>
             )}
-            {mode === 'signup' && (
-              <p className="text-sm text-gray-500">
-                Password must be at least 6 characters long
-              </p>
-            )}
-          </div>
 
-          {(errors._form || errors.email || errors.password) && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {errors._form || 'Please fix the errors above'}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {mode === 'signin' && (
             <Button 
-              type="button" 
-              variant="outline" 
+              type="submit" 
               className="w-full" 
-              onClick={handleDemoLogin}
-              disabled={loading}
+              disabled={loading || isLocked}
             >
-              <Zap className="mr-2 h-4 w-4" />
-              Demo Login
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {mode === 'signin' ? 'Sign In Securely' : 'Create Secure Account'}
             </Button>
-          )}
 
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={loading}
-          >
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {mode === 'signin' ? 'Sign In' : 'Create Account'}
-          </Button>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={onToggleMode}
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
-              disabled={loading}
-            >
-              {mode === 'signin' 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
-            </button>
-          </div>
-        </form>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={onToggleMode}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+                disabled={loading}
+              >
+                {mode === 'signin' 
+                  ? "Don't have an account? Sign up" 
+                  : "Already have an account? Sign in"
+                }
+              </button>
+            </div>
+          </form>
+        )}
       </CardContent>
     </Card>
   );
