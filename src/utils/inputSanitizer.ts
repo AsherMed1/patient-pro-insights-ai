@@ -32,10 +32,10 @@ export const sanitizeInput = {
     return phone.replace(/[^\d+\-\(\)\s]/g, '').trim();
   },
 
-  // SQL injection prevention for search queries
+  // SQL injection prevention for search queries - fixed regex
   searchQuery: (query: string): string => {
     if (!query || typeof query !== 'string') return '';
-    return query.replace(/[';--]/g, '').trim().substring(0, 100);
+    return query.replace(/[';-]{2,}|[';]/g, '').trim().substring(0, 100);
   },
 
   // Project name validation - fixed regex
