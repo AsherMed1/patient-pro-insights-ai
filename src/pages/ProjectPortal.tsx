@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +9,7 @@ import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordPrompt';
-import { useProjectPortalAuth } from '@/hooks/useProjectPortalAuth';
+import { useEnhancedProjectPortalAuth } from '@/hooks/useEnhancedProjectPortalAuth';
 import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 import TagManager from '@/components/projects/TagManager';
 
@@ -45,8 +44,8 @@ const ProjectPortal = () => {
     isAuthenticated,
     loading: authLoading,
     error: authError,
-    verifyPassword
-  } = useProjectPortalAuth(projectName || '');
+    login
+  } = useEnhancedProjectPortalAuth(projectName || '');
 
   useEffect(() => {
     console.log('ProjectPortal mounted with projectName:', projectName);
@@ -73,7 +72,7 @@ const ProjectPortal = () => {
     return (
       <ProjectPasswordPrompt
         projectName={decodeURIComponent(projectName || '')}
-        onPasswordSubmit={verifyPassword}
+        onPasswordSubmit={login}
         error={authError}
         loading={authLoading}
       />

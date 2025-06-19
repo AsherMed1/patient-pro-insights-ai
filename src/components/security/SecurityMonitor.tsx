@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,23 +41,29 @@ export const SecurityMonitor = () => {
         return;
       }
 
-      setEvents(data || []);
+      // Transform the data to match our interface, handling the ip_address type
+      const transformedEvents: SecurityEvent[] = (data || []).map(event => ({
+        ...event,
+        ip_address: event.ip_address ? String(event.ip_address) : 'Unknown'
+      }));
+
+      setEvents(transformedEvents);
 
       // Calculate stats
       const now = new Date();
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       
       const criticalEventTypes = ['rate_limit_exceeded', 'session_ip_mismatch', 'invalid_input', 'database_error'];
-      const criticalEvents = data?.filter(event => 
+      const criticalEvents = transformedEvents.filter(event => 
         criticalEventTypes.includes(event.event_type)
-      ).length || 0;
+      ).length;
 
-      const recentEvents = data?.filter(event => 
+      const recentEvents = transformedEvents.filter(event => 
         new Date(event.created_at) > oneDayAgo
-      ).length || 0;
+      ).length;
 
       setStats({
-        totalEvents: data?.length || 0,
+        totalEvents: transformedEvents.length,
         criticalEvents,
         recentEvents
       });
@@ -196,7 +201,7 @@ export const SecurityMonitor = () => {
                         </span>
                       </div>
                       <div className="text-sm space-y-1">
-                        <p><strong>IP:</strong> {event.ip_address || 'Unknown'}</p>
+                        <p><strong>IP:</strong> {event.ip_address}</p>
                         {event.details && (
                           <p><strong>Details:</strong> {JSON.stringify(event.details, null, 2)}</p>
                         )}
