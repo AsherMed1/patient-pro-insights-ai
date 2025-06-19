@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Shield, AlertTriangle, Activity, RefreshCw } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, Shield, Activity, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -17,215 +16,199 @@ interface SecurityEvent {
   created_at: string;
 }
 
-interface RateLimitEvent {
-  id: string;
-  identifier: string;
-  action_type: string;
-  count: number;
-  created_at: string;
-}
-
 export const SecurityMonitor = () => {
-  const { user } = useAuth();
-  const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
-  const [rateLimitEvents, setRateLimitEvents] = useState<RateLimitEvent[]>([]);
+  const [events, setEvents] = useState<SecurityEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    totalEvents: 0,
+    criticalEvents: 0,
+    recentEvents: 0
+  });
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (user) {
-      fetchSecurityData();
-    }
-  }, [user]);
+  const fetchSecurityEvents = async () => {
+    if (!user) return;
 
-  const fetchSecurityData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // Fetch recent security events
-      const { data: auditData, error: auditError } = await supabase
+      const { data, error } = await supabase
         .from('security_audit_log')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
 
-      if (auditError) {
-        console.error('Error fetching audit log:', auditError);
-      } else {
-        const transformedEvents: SecurityEvent[] = (auditData || []).map(event => ({
-          id: event.id,
-          event_type: event.event_type,
-          ip_address: event.ip_address?.toString() || 'Unknown',
-          user_agent: event.user_agent || 'Unknown',
-          details: event.details,
-          created_at: event.created_at
-        }));
-        setSecurityEvents(transformedEvents);
+      if (error) {
+        console.error('Failed to fetch security events:', error);
+        return;
       }
 
-      // Fetch rate limit data
-      const { data: rateLimitData, error: rateLimitError } = await supabase
-        .from('rate_limit_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
+      setEvents(data || []);
 
-      if (rateLimitError) {
-        console.error('Error fetching rate limit data:', rateLimitError);
-      } else {
-        const transformedRateLimit: RateLimitEvent[] = (rateLimitData || []).map(event => ({
-          id: event.id,
-          identifier: event.identifier,
-          action_type: event.action_type,
-          count: event.count,
-          created_at: event.created_at
-        }));
-        setRateLimitEvents(transformedRateLimit);
-      }
+      // Calculate stats
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      const criticalEventTypes = ['rate_limit_exceeded', 'session_ip_mismatch', 'invalid_input', 'database_error'];
+      const criticalEvents = data?.filter(event => 
+        criticalEventTypes.includes(event.event_type)
+      ).length || 0;
+
+      const recentEvents = data?.filter(event => 
+        new Date(event.created_at) > oneDayAgo
+      ).length || 0;
+
+      setStats({
+        totalEvents: data?.length || 0,
+        criticalEvents,
+        recentEvents
+      });
 
     } catch (error) {
-      console.error('Error fetching security data:', error);
+      console.error('Error fetching security events:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchSecurityData();
-    setRefreshing(false);
+  useEffect(() => {
+    fetchSecurityEvents();
+  }, [user]);
+
+  const getEventSeverity = (eventType: string) => {
+    const criticalEvents = ['rate_limit_exceeded', 'session_ip_mismatch', 'database_error'];
+    const warningEvents = ['invalid_input', 'oversized_request', 'portal_auth_failed'];
+    
+    if (criticalEvents.includes(eventType)) return 'critical';
+    if (warningEvents.includes(eventType)) return 'warning';
+    return 'info';
   };
 
-  const getEventIcon = (eventType: string) => {
-    switch (eventType) {
-      case 'rate_limit_exceeded':
-      case 'invalid_input':
-      case 'portal_auth_failed':
-      case 'session_ip_mismatch':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      case 'portal_auth_success':
-        return <Shield className="h-4 w-4 text-green-500" />;
-      default:
-        return <Activity className="h-4 w-4 text-blue-500" />;
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'destructive';
+      case 'warning': return 'secondary';
+      default: return 'default';
     }
   };
 
-  const getEventSeverity = (eventType: string): 'default' | 'secondary' | 'destructive' => {
-    const highSeverity = ['rate_limit_exceeded', 'invalid_input', 'portal_auth_failed', 'session_ip_mismatch'];
-    const lowSeverity = ['portal_auth_success'];
-    
-    if (highSeverity.includes(eventType)) return 'destructive';
-    if (lowSeverity.includes(eventType)) return 'secondary';
-    return 'default';
+  const formatEventType = (eventType: string) => {
+    return eventType
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   if (!user) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <p>Please log in to view security monitoring data.</p>
+          <p className="text-muted-foreground">Please log in to view security monitoring</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center space-x-2">
-              <Shield className="h-5 w-5" />
-              <span>Security Monitor</span>
-            </CardTitle>
-            <CardDescription>
-              Recent security events and activities
-            </CardDescription>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalEvents}</div>
+            <p className="text-xs text-muted-foreground">Last 50 events</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Critical Events</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{stats.criticalEvents}</div>
+            <p className="text-xs text-muted-foreground">Require attention</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+            <Shield className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.recentEvents}</div>
+            <p className="text-xs text-muted-foreground">Last 24 hours</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Security Events</CardTitle>
+              <CardDescription>
+                Recent security events and audit trail
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchSecurityEvents}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="events" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="events">Security Events</TabsTrigger>
-            <TabsTrigger value="ratelimit">Rate Limiting</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="events" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-4">Loading security events...</div>
-            ) : securityEvents.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">No security events found</div>
-            ) : (
-              <div className="space-y-2">
-                {securityEvents.slice(0, 10).map((event) => (
-                  <Card key={event.id} className="p-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3">
-                        {getEventIcon(event.event_type)}
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium text-sm">
-                              {event.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                            </span>
-                            <Badge variant={getEventSeverity(event.event_type)} className="text-xs">
-                              {event.event_type}
-                            </Badge>
-                          </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            IP: {event.ip_address}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(event.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="ratelimit" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-4">Loading rate limit data...</div>
-            ) : rateLimitEvents.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">No rate limit events found</div>
-            ) : (
-              <div className="space-y-2">
-                {rateLimitEvents.slice(0, 10).map((event) => (
-                  <Card key={event.id} className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">{event.action_type}</div>
-                        <div className="text-xs text-gray-600">
-                          {event.identifier}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">Count: {event.count}</div>
-                        <div className="text-xs text-gray-500">
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2 text-sm text-muted-foreground">Loading security events...</p>
+            </div>
+          ) : events.length === 0 ? (
+            <div className="text-center py-8">
+              <Shield className="h-12 w-12 mx-auto text-green-600 mb-4" />
+              <p className="text-lg font-medium mb-2">No Security Events</p>
+              <p className="text-sm text-muted-foreground">Your system is secure with no recent events to report</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {events.map((event) => {
+                const severity = getEventSeverity(event.event_type);
+                return (
+                  <div
+                    key={event.id}
+                    className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant={getSeverityColor(severity)}>
+                          {formatEventType(event.event_type)}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
                           {new Date(event.created_at).toLocaleString()}
-                        </div>
+                        </span>
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <p><strong>IP:</strong> {event.ip_address || 'Unknown'}</p>
+                        {event.details && (
+                          <p><strong>Details:</strong> {JSON.stringify(event.details, null, 2)}</p>
+                        )}
                       </div>
                     </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };

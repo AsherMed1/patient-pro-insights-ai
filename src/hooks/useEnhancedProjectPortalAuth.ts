@@ -1,303 +1,183 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface AuthState {
-  isAuthenticated: boolean | null;
+interface EnhancedAuthState {
+  isAuthenticated: boolean;
   loading: boolean;
-  error: string;
-  attempts: number;
-  isLocked: boolean;
+  sessionToken: string | null;
+  error: string | null;
+  rateLimited: boolean;
 }
 
 export const useEnhancedProjectPortalAuth = (projectName: string) => {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: null,
+  const [authState, setAuthState] = useState<EnhancedAuthState>({
+    isAuthenticated: false,
     loading: true,
-    error: '',
-    attempts: 0,
-    isLocked: false
+    sessionToken: null,
+    error: null,
+    rateLimited: false
   });
+  const { toast } = useToast();
 
-  const MAX_ATTEMPTS = 5;
-  const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
-
-  useEffect(() => {
-    checkProjectAccess();
-  }, [projectName]);
-
-  const getClientIP = async (): Promise<string> => {
+  // Enhanced session validation with IP tracking
+  const validateSession = async (token: string): Promise<boolean> => {
     try {
-      // In production, you might want to use a service to get the real IP
-      // For now, we'll use a fallback approach
-      const response = await fetch('https://api.ipify.org?format=json');
-      const data = await response.json();
-      return data.ip;
-    } catch {
-      return 'unknown';
-    }
-  };
+      const { data, error } = await supabase.rpc('validate_secure_session', {
+        project_name_param: projectName,
+        session_token_param: token,
+        ip_address_param: null // Browser can't reliably get client IP
+      });
 
-  const checkLockoutStatus = (): boolean => {
-    const lockoutKey = `portal_lockout_${projectName}`;
-    const lockoutData = localStorage.getItem(lockoutKey);
-    
-    if (lockoutData) {
-      const { timestamp, attempts } = JSON.parse(lockoutData);
-      const now = Date.now();
-      
-      if (attempts >= MAX_ATTEMPTS && (now - timestamp) < LOCKOUT_DURATION) {
-        return true;
-      } else if ((now - timestamp) >= LOCKOUT_DURATION) {
-        // Reset lockout after duration
-        localStorage.removeItem(lockoutKey);
+      if (error) {
+        console.error('Session validation error:', error);
         return false;
       }
-    }
-    
-    return false;
-  };
 
-  const updateLockoutStatus = (attempts: number): void => {
-    const lockoutKey = `portal_lockout_${projectName}`;
-    localStorage.setItem(lockoutKey, JSON.stringify({
-      timestamp: Date.now(),
-      attempts
-    }));
-  };
-
-  const checkProjectAccess = async () => {
-    try {
-      setAuthState(prev => ({ ...prev, loading: true, error: '' }));
-      
-      // Check if user is locked out
-      if (checkLockoutStatus()) {
-        setAuthState(prev => ({
-          ...prev,
-          loading: false,
-          isLocked: true,
-          error: 'Too many failed attempts. Please try again later.'
-        }));
-        return;
-      }
-
-      const decodedProjectName = decodeURIComponent(projectName);
-      const sessionKey = `project_portal_session_${decodedProjectName}`;
-      const sessionToken = sessionStorage.getItem(sessionKey);
-      
-      if (sessionToken) {
-        const clientIP = await getClientIP();
-        
-        // Verify session with enhanced security
-        const { data: isValid, error: verifyError } = await supabase
-          .rpc('verify_secure_portal_session', {
-            project_name_param: decodedProjectName,
-            session_token_param: sessionToken,
-            ip_address_param: clientIP
-          });
-
-        if (verifyError) {
-          console.error('Error verifying session:', verifyError);
-          sessionStorage.removeItem(sessionKey);
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: false,
-            loading: false,
-            error: 'Session verification failed'
-          }));
-        } else if (isValid) {
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: true,
-            loading: false,
-            error: ''
-          }));
-        } else {
-          sessionStorage.removeItem(sessionKey);
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: false,
-            loading: false,
-            error: 'Invalid session'
-          }));
-        }
-      } else {
-        // Check if project requires password
-        const { data: project, error } = await supabase
-          .from('projects')
-          .select('portal_password, active')
-          .eq('project_name', decodedProjectName)
-          .single();
-
-        if (error) {
-          console.error('Error fetching project:', error);
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: false,
-            loading: false,
-            error: 'Project not found'
-          }));
-          return;
-        }
-
-        if (!project.active) {
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: false,
-            loading: false,
-            error: 'Project is not active'
-          }));
-          return;
-        }
-
-        // If no password is set, allow access
-        if (!project.portal_password) {
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: true,
-            loading: false,
-            error: ''
-          }));
-        } else {
-          setAuthState(prev => ({
-            ...prev,
-            isAuthenticated: false,
-            loading: false,
-            error: ''
-          }));
-        }
-      }
+      return data === true;
     } catch (error) {
-      console.error('Error checking project access:', error);
-      setAuthState(prev => ({
-        ...prev,
-        isAuthenticated: false,
-        loading: false,
-        error: 'Failed to check project access'
-      }));
+      console.error('Session validation failed:', error);
+      return false;
     }
   };
 
-  const verifyPassword = async (password: string): Promise<boolean> => {
+  // Enhanced login with rate limiting and security logging
+  const login = async (password: string): Promise<boolean> => {
+    if (authState.rateLimited) {
+      toast({
+        title: "Rate Limited",
+        description: "Too many login attempts. Please try again later.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setAuthState(prev => ({ ...prev, loading: true, error: null }));
+
     try {
-      setAuthState(prev => ({ ...prev, loading: true, error: '' }));
+      // Log security event
+      await supabase.rpc('log_security_event', {
+        event_type_param: 'portal_login_attempt',
+        details_param: { project: projectName }
+      });
+
+      const { data, error } = await supabase.rpc('create_secure_portal_session', {
+        project_name_param: projectName,
+        password_param: password,
+        ip_address_param: null,
+        user_agent_param: navigator.userAgent
+      });
+
+      if (error || !data) {
+        // Check if it's a rate limiting error
+        if (error?.message?.includes('rate_limit')) {
+          setAuthState(prev => ({ 
+            ...prev, 
+            loading: false, 
+            error: 'Too many attempts. Please try again later.',
+            rateLimited: true 
+          }));
+          
+          // Reset rate limit after 15 minutes
+          setTimeout(() => {
+            setAuthState(prev => ({ ...prev, rateLimited: false }));
+          }, 15 * 60 * 1000);
+          
+          return false;
+        }
+
+        setAuthState(prev => ({ 
+          ...prev, 
+          loading: false, 
+          error: 'Invalid credentials or project not found' 
+        }));
+        return false;
+      }
+
+      const sessionToken = data as string;
+      localStorage.setItem(`portal_session_${projectName}`, sessionToken);
       
-      // Check if locked out
-      if (checkLockoutStatus()) {
-        setAuthState(prev => ({
-          ...prev,
-          loading: false,
-          isLocked: true,
-          error: 'Too many failed attempts. Please try again later.'
-        }));
-        return false;
-      }
-
-      // Input validation
-      if (!password || password.length < 6 || password.length > 100) {
-        setAuthState(prev => ({
-          ...prev,
-          loading: false,
-          error: 'Password must be between 6 and 100 characters.'
-        }));
-        return false;
-      }
-
-      // Sanitize password (basic cleaning, but preserve special characters)
-      const sanitizedPassword = password.trim();
-      const decodedProjectName = decodeURIComponent(projectName);
-      
-      // Get client info for enhanced security
-      const clientIP = await getClientIP();
-      const userAgent = navigator.userAgent;
-      
-      // Create secure session using enhanced function
-      const { data: sessionToken, error: sessionError } = await supabase
-        .rpc('create_secure_portal_session', {
-          project_name_param: decodedProjectName,
-          password_param: sanitizedPassword,
-          ip_address_param: clientIP,
-          user_agent_param: userAgent
-        });
-
-      if (sessionError) {
-        console.error('Error creating session:', sessionError);
-        
-        const newAttempts = authState.attempts + 1;
-        updateLockoutStatus(newAttempts);
-        
-        setAuthState(prev => ({
-          ...prev,
-          loading: false,
-          attempts: newAttempts,
-          isLocked: newAttempts >= MAX_ATTEMPTS,
-          error: newAttempts >= MAX_ATTEMPTS 
-            ? 'Too many failed attempts. Account locked for 15 minutes.'
-            : 'Failed to verify password. Please try again.'
-        }));
-        return false;
-      }
-
-      if (sessionToken) {
-        // Store secure session token
-        const sessionKey = `project_portal_session_${decodedProjectName}`;
-        sessionStorage.setItem(sessionKey, sessionToken);
-        
-        // Reset attempts on successful login
-        localStorage.removeItem(`portal_lockout_${projectName}`);
-        
-        setAuthState(prev => ({
-          ...prev,
-          isAuthenticated: true,
-          loading: false,
-          error: '',
-          attempts: 0,
-          isLocked: false
-        }));
-        return true;
-      } else {
-        const newAttempts = authState.attempts + 1;
-        updateLockoutStatus(newAttempts);
-        
-        setAuthState(prev => ({
-          ...prev,
-          loading: false,
-          attempts: newAttempts,
-          isLocked: newAttempts >= MAX_ATTEMPTS,
-          error: newAttempts >= MAX_ATTEMPTS 
-            ? 'Too many failed attempts. Account locked for 15 minutes.'
-            : 'Incorrect password. Please try again.'
-        }));
-        return false;
-      }
-    } catch (error) {
-      console.error('Error verifying password:', error);
-      setAuthState(prev => ({
-        ...prev,
+      setAuthState({
+        isAuthenticated: true,
         loading: false,
-        error: 'Failed to verify password. Please try again.'
+        sessionToken,
+        error: null,
+        rateLimited: false
+      });
+
+      toast({
+        title: "Success",
+        description: "Successfully authenticated to project portal",
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      setAuthState(prev => ({ 
+        ...prev, 
+        loading: false, 
+        error: 'Authentication failed. Please try again.' 
       }));
       return false;
     }
   };
 
-  const signOut = () => {
-    const decodedProjectName = decodeURIComponent(projectName);
-    const sessionKey = `project_portal_session_${decodedProjectName}`;
-    sessionStorage.removeItem(sessionKey);
-    setAuthState(prev => ({
-      ...prev,
+  const logout = async () => {
+    localStorage.removeItem(`portal_session_${projectName}`);
+    setAuthState({
       isAuthenticated: false,
-      error: '',
-      attempts: 0,
-      isLocked: false
-    }));
+      loading: false,
+      sessionToken: null,
+      error: null,
+      rateLimited: false
+    });
+
+    // Log security event
+    await supabase.rpc('log_security_event', {
+      event_type_param: 'portal_logout',
+      details_param: { project: projectName }
+    });
+
+    toast({
+      title: "Logged Out",
+      description: "Successfully logged out of project portal",
+    });
   };
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      const savedToken = localStorage.getItem(`portal_session_${projectName}`);
+      
+      if (!savedToken) {
+        setAuthState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      const isValid = await validateSession(savedToken);
+      
+      if (isValid) {
+        setAuthState({
+          isAuthenticated: true,
+          loading: false,
+          sessionToken: savedToken,
+          error: null,
+          rateLimited: false
+        });
+      } else {
+        localStorage.removeItem(`portal_session_${projectName}`);
+        setAuthState(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    checkExistingSession();
+  }, [projectName]);
 
   return {
     ...authState,
-    verifyPassword,
-    signOut,
-    remainingAttempts: Math.max(0, MAX_ATTEMPTS - authState.attempts)
+    login,
+    logout,
+    validateSession
   };
 };

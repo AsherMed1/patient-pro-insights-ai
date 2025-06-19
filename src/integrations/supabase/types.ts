@@ -993,6 +993,27 @@ export type Database = {
         Args: { password: string }
         Returns: string
       }
+      log_security_event: {
+        Args: {
+          event_type_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+        }
+        Returns: undefined
+      }
+      validate_project_access: {
+        Args: { project_name_param: string }
+        Returns: boolean
+      }
+      validate_secure_session: {
+        Args: {
+          project_name_param: string
+          session_token_param: string
+          ip_address_param?: unknown
+        }
+        Returns: boolean
+      }
       verify_password: {
         Args: { password: string; hash: string }
         Returns: boolean
