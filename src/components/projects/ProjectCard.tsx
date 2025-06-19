@@ -159,10 +159,11 @@ export const ProjectCard = ({
       </Card>
 
       <DeleteProjectDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleDeleteConfirm}
         project={project}
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        loading={false}
       />
     </>
   );

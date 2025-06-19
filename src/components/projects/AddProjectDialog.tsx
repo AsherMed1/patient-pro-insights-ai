@@ -39,7 +39,10 @@ export const AddProjectDialog = ({ open, onOpenChange, onProjectAdded }: AddProj
             Create a new project to organize your leads, appointments, and forms.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm onSuccess={handleSuccess} />
+        <ProjectForm 
+          onSave={handleSuccess} 
+          onCancel={() => onOpenChange(false)} 
+        />
       </DialogContent>
     </Dialog>
   );

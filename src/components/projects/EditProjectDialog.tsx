@@ -39,7 +39,11 @@ export const EditProjectDialog = ({
             Update the details for "{project.project_name}".
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm project={project} onSuccess={handleSuccess} />
+        <ProjectForm 
+          initialData={project} 
+          onSave={handleSuccess} 
+          onCancel={() => onOpenChange(false)} 
+        />
       </DialogContent>
     </Dialog>
   );

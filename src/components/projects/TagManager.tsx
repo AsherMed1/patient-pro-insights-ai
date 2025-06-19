@@ -50,6 +50,11 @@ const TagManager = ({ projectId, projectName }: TagManagerProps) => {
     setIsDialogOpen(true);
   };
 
+  const handleSuccess = () => {
+    setIsDialogOpen(false);
+    setEditingTag(null);
+  };
+
   if (loading) {
     return (
       <Card>
@@ -140,13 +145,11 @@ const TagManager = ({ projectId, projectName }: TagManagerProps) => {
       </Card>
 
       <TagDialog
-        isOpen={isDialogOpen}
-        onClose={() => {
-          setIsDialogOpen(false);
-          setEditingTag(null);
-        }}
-        onSave={editingTag ? handleEditTag : handleCreateTag}
+        projectId={projectId}
         tag={editingTag}
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSuccess={handleSuccess}
       />
     </>
   );

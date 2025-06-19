@@ -55,9 +55,9 @@ const ProjectsManager = () => {
             </CardDescription>
           </div>
           <AddProjectDialog
-            isOpen={isAddDialogOpen}
-            onClose={() => setIsAddDialogOpen(false)}
-            onSave={handleAddProject}
+            open={isAddDialogOpen}
+            onOpenChange={setIsAddDialogOpen}
+            onProjectAdded={handleAddProject}
           />
         </div>
       </CardHeader>
@@ -97,10 +97,10 @@ const ProjectsManager = () => {
 
         {editingProject && (
           <EditProjectDialog
-            isOpen={isEditDialogOpen}
-            onClose={() => setIsEditDialogOpen(false)}
             project={editingProject}
-            onSave={handleEditProject}
+            open={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            onProjectUpdated={handleEditProject}
           />
         )}
       </CardContent>
