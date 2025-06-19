@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Lock, Mail, User, AlertCircle } from 'lucide-react';
+import { Loader2, Lock, Mail, User, AlertCircle, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,6 +21,15 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { toast } = useToast();
+
+  const handleDemoLogin = () => {
+    setEmail('demo@example.com');
+    setPassword('demo123');
+    toast({
+      title: "Demo credentials loaded",
+      description: "Click 'Sign In' to login with demo account",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +183,19 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          )}
+
+          {mode === 'signin' && (
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full" 
+              onClick={handleDemoLogin}
+              disabled={loading}
+            >
+              <Zap className="mr-2 h-4 w-4" />
+              Demo Login
+            </Button>
           )}
 
           <Button 
