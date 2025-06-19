@@ -21,14 +21,14 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Remove console statements in production
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
+    // Use esbuild for minification (faster and default in Vite)
+    minify: 'esbuild',
+    // Configure esbuild to drop console and debugger statements in production
+    ...(mode === 'production' && {
+      esbuild: {
+        drop: ['console', 'debugger'],
       },
-    },
+    }),
     // Chunk splitting for better caching and smaller bundles
     rollupOptions: {
       output: {
