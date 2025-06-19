@@ -47,12 +47,11 @@ export const SecurityMonitor = () => {
         .from('security_audit_log')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(20);
 
       if (auditError) {
         console.error('Error fetching audit log:', auditError);
       } else {
-        // Transform the data to match our interface
         const transformedEvents: SecurityEvent[] = (auditData || []).map(event => ({
           id: event.id,
           event_type: event.event_type,
@@ -69,12 +68,11 @@ export const SecurityMonitor = () => {
         .from('rate_limit_log')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(20);
 
       if (rateLimitError) {
         console.error('Error fetching rate limit data:', rateLimitError);
       } else {
-        // Transform the data to match our interface
         const transformedRateLimit: RateLimitEvent[] = (rateLimitData || []).map(event => ({
           id: event.id,
           identifier: event.identifier,
@@ -98,21 +96,6 @@ export const SecurityMonitor = () => {
     setRefreshing(false);
   };
 
-  const cleanupSecurityTables = async () => {
-    try {
-      const { data, error } = await supabase.rpc('cleanup_security_tables');
-      
-      if (error) {
-        console.error('Error cleaning up security tables:', error);
-      } else {
-        console.log(`Cleaned up ${data} old records`);
-        await fetchSecurityData(); // Refresh data
-      }
-    } catch (error) {
-      console.error('Error during cleanup:', error);
-    }
-  };
-
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
       case 'rate_limit_exceeded':
@@ -121,7 +104,6 @@ export const SecurityMonitor = () => {
       case 'session_ip_mismatch':
         return <AlertTriangle className="h-4 w-4 text-red-500" />;
       case 'portal_auth_success':
-      case 'call_record_created':
         return <Shield className="h-4 w-4 text-green-500" />;
       default:
         return <Activity className="h-4 w-4 text-blue-500" />;
@@ -130,18 +112,11 @@ export const SecurityMonitor = () => {
 
   const getEventSeverity = (eventType: string): 'default' | 'secondary' | 'destructive' => {
     const highSeverity = ['rate_limit_exceeded', 'invalid_input', 'portal_auth_failed', 'session_ip_mismatch'];
-    const lowSeverity = ['portal_auth_success', 'call_record_created'];
+    const lowSeverity = ['portal_auth_success'];
     
     if (highSeverity.includes(eventType)) return 'destructive';
     if (lowSeverity.includes(eventType)) return 'secondary';
     return 'default';
-  };
-
-  const formatEventType = (eventType: string): string => {
-    return eventType
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
   };
 
   if (!user) {
@@ -164,27 +139,18 @@ export const SecurityMonitor = () => {
               <span>Security Monitor</span>
             </CardTitle>
             <CardDescription>
-              Monitor security events, rate limiting, and suspicious activities
+              Recent security events and activities
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={cleanupSecurityTables}
-            >
-              Cleanup Old Records
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -201,29 +167,22 @@ export const SecurityMonitor = () => {
               <div className="text-center py-4 text-gray-500">No security events found</div>
             ) : (
               <div className="space-y-2">
-                {securityEvents.map((event) => (
+                {securityEvents.slice(0, 10).map((event) => (
                   <Card key={event.id} className="p-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start space-x-3">
                         {getEventIcon(event.event_type)}
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
-                            <span className="font-medium">
-                              {formatEventType(event.event_type)}
+                            <span className="font-medium text-sm">
+                              {event.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             </span>
-                            <Badge variant={getEventSeverity(event.event_type)}>
+                            <Badge variant={getEventSeverity(event.event_type)} className="text-xs">
                               {event.event_type}
                             </Badge>
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            <div>IP: {event.ip_address}</div>
-                            {event.details && (
-                              <div className="mt-1">
-                                <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
-                                  {JSON.stringify(event.details, null, 2)}
-                                </pre>
-                              </div>
-                            )}
+                          <div className="text-xs text-gray-600 mt-1">
+                            IP: {event.ip_address}
                           </div>
                         </div>
                       </div>
@@ -244,13 +203,13 @@ export const SecurityMonitor = () => {
               <div className="text-center py-4 text-gray-500">No rate limit events found</div>
             ) : (
               <div className="space-y-2">
-                {rateLimitEvents.map((event) => (
+                {rateLimitEvents.slice(0, 10).map((event) => (
                   <Card key={event.id} className="p-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-medium">{event.action_type}</div>
-                        <div className="text-sm text-gray-600">
-                          Identifier: {event.identifier}
+                        <div className="font-medium text-sm">{event.action_type}</div>
+                        <div className="text-xs text-gray-600">
+                          {event.identifier}
                         </div>
                       </div>
                       <div className="text-right">
