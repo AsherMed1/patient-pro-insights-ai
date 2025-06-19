@@ -17,10 +17,18 @@ interface SecurityEvent {
   created_at: string;
 }
 
+interface RateLimitEvent {
+  id: string;
+  identifier: string;
+  action_type: string;
+  count: number;
+  created_at: string;
+}
+
 export const SecurityMonitor = () => {
   const { user } = useAuth();
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
-  const [rateLimitEvents, setRateLimitEvents] = useState<any[]>([]);
+  const [rateLimitEvents, setRateLimitEvents] = useState<RateLimitEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -44,7 +52,16 @@ export const SecurityMonitor = () => {
       if (auditError) {
         console.error('Error fetching audit log:', auditError);
       } else {
-        setSecurityEvents(auditData || []);
+        // Transform the data to match our interface
+        const transformedEvents: SecurityEvent[] = (auditData || []).map(event => ({
+          id: event.id,
+          event_type: event.event_type,
+          ip_address: event.ip_address?.toString() || 'Unknown',
+          user_agent: event.user_agent || 'Unknown',
+          details: event.details,
+          created_at: event.created_at
+        }));
+        setSecurityEvents(transformedEvents);
       }
 
       // Fetch rate limit data
@@ -57,7 +74,15 @@ export const SecurityMonitor = () => {
       if (rateLimitError) {
         console.error('Error fetching rate limit data:', rateLimitError);
       } else {
-        setRateLimitEvents(rateLimitData || []);
+        // Transform the data to match our interface
+        const transformedRateLimit: RateLimitEvent[] = (rateLimitData || []).map(event => ({
+          id: event.id,
+          identifier: event.identifier,
+          action_type: event.action_type,
+          count: event.count,
+          created_at: event.created_at
+        }));
+        setRateLimitEvents(transformedRateLimit);
       }
 
     } catch (error) {
@@ -191,7 +216,7 @@ export const SecurityMonitor = () => {
                             </Badge>
                           </div>
                           <div className="text-sm text-gray-600 mt-1">
-                            <div>IP: {event.ip_address || 'Unknown'}</div>
+                            <div>IP: {event.ip_address}</div>
                             {event.details && (
                               <div className="mt-1">
                                 <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">

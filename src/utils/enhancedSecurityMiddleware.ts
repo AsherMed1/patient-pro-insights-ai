@@ -106,11 +106,11 @@ export const enhancedSecurityMiddleware = {
         errors.push(`${field} format is invalid`);
       }
       
-      if (value && rule.minLength && value.length < rule.minLength) {
+      if (value && rule.minLength && typeof value === 'string' && value.length < rule.minLength) {
         errors.push(`${field} must be at least ${rule.minLength} characters`);
       }
       
-      if (value && rule.maxLength && value.length > rule.maxLength) {
+      if (value && rule.maxLength && typeof value === 'string' && value.length > rule.maxLength) {
         errors.push(`${field} must be no more than ${rule.maxLength} characters`);
       }
     }
