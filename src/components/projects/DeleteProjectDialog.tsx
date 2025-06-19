@@ -1,43 +1,40 @@
 
 import React from 'react';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Trash2 } from 'lucide-react';
-
-interface Project {
-  id: string;
-  project_name: string;
-  created_at: string;
-  updated_at: string;
-}
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Project } from './types';
 
 interface DeleteProjectDialogProps {
-  project: Project;
-  onDelete: (project: Project) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  project: Project | null;
 }
 
-export const DeleteProjectDialog: React.FC<DeleteProjectDialogProps> = ({
-  project,
-  onDelete
-}) => {
+export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project }: DeleteProjectDialogProps) => {
+  if (!project) return null;
+
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost">
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Project</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete "{project.project_name}"? This action cannot be undone.
+            Are you sure you want to delete "{project.project_name}"? This action cannot be undone and will remove all associated data.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onDelete(project)}>
-            Delete
+          <AlertDialogAction onClick={onConfirm} className="bg-red-600 hover:bg-red-700">
+            Delete Project
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

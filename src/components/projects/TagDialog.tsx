@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -74,6 +75,9 @@ export const TagDialog = ({ isOpen, onClose, onSave, tag }: TagDialogProps) => {
           <DialogTitle>
             {tag ? 'Edit Tag' : 'Create New Tag'}
           </DialogTitle>
+          <DialogDescription>
+            {tag ? 'Update the tag details and appearance.' : 'Create a new tag to organize and categorize your projects.'}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
