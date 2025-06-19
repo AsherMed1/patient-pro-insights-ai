@@ -1,160 +1,145 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { ProjectTag } from './types/tagTypes';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import type { ProjectTag } from './types/tagTypes';
 
 interface TagDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (tagData: { tag_name: string; tag_color: string; tag_description?: string }) => void;
-  tag?: ProjectTag | null;
+  projectId: string;
+  tag?: ProjectTag;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
-const DEFAULT_COLORS = [
-  '#3B82F6', // Blue
-  '#10B981', // Green
-  '#F59E0B', // Yellow
-  '#EF4444', // Red
-  '#8B5CF6', // Purple
-  '#06B6D4', // Cyan
-  '#F97316', // Orange
-  '#84CC16', // Lime
-  '#EC4899', // Pink
-  '#6B7280', // Gray
-];
+export const TagDialog = ({ projectId, tag, open, onOpenChange, onSuccess }: TagDialogProps) => {
+  const [tagName, setTagName] = useState(tag?.tag_name || '');
+  const [tagColor, setTagColor] = useState(tag?.tag_color || '#3B82F6');
+  const [tagDescription, setTagDescription] = useState(tag?.tag_description || '');
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-export const TagDialog = ({ isOpen, onClose, onSave, tag }: TagDialogProps) => {
-  const [tagName, setTagName] = useState('');
-  const [tagColor, setTagColor] = useState(DEFAULT_COLORS[0]);
-  const [tagDescription, setTagDescription] = useState('');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tagName.trim()) return;
 
-  useEffect(() => {
-    if (tag) {
-      setTagName(tag.tag_name);
-      setTagColor(tag.tag_color);
-      setTagDescription(tag.tag_description || '');
-    } else {
-      setTagName('');
-      setTagColor(DEFAULT_COLORS[0]);
-      setTagDescription('');
-    }
-  }, [tag, isOpen]);
-
-  const handleSave = () => {
-    if (tagName.trim()) {
-      onSave({
+    setLoading(true);
+    try {
+      const tagData = {
+        project_id: projectId,
         tag_name: tagName.trim(),
         tag_color: tagColor,
-        tag_description: tagDescription.trim() || undefined,
-      });
-    }
-  };
+        tag_description: tagDescription.trim() || null,
+      };
 
-  const handleClose = () => {
-    setTagName('');
-    setTagColor(DEFAULT_COLORS[0]);
-    setTagDescription('');
-    onClose();
+      if (tag) {
+        const { error } = await supabase
+          .from('project_tags')
+          .update(tagData)
+          .eq('id', tag.id);
+        
+        if (error) throw error;
+        toast({ title: 'Tag updated successfully' });
+      } else {
+        const { error } = await supabase
+          .from('project_tags')
+          .insert(tagData);
+        
+        if (error) throw error;
+        toast({ title: 'Tag created successfully' });
+      }
+
+      onSuccess();
+      onOpenChange(false);
+      setTagName('');
+      setTagColor('#3B82F6');
+      setTagDescription('');
+    } catch (error) {
+      console.error('Error saving tag:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save tag. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>
-            {tag ? 'Edit Tag' : 'Create New Tag'}
-          </DialogTitle>
+          <DialogTitle>{tag ? 'Edit Tag' : 'Create New Tag'}</DialogTitle>
           <DialogDescription>
-            {tag ? 'Update the tag details and appearance.' : 'Create a new tag to organize and categorize your projects.'}
+            {tag ? 'Update the tag details below.' : 'Create a new tag to organize your appointments and data.'}
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="tag-name">Tag Name</Label>
+            <Label htmlFor="tagName">Tag Name</Label>
             <Input
-              id="tag-name"
+              id="tagName"
               value={tagName}
               onChange={(e) => setTagName(e.target.value)}
               placeholder="Enter tag name"
-              maxLength={50}
+              required
             />
           </div>
-
+          
           <div className="space-y-2">
-            <Label>Tag Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {DEFAULT_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setTagColor(color)}
-                  className={`w-8 h-8 rounded-full border-2 ${
-                    tagColor === color ? 'border-gray-800' : 'border-gray-300'
-                  }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-            <div className="mt-2">
-              <Label htmlFor="custom-color">Custom Color</Label>
+            <Label htmlFor="tagColor">Color</Label>
+            <div className="flex items-center space-x-2">
               <Input
-                id="custom-color"
+                id="tagColor"
                 type="color"
                 value={tagColor}
                 onChange={(e) => setTagColor(e.target.value)}
-                className="w-20 h-10"
+                className="w-16 h-10"
+              />
+              <Input
+                value={tagColor}
+                onChange={(e) => setTagColor(e.target.value)}
+                placeholder="#3B82F6"
+                className="flex-1"
               />
             </div>
           </div>
-
+          
           <div className="space-y-2">
-            <Label htmlFor="tag-description">Description (Optional)</Label>
-            <Textarea
-              id="tag-description"
+            <Label htmlFor="tagDescription">Description (Optional)</Label>
+            <Input
+              id="tagDescription"
               value={tagDescription}
               onChange={(e) => setTagDescription(e.target.value)}
               placeholder="Enter tag description"
-              rows={3}
-              maxLength={200}
             />
           </div>
-
-          <div className="space-y-2">
-            <Label>Preview</Label>
-            <div>
-              <Badge
-                variant="secondary"
-                style={{ backgroundColor: tagColor, color: 'white' }}
-                className="font-medium"
-              >
-                {tagName || 'Tag Name'}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={handleClose}>
+          
+          <div className="flex justify-end space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
               Cancel
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!tagName.trim()}
-            >
-              {tag ? 'Update Tag' : 'Create Tag'}
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Saving...' : (tag ? 'Update Tag' : 'Create Tag')}
             </Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

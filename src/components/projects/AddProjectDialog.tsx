@@ -6,27 +6,40 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Plus } from 'lucide-react';
 import { ProjectForm } from './ProjectForm';
-import { ProjectFormData } from './types';
 
 interface AddProjectDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: ProjectFormData) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onProjectAdded: () => void;
 }
 
-export const AddProjectDialog = ({ isOpen, onClose, onSave }: AddProjectDialogProps) => {
+export const AddProjectDialog = ({ open, onOpenChange, onProjectAdded }: AddProjectDialogProps) => {
+  const handleSuccess = () => {
+    onProjectAdded();
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Project
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Project</DialogTitle>
           <DialogDescription>
-            Create a new project to organize your data and forms.
+            Create a new project to organize your leads, appointments, and forms.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm onSave={onSave} onCancel={onClose} />
+        <ProjectForm onSuccess={handleSuccess} />
       </DialogContent>
     </Dialog>
   );

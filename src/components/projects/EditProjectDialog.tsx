@@ -6,32 +6,40 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import { ProjectForm } from './ProjectForm';
-import { Project, ProjectFormData } from './types';
+import type { Project } from './types';
 
 interface EditProjectDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: ProjectFormData) => void;
-  project: Project;
+  project: Project | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onProjectUpdated: () => void;
 }
 
-export const EditProjectDialog = ({ isOpen, onClose, onSave, project }: EditProjectDialogProps) => {
+export const EditProjectDialog = ({
+  project,
+  open,
+  onOpenChange,
+  onProjectUpdated,
+}: EditProjectDialogProps) => {
+  const handleSuccess = () => {
+    onProjectUpdated();
+    onOpenChange(false);
+  };
+
+  if (!project) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>
-            Update the project details and configuration.
+            Update the details for "{project.project_name}".
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm 
-          onSave={onSave} 
-          onCancel={onClose} 
-          initialData={project}
-        />
+        <ProjectForm project={project} onSuccess={handleSuccess} />
       </DialogContent>
     </Dialog>
   );
