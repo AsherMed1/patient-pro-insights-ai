@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Lock, Mail, User, AlertCircle, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
+import { useSecureForm } from '@/hooks/useSecureForm';
 
 interface AuthFormProps {
   mode: 'signin' | 'signup';
@@ -15,58 +16,73 @@ interface AuthFormProps {
 }
 
 export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const { toast } = useToast();
 
+  const formConfig = {
+    email: {
+      required: true,
+      type: 'email' as const,
+      maxLength: 100
+    },
+    password: {
+      required: true,
+      type: 'password' as const,
+      minLength: 6
+    },
+    fullName: {
+      required: mode === 'signup',
+      type: 'text' as const,
+      minLength: 2,
+      maxLength: 50
+    }
+  };
+
+  const {
+    values,
+    errors,
+    touched,
+    setValue,
+    setTouched,
+    handleSubmit,
+    reset
+  } = useSecureForm(
+    { email: '', password: '', fullName: '' },
+    formConfig,
+    `auth_${mode}`
+  );
+
   const handleDemoLogin = () => {
-    setEmail('demo@example.com');
-    setPassword('demo123');
+    setValue('email', 'demo@example.com');
+    setValue('password', 'demo123');
     toast({
       title: "Demo credentials loaded",
       description: "Click 'Sign In' to login with demo account",
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
+  const onSubmit = async () => {
     setLoading(true);
-    setError('');
 
     try {
       if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: values.email,
+          password: values.password,
           options: {
             emailRedirectTo: `${window.location.origin}/`,
             data: {
-              full_name: fullName
+              full_name: values.fullName
             }
           }
         });
 
         if (error) {
           if (error.message.includes('already registered')) {
-            setError('An account with this email already exists. Please sign in instead.');
+            throw new Error('An account with this email already exists. Please sign in instead.');
           } else {
-            setError(error.message);
+            throw new Error(error.message);
           }
-          return;
         }
 
         toast({
@@ -76,17 +92,16 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
 
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password
+          email: values.email,
+          password: values.password
         });
 
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            setError('Invalid email or password. Please try again.');
+            throw new Error('Invalid email or password. Please try again.');
           } else {
-            setError(error.message);
+            throw new Error(error.message);
           }
-          return;
         }
 
         toast({
@@ -94,9 +109,9 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
           description: "You have been signed in successfully.",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Authentication error:', error);
-      setError('An unexpected error occurred. Please try again.');
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -119,7 +134,10 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit(onSubmit);
+        }} className="space-y-4">
           {mode === 'signup' && (
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
@@ -128,13 +146,17 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
                 <Input
                   id="fullName"
                   type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  value={values.fullName}
+                  onChange={(e) => setValue('fullName', e.target.value)}
+                  onBlur={() => setTouched('fullName')}
                   placeholder="Enter your full name"
                   className="pl-10"
                   disabled={loading}
                 />
               </div>
+              {touched.fullName && errors.fullName && (
+                <p className="text-sm text-red-600">{errors.fullName}</p>
+              )}
             </div>
           )}
 
@@ -145,14 +167,18 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={values.email}
+                onChange={(e) => setValue('email', e.target.value)}
+                onBlur={() => setTouched('email')}
                 placeholder="Enter your email"
                 className="pl-10"
                 disabled={loading}
                 required
               />
             </div>
+            {touched.email && errors.email && (
+              <p className="text-sm text-red-600">{errors.email}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -162,8 +188,9 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
               <Input
                 id="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={values.password}
+                onChange={(e) => setValue('password', e.target.value)}
+                onBlur={() => setTouched('password')}
                 placeholder="Enter your password"
                 className="pl-10"
                 disabled={loading}
@@ -171,6 +198,9 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
                 minLength={6}
               />
             </div>
+            {touched.password && errors.password && (
+              <p className="text-sm text-red-600">{errors.password}</p>
+            )}
             {mode === 'signup' && (
               <p className="text-sm text-gray-500">
                 Password must be at least 6 characters long
@@ -178,10 +208,12 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
             )}
           </div>
 
-          {error && (
+          {(errors._form || errors.email || errors.password) && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                {errors._form || 'Please fix the errors above'}
+              </AlertDescription>
             </Alert>
           )}
 

@@ -39,9 +39,18 @@ export const useProjectPortalAuth = (projectName: string) => {
       const sessionPassword = sessionStorage.getItem(sessionKey);
       
       if (sessionPassword) {
-        // Hash the session password and compare with stored hash
-        const hashedSessionPassword = await hashPassword(sessionPassword);
-        if (hashedSessionPassword === project.portal_password) {
+        // Use the new bcrypt verification function
+        const { data: isValid, error: verifyError } = await supabase
+          .rpc('verify_password', {
+            password: sessionPassword,
+            hash: project.portal_password
+          });
+
+        if (verifyError) {
+          console.error('Error verifying password:', verifyError);
+          sessionStorage.removeItem(sessionKey);
+          setIsAuthenticated(false);
+        } else if (isValid) {
           setIsAuthenticated(true);
         } else {
           // Remove invalid session password
@@ -59,18 +68,19 @@ export const useProjectPortalAuth = (projectName: string) => {
     }
   };
 
-  const hashPassword = async (password: string): Promise<string> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
   const verifyPassword = async (password: string) => {
     try {
       setLoading(true);
       setError('');
+      
+      // Basic password validation
+      if (!password || password.length < 6) {
+        setError('Password must be at least 6 characters long.');
+        return false;
+      }
+
+      // Sanitize input
+      const sanitizedPassword = password.trim();
       
       const decodedProjectName = decodeURIComponent(projectName);
       
@@ -85,12 +95,23 @@ export const useProjectPortalAuth = (projectName: string) => {
         return false;
       }
 
-      const hashedPassword = await hashPassword(password);
-      
-      if (project.portal_password === hashedPassword) {
+      // Use the new bcrypt verification function
+      const { data: isValid, error: verifyError } = await supabase
+        .rpc('verify_password', {
+          password: sanitizedPassword,
+          hash: project.portal_password
+        });
+
+      if (verifyError) {
+        console.error('Error verifying password:', verifyError);
+        setError('Failed to verify password. Please try again.');
+        return false;
+      }
+
+      if (isValid) {
         // Store the plaintext password in session storage for this session
         const sessionKey = `project_portal_${decodedProjectName}`;
-        sessionStorage.setItem(sessionKey, password);
+        sessionStorage.setItem(sessionKey, sanitizedPassword);
         setIsAuthenticated(true);
         return true;
       } else {
