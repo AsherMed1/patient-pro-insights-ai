@@ -29,20 +29,6 @@ export default defineConfig(({ mode }) => ({
         drop: ['console', 'debugger'],
       },
     }),
-    // Chunk splitting for better caching and smaller bundles
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-tabs'],
-          charts: ['recharts'],
-          router: ['react-router-dom'],
-          query: ['@tanstack/react-query'],
-          supabase: ['@supabase/supabase-js'],
-          utils: ['date-fns', 'clsx', 'class-variance-authority'],
-        },
-      },
-    },
     // Set chunk size warnings
     chunkSizeWarningLimit: 1000,
     // Enable tree shaking
