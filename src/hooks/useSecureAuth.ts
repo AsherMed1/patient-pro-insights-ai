@@ -13,12 +13,7 @@ export const useSecureAuth = () => {
   // Monitor authentication security
   useEffect(() => {
     if (auth.user) {
-      // Log successful authentication
-      console.log('Auth attempt successful:', {
-        user_id: auth.user.id,
-        email: auth.user.email,
-        timestamp: new Date().toISOString()
-      });
+      console.log('Auth attempt successful for user:', auth.user.email);
 
       // Update security flags
       setSecurityFlags(prev => ({
@@ -32,11 +27,7 @@ export const useSecureAuth = () => {
   // Enhanced sign out with security logging
   const secureSignOut = async () => {
     try {
-      console.log('User logout:', {
-        user_id: auth.user?.id,
-        session_duration: Date.now() - securityFlags.lastActivity,
-        timestamp: new Date().toISOString()
-      });
+      console.log('User logout initiated');
       
       await auth.signOut();
       
@@ -56,11 +47,7 @@ export const useSecureAuth = () => {
     const maxInactivity = 8 * 60 * 60 * 1000; // 8 hours
 
     if (timeSinceActivity > maxInactivity) {
-      console.warn('Session timeout:', {
-        inactive_duration: timeSinceActivity,
-        user_id: auth.user?.id,
-        timestamp: new Date().toISOString()
-      });
+      console.warn('Session timeout detected');
       setSecurityFlags(prev => ({ ...prev, sessionValid: false }));
       return false;
     }

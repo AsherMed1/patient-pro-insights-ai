@@ -18,7 +18,7 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
   });
 
   useEffect(() => {
-    // Simple rate limiting check without external dependencies
+    // Simple rate limiting check
     const checkRateLimit = () => {
       try {
         const identifier = 'auth_form';

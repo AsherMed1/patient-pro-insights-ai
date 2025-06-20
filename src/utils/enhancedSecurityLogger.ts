@@ -1,5 +1,5 @@
 
-// Simple security logging utility
+// Simple security logging utility for client-side logging
 export class EnhancedSecurityLogger {
   static logAuthAttempt(success: boolean, details: any = {}) {
     try {
@@ -67,5 +67,4 @@ export class EnhancedSecurityLogger {
   }
 }
 
-// Export as default for backward compatibility
 export const securityLogger = EnhancedSecurityLogger;

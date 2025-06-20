@@ -1,89 +1,41 @@
-// Input sanitization and validation utilities with proper error handling
-let DOMPurify: any = null;
 
-// Safely import DOMPurify with fallback
-const initializeDOMPurify = async () => {
-  try {
-    const DOMPurifyModule = await import('dompurify');
-    DOMPurify = DOMPurifyModule.default;
-  } catch (error) {
-    console.warn('DOMPurify not available, using fallback sanitization');
-  }
-};
-
-// Initialize DOMPurify
-initializeDOMPurify();
-
-// Fallback HTML sanitization when DOMPurify is not available
-const fallbackHtmlSanitize = (input: string): string => {
-  return input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .trim();
-};
-
+// Input sanitization utilities for enhanced security
 export const sanitizeInput = {
-  // Basic text sanitization
   text: (input: string): string => {
-    if (!input || typeof input !== 'string') return '';
-    return input.trim().replace(/[<>]/g, '');
+    if (typeof input !== 'string') return '';
+    return input
+      .trim()
+      .replace(/[<>]/g, '') // Remove potential HTML tags
+      .substring(0, 1000); // Limit length
   },
 
-  // HTML sanitization with fallback
-  html: (input: string): string => {
-    if (!input || typeof input !== 'string') return '';
-    
-    if (DOMPurify) {
-      return DOMPurify.sanitize(input, {
-        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u'],
-        ALLOWED_ATTR: []
-      });
-    } else {
-      return fallbackHtmlSanitize(input);
-    }
+  email: (input: string): string => {
+    if (typeof input !== 'string') return '';
+    return input
+      .trim()
+      .toLowerCase()
+      .substring(0, 254); // RFC limit for email length
   },
 
-  // Email validation and sanitization
-  email: (email: string): string => {
-    if (!email || typeof email !== 'string') return '';
-    const sanitized = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(sanitized) ? sanitized : '';
+  phone: (input: string): string => {
+    if (typeof input !== 'string') return '';
+    return input
+      .replace(/[^\d\+\-\(\)\s\.]/g, '') // Only allow digits and common phone chars
+      .substring(0, 20);
   },
 
-  // Phone number sanitization
-  phone: (phone: string): string => {
-    if (!phone || typeof phone !== 'string') return '';
-    return phone.replace(/[^\d+\-\(\)\s]/g, '').trim();
+  number: (input: any): number => {
+    const num = parseFloat(input);
+    return isNaN(num) ? 0 : num;
   },
 
-  // SQL injection prevention for search queries
-  searchQuery: (query: string): string => {
-    if (!query || typeof query !== 'string') return '';
-    return query.replace(/[';-]/g, '').trim().substring(0, 100);
-  },
-
-  // Project name validation - fixed regex character class
-  projectName: (name: string): string => {
-    if (!name || typeof name !== 'string') return '';
-    return name.replace(/[';-]/g, '').trim();
-  },
-
-  // Numeric validation
-  number: (value: any): number | null => {
-    const num = parseFloat(value);
-    return isNaN(num) ? null : num;
-  },
-
-  // Date validation
-  date: (dateString: string): string => {
-    if (!dateString || typeof dateString !== 'string') return '';
-    const date = new Date(dateString);
-    return isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+  date: (input: string): string => {
+    if (typeof input !== 'string') return '';
+    // Basic date format validation
+    return input.match(/^\d{4}-\d{2}-\d{2}$/) ? input : '';
   }
 };
 
-// Validation functions
 export const validateInput = {
   required: (value: any): boolean => {
     return value !== null && value !== undefined && value !== '';
@@ -91,12 +43,13 @@ export const validateInput = {
 
   email: (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    return emailRegex.test(email) && email.length <= 254;
   },
 
   phone: (phone: string): boolean => {
-    const phoneRegex = /^[\d+\-\(\)\s]{10,}$/;
-    return phoneRegex.test(phone);
+    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+    const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
+    return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10 && cleanPhone.length <= 16;
   },
 
   password: (password: string): { valid: boolean; errors: string[] } => {
@@ -118,40 +71,60 @@ export const validateInput = {
       errors.push('Password must contain at least one number');
     }
     
-    return {
-      valid: errors.length === 0,
-      errors
-    };
-  },
-
-  // Fixed project name validation regex - hyphen at end of character class
-  projectName: (name: string): boolean => {
-    return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s_-]+$/.test(name);
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      errors.push('Password must contain at least one special character');
+    }
+    
+    return { valid: errors.length === 0, errors };
   }
 };
 
-// Enhanced rate limiting utility with server-side validation
 export const rateLimiter = {
-  attempts: new Map<string, { count: number; timestamp: number }>(),
-  
-  checkLimit: (key: string, maxAttempts: number = 5, windowMs: number = 15 * 60 * 1000): boolean => {
-    const now = Date.now();
-    const record = rateLimiter.attempts.get(key);
-    
-    if (!record || now - record.timestamp > windowMs) {
-      rateLimiter.attempts.set(key, { count: 1, timestamp: now });
+  checkLimit: (key: string, maxAttempts: number, windowMs: number): boolean => {
+    try {
+      const stored = localStorage.getItem(`rate_limit_${key}`);
+      if (!stored) {
+        localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+          attempts: 1,
+          timestamp: Date.now()
+        }));
+        return true;
+      }
+
+      const data = JSON.parse(stored);
+      const now = Date.now();
+      
+      if (now - data.timestamp > windowMs) {
+        // Reset window
+        localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+          attempts: 1,
+          timestamp: now
+        }));
+        return true;
+      }
+
+      if (data.attempts >= maxAttempts) {
+        return false;
+      }
+
+      // Increment attempts
+      localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+        attempts: data.attempts + 1,
+        timestamp: data.timestamp
+      }));
+      
       return true;
+    } catch (error) {
+      console.error('Rate limiter error:', error);
+      return true; // Fail open
     }
-    
-    if (record.count >= maxAttempts) {
-      return false;
-    }
-    
-    record.count++;
-    return true;
   },
-  
+
   clearAttempts: (key: string): void => {
-    rateLimiter.attempts.delete(key);
+    try {
+      localStorage.removeItem(`rate_limit_${key}`);
+    } catch (error) {
+      console.error('Failed to clear rate limit:', error);
+    }
   }
 };

@@ -44,6 +44,8 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     }
 
     try {
+      console.log('Form submission started for project:', projectForm.id);
+
       // Basic validation for form data
       const formDataString = JSON.stringify(formData);
       if (formDataString.length > 50000) {
@@ -100,6 +102,8 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         return acc;
       }, {} as Record<string, any>);
 
+      console.log('Form data sanitized successfully');
+
       // Process tags with sanitization
       const formTags = processFormTags(sanitizedFormData, slides);
       const qualificationTags = generateQualificationTags(formTags);
@@ -122,6 +126,8 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         zip_code: sanitizeString(sanitizedFormData.zip_code || ''),
         insurance_provider: sanitizeString(sanitizedFormData.insurance_provider || '')
       };
+
+      console.log('Submitting form data to database...');
 
       // Submit to database
       const { error } = await supabase
@@ -147,6 +153,8 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
 
       // Store rate limit timestamp
       localStorage.setItem(rateLimitKey, Date.now().toString());
+
+      console.log('Form submitted successfully');
 
       toast({
         title: "Success",
