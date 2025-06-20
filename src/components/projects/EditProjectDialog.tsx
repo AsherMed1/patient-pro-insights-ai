@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import ProjectForm from './ProjectForm';
+import { ProjectForm } from './ProjectForm';
 import { Project, ProjectFormData } from './types';
 
 interface EditProjectDialogProps {

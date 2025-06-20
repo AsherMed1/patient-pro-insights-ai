@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
-import ProjectForm from './ProjectForm';
+import { ProjectForm } from './ProjectForm';
 import { ProjectFormData } from './types';
 
 interface AddProjectDialogProps {
