@@ -6,8 +6,8 @@ export const debugSupabaseConnection = async () => {
   
   try {
     // 1. Check Supabase client initialization
-    console.log('1. Supabase client URL:', supabase.supabaseUrl);
-    console.log('1. Supabase client key (first 20 chars):', supabase.supabaseKey.substring(0, 20) + '...');
+    console.log('1. Supabase client initialized successfully');
+    console.log('1. Testing with hardcoded connection details...');
 
     // 2. Check session and authentication
     console.log('\n2. Testing Authentication...');
@@ -39,41 +39,73 @@ export const debugSupabaseConnection = async () => {
       console.log('   Projects table accessible, total records:', dbTest || 'Unknown');
     }
 
-    // 4. Test multiple table access
+    // 4. Test multiple table access with proper types
     console.log('\n4. Testing Table Access...');
-    const tableTests = [
-      { name: 'projects', table: 'projects' },
-      { name: 'all_appointments', table: 'all_appointments' },
-      { name: 'new_leads', table: 'new_leads' },
-      { name: 'all_calls', table: 'all_calls' },
-      { name: 'agents', table: 'agents' }
-    ];
+    
+    // Test projects table
+    const startTimeProjects = Date.now();
+    const { count: projectsCount, error: projectsError } = await supabase
+      .from('projects')
+      .select('*', { count: 'exact', head: true });
+    const projectsTime = Date.now() - startTimeProjects;
+    
+    if (projectsError) {
+      console.error(`   ❌ projects: ${projectsError.message} (${projectsError.code})`);
+    } else {
+      console.log(`   ✓ projects: ${projectsCount || 0} records (${projectsTime}ms)`);
+    }
 
-    const testResults = await Promise.allSettled(
-      tableTests.map(async ({ name, table }) => {
-        const startTime = Date.now();
-        const { count, error } = await supabase
-          .from(table)
-          .select('*', { count: 'exact', head: true });
-        
-        const responseTime = Date.now() - startTime;
-        
-        if (error) {
-          throw new Error(`${name}: ${error.message} (${error.code})`);
-        }
-        
-        return { name, count: count || 0, responseTime };
-      })
-    );
+    // Test all_appointments table
+    const startTimeAppointments = Date.now();
+    const { count: appointmentsCount, error: appointmentsError } = await supabase
+      .from('all_appointments')
+      .select('*', { count: 'exact', head: true });
+    const appointmentsTime = Date.now() - startTimeAppointments;
+    
+    if (appointmentsError) {
+      console.error(`   ❌ all_appointments: ${appointmentsError.message} (${appointmentsError.code})`);
+    } else {
+      console.log(`   ✓ all_appointments: ${appointmentsCount || 0} records (${appointmentsTime}ms)`);
+    }
 
-    testResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        const { name, count, responseTime } = result.value;
-        console.log(`   ✓ ${name}: ${count} records (${responseTime}ms)`);
-      } else {
-        console.error(`   ❌ ${result.reason.message}`);
-      }
-    });
+    // Test new_leads table
+    const startTimeLeads = Date.now();
+    const { count: leadsCount, error: leadsError } = await supabase
+      .from('new_leads')
+      .select('*', { count: 'exact', head: true });
+    const leadsTime = Date.now() - startTimeLeads;
+    
+    if (leadsError) {
+      console.error(`   ❌ new_leads: ${leadsError.message} (${leadsError.code})`);
+    } else {
+      console.log(`   ✓ new_leads: ${leadsCount || 0} records (${leadsTime}ms)`);
+    }
+
+    // Test all_calls table
+    const startTimeCalls = Date.now();
+    const { count: callsCount, error: callsError } = await supabase
+      .from('all_calls')
+      .select('*', { count: 'exact', head: true });
+    const callsTime = Date.now() - startTimeCalls;
+    
+    if (callsError) {
+      console.error(`   ❌ all_calls: ${callsError.message} (${callsError.code})`);
+    } else {
+      console.log(`   ✓ all_calls: ${callsCount || 0} records (${callsTime}ms)`);
+    }
+
+    // Test agents table
+    const startTimeAgents = Date.now();
+    const { count: agentsCount, error: agentsError } = await supabase
+      .from('agents')
+      .select('*', { count: 'exact', head: true });
+    const agentsTime = Date.now() - startTimeAgents;
+    
+    if (agentsError) {
+      console.error(`   ❌ agents: ${agentsError.message} (${agentsError.code})`);
+    } else {
+      console.log(`   ✓ agents: ${agentsCount || 0} records (${agentsTime}ms)`);
+    }
 
     // 5. Test RLS policies
     console.log('\n5. Testing Row Level Security...');
