@@ -23,8 +23,13 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
   onOpenChange,
   onProjectUpdated,
 }) => {
-  const handleSubmit = (data: ProjectFormData) => {
+  const handleSave = async (data: ProjectFormData) => {
     onProjectUpdated(data);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onOpenChange(false);
   };
 
   return (
@@ -36,7 +41,11 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
             Update the project details and configuration settings.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm project={project} onSubmit={handleSubmit} />
+        <ProjectForm 
+          initialData={project} 
+          onSave={handleSave} 
+          onCancel={handleCancel} 
+        />
       </DialogContent>
     </Dialog>
   );

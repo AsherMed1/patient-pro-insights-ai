@@ -24,8 +24,13 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
   onOpenChange,
   onProjectAdded,
 }) => {
-  const handleSubmit = (data: ProjectFormData) => {
+  const handleSave = async (data: ProjectFormData) => {
     onProjectAdded(data);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onOpenChange(false);
   };
 
   return (
@@ -43,7 +48,7 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
             Create a new project to organize your leads, calls, and appointments.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm onSubmit={handleSubmit} />
+        <ProjectForm onSave={handleSave} onCancel={handleCancel} />
       </DialogContent>
     </Dialog>
   );
