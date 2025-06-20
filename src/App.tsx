@@ -4,7 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as RadixToaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/hooks/useAuth";
+import { AuthGuard } from "@/components/AuthGuard";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
 import "./App.css";
 import { lazy, Suspense } from "react";
 
@@ -27,23 +30,79 @@ const queryClient = new QueryClient({
   },
 });
 
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center py-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+    <span className="ml-2">Loading...</span>
+  </div>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <RadixToaster />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/csv-import-history" element={<CsvImportHistory />} />
-          <Route path="/undo-import" element={<UndoImport />} />
-          <Route path="/api-docs" element={<ApiDocs />} />
-          <Route path="/agent-claim" element={<AgentClaim />} />
-          <Route path="/forms" element={<FormManagement />} />
-          <Route path="/form/:slug" element={<PublicForm />} />
-          <Route path="/project-portal/:projectName" element={<ProjectPortal />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/form/:slug" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <PublicForm />
+              </Suspense>
+            } />
+            <Route path="/project-portal/:projectName" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <ProjectPortal />
+              </Suspense>
+            } />
+            <Route path="/" element={
+              <AuthGuard>
+                <Index />
+              </AuthGuard>
+            } />
+            <Route path="/csv-import-history" element={
+              <AuthGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <CsvImportHistory />
+                </Suspense>
+              </AuthGuard>
+            } />
+            <Route path="/undo-import" element={
+              <AuthGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <UndoImport />
+                </Suspense>
+              </AuthGuard>
+            } />
+            <Route path="/api-docs" element={
+              <AuthGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <ApiDocs />
+                </Suspense>
+              </AuthGuard>
+            } />
+            <Route path="/agent-claim" element={
+              <AuthGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <AgentClaim />
+                </Suspense>
+              </AuthGuard>
+            } />
+            <Route path="/forms" element={
+              <AuthGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <FormManagement />
+                </Suspense>
+              </AuthGuard>
+            } />
+            <Route path="*" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <NotFound />
+              </Suspense>
+            } />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -3,9 +3,11 @@ import { useState, Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Undo2 } from "lucide-react";
+import { FileText, Undo2, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { lazy } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { UserProfile } from "@/components/UserProfile";
 
 // Only lazy load the most essential components to reduce initial bundle
 const CallCenterDashboard = lazy(() => import("@/components/CallCenterDashboard"));
@@ -22,15 +24,56 @@ const LoadingSpinner = () => (
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [showUserProfile, setShowUserProfile] = useState(false);
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
-          <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
+        {/* Header with User Info */}
+        <div className="flex justify-between items-center">
+          <div className="text-center space-y-2">
+            <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
+            <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            {user && (
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Welcome back,</p>
+                <p className="font-medium text-gray-900">
+                  {user.user_metadata?.full_name || user.email}
+                </p>
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUserProfile(!showUserProfile)}
+              className="flex items-center space-x-2"
+            >
+              <User className="h-4 w-4" />
+              <span>Profile</span>
+            </Button>
+          </div>
         </div>
+
+        {/* User Profile Modal */}
+        {showUserProfile && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowUserProfile(false)}
+                className="absolute -top-2 -right-2 z-10"
+              >
+                ×
+              </Button>
+              <UserProfile />
+            </div>
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
