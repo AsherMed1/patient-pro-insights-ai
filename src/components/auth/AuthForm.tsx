@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Lock, Mail, User, AlertCircle, Zap, Shield } from 'lucide-react';
+import { Loader2, Lock, Mail, User, AlertCircle, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useSecureForm } from '@/hooks/useSecureForm';
@@ -52,15 +52,6 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
     formConfig,
     `auth_${mode}`
   );
-
-  const handleDemoLogin = () => {
-    setValue('email', 'demo@example.com');
-    setValue('password', 'demo123456');
-    toast({
-      title: "Demo credentials loaded",
-      description: "Click 'Sign In' to login with demo account",
-    });
-  };
 
   const onSubmit = async () => {
     setLoading(true);
@@ -115,7 +106,10 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
         });
       }
     } catch (error: any) {
-      console.error('Authentication error:', error);
+      // Only log error type, not sensitive details
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Authentication error type:', error.constructor.name);
+      }
       throw error;
     } finally {
       setLoading(false);
@@ -234,19 +228,6 @@ export const AuthForm = ({ mode, onToggleMode }: AuthFormProps) => {
                   {errors._form || `${5 - submitAttempts} attempts remaining`}
                 </AlertDescription>
               </Alert>
-            )}
-
-            {mode === 'signin' && (
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full" 
-                onClick={handleDemoLogin}
-                disabled={loading}
-              >
-                <Zap className="mr-2 h-4 w-4" />
-                Demo Login
-              </Button>
             )}
 
             <Button 

@@ -82,10 +82,8 @@ const ProjectPortal = () => {
   const fetchProject = async () => {
     try {
       setLoading(true);
-      console.log('Fetching project with name:', projectName);
       
       const decodedProjectName = decodeURIComponent(projectName!);
-      console.log('Decoded project name:', decodedProjectName);
       
       const { data, error } = await supabase
         .from('projects')
@@ -94,7 +92,10 @@ const ProjectPortal = () => {
         .single();
       
       if (error) {
-        console.error('Error fetching project:', error);
+        // Only log error type in production
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error fetching project:', error);
+        }
         if (error.code === 'PGRST116') {
           toast({
             title: "Project Not Found",
@@ -107,10 +108,11 @@ const ProjectPortal = () => {
         return;
       }
       
-      console.log('Project data fetched:', data);
       setProject(data);
     } catch (error) {
-      console.error('Error fetching project:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error fetching project:', error);
+      }
       toast({
         title: "Error",
         description: "Failed to fetch project details",
@@ -124,7 +126,6 @@ const ProjectPortal = () => {
   const fetchAppointmentStats = async () => {
     try {
       const decodedProjectName = decodeURIComponent(projectName!);
-      console.log('Fetching appointment stats for project:', decodedProjectName);
       
       // Fetch all appointments for this project and filter for confirmed ones
       const { data, error } = await supabase
@@ -133,16 +134,14 @@ const ProjectPortal = () => {
         .eq('project_name', decodedProjectName);
       
       if (error) {
-        console.error('Error fetching appointment stats:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error fetching appointment stats:', error);
+        }
         throw error;
       }
       
-      console.log('Raw appointment data:', data);
-      
       // Filter for confirmed appointments using standardized logic
       const confirmedAppointments = data?.filter(isAppointmentConfirmed) || [];
-      
-      console.log('Confirmed appointments:', confirmedAppointments);
       
       const totalAppointments = confirmedAppointments.length;
       const totalShowed = confirmedAppointments.filter(apt => apt.showed === true).length;
@@ -156,10 +155,11 @@ const ProjectPortal = () => {
         projectedRevenue
       };
       
-      console.log('Calculated stats:', calculatedStats);
       setStats(calculatedStats);
     } catch (error) {
-      console.error('Error fetching appointment stats:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error fetching appointment stats:', error);
+      }
       toast({
         title: "Error",
         description: "Failed to fetch appointment statistics",

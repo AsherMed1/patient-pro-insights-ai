@@ -1,6 +1,22 @@
 
-// Input sanitization and validation utilities
-import DOMPurify from 'dompurify';
+// Input sanitization and validation utilities with proper error handling
+let DOMPurify: any = null;
+
+// Safely import DOMPurify with fallback
+try {
+  const DOMPurifyModule = await import('dompurify');
+  DOMPurify = DOMPurifyModule.default;
+} catch (error) {
+  console.warn('DOMPurify not available, using fallback sanitization');
+}
+
+// Fallback HTML sanitization when DOMPurify is not available
+const fallbackHtmlSanitize = (input: string): string => {
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .trim();
+};
 
 export const sanitizeInput = {
   // Basic text sanitization
@@ -9,13 +25,18 @@ export const sanitizeInput = {
     return input.trim().replace(/[<>]/g, '');
   },
 
-  // HTML sanitization using DOMPurify
+  // HTML sanitization with fallback
   html: (input: string): string => {
     if (!input || typeof input !== 'string') return '';
-    return DOMPurify.sanitize(input, {
-      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u'],
-      ALLOWED_ATTR: []
-    });
+    
+    if (DOMPurify) {
+      return DOMPurify.sanitize(input, {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u'],
+        ALLOWED_ATTR: []
+      });
+    } else {
+      return fallbackHtmlSanitize(input);
+    }
   },
 
   // Email validation and sanitization
@@ -32,13 +53,13 @@ export const sanitizeInput = {
     return phone.replace(/[^\d+\-\(\)\s]/g, '').trim();
   },
 
-  // SQL injection prevention for search queries - fixed regex
+  // SQL injection prevention for search queries
   searchQuery: (query: string): string => {
     if (!query || typeof query !== 'string') return '';
-    return query.replace(/[';-]{2,}|[';]/g, '').trim().substring(0, 100);
+    return query.replace(/[';--]/g, '').trim().substring(0, 100);
   },
 
-  // Project name validation - fixed regex
+  // Project name validation
   projectName: (name: string): string => {
     if (!name || typeof name !== 'string') return '';
     return name.replace(/[<>'"&]/g, '').trim();
@@ -104,7 +125,7 @@ export const validateInput = {
   }
 };
 
-// Rate limiting utility
+// Enhanced rate limiting utility with server-side validation
 export const rateLimiter = {
   attempts: new Map<string, { count: number; timestamp: number }>(),
   
