@@ -1,25 +1,31 @@
 
-import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
-import { ProjectForm } from './ProjectForm';
+import ProjectForm from './ProjectForm';
 import { ProjectFormData } from './types';
 
 interface AddProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onProjectAdded: () => (data: ProjectFormData) => Promise<void>;
+  onProjectAdded: (data: ProjectFormData) => void;
 }
 
-export const AddProjectDialog = ({ open, onOpenChange, onProjectAdded }: AddProjectDialogProps) => {
-  const handleSave = async (data: ProjectFormData) => {
-    await onProjectAdded()(data);
-    onOpenChange(false);
-  };
-
-  const handleCancel = () => {
-    onOpenChange(false);
+export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
+  open,
+  onOpenChange,
+  onProjectAdded,
+}) => {
+  const handleSubmit = (data: ProjectFormData) => {
+    onProjectAdded(data);
   };
 
   return (
@@ -30,17 +36,14 @@ export const AddProjectDialog = ({ open, onOpenChange, onProjectAdded }: AddProj
           <span>Add Project</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Project</DialogTitle>
           <DialogDescription>
-            Create a new project to manage leads, appointments, and analytics.
+            Create a new project to organize your leads, calls, and appointments.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm 
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
+        <ProjectForm onSubmit={handleSubmit} />
       </DialogContent>
     </Dialog>
   );

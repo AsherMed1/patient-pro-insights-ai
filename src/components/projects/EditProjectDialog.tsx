@@ -1,40 +1,42 @@
 
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ProjectForm } from './ProjectForm';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import ProjectForm from './ProjectForm';
 import { Project, ProjectFormData } from './types';
 
 interface EditProjectDialogProps {
   project: Project;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onProjectUpdated: () => (data: ProjectFormData) => Promise<void>;
+  onProjectUpdated: (data: ProjectFormData) => void;
 }
 
-export const EditProjectDialog = ({ project, open, onOpenChange, onProjectUpdated }: EditProjectDialogProps) => {
-  const handleSave = async (data: ProjectFormData) => {
-    await onProjectUpdated()(data);
-    onOpenChange(false);
-  };
-
-  const handleCancel = () => {
-    onOpenChange(false);
+export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
+  project,
+  open,
+  onOpenChange,
+  onProjectUpdated,
+}) => {
+  const handleSubmit = (data: ProjectFormData) => {
+    onProjectUpdated(data);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>
-            Update project details and configuration settings.
+            Update the project details and configuration settings.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm 
-          initialData={project} 
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
+        <ProjectForm project={project} onSubmit={handleSubmit} />
       </DialogContent>
     </Dialog>
   );
