@@ -23,7 +23,7 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
     // Check rate limiting status
     const checkRateLimit = () => {
       const identifier = 'auth_form';
-      const isAllowed = SecurityValidator.checkRateLimit(identifier, 15, 5); // 5 attempts per 15 minutes
+      const isAllowed = SecurityValidator.checkRateLimit(identifier, 15 * 60 * 1000, 5); // 5 attempts per 15 minutes
       
       if (!isAllowed) {
         setRateLimitStatus(prev => ({ 
@@ -75,37 +75,6 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
         blocked: false,
         resetTime: 0
       });
-    }
-  };
-
-  const handleFormSubmit = async (email: string, password: string) => {
-    try {
-      // Validate inputs
-      const emailValidation = SecurityValidator.validateInput(email, 'email');
-      const passwordValidation = SecurityValidator.validateInput(password, 'password');
-      
-      if (!emailValidation.isValid) {
-        await handleAuthAttempt(false, emailValidation.error);
-        return;
-      }
-      
-      if (!passwordValidation.isValid) {
-        await handleAuthAttempt(false, passwordValidation.error);
-        return;
-      }
-
-      // Check rate limiting
-      if (rateLimitStatus.blocked) {
-        await handleAuthAttempt(false, 'Rate limit exceeded');
-        return;
-      }
-
-      // Here you would normally call your auth function
-      // For now, we'll simulate the auth attempt logging
-      await handleAuthAttempt(true);
-      
-    } catch (error) {
-      await handleAuthAttempt(false, error instanceof Error ? error.message : 'Unknown error');
     }
   };
 

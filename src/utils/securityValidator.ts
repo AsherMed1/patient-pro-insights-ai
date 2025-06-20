@@ -1,125 +1,78 @@
 
-// Enhanced security validation utilities
+// Security validation utilities
 export class SecurityValidator {
-  private static readonly MAX_STRING_LENGTH = 10000;
-  private static readonly MAX_ARRAY_LENGTH = 100;
-  private static readonly DANGEROUS_PATTERNS = [
-    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-    /javascript:/gi,
-    /vbscript:/gi,
-    /onload\s*=/gi,
-    /onerror\s*=/gi,
-    /onclick\s*=/gi,
-    /eval\s*\(/gi,
-    /Function\s*\(/gi
-  ];
+  // Rate limiting storage (in-memory for client-side)
+  private static rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
-  static validateInput(input: any, fieldName: string): { isValid: boolean; error?: string } {
-    if (input === null || input === undefined) {
-      return { isValid: true };
+  static validateInput(input: string, type: 'email' | 'password' | 'text'): { isValid: boolean; error?: string } {
+    if (!input || input.trim().length === 0) {
+      return { isValid: false, error: 'Input is required' };
     }
 
-    // String validation
-    if (typeof input === 'string') {
-      if (input.length > this.MAX_STRING_LENGTH) {
-        return { isValid: false, error: `${fieldName} exceeds maximum length` };
-      }
-
-      // Check for dangerous patterns
-      for (const pattern of this.DANGEROUS_PATTERNS) {
-        if (pattern.test(input)) {
-          return { isValid: false, error: `${fieldName} contains potentially dangerous content` };
+    switch (type) {
+      case 'email':
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(input)) {
+          return { isValid: false, error: 'Invalid email format' };
         }
-      }
-    }
-
-    // Array validation
-    if (Array.isArray(input)) {
-      if (input.length > this.MAX_ARRAY_LENGTH) {
-        return { isValid: false, error: `${fieldName} array exceeds maximum length` };
-      }
-
-      // Validate each array element
-      for (let i = 0; i < input.length; i++) {
-        const elementValidation = this.validateInput(input[i], `${fieldName}[${i}]`);
-        if (!elementValidation.isValid) {
-          return elementValidation;
+        if (input.length > 254) {
+          return { isValid: false, error: 'Email too long' };
         }
-      }
-    }
+        break;
 
-    // Object validation
-    if (typeof input === 'object' && input !== null) {
-      const keys = Object.keys(input);
-      if (keys.length > 50) {
-        return { isValid: false, error: `${fieldName} object has too many properties` };
-      }
-
-      for (const key of keys) {
-        const keyValidation = this.validateInput(key, `${fieldName}.key`);
-        if (!keyValidation.isValid) {
-          return keyValidation;
+      case 'password':
+        if (input.length < 8) {
+          return { isValid: false, error: 'Password must be at least 8 characters' };
         }
-
-        const valueValidation = this.validateInput(input[key], `${fieldName}.${key}`);
-        if (!valueValidation.isValid) {
-          return valueValidation;
+        if (input.length > 128) {
+          return { isValid: false, error: 'Password too long' };
         }
-      }
+        // Check for basic password strength
+        const hasUpper = /[A-Z]/.test(input);
+        const hasLower = /[a-z]/.test(input);
+        const hasNumber = /\d/.test(input);
+        const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(input);
+        
+        if (!(hasUpper && hasLower && hasNumber && hasSpecial)) {
+          return { 
+            isValid: false, 
+            error: 'Password must contain uppercase, lowercase, number, and special character' 
+          };
+        }
+        break;
+
+      case 'text':
+        if (input.length > 1000) {
+          return { isValid: false, error: 'Text too long' };
+        }
+        break;
     }
 
     return { isValid: true };
   }
 
-  static sanitizeString(input: string): string {
-    if (!input || typeof input !== 'string') {
-      return '';
+  static checkRateLimit(identifier: string, windowMs: number, maxAttempts: number): boolean {
+    const now = Date.now();
+    const key = `${identifier}_${Math.floor(now / windowMs)}`;
+    
+    const current = this.rateLimitStore.get(key);
+    if (!current) {
+      this.rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
+      return true;
     }
 
-    return input
-      .replace(/[<>'"&]/g, (match) => {
-        const entities: Record<string, string> = {
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#x27;',
-          '&': '&amp;'
-        };
-        return entities[match] || match;
-      })
-      .trim()
-      .substring(0, this.MAX_STRING_LENGTH);
-  }
-
-  static validateEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email) && email.length <= 255;
-  }
-
-  static validatePhone(phone: string): boolean {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
-  }
-
-  static validateProjectName(projectName: string): boolean {
-    const projectRegex = /^[a-zA-Z0-9\-_\s]{1,100}$/;
-    return projectRegex.test(projectName);
-  }
-
-  static checkRateLimit(identifier: string, windowMinutes: number = 15, maxAttempts: number = 5): boolean {
-    const key = `rate_limit_${identifier}`;
-    const now = Date.now();
-    const windowMs = windowMinutes * 60 * 1000;
-    
-    const attempts = JSON.parse(localStorage.getItem(key) || '[]');
-    const recentAttempts = attempts.filter((timestamp: number) => now - timestamp < windowMs);
-    
-    if (recentAttempts.length >= maxAttempts) {
+    if (current.count >= maxAttempts) {
       return false;
     }
-    
-    recentAttempts.push(now);
-    localStorage.setItem(key, JSON.stringify(recentAttempts));
+
+    current.count++;
     return true;
+  }
+
+  static sanitizeInput(input: string): string {
+    return input
+      .trim()
+      .replace(/[<>]/g, '') // Remove potential HTML tags
+      .substring(0, 1000); // Limit length
   }
 }
