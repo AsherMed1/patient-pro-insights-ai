@@ -1,10 +1,13 @@
 
-// Enhanced security logging utility with proper error handling
+// Simple security logging utility
 export class EnhancedSecurityLogger {
   static logAuthAttempt(success: boolean, details: any = {}) {
     try {
-      console.log('Auth attempt:', { success, details, timestamp: new Date().toISOString() });
-      // In a production environment, this would send to a logging service
+      console.log('Auth attempt:', { 
+        success, 
+        details: this.sanitizeDetails(details), 
+        timestamp: new Date().toISOString() 
+      });
     } catch (error) {
       console.error('Failed to log auth attempt:', error);
     }
@@ -12,8 +15,11 @@ export class EnhancedSecurityLogger {
 
   static logSecurityEvent(eventType: string, details: any = {}) {
     try {
-      console.log('Security event:', { eventType, details, timestamp: new Date().toISOString() });
-      // In a production environment, this would send to a logging service
+      console.log('Security event:', { 
+        eventType, 
+        details: this.sanitizeDetails(details), 
+        timestamp: new Date().toISOString() 
+      });
     } catch (error) {
       console.error('Failed to log security event:', error);
     }
@@ -21,8 +27,11 @@ export class EnhancedSecurityLogger {
 
   static logSuspiciousActivity(activityType: string, details: any = {}) {
     try {
-      console.warn('Suspicious activity:', { activityType, details, timestamp: new Date().toISOString() });
-      // In a production environment, this would send to a logging service
+      console.warn('Suspicious activity:', { 
+        activityType, 
+        details: this.sanitizeDetails(details), 
+        timestamp: new Date().toISOString() 
+      });
     } catch (error) {
       console.error('Failed to log suspicious activity:', error);
     }
@@ -30,11 +39,31 @@ export class EnhancedSecurityLogger {
 
   static logRateLimitHit(identifier: string, maxAttempts: number) {
     try {
-      console.warn('Rate limit hit:', { identifier, maxAttempts, timestamp: new Date().toISOString() });
-      // In a production environment, this would send to a logging service
+      console.warn('Rate limit hit:', { 
+        identifier, 
+        maxAttempts, 
+        timestamp: new Date().toISOString() 
+      });
     } catch (error) {
       console.error('Failed to log rate limit hit:', error);
     }
+  }
+
+  private static sanitizeDetails(details: any): any {
+    if (typeof details === 'object' && details !== null) {
+      const sanitized: any = {};
+      for (const [key, value] of Object.entries(details)) {
+        if (key.toLowerCase().includes('password') || 
+            key.toLowerCase().includes('token') || 
+            key.toLowerCase().includes('key')) {
+          sanitized[key] = '[REDACTED]';
+        } else {
+          sanitized[key] = value;
+        }
+      }
+      return sanitized;
+    }
+    return details;
   }
 }
 

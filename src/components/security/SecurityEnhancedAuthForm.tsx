@@ -1,8 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthForm } from '@/components/auth/AuthForm';
-import { securityLogger } from '@/utils/enhancedSecurityLogger';
-import { SecurityValidator } from '@/utils/securityValidator';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from 'lucide-react';
 
@@ -20,19 +18,27 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
   });
 
   useEffect(() => {
-    // Check rate limiting status
+    // Simple rate limiting check without external dependencies
     const checkRateLimit = () => {
-      const identifier = 'auth_form';
-      const isAllowed = SecurityValidator.checkRateLimit(identifier, 15 * 60 * 1000, 5);
-      
-      if (!isAllowed) {
-        setRateLimitStatus(prev => ({ 
-          ...prev, 
-          blocked: true,
-          resetTime: Date.now() + 15 * 60 * 1000 
-        }));
+      try {
+        const identifier = 'auth_form';
+        const storageKey = `rate_limit_${identifier}`;
+        const stored = localStorage.getItem(storageKey);
         
-        securityLogger.logRateLimitHit('auth_form', 5);
+        if (stored) {
+          const data = JSON.parse(stored);
+          const now = Date.now();
+          
+          if (now - data.timestamp < 15 * 60 * 1000 && data.attempts >= 5) {
+            setRateLimitStatus(prev => ({ 
+              ...prev, 
+              blocked: true,
+              resetTime: data.timestamp + 15 * 60 * 1000 
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Rate limit check failed:', error);
       }
     };
 

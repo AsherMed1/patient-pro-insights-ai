@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { SecurityValidator } from '@/utils/securityValidator';
 import type { FormSlide, ProjectForm } from '../types';
 import { processFormTags, generateQualificationTags } from '../utils/tagProcessor';
 import { generateAISummary } from '../utils/aiSummaryGenerator';
@@ -11,6 +10,25 @@ interface UseSecureFormSubmissionProps {
   formData: Record<string, any>;
   slides: FormSlide[];
 }
+
+// Simple validation functions
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+};
+
+const validatePhone = (phone: string): boolean => {
+  const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+  const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
+  return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10 && cleanPhone.length <= 16;
+};
+
+const sanitizeString = (input: string): string => {
+  return input
+    .trim()
+    .replace(/[<>]/g, '') // Remove potential HTML tags
+    .substring(0, 1000); // Limit length
+};
 
 export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSecureFormSubmissionProps) => {
   const { toast } = useToast();
@@ -26,20 +44,19 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     }
 
     try {
-      // Enhanced security validation for form data
+      // Basic validation for form data
       const formDataString = JSON.stringify(formData);
-      const validation = SecurityValidator.validateInput(formDataString, 'text');
-      if (!validation.isValid) {
+      if (formDataString.length > 50000) {
         toast({
-          title: "Security Error",
-          description: validation.error || "Invalid form data detected",
+          title: "Error",
+          description: "Form data is too large",
           variant: "destructive",
         });
         return;
       }
 
       // Validate required contact information
-      if (formData.email && !SecurityValidator.validateEmail(formData.email)) {
+      if (formData.email && !validateEmail(formData.email)) {
         toast({
           title: "Validation Error",
           description: "Please enter a valid email address",
@@ -48,7 +65,7 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         return;
       }
 
-      if (formData.phone && !SecurityValidator.validatePhone(formData.phone)) {
+      if (formData.phone && !validatePhone(formData.phone)) {
         toast({
           title: "Validation Error",
           description: "Please enter a valid phone number",
@@ -57,22 +74,26 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         return;
       }
 
-      // Rate limiting check
-      const clientId = `form_${projectForm.id}_${Date.now()}`;
-      if (!SecurityValidator.checkRateLimit(clientId, 5 * 60 * 1000, 3)) {
-        toast({
-          title: "Rate Limited",
-          description: "Too many form submissions. Please wait before submitting again.",
-          variant: "destructive",
-        });
-        return;
+      // Simple rate limiting check
+      const rateLimitKey = `form_${projectForm.id}`;
+      const lastSubmission = localStorage.getItem(rateLimitKey);
+      if (lastSubmission) {
+        const timeSince = Date.now() - parseInt(lastSubmission);
+        if (timeSince < 5 * 60 * 1000) { // 5 minutes
+          toast({
+            title: "Rate Limited",
+            description: "Please wait before submitting again.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       // Sanitize all string inputs
       const sanitizedFormData = Object.keys(formData).reduce((acc, key) => {
         const value = formData[key];
         if (typeof value === 'string') {
-          acc[key] = SecurityValidator.sanitizeString(value);
+          acc[key] = sanitizeString(value);
         } else {
           acc[key] = value;
         }
@@ -93,23 +114,23 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
 
       // Extract and sanitize contact info
       const contactInfo = {
-        first_name: SecurityValidator.sanitizeString(sanitizedFormData.first_name || ''),
-        last_name: SecurityValidator.sanitizeString(sanitizedFormData.last_name || ''),
+        first_name: sanitizeString(sanitizedFormData.first_name || ''),
+        last_name: sanitizeString(sanitizedFormData.last_name || ''),
         email: sanitizedFormData.email || sanitizedFormData.final_email,
         phone: sanitizedFormData.phone,
         date_of_birth: sanitizedFormData.date_of_birth,
-        zip_code: SecurityValidator.sanitizeString(sanitizedFormData.zip_code || ''),
-        insurance_provider: SecurityValidator.sanitizeString(sanitizedFormData.insurance_provider || '')
+        zip_code: sanitizeString(sanitizedFormData.zip_code || ''),
+        insurance_provider: sanitizeString(sanitizedFormData.insurance_provider || '')
       };
 
-      // Submit to database with enhanced error handling
+      // Submit to database
       const { error } = await supabase
         .from('form_submissions')
         .insert({
           project_form_id: projectForm.id,
           submission_data: sanitizedFormData,
           tags: allTags,
-          ai_summary: SecurityValidator.sanitizeString(aiSummary),
+          ai_summary: sanitizeString(aiSummary),
           contact_info: contactInfo
         });
 
@@ -123,6 +144,9 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         });
         return;
       }
+
+      // Store rate limit timestamp
+      localStorage.setItem(rateLimitKey, Date.now().toString());
 
       toast({
         title: "Success",

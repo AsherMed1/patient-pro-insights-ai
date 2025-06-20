@@ -1,6 +1,5 @@
 
 import { useAuth } from './useAuth';
-import { securityLogger } from '@/utils/enhancedSecurityLogger';
 import { useState, useEffect } from 'react';
 
 export const useSecureAuth = () => {
@@ -15,9 +14,10 @@ export const useSecureAuth = () => {
   useEffect(() => {
     if (auth.user) {
       // Log successful authentication
-      securityLogger.logAuthAttempt(true, {
+      console.log('Auth attempt successful:', {
         user_id: auth.user.id,
-        email: auth.user.email
+        email: auth.user.email,
+        timestamp: new Date().toISOString()
       });
 
       // Update security flags
@@ -32,9 +32,10 @@ export const useSecureAuth = () => {
   // Enhanced sign out with security logging
   const secureSignOut = async () => {
     try {
-      securityLogger.logSecurityEvent('user_logout', {
+      console.log('User logout:', {
         user_id: auth.user?.id,
-        session_duration: Date.now() - securityFlags.lastActivity
+        session_duration: Date.now() - securityFlags.lastActivity,
+        timestamp: new Date().toISOString()
       });
       
       await auth.signOut();
@@ -46,9 +47,6 @@ export const useSecureAuth = () => {
       });
     } catch (error) {
       console.error('Secure sign out failed:', error);
-      securityLogger.logSuspiciousActivity('signout_failure', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
     }
   };
 
@@ -58,9 +56,10 @@ export const useSecureAuth = () => {
     const maxInactivity = 8 * 60 * 60 * 1000; // 8 hours
 
     if (timeSinceActivity > maxInactivity) {
-      securityLogger.logSuspiciousActivity('session_timeout', {
+      console.warn('Session timeout:', {
         inactive_duration: timeSinceActivity,
-        user_id: auth.user?.id
+        user_id: auth.user?.id,
+        timestamp: new Date().toISOString()
       });
       setSecurityFlags(prev => ({ ...prev, sessionValid: false }));
       return false;
