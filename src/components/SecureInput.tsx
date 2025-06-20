@@ -50,7 +50,7 @@ export const SecureInput: React.FC<SecureInputProps> = ({
           {label} {required && <span className="text-red-500">*</span>}
         </Label>
         {showSecurityIndicator && (
-          <Shield className="h-4 w-4 text-green-600" title="Secure input" />
+          <Shield className="h-4 w-4 text-green-600" />
         )}
       </div>
       
