@@ -60,13 +60,13 @@ export const sanitizeInput = {
   // SQL injection prevention for search queries
   searchQuery: (query: string): string => {
     if (!query || typeof query !== 'string') return '';
-    return query.replace(/[';--]/g, '').trim().substring(0, 100);
+    return query.replace(/[';-]/g, '').trim().substring(0, 100);
   },
 
-  // Project name validation - fixed regex character class with hyphen at end
+  // Project name validation - fixed regex character class
   projectName: (name: string): string => {
     if (!name || typeof name !== 'string') return '';
-    return name.replace(/[<>'"&-]/g, '').trim();
+    return name.replace(/[';-]/g, '').trim();
   },
 
   // Numeric validation
