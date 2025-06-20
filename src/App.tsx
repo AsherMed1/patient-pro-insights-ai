@@ -6,7 +6,6 @@ import { Toaster as RadixToaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
 import "./App.css";
 import { lazy, Suspense } from "react";
 
@@ -37,15 +36,7 @@ const App = () => (
         <RadixToaster />
         <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } 
-            />
+            <Route path="/" element={<Index />} />
             {/* Keep all other existing routes wrapped in ProtectedRoute */}
             <Route 
               path="/csv-import-history" 

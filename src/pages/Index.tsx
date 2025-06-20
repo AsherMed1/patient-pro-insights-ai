@@ -1,3 +1,4 @@
+
 import { useState, Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { lazy } from "react";
-import { UserMenu } from "@/components/auth/UserMenu";
 
 // Only lazy load the most essential components to reduce initial bundle
 const CallCenterDashboard = lazy(() => import("@/components/CallCenterDashboard"));
@@ -26,13 +26,10 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header with user menu */}
-        <div className="flex justify-between items-center">
-          <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
-            <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
-          </div>
-          <UserMenu />
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
+          <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
