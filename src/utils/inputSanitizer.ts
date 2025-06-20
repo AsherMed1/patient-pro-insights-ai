@@ -127,7 +127,7 @@ export const validateInput = {
 
   // Fixed project name validation regex
   projectName: (name: string): boolean => {
-    return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s\-_]+$/.test(name);
+    return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s_-]+$/.test(name);
   }
 };
 
