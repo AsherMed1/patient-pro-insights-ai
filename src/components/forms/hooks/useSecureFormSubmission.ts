@@ -25,7 +25,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     }
 
     try {
-      // Process form data
       const formTags = processFormTags(formData, slides);
       const qualificationTags = generateQualificationTags(formTags);
       const allTags = [...formTags, ...qualificationTags];
@@ -46,7 +45,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         insurance_provider: formData.insurance_provider || ''
       };
 
-      // Submit to database
       const { error } = await supabase
         .from('form_submissions')
         .insert({

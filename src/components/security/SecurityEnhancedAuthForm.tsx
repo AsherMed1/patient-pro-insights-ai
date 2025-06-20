@@ -9,11 +9,9 @@ interface SecurityEnhancedAuthFormProps {
 
 export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhancedAuthFormProps) => {
   return (
-    <div className="space-y-4">
-      <AuthForm 
-        mode={mode} 
-        onToggleMode={onToggleMode}
-      />
-    </div>
+    <AuthForm 
+      mode={mode} 
+      onToggleMode={onToggleMode}
+    />
   );
 };

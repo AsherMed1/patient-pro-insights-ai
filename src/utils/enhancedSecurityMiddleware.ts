@@ -8,7 +8,7 @@ export const enhancedSecurityMiddleware = {
   },
 
   checkRateLimit: (): boolean => {
-    return true; // Simplified for deployment
+    return true;
   }
 };
 
