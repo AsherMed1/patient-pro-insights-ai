@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,8 +9,6 @@ import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
-import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordPrompt';
-import { useEnhancedProjectPortalAuth } from '@/hooks/useEnhancedProjectPortalAuth';
 import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 import TagManager from '@/components/projects/TagManager';
 
@@ -40,44 +39,13 @@ const ProjectPortal = () => {
   });
   const { toast } = useToast();
 
-  const {
-    isAuthenticated,
-    loading: authLoading,
-    error: authError,
-    login
-  } = useEnhancedProjectPortalAuth(projectName || '');
-
   useEffect(() => {
     console.log('ProjectPortal mounted with projectName:', projectName);
-    if (projectName && isAuthenticated === true) {
+    if (projectName) {
       fetchProject();
       fetchAppointmentStats();
     }
-  }, [projectName, isAuthenticated]);
-
-  // Show password prompt if authentication is required
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center py-8">
-            <span>Loading project...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isAuthenticated === false) {
-    return (
-      <ProjectPasswordPrompt
-        projectName={decodeURIComponent(projectName || '')}
-        onPasswordSubmit={login}
-        error={authError}
-        loading={authLoading}
-      />
-    );
-  }
+  }, [projectName]);
 
   const fetchProject = async () => {
     try {

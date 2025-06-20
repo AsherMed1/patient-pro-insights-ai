@@ -1,219 +1,139 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, Shield, Activity, RefreshCw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
 
-interface SecurityEvent {
-  id: string;
-  event_type: string;
-  ip_address: string;
-  user_agent: string;
-  details: any;
-  created_at: string;
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Shield, AlertTriangle, Activity, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface SecurityMetrics {
+  totalEvents: number;
+  highSeverityEvents: number;
+  uniqueIPs: number;
+  recentEvents: number;
 }
 
-export const SecurityMonitor = () => {
-  const [events, setEvents] = useState<SecurityEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+export const SecurityMonitor: React.FC = () => {
+  const [metrics, setMetrics] = useState<SecurityMetrics>({
     totalEvents: 0,
-    criticalEvents: 0,
+    highSeverityEvents: 0,
+    uniqueIPs: 0,
     recentEvents: 0
   });
-  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
 
-  const fetchSecurityEvents = async () => {
-    if (!user) return;
+  useEffect(() => {
+    fetchSecurityMetrics();
+  }, []);
 
-    setLoading(true);
+  const fetchSecurityMetrics = async () => {
     try {
-      const { data, error } = await supabase
+      // Get total events
+      const { count: totalEvents } = await supabase
         .from('security_audit_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .select('*', { count: 'exact', head: true });
 
-      if (error) {
-        console.error('Failed to fetch security events:', error);
-        return;
-      }
+      // Get high severity events
+      const { count: highSeverityEvents } = await supabase
+        .from('security_audit_log')
+        .select('*', { count: 'exact', head: true })
+        .in('event_type', ['auth_failed', 'suspicious_activity', 'rate_limit_exceeded']);
 
-      // Transform the data to match our interface, handling the ip_address type
-      const transformedEvents: SecurityEvent[] = (data || []).map(event => ({
-        ...event,
-        ip_address: event.ip_address ? String(event.ip_address) : 'Unknown'
-      }));
-
-      setEvents(transformedEvents);
-
-      // Calculate stats
-      const now = new Date();
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      // Get recent events (last 24 hours)
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
       
-      const criticalEventTypes = ['rate_limit_exceeded', 'session_ip_mismatch', 'invalid_input', 'database_error'];
-      const criticalEvents = transformedEvents.filter(event => 
-        criticalEventTypes.includes(event.event_type)
-      ).length;
+      const { count: recentEvents } = await supabase
+        .from('security_audit_log')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', oneDayAgo.toISOString());
 
-      const recentEvents = transformedEvents.filter(event => 
-        new Date(event.created_at) > oneDayAgo
-      ).length;
+      // Get unique IPs
+      const { data: ipData } = await supabase
+        .from('security_audit_log')
+        .select('ip_address')
+        .not('ip_address', 'is', null);
 
-      setStats({
-        totalEvents: transformedEvents.length,
-        criticalEvents,
-        recentEvents
+      const uniqueIPs = new Set(ipData?.map(row => row.ip_address)).size;
+
+      setMetrics({
+        totalEvents: totalEvents || 0,
+        highSeverityEvents: highSeverityEvents || 0,
+        uniqueIPs,
+        recentEvents: recentEvents || 0
       });
-
     } catch (error) {
-      console.error('Error fetching security events:', error);
+      console.error('Error fetching security metrics:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchSecurityEvents();
-  }, [user]);
-
-  const getEventSeverity = (eventType: string) => {
-    const criticalEvents = ['rate_limit_exceeded', 'session_ip_mismatch', 'database_error'];
-    const warningEvents = ['invalid_input', 'oversized_request', 'portal_auth_failed'];
-    
-    if (criticalEvents.includes(eventType)) return 'critical';
-    if (warningEvents.includes(eventType)) return 'warning';
-    return 'info';
+  const getSecurityStatus = () => {
+    if (metrics.highSeverityEvents > 10) return { status: 'high', color: 'destructive', text: 'High Risk' };
+    if (metrics.highSeverityEvents > 5) return { status: 'medium', color: 'secondary', text: 'Medium Risk' };
+    return { status: 'low', color: 'default', text: 'Low Risk' };
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'destructive';
-      case 'warning': return 'secondary';
-      default: return 'default';
-    }
-  };
+  const securityStatus = getSecurityStatus();
 
-  const formatEventType = (eventType: string) => {
-    return eventType
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
-
-  if (!user) {
+  if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <p className="text-muted-foreground">Please log in to view security monitoring</p>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Security Monitor
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4">Loading security metrics...</div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Events</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEvents}</div>
-            <p className="text-xs text-muted-foreground">Last 50 events</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical Events</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{stats.criticalEvents}</div>
-            <p className="text-xs text-muted-foreground">Require attention</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-            <Shield className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.recentEvents}</div>
-            <p className="text-xs text-muted-foreground">Last 24 hours</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Security Events</CardTitle>
-              <CardDescription>
-                Recent security events and audit trail
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchSecurityEvents}
-              disabled={loading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="h-5 w-5" />
+          Security Monitor
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="text-center">
+            <div className="text-2xl font-bold">{metrics.totalEvents}</div>
+            <div className="text-sm text-gray-500">Total Events</div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="mt-2 text-sm text-muted-foreground">Loading security events...</p>
-            </div>
-          ) : events.length === 0 ? (
-            <div className="text-center py-8">
-              <Shield className="h-12 w-12 mx-auto text-green-600 mb-4" />
-              <p className="text-lg font-medium mb-2">No Security Events</p>
-              <p className="text-sm text-muted-foreground">Your system is secure with no recent events to report</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {events.map((event) => {
-                const severity = getEventSeverity(event.event_type);
-                return (
-                  <div
-                    key={event.id}
-                    className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant={getSeverityColor(severity)}>
-                          {formatEventType(event.event_type)}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(event.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="text-sm space-y-1">
-                        <p><strong>IP:</strong> {event.ip_address}</p>
-                        {event.details && (
-                          <p><strong>Details:</strong> {JSON.stringify(event.details, null, 2)}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          
+          <div className="text-center">
+            <div className="text-2xl font-bold text-red-600">{metrics.highSeverityEvents}</div>
+            <div className="text-sm text-gray-500">High Severity</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-2xl font-bold">{metrics.uniqueIPs}</div>
+            <div className="text-sm text-gray-500">Unique IPs</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-2xl font-bold">{metrics.recentEvents}</div>
+            <div className="text-sm text-gray-500">Recent (24h)</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="font-medium">Security Status:</span>
+          </div>
+          <Badge variant={securityStatus.color as any} className="flex items-center gap-1">
+            {securityStatus.status === 'high' && <AlertTriangle className="h-3 w-3" />}
+            {securityStatus.text}
+          </Badge>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
