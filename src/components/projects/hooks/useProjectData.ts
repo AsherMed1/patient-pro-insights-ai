@@ -187,4 +187,4 @@ export const useProjectData = () => {
     invalidateCache,
     refreshMaterializedViews,
   };
-}, []);
+};
