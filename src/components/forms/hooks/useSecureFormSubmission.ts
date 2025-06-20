@@ -11,15 +11,6 @@ interface UseSecureFormSubmissionProps {
   slides: FormSlide[];
 }
 
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email) && email.length <= 254;
-};
-
-const sanitizeString = (input: string): string => {
-  return input.trim().substring(0, 1000);
-};
-
 export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSecureFormSubmissionProps) => {
   const { toast } = useToast();
 
@@ -34,63 +25,25 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     }
 
     try {
-      // Validate email if present
-      if (formData.email && !validateEmail(formData.email)) {
-        toast({
-          title: "Validation Error",
-          description: "Please enter a valid email address",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Simple rate limiting check
-      const rateLimitKey = `form_${projectForm.id}`;
-      const lastSubmission = localStorage.getItem(rateLimitKey);
-      if (lastSubmission) {
-        const timeSince = Date.now() - parseInt(lastSubmission);
-        if (timeSince < 5 * 60 * 1000) { // 5 minutes
-          toast({
-            title: "Rate Limited",
-            description: "Please wait before submitting again.",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
-      // Sanitize form data
-      const sanitizedFormData = Object.keys(formData).reduce((acc, key) => {
-        const value = formData[key];
-        if (typeof value === 'string') {
-          acc[key] = sanitizeString(value);
-        } else {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, any>);
-
-      // Process tags
-      const formTags = processFormTags(sanitizedFormData, slides);
+      // Process form data
+      const formTags = processFormTags(formData, slides);
       const qualificationTags = generateQualificationTags(formTags);
       const allTags = [...formTags, ...qualificationTags];
 
-      // Generate AI summary
       const aiSummary = generateAISummary(
-        sanitizedFormData,
+        formData,
         slides,
         projectForm.form_templates?.form_type || ''
       );
 
-      // Extract contact info
       const contactInfo = {
-        first_name: sanitizeString(sanitizedFormData.first_name || ''),
-        last_name: sanitizeString(sanitizedFormData.last_name || ''),
-        email: sanitizedFormData.email || sanitizedFormData.final_email,
-        phone: sanitizedFormData.phone,
-        date_of_birth: sanitizedFormData.date_of_birth,
-        zip_code: sanitizeString(sanitizedFormData.zip_code || ''),
-        insurance_provider: sanitizeString(sanitizedFormData.insurance_provider || '')
+        first_name: formData.first_name || '',
+        last_name: formData.last_name || '',
+        email: formData.email || formData.final_email,
+        phone: formData.phone,
+        date_of_birth: formData.date_of_birth,
+        zip_code: formData.zip_code || '',
+        insurance_provider: formData.insurance_provider || ''
       };
 
       // Submit to database
@@ -98,9 +51,9 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         .from('form_submissions')
         .insert({
           project_form_id: projectForm.id,
-          submission_data: sanitizedFormData,
+          submission_data: formData,
           tags: allTags,
-          ai_summary: sanitizeString(aiSummary),
+          ai_summary: aiSummary,
           contact_info: contactInfo
         });
 
@@ -113,9 +66,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         });
         return;
       }
-
-      // Store rate limit timestamp
-      localStorage.setItem(rateLimitKey, Date.now().toString());
 
       toast({
         title: "Success",
