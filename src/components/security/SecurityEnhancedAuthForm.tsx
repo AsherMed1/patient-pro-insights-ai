@@ -134,7 +134,6 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
       <AuthForm 
         mode={mode} 
         onToggleMode={onToggleMode}
-        disabled={rateLimitStatus.blocked}
       />
     </div>
   );
