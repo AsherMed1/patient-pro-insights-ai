@@ -82,7 +82,7 @@ export const validateInput = {
 export const rateLimiter = {
   attempts: new Map<string, { count: number; resetTime: number }>(),
 
-  checkLimit: (key: string, maxAttempts: number, windowMs: number): boolean => {
+  checkLimit: function(key: string, maxAttempts: number, windowMs: number): boolean {
     const now = Date.now();
     const attempt = this.attempts.get(key);
 
@@ -99,7 +99,7 @@ export const rateLimiter = {
     return true;
   },
 
-  clearAttempts: (key: string): void => {
+  clearAttempts: function(key: string): void {
     this.attempts.delete(key);
   }
 };

@@ -9,8 +9,8 @@ import { supabase } from '@/integrations/supabase/client';
 interface SecurityEvent {
   id: string;
   event_type: string;
-  ip_address: string;
-  user_agent: string;
+  ip_address: string | null;
+  user_agent: string | null;
   details: any;
   created_at: string;
 }
@@ -33,7 +33,18 @@ export const SecurityAuditDisplay: React.FC = () => {
         .limit(50);
 
       if (error) throw error;
-      setEvents(data || []);
+      
+      // Transform the data to match our interface
+      const transformedEvents: SecurityEvent[] = (data || []).map(event => ({
+        id: event.id,
+        event_type: event.event_type,
+        ip_address: event.ip_address ? String(event.ip_address) : null,
+        user_agent: event.user_agent || null,
+        details: event.details,
+        created_at: event.created_at
+      }));
+      
+      setEvents(transformedEvents);
     } catch (error) {
       console.error('Error fetching security events:', error);
     } finally {
