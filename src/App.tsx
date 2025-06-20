@@ -1,10 +1,9 @@
+
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as RadixToaster } from "@/components/ui/toaster";
-import { AuthProvider } from "@/hooks/useAuth";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import "./App.css";
 import { lazy, Suspense } from "react";
@@ -30,67 +29,23 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <RadixToaster />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            {/* Keep all other existing routes wrapped in ProtectedRoute */}
-            <Route 
-              path="/csv-import-history" 
-              element={
-                <ProtectedRoute>
-                  <CsvImportHistory />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/undo-import" 
-              element={
-                <ProtectedRoute>
-                  <UndoImport />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/api-docs" 
-              element={
-                <ProtectedRoute>
-                  <ApiDocs />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/agent-claim" 
-              element={
-                <ProtectedRoute>
-                  <AgentClaim />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/forms" 
-              element={
-                <ProtectedRoute>
-                  <FormManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/form/:slug" 
-              element={<PublicForm />} 
-            />
-            <Route 
-              path="/project-portal/:projectName" 
-              element={<ProjectPortal />} 
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+    <TooltipProvider>
+      <Toaster />
+      <RadixToaster />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/csv-import-history" element={<CsvImportHistory />} />
+          <Route path="/undo-import" element={<UndoImport />} />
+          <Route path="/api-docs" element={<ApiDocs />} />
+          <Route path="/agent-claim" element={<AgentClaim />} />
+          <Route path="/forms" element={<FormManagement />} />
+          <Route path="/form/:slug" element={<PublicForm />} />
+          <Route path="/project-portal/:projectName" element={<ProjectPortal />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 
