@@ -6,6 +6,7 @@ import { FolderOpen } from 'lucide-react';
 import { AddProjectDialog } from './projects/AddProjectDialog';
 import { EditProjectDialog } from './projects/EditProjectDialog';
 import { ProjectsList } from './projects/ProjectsList';
+import ProjectsDebugButton from './projects/ProjectsDebugButton';
 import { useProjectsManager } from './projects/hooks/useProjectsManager';
 
 const ProjectsManager = () => {
@@ -62,6 +63,8 @@ const ProjectsManager = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ProjectsDebugButton />
+        
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="active">

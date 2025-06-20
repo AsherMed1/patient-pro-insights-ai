@@ -24,10 +24,14 @@ export const useProjectData = () => {
   // Function to refresh materialized views
   const refreshMaterializedViews = useCallback(async () => {
     try {
-      await supabase.rpc('refresh_performance_views');
+      const { error } = await supabase.rpc('refresh_performance_views');
+      if (error) {
+        console.error('Error refreshing materialized views:', error);
+        return;
+      }
       console.log('Materialized views refreshed successfully');
     } catch (error) {
-      console.error('Error refreshing materialized views:', error);
+      console.error('Error calling refresh_performance_views:', error);
     }
   }, []);
 
@@ -80,96 +84,158 @@ export const useProjectData = () => {
 
   // Fallback method for fetching stats individually
   const fetchStatsIndividually = async (): Promise<ProjectStats[]> => {
-    const { data: projectsData } = await supabase
-      .from('projects')
-      .select('project_name')
-      .order('project_name');
+    try {
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('project_name')
+        .order('project_name');
 
-    if (!projectsData) return [];
+      if (projectsError) {
+        console.error('Error fetching projects for stats:', projectsError);
+        return [];
+      }
 
-    const statsPromises = projectsData.map(async (project) => {
-      const [leadsResult, callsResult, appointmentsResult, adSpendResult] = await Promise.all([
-        supabase
-          .from('new_leads')
-          .select('id', { count: 'exact', head: true })
-          .eq('project_name', project.project_name),
-        supabase
-          .from('all_calls')
-          .select('id, call_datetime', { count: 'exact' })
-          .eq('project_name', project.project_name)
-          .order('call_datetime', { ascending: false })
-          .limit(1),
-        supabase
-          .from('all_appointments')
-          .select('id', { count: 'exact', head: true })
-          .eq('project_name', project.project_name),
-        supabase
-          .from('facebook_ad_spend')
-          .select('spend')
-          .eq('project_name', project.project_name)
-      ]);
+      if (!projectsData) return [];
 
-      // Fetch confirmed appointments using standardized logic
-      const confirmedAppointmentsResult = await supabase
-        .from('all_appointments')
-        .select('confirmed, status')
-        .eq('project_name', project.project_name);
+      const statsPromises = projectsData.map(async (project) => {
+        try {
+          const [leadsResult, callsResult, appointmentsResult, adSpendResult] = await Promise.all([
+            supabase
+              .from('new_leads')
+              .select('id', { count: 'exact', head: true })
+              .eq('project_name', project.project_name),
+            supabase
+              .from('all_calls')
+              .select('id, call_datetime', { count: 'exact' })
+              .eq('project_name', project.project_name)
+              .order('call_datetime', { ascending: false })
+              .limit(1),
+            supabase
+              .from('all_appointments')
+              .select('id', { count: 'exact', head: true })
+              .eq('project_name', project.project_name),
+            supabase
+              .from('facebook_ad_spend')
+              .select('spend')
+              .eq('project_name', project.project_name)
+          ]);
 
-      const confirmedCount = confirmedAppointmentsResult.data?.filter(isAppointmentConfirmed).length || 0;
+          // Fetch confirmed appointments using standardized logic
+          const confirmedAppointmentsResult = await supabase
+            .from('all_appointments')
+            .select('confirmed, status')
+            .eq('project_name', project.project_name);
 
-      const totalAdSpend = adSpendResult.data?.reduce((sum, record) => {
-        const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
-        return sum + (isNaN(spendValue) ? 0 : spendValue);
-      }, 0) || 0;
+          const confirmedCount = confirmedAppointmentsResult.data?.filter(isAppointmentConfirmed).length || 0;
 
-      return {
-        project_name: project.project_name,
-        leads_count: leadsResult.count || 0,
-        calls_count: callsResult.count || 0,
-        appointments_count: appointmentsResult.count || 0,
-        confirmed_appointments_count: confirmedCount,
-        ad_spend: totalAdSpend,
-        last_activity: callsResult.data?.[0]?.call_datetime || null
-      };
-    });
+          const totalAdSpend = adSpendResult.data?.reduce((sum, record) => {
+            const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
+            return sum + (isNaN(spendValue) ? 0 : spendValue);
+          }, 0) || 0;
 
-    return await Promise.all(statsPromises);
+          return {
+            project_name: project.project_name,
+            leads_count: leadsResult.count || 0,
+            calls_count: callsResult.count || 0,
+            appointments_count: appointmentsResult.count || 0,
+            confirmed_appointments_count: confirmedCount,
+            ad_spend: totalAdSpend,
+            last_activity: callsResult.data?.[0]?.call_datetime || null
+          };
+        } catch (error) {
+          console.error(`Error fetching stats for project ${project.project_name}:`, error);
+          return {
+            project_name: project.project_name,
+            leads_count: 0,
+            calls_count: 0,
+            appointments_count: 0,
+            confirmed_appointments_count: 0,
+            ad_spend: 0,
+            last_activity: null
+          };
+        }
+      });
+
+      return await Promise.all(statsPromises);
+    } catch (error) {
+      console.error('Error in fetchStatsIndividually:', error);
+      return [];
+    }
   };
 
   const fetchProjectsAndStats = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       
-      // Fetch projects
+      // Debug: Check current session
+      const { data: session, error: sessionError } = await supabase.auth.getSession();
+      console.log('Current session:', session?.session ? 'authenticated' : 'anonymous');
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+      }
+      
+      // Fetch projects with better error handling
+      console.log('Fetching projects...');
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*')
         .order('updated_at', { ascending: false });
       
-      if (projectsError) throw projectsError;
+      if (projectsError) {
+        console.error('Projects fetch error:', projectsError);
+        throw projectsError;
+      }
+      
+      console.log(`Fetched ${projectsData?.length || 0} projects`);
       
       // Convert Supabase Json types to proper types for our interface
       const typedProjects: Project[] = (projectsData || []).map(project => ({
         ...project,
         custom_insurance_list: Array.isArray(project.custom_insurance_list) ? project.custom_insurance_list : [],
         custom_doctors: Array.isArray(project.custom_doctors) ? project.custom_doctors : [],
-        custom_facility_info: typeof project.custom_facility_info === 'object' ? project.custom_facility_info : {}
+        custom_facility_info: typeof project.custom_facility_info === 'object' && project.custom_facility_info !== null ? project.custom_facility_info : {}
       }));
       
       setProjects(typedProjects);
 
       // Get stats using optimized method
+      console.log('Fetching project stats...');
       const stats = await getProjectStats(forceRefresh);
       setProjectStats(stats);
 
       console.log(`Fetched ${stats.length} project statistics`);
     } catch (error) {
       console.error('Error fetching projects and stats:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch projects data",
-        variant: "destructive",
-      });
+      
+      // More specific error handling
+      if (error && typeof error === 'object' && 'code' in error) {
+        const supabaseError = error as any;
+        if (supabaseError.code === 'PGRST301') {
+          toast({
+            title: "Authentication Required",
+            description: "Please log in to access this data",
+            variant: "destructive",
+          });
+        } else if (supabaseError.code === 'PGRST116') {
+          toast({
+            title: "Access Denied",
+            description: "You don't have permission to access this data",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: `Failed to fetch projects data: ${supabaseError.message || 'Unknown error'}`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch projects data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
