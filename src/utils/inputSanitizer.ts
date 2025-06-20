@@ -1,12 +1,12 @@
 
-// Input sanitization utilities for enhanced security
+// Simplified input sanitization utilities
 export const sanitizeInput = {
   text: (input: string): string => {
     if (typeof input !== 'string') return '';
     return input
       .trim()
-      .replace(/[<>]/g, '') // Remove potential HTML tags
-      .substring(0, 1000); // Limit length
+      .replace(/[<>]/g, '')
+      .substring(0, 1000);
   },
 
   email: (input: string): string => {
@@ -14,13 +14,13 @@ export const sanitizeInput = {
     return input
       .trim()
       .toLowerCase()
-      .substring(0, 254); // RFC limit for email length
+      .substring(0, 254);
   },
 
   phone: (input: string): string => {
     if (typeof input !== 'string') return '';
     return input
-      .replace(/[^\d\+\-\(\)\s\.]/g, '') // Only allow digits and common phone chars
+      .replace(/[^\d\+\-\(\)\s\.]/g, '')
       .substring(0, 20);
   },
 
@@ -31,7 +31,6 @@ export const sanitizeInput = {
 
   date: (input: string): string => {
     if (typeof input !== 'string') return '';
-    // Basic date format validation
     return input.match(/^\d{4}-\d{2}-\d{2}$/) ? input : '';
   }
 };
@@ -59,32 +58,20 @@ export const validateInput = {
       errors.push('Password must be at least 8 characters long');
     }
     
-    if (!/[A-Z]/.test(password)) {
-      errors.push('Password must contain at least one uppercase letter');
-    }
-    
-    if (!/[a-z]/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter');
-    }
-    
-    if (!/\d/.test(password)) {
-      errors.push('Password must contain at least one number');
-    }
-    
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      errors.push('Password must contain at least one special character');
-    }
-    
     return { valid: errors.length === 0, errors };
   }
 };
 
+// Simplified rate limiter for client-side only
 export const rateLimiter = {
   checkLimit: (key: string, maxAttempts: number, windowMs: number): boolean => {
+    // Only run on client side
+    if (typeof window === 'undefined') return true;
+    
     try {
-      const stored = localStorage.getItem(`rate_limit_${key}`);
+      const stored = sessionStorage.getItem(`rate_limit_${key}`);
       if (!stored) {
-        localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+        sessionStorage.setItem(`rate_limit_${key}`, JSON.stringify({
           attempts: 1,
           timestamp: Date.now()
         }));
@@ -95,8 +82,7 @@ export const rateLimiter = {
       const now = Date.now();
       
       if (now - data.timestamp > windowMs) {
-        // Reset window
-        localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+        sessionStorage.setItem(`rate_limit_${key}`, JSON.stringify({
           attempts: 1,
           timestamp: now
         }));
@@ -107,8 +93,7 @@ export const rateLimiter = {
         return false;
       }
 
-      // Increment attempts
-      localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+      sessionStorage.setItem(`rate_limit_${key}`, JSON.stringify({
         attempts: data.attempts + 1,
         timestamp: data.timestamp
       }));
@@ -116,15 +101,17 @@ export const rateLimiter = {
       return true;
     } catch (error) {
       console.error('Rate limiter error:', error);
-      return true; // Fail open
+      return true;
     }
   },
 
   clearAttempts: (key: string): void => {
-    try {
-      localStorage.removeItem(`rate_limit_${key}`);
-    } catch (error) {
-      console.error('Failed to clear rate limit:', error);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(`rate_limit_${key}`);
+      } catch (error) {
+        console.error('Failed to clear rate limit:', error);
+      }
     }
   }
 };

@@ -1,4 +1,5 @@
 
+// Simplified enhanced security middleware
 export const enhancedSecurityMiddleware = {
   sanitizeData: (data: any): any => {
     if (typeof data === 'string') {
@@ -8,7 +9,7 @@ export const enhancedSecurityMiddleware = {
   },
 
   checkRateLimit: (): boolean => {
-    return true;
+    return true; // Simplified for deployment
   }
 };
 

@@ -18,6 +18,9 @@ class SecureApiClient {
   private rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
   private checkRateLimit(key: string, maxAttempts: number = 5, windowMs: number = 15 * 60 * 1000): boolean {
+    // Only run on client side
+    if (typeof window === 'undefined') return true;
+    
     const now = Date.now();
     const record = this.rateLimitMap.get(key);
 
@@ -39,8 +42,7 @@ class SecureApiClient {
       'Content-Type': 'application/json',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
-      'X-XSS-Protection': '1; mode=block',
-      'Referrer-Policy': 'strict-origin-when-cross-origin'
+      'X-XSS-Protection': '1; mode=block'
     };
   }
 
@@ -51,7 +53,6 @@ class SecureApiClient {
     
     for (const [key, value] of Object.entries(body)) {
       if (typeof value === 'string') {
-        // Basic XSS prevention
         sanitized[key] = value.replace(/[<>]/g, '');
       } else if (typeof value === 'object' && value !== null) {
         sanitized[key] = this.sanitizeRequestBody(value);
@@ -76,7 +77,6 @@ class SecureApiClient {
     } = options;
 
     try {
-      // Rate limiting check
       if (rateLimitKey && !this.checkRateLimit(rateLimitKey, maxAttempts, windowMs)) {
         return {
           success: false,
@@ -84,13 +84,11 @@ class SecureApiClient {
         };
       }
 
-      // Prepare headers
       const headers = {
         ...this.getSecurityHeaders(),
         ...requestOptions.headers
       };
 
-      // Add authentication if required
       if (requireAuth) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -102,7 +100,6 @@ class SecureApiClient {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
-      // Sanitize request body
       let body = requestOptions.body;
       if (body && typeof body === 'string') {
         try {
@@ -142,7 +139,6 @@ class SecureApiClient {
     }
   }
 
-  // Convenience methods
   async get<T = any>(url: string, options: SecureRequestOptions = {}): Promise<ApiResponse<T>> {
     return this.makeRequest<T>(url, { ...options, method: 'GET' });
   }

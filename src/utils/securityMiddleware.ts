@@ -1,5 +1,5 @@
 
-// Simplified security middleware to prevent build failures
+// Simplified security middleware for deployment safety
 interface SecurityConfig {
   requireAuth?: boolean;
   rateLimitKey?: string;
@@ -7,42 +7,31 @@ interface SecurityConfig {
   windowMs?: number;
 }
 
-// Simple rate limiting using localStorage
-const checkRateLimit = (key: string, maxAttempts: number, windowMs: number): boolean => {
+// Simple in-memory rate limiting for client-side only
+const rateLimitCache = new Map<string, { attempts: number; timestamp: number }>();
+
+const checkRateLimit = (key: string, maxAttempts: number = 5, windowMs: number = 15 * 60 * 1000): boolean => {
+  // Only run on client side
+  if (typeof window === 'undefined') return true;
+  
   try {
-    const stored = localStorage.getItem(`rate_limit_${key}`);
-    if (!stored) {
-      localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
-        attempts: 1,
-        timestamp: Date.now()
-      }));
-      return true;
-    }
-
-    const data = JSON.parse(stored);
     const now = Date.now();
+    const record = rateLimitCache.get(key);
     
-    if (now - data.timestamp > windowMs) {
-      localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
-        attempts: 1,
-        timestamp: now
-      }));
+    if (!record || now - record.timestamp > windowMs) {
+      rateLimitCache.set(key, { attempts: 1, timestamp: now });
       return true;
     }
-
-    if (data.attempts >= maxAttempts) {
+    
+    if (record.attempts >= maxAttempts) {
       return false;
     }
-
-    localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
-      attempts: data.attempts + 1,
-      timestamp: data.timestamp
-    }));
     
+    record.attempts++;
     return true;
   } catch (error) {
     console.error('Rate limiter error:', error);
-    return true;
+    return true; // Fail open
   }
 };
 
@@ -50,10 +39,10 @@ export const securityMiddleware = {
   checkRateLimit,
   
   getSecurityHeaders: (): Record<string, string> => ({
+    'Content-Type': 'application/json',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
-    'Content-Security-Policy': "default-src 'self';"
+    'X-XSS-Protection': '1; mode=block'
   })
 };
 
