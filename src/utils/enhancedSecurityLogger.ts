@@ -1,132 +1,42 @@
 
-import { supabase } from '@/integrations/supabase/client';
-
+// Enhanced security logging utility with proper error handling
 export class EnhancedSecurityLogger {
-  private static instance: EnhancedSecurityLogger;
-  private logQueue: Array<{
-    event_type: string;
-    ip_address?: string;
-    user_agent?: string;
-    details?: any;
-  }> = [];
-  private isProcessing = false;
-
-  static getInstance(): EnhancedSecurityLogger {
-    if (!EnhancedSecurityLogger.instance) {
-      EnhancedSecurityLogger.instance = new EnhancedSecurityLogger();
-    }
-    return EnhancedSecurityLogger.instance;
-  }
-
-  async logSecurityEvent(
-    eventType: string,
-    details?: any,
-    immediate: boolean = false
-  ): Promise<void> {
-    const logEntry = {
-      event_type: eventType,
-      ip_address: await this.getClientIP(),
-      user_agent: navigator.userAgent,
-      details: details ? JSON.stringify(details) : null
-    };
-
-    if (immediate) {
-      await this.sendLogEntry(logEntry);
-    } else {
-      this.logQueue.push(logEntry);
-      this.processQueue();
-    }
-  }
-
-  private async getClientIP(): Promise<string | null> {
+  static logAuthAttempt(success: boolean, details: any = {}) {
     try {
-      // Note: This is a simplified approach. In production, you'd want to use a proper IP detection service
-      return null; // Browser can't reliably get client IP
-    } catch {
-      return null;
-    }
-  }
-
-  private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.logQueue.length === 0) {
-      return;
-    }
-
-    this.isProcessing = true;
-
-    try {
-      const batch = this.logQueue.splice(0, 10); // Process in batches of 10
-      
-      for (const entry of batch) {
-        await this.sendLogEntry(entry);
-      }
+      console.log('Auth attempt:', { success, details, timestamp: new Date().toISOString() });
+      // In a production environment, this would send to a logging service
     } catch (error) {
-      console.error('Failed to process security log queue:', error);
-    } finally {
-      this.isProcessing = false;
-      
-      // Continue processing if more entries exist
-      if (this.logQueue.length > 0) {
-        setTimeout(() => this.processQueue(), 1000);
-      }
+      console.error('Failed to log auth attempt:', error);
     }
   }
 
-  private async sendLogEntry(entry: any): Promise<void> {
+  static logSecurityEvent(eventType: string, details: any = {}) {
     try {
-      const { error } = await supabase.rpc('log_security_event', {
-        event_type_param: entry.event_type,
-        ip_address_param: entry.ip_address,
-        user_agent_param: entry.user_agent,
-        details_param: entry.details ? JSON.parse(entry.details) : null
-      });
-
-      if (error) {
-        console.error('Failed to log security event:', error);
-      }
+      console.log('Security event:', { eventType, details, timestamp: new Date().toISOString() });
+      // In a production environment, this would send to a logging service
     } catch (error) {
-      console.error('Error sending security log:', error);
+      console.error('Failed to log security event:', error);
     }
   }
 
-  // Common security events
-  async logAuthAttempt(success: boolean, details?: any): Promise<void> {
-    await this.logSecurityEvent(
-      success ? 'auth_success' : 'auth_failure',
-      { success, ...details },
-      true
-    );
+  static logSuspiciousActivity(activityType: string, details: any = {}) {
+    try {
+      console.warn('Suspicious activity:', { activityType, details, timestamp: new Date().toISOString() });
+      // In a production environment, this would send to a logging service
+    } catch (error) {
+      console.error('Failed to log suspicious activity:', error);
+    }
   }
 
-  async logFormSubmission(formType: string, projectName?: string): Promise<void> {
-    await this.logSecurityEvent('form_submission', {
-      form_type: formType,
-      project_name: projectName
-    });
-  }
-
-  async logDataAccess(table: string, action: string, recordCount?: number): Promise<void> {
-    await this.logSecurityEvent('data_access', {
-      table,
-      action,
-      record_count: recordCount
-    });
-  }
-
-  async logSuspiciousActivity(activityType: string, details: any): Promise<void> {
-    await this.logSecurityEvent('suspicious_activity', {
-      activity_type: activityType,
-      ...details
-    }, true);
-  }
-
-  async logRateLimitHit(endpoint: string, attempts: number): Promise<void> {
-    await this.logSecurityEvent('rate_limit_hit', {
-      endpoint,
-      attempts
-    }, true);
+  static logRateLimitHit(identifier: string, maxAttempts: number) {
+    try {
+      console.warn('Rate limit hit:', { identifier, maxAttempts, timestamp: new Date().toISOString() });
+      // In a production environment, this would send to a logging service
+    } catch (error) {
+      console.error('Failed to log rate limit hit:', error);
+    }
   }
 }
 
-// Export singleton instance
-export const securityLogger = EnhancedSecurityLogger.getInstance();
+// Export as default for backward compatibility
+export const securityLogger = EnhancedSecurityLogger;

@@ -1,7 +1,6 @@
 
 import { useAuth } from './useAuth';
 import { securityLogger } from '@/utils/enhancedSecurityLogger';
-import { SecurityValidator } from '@/utils/securityValidator';
 import { useState, useEffect } from 'react';
 
 export const useSecureAuth = () => {
@@ -33,7 +32,7 @@ export const useSecureAuth = () => {
   // Enhanced sign out with security logging
   const secureSignOut = async () => {
     try {
-      await securityLogger.logSecurityEvent('user_logout', {
+      securityLogger.logSecurityEvent('user_logout', {
         user_id: auth.user?.id,
         session_duration: Date.now() - securityFlags.lastActivity
       });
@@ -47,7 +46,7 @@ export const useSecureAuth = () => {
       });
     } catch (error) {
       console.error('Secure sign out failed:', error);
-      await securityLogger.logSuspiciousActivity('signout_failure', {
+      securityLogger.logSuspiciousActivity('signout_failure', {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }

@@ -23,7 +23,7 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
     // Check rate limiting status
     const checkRateLimit = () => {
       const identifier = 'auth_form';
-      const isAllowed = SecurityValidator.checkRateLimit(identifier, 15 * 60 * 1000, 5); // 5 attempts per 15 minutes
+      const isAllowed = SecurityValidator.checkRateLimit(identifier, 15 * 60 * 1000, 5);
       
       if (!isAllowed) {
         setRateLimitStatus(prev => ({ 
