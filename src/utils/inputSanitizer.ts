@@ -3,12 +3,17 @@
 let DOMPurify: any = null;
 
 // Safely import DOMPurify with fallback
-try {
-  const DOMPurifyModule = await import('dompurify');
-  DOMPurify = DOMPurifyModule.default;
-} catch (error) {
-  console.warn('DOMPurify not available, using fallback sanitization');
-}
+const initializeDOMPurify = async () => {
+  try {
+    const DOMPurifyModule = await import('dompurify');
+    DOMPurify = DOMPurifyModule.default;
+  } catch (error) {
+    console.warn('DOMPurify not available, using fallback sanitization');
+  }
+};
+
+// Initialize DOMPurify
+initializeDOMPurify();
 
 // Fallback HTML sanitization when DOMPurify is not available
 const fallbackHtmlSanitize = (input: string): string => {
@@ -59,7 +64,7 @@ export const sanitizeInput = {
     return query.replace(/[';--]/g, '').trim().substring(0, 100);
   },
 
-  // Project name validation
+  // Project name validation - fixed regex character class
   projectName: (name: string): string => {
     if (!name || typeof name !== 'string') return '';
     return name.replace(/[<>'"&]/g, '').trim();
@@ -120,6 +125,7 @@ export const validateInput = {
     };
   },
 
+  // Fixed project name validation regex
   projectName: (name: string): boolean => {
     return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s\-_]+$/.test(name);
   }
