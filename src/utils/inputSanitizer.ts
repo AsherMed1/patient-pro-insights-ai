@@ -1,4 +1,3 @@
-
 // Input sanitization and validation utilities with proper error handling
 let DOMPurify: any = null;
 
@@ -125,9 +124,9 @@ export const validateInput = {
     };
   },
 
-  // Fixed project name validation regex - hyphen at end of character class
+  // Fixed project name validation regex - hyphen at beginning of character class
   projectName: (name: string): boolean => {
-    return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s_-]+$/.test(name);
+    return name.length >= 2 && name.length <= 50 && /^[-a-zA-Z0-9\s_]+$/.test(name);
   }
 };
 
