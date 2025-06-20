@@ -7,9 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { LogIn, UserPlus, Eye, EyeOff, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { EnhancedSecurityValidator } from '@/utils/securityEnhancedValidator';
+import { EnhancedSecurityLogger } from '@/utils/enhancedSecurityLogger';
+import { useCSRFProtection } from '@/hooks/useCSRFProtection';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -21,8 +24,10 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [honeypot, setHoneypot] = useState(''); // Honeypot field for spam detection
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { csrfToken, getCSRFHeaders } = useCSRFProtection();
 
   useEffect(() => {
     // Check if user is already logged in
@@ -45,29 +50,61 @@ const Auth = () => {
   }, [navigate]);
 
   const validateForm = (isSignUp: boolean) => {
-    if (!email || !password) {
-      setError('Email and password are required');
+    // Check honeypot field (should be empty)
+    if (honeypot) {
+      EnhancedSecurityLogger.logSuspiciousActivity('honeypot_filled', { honeypot });
+      setError('Security validation failed');
       return false;
     }
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address');
+    // Rate limiting check
+    const clientId = `auth_${Date.now()}`;
+    if (EnhancedSecurityValidator.isRateLimited(clientId, 5, 900000)) { // 5 attempts per 15 minutes
+      EnhancedSecurityLogger.logRateLimitExceeded(clientId, 'auth_attempt');
+      setError('Too many attempts. Please wait before trying again.');
       return false;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    // Enhanced email validation
+    const emailValidation = EnhancedSecurityValidator.validateAndSanitize(email, 'email');
+    if (!emailValidation.isValid) {
+      setError(emailValidation.error || 'Invalid email');
+      return false;
+    }
+
+    // Enhanced password validation
+    const passwordValidation = EnhancedSecurityValidator.validateAndSanitize(password, 'password');
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.error || 'Invalid password');
       return false;
     }
 
     if (isSignUp) {
-      if (!fullName.trim()) {
-        setError('Full name is required');
+      // Enhanced name validation
+      const nameValidation = EnhancedSecurityValidator.validateAndSanitize(fullName, 'name');
+      if (!nameValidation.isValid) {
+        setError(nameValidation.error || 'Invalid name');
         return false;
       }
 
       if (password !== confirmPassword) {
         setError('Passwords do not match');
+        return false;
+      }
+
+      // Additional password strength check for signup
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters long');
+        return false;
+      }
+
+      // Check for basic password complexity
+      const hasUpperCase = /[A-Z]/.test(password);
+      const hasLowerCase = /[a-z]/.test(password);
+      const hasNumbers = /\d/.test(password);
+      
+      if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
+        setError('Password must contain uppercase, lowercase, and numeric characters');
         return false;
       }
     }
@@ -86,27 +123,35 @@ const Auth = () => {
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
 
       if (error) {
+        let errorMessage = 'Authentication failed';
+        
         if (error.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password. Please check your credentials.');
+          errorMessage = 'Invalid email or password. Please check your credentials.';
         } else if (error.message.includes('Email not confirmed')) {
-          setError('Please check your email and click the confirmation link before signing in.');
-        } else {
-          setError(error.message);
+          errorMessage = 'Please check your email and click the confirmation link before signing in.';
+        } else if (error.message.includes('Too many requests')) {
+          errorMessage = 'Too many login attempts. Please wait before trying again.';
         }
+        
+        setError(errorMessage);
+        EnhancedSecurityLogger.logAuthAttempt(false, email, error.message);
       } else {
         toast({
           title: "Success",
           description: "Signed in successfully!",
         });
+        EnhancedSecurityLogger.logAuthAttempt(true, email);
         navigate('/');
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      const errorMessage = 'An unexpected error occurred. Please try again.';
+      setError(errorMessage);
+      EnhancedSecurityLogger.logAuthAttempt(false, email, errorMessage);
       console.error('Sign in error:', err);
     } finally {
       setLoading(false);
@@ -126,7 +171,7 @@ const Auth = () => {
       const redirectUrl = `${window.location.origin}/`;
       
       const { error } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         options: {
           emailRedirectTo: redirectUrl,
@@ -137,20 +182,28 @@ const Auth = () => {
       });
 
       if (error) {
+        let errorMessage = 'Registration failed';
+        
         if (error.message.includes('User already registered')) {
-          setError('An account with this email already exists. Please sign in instead.');
-        } else {
-          setError(error.message);
+          errorMessage = 'An account with this email already exists. Please sign in instead.';
+        } else if (error.message.includes('Password should be at least')) {
+          errorMessage = 'Password does not meet security requirements.';
         }
+        
+        setError(errorMessage);
+        EnhancedSecurityLogger.logAuthAttempt(false, email, error.message);
       } else {
         setMessage('Please check your email for a confirmation link to complete your registration.');
         toast({
           title: "Registration Successful",
           description: "Please check your email to confirm your account.",
         });
+        EnhancedSecurityLogger.logAuthAttempt(true, email);
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      const errorMessage = 'An unexpected error occurred. Please try again.';
+      setError(errorMessage);
+      EnhancedSecurityLogger.logAuthAttempt(false, email, errorMessage);
       console.error('Sign up error:', err);
     } finally {
       setLoading(false);
@@ -164,17 +217,21 @@ const Auth = () => {
     setFullName('');
     setError('');
     setMessage('');
+    setHoneypot('');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            Call Center Analytics
-          </CardTitle>
+          <div className="flex items-center justify-center space-x-2 mb-2">
+            <Shield className="h-6 w-6 text-blue-600" />
+            <CardTitle className="text-2xl font-bold text-gray-900">
+              Call Center Analytics
+            </CardTitle>
+          </div>
           <CardDescription>
-            Access your comprehensive tracking and management system
+            Secure access to your comprehensive tracking and management system
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -186,6 +243,19 @@ const Auth = () => {
 
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
+                {/* Honeypot field - hidden from users */}
+                <input
+                  type="text"
+                  name="website"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  style={{ display: 'none' }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+                
+                <input type="hidden" name="csrf_token" value={csrfToken} />
+                
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
@@ -195,6 +265,8 @@ const Auth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    maxLength={254}
+                    autoComplete="email"
                   />
                 </div>
 
@@ -208,6 +280,8 @@ const Auth = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      maxLength={128}
+                      autoComplete="current-password"
                     />
                     <Button
                       type="button"
@@ -259,6 +333,19 @@ const Auth = () => {
 
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
+                {/* Honeypot field - hidden from users */}
+                <input
+                  type="text"
+                  name="website"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  style={{ display: 'none' }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+                
+                <input type="hidden" name="csrf_token" value={csrfToken} />
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <Input
@@ -268,6 +355,8 @@ const Auth = () => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
+                    maxLength={100}
+                    autoComplete="name"
                   />
                 </div>
 
@@ -280,6 +369,8 @@ const Auth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    maxLength={254}
+                    autoComplete="email"
                   />
                 </div>
 
@@ -289,10 +380,13 @@ const Auth = () => {
                     <Input
                       id="signup-password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Create a password (min 6 characters)"
+                      placeholder="Create a secure password (min 8 chars, mixed case, numbers)"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      minLength={8}
+                      maxLength={128}
+                      autoComplete="new-password"
                     />
                     <Button
                       type="button"
@@ -320,6 +414,8 @@ const Auth = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
+                      maxLength={128}
+                      autoComplete="new-password"
                     />
                     <Button
                       type="button"

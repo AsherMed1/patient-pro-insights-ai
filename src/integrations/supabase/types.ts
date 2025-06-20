@@ -989,6 +989,15 @@ export type Database = {
       }
     }
     Functions: {
+      check_rate_limit_enhanced: {
+        Args: {
+          identifier_param: string
+          action_type_param: string
+          max_attempts_param?: number
+          window_minutes_param?: number
+        }
+        Returns: boolean
+      }
       cleanup_expired_portal_sessions: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -1051,6 +1060,16 @@ export type Database = {
           ip_address_param?: unknown
           user_agent_param?: string
           details_param?: Json
+        }
+        Returns: undefined
+      }
+      log_security_event_enhanced: {
+        Args: {
+          event_type_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+          severity_param?: string
         }
         Returns: undefined
       }
