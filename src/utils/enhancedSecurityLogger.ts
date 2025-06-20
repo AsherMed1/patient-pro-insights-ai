@@ -1,5 +1,5 @@
 
-// Simple security logging utility for client-side logging
+// Simple security logging utility
 export class EnhancedSecurityLogger {
   static logAuthAttempt(success: boolean, details: any = {}) {
     try {
@@ -22,30 +22,6 @@ export class EnhancedSecurityLogger {
       });
     } catch (error) {
       console.error('Failed to log security event:', error);
-    }
-  }
-
-  static logSuspiciousActivity(activityType: string, details: any = {}) {
-    try {
-      console.warn('Suspicious activity:', { 
-        activityType, 
-        details: this.sanitizeDetails(details), 
-        timestamp: new Date().toISOString() 
-      });
-    } catch (error) {
-      console.error('Failed to log suspicious activity:', error);
-    }
-  }
-
-  static logRateLimitHit(identifier: string, maxAttempts: number) {
-    try {
-      console.warn('Rate limit hit:', { 
-        identifier, 
-        maxAttempts, 
-        timestamp: new Date().toISOString() 
-      });
-    } catch (error) {
-      console.error('Failed to log rate limit hit:', error);
     }
   }
 

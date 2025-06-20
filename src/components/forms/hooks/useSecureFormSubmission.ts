@@ -11,23 +11,13 @@ interface UseSecureFormSubmissionProps {
   slides: FormSlide[];
 }
 
-// Simple validation functions
 const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email) && email.length <= 254;
 };
 
-const validatePhone = (phone: string): boolean => {
-  const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-  const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
-  return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10 && cleanPhone.length <= 16;
-};
-
 const sanitizeString = (input: string): string => {
-  return input
-    .trim()
-    .replace(/[<>]/g, '') // Remove potential HTML tags
-    .substring(0, 1000); // Limit length
+  return input.trim().substring(0, 1000);
 };
 
 export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSecureFormSubmissionProps) => {
@@ -44,33 +34,11 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     }
 
     try {
-      console.log('Form submission started for project:', projectForm.id);
-
-      // Basic validation for form data
-      const formDataString = JSON.stringify(formData);
-      if (formDataString.length > 50000) {
-        toast({
-          title: "Error",
-          description: "Form data is too large",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validate required contact information
+      // Validate email if present
       if (formData.email && !validateEmail(formData.email)) {
         toast({
           title: "Validation Error",
           description: "Please enter a valid email address",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (formData.phone && !validatePhone(formData.phone)) {
-        toast({
-          title: "Validation Error",
-          description: "Please enter a valid phone number",
           variant: "destructive",
         });
         return;
@@ -91,7 +59,7 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         }
       }
 
-      // Sanitize all string inputs
+      // Sanitize form data
       const sanitizedFormData = Object.keys(formData).reduce((acc, key) => {
         const value = formData[key];
         if (typeof value === 'string') {
@@ -102,21 +70,19 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         return acc;
       }, {} as Record<string, any>);
 
-      console.log('Form data sanitized successfully');
-
-      // Process tags with sanitization
+      // Process tags
       const formTags = processFormTags(sanitizedFormData, slides);
       const qualificationTags = generateQualificationTags(formTags);
       const allTags = [...formTags, ...qualificationTags];
 
-      // Generate AI summary with sanitized data
+      // Generate AI summary
       const aiSummary = generateAISummary(
         sanitizedFormData,
         slides,
         projectForm.form_templates?.form_type || ''
       );
 
-      // Extract and sanitize contact info
+      // Extract contact info
       const contactInfo = {
         first_name: sanitizeString(sanitizedFormData.first_name || ''),
         last_name: sanitizeString(sanitizedFormData.last_name || ''),
@@ -126,8 +92,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         zip_code: sanitizeString(sanitizedFormData.zip_code || ''),
         insurance_provider: sanitizeString(sanitizedFormData.insurance_provider || '')
       };
-
-      console.log('Submitting form data to database...');
 
       // Submit to database
       const { error } = await supabase
@@ -142,7 +106,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
 
       if (error) {
         console.error('Submission error:', error);
-        
         toast({
           title: "Error",
           description: "Failed to submit form. Please try again.",
@@ -154,8 +117,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
       // Store rate limit timestamp
       localStorage.setItem(rateLimitKey, Date.now().toString());
 
-      console.log('Form submitted successfully');
-
       toast({
         title: "Success",
         description: "Assessment submitted successfully!",
@@ -163,7 +124,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
 
     } catch (error) {
       console.error('Submission error:', error);
-      
       toast({
         title: "Error",
         description: "Failed to submit form. Please try again.",
