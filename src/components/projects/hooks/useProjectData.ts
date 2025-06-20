@@ -147,7 +147,16 @@ export const useProjectData = () => {
         .order('updated_at', { ascending: false });
       
       if (projectsError) throw projectsError;
-      setProjects(projectsData || []);
+      
+      // Convert Supabase Json types to proper types for our interface
+      const typedProjects: Project[] = (projectsData || []).map(project => ({
+        ...project,
+        custom_insurance_list: Array.isArray(project.custom_insurance_list) ? project.custom_insurance_list : [],
+        custom_doctors: Array.isArray(project.custom_doctors) ? project.custom_doctors : [],
+        custom_facility_info: typeof project.custom_facility_info === 'object' ? project.custom_facility_info : {}
+      }));
+      
+      setProjects(typedProjects);
 
       // Get stats using optimized method
       const stats = await getProjectStats(forceRefresh);

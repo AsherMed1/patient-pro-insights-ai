@@ -10,9 +10,9 @@ export interface Project {
   brand_primary_color?: string;
   brand_secondary_color?: string;
   custom_logo_url?: string;
-  custom_insurance_list?: any[];
-  custom_doctors?: any[];
-  custom_facility_info?: any;
+  custom_insurance_list?: any[] | null;
+  custom_doctors?: any[] | null;
+  custom_facility_info?: any | null;
 }
 
 export interface ProjectStats {
