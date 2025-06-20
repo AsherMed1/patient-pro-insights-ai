@@ -63,10 +63,10 @@ export const sanitizeInput = {
     return query.replace(/[';--]/g, '').trim().substring(0, 100);
   },
 
-  // Project name validation - fixed regex character class with hyphen at end
+  // Project name validation - fixed regex character class with escaped hyphen
   projectName: (name: string): string => {
     if (!name || typeof name !== 'string') return '';
-    return name.replace(/[<>'"&-]/g, '').trim();
+    return name.replace(/[<>'"&\-]/g, '').trim();
   },
 
   // Numeric validation
@@ -124,9 +124,9 @@ export const validateInput = {
     };
   },
 
-  // Fixed project name validation regex - hyphen at end of character class
+  // Fixed project name validation regex - escaped hyphen
   projectName: (name: string): boolean => {
-    return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s_-]+$/.test(name);
+    return name.length >= 2 && name.length <= 50 && /^[a-zA-Z0-9\s_\-]+$/.test(name);
   }
 };
 
