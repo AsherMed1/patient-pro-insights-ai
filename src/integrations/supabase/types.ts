@@ -1019,7 +1019,13 @@ export type Database = {
         Returns: boolean
       }
       verify_portal_session: {
-        Args: { project_name_param: string; session_token_param: string }
+        Args:
+          | { project_name_param: string; session_token_param: string }
+          | {
+              project_name_param: string
+              session_token_param: string
+              ip_address_param?: unknown
+            }
         Returns: boolean
       }
       verify_secure_portal_session: {
