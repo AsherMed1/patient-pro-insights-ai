@@ -51,6 +51,25 @@ export class SecurityValidator {
     return { isValid: true };
   }
 
+  static validateEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email) && email.length <= 254;
+  }
+
+  static validatePhone(phone: string): boolean {
+    // Basic phone validation - allows various formats
+    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+    const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
+    return phoneRegex.test(cleanPhone) && cleanPhone.length >= 10 && cleanPhone.length <= 16;
+  }
+
+  static sanitizeString(input: string): string {
+    return input
+      .trim()
+      .replace(/[<>]/g, '') // Remove potential HTML tags
+      .substring(0, 1000); // Limit length
+  }
+
   static checkRateLimit(identifier: string, windowMs: number, maxAttempts: number): boolean {
     const now = Date.now();
     const key = `${identifier}_${Math.floor(now / windowMs)}`;

@@ -26,8 +26,9 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     }
 
     try {
-      // Enhanced security validation
-      const validation = SecurityValidator.validateInput(formData, 'formData');
+      // Enhanced security validation for form data
+      const formDataString = JSON.stringify(formData);
+      const validation = SecurityValidator.validateInput(formDataString, 'text');
       if (!validation.isValid) {
         toast({
           title: "Security Error",
@@ -58,7 +59,7 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
 
       // Rate limiting check
       const clientId = `form_${projectForm.id}_${Date.now()}`;
-      if (!SecurityValidator.checkRateLimit(clientId, 5, 3)) { // 3 submissions per 5 minutes
+      if (!SecurityValidator.checkRateLimit(clientId, 5 * 60 * 1000, 3)) { // 3 submissions per 5 minutes
         toast({
           title: "Rate Limited",
           description: "Too many form submissions. Please wait before submitting again.",
