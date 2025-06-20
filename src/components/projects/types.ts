@@ -10,6 +10,9 @@ export interface Project {
   brand_primary_color?: string;
   brand_secondary_color?: string;
   custom_logo_url?: string;
+  custom_insurance_list?: any[];
+  custom_doctors?: any[];
+  custom_facility_info?: any;
 }
 
 export interface ProjectStats {
@@ -30,4 +33,7 @@ export interface ProjectFormData {
   brand_primary_color: string;
   brand_secondary_color: string;
   custom_logo_url?: string;
+  custom_insurance_list?: any[];
+  custom_doctors?: any[];
+  custom_facility_info?: any;
 }
