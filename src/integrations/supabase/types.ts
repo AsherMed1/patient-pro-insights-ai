@@ -960,7 +960,33 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      agent_performance_view: {
+        Row: {
+          agent: string | null
+          answered_calls_vm: number | null
+          avg_duration_per_call: number | null
+          booked_appointments: number | null
+          conversations_2_plus: number | null
+          no_shows: number | null
+          pickups_40_plus: number | null
+          shows: number | null
+          time_on_phone_minutes: number | null
+          total_dials_made: number | null
+        }
+        Relationships: []
+      }
+      project_stats_view: {
+        Row: {
+          ad_spend: number | null
+          appointments_count: number | null
+          calls_count: number | null
+          confirmed_appointments_count: number | null
+          last_activity: string | null
+          leads_count: number | null
+          project_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_expired_portal_sessions: {
@@ -989,6 +1015,32 @@ export type Database = {
         }
         Returns: string
       }
+      get_dashboard_data: {
+        Args: {
+          p_project_name?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+        }
+        Returns: {
+          leads_count: number
+          appointments_count: number
+          calls_count: number
+          ad_spend_total: number
+        }[]
+      }
+      get_project_stats: {
+        Args: { project_filter?: string }
+        Returns: {
+          project_name: string
+          leads_count: number
+          calls_count: number
+          appointments_count: number
+          confirmed_appointments_count: number
+          ad_spend: number
+          last_activity: string
+        }[]
+      }
       hash_password: {
         Args: { password: string }
         Returns: string
@@ -1000,6 +1052,10 @@ export type Database = {
           user_agent_param?: string
           details_param?: Json
         }
+        Returns: undefined
+      }
+      refresh_performance_views: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       validate_project_access: {
