@@ -13,6 +13,15 @@ interface AddProjectDialogProps {
 }
 
 export const AddProjectDialog = ({ open, onOpenChange, onProjectAdded }: AddProjectDialogProps) => {
+  const handleSave = async (data: ProjectFormData) => {
+    await onProjectAdded()(data);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -28,7 +37,10 @@ export const AddProjectDialog = ({ open, onOpenChange, onProjectAdded }: AddProj
             Create a new project to manage leads, appointments, and analytics.
           </DialogDescription>
         </DialogHeader>
-        <ProjectForm onSubmit={onProjectAdded()} />
+        <ProjectForm 
+          onSave={handleSave}
+          onCancel={handleCancel}
+        />
       </DialogContent>
     </Dialog>
   );

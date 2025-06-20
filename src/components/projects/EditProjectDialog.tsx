@@ -12,6 +12,15 @@ interface EditProjectDialogProps {
 }
 
 export const EditProjectDialog = ({ project, open, onOpenChange, onProjectUpdated }: EditProjectDialogProps) => {
+  const handleSave = async (data: ProjectFormData) => {
+    await onProjectUpdated()(data);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -23,7 +32,8 @@ export const EditProjectDialog = ({ project, open, onOpenChange, onProjectUpdate
         </DialogHeader>
         <ProjectForm 
           initialData={project} 
-          onSubmit={onProjectUpdated()} 
+          onSave={handleSave}
+          onCancel={handleCancel}
         />
       </DialogContent>
     </Dialog>
