@@ -1,8 +1,6 @@
 
 // Enhanced security middleware for API endpoints and form submissions
-import { sanitizeInput, validateInput, rateLimiter } from './inputSanitizer';
-
-export interface SecurityConfig {
+interface SecurityConfig {
   requireAuth?: boolean;
   rateLimitKey?: string;
   maxAttempts?: number;
@@ -11,6 +9,60 @@ export interface SecurityConfig {
   allowedOrigins?: string[];
   csrfProtection?: boolean;
 }
+
+// Simple validation functions
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+};
+
+const sanitizeString = (input: string): string => {
+  return input
+    .trim()
+    .replace(/[<>]/g, '') // Remove potential HTML tags
+    .substring(0, 1000); // Limit length
+};
+
+// Simple rate limiting using localStorage
+const checkRateLimit = (key: string, maxAttempts: number, windowMs: number): boolean => {
+  try {
+    const stored = localStorage.getItem(`rate_limit_${key}`);
+    if (!stored) {
+      localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+        attempts: 1,
+        timestamp: Date.now()
+      }));
+      return true;
+    }
+
+    const data = JSON.parse(stored);
+    const now = Date.now();
+    
+    if (now - data.timestamp > windowMs) {
+      // Reset window
+      localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+        attempts: 1,
+        timestamp: now
+      }));
+      return true;
+    }
+
+    if (data.attempts >= maxAttempts) {
+      return false;
+    }
+
+    // Increment attempts
+    localStorage.setItem(`rate_limit_${key}`, JSON.stringify({
+      attempts: data.attempts + 1,
+      timestamp: data.timestamp
+    }));
+    
+    return true;
+  } catch (error) {
+    console.error('Rate limiter error:', error);
+    return true; // Fail open
+  }
+};
 
 export const securityMiddleware = {
   // Enhanced CSRF protection
@@ -40,9 +92,7 @@ export const securityMiddleware = {
   },
 
   // Enhanced rate limiting with sliding window
-  checkRateLimit: (key: string, maxAttempts: number = 5, windowMs: number = 15 * 60 * 1000): boolean => {
-    return rateLimiter.checkLimit(key, maxAttempts, windowMs);
-  },
+  checkRateLimit,
 
   // Deep sanitization of request body
   sanitizeBody: (body: any): any => {
@@ -55,10 +105,10 @@ export const securityMiddleware = {
       const cleanKey = key.replace(/[<>'"&]/g, '');
       
       if (typeof value === 'string') {
-        sanitized[cleanKey] = sanitizeInput.text(value);
+        sanitized[cleanKey] = sanitizeString(value);
       } else if (Array.isArray(value)) {
         sanitized[cleanKey] = value.map(item => 
-          typeof item === 'string' ? sanitizeInput.text(item) : 
+          typeof item === 'string' ? sanitizeString(item) : 
           typeof item === 'object' ? securityMiddleware.sanitizeBody(item) : item
         );
       } else if (typeof value === 'object' && value !== null) {
@@ -120,11 +170,11 @@ export const securityMiddleware = {
       const rule = rules[field];
       if (!rule) continue;
       
-      if (rule.required && !validateInput.required(value)) {
+      if (rule.required && (!value || value === '')) {
         errors.push(`${field} is required`);
       }
       
-      if (rule.type === 'email' && value && !validateInput.email(value)) {
+      if (rule.type === 'email' && value && !validateEmail(value)) {
         errors.push(`${field} must be a valid email`);
       }
       
@@ -159,7 +209,7 @@ export const useSecureAPI = () => {
     } = config;
 
     // Rate limiting
-    if (rateLimitKey && !rateLimiter.checkLimit(rateLimitKey, maxAttempts, windowMs)) {
+    if (rateLimitKey && !checkRateLimit(rateLimitKey, maxAttempts, windowMs)) {
       throw new Error('Too many requests. Please try again later.');
     }
 
@@ -191,8 +241,8 @@ export const useSecureAPI = () => {
 
     // Add auth header if required
     if (requireAuth) {
-      // Get auth token from Supabase session
-      const authData =sessionStorage.getItem('supabase.auth.token');
+      // Get auth token from sessionStorage or localStorage
+      const authData = sessionStorage.getItem('supabase.auth.token') || localStorage.getItem('supabase.auth.token');
       if (authData) {
         try {
           const parsedAuth = JSON.parse(authData);

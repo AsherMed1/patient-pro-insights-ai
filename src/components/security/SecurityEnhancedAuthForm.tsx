@@ -38,7 +38,7 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
           }
         }
       } catch (error) {
-        console.error('Rate limit check failed:', error);
+        // Silent error handling for production
       }
     };
 
