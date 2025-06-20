@@ -116,15 +116,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
       if (error) {
         console.error('Submission error:', error);
         
-        // Log security event for failed submissions
-        await supabase.rpc('log_security_event', {
-          event_type_param: 'form_submission_error',
-          details_param: {
-            project_form_id: projectForm.id,
-            error: error.message
-          }
-        });
-
         toast({
           title: "Error",
           description: "Failed to submit form. Please try again.",
@@ -132,15 +123,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
         });
         return;
       }
-
-      // Log successful submission
-      await supabase.rpc('log_security_event', {
-        event_type_param: 'form_submission_success',
-        details_param: {
-          project_form_id: projectForm.id,
-          form_type: projectForm.form_templates?.form_type
-        }
-      });
 
       toast({
         title: "Success",
@@ -150,14 +132,6 @@ export const useSecureFormSubmission = ({ projectForm, formData, slides }: UseSe
     } catch (error) {
       console.error('Submission error:', error);
       
-      // Log unexpected errors
-      await supabase.rpc('log_security_event', {
-        event_type_param: 'form_submission_unexpected_error',
-        details_param: {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
-
       toast({
         title: "Error",
         description: "Failed to submit form. Please try again.",

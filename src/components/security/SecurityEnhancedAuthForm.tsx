@@ -39,45 +39,6 @@ export const SecurityEnhancedAuthForm = ({ mode, onToggleMode }: SecurityEnhance
     checkRateLimit();
   }, []);
 
-  const handleAuthAttempt = async (success: boolean, error?: string) => {
-    const newAttempts = rateLimitStatus.attempts + 1;
-    
-    setRateLimitStatus(prev => ({
-      ...prev,
-      attempts: newAttempts
-    }));
-
-    // Log authentication attempt
-    await securityLogger.logAuthAttempt(success, {
-      mode,
-      error: error || null,
-      attempt_number: newAttempts
-    });
-
-    if (!success) {
-      // Add security alerts for failed attempts
-      const alerts: string[] = [];
-      
-      if (newAttempts >= 3) {
-        alerts.push('Multiple failed attempts detected. Please verify your credentials.');
-      }
-      
-      if (error?.includes('rate limit')) {
-        alerts.push('Too many attempts. Please wait before trying again.');
-      }
-      
-      setSecurityAlerts(alerts);
-    } else {
-      // Clear alerts on successful authentication
-      setSecurityAlerts([]);
-      setRateLimitStatus({
-        attempts: 0,
-        blocked: false,
-        resetTime: 0
-      });
-    }
-  };
-
   return (
     <div className="space-y-4">
       {securityAlerts.length > 0 && (
