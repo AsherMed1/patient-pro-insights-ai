@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -12,24 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Shield, Loader2 } from 'lucide-react';
 
 const Auth = () => {
-  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   
-  // Form states
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
-
-  // Redirect authenticated users
-  React.useEffect(() => {
-    if (user && !authLoading) {
-      navigate('/');
-    }
-  }, [user, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,15 +28,18 @@ const Auth = () => {
     setMessage('');
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
       });
 
       if (error) throw error;
       
-      // Navigation will happen automatically via useEffect
+      if (data.user) {
+        navigate('/');
+      }
     } catch (error: any) {
+      console.error('Login error:', error);
       setError(error.message || 'Login failed');
     } finally {
       setLoading(false);
@@ -60,7 +53,7 @@ const Auth = () => {
     setMessage('');
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
         options: {
@@ -70,21 +63,16 @@ const Auth = () => {
 
       if (error) throw error;
       
-      setMessage('Please check your email to confirm your account');
+      if (data.user) {
+        setMessage('Account created successfully! Please check your email to confirm your account.');
+      }
     } catch (error: any) {
+      console.error('Signup error:', error);
       setError(error.message || 'Signup failed');
     } finally {
       setLoading(false);
     }
   };
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -163,9 +151,9 @@ const Auth = () => {
                     type="password"
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
-                    placeholder="Create a password (min 8 characters)"
+                    placeholder="Create a password (min 6 characters)"
                     required
-                    minLength={8}
+                    minLength={6}
                   />
                 </div>
 

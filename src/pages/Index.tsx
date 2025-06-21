@@ -7,197 +7,209 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Phone, UserCheck, DollarSign, Clock, Users, TrendingUp, AlertCircle } from "lucide-react";
+import { Calendar, Phone, DollarSign, Users, LogOut } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const Index = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, signOut } = useAuth();
   const [selectedProject, setSelectedProject] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // Projects query
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success("Signed out successfully");
+    } catch (error) {
+      toast.error("Sign out failed");
+    }
+  };
+
+  // Projects query with error handling
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('project_name');
-      
-      if (error) {
-        console.error('Projects fetch error:', error);
-        throw error;
+      try {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .order('project_name');
+        
+        if (error) {
+          console.error('Projects fetch error:', error);
+          return [];
+        }
+        return data || [];
+      } catch (error) {
+        console.error('Projects query error:', error);
+        return [];
       }
-      return data || [];
     },
     enabled: !!user,
+    retry: 1,
   });
 
-  // Leads query
+  // Leads query with error handling
   const { data: leads = [], isLoading: leadsLoading } = useQuery({
     queryKey: ['leads', selectedProject, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase.from('new_leads').select('*');
-      
-      if (selectedProject !== "ALL") {
-        query = query.eq('project_name', selectedProject);
+      try {
+        let query = supabase.from('new_leads').select('*');
+        
+        if (selectedProject !== "ALL") {
+          query = query.eq('project_name', selectedProject);
+        }
+        
+        if (dateFrom) {
+          query = query.gte('date', dateFrom);
+        }
+        
+        if (dateTo) {
+          query = query.lte('date', dateTo);
+        }
+        
+        const { data, error } = await query.order('date', { ascending: false }).limit(100);
+        
+        if (error) {
+          console.error('Leads fetch error:', error);
+          return [];
+        }
+        return data || [];
+      } catch (error) {
+        console.error('Leads query error:', error);
+        return [];
       }
-      
-      if (dateFrom) {
-        query = query.gte('date', dateFrom);
-      }
-      
-      if (dateTo) {
-        query = query.lte('date', dateTo);
-      }
-      
-      const { data, error } = await query.order('date', { ascending: false });
-      
-      if (error) {
-        console.error('Leads fetch error:', error);
-        throw error;
-      }
-      return data || [];
     },
     enabled: !!user,
+    retry: 1,
   });
 
-  // Appointments query
+  // Appointments query with error handling
   const { data: appointments = [], isLoading: appointmentsLoading } = useQuery({
     queryKey: ['appointments', selectedProject, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase.from('all_appointments').select('*');
-      
-      if (selectedProject !== "ALL") {
-        query = query.eq('project_name', selectedProject);
+      try {
+        let query = supabase.from('all_appointments').select('*');
+        
+        if (selectedProject !== "ALL") {
+          query = query.eq('project_name', selectedProject);
+        }
+        
+        if (dateFrom) {
+          query = query.gte('date_appointment_created', dateFrom);
+        }
+        
+        if (dateTo) {
+          query = query.lte('date_appointment_created', dateTo);
+        }
+        
+        const { data, error } = await query.order('date_appointment_created', { ascending: false }).limit(100);
+        
+        if (error) {
+          console.error('Appointments fetch error:', error);
+          return [];
+        }
+        return data || [];
+      } catch (error) {
+        console.error('Appointments query error:', error);
+        return [];
       }
-      
-      if (dateFrom) {
-        query = query.gte('date_appointment_created', dateFrom);
-      }
-      
-      if (dateTo) {
-        query = query.lte('date_appointment_created', dateTo);
-      }
-      
-      const { data, error } = await query.order('date_appointment_created', { ascending: false });
-      
-      if (error) {
-        console.error('Appointments fetch error:', error);
-        throw error;
-      }
-      return data || [];
     },
     enabled: !!user,
+    retry: 1,
   });
 
-  // Calls query
+  // Calls query with error handling
   const { data: calls = [], isLoading: callsLoading } = useQuery({
     queryKey: ['calls', selectedProject, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase.from('all_calls').select('*');
-      
-      if (selectedProject !== "ALL") {
-        query = query.eq('project_name', selectedProject);
+      try {
+        let query = supabase.from('all_calls').select('*');
+        
+        if (selectedProject !== "ALL") {
+          query = query.eq('project_name', selectedProject);
+        }
+        
+        if (dateFrom) {
+          query = query.gte('date', dateFrom);
+        }
+        
+        if (dateTo) {
+          query = query.lte('date', dateTo);
+        }
+        
+        const { data, error } = await query.order('date', { ascending: false }).limit(100);
+        
+        if (error) {
+          console.error('Calls fetch error:', error);
+          return [];
+        }
+        return data || [];
+      } catch (error) {
+        console.error('Calls query error:', error);
+        return [];
       }
-      
-      if (dateFrom) {
-        query = query.gte('date', dateFrom);
-      }
-      
-      if (dateTo) {
-        query = query.lte('date', dateTo);
-      }
-      
-      const { data, error } = await query.order('date', { ascending: false });
-      
-      if (error) {
-        console.error('Calls fetch error:', error);
-        throw error;
-      }
-      return data || [];
     },
     enabled: !!user,
+    retry: 1,
   });
 
-  // Ad spend query
+  // Ad spend query with error handling
   const { data: adSpend = [], isLoading: adSpendLoading } = useQuery({
     queryKey: ['adSpend', selectedProject, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase.from('facebook_ad_spend').select('*');
-      
-      if (selectedProject !== "ALL") {
-        query = query.eq('project_name', selectedProject);
+      try {
+        let query = supabase.from('facebook_ad_spend').select('*');
+        
+        if (selectedProject !== "ALL") {
+          query = query.eq('project_name', selectedProject);
+        }
+        
+        if (dateFrom) {
+          query = query.gte('date', dateFrom);
+        }
+        
+        if (dateTo) {
+          query = query.lte('date', dateTo);
+        }
+        
+        const { data, error } = await query.order('date', { ascending: false });
+        
+        if (error) {
+          console.error('Ad spend fetch error:', error);
+          return [];
+        }
+        return data || [];
+      } catch (error) {
+        console.error('Ad spend query error:', error);
+        return [];
       }
-      
-      if (dateFrom) {
-        query = query.gte('date', dateFrom);
-      }
-      
-      if (dateTo) {
-        query = query.lte('date', dateTo);
-      }
-      
-      const { data, error } = await query.order('date', { ascending: false });
-      
-      if (error) {
-        console.error('Ad spend fetch error:', error);
-        throw error;
-      }
-      return data || [];
     },
     enabled: !!user,
+    retry: 1,
   });
 
   const totalAdSpend = adSpend.reduce((sum, spend) => sum + (parseFloat(String(spend.spend)) || 0), 0);
   const confirmedAppointments = appointments.filter(apt => apt.confirmed);
 
-  // Show error message if projects fail to load
-  useEffect(() => {
-    if (projectsError) {
-      toast.error("Failed to load projects. Please try refreshing the page.");
-    }
-  }, [projectsError]);
-
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-500" />
-              Authentication Required
-            </CardTitle>
-            <CardDescription>
-              Please sign in to access the dashboard.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
   const isLoading = projectsLoading || leadsLoading || appointmentsLoading || callsLoading || adSpendLoading;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {user.email}! Here's an overview of your performance metrics.
-        </p>
+      <div className="flex justify-between items-start">
+        <div className="flex flex-col space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back, {user?.email}! Here's an overview of your performance metrics.
+          </p>
+        </div>
+        <Button variant="outline" onClick={handleSignOut} className="flex items-center gap-2">
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
 
       {/* Filters */}
@@ -332,7 +344,7 @@ const Index = () => {
                   {leads.slice(0, 10).map((lead) => (
                     <div key={lead.id} className="flex items-center justify-between p-3 border rounded">
                       <div>
-                        <p className="font-medium">{lead.lead_name}</p>
+                        <p className="font-medium">{lead.lead_name || 'Unknown Lead'}</p>
                         <p className="text-sm text-muted-foreground">{lead.project_name}</p>
                       </div>
                       <div className="text-right">
@@ -363,7 +375,7 @@ const Index = () => {
                   {appointments.slice(0, 10).map((appointment) => (
                     <div key={appointment.id} className="flex items-center justify-between p-3 border rounded">
                       <div>
-                        <p className="font-medium">{appointment.lead_name}</p>
+                        <p className="font-medium">{appointment.lead_name || 'Unknown Lead'}</p>
                         <p className="text-sm text-muted-foreground">{appointment.project_name}</p>
                       </div>
                       <div className="text-right">
@@ -396,12 +408,12 @@ const Index = () => {
                   {calls.slice(0, 10).map((call) => (
                     <div key={call.id} className="flex items-center justify-between p-3 border rounded">
                       <div>
-                        <p className="font-medium">{call.lead_name}</p>
+                        <p className="font-medium">{call.lead_name || 'Unknown Lead'}</p>
                         <p className="text-sm text-muted-foreground">{call.project_name}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm">{call.date}</p>
-                        <Badge variant="outline">{call.status}</Badge>
+                        <Badge variant="outline">{call.status || 'Unknown'}</Badge>
                       </div>
                     </div>
                   ))}

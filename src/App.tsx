@@ -16,14 +16,24 @@ import ProjectPortal from "./pages/ProjectPortal";
 import PublicForm from "./pages/PublicForm";
 import SecurityCenter from "./pages/SecurityCenter";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
-// Protected Route component that requires authentication
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
   
   if (!user) {
@@ -33,11 +43,32 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// App Routes component that uses authentication context
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+  
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/auth" element={<Auth />} />
+      <Route path="/auth" element={
+        <PublicRoute>
+          <Auth />
+        </PublicRoute>
+      } />
       <Route path="/form/:slug" element={<PublicForm />} />
       <Route path="/project/:projectName" element={<ProjectPortal />} />
       <Route path="/" element={
