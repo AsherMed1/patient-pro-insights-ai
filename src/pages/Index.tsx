@@ -32,7 +32,7 @@ const Index = () => {
         console.error('Projects fetch error:', error);
         throw error;
       }
-      return data;
+      return data || [];
     },
     enabled: !!user,
   });
@@ -61,7 +61,7 @@ const Index = () => {
         console.error('Leads fetch error:', error);
         throw error;
       }
-      return data;
+      return data || [];
     },
     enabled: !!user,
   });
@@ -90,7 +90,7 @@ const Index = () => {
         console.error('Appointments fetch error:', error);
         throw error;
       }
-      return data;
+      return data || [];
     },
     enabled: !!user,
   });
@@ -119,7 +119,7 @@ const Index = () => {
         console.error('Calls fetch error:', error);
         throw error;
       }
-      return data;
+      return data || [];
     },
     enabled: !!user,
   });
@@ -148,7 +148,7 @@ const Index = () => {
         console.error('Ad spend fetch error:', error);
         throw error;
       }
-      return data;
+      return data || [];
     },
     enabled: !!user,
   });

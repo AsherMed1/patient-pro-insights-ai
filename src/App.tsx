@@ -5,9 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { SecurityProvider } from "@/components/SecurityProvider";
-import { SecurityHeaders } from "@/components/security/SecurityHeaders";
-import { SessionTimeoutWarning } from "@/components/security/SessionTimeoutWarning";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ApiDocs from "./pages/ApiDocs";
@@ -85,11 +82,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <SecurityProvider>
-            <SecurityHeaders />
-            <SessionTimeoutWarning />
-            <AppRoutes />
-          </SecurityProvider>
+          <AppRoutes />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
