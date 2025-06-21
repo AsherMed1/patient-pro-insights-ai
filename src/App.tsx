@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ApiDocs from "./pages/ApiDocs";
@@ -37,7 +38,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
   
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   
   return <>{children}</>;
@@ -55,7 +56,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   }
   
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   
   return <>{children}</>;
@@ -64,6 +65,11 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   return (
     <Routes>
+      <Route path="/" element={
+        <PublicRoute>
+          <Landing />
+        </PublicRoute>
+      } />
       <Route path="/auth" element={
         <PublicRoute>
           <Auth />
@@ -71,7 +77,7 @@ const AppRoutes = () => {
       } />
       <Route path="/form/:slug" element={<PublicForm />} />
       <Route path="/project/:projectName" element={<ProjectPortal />} />
-      <Route path="/" element={
+      <Route path="/dashboard" element={
         <ProtectedRoute>
           <Index />
         </ProtectedRoute>
