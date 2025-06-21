@@ -126,8 +126,7 @@ export class DeviceFingerprintManager {
     }
     
     // High risk if core components changed
-    if (chan
-    gedComponents.includes('userAgent') && changedComponents.includes('platform')) {
+    if (changedComponents.includes('userAgent') && changedComponents.includes('platform')) {
       riskLevel = 'HIGH';
     }
     
