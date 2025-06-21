@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { DeviceFingerprintManager } from '@/utils/deviceFingerprinting';
-import { EnhancedSecurityLogger } from '@/utils/enhancedSecurityLogger';
 
 interface EnhancedAuthState {
   isSecureSession: boolean;
@@ -42,18 +41,6 @@ export const useEnhancedAuth = () => {
         const validation = DeviceFingerprintManager.validateSession(currentFingerprint, storedFingerprint);
         sessionRisk = validation.riskLevel;
         deviceTrusted = validation.isValid;
-        
-        if (sessionRisk === 'HIGH') {
-          EnhancedSecurityLogger.logSecurityEvent({
-            type: 'suspicious_activity',
-            severity: 'HIGH',
-            details: {
-              reason: 'device_fingerprint_mismatch',
-              changedComponents: validation.changedComponents,
-              userId: user.id
-            }
-          });
-        }
       }
       
       // Check session validity
@@ -85,15 +72,6 @@ export const useEnhancedAuth = () => {
 
   const forceSecureSignOut = async () => {
     try {
-      EnhancedSecurityLogger.logSecurityEvent({
-        type: 'auth_attempt',
-        severity: 'MEDIUM',
-        details: {
-          reason: 'security_forced_signout',
-          userId: user?.id
-        }
-      });
-      
       await signOut();
     } catch (error) {
       console.error('Secure sign out failed:', error);

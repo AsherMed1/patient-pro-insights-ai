@@ -15,17 +15,34 @@ export class DeviceFingerprintManager {
   private static readonly STORAGE_KEY = 'device_fingerprint';
   
   static generateFingerprint(): DeviceFingerprint {
+    // Ensure we're in a browser environment
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return {
+        id: 'server-side',
+        userAgent: 'server',
+        screenResolution: '0x0',
+        timezone: 'UTC',
+        language: 'en',
+        platform: 'server',
+        cookieEnabled: false,
+        onlineStatus: false,
+        timestamp: Date.now()
+      };
+    }
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    ctx?.fillText('Security fingerprint', 10, 10);
+    if (ctx) {
+      ctx.fillText('Security fingerprint', 10, 10);
+    }
     const canvasFingerprint = canvas.toDataURL();
     
     const components = [
-      navigator.userAgent,
-      screen.width + 'x' + screen.height,
-      Intl.DateTimeFormat().resolvedOptions().timeZone,
-      navigator.language,
-      navigator.platform,
+      navigator.userAgent || 'unknown',
+      `${screen.width}x${screen.height}`,
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      navigator.language || 'en',
+      navigator.platform || 'unknown',
       navigator.cookieEnabled.toString(),
       navigator.onLine.toString(),
       canvasFingerprint.substring(0, 50)
@@ -33,11 +50,11 @@ export class DeviceFingerprintManager {
     
     const fingerprint: DeviceFingerprint = {
       id: this.hashComponents(components),
-      userAgent: navigator.userAgent,
-      screenResolution: screen.width + 'x' + screen.height,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      language: navigator.language,
-      platform: navigator.platform,
+      userAgent: navigator.userAgent || 'unknown',
+      screenResolution: `${screen.width}x${screen.height}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      language: navigator.language || 'en',
+      platform: navigator.platform || 'unknown',
       cookieEnabled: navigator.cookieEnabled,
       onlineStatus: navigator.onLine,
       timestamp: Date.now()
@@ -58,6 +75,8 @@ export class DeviceFingerprintManager {
   }
   
   static getStoredFingerprint(): DeviceFingerprint | null {
+    if (typeof window === 'undefined') return null;
+    
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       return stored ? JSON.parse(stored) : null;
@@ -67,6 +86,8 @@ export class DeviceFingerprintManager {
   }
   
   static storeFingerprint(fingerprint: DeviceFingerprint): void {
+    if (typeof window === 'undefined') return;
+    
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(fingerprint));
     } catch (error) {
@@ -105,7 +126,8 @@ export class DeviceFingerprintManager {
     }
     
     // High risk if core components changed
-    if (changedComponents.includes('userAgent') && changedComponents.includes('platform')) {
+    if (chan
+    gedComponents.includes('userAgent') && changedComponents.includes('platform')) {
       riskLevel = 'HIGH';
     }
     
@@ -131,7 +153,6 @@ export class DeviceFingerprintManager {
     
     if (validation.riskLevel === 'HIGH') {
       console.warn('High-risk session detected:', validation.changedComponents);
-      // Could trigger additional security measures here
     }
     
     // Update stored fingerprint with current timestamp
@@ -139,7 +160,7 @@ export class DeviceFingerprintManager {
   }
 }
 
-// Initialize device fingerprinting
+// Initialize device fingerprinting only in browser
 if (typeof window !== 'undefined') {
   DeviceFingerprintManager.initializeDeviceTracking();
 }
