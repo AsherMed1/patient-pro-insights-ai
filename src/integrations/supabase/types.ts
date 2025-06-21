@@ -236,6 +236,36 @@ export type Database = {
         }
         Relationships: []
       }
+      api_rate_limits: {
+        Row: {
+          blocked_until: string | null
+          created_at: string | null
+          endpoint: string
+          id: string
+          identifier: string
+          request_count: number | null
+          window_start: string | null
+        }
+        Insert: {
+          blocked_until?: string | null
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          identifier: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          blocked_until?: string | null
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          identifier?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       appointment_notes: {
         Row: {
           appointment_id: string
@@ -484,6 +514,7 @@ export type Database = {
           submission_data: Json
           submitted_at: string
           tags: Json | null
+          user_id: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -494,6 +525,7 @@ export type Database = {
           submission_data: Json
           submitted_at?: string
           tags?: Json | null
+          user_id?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -504,6 +536,7 @@ export type Database = {
           submission_data?: Json
           submitted_at?: string
           tags?: Json | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -896,6 +929,7 @@ export type Database = {
           event_type: string
           id: string
           ip_address: unknown | null
+          session_id: string | null
           user_agent: string | null
           user_id: string | null
         }
@@ -905,6 +939,7 @@ export type Database = {
           event_type: string
           id?: string
           ip_address?: unknown | null
+          session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -914,8 +949,36 @@ export type Database = {
           event_type?: string
           id?: string
           ip_address?: unknown | null
+          session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      security_config: {
+        Row: {
+          config_key: string
+          config_value: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          config_key: string
+          config_value: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          config_key?: string
+          config_value?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -958,6 +1021,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       agent_performance_view: {
@@ -994,6 +1081,15 @@ export type Database = {
           identifier_param: string
           action_type_param: string
           max_attempts_param?: number
+          window_minutes_param?: number
+        }
+        Returns: boolean
+      }
+      check_rate_limit_v2: {
+        Args: {
+          identifier_param: string
+          endpoint_param: string
+          max_requests_param?: number
           window_minutes_param?: number
         }
         Returns: boolean
@@ -1050,6 +1146,13 @@ export type Database = {
           last_activity: string
         }[]
       }
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
       hash_password: {
         Args: { password: string }
         Returns: string
@@ -1082,6 +1185,19 @@ export type Database = {
           severity_param?: string
         }
         Returns: undefined
+      }
+      log_security_event_v2: {
+        Args: {
+          event_type_param: string
+          severity_param?: string
+          user_id_param?: string
+          session_id_param?: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+          endpoint_param?: string
+        }
+        Returns: string
       }
       refresh_performance_views: {
         Args: Record<PropertyKey, never>
@@ -1131,7 +1247,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1246,6 +1362,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
