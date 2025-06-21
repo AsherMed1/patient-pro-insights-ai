@@ -36,7 +36,7 @@ const Auth = () => {
       if (error) throw error;
       
       if (data.user) {
-        navigate('/');
+        navigate('/dashboard');
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -57,14 +57,20 @@ const Auth = () => {
         email: signupEmail,
         password: signupPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) throw error;
       
       if (data.user) {
-        setMessage('Account created successfully! Please check your email to confirm your account.');
+        if (data.user.email_confirmed_at) {
+          // User is immediately confirmed, redirect to dashboard
+          navigate('/dashboard');
+        } else {
+          // User needs to confirm email
+          setMessage('Account created successfully! Please check your email to confirm your account.');
+        }
       }
     } catch (error: any) {
       console.error('Signup error:', error);
