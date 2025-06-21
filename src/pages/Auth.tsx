@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,17 +17,19 @@ const Auth = () => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  // Secure form hooks for login and signup
+  // Secure form hooks for login and signup with delays
   const loginForm = useSecureForm({
     formType: 'login',
     requireCSRF: true,
-    rateLimitKey: 'auth_login'
+    rateLimitKey: 'auth_login',
+    submissionDelay: 1000 // 1 second delay for login
   });
 
   const signupForm = useSecureForm({
     formType: 'signup',
     requireCSRF: true,
-    rateLimitKey: 'auth_signup'
+    rateLimitKey: 'auth_signup',
+    submissionDelay: 1500 // 1.5 second delay for signup
   });
 
   useEffect(() => {

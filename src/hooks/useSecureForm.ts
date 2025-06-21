@@ -14,6 +14,7 @@ interface UseSecureFormOptions {
   formType: string;
   requireCSRF?: boolean;
   rateLimitKey?: string;
+  submissionDelay?: number; // Add configurable submission delay
 }
 
 export const useSecureForm = (options: UseSecureFormOptions) => {
@@ -99,10 +100,16 @@ export const useSecureForm = (options: UseSecureFormOptions) => {
         throw new Error('Form validation failed');
       }
 
+      // Add delay before submission to avoid rate limiting
+      const delay = options.submissionDelay || 500; // Default 500ms delay
+      if (delay > 0) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
       // Rate limiting check if specified
       if (options.rateLimitKey) {
         const clientId = `form_${Date.now()}`;
-        if (EnhancedSecurityValidator.isRateLimited(clientId, 5, 60000)) {
+        if (EnhancedSecurityValidator.isRateLimited(clientId, 3, 60000)) { // Reduced to 3 attempts per minute
           throw new Error('Too many attempts. Please wait before trying again.');
         }
       }
@@ -120,7 +127,7 @@ export const useSecureForm = (options: UseSecureFormOptions) => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, validateForm, options.formType, options.rateLimitKey]);
+  }, [isSubmitting, validateForm, options.formType, options.rateLimitKey, options.submissionDelay]);
 
   return {
     fields,
