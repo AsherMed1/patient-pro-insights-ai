@@ -1,272 +1,299 @@
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Enhanced security configuration
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-csrf-token, x-request-id',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Security-Policy': "default-src 'self'",
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
+}
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+// Rate limiting storage
+const rateLimitStore = new Map<string, { count: number; windowStart: number }>()
 
-// Rate limiting map
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+interface CallData {
+  project_name: string
+  lead_name: string
+  lead_phone_number: string
+  date: string
+  call_datetime: string
+  duration_seconds: number
+  direction: string
+  status: string
+  agent?: string
+  recording_url?: string
+  call_summary?: string
+}
 
-// Security validation functions
-function validateInput(data: any): { isValid: boolean; error?: string } {
-  const requiredFields = ['project_name', 'lead_name', 'lead_phone_number', 'direction', 'status'];
+function validateCallData(data: any): { isValid: boolean; errors: string[] } {
+  const errors: string[] = []
   
-  for (const field of requiredFields) {
-    if (!data[field] || typeof data[field] !== 'string') {
-      return { isValid: false, error: `Missing or invalid ${field}` };
+  if (!data.project_name || typeof data.project_name !== 'string' || data.project_name.length > 100) {
+    errors.push('Invalid project_name')
+  }
+  
+  if (!data.lead_name || typeof data.lead_name !== 'string' || data.lead_name.length > 100) {
+    errors.push('Invalid lead_name')
+  }
+  
+  if (!data.lead_phone_number || typeof data.lead_phone_number !== 'string' || data.lead_phone_number.length > 20) {
+    errors.push('Invalid lead_phone_number')
+  }
+  
+  if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+    errors.push('Invalid date format (YYYY-MM-DD required)')
+  }
+  
+  if (!data.call_datetime || typeof data.call_datetime !== 'string') {
+    errors.push('Invalid call_datetime')
+  }
+  
+  if (typeof data.duration_seconds !== 'number' || data.duration_seconds < 0) {
+    errors.push('Invalid duration_seconds')
+  }
+  
+  if (!data.direction || !['inbound', 'outbound'].includes(data.direction)) {
+    errors.push('Invalid direction (must be inbound or outbound)')
+  }
+  
+  if (!data.status || typeof data.status !== 'string' || data.status.length > 50) {
+    errors.push('Invalid status')
+  }
+  
+  return { isValid: errors.length === 0, errors }
+}
+
+function checkRateLimit(clientId: string, maxRequests: number = 10, windowMs: number = 60000): boolean {
+  const now = Date.now()
+  const windowStart = Math.floor(now / windowMs) * windowMs
+  const key = `${clientId}_${windowStart}`
+  
+  const existing = rateLimitStore.get(key)
+  if (existing) {
+    if (existing.count >= maxRequests) {
+      return false // Rate limited
     }
+    existing.count++
+  } else {
+    rateLimitStore.set(key, { count: 1, windowStart })
     
-    if (data[field].length > 255) {
-      return { isValid: false, error: `${field} exceeds maximum length` };
+    // Cleanup old entries
+    if (rateLimitStore.size > 1000) {
+      const cutoff = now - (24 * 60 * 60 * 1000) // 24 hours
+      for (const [k, v] of rateLimitStore.entries()) {
+        if (v.windowStart < cutoff) {
+          rateLimitStore.delete(k)
+        }
+      }
     }
   }
-
-  // Validate phone number format
-  const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{7,15}$/;
-  if (!phoneRegex.test(data.lead_phone_number.replace(/[\s\-\(\)]/g, ''))) {
-    return { isValid: false, error: 'Invalid phone number format' };
-  }
-
-  // Validate project name format
-  const projectRegex = /^[a-zA-Z0-9\-_\s]{1,100}$/;
-  if (!projectRegex.test(data.project_name)) {
-    return { isValid: false, error: 'Invalid project name format' };
-  }
-
-  return { isValid: true };
+  
+  return true // Not rate limited
 }
 
-function checkRateLimit(clientId: string): boolean {
-  const now = Date.now();
-  const limit = rateLimitMap.get(clientId);
-  
-  if (!limit || now > limit.resetTime) {
-    rateLimitMap.set(clientId, { count: 1, resetTime: now + 60000 }); // 1 minute window
-    return true;
-  }
-  
-  if (limit.count >= 10) { // Max 10 requests per minute
-    return false;
-  }
-  
-  limit.count++;
-  return true;
+function sanitizeInput(input: string, maxLength: number = 1000): string {
+  return input
+    .trim()
+    .replace(/[<>]/g, '') // Remove potential HTML
+    .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+    .substring(0, maxLength)
 }
 
-async function logSecurityEvent(eventType: string, details: any, clientIp?: string) {
-  try {
-    await supabase.rpc('log_security_event', {
-      event_type_param: eventType,
-      ip_address_param: clientIp,
-      details_param: details
-    });
-  } catch (error) {
-    console.error('Failed to log security event:', error);
-  }
+function getClientIP(request: Request): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0] ||
+         request.headers.get('x-real-ip') ||
+         'unknown'
 }
 
 serve(async (req) => {
-  // CORS headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
-  const clientIp = req.headers.get('x-forwarded-for') || 'unknown';
-  const userAgent = req.headers.get('user-agent') || 'unknown';
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   try {
-    // Rate limiting check
-    if (!checkRateLimit(clientIp)) {
-      await logSecurityEvent('rate_limit_exceeded', {
-        endpoint: 'secure-all-calls-api',
-        ip: clientIp,
-        userAgent
-      }, clientIp);
-
+    const clientIP = getClientIP(req)
+    const userAgent = req.headers.get('user-agent') || 'unknown'
+    const requestId = req.headers.get('x-request-id') || crypto.randomUUID()
+    
+    // Enhanced rate limiting
+    if (!checkRateLimit(clientIP, 10, 60000)) {
+      console.error(`Rate limit exceeded for IP: ${clientIP}`)
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded' }),
-        { 
-          status: 429, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
-
-    // Validate request method
-    if (req.method !== 'POST') {
+    
+    // Authentication check
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('Missing or invalid authorization header')
       return new Response(
-        JSON.stringify({ error: 'Method not allowed' }),
-        { 
-          status: 405, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Validate content length
-    const contentLength = req.headers.get('content-length');
-    if (contentLength && parseInt(contentLength) > 10000) { // 10KB limit
-      await logSecurityEvent('oversized_request', {
-        endpoint: 'secure-all-calls-api',
-        contentLength,
-        ip: clientIp
-      }, clientIp);
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Verify JWT token
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authError || !user) {
+      console.error('Authentication failed:', authError)
       return new Response(
-        JSON.stringify({ error: 'Request too large' }),
-        { 
-          status: 413, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    const body = await req.text();
-    let data;
+    // Parse and validate request body
+    const contentLength = req.headers.get('content-length')
+    if (contentLength && parseInt(contentLength) > 1024 * 1024) { // 1MB limit
+      return new Response(
+        JSON.stringify({ error: 'Request body too large' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
+    const body = await req.json()
+    const { isValid, errors } = validateCallData(body)
+    
+    if (!isValid) {
+      console.error('Validation errors:', errors)
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', details: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Sanitize inputs
+    const sanitizedData: CallData = {
+      project_name: sanitizeInput(body.project_name, 100),
+      lead_name: sanitizeInput(body.lead_name, 100),
+      lead_phone_number: sanitizeInput(body.lead_phone_number, 20),
+      date: body.date,
+      call_datetime: body.call_datetime,
+      duration_seconds: Math.max(0, Math.min(body.duration_seconds, 86400)), // Max 24 hours
+      direction: body.direction,
+      status: sanitizeInput(body.status, 50),
+      agent: body.agent ? sanitizeInput(body.agent, 100) : undefined,
+      recording_url: body.recording_url ? sanitizeInput(body.recording_url, 500) : undefined,
+      call_summary: body.call_summary ? sanitizeInput(body.call_summary, 2000) : undefined
+    }
+
+    // Convert datetime to proper format with timezone handling
+    let finalDateTime: string
     try {
-      data = JSON.parse(body);
-    } catch (error) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON format' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Enhanced input validation
-    const validation = validateInput(data);
-    if (!validation.isValid) {
-      await logSecurityEvent('invalid_input', {
-        endpoint: 'secure-all-calls-api',
-        error: validation.error,
-        ip: clientIp
-      }, clientIp);
-
-      return new Response(
-        JSON.stringify({ error: validation.error }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Sanitize string inputs
-    const sanitizedData = {
-      ...data,
-      project_name: data.project_name.trim(),
-      lead_name: data.lead_name.trim(),
-      lead_phone_number: data.lead_phone_number.trim(),
-      direction: data.direction.trim(),
-      status: data.status.trim(),
-      agent: data.agent?.trim() || null,
-      call_summary: data.call_summary?.trim() || null
-    };
-
-    // Enhanced datetime processing with timezone handling
-    let processedDateTime;
-    if (sanitizedData.call_datetime) {
-      try {
-        const inputDate = new Date(sanitizedData.call_datetime);
-        if (isNaN(inputDate.getTime())) {
-          throw new Error('Invalid date format');
-        }
-        
-        // Convert to UTC if not already
-        processedDateTime = inputDate.toISOString();
-        console.log(`Processed datetime: ${processedDateTime}`);
-      } catch (error) {
-        console.error('Date processing error:', error);
-        processedDateTime = new Date().toISOString();
-      }
+    // Check if timezone info is present
+    if (sanitizedData.call_datetime.includes('+') || sanitizedData.call_datetime.includes('Z')) {
+      // Has timezone info, use as-is
+      finalDateTime = new Date(sanitizedData.call_datetime).toISOString()
     } else {
-      processedDateTime = new Date().toISOString();
+      // No timezone info, treat as Central Time
+      console.log(`No timezone info detected, treating as Central Time`)
+      
+      const dateTime = new Date(sanitizedData.call_datetime)
+      const now = new Date()
+      
+      // Check if we're in DST (rough approximation)
+      const isDST = now.getTimezoneOffset() < 360 // Less than 6 hours from UTC
+      const offsetHours = isDST ? 5 : 6 // CDT is UTC-5, CST is UTC-6
+      
+      console.log(`Is DST: ${isDST} Offset hours: ${offsetHours}`)
+      
+      // Add the offset to convert to UTC
+      const utcDateTime = new Date(dateTime.getTime() + (offsetHours * 60 * 60 * 1000))
+      finalDateTime = utcDateTime.toISOString()
+      
+      console.log(`Converted Central to UTC: ${finalDateTime}`)
+    }
+    
+    console.log(`Final UTC datetime to save: ${finalDateTime}`)
+    } catch (error) {
+      console.error('DateTime conversion error:', error)
+      return new Response(
+        JSON.stringify({ error: 'Invalid datetime format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Insert call record with enhanced error handling
-    const { data: insertResult, error } = await supabase
+    // Insert call record
+    const { data, error } = await supabase
       .from('all_calls')
       .insert({
-        project_name: sanitizedData.project_name,
-        lead_name: sanitizedData.lead_name,
-        lead_phone_number: sanitizedData.lead_phone_number,
-        direction: sanitizedData.direction,
-        status: sanitizedData.status,
-        agent: sanitizedData.agent,
-        call_datetime: processedDateTime,
-        date: processedDateTime.split('T')[0],
-        duration_seconds: sanitizedData.duration_seconds || 0,
-        recording_url: sanitizedData.recording_url || null,
-        call_summary: sanitizedData.call_summary
+        ...sanitizedData,
+        call_datetime: finalDateTime
       })
-      .select();
+      .select()
 
     if (error) {
-      console.error('Database insertion error:', error);
-      
-      await logSecurityEvent('database_error', {
-        endpoint: 'secure-all-calls-api',
-        error: error.message,
-        project: sanitizedData.project_name
-      }, clientIp);
-
+      console.error('Database error:', error)
       return new Response(
         JSON.stringify({ error: 'Failed to save call record' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Log successful operation
-    await logSecurityEvent('call_record_created', {
-      endpoint: 'secure-all-calls-api',
-      project: sanitizedData.project_name,
-      recordId: insertResult?.[0]?.id
-    }, clientIp);
+    // Log security event
+    const { error: logError } = await supabase.rpc('log_security_event_enhanced', {
+      event_type_param: 'api_call',
+      ip_address_param: clientIP,
+      user_agent_param: userAgent,
+      details_param: {
+        endpoint: 'secure-all-calls-api',
+        user_id: user.id,
+        request_id: requestId,
+        success: true
+      },
+      severity_param: 'LOW'
+    })
 
-    console.log(`Successfully saved call record: ${JSON.stringify(insertResult)}`);
+    if (logError) {
+      console.error('Failed to log security event:', logError)
+    }
+
+    console.log(`Successfully saved call record with UTC datetime: ${finalDateTime}`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Call record saved successfully',
-        id: insertResult?.[0]?.id 
+        data: data[0],
+        request_id: requestId
       }),
       { 
-        status: 200, 
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    );
+    )
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Unexpected error:', error)
     
-    await logSecurityEvent('unexpected_error', {
-      endpoint: 'secure-all-calls-api',
-      error: error.message
-    }, clientIp);
-
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        request_id: req.headers.get('x-request-id') || crypto.randomUUID()
+      }),
       { 
-        status: 500, 
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    );
+    )
   }
-});
+})

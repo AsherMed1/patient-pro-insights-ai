@@ -10,12 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EnhancedSecurityLogger } from '@/utils/enhancedSecurityLogger';
+import { Shield, Eye, EyeOff } from 'lucide-react';
 
 const Auth = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Secure form hooks for login and signup
   const loginForm = useSecureForm({
@@ -63,14 +65,33 @@ const Auth = () => {
           throw authError;
         }
 
-        EnhancedSecurityLogger.logAuthAttempt(true, email);
+        EnhancedSecurityLogger.logSecurityEvent({
+          type: 'auth_attempt',
+          severity: 'LOW',
+          details: {
+            success: true,
+            method: 'email_password',
+            email: email.substring(0, 3) + '***'
+          }
+        });
+        
         navigate('/');
       });
 
     } catch (error: any) {
       console.error('Login error:', error);
       setError(error.message || 'Login failed');
-      EnhancedSecurityLogger.logAuthAttempt(false, loginForm.fields.email?.value, error.message);
+      
+      EnhancedSecurityLogger.logSecurityEvent({
+        type: 'auth_attempt',
+        severity: 'MEDIUM',
+        details: {
+          success: false,
+          method: 'email_password',
+          email: loginForm.fields.email?.value ? loginForm.fields.email.value.substring(0, 3) + '***' : undefined,
+          error: error.message
+        }
+      });
     }
   };
 
@@ -104,14 +125,33 @@ const Auth = () => {
           throw authError;
         }
 
-        EnhancedSecurityLogger.logAuthAttempt(true, email);
+        EnhancedSecurityLogger.logSecurityEvent({
+          type: 'auth_attempt',
+          severity: 'LOW',
+          details: {
+            success: true,
+            method: 'email_password_signup',
+            email: email.substring(0, 3) + '***'
+          }
+        });
+        
         setMessage('Please check your email to confirm your account');
       });
 
     } catch (error: any) {
       console.error('Signup error:', error);
       setError(error.message || 'Signup failed');
-      EnhancedSecurityLogger.logAuthAttempt(false, signupForm.fields.email?.value, error.message);
+      
+      EnhancedSecurityLogger.logSecurityEvent({
+        type: 'auth_attempt',
+        severity: 'MEDIUM',
+        details: {
+          success: false,
+          method: 'email_password_signup',
+          email: signupForm.fields.email?.value ? signupForm.fields.email.value.substring(0, 3) + '***' : undefined,
+          error: error.message
+        }
+      });
     }
   };
 
@@ -123,7 +163,10 @@ const Auth = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome</CardTitle>
+          <div className="flex justify-center mb-4">
+            <Shield className="h-8 w-8 text-blue-600" />
+          </div>
+          <CardTitle className="text-2xl font-bold">Secure Access</CardTitle>
           <CardDescription>Sign in to your account or create a new one</CardDescription>
         </CardHeader>
         <CardContent>
@@ -157,7 +200,7 @@ const Auth = () => {
                 disabled={loginForm.isSubmitting}
                 className="w-full"
               >
-                {loginForm.isSubmitting ? 'Signing In...' : 'Sign In'}
+                {loginForm.isSubmitting ? 'Signing In...' : 'Sign In Securely'}
               </Button>
             </TabsContent>
 
@@ -175,17 +218,30 @@ const Auth = () => {
                 label="Password"
                 type="password"
                 {...signupForm.getFieldProps('password')}
-                placeholder="Create a password (min 8 characters)"
+                placeholder="Create a strong password (min 8 characters)"
                 required
                 showSecurityIndicator
               />
+
+              <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="h-3 w-3 text-blue-600" />
+                  <span className="font-medium">Password Requirements:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>At least 8 characters long</li>
+                  <li>Include uppercase and lowercase letters</li>
+                  <li>Include numbers and special characters</li>
+                  <li>Avoid common passwords</li>
+                </ul>
+              </div>
 
               <Button 
                 onClick={handleSignup} 
                 disabled={signupForm.isSubmitting}
                 className="w-full"
               >
-                {signupForm.isSubmitting ? 'Creating Account...' : 'Sign Up'}
+                {signupForm.isSubmitting ? 'Creating Account...' : 'Create Secure Account'}
               </Button>
             </TabsContent>
           </Tabs>
@@ -201,6 +257,13 @@ const Auth = () => {
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
+
+          <div className="mt-6 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+              <Shield className="h-4 w-4 text-green-600" />
+              <span>Protected by enhanced security</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

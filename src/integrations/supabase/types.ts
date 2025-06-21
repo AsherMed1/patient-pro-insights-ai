@@ -1063,6 +1063,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_security_event_critical: {
+        Args: {
+          event_type_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+          severity_param?: string
+        }
+        Returns: undefined
+      }
       log_security_event_enhanced: {
         Args: {
           event_type_param: string
@@ -1088,6 +1098,16 @@ export type Database = {
           ip_address_param?: unknown
         }
         Returns: boolean
+      }
+      validate_security_policies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          table_name: string
+          has_rls: boolean
+          public_access_count: number
+          authenticated_access_count: number
+          security_status: string
+        }[]
       }
       verify_password: {
         Args: { password: string; hash: string }
