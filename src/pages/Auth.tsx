@@ -10,14 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EnhancedSecurityLogger } from '@/utils/enhancedSecurityLogger';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
 const Auth = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   // Secure form hooks for login and signup
   const loginForm = useSecureForm({

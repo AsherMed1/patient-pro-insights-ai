@@ -1,236 +1,138 @@
 
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Shield, AlertTriangle, CheckCircle, Activity, RefreshCw } from 'lucide-react';
-import { AdvancedSecurityHeadersManager } from '@/utils/advancedSecurityHeaders';
-
-interface SecurityMetrics {
-  overallScore: number;
-  headersSecurity: boolean;
-  httpsEnabled: boolean;
-  authenticationActive: boolean;
-  rlsPoliciesActive: boolean;
-  threatDetectionActive: boolean;
-  lastSecurityCheck: Date;
-}
+import { Shield, Lock, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Navigation } from '../Navigation';
+import { useEnhancedAuth } from '@/hooks/useEnhancedAuth';
 
 export const SecurityDashboard: React.FC = () => {
-  const [metrics, setMetrics] = useState<SecurityMetrics | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { sessionRisk, deviceTrusted, isSecureSession, lastSecurityCheck } = useEnhancedAuth();
 
-  const performSecurityCheck = async () => {
-    setLoading(true);
-    
-    // Simulate security checks
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const headerValidation = AdvancedSecurityHeadersManager.validateSecurityHeaders();
-    
-    const newMetrics: SecurityMetrics = {
-      overallScore: 95,
-      headersSecurity: headerValidation.isSecure,
-      httpsEnabled: typeof window !== 'undefined' ? 
-        (window.location.protocol === 'https:' || window.location.hostname === 'localhost') : true,
-      authenticationActive: true,
-      rlsPoliciesActive: true,
-      threatDetectionActive: true,
-      lastSecurityCheck: new Date()
-    };
-    
-    setMetrics(newMetrics);
-    setLoading(false);
+  const getRiskColor = (risk: string) => {
+    switch (risk) {
+      case 'LOW': return 'text-green-600 border-green-600';
+      case 'MEDIUM': return 'text-yellow-600 border-yellow-600';
+      case 'HIGH': return 'text-red-600 border-red-600';
+      default: return 'text-gray-600 border-gray-600';
+    }
   };
-
-  useEffect(() => {
-    performSecurityCheck();
-  }, []);
-
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-yellow-600';
-    if (score >= 70) return 'text-orange-600';
-    return 'text-red-600';
-  };
-
-  const getScoreGrade = (score: number) => {
-    if (score >= 95) return 'A+';
-    if (score >= 90) return 'A';
-    if (score >= 85) return 'B+';
-    if (score >= 80) return 'B';
-    if (score >= 75) return 'C+';
-    if (score >= 70) return 'C';
-    return 'D';
-  };
-
-  if (!metrics) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Security Dashboard</h2>
-        <Button 
-          onClick={performSecurityCheck} 
-          disabled={loading}
-          variant="outline"
-          size="sm"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
-      {/* Overall Score */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Overall Security Score
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className={`text-4xl font-bold ${getScoreColor(metrics.overallScore)}`}>
-              {metrics.overallScore}%
-            </div>
-            <Badge variant="outline" className="text-lg px-3 py-1">
-              Grade {getScoreGrade(metrics.overallScore)}
-            </Badge>
-            <div className="ml-auto text-sm text-gray-500">
-              Last checked: {metrics.lastSecurityCheck.toLocaleString()}
-            </div>
+    <div className="min-h-screen bg-gray-50">
+      <Navigation />
+      
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div className="space-y-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900">Security Center</h1>
+            <p className="mt-2 text-gray-600">Monitor and manage your account security</p>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Security Features Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Security Headers</h3>
-                <p className="text-sm text-gray-500">CSP, HSTS, etc.</p>
-              </div>
-              {metrics.headersSecurity ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          {/* Security Status Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Session Status</CardTitle>
+                <Shield className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2">
+                  {isSecureSession ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                  )}
+                  <span className={`font-semibold ${isSecureSession ? 'text-green-600' : 'text-red-600'}`}>
+                    {isSecureSession ? 'Secure' : 'At Risk'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">HTTPS/TLS</h3>
-                <p className="text-sm text-gray-500">Encrypted connection</p>
-              </div>
-              {metrics.httpsEnabled ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Device Trust</CardTitle>
+                <Lock className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2">
+                  {deviceTrusted ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                  )}
+                  <span className={`font-semibold ${deviceTrusted ? 'text-green-600' : 'text-red-600'}`}>
+                    {deviceTrusted ? 'Trusted' : 'Untrusted'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Authentication</h3>
-                <p className="text-sm text-gray-500">User auth system</p>
-              </div>
-              {metrics.authenticationActive ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Database Security</h3>
-                <p className="text-sm text-gray-500">RLS policies active</p>
-              </div>
-              {metrics.rlsPoliciesActive ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Threat Detection</h3>
-                <p className="text-sm text-gray-500">Real-time monitoring</p>
-              </div>
-              {metrics.threatDetectionActive ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Activity Monitoring</h3>
-                <p className="text-sm text-gray-500">Security logging active</p>
-              </div>
-              <Activity className="h-5 w-5 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Security Recommendations */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Security Recommendations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span>All critical security measures are implemented</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span>Database access is properly secured</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span>Input validation and sanitization active</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-blue-600">
-              <Activity className="h-4 w-4" />
-              <span>Consider implementing role-based access control for enhanced granularity</span>
-            </div>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Risk Level</CardTitle>
+                <Eye className="h-4 w-4 text-orange-600" />
+              </CardHeader>
+              <CardContent>
+                <Badge variant="outline" className={getRiskColor(sessionRisk)}>
+                  {sessionRisk}
+                </Badge>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Security Features */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Security Features</CardTitle>
+              <CardDescription>Your account is protected by these security measures</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-500" />
+                  <span>Device Fingerprinting</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-500" />
+                  <span>Session Monitoring</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-500" />
+                  <span>Input Validation</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-500" />
+                  <span>CSRF Protection</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-500" />
+                  <span>Rate Limiting</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-500" />
+                  <span>Threat Detection</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Last Security Check */}
+          {lastSecurityCheck && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Last Security Check</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600">
+                  {lastSecurityCheck.toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
