@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const Index = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [selectedProject, setSelectedProject] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -153,7 +153,7 @@ const Index = () => {
     enabled: !!user,
   });
 
-  const totalAdSpend = adSpend.reduce((sum, spend) => sum + (parseFloat(spend.spend) || 0), 0);
+  const totalAdSpend = adSpend.reduce((sum, spend) => sum + (parseFloat(String(spend.spend)) || 0), 0);
   const confirmedAppointments = appointments.filter(apt => apt.confirmed);
 
   // Show error message if projects fail to load
@@ -162,6 +162,14 @@ const Index = () => {
       toast.error("Failed to load projects. Please try refreshing the page.");
     }
   }, [projectsError]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
