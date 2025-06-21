@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,28 +9,42 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { EnhancedSecurityLogger } from '@/utils/enhancedSecurityLogger';
-import { Shield } from 'lucide-react';
+import { Shield, Loader2 } from 'lucide-react';
+import { ThreatDetectionMonitor } from '@/components/security/ThreatDetectionMonitor';
+import { SecurityDashboard } from '@/components/security/SecurityDashboard';
+
+interface LoadingState {
+  securityData: boolean;
+  threatMonitoring: boolean;
+  userProfile: boolean;
+}
 
 const Auth = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [loadingStates, setLoadingStates] = useState<LoadingState>({
+    securityData: true,
+    threatMonitoring: true,
+    userProfile: true
+  });
 
   // Secure form hooks for login and signup with delays
   const loginForm = useSecureForm({
     formType: 'login',
     requireCSRF: true,
     rateLimitKey: 'auth_login',
-    submissionDelay: 1000 // 1 second delay for login
+    submissionDelay: 1000
   });
 
   const signupForm = useSecureForm({
     formType: 'signup',
     requireCSRF: true,
     rateLimitKey: 'auth_signup',
-    submissionDelay: 1500 // 1.5 second delay for signup
+    submissionDelay: 1500
   });
 
   useEffect(() => {
@@ -37,6 +52,32 @@ const Auth = () => {
       navigate('/');
     }
   }, [user, navigate]);
+
+  // Sequential API loading effect
+  useEffect(() => {
+    if (!user) return;
+
+    const loadApisSequentially = async () => {
+      try {
+        // Load security data first
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setLoadingStates(prev => ({ ...prev, securityData: false }));
+
+        // Load threat monitoring data
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setLoadingStates(prev => ({ ...prev, threatMonitoring: false }));
+
+        // Load user profile data
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setLoadingStates(prev => ({ ...prev, userProfile: false }));
+
+      } catch (error) {
+        console.error('Error loading auth page data:', error);
+      }
+    };
+
+    loadApisSequentially();
+  }, [user]);
 
   const handleLogin = async () => {
     try {
@@ -155,8 +196,84 @@ const Auth = () => {
     }
   };
 
+  const LoadingSkeleton = ({ title, description }: { title: string; description: string }) => (
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+          <CardTitle className="text-lg">{title}</CardTitle>
+        </div>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+        <div className="flex space-x-2">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-20" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   if (user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Security Dashboard Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900">Security Dashboard</h2>
+            {loadingStates.securityData ? (
+              <LoadingSkeleton 
+                title="Loading Security Data..." 
+                description="Fetching security metrics and audit logs"
+              />
+            ) : (
+              <SecurityDashboard />
+            )}
+          </div>
+
+          {/* Threat Detection Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900">Threat Monitoring</h2>
+            {loadingStates.threatMonitoring ? (
+              <LoadingSkeleton 
+                title="Loading Threat Detection..." 
+                description="Initializing real-time security monitoring"
+              />
+            ) : (
+              <ThreatDetectionMonitor />
+            )}
+          </div>
+
+          {/* User Profile Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900">Profile Information</h2>
+            {loadingStates.userProfile ? (
+              <LoadingSkeleton 
+                title="Loading Profile Data..." 
+                description="Fetching user profile and preferences"
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Profile</CardTitle>
+                  <CardDescription>Your account information</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p><strong>Email:</strong> {user.email}</p>
+                    <p><strong>User ID:</strong> {user.id}</p>
+                    <p><strong>Last Sign In:</strong> {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'N/A'}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -200,7 +317,14 @@ const Auth = () => {
                 disabled={loginForm.isSubmitting}
                 className="w-full"
               >
-                {loginForm.isSubmitting ? 'Signing In...' : 'Sign In Securely'}
+                {loginForm.isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Signing In...
+                  </div>
+                ) : (
+                  'Sign In Securely'
+                )}
               </Button>
             </TabsContent>
 
@@ -241,7 +365,14 @@ const Auth = () => {
                 disabled={signupForm.isSubmitting}
                 className="w-full"
               >
-                {signupForm.isSubmitting ? 'Creating Account...' : 'Create Secure Account'}
+                {signupForm.isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating Account...
+                  </div>
+                ) : (
+                  'Create Secure Account'
+                )}
               </Button>
             </TabsContent>
           </Tabs>
