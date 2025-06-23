@@ -1,106 +1,43 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/sonner";
+
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Toaster as RadixToaster } from "@/components/ui/toaster";
-import { AuthProvider } from "@/hooks/useAuth";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import "./App.css";
-import { lazy, Suspense } from "react";
+import ProjectPortal from "./pages/ProjectPortal";
+import ApiDocs from "./pages/ApiDocs";
+import AgentClaim from "./pages/AgentClaim";
+import UndoImport from "./pages/UndoImport";
+import CsvImportHistory from "./pages/CsvImportHistory";
+import AgentStatsPage from "./components/AgentStatsPage";
+import PublicForm from "./pages/PublicForm";
+import NotFound from "./pages/NotFound";
 
-// Lazy load pages for better performance
-const CsvImportHistory = lazy(() => import("./pages/CsvImportHistory"));
-const UndoImport = lazy(() => import("./pages/UndoImport"));
-const ApiDocs = lazy(() => import("./pages/ApiDocs"));
-const AgentClaim = lazy(() => import("./pages/AgentClaim"));
-const FormManagement = lazy(() => import("./components/forms/FormManagement"));
-const PublicForm = lazy(() => import("./pages/PublicForm"));
-const ProjectPortal = lazy(() => import("./pages/ProjectPortal"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const queryClient = new QueryClient();
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-    },
-  },
-});
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <RadixToaster />
+        <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } 
-            />
-            {/* Keep all other existing routes wrapped in ProtectedRoute */}
-            <Route 
-              path="/csv-import-history" 
-              element={
-                <ProtectedRoute>
-                  <CsvImportHistory />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/undo-import" 
-              element={
-                <ProtectedRoute>
-                  <UndoImport />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/api-docs" 
-              element={
-                <ProtectedRoute>
-                  <ApiDocs />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/agent-claim" 
-              element={
-                <ProtectedRoute>
-                  <AgentClaim />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/forms" 
-              element={
-                <ProtectedRoute>
-                  <FormManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/form/:slug" 
-              element={<PublicForm />} 
-            />
-            <Route 
-              path="/project-portal/:projectName" 
-              element={<ProjectPortal />} 
-            />
+            <Route path="/" element={<Index />} />
+            <Route path="/project/:projectName" element={<ProjectPortal />} />
+            <Route path="/api-docs" element={<ApiDocs />} />
+            <Route path="/agent-claim" element={<AgentClaim />} />
+            <Route path="/undo-import" element={<UndoImport />} />
+            <Route path="/csv-import-history" element={<CsvImportHistory />} />
+            <Route path="/agent-stats" element={<AgentStatsPage onBack={() => window.history.back()} />} />
+            <Route path="/form/:slug" element={<PublicForm />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+    </QueryClientProvider>
+  );
+}
 
 export default App;

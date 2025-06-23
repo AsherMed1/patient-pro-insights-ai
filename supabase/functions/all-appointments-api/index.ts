@@ -106,8 +106,7 @@ serve(async (req) => {
       agent: body.agent || null,
       agent_number: body.agent_number || null,
       ghl_id: body.ghl_id || null,
-      confirmed_number: body.confirmed_number || null,
-      appointment_id: body.appointment_id || null
+      confirmed_number: body.confirmed_number || null
     }
 
     // Check for existing appointment with same ghl_id, date, and time if all are provided

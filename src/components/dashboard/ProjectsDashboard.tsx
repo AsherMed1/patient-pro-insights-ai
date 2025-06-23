@@ -1,21 +1,12 @@
 
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectFilters from './ProjectFilters';
 import ProjectStatsDisplay from './ProjectStatsDisplay';
+import FullDataDashboard from './FullDataDashboard';
 import { useProjectData } from './hooks/useProjectData';
 import { getQuickDateRange } from './utils/dateUtils';
 import type { DateRange } from './types';
-
-// Lazy load the heavy FullDataDashboard component
-const FullDataDashboard = lazy(() => import('./FullDataDashboard'));
-
-const LoadingSpinner = () => (
-  <div className="flex items-center justify-center py-8">
-    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-    <span className="ml-2">Loading full data dashboard...</span>
-  </div>
-);
 
 const ProjectsDashboard = () => {
   const [selectedProject, setSelectedProject] = useState<string>('ALL');
@@ -62,9 +53,7 @@ const ProjectsDashboard = () => {
         </TabsContent>
 
         <TabsContent value="fulldata" className="space-y-6">
-          <Suspense fallback={<LoadingSpinner />}>
-            <FullDataDashboard projectName={selectedProject} />
-          </Suspense>
+          <FullDataDashboard projectName={selectedProject} />
         </TabsContent>
       </Tabs>
     </div>

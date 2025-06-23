@@ -6,7 +6,6 @@ export interface Project {
   created_at: string;
   updated_at: string;
   portal_password?: string | null;
-  ghl_api_key?: string | null;
 }
 
 export interface ProjectStats {
@@ -22,5 +21,4 @@ export interface ProjectStats {
 export interface ProjectFormData {
   project_name: string;
   portal_password?: string;
-  ghl_api_key?: string;
 }

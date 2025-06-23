@@ -13,7 +13,6 @@ export const useProjectOperations = () => {
         .insert({
           project_name: data.project_name,
           portal_password: data.portal_password || null,
-          ghl_api_key: data.ghl_api_key || null,
           active: true
         });
 
@@ -43,7 +42,6 @@ export const useProjectOperations = () => {
         .update({
           project_name: data.project_name,
           portal_password: data.portal_password || null,
-          ghl_api_key: data.ghl_api_key || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', project.id);

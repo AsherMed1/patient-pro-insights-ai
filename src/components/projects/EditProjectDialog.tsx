@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit3, FolderEdit, Lock, Key } from "lucide-react";
 import { Project, ProjectFormData } from './types';
 
 interface EditProjectDialogProps {
@@ -17,16 +16,14 @@ interface EditProjectDialogProps {
 export const EditProjectDialog = ({ open, onOpenChange, project, onSubmit }: EditProjectDialogProps) => {
   const [formData, setFormData] = useState<ProjectFormData>({
     project_name: '',
-    portal_password: '',
-    ghl_api_key: ''
+    portal_password: ''
   });
 
   useEffect(() => {
     if (project) {
       setFormData({
         project_name: project.project_name,
-        portal_password: project.portal_password || '',
-        ghl_api_key: project.ghl_api_key || ''
+        portal_password: project.portal_password || ''
       });
     }
   }, [project]);
@@ -45,43 +42,29 @@ export const EditProjectDialog = ({ open, onOpenChange, project, onSubmit }: Edi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader className="text-left space-y-3">
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Edit3 className="h-5 w-5 text-primary" />
-            Edit Project
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Update project settings, security, and integration configurations.
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Edit Project</DialogTitle>
+          <DialogDescription>
+            Update the project details. Leave password empty to remove protection.
           </DialogDescription>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Project Name Section */}
-          <div className="space-y-2">
-            <Label htmlFor="project_name" className="text-sm font-medium flex items-center gap-2">
-              <FolderEdit className="h-4 w-4" />
-              Project Name *
-            </Label>
-            <Input
-              id="project_name"
-              value={formData.project_name}
-              onChange={(e) => handleInputChange('project_name', e.target.value)}
-              placeholder="Enter a descriptive project name"
-              className="h-11"
-              required
-            />
-          </div>
-
-          {/* Security Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b">
-              <Lock className="h-4 w-4 text-primary" />
-              <h4 className="font-medium text-sm">Security Settings</h4>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="project_name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="project_name"
+                value={formData.project_name}
+                onChange={(e) => handleInputChange('project_name', e.target.value)}
+                className="col-span-3"
+                required
+              />
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="portal_password" className="text-sm font-medium">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="portal_password" className="text-right">
                 Portal Password
               </Label>
               <Input
@@ -89,47 +72,19 @@ export const EditProjectDialog = ({ open, onOpenChange, project, onSubmit }: Edi
                 type="password"
                 value={formData.portal_password}
                 onChange={(e) => handleInputChange('portal_password', e.target.value)}
-                placeholder="Leave empty to remove protection"
-                className="h-11"
+                className="col-span-3"
+                placeholder="Leave empty for no protection"
               />
-              <p className="text-xs text-muted-foreground">
-                Clear this field to make the portal publicly accessible
-              </p>
+            </div>
+            <div className="col-span-4 text-sm text-muted-foreground">
+              <p>Setting a password will require visitors to enter it before accessing the project portal.</p>
             </div>
           </div>
-
-          {/* Integration Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b">
-              <Key className="h-4 w-4 text-primary" />
-              <h4 className="font-medium text-sm">Integration Settings</h4>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="ghl_api_key" className="text-sm font-medium">
-                GoHighLevel API Key
-              </Label>
-              <Input
-                id="ghl_api_key"
-                type="password"
-                value={formData.ghl_api_key}
-                onChange={(e) => handleInputChange('ghl_api_key', e.target.value)}
-                placeholder="Leave empty to remove integration"
-                className="h-11"
-              />
-              <p className="text-xs text-muted-foreground">
-                Clear this field to disable webhook appointment status updates
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-3 pt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="px-6">
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="px-6">
-              Update Project
-            </Button>
+            <Button type="submit">Update Project</Button>
           </DialogFooter>
         </form>
       </DialogContent>

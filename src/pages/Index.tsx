@@ -1,24 +1,21 @@
-import { useState, Suspense } from "react";
+
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { lazy } from "react";
-import { UserMenu } from "@/components/auth/UserMenu";
-
-// Only lazy load the most essential components to reduce initial bundle
-const CallCenterDashboard = lazy(() => import("@/components/CallCenterDashboard"));
-const AllAppointmentsManager = lazy(() => import("@/components/AllAppointmentsManager"));
-const ProjectsManager = lazy(() => import("@/components/ProjectsManager"));
-
-// Loading component for suspense fallback
-const LoadingSpinner = () => (
-  <div className="flex items-center justify-center py-8">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-    <span className="ml-2">Loading...</span>
-  </div>
-);
+import CallCenterDashboard from "@/components/CallCenterDashboard";
+import AllAppointmentsManager from "@/components/AllAppointmentsManager";
+import AllCallsManager from "@/components/AllCallsManager";
+import NewLeadsManager from "@/components/NewLeadsManager";
+import SpeedToLeadManager from "@/components/SpeedToLeadManager";
+import AgentManager from "@/components/AgentManager";
+import ProjectsManager from "@/components/ProjectsManager";
+import AdSpendManager from "@/components/AdSpendManager";
+import AIAssistant from "@/components/AIAssistant";
+import FormManagement from "@/components/forms/FormManagement";
+import AgentPerformanceDashboard from "@/components/AgentPerformanceDashboard";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -26,38 +23,68 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header with user menu */}
-        <div className="flex justify-between items-center">
-          <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
-            <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
-          </div>
-          <UserMenu />
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
+          <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-11">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
+            <TabsTrigger value="calls">Calls</TabsTrigger>
+            <TabsTrigger value="leads">New Leads</TabsTrigger>
+            <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="agent-performance">Agent Performance</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="forms">Forms</TabsTrigger>
+            <TabsTrigger value="adspend">Ad Spend</TabsTrigger>
+            <TabsTrigger value="ai">AI Assistant</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <CallCenterDashboard projectId="project-1" />
-            </Suspense>
+            <CallCenterDashboard projectId="project-1" />
           </TabsContent>
 
           <TabsContent value="appointments" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <AllAppointmentsManager />
-            </Suspense>
+            <AllAppointmentsManager />
+          </TabsContent>
+
+          <TabsContent value="calls" className="space-y-6">
+            <AllCallsManager />
+          </TabsContent>
+
+          <TabsContent value="leads" className="space-y-6">
+            <NewLeadsManager />
+          </TabsContent>
+
+          <TabsContent value="speed" className="space-y-6">
+            <SpeedToLeadManager />
+          </TabsContent>
+
+          <TabsContent value="agents" className="space-y-6">
+            <AgentManager />
+          </TabsContent>
+
+          <TabsContent value="agent-performance" className="space-y-6">
+            <AgentPerformanceDashboard />
           </TabsContent>
 
           <TabsContent value="projects" className="space-y-6">
-            <Suspense fallback={<LoadingSpinner />}>
-              <ProjectsManager />
-            </Suspense>
+            <ProjectsManager />
+          </TabsContent>
+
+          <TabsContent value="forms" className="space-y-6">
+            <FormManagement />
+          </TabsContent>
+
+          <TabsContent value="adspend" className="space-y-6">
+            <AdSpendManager />
+          </TabsContent>
+
+          <TabsContent value="ai" className="space-y-6">
+            <AIAssistant clientId="project-1" />
           </TabsContent>
         </Tabs>
 

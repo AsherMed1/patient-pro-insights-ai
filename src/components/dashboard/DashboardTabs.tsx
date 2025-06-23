@@ -1,22 +1,13 @@
 
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// Lazy load dashboard components
-const ProjectsDashboard = lazy(() => import('./ProjectsDashboard'));
-const AgentsDashboard = lazy(() => import('./AgentsDashboard'));
+import ProjectsDashboard from './ProjectsDashboard';
+import AgentsDashboard from './AgentsDashboard';
 
 interface DashboardTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
 }
-
-const LoadingSpinner = () => (
-  <div className="flex items-center justify-center py-8">
-    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-    <span className="ml-2">Loading...</span>
-  </div>
-);
 
 const DashboardTabs = ({ activeTab, onTabChange }: DashboardTabsProps) => {
   return (
@@ -27,15 +18,11 @@ const DashboardTabs = ({ activeTab, onTabChange }: DashboardTabsProps) => {
       </TabsList>
 
       <TabsContent value="projects" className="space-y-6">
-        <Suspense fallback={<LoadingSpinner />}>
-          <ProjectsDashboard />
-        </Suspense>
+        <ProjectsDashboard />
       </TabsContent>
 
       <TabsContent value="agents" className="space-y-6">
-        <Suspense fallback={<LoadingSpinner />}>
-          <AgentsDashboard />
-        </Suspense>
+        <AgentsDashboard />
       </TabsContent>
     </Tabs>
   );

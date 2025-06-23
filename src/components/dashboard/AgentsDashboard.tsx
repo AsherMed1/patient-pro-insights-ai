@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import AgentFilters from './AgentFilters';
 import AgentStatsDisplay from './AgentStatsDisplay';
-import AgentClaimsTable from './AgentClaimsTable';
 
 interface AgentStats {
   answeredCallsVM: number;
@@ -44,6 +43,7 @@ const AgentsDashboard = () => {
       if (error) throw error;
       setAgents(data || []);
     } catch (error) {
+      console.error('Error fetching agents:', error);
       toast({
         title: "Error",
         description: "Failed to fetch agents",
@@ -55,11 +55,10 @@ const AgentsDashboard = () => {
   const fetchAllCalls = async (baseQuery: any) => {
     let allCalls: any[] = [];
     let from = 0;
-    const batchSize = 500; // Reduced batch size for better performance
+    const batchSize = 1000;
     let hasMore = true;
-    const maxRecords = 5000; // Limit total records to prevent memory issues
 
-    while (hasMore && allCalls.length < maxRecords) {
+    while (hasMore) {
       const { data, error } = await baseQuery
         .range(from, from + batchSize - 1);
       
@@ -68,23 +67,24 @@ const AgentsDashboard = () => {
       if (data && data.length > 0) {
         allCalls = [...allCalls, ...data];
         from += batchSize;
-        hasMore = data.length === batchSize;
+        hasMore = data.length === batchSize; // Continue if we got a full batch
+        console.log(`Fetched batch: ${data.length} calls, total so far: ${allCalls.length}`);
       } else {
         hasMore = false;
       }
     }
 
+    console.log(`Total calls fetched: ${allCalls.length}`);
     return allCalls;
   };
 
   const fetchAllAppointments = async (baseQuery: any) => {
     let allAppointments: any[] = [];
     let from = 0;
-    const batchSize = 500; // Reduced batch size for better performance
+    const batchSize = 1000;
     let hasMore = true;
-    const maxRecords = 2000; // Limit total records to prevent memory issues
 
-    while (hasMore && allAppointments.length < maxRecords) {
+    while (hasMore) {
       const { data, error } = await baseQuery
         .range(from, from + batchSize - 1);
       
@@ -93,12 +93,14 @@ const AgentsDashboard = () => {
       if (data && data.length > 0) {
         allAppointments = [...allAppointments, ...data];
         from += batchSize;
-        hasMore = data.length === batchSize;
+        hasMore = data.length === batchSize; // Continue if we got a full batch
+        console.log(`Fetched appointments batch: ${data.length} records, total so far: ${allAppointments.length}`);
       } else {
         hasMore = false;
       }
     }
 
+    console.log(`Total appointments fetched: ${allAppointments.length}`);
     return allAppointments;
   };
 
@@ -116,13 +118,13 @@ const AgentsDashboard = () => {
         appointmentsBaseQuery = appointmentsBaseQuery.eq('agent', selectedAgent);
       }
 
-      // Execute queries with optimized pagination
+      // Execute queries - fetch all data with proper pagination
       const [calls, appointments] = await Promise.all([
         fetchAllCalls(callsBaseQuery),
         fetchAllAppointments(appointmentsBaseQuery)
       ]);
 
-      // Calculate metrics efficiently
+      // Calculate metrics
       const totalDialsMade = calls.length;
       const answeredCallsVM = calls.filter(call => 
         call.status === 'answered' || call.status === 'connected' || call.status === 'pickup' || call.status === 'voicemail'
@@ -139,6 +141,7 @@ const AgentsDashboard = () => {
       const noShows = appointments.filter(apt => apt.showed === false).length;
       
       const totalCallDuration = calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0);
+      // Convert average duration from seconds to minutes for display
       const avgDurationPerCall = totalDialsMade > 0 ? (totalCallDuration / totalDialsMade) / 60 : 0;
       const timeOnPhoneMinutes = totalCallDuration / 60;
 
@@ -155,6 +158,7 @@ const AgentsDashboard = () => {
       });
 
     } catch (error) {
+      console.error('Error fetching agent stats:', error);
       toast({
         title: "Error",
         description: "Failed to fetch agent statistics",
@@ -184,8 +188,6 @@ const AgentsDashboard = () => {
           <p>No data available</p>
         </div>
       )}
-
-      <AgentClaimsTable />
     </div>
   );
 };

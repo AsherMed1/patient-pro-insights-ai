@@ -111,7 +111,6 @@ export type Database = {
         Row: {
           agent: string | null
           agent_number: string | null
-          appointment_id: string | null
           calendar_name: string | null
           color_indicator: string | null
           confirmed: boolean | null
@@ -136,7 +135,6 @@ export type Database = {
         Insert: {
           agent?: string | null
           agent_number?: string | null
-          appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
           confirmed?: boolean | null
@@ -161,7 +159,6 @@ export type Database = {
         Update: {
           agent?: string | null
           agent_number?: string | null
-          appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
           confirmed?: boolean | null
@@ -676,25 +673,25 @@ export type Database = {
       }
       profiles: {
         Row: {
-          created_at: string | null
+          created_at: string
           email: string
           full_name: string | null
           id: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           email: string
           full_name?: string | null
           id: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           email?: string
           full_name?: string | null
           id?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -736,6 +733,38 @@ export type Database = {
           },
           {
             foreignKeyName: "project_forms_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission_level: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_level: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_level?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_permissions_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -791,7 +820,6 @@ export type Database = {
           custom_facility_info: Json | null
           custom_insurance_list: Json | null
           custom_logo_url: string | null
-          ghl_api_key: string | null
           id: string
           portal_password: string | null
           project_name: string
@@ -807,7 +835,6 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
-          ghl_api_key?: string | null
           id?: string
           portal_password?: string | null
           project_name: string
@@ -823,7 +850,6 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
-          ghl_api_key?: string | null
           id?: string
           portal_password?: string | null
           project_name?: string
@@ -871,15 +897,46 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_project_permission: {
+        Args: { _user_id: string; _project_id: string; _permission: string }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -994,6 +1051,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "viewer"],
+    },
   },
 } as const

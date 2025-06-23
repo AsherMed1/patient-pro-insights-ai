@@ -22,7 +22,6 @@ export interface AllAppointment {
   procedure_ordered: boolean | null;
   color_indicator: string | null;
   is_viewed: boolean | null;
-  appointment_id: string | null;
 }
 
 export interface AllAppointmentsManagerProps {
