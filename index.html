@@ -16,32 +16,6 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@lovable_dev" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-    
-    <!-- Block TikTok Analytics -->
-    <script>
-      // Block TikTok pixel/analytics from loading
-      if (typeof window !== 'undefined') {
-        window.ttq = window.ttq || function() {
-          console.log('TikTok pixel blocked');
-        };
-        
-        // Block network requests to TikTok domains
-        if ('serviceWorker' in navigator) {
-          // Register a simple service worker to block TikTok requests
-          const swCode = `
-            self.addEventListener('fetch', function(event) {
-              if (event.request.url.includes('analytics.tiktok.com') || 
-                  event.request.url.includes('tiktok.com')) {
-                event.respondWith(new Response('', { status: 200 }));
-              }
-            });
-          `;
-          const blob = new Blob([swCode], { type: 'application/javascript' });
-          const swUrl = URL.createObjectURL(blob);
-          navigator.serviceWorker.register(swUrl).catch(() => {});
-        }
-      }
-    </script>
   </head>
 
   <body>

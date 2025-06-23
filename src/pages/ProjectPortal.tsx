@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
+import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordPrompt';
+import { useProjectPortalAuth } from '@/hooks/useProjectPortalAuth';
 import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 import TagManager from '@/components/projects/TagManager';
 
@@ -39,19 +41,52 @@ const ProjectPortal = () => {
   });
   const { toast } = useToast();
 
+  const {
+    isAuthenticated,
+    loading: authLoading,
+    error: authError,
+    verifyPassword
+  } = useProjectPortalAuth(projectName || '');
+
   useEffect(() => {
     console.log('ProjectPortal mounted with projectName:', projectName);
-    if (projectName) {
+    if (projectName && isAuthenticated === true) {
       fetchProject();
       fetchAppointmentStats();
     }
-  }, [projectName]);
+  }, [projectName, isAuthenticated]);
+
+  // Show password prompt if authentication is required
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center py-8">
+            <span>Loading project...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated === false) {
+    return (
+      <ProjectPasswordPrompt
+        projectName={decodeURIComponent(projectName || '')}
+        onPasswordSubmit={verifyPassword}
+        error={authError}
+        loading={authLoading}
+      />
+    );
+  }
 
   const fetchProject = async () => {
     try {
       setLoading(true);
+      console.log('Fetching project with name:', projectName);
       
       const decodedProjectName = decodeURIComponent(projectName!);
+      console.log('Decoded project name:', decodedProjectName);
       
       const { data, error } = await supabase
         .from('projects')
@@ -60,10 +95,7 @@ const ProjectPortal = () => {
         .single();
       
       if (error) {
-        // Only log error type in production
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error fetching project:', error);
-        }
+        console.error('Error fetching project:', error);
         if (error.code === 'PGRST116') {
           toast({
             title: "Project Not Found",
@@ -76,11 +108,10 @@ const ProjectPortal = () => {
         return;
       }
       
+      console.log('Project data fetched:', data);
       setProject(data);
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error fetching project:', error);
-      }
+      console.error('Error fetching project:', error);
       toast({
         title: "Error",
         description: "Failed to fetch project details",
@@ -94,6 +125,7 @@ const ProjectPortal = () => {
   const fetchAppointmentStats = async () => {
     try {
       const decodedProjectName = decodeURIComponent(projectName!);
+      console.log('Fetching appointment stats for project:', decodedProjectName);
       
       // Fetch all appointments for this project and filter for confirmed ones
       const { data, error } = await supabase
@@ -102,14 +134,16 @@ const ProjectPortal = () => {
         .eq('project_name', decodedProjectName);
       
       if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error fetching appointment stats:', error);
-        }
+        console.error('Error fetching appointment stats:', error);
         throw error;
       }
       
+      console.log('Raw appointment data:', data);
+      
       // Filter for confirmed appointments using standardized logic
       const confirmedAppointments = data?.filter(isAppointmentConfirmed) || [];
+      
+      console.log('Confirmed appointments:', confirmedAppointments);
       
       const totalAppointments = confirmedAppointments.length;
       const totalShowed = confirmedAppointments.filter(apt => apt.showed === true).length;
@@ -123,11 +157,10 @@ const ProjectPortal = () => {
         projectedRevenue
       };
       
+      console.log('Calculated stats:', calculatedStats);
       setStats(calculatedStats);
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error fetching appointment stats:', error);
-      }
+      console.error('Error fetching appointment stats:', error);
       toast({
         title: "Error",
         description: "Failed to fetch appointment statistics",

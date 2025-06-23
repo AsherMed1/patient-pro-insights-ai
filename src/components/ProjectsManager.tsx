@@ -6,7 +6,6 @@ import { FolderOpen } from 'lucide-react';
 import { AddProjectDialog } from './projects/AddProjectDialog';
 import { EditProjectDialog } from './projects/EditProjectDialog';
 import { ProjectsList } from './projects/ProjectsList';
-import ProjectsDebugButton from './projects/ProjectsDebugButton';
 import { useProjectsManager } from './projects/hooks/useProjectsManager';
 
 const ProjectsManager = () => {
@@ -58,13 +57,11 @@ const ProjectsManager = () => {
           <AddProjectDialog
             open={isAddDialogOpen}
             onOpenChange={setIsAddDialogOpen}
-            onProjectAdded={() => handleAddProject}
+            onSubmit={handleAddProject}
           />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ProjectsDebugButton />
-        
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="active">
@@ -98,14 +95,12 @@ const ProjectsManager = () => {
           </TabsContent>
         </Tabs>
 
-        {editingProject && (
-          <EditProjectDialog
-            project={editingProject}
-            open={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-            onProjectUpdated={() => handleEditProject}
-          />
-        )}
+        <EditProjectDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          project={editingProject}
+          onSubmit={handleEditProject}
+        />
       </CardContent>
     </Card>
   );

@@ -1,102 +1,105 @@
-
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import Landing from "./pages/Landing";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster as RadixToaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import ApiDocs from "./pages/ApiDocs";
-import NotFound from "./pages/NotFound";
-import CsvImportHistory from "./pages/CsvImportHistory";
-import UndoImport from "./pages/UndoImport";
-import AgentClaim from "./pages/AgentClaim";
-import ProjectPortal from "./pages/ProjectPortal";
-import PublicForm from "./pages/PublicForm";
-import SecurityCenter from "./pages/SecurityCenter";
+import "./App.css";
+import { lazy, Suspense } from "react";
+
+// Lazy load pages for better performance
+const CsvImportHistory = lazy(() => import("./pages/CsvImportHistory"));
+const UndoImport = lazy(() => import("./pages/UndoImport"));
+const ApiDocs = lazy(() => import("./pages/ApiDocs"));
+const AgentClaim = lazy(() => import("./pages/AgentClaim"));
+const FormManagement = lazy(() => import("./components/forms/FormManagement"));
+const PublicForm = lazy(() => import("./pages/PublicForm"));
+const ProjectPortal = lazy(() => import("./pages/ProjectPortal"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
     },
   },
 });
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-  
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
-const AppRoutes = () => {
-  return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/form/:slug" element={<PublicForm />} />
-      <Route path="/project/:projectName" element={<ProjectPortal />} />
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Index />
-        </ProtectedRoute>
-      } />
-      <Route path="/api-docs" element={
-        <ProtectedRoute>
-          <ApiDocs />
-        </ProtectedRoute>
-      } />
-      <Route path="/csv-import-history" element={
-        <ProtectedRoute>
-          <CsvImportHistory />
-        </ProtectedRoute>
-      } />
-      <Route path="/undo-import" element={
-        <ProtectedRoute>
-          <UndoImport />
-        </ProtectedRoute>
-      } />
-      <Route path="/agent-claim" element={
-        <ProtectedRoute>
-          <AgentClaim />
-        </ProtectedRoute>
-      } />
-      <Route path="/security" element={
-        <ProtectedRoute>
-          <SecurityCenter />
-        </ProtectedRoute>
-      } />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <RadixToaster />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route 
+              path="/" 
+              element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } 
+            />
+            {/* Keep all other existing routes wrapped in ProtectedRoute */}
+            <Route 
+              path="/csv-import-history" 
+              element={
+                <ProtectedRoute>
+                  <CsvImportHistory />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/undo-import" 
+              element={
+                <ProtectedRoute>
+                  <UndoImport />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/api-docs" 
+              element={
+                <ProtectedRoute>
+                  <ApiDocs />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/agent-claim" 
+              element={
+                <ProtectedRoute>
+                  <AgentClaim />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/forms" 
+              element={
+                <ProtectedRoute>
+                  <FormManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/form/:slug" 
+              element={<PublicForm />} 
+            />
+            <Route 
+              path="/project-portal/:projectName" 
+              element={<ProjectPortal />} 
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

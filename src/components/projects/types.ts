@@ -7,12 +7,6 @@ export interface Project {
   updated_at: string;
   portal_password?: string | null;
   ghl_api_key?: string | null;
-  brand_primary_color?: string;
-  brand_secondary_color?: string;
-  custom_logo_url?: string;
-  custom_insurance_list?: any[] | null;
-  custom_doctors?: any[] | null;
-  custom_facility_info?: any | null;
 }
 
 export interface ProjectStats {
@@ -27,13 +21,6 @@ export interface ProjectStats {
 
 export interface ProjectFormData {
   project_name: string;
-  active: boolean;
   portal_password?: string;
   ghl_api_key?: string;
-  brand_primary_color: string;
-  brand_secondary_color: string;
-  custom_logo_url?: string;
-  custom_insurance_list?: any[];
-  custom_doctors?: any[];
-  custom_facility_info?: any;
 }

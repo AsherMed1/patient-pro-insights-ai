@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
+    mode === 'development' &&
+    componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
@@ -20,26 +21,29 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // Use esbuild for minification (faster and default in Vite)
     minify: 'esbuild',
-    target: 'esnext',
-    sourcemap: false,
+    // Configure esbuild to drop console and debugger statements in production
+    ...(mode === 'production' && {
+      esbuild: {
+        drop: ['console', 'debugger'],
+      },
+    }),
+    // Set chunk size warnings
     chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-alert-dialog'],
-          supabase: ['@supabase/supabase-js']
-        }
-      }
-    }
+    // Enable tree shaking
+    target: 'esnext',
+    sourcemap: false, // Disable sourcemaps in production for smaller builds
   },
+  // Optimize dependencies
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
-      '@supabase/supabase-js',
-      'react-router-dom'
+      '@tanstack/react-query',
+      'react-router-dom',
+      'date-fns',
+      'recharts',
     ],
   },
 }));
