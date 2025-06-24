@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DashboardTabs from './dashboard/DashboardTabs';
+import ApiKeysDisplay from './ApiKeysDisplay';
 
 interface CallCenterDashboardProps {
   projectId?: string;
@@ -26,6 +27,8 @@ const CallCenterDashboard = ({ projectId = "project-1" }: CallCenterDashboardPro
           />
         </CardContent>
       </Card>
+
+      <ApiKeysDisplay />
     </div>
   );
 };

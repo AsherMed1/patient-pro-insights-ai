@@ -111,6 +111,7 @@ export type Database = {
         Row: {
           agent: string | null
           agent_number: string | null
+          appointment_id: string | null
           calendar_name: string | null
           color_indicator: string | null
           confirmed: boolean | null
@@ -135,6 +136,7 @@ export type Database = {
         Insert: {
           agent?: string | null
           agent_number?: string | null
+          appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
           confirmed?: boolean | null
@@ -159,6 +161,7 @@ export type Database = {
         Update: {
           agent?: string | null
           agent_number?: string | null
+          appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
           confirmed?: boolean | null
@@ -230,6 +233,36 @@ export type Database = {
           recording_url?: string | null
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      api_rate_limits: {
+        Row: {
+          blocked_until: string | null
+          created_at: string | null
+          endpoint: string
+          id: string
+          identifier: string
+          request_count: number | null
+          window_start: string | null
+        }
+        Insert: {
+          blocked_until?: string | null
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          identifier: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          blocked_until?: string | null
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          identifier?: string
+          request_count?: number | null
+          window_start?: string | null
         }
         Relationships: []
       }
@@ -481,6 +514,7 @@ export type Database = {
           submission_data: Json
           submitted_at: string
           tags: Json | null
+          user_id: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -491,6 +525,7 @@ export type Database = {
           submission_data: Json
           submitted_at?: string
           tags?: Json | null
+          user_id?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -501,6 +536,7 @@ export type Database = {
           submission_data?: Json
           submitted_at?: string
           tags?: Json | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -673,25 +709,25 @@ export type Database = {
       }
       profiles: {
         Row: {
-          created_at: string
+          created_at: string | null
           email: string
           full_name: string | null
           id: string
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           email: string
           full_name?: string | null
           id: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           email?: string
           full_name?: string | null
           id?: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -740,37 +776,35 @@ export type Database = {
           },
         ]
       }
-      project_permissions: {
+      project_portal_sessions: {
         Row: {
-          created_at: string
+          created_at: string | null
+          expires_at: string
           id: string
-          permission_level: string
-          project_id: string
-          user_id: string
+          ip_address: unknown | null
+          project_name: string
+          session_token: string
+          user_agent: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
+          expires_at: string
           id?: string
-          permission_level: string
-          project_id: string
-          user_id: string
+          ip_address?: unknown | null
+          project_name: string
+          session_token: string
+          user_agent?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
+          expires_at?: string
           id?: string
-          permission_level?: string
-          project_id?: string
-          user_id?: string
+          ip_address?: unknown | null
+          project_name?: string
+          session_token?: string
+          user_agent?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "project_permissions_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       project_tags: {
         Row: {
@@ -820,6 +854,7 @@ export type Database = {
           custom_facility_info: Json | null
           custom_insurance_list: Json | null
           custom_logo_url: string | null
+          ghl_api_key: string | null
           id: string
           portal_password: string | null
           project_name: string
@@ -835,6 +870,7 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
+          ghl_api_key?: string | null
           id?: string
           portal_password?: string | null
           project_name: string
@@ -850,11 +886,99 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
+          ghl_api_key?: string | null
           id?: string
           portal_password?: string | null
           project_name?: string
           selected_form_types?: string[] | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      rate_limit_log: {
+        Row: {
+          action_type: string
+          count: number | null
+          created_at: string | null
+          id: string
+          identifier: string
+          window_start: string | null
+        }
+        Insert: {
+          action_type: string
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          identifier: string
+          window_start?: string | null
+        }
+        Update: {
+          action_type?: string
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          identifier?: string
+          window_start?: string | null
+        }
+        Relationships: []
+      }
+      security_audit_log: {
+        Row: {
+          created_at: string | null
+          details: Json | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          session_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          details?: Json | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          details?: Json | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      security_config: {
+        Row: {
+          config_key: string
+          config_value: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          config_key: string
+          config_value: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          config_key?: string
+          config_value?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -899,33 +1023,128 @@ export type Database = {
       }
       user_roles: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
-          role: Database["public"]["Enums"]["app_role"]
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      agent_performance_view: {
+        Row: {
+          agent: string | null
+          answered_calls_vm: number | null
+          avg_duration_per_call: number | null
+          booked_appointments: number | null
+          conversations_2_plus: number | null
+          no_shows: number | null
+          pickups_40_plus: number | null
+          shows: number | null
+          time_on_phone_minutes: number | null
+          total_dials_made: number | null
+        }
+        Relationships: []
+      }
+      project_stats_view: {
+        Row: {
+          ad_spend: number | null
+          appointments_count: number | null
+          calls_count: number | null
+          confirmed_appointments_count: number | null
+          last_activity: string | null
+          leads_count: number | null
+          project_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      has_project_permission: {
-        Args: { _user_id: string; _project_id: string; _permission: string }
+      check_rate_limit_enhanced: {
+        Args: {
+          identifier_param: string
+          action_type_param: string
+          max_attempts_param?: number
+          window_minutes_param?: number
+        }
         Returns: boolean
+      }
+      check_rate_limit_v2: {
+        Args: {
+          identifier_param: string
+          endpoint_param: string
+          max_requests_param?: number
+          window_minutes_param?: number
+        }
+        Returns: boolean
+      }
+      cleanup_expired_portal_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      cleanup_security_tables: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      create_portal_session: {
+        Args: {
+          project_name_param: string
+          password_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+        }
+        Returns: string
+      }
+      create_secure_portal_session: {
+        Args: {
+          project_name_param: string
+          password_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+        }
+        Returns: string
+      }
+      get_dashboard_data: {
+        Args: {
+          p_project_name?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+        }
+        Returns: {
+          leads_count: number
+          appointments_count: number
+          calls_count: number
+          ad_spend_total: number
+        }[]
+      }
+      get_project_stats: {
+        Args: { project_filter?: string }
+        Returns: {
+          project_name: string
+          leads_count: number
+          calls_count: number
+          appointments_count: number
+          confirmed_appointments_count: number
+          ad_spend: number
+          last_activity: string
+        }[]
       }
       has_role: {
         Args: {
@@ -934,9 +1153,101 @@ export type Database = {
         }
         Returns: boolean
       }
+      hash_password: {
+        Args: { password: string }
+        Returns: string
+      }
+      log_security_event: {
+        Args: {
+          event_type_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+        }
+        Returns: undefined
+      }
+      log_security_event_critical: {
+        Args: {
+          event_type_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+          severity_param?: string
+        }
+        Returns: undefined
+      }
+      log_security_event_enhanced: {
+        Args: {
+          event_type_param: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+          severity_param?: string
+        }
+        Returns: undefined
+      }
+      log_security_event_v2: {
+        Args: {
+          event_type_param: string
+          severity_param?: string
+          user_id_param?: string
+          session_id_param?: string
+          ip_address_param?: unknown
+          user_agent_param?: string
+          details_param?: Json
+          endpoint_param?: string
+        }
+        Returns: string
+      }
+      refresh_performance_views: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      validate_project_access: {
+        Args: { project_name_param: string }
+        Returns: boolean
+      }
+      validate_secure_session: {
+        Args: {
+          project_name_param: string
+          session_token_param: string
+          ip_address_param?: unknown
+        }
+        Returns: boolean
+      }
+      validate_security_policies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          table_name: string
+          has_rls: boolean
+          public_access_count: number
+          authenticated_access_count: number
+          security_status: string
+        }[]
+      }
+      verify_password: {
+        Args: { password: string; hash: string }
+        Returns: boolean
+      }
+      verify_portal_session: {
+        Args: {
+          project_name_param: string
+          session_token_param: string
+          ip_address_param?: unknown
+        }
+        Returns: boolean
+      }
+      verify_secure_portal_session: {
+        Args: {
+          project_name_param: string
+          session_token_param: string
+          ip_address_param?: unknown
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "admin" | "manager" | "viewer"
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1052,7 +1363,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "manager", "viewer"],
+      app_role: ["admin", "moderator", "user"],
     },
   },
 } as const
