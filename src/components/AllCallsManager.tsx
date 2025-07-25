@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from '@/integrations/supabase/client';
-import { Phone, Clock, User, Building, ExternalLink, Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Phone, Clock, User, Building, ExternalLink, Calendar as CalendarIcon, Filter } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
+import PaginationControls from './shared/PaginationControls';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -220,6 +221,16 @@ const AllCallsManager = ({ projectFilter }: AllCallsManagerProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Top Pagination */}
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemsPerPage={CALLS_PER_PAGE}
+            onPageChange={setCurrentPage}
+            className="mb-4 border-b pb-4"
+          />
+
           {loading ? (
             <div className="text-center py-8">
               <div className="text-gray-500">Loading calls...</div>
@@ -301,34 +312,14 @@ const AllCallsManager = ({ projectFilter }: AllCallsManagerProps) => {
             </div>
           )}
           
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Bottom Pagination */}
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemsPerPage={CALLS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </CardContent>
       </Card>
     </div>

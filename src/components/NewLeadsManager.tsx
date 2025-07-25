@@ -12,6 +12,7 @@ import CallDetailsModal from './CallDetailsModal';
 import LeadDetailsModal from './LeadDetailsModal';
 import LeadCard from './leads/LeadCard';
 import LeadsCsvImport from './LeadsCsvImport';
+import PaginationControls from './shared/PaginationControls';
 import { useLeads } from '@/hooks/useLeads';
 
 interface NewLeadsManagerProps {
@@ -226,6 +227,16 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Top Pagination */}
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemsPerPage={leadsPerPage}
+            onPageChange={setCurrentPage}
+            className="mb-4 border-b pb-4"
+          />
+
           {loading ? (
             <div className="text-center py-8">
               <div className="text-gray-500">Loading leads...</div>
@@ -247,44 +258,15 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
                 ))}
               </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="mt-8 flex justify-center">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious 
-                          onClick={goToPreviousPage}
-                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                        />
-                      </PaginationItem>
-                      
-                      {getPageNumbers().map((page, index) => (
-                        <PaginationItem key={index}>
-                          {page === 'ellipsis' ? (
-                            <span className="flex h-9 w-9 items-center justify-center">...</span>
-                          ) : (
-                            <PaginationLink
-                              onClick={() => goToPage(page as number)}
-                              isActive={currentPage === page}
-                              className="cursor-pointer"
-                            >
-                              {page}
-                            </PaginationLink>
-                          )}
-                        </PaginationItem>
-                      ))}
-                      
-                      <PaginationItem>
-                        <PaginationNext 
-                          onClick={goToNextPage}
-                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
+              {/* Bottom Pagination */}
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalCount={totalCount}
+                itemsPerPage={leadsPerPage}
+                onPageChange={setCurrentPage}
+                className="mt-4"
+              />
             </>
           )}
         </CardContent>

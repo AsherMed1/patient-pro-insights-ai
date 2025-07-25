@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { AllAppointment, AllAppointmentsManagerProps } from './appointments/types';
 import AppointmentsTabs from './appointments/AppointmentsTabs';
 import AppointmentsCsvImport from './AppointmentsCsvImport';
+import PaginationControls from './shared/PaginationControls';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -431,6 +432,16 @@ const AllAppointmentsManager = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0">
+          {/* Top Pagination */}
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemsPerPage={APPOINTMENTS_PER_PAGE}
+            onPageChange={setCurrentPage}
+            className="mb-4 border-b pb-4"
+          />
+
           <AppointmentsTabs
             appointments={appointments}
             loading={loading}
@@ -445,34 +456,14 @@ const AllAppointmentsManager = ({
             tabCounts={tabCounts}
           />
           
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Bottom Pagination */}
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemsPerPage={APPOINTMENTS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </CardContent>
       </Card>
     </div>
