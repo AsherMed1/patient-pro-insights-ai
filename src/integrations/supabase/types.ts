@@ -1090,33 +1090,7 @@ export type Database = {
       }
     }
     Views: {
-      agent_performance_view: {
-        Row: {
-          agent: string | null
-          answered_calls_vm: number | null
-          avg_duration_per_call: number | null
-          booked_appointments: number | null
-          conversations_2_plus: number | null
-          no_shows: number | null
-          pickups_40_plus: number | null
-          shows: number | null
-          time_on_phone_minutes: number | null
-          total_dials_made: number | null
-        }
-        Relationships: []
-      }
-      project_stats_view: {
-        Row: {
-          ad_spend: number | null
-          appointments_count: number | null
-          calls_count: number | null
-          confirmed_appointments_count: number | null
-          last_activity: string | null
-          leads_count: number | null
-          project_name: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       check_rate_limit_enhanced: {
