@@ -243,13 +243,13 @@ const AppointmentCard = ({
                 <div className="space-y-2">
                   <label className="text-sm font-medium block">Status:</label>
                   <Select 
-                    value={appointment.status || undefined} 
+                    value={appointment.status && appointment.status.trim() !== '' ? appointment.status : undefined} 
                     onValueChange={(value) => onUpdateStatus(appointment.id, value)}
                   >
                     <SelectTrigger className={getStatusTriggerClass()}>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white border shadow-lg z-50">
                       {statusOptions.map(status => (
                         <SelectItem key={status} value={status} className="text-base md:text-sm py-3 md:py-2">
                           {status}
@@ -257,6 +257,11 @@ const AppointmentCard = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  
+                  {/* Debug info */}
+                  <div className="text-xs text-gray-400">
+                    Debug: status="{appointment.status}", isStatusUpdated={isStatusUpdated ? 'true' : 'false'}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
