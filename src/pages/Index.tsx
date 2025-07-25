@@ -14,7 +14,7 @@ import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
-import AIAssistant from "@/components/AIAssistant";
+
 import UserManagement from "@/components/UserManagement";
 
 const Index = () => {
@@ -102,7 +102,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-9' : 'grid-cols-4 lg:grid-cols-8'}`}>
+          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-4 lg:grid-cols-8' : 'grid-cols-4 lg:grid-cols-7'}`}>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -110,7 +110,6 @@ const Index = () => {
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="ai">AI Assistant</TabsTrigger>
             {hasManagementAccess() && (
               <TabsTrigger value="users">Users</TabsTrigger>
             )}
@@ -145,9 +144,6 @@ const Index = () => {
             <ProjectsManager />
           </TabsContent>
 
-          <TabsContent value="ai" className="space-y-6">
-            <AIAssistant clientId="project-1" />
-          </TabsContent>
 
           {hasManagementAccess() && (
             <TabsContent value="users" className="space-y-6">
