@@ -1,3 +1,4 @@
+
 import { AllAppointment } from './types';
 import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
 
@@ -33,55 +34,25 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
   return appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
 };
 
-export const filterAppointments = (appointments: AllAppointment[], filterType: string, isProjectPortal: boolean = false) => {
+export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
   return appointments.filter(appointment => {
-    // For project portals, only show confirmed appointments
-    if (isProjectPortal && !appointment.confirmed) {
-      return false;
-    }
-
     switch (filterType) {
       case 'future':
-        // Exclude cancelled appointments from future tab
-        return isAppointmentInFuture(appointment.date_of_appointment) && 
-               !isCancelledStatus(appointment.status);
+        return isAppointmentInFuture(appointment.date_of_appointment);
       case 'past':
-        // Include cancelled appointments and unconfirmed past appointments (now marked as No Show)
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               (isCancelledStatus(appointment.status) || 
-                (!appointment.confirmed && !isStatusUpdated(appointment)) ||
-                (isStatusUpdated(appointment) && isProcedureUpdated(appointment)));
+               isStatusUpdated(appointment) && 
+               isProcedureUpdated(appointment);
       case 'needs-review':
-        // Only show confirmed past appointments that need review
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               appointment.confirmed === true &&
-               !isCancelledStatus(appointment.status) &&
                (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
-      case 'cancelled':
-        // Show all appointments with Cancelled status regardless of date
-        return isCancelledStatus(appointment.status);
       default:
         return true;
     }
   });
 };
 
-// Helper function to check if status indicates cancelled
-const isCancelledStatus = (status: string | null) => {
-  if (!status) return false;
-  const normalizedStatus = status.toLowerCase().trim();
-  return normalizedStatus === 'cancelled' || normalizedStatus === 'canceled';
-};
-
 export const getAppointmentStatus = (appointment: AllAppointment) => {
-  // If appointment is in the past and was never confirmed, mark as No Show
-  if (isAppointmentInPast(appointment.date_of_appointment) && !appointment.confirmed && !appointment.status) {
-    return {
-      text: 'No Show',
-      variant: 'destructive' as const
-    };
-  }
-  
   if (appointment.status) {
     return {
       text: appointment.status,

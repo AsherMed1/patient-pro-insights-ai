@@ -6,7 +6,6 @@ interface DatabaseStats {
   totalProjects: number;
   totalAppointments: number;
   totalAgents: number;
-  totalAdSpend: number;
   lastSyncTime?: string;
 }
 
@@ -22,8 +21,7 @@ export const useMasterDatabase = () => {
   const [stats, setStats] = useState<DatabaseStats>({
     totalProjects: 0,
     totalAppointments: 0,
-    totalAgents: 0,
-    totalAdSpend: 0
+    totalAgents: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,25 +34,16 @@ export const useMasterDatabase = () => {
       setLoading(true);
       
       // Get counts from all tables
-      const [projectsResult, appointmentsResult, agentsResult, adSpendResult] = await Promise.all([
+      const [projectsResult, appointmentsResult, agentsResult] = await Promise.all([
         supabase.from('projects').select('id', { count: 'exact', head: true }),
         supabase.from('all_appointments').select('id', { count: 'exact', head: true }),
-        supabase.from('agents').select('id', { count: 'exact', head: true }),
-        supabase.from('facebook_ad_spend').select('spend').then(result => {
-          if (result.error) return { data: 0, error: result.error };
-          const totalSpend = result.data?.reduce((sum, record) => {
-            const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
-            return sum + (isNaN(spendValue) ? 0 : spendValue);
-          }, 0) || 0;
-          return { data: totalSpend, error: null };
-        })
+        supabase.from('agents').select('id', { count: 'exact', head: true })
       ]);
       
       setStats({
         totalProjects: projectsResult.count || 0,
         totalAppointments: appointmentsResult.count || 0,
         totalAgents: agentsResult.count || 0,
-        totalAdSpend: typeof adSpendResult.data === 'number' ? adSpendResult.data : 0,
         lastSyncTime: new Date().toISOString()
       });
       
@@ -65,13 +54,12 @@ export const useMasterDatabase = () => {
     }
   };
 
-  const searchAppointments = async (filters: AppointmentFilters, limit?: number) => {
+  const searchAppointments = async (filters: AppointmentFilters) => {
     let query = supabase
       .from('all_appointments')
       .select('*')
       .order('date_appointment_created', { ascending: false });
 
-    // Apply filters without any default limit
     if (filters.projectName) {
       query = query.eq('project_name', filters.projectName);
     }
@@ -94,11 +82,6 @@ export const useMasterDatabase = () => {
       }
     }
 
-    // Only apply limit if specified
-    if (limit) {
-      query = query.limit(limit);
-    }
-
     const { data, error } = await query;
     
     if (error) {
@@ -114,13 +97,8 @@ export const useMasterDatabase = () => {
       .from('all_appointments')
       .select('showed, confirmed');
 
-    let adSpendQuery = supabase
-      .from('facebook_ad_spend')
-      .select('spend');
-
     if (projectName) {
       appointmentsQuery = appointmentsQuery.eq('project_name', projectName);
-      adSpendQuery = adSpendQuery.eq('project_name', projectName);
     }
 
     if (dateRange) {
@@ -130,33 +108,21 @@ export const useMasterDatabase = () => {
       appointmentsQuery = appointmentsQuery
         .gte('date_of_appointment', fromDate)
         .lte('date_of_appointment', toDate);
-      
-      adSpendQuery = adSpendQuery
-        .gte('date', fromDate)
-        .lte('date', toDate);
     }
 
-    const [appointmentsResult, adSpendResult] = await Promise.all([
-      appointmentsQuery,
-      adSpendQuery
-    ]);
+    const appointmentsResult = await appointmentsQuery;
 
-    if (appointmentsResult.error || adSpendResult.error) {
-      console.error('Error fetching aggregated metrics:', appointmentsResult.error || adSpendResult.error);
+    if (appointmentsResult.error) {
+      console.error('Error fetching aggregated metrics:', appointmentsResult.error);
       return null;
     }
 
     const appointments = appointmentsResult.data || [];
-    const adSpendRecords = adSpendResult.data || [];
 
     // Calculate aggregated metrics from appointments
     const totalAppointments = appointments.length;
     const showedAppointments = appointments.filter(a => a.showed).length;
     const confirmedAppointments = appointments.filter(a => a.confirmed).length;
-    const totalAdSpend = adSpendRecords.reduce((sum, record) => {
-      const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
-      return sum + (isNaN(spendValue) ? 0 : spendValue);
-    }, 0);
 
     const showRate = totalAppointments > 0 ? (showedAppointments / totalAppointments) * 100 : 0;
 
@@ -165,35 +131,8 @@ export const useMasterDatabase = () => {
       showedAppointments,
       confirmedAppointments,
       showRate,
-      totalAdSpend,
       dataSource: 'all_appointments'
     };
-  };
-
-  const getAdSpendByProject = async (projectName: string, dateRange?: { from: Date; to: Date }) => {
-    let query = supabase
-      .from('facebook_ad_spend')
-      .select('*')
-      .eq('project_name', projectName)
-      .order('date', { ascending: false });
-
-    if (dateRange) {
-      const fromDate = dateRange.from.toISOString().split('T')[0];
-      const toDate = dateRange.to.toISOString().split('T')[0];
-      
-      query = query
-        .gte('date', fromDate)
-        .lte('date', toDate);
-    }
-
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error('Error fetching ad spend:', error);
-      return [];
-    }
-    
-    return data || [];
   };
 
   return {
@@ -201,7 +140,6 @@ export const useMasterDatabase = () => {
     loading,
     fetchStats,
     searchAppointments,
-    getAggregatedMetrics,
-    getAdSpendByProject
+    getAggregatedMetrics
   };
 };

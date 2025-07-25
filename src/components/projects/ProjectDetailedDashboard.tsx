@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -73,23 +74,13 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       
       if (callsError) throw callsError;
 
-      // Fetch ad spend data
-      const { data: adSpendData, error: adSpendError } = await supabase
-        .from('facebook_ad_spend')
-        .select('spend')
-        .eq('project_name', project.project_name);
-      
-      if (adSpendError) throw adSpendError;
-
-      // Calculate stats using status instead of confirmed boolean
+      // Calculate stats
       const newLeads = leads?.length || 0;
       const bookedAppointments = appointments?.length || 0;
-      const shows = appointments?.filter(apt => apt.status === 'Showed').length || 0;
-      const noShows = appointments?.filter(apt => apt.status === 'No Show').length || 0;
-      const confirmedAppointments = appointments?.filter(apt => apt.status === 'Confirmed').length || 0;
-      const unconfirmedAppointments = appointments?.filter(apt => 
-        apt.status && !['Confirmed', 'Showed', 'No Show', 'Cancelled'].includes(apt.status)
-      ).length || 0;
+      const shows = appointments?.filter(apt => apt.showed).length || 0;
+      const noShows = appointments?.filter(apt => apt.showed === false).length || 0;
+      const confirmedAppointments = appointments?.filter(apt => apt.confirmed).length || 0;
+      const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
       const appointmentsToTakePlace = appointments?.filter(apt => 
         new Date(apt.date_of_appointment) >= new Date()
       ).length || 0;
@@ -103,15 +94,12 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         call.duration_seconds >= 120
       ).length || 0;
 
-      // Calculate total ad spend
-      const adSpend = adSpendData?.reduce((sum, record) => {
-        const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
-        return sum + (isNaN(spendValue) ? 0 : spendValue);
-      }, 0) || 0;
-
       // Calculate percentages
       const bookingPercentage = newLeads > 0 ? (bookedAppointments / newLeads) * 100 : 0;
       const confirmedPercentage = bookedAppointments > 0 ? (confirmedAppointments / bookedAppointments) * 100 : 0;
+      
+      // Mock ad spend and cost per lead (you may want to add these fields to your database)
+      const adSpend = 0; // Add this data source when available
       const costPerLead = newLeads > 0 && adSpend > 0 ? adSpend / newLeads : 0;
 
       setStats({

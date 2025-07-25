@@ -1,10 +1,6 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Undo2 } from "lucide-react";
-import { Link } from "react-router-dom";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AllCallsManager from "@/components/AllCallsManager";
@@ -12,7 +8,7 @@ import NewLeadsManager from "@/components/NewLeadsManager";
 import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
-import AdSpendManager from "@/components/AdSpendManager";
+import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import AIAssistant from "@/components/AIAssistant";
 
 const Index = () => {
@@ -27,7 +23,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -35,11 +31,11 @@ const Index = () => {
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="adspend">Ad Spend</TabsTrigger>
             <TabsTrigger value="ai">AI Assistant</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
+            <MasterDatabaseStats />
             <CallCenterDashboard projectId="project-1" />
           </TabsContent>
 
@@ -67,45 +63,10 @@ const Index = () => {
             <ProjectsManager />
           </TabsContent>
 
-          <TabsContent value="adspend" className="space-y-6">
-            <AdSpendManager />
-          </TabsContent>
-
           <TabsContent value="ai" className="space-y-6">
             <AIAssistant clientId="project-1" />
           </TabsContent>
         </Tabs>
-
-        {/* Quick Actions Card - moved to bottom */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Link to="/csv-import-history">
-                <Button variant="outline" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  CSV Import History
-                </Button>
-              </Link>
-              <Link to="/undo-import">
-                <Button variant="outline" className="flex items-center gap-2">
-                  <Undo2 className="h-4 w-4" />
-                  Undo Last Import
-                </Button>
-              </Link>
-              <Link to="/api-docs">
-                <Button variant="outline">
-                  API Documentation
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

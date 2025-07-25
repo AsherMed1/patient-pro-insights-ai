@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -7,7 +8,6 @@ import SpeedToLeadDashboardCards from './speedtolead/SpeedToLeadDashboardCards';
 import SpeedToLeadCharts from './speedtolead/SpeedToLeadCharts';
 import SpeedToLeadDataTable from './speedtolead/SpeedToLeadDataTable';
 import SpeedToLeadEmptyState from './speedtolead/SpeedToLeadEmptyState';
-import SpeedToLeadOutliersModal from './speedtolead/SpeedToLeadOutliersModal';
 
 interface SpeedToLeadStat {
   id: string;
@@ -31,7 +31,6 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
-  const [showOutliersModal, setShowOutliersModal] = useState(false);
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -184,19 +183,11 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
     setDateRange(range);
   };
 
-  // Filter out outliers (> 5 hours = 300 minutes) for calculations
+  // Calculate statistics
   const validStats = stats.filter(s => 
     s.date_time_of_first_call && 
     s.speed_to_lead_time_min !== null && 
-    s.speed_to_lead_time_min >= 0 &&
-    s.speed_to_lead_time_min <= 300 // 5 hours
-  );
-
-  // Get outliers (> 5 hours = 300 minutes)
-  const outlierStats = stats.filter(s => 
-    s.date_time_of_first_call && 
-    s.speed_to_lead_time_min !== null && 
-    s.speed_to_lead_time_min > 300 // > 5 hours
+    s.speed_to_lead_time_min >= 0
   );
 
   // Data for charts
@@ -217,8 +208,8 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
       color: '#f97316'
     },
     {
-      range: '1-5 hours',
-      count: validStats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 60 && s.speed_to_lead_time_min <= 300).length,
+      range: '> 1 hour',
+      count: validStats.filter(s => s.speed_to_lead_time_min !== null && s.speed_to_lead_time_min > 60).length,
       color: '#ef4444'
     }
   ];
@@ -229,8 +220,6 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         lastUpdateTime={lastUpdateTime}
         calculating={calculating}
         onTriggerCalculation={triggerSpeedToLeadCalculation}
-        outlierCount={outlierStats.length}
-        onViewOutliers={() => setShowOutliersModal(true)}
       />
 
       <SpeedToLeadDateFilter
@@ -260,12 +249,6 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
           />
         </>
       )}
-
-      <SpeedToLeadOutliersModal
-        isOpen={showOutliersModal}
-        onClose={() => setShowOutliersModal(false)}
-        outlierStats={outlierStats}
-      />
     </div>
   );
 };

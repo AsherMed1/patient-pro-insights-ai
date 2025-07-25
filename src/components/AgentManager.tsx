@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, BarChart3 } from 'lucide-react';
-import AgentStatsPage from "./AgentStatsPage";
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 
 interface Agent {
   id: string;
@@ -28,7 +28,6 @@ const AgentManager = ({ viewOnly = false }: AgentManagerProps) => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [showStats, setShowStats] = useState(false);
   const [formData, setFormData] = useState({
     agent_number: '',
     agent_name: '',
@@ -166,10 +165,6 @@ const AgentManager = ({ viewOnly = false }: AgentManagerProps) => {
     setShowForm(false);
   };
 
-  if (showStats) {
-    return <AgentStatsPage onBack={() => setShowStats(false)} />;
-  }
-
   if (loading) {
     return (
       <Card>
@@ -185,23 +180,11 @@ const AgentManager = ({ viewOnly = false }: AgentManagerProps) => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Current Agents ({agents.length})</CardTitle>
-              <CardDescription>
-                Manage call center agents
-                {viewOnly && " (View Only - Records managed via API)"}
-              </CardDescription>
-            </div>
-            <Button 
-              onClick={() => setShowStats(true)}
-              variant="outline"
-              className="flex items-center space-x-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>Agent Stats</span>
-            </Button>
-          </div>
+          <CardTitle>Current Agents ({agents.length})</CardTitle>
+          <CardDescription>
+            Manage call center agents
+            {viewOnly && " (View Only - Records managed via API)"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!viewOnly && (

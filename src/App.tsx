@@ -9,8 +9,6 @@ import Index from "./pages/Index";
 import AgentClaim from "./pages/AgentClaim";
 import ApiDocs from "./pages/ApiDocs";
 import ProjectPortal from "./pages/ProjectPortal";
-import CsvImportHistory from "./pages/CsvImportHistory";
-import UndoImport from "./pages/UndoImport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,8 +23,6 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/agent-claim" element={<AgentClaim />} />
           <Route path="/api-docs" element={<ApiDocs />} />
-          <Route path="/csv-import-history" element={<CsvImportHistory />} />
-          <Route path="/undo-import" element={<UndoImport />} />
           <Route path="/project/:projectName" element={<ProjectPortal />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

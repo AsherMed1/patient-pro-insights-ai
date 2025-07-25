@@ -20,8 +20,6 @@ interface ProjectStats {
   leads_count: number;
   calls_count: number;
   appointments_count: number;
-  confirmed_appointments_count: number;
-  ad_spend: number;
   last_activity: string | null;
 }
 
@@ -57,7 +55,7 @@ const ProjectsManager = () => {
 
       // Fetch stats for each project
       const statsPromises = (projectsData || []).map(async (project) => {
-        const [leadsResult, callsResult, appointmentsResult, adSpendResult] = await Promise.all([
+        const [leadsResult, callsResult, appointmentsResult] = await Promise.all([
           supabase
             .from('new_leads')
             .select('id', { count: 'exact', head: true })
@@ -71,37 +69,14 @@ const ProjectsManager = () => {
           supabase
             .from('all_appointments')
             .select('id', { count: 'exact', head: true })
-            .eq('project_name', project.project_name),
-          supabase
-            .from('facebook_ad_spend')
-            .select('spend')
             .eq('project_name', project.project_name)
         ]);
-
-        // Fetch confirmed appointments - check both confirmed boolean and status field
-        const confirmedAppointmentsResult = await supabase
-          .from('all_appointments')
-          .select('confirmed, status')
-          .eq('project_name', project.project_name);
-
-        const confirmedCount = confirmedAppointmentsResult.data?.filter(apt => {
-          // Count as confirmed if confirmed boolean is true OR status is "Confirmed" (case-insensitive)
-          return apt.confirmed === true || 
-                 (apt.status && apt.status.toLowerCase() === 'confirmed');
-        }).length || 0;
-
-        const totalAdSpend = adSpendResult.data?.reduce((sum, record) => {
-          const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
-          return sum + (isNaN(spendValue) ? 0 : spendValue);
-        }, 0) || 0;
 
         return {
           project_name: project.project_name,
           leads_count: leadsResult.count || 0,
           calls_count: callsResult.count || 0,
           appointments_count: appointmentsResult.count || 0,
-          confirmed_appointments_count: confirmedCount,
-          ad_spend: totalAdSpend,
           last_activity: callsResult.data?.[0]?.call_datetime || null
         };
       });

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,25 +8,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
-import { User, Phone, Eye, EyeOff } from 'lucide-react';
+import { User, Phone } from 'lucide-react';
 
 interface ClaimFormData {
   agentId: string;
   phoneNumber: string;
 }
 
-interface Agent {
-  id: string;
-  agent_number: string;
-  agent_name: string;
-  active: boolean;
-}
-
 const AgentAppointmentClaimForm = () => {
   const [loading, setLoading] = useState(false);
-  const [showAgentIds, setShowAgentIds] = useState(false);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(false);
   const { toast } = useToast();
   
   const form = useForm<ClaimFormData>({
@@ -34,35 +25,6 @@ const AgentAppointmentClaimForm = () => {
       phoneNumber: ''
     }
   });
-
-  const fetchAgents = async () => {
-    try {
-      setAgentsLoading(true);
-      const { data, error } = await supabase
-        .from('agents')
-        .select('id, agent_number, agent_name, active')
-        .eq('active', true)
-        .order('agent_number');
-
-      if (error) throw error;
-      setAgents(data || []);
-    } catch (error) {
-      console.error('Error fetching agents:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch agent list",
-        variant: "destructive"
-      });
-    } finally {
-      setAgentsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showAgentIds && agents.length === 0) {
-      fetchAgents();
-    }
-  }, [showAgentIds]);
 
   const normalizePhoneNumber = (phone: string) => {
     // Remove all non-digit characters
@@ -187,113 +149,66 @@ const AgentAppointmentClaimForm = () => {
     }
   };
 
-  const toggleAgentIds = () => {
-    setShowAgentIds(!showAgentIds);
-  };
-
   return (
-    <div className="space-y-4">
-      <Card className="max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <User className="h-5 w-5" />
-            <span>Claim Appointment</span>
-          </CardTitle>
-          <CardDescription>
-            Enter your agent ID and the lead's phone number to claim credit for an appointment you booked.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="agentId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Agent ID</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter your agent ID (e.g., 001)"
-                        {...field}
-                        disabled={loading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center space-x-2">
-                      <Phone className="h-4 w-4" />
-                      <span>Lead Phone Number</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter phone number (e.g., +13217940456 or 3217940456)"
-                        {...field}
-                        disabled={loading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Processing..." : "Claim Appointment"}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <div className="max-w-md mx-auto">
-        <Button 
-          onClick={toggleAgentIds}
-          variant="outline" 
-          className="w-full flex items-center justify-center space-x-2"
-          disabled={agentsLoading}
-        >
-          {showAgentIds ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          <span>{showAgentIds ? "Hide Agent IDs" : "See Agent IDs"}</span>
-        </Button>
-
-        {showAgentIds && (
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle className="text-lg">Agent Reference List</CardTitle>
-              <CardDescription>
-                Active agents and their IDs for easy reference
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {agentsLoading ? (
-                <p className="text-center text-gray-500">Loading agents...</p>
-              ) : agents.length === 0 ? (
-                <p className="text-center text-gray-500">No active agents found.</p>
-              ) : (
-                <div className="space-y-2">
-                  {agents.map((agent) => (
-                    <div key={agent.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span className="font-medium">{agent.agent_name}</span>
-                      <span className="font-mono text-sm bg-white px-2 py-1 rounded border">
-                        {agent.agent_number}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+    <Card className="max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <User className="h-5 w-5" />
+          <span>Claim Appointment</span>
+        </CardTitle>
+        <CardDescription>
+          Enter your agent ID and the lead's phone number to claim credit for an appointment you booked.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="agentId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Agent ID</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter your agent ID (e.g., 001)"
+                      {...field}
+                      disabled={loading}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+            />
+
+            <FormField
+              control={form.control}
+              name="phoneNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4" />
+                    <span>Lead Phone Number</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter phone number (e.g., +13217940456 or 3217940456)"
+                      {...field}
+                      disabled={loading}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Processing..." : "Claim Appointment"}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 };
 

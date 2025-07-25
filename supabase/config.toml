@@ -1,5 +1,4 @@
 
-
 project_id = "bhabbokbhnqioykjimix"
 
 [functions.new-lead-api]
@@ -15,7 +14,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.update-appointment-status]
-verify_jwt = false
-
-[functions.facebook-ad-spend-api]
 verify_jwt = false

@@ -66,7 +66,7 @@ const AgentPerformanceDashboard = () => {
         return;
       }
 
-      // Try to get data from agent_performance_stats first - remove any limits
+      // Try to get data from agent_performance_stats first
       let query = supabase
         .from('agent_performance_stats')
         .select('*')
@@ -105,7 +105,7 @@ const AgentPerformanceDashboard = () => {
 
   const calculatePerformanceFromCallData = async (fromDate: string, toDate: string) => {
     try {
-      // Get all agents - remove any limits
+      // Get all agents
       let agentsQuery = supabase
         .from('agents')
         .select('*')
@@ -119,7 +119,7 @@ const AgentPerformanceDashboard = () => {
 
       if (agentsError) throw agentsError;
 
-      // Get call data for the date range - remove any limits
+      // Get call data for the date range
       const { data: calls, error: callsError } = await supabase
         .from('all_calls')
         .select('*')
@@ -128,7 +128,7 @@ const AgentPerformanceDashboard = () => {
 
       if (callsError) throw callsError;
 
-      // Get appointment data for the date range - remove any limits
+      // Get appointment data for the date range
       const { data: appointments, error: appointmentsError } = await supabase
         .from('all_appointments')
         .select('*')

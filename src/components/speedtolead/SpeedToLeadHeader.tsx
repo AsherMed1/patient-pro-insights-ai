@@ -1,63 +1,43 @@
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Play, AlertTriangle } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
+import { RefreshCw, Play } from 'lucide-react';
 
 interface SpeedToLeadHeaderProps {
   lastUpdateTime: string;
   calculating: boolean;
   onTriggerCalculation: () => void;
-  outlierCount: number;
-  onViewOutliers: () => void;
 }
 
-const SpeedToLeadHeader = ({ 
-  lastUpdateTime, 
-  calculating, 
-  onTriggerCalculation,
-  outlierCount,
-  onViewOutliers
-}: SpeedToLeadHeaderProps) => {
+const SpeedToLeadHeader = ({ lastUpdateTime, calculating, onTriggerCalculation }: SpeedToLeadHeaderProps) => {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Clock className="h-6 w-6" />
-            <div>
-              <CardTitle>Speed to Lead Analytics</CardTitle>
-              <CardDescription>
-                Live tracking of lead response times (Times in Central Time Zone)
-                {lastUpdateTime && ` - Last updated: ${lastUpdateTime}`}
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            {outlierCount > 0 && (
-              <Button
-                variant="outline"
-                onClick={onViewOutliers}
-                className="flex items-center gap-2"
-              >
-                <AlertTriangle className="h-4 w-4" />
-                View Outliers
-                <Badge variant="secondary">{outlierCount}</Badge>
-              </Button>
-            )}
-            <Button 
-              onClick={onTriggerCalculation}
-              disabled={calculating}
-              className="flex items-center gap-2"
-            >
-              <Play className="h-4 w-4" />
-              {calculating ? 'Calculating...' : 'Trigger Calculation'}
-            </Button>
-          </div>
+    <div className="flex items-center justify-between">
+      <div>
+        <h2 className="text-3xl font-bold text-gray-900">Speed to Lead Analytics</h2>
+        <p className="text-gray-600">Live speed-to-lead data with real-time updates (Central Time Zone)</p>
+        {lastUpdateTime && (
+          <p className="text-sm text-gray-500">Last updated: {lastUpdateTime}</p>
+        )}
+      </div>
+      <div className="flex items-center space-x-4">
+        <Button
+          onClick={onTriggerCalculation}
+          disabled={calculating}
+          className="flex items-center space-x-2"
+        >
+          {calculating ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+          <span>{calculating ? 'Calculating...' : 'Trigger Calculation'}</span>
+        </Button>
+        <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span>Live Data</span>
         </div>
-      </CardHeader>
-    </Card>
+      </div>
+    </div>
   );
 };
 

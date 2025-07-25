@@ -11,30 +11,20 @@ const UpdateAppointmentApiDocs = () => {
     "id": "78f689a7-fa9e-4ec4-ba20-cf894b615eb7",
     "showed": true,
     "confirmed": true,
-    "agent": "Sarah Johnson",
-    "status": "Showed"
+    "agent": "Sarah Johnson"
   };
 
   const exampleJsonByGhlId = {
     "ghl_id": "emrCuta4qHhKfUNatSrI",
     "showed": false,
-    "stage_booked": "No Show",
-    "status": "No Show"
+    "stage_booked": "No Show"
   };
 
   const exampleJsonByName = {
     "lead_name": "Sharon Wallace",
-    "project_name": "Texas Vascular Institute",
+    "project_name": "Naadi Healthcare Manteca",
     "confirmed": true,
-    "confirmed_number": "+19164599423",
-    "status": "Confirmed"
-  };
-
-  const statusUpdateExample = {
-    "id": "78f689a7-fa9e-4ec4-ba20-cf894b615eb7",
-    "status": "Showed",
-    "showed": true,
-    "procedure_ordered": true
+    "confirmed_number": "+19164599423"
   };
 
   const curlExampleById = `curl -X PUT "${endpoint}" \\
@@ -92,30 +82,10 @@ const UpdateAppointmentApiDocs = () => {
             </div>
           </div>
 
-          {/* Status Values */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Status Values</h3>
-            <p className="text-sm text-gray-600">Common status values you can use:</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-              <Badge variant="default">Showed</Badge>
-              <Badge variant="destructive">No Show</Badge>
-              <Badge variant="outline">Cancelled</Badge>
-              <Badge variant="secondary">Rescheduled</Badge>
-              <Badge variant="secondary">Confirmed</Badge>
-              <Badge variant="outline">Welcome Call</Badge>
-              <Badge variant="default">Won</Badge>
-            </div>
-          </div>
-
           {/* Updatable Fields */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">Updatable Fields</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center space-x-2">
-                <Badge variant="secondary">Optional</Badge>
-                <span className="font-mono">status</span>
-                <span className="text-xs text-gray-500">(string)</span>
-              </div>
               <div className="flex items-center space-x-2">
                 <Badge variant="secondary">Optional</Badge>
                 <span className="font-mono">showed</span>
@@ -124,11 +94,6 @@ const UpdateAppointmentApiDocs = () => {
               <div className="flex items-center space-x-2">
                 <Badge variant="secondary">Optional</Badge>
                 <span className="font-mono">confirmed</span>
-                <span className="text-xs text-gray-500">(boolean)</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Badge variant="secondary">Optional</Badge>
-                <span className="font-mono">procedure_ordered</span>
                 <span className="text-xs text-gray-500">(boolean)</span>
               </div>
               <div className="flex items-center space-x-2">
@@ -203,19 +168,6 @@ const UpdateAppointmentApiDocs = () => {
             </div>
           </div>
 
-          {/* Example JSON - Status Update */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold flex items-center space-x-2">
-              <Code className="h-4 w-4" />
-              <span>Example 4: Complete Status Update</span>
-            </h3>
-            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
-              <pre className="text-sm">
-                <code>{JSON.stringify(statusUpdateExample, null, 2)}</code>
-              </pre>
-            </div>
-          </div>
-
           {/* cURL Example */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">cURL Example</h3>
@@ -241,11 +193,10 @@ const UpdateAppointmentApiDocs = () => {
     "showed": true,
     "confirmed": true,
     "agent": "Sarah Johnson",
-    "status": "Showed",
     "updated_at": "2024-01-15T14:30:00.000Z",
     ...
   },
-  "updated_fields": ["showed", "confirmed", "agent", "status"]
+  "updated_fields": ["showed", "confirmed", "agent"]
 }`}
                 </pre>
               </div>
@@ -268,29 +219,6 @@ const UpdateAppointmentApiDocs = () => {
   "message": "No appointment found with the provided identifier"
 }`}
                 </pre>
-              </div>
-            </div>
-          </div>
-
-          {/* Common Use Cases */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Common Use Cases</h3>
-            <div className="space-y-3">
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <h5 className="font-medium text-blue-900">Mark appointment as showed:</h5>
-                <code className="text-sm text-blue-800">{"{ \"id\": \"...\", \"status\": \"Showed\", \"showed\": true }"}</code>
-              </div>
-              <div className="bg-red-50 p-3 rounded-lg">
-                <h5 className="font-medium text-red-900">Mark appointment as no-show:</h5>
-                <code className="text-sm text-red-800">{"{ \"id\": \"...\", \"status\": \"No Show\", \"showed\": false }"}</code>
-              </div>
-              <div className="bg-green-50 p-3 rounded-lg">
-                <h5 className="font-medium text-green-900">Update procedure status:</h5>
-                <code className="text-sm text-green-800">{"{ \"id\": \"...\", \"procedure_ordered\": true }"}</code>
-              </div>
-              <div className="bg-purple-50 p-3 rounded-lg">
-                <h5 className="font-medium text-purple-900">Assign agent:</h5>
-                <code className="text-sm text-purple-800">{"{ \"id\": \"...\", \"agent\": \"John Smith\", \"agent_number\": \"+1234567890\" }"}</code>
               </div>
             </div>
           </div>
