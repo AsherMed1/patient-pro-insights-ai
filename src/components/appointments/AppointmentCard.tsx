@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,14 +8,12 @@ import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVarian
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
-
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
 }
-
 interface NewLead {
   id: string;
   date: string;
@@ -59,18 +56,18 @@ interface NewLead {
   plantar_fasciitis_imaging?: boolean;
   email?: string;
 }
-
-const AppointmentCard = ({ 
-  appointment, 
-  projectFilter, 
-  onUpdateStatus, 
-  onUpdateProcedure 
+const AppointmentCard = ({
+  appointment,
+  projectFilter,
+  onUpdateStatus,
+  onUpdateProcedure
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const appointmentStatus = getAppointmentStatus(appointment);
 
   // Check if status and procedure have been updated
@@ -80,7 +77,6 @@ const AppointmentCard = ({
   // Get styling classes for dropdowns
   const getStatusTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
-    
     const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
     if (isStatusUpdated) {
       return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
@@ -88,10 +84,8 @@ const AppointmentCard = ({
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     }
   };
-
   const getProcedureTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
-    
     const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
     if (isProcedureUpdated) {
       return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
@@ -99,34 +93,26 @@ const AppointmentCard = ({
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     }
   };
-
   const handleViewDetails = async () => {
     try {
       setLoadingLeadData(true);
-      
+
       // Try to find the lead by exact name match first
-      let { data, error } = await supabase
-        .from('new_leads')
-        .select('*')
-        .eq('lead_name', appointment.lead_name)
-        .eq('project_name', appointment.project_name)
-        .maybeSingle();
-      
+      let {
+        data,
+        error
+      } = await supabase.from('new_leads').select('*').eq('lead_name', appointment.lead_name).eq('project_name', appointment.project_name).maybeSingle();
       if (error) throw error;
-      
+
       // If no exact match, try case-insensitive search
       if (!data) {
-        const { data: altData, error: altError } = await supabase
-          .from('new_leads')
-          .select('*')
-          .ilike('lead_name', appointment.lead_name)
-          .eq('project_name', appointment.project_name)
-          .maybeSingle();
-        
+        const {
+          data: altData,
+          error: altError
+        } = await supabase.from('new_leads').select('*').ilike('lead_name', appointment.lead_name).eq('project_name', appointment.project_name).maybeSingle();
         if (altError) throw altError;
         data = altData;
       }
-      
       if (data) {
         setLeadData(data);
         setShowLeadDetails(true);
@@ -134,7 +120,7 @@ const AppointmentCard = ({
         toast({
           title: "No Additional Details",
           description: "No additional lead information found for this appointment.",
-          variant: "default",
+          variant: "default"
         });
       }
     } catch (error) {
@@ -142,15 +128,13 @@ const AppointmentCard = ({
       toast({
         title: "Error",
         description: "Failed to fetch lead details",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setLoadingLeadData(false);
     }
   };
-
-  return (
-    <>
+  return <>
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
         <div className="space-y-2">
           {/* Lead Name - Prominent on mobile */}
@@ -159,13 +143,7 @@ const AppointmentCard = ({
               <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleViewDetails}
-              disabled={loadingLeadData}
-              className="ml-2 flex items-center space-x-1"
-            >
+            <Button variant="outline" size="sm" onClick={handleViewDetails} disabled={loadingLeadData} className="ml-2 flex items-center space-x-1">
               <Info className="h-3 w-3" />
               <span className="hidden sm:inline">View Details</span>
             </Button>
@@ -178,19 +156,15 @@ const AppointmentCard = ({
           </div>
           
           {/* Contact Info - Stacked on mobile */}
-          {appointment.lead_email && (
-            <div className="flex items-start space-x-2">
+          {appointment.lead_email && <div className="flex items-start space-x-2">
               <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
               <span className="text-sm text-gray-600 break-all">{appointment.lead_email}</span>
-            </div>
-          )}
+            </div>}
           
-          {appointment.lead_phone_number && (
-            <div className="flex items-center space-x-2">
+          {appointment.lead_phone_number && <div className="flex items-center space-x-2">
               <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-            </div>
-          )}
+            </div>}
           
           {/* Date Info - More compact on mobile */}
           <div className="space-y-1">
@@ -201,76 +175,57 @@ const AppointmentCard = ({
               </span>
             </div>
             
-            {appointment.date_of_appointment && (
-              <div className="flex items-center space-x-2">
+            {appointment.date_of_appointment && <div className="flex items-center space-x-2">
                 <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm text-gray-600">
                   Appointment: {formatDate(appointment.date_of_appointment)}
                 </span>
-              </div>
-            )}
+              </div>}
             
-            {appointment.requested_time && (
-              <div className="flex items-center space-x-2">
+            {appointment.requested_time && <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm text-gray-600">
                   Time: {formatTime(appointment.requested_time)}
                 </span>
-              </div>
-            )}
+              </div>}
           </div>
           
-          {appointment.agent && (
-            <div className="text-sm text-gray-600">
+          {appointment.agent && <div className="text-sm text-gray-600">
               Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
-            </div>
-          )}
+            </div>}
 
           {/* Status and Procedure Badges - Responsive layout */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
             <Badge variant={appointmentStatus.variant} className="text-xs w-fit">
               {appointmentStatus.text}
             </Badge>
-            <Badge variant={getProcedureOrderedVariant(appointment.procedure_ordered)} className="text-xs w-fit">
-              Procedure: {appointment.procedure_ordered === true ? 'Yes' : appointment.procedure_ordered === false ? 'No' : 'Not Set'}
-            </Badge>
+            
           </div>
 
           {/* Status Update Section - Better mobile layout */}
-          {projectFilter && (
-            <div className="border-t pt-3 mt-3">
+          {projectFilter && <div className="border-t pt-3 mt-3">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium block">Status:</label>
-                  <Select 
-                    value={appointment.status && appointment.status.trim() !== '' ? 
-                      statusOptions.find(option => option.toLowerCase() === appointment.status.toLowerCase()) || appointment.status 
-                      : undefined} 
-                    onValueChange={(value) => onUpdateStatus(appointment.id, value)}
-                  >
+                  <Select value={appointment.status && appointment.status.trim() !== '' ? statusOptions.find(option => option.toLowerCase() === appointment.status.toLowerCase()) || appointment.status : undefined} onValueChange={value => onUpdateStatus(appointment.id, value)}>
                     <SelectTrigger className={getStatusTriggerClass()}>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border shadow-lg z-50">
-                      {statusOptions.map(status => (
-                        <SelectItem key={status} value={status} className="text-base md:text-sm py-3 md:py-2">
+                      {statusOptions.map(status => <SelectItem key={status} value={status} className="text-base md:text-sm py-3 md:py-2">
                           {status}
-                        </SelectItem>
-                      ))}
+                        </SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium block">Procedure Ordered:</label>
-                  <Select 
-                    value={isProcedureUpdated ? (appointment.procedure_ordered === true ? 'yes' : 'no') : ''} 
-                    onValueChange={(value) => {
-                      if (value === 'yes' || value === 'no') {
-                        onUpdateProcedure(appointment.id, value === 'yes');
-                      }
-                    }}
-                  >
+                  <Select value={isProcedureUpdated ? appointment.procedure_ordered === true ? 'yes' : 'no' : ''} onValueChange={value => {
+                if (value === 'yes' || value === 'no') {
+                  onUpdateProcedure(appointment.id, value === 'yes');
+                }
+              }}>
                     <SelectTrigger className={getProcedureTriggerClass()}>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
@@ -281,18 +236,11 @@ const AppointmentCard = ({
                   </Select>
                 </div>
               </div>
-            </div>
-          )}
+            </div>}
         </div>
       </div>
 
-      <LeadDetailsModal
-        isOpen={showLeadDetails}
-        onClose={() => setShowLeadDetails(false)}
-        lead={leadData}
-      />
-    </>
-  );
+      <LeadDetailsModal isOpen={showLeadDetails} onClose={() => setShowLeadDetails(false)} lead={leadData} />
+    </>;
 };
-
 export default AppointmentCard;
