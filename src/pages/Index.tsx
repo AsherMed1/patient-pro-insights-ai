@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { useNavigate } from "react-router-dom";
@@ -90,9 +90,22 @@ const Index = () => {
             <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <User className="h-4 w-4" />
-              <span className="text-sm text-gray-600">{user?.email} ({role})</span>
+            <div className="flex flex-col items-end space-y-2">
+              <div className="flex items-center space-x-2">
+                <User className="h-4 w-4" />
+                <span className="text-sm text-gray-600">{user?.email} ({role})</span>
+              </div>
+              {(role === 'admin') && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setActiveTab('users')}
+                  className="text-xs"
+                >
+                  <Settings className="h-3 w-3 mr-1" />
+                  Admin Control
+                </Button>
+              )}
             </div>
             <Button variant="outline" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
