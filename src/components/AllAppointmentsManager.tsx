@@ -40,7 +40,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange]);
+  }, [projectFilter, dateRange, activeTab]);
 
   useEffect(() => {
     fetchAppointments();
@@ -88,6 +88,24 @@ const AllAppointmentsManager = ({
       }
       if (dateRange.to) {
         appointmentsQuery = appointmentsQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+      }
+      
+      // Apply tab-based filtering
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayString = format(today, 'yyyy-MM-dd');
+      
+      if (activeTab === 'needs-review') {
+        // Needs Review: status is null/empty and date_of_appointment is today or future
+        appointmentsQuery = appointmentsQuery
+          .is('status', null)
+          .gte('date_of_appointment', todayString);
+      } else if (activeTab === 'future') {
+        // Future: date_of_appointment is future (after today)
+        appointmentsQuery = appointmentsQuery.gt('date_of_appointment', todayString);
+      } else if (activeTab === 'past') {
+        // Past: date_of_appointment is past (before today)
+        appointmentsQuery = appointmentsQuery.lt('date_of_appointment', todayString);
       }
       
       // Apply pagination
@@ -389,7 +407,10 @@ const AllAppointmentsManager = ({
             appointments={appointments}
             loading={loading}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={(tab) => {
+              setActiveTab(tab);
+              setCurrentPage(1);
+            }}
             projectFilter={projectFilter}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}

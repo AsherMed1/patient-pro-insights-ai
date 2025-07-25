@@ -33,15 +33,15 @@ const AppointmentsTabs = ({
 }: AppointmentsTabsProps) => {
   const isMobile = useIsMobile();
   
-  const futureAppointments = filterAppointments(appointments, 'future');
-  const pastAppointments = filterAppointments(appointments, 'past');
-  const needsReviewAppointments = filterAppointments(appointments, 'needs-review');
+  // Since appointments are now filtered at the database level, 
+  // we show all appointments for the active tab
+  const displayedAppointments = appointments;
 
-  // Use tabCounts if provided, otherwise fall back to filtered appointment counts
+  // Use tabCounts if provided, otherwise fall back to current appointment count
   const displayCounts = tabCounts || {
-    needsReview: needsReviewAppointments.length,
-    future: futureAppointments.length,
-    past: pastAppointments.length
+    needsReview: activeTab === 'needs-review' ? appointments.length : 0,
+    future: activeTab === 'future' ? appointments.length : 0,
+    past: activeTab === 'past' ? appointments.length : 0
   };
 
   return (
@@ -69,7 +69,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="needs-review" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
         <AppointmentsList
-          appointments={needsReviewAppointments}
+          appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
@@ -79,7 +79,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="future" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
         <AppointmentsList
-          appointments={futureAppointments}
+          appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
@@ -89,7 +89,7 @@ const AppointmentsTabs = ({
 
       <TabsContent value="past" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
         <AppointmentsList
-          appointments={pastAppointments}
+          appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
