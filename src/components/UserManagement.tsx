@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
 import { Plus, Edit, Trash2 } from 'lucide-react';
+import ProjectUserManager from './ProjectUserManager';
 
 interface User {
   id: string;
@@ -18,6 +19,7 @@ interface User {
   full_name: string;
   role?: UserRole;
   created_at: string;
+  assignedProjects?: string[];
 }
 
 interface Project {
@@ -58,10 +60,28 @@ const UserManagement = () => {
 
       if (profilesError) throw profilesError;
 
-      const formattedUsers = profiles?.map((profile: any) => ({
-        ...profile,
-        role: profile.user_roles[0]?.role as UserRole
-      })) || [];
+      // Get project access for project users
+      const { data: projectAccess, error: accessError } = await supabase
+        .from('project_user_access')
+        .select(`
+          user_id,
+          projects(project_name)
+        `);
+
+      if (accessError) {
+        console.error('Error fetching project access:', accessError);
+      }
+
+      const formattedUsers = profiles?.map((profile: any) => {
+        const userProjectAccess = projectAccess?.filter(access => access.user_id === profile.id) || [];
+        const assignedProjects = userProjectAccess.map((access: any) => access.projects?.project_name).filter(Boolean);
+        
+        return {
+          ...profile,
+          role: profile.user_roles[0]?.role as UserRole,
+          assignedProjects
+        };
+      }) || [];
 
       setUsers(formattedUsers);
     } catch (error) {
@@ -312,6 +332,7 @@ const UserManagement = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>Full Name</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Projects</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -327,10 +348,33 @@ const UserManagement = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
+                    {user.role === 'project_user' ? (
+                      <div className="space-y-1">
+                        {user.assignedProjects && user.assignedProjects.length > 0 ? (
+                          user.assignedProjects.map((project, index) => (
+                            <Badge key={index} variant="outline" className="mr-1">
+                              {project}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No projects assigned</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">All projects</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     {new Date(user.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
+                      {user.role === 'project_user' && (
+                        <ProjectUserManager 
+                          userId={user.id} 
+                          userEmail={user.email} 
+                        />
+                      )}
                       <Button variant="outline" size="sm">
                         <Edit className="h-4 w-4" />
                       </Button>
