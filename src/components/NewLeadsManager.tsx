@@ -2,7 +2,12 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload } from 'lucide-react';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Upload, CalendarIcon, Filter } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 import CallDetailsModal from './CallDetailsModal';
 import LeadDetailsModal from './LeadDetailsModal';
 import LeadCard from './leads/LeadCard';
@@ -28,8 +33,64 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
-    fetchLeadsWithCallCounts
+    fetchLeadsWithCallCounts,
+    currentPage,
+    setCurrentPage,
+    totalCount,
+    dateRange,
+    setDateRange,
+    leadsPerPage
   } = useLeads(projectFilter);
+
+  const totalPages = Math.ceil(totalCount / leadsPerPage);
+
+  const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(range);
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const showEllipsis = totalPages > 7;
+
+    if (!showEllipsis) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 4) {
+        for (let i = 1; i <= 5; i++) pages.push(i);
+        pages.push('ellipsis');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 3) {
+        pages.push(1);
+        pages.push('ellipsis');
+        for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('ellipsis');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('ellipsis');
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+  };
 
   const handleImportComplete = () => {
     setShowImport(false);
@@ -74,6 +135,84 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
         </div>
       )}
 
+      {/* Date Filter */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Filter className="h-5 w-5" />
+            <span>Filters</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Date Range Picker */}
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">Date Range</label>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[140px] justify-start text-left font-normal",
+                        !dateRange.from && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.from}
+                      onSelect={(date) => handleDateRangeChange({ ...dateRange, from: date })}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[140px] justify-start text-left font-normal",
+                        !dateRange.to && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.to}
+                      onSelect={(date) => handleDateRangeChange({ ...dateRange, to: date })}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Clear Filters Button */}
+            <div className="flex flex-col justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => handleDateRangeChange({ from: undefined, to: undefined })}
+                className="w-fit"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Leads List */}
       <Card>
         <CardHeader>
@@ -81,7 +220,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
             {projectFilter ? `${projectFilter} - New Leads` : 'New Leads'}
           </CardTitle>
           <CardDescription>
-            {leads.length} lead{leads.length !== 1 ? 's' : ''} recorded (Times in Central Time Zone)
+            Showing {((currentPage - 1) * leadsPerPage) + 1} to {Math.min(currentPage * leadsPerPage, totalCount)} of {totalCount} leads (Times in Central Time Zone)
             {viewOnly && " (View Only - Records created via API)"}
             {projectFilter && ` for ${projectFilter}`}
           </CardDescription>
@@ -96,16 +235,57 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
               <div className="text-gray-500">No leads recorded yet</div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {leads.map((lead) => (
-                <LeadCard
-                  key={lead.id}
-                  lead={lead}
-                  onViewCalls={handleViewCalls}
-                  onViewFullDetails={handleViewFullDetails}
-                />
-              ))}
-            </div>
+            <>
+              <div className="space-y-4">
+                {leads.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onViewCalls={handleViewCalls}
+                    onViewFullDetails={handleViewFullDetails}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={goToPreviousPage}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      
+                      {getPageNumbers().map((page, index) => (
+                        <PaginationItem key={index}>
+                          {page === 'ellipsis' ? (
+                            <span className="flex h-9 w-9 items-center justify-center">...</span>
+                          ) : (
+                            <PaginationLink
+                              onClick={() => goToPage(page as number)}
+                              isActive={currentPage === page}
+                              className="cursor-pointer"
+                            >
+                              {page}
+                            </PaginationLink>
+                          )}
+                        </PaginationItem>
+                      ))}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={goToNextPage}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

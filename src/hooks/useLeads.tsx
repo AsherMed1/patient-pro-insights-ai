@@ -69,32 +69,74 @@ export const useLeads = (projectFilter?: string) => {
   const [showCallsModal, setShowCallsModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<NewLead | null>(null);
   const [showLeadDetailsModal, setShowLeadDetailsModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
   const { toast } = useToast();
 
-  const fetchLeadsWithCallCounts = async () => {
+  const LEADS_PER_PAGE = 50;
+
+  const fetchLeadsWithCallCounts = async (page: number = currentPage) => {
     try {
       setLoading(true);
       
-      // Fetch leads with optional project filtering
+      // Build the base query for counting
+      let countQuery = supabase
+        .from('new_leads')
+        .select('*', { count: 'exact', head: true });
+
+      // Apply project filter
+      if (projectFilter) {
+        countQuery = countQuery.eq('project_name', projectFilter);
+      }
+      
+      // Apply date range filter
+      if (dateRange.from) {
+        countQuery = countQuery.gte('date', dateRange.from.toISOString().split('T')[0]);
+      }
+      if (dateRange.to) {
+        countQuery = countQuery.lte('date', dateRange.to.toISOString().split('T')[0]);
+      }
+
+      // Get the total count first
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+      setTotalCount(count || 0);
+
+      // Now build the data query with the same filters
       let leadsQuery = supabase
         .from('new_leads')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50000);
-      
+        .order('created_at', { ascending: false });
+
+      // Apply the same filters to the data query
       if (projectFilter) {
         leadsQuery = leadsQuery.eq('project_name', projectFilter);
       }
+      
+      if (dateRange.from) {
+        leadsQuery = leadsQuery.gte('date', dateRange.from.toISOString().split('T')[0]);
+      }
+      if (dateRange.to) {
+        leadsQuery = leadsQuery.lte('date', dateRange.to.toISOString().split('T')[0]);
+      }
+      
+      // Apply pagination
+      const from = (page - 1) * LEADS_PER_PAGE;
+      const to = from + LEADS_PER_PAGE - 1;
+      leadsQuery = leadsQuery.range(from, to);
       
       const { data: leadsData, error: leadsError } = await leadsQuery;
       
       if (leadsError) throw leadsError;
 
-      // Fetch all calls to calculate actual call counts
+      // Fetch all calls to calculate actual call counts (no limit)
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
-        .select('lead_name')
-        .limit(50000);
+        .select('lead_name');
       
       if (callsError) throw callsError;
 
@@ -152,8 +194,13 @@ export const useLeads = (projectFilter?: string) => {
   };
 
   useEffect(() => {
-    fetchLeadsWithCallCounts();
-  }, [projectFilter]);
+    setCurrentPage(1); // Reset to first page when filters change
+    fetchLeadsWithCallCounts(1);
+  }, [projectFilter, dateRange]);
+
+  useEffect(() => {
+    fetchLeadsWithCallCounts(currentPage);
+  }, [currentPage]);
 
   return {
     leads,
@@ -167,6 +214,12 @@ export const useLeads = (projectFilter?: string) => {
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
-    fetchLeadsWithCallCounts
+    fetchLeadsWithCallCounts,
+    currentPage,
+    setCurrentPage,
+    totalCount,
+    dateRange,
+    setDateRange,
+    leadsPerPage: LEADS_PER_PAGE
   };
 };
