@@ -50,7 +50,45 @@ const AllAppointmentsManager = ({
     try {
       setLoading(true);
       
-      // Build the base query
+      // Build the base query for counting
+      let countQuery = supabase
+        .from('all_appointments')
+        .select('*', { count: 'exact', head: true });
+
+      // Apply project filter
+      if (projectFilter) {
+        countQuery = countQuery.eq('project_name', projectFilter);
+      }
+      
+      // Apply date range filter
+      if (dateRange.from) {
+        countQuery = countQuery.gte('date_appointment_created', format(dateRange.from, 'yyyy-MM-dd'));
+      }
+      if (dateRange.to) {
+        countQuery = countQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+      }
+      
+      // Apply tab-based filtering to count query
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayString = format(today, 'yyyy-MM-dd');
+      
+      if (activeTab === 'needs-review') {
+        countQuery = countQuery
+          .is('status', null)
+          .gte('date_of_appointment', todayString);
+      } else if (activeTab === 'future') {
+        countQuery = countQuery.gt('date_of_appointment', todayString);
+      } else if (activeTab === 'past') {
+        countQuery = countQuery.lt('date_of_appointment', todayString);
+      }
+
+      // Get the total count first
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+      setTotalCount(count || 0);
+
+      // Now build the data query with the same filters
       let appointmentsQuery = supabase
         .from('all_appointments')
         .select(`
@@ -74,15 +112,14 @@ const AllAppointmentsManager = ({
           updated_at,
           status,
           procedure_ordered
-        `, { count: 'exact' })
+        `)
         .order('date_appointment_created', { ascending: false });
 
-      // Apply project filter
+      // Apply the same filters to the data query
       if (projectFilter) {
         appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
       }
       
-      // Apply date range filter
       if (dateRange.from) {
         appointmentsQuery = appointmentsQuery.gte('date_appointment_created', format(dateRange.from, 'yyyy-MM-dd'));
       }
@@ -90,21 +127,13 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
       }
       
-      // Apply tab-based filtering
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayString = format(today, 'yyyy-MM-dd');
-      
       if (activeTab === 'needs-review') {
-        // Needs Review: status is null/empty and date_of_appointment is today or future
         appointmentsQuery = appointmentsQuery
           .is('status', null)
           .gte('date_of_appointment', todayString);
       } else if (activeTab === 'future') {
-        // Future: date_of_appointment is future (after today)
         appointmentsQuery = appointmentsQuery.gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Past: date_of_appointment is past (before today)
         appointmentsQuery = appointmentsQuery.lt('date_of_appointment', todayString);
       }
       
@@ -113,11 +142,10 @@ const AllAppointmentsManager = ({
       const to = from + APPOINTMENTS_PER_PAGE - 1;
       appointmentsQuery = appointmentsQuery.range(from, to);
 
-      const { data, error, count } = await appointmentsQuery;
+      const { data, error } = await appointmentsQuery;
       if (error) throw error;
       console.log(`Fetched ${data?.length || 0} appointments from database`);
       setAppointments(data || []);
-      setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching appointments:', error);
       toast({
