@@ -44,7 +44,7 @@ const AllCallsManager = ({ projectFilter }: AllCallsManagerProps) => {
         .from('all_calls')
         .select('*')
         .order('call_datetime', { ascending: false })
-        .limit(10000);
+        .limit(50000);
       
       if (projectFilter) {
         callsQuery = callsQuery.eq('project_name', projectFilter);

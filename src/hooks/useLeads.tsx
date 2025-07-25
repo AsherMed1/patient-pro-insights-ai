@@ -80,7 +80,7 @@ export const useLeads = (projectFilter?: string) => {
         .from('new_leads')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10000);
+        .limit(50000);
       
       if (projectFilter) {
         leadsQuery = leadsQuery.eq('project_name', projectFilter);
@@ -94,7 +94,7 @@ export const useLeads = (projectFilter?: string) => {
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
         .select('lead_name')
-        .limit(10000);
+        .limit(50000);
       
       if (callsError) throw callsError;
 
