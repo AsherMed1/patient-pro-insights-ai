@@ -26,6 +26,11 @@ const AllAppointmentsManager = ({
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [tabCounts, setTabCounts] = useState({
+    needsReview: 0,
+    future: 0,
+    past: 0
+  });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { toast } = useToast();
   
@@ -34,6 +39,7 @@ const AllAppointmentsManager = ({
   useEffect(() => {
     setCurrentPage(1);
     fetchAppointments();
+    fetchTabCounts();
   }, [projectFilter, dateRange]);
 
   useEffect(() => {
@@ -103,6 +109,60 @@ const AllAppointmentsManager = ({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTabCounts = async () => {
+    try {
+      // Base query filters (project and date range)
+      const getBaseQuery = () => {
+        let query = supabase.from('all_appointments').select('*', { count: 'exact', head: true });
+        
+        if (projectFilter) {
+          query = query.eq('project_name', projectFilter);
+        }
+        
+        if (dateRange.from) {
+          query = query.gte('date_appointment_created', format(dateRange.from, 'yyyy-MM-dd'));
+        }
+        if (dateRange.to) {
+          query = query.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+        }
+        
+        return query;
+      };
+
+      // Fetch counts for each tab
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayString = format(today, 'yyyy-MM-dd');
+
+      // Needs Review: status is null/empty and date_of_appointment is today or future
+      const needsReviewQuery = getBaseQuery()
+        .is('status', null)
+        .gte('date_of_appointment', todayString);
+
+      // Future: date_of_appointment is future (after today)
+      const futureQuery = getBaseQuery()
+        .gt('date_of_appointment', todayString);
+
+      // Past: date_of_appointment is past (before today)
+      const pastQuery = getBaseQuery()
+        .lt('date_of_appointment', todayString);
+
+      const [needsReviewResult, futureResult, pastResult] = await Promise.all([
+        needsReviewQuery,
+        futureQuery,
+        pastQuery
+      ]);
+
+      setTabCounts({
+        needsReview: needsReviewResult.count || 0,
+        future: futureResult.count || 0,
+        past: pastResult.count || 0
+      });
+    } catch (error) {
+      console.error('Error fetching tab counts:', error);
     }
   };
 
@@ -333,6 +393,7 @@ const AllAppointmentsManager = ({
             projectFilter={projectFilter}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}
+            tabCounts={tabCounts}
           />
           
           {/* Pagination */}

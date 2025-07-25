@@ -14,6 +14,11 @@ interface AppointmentsTabsProps {
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  tabCounts?: {
+    needsReview: number;
+    future: number;
+    past: number;
+  };
 }
 
 const AppointmentsTabs = ({
@@ -23,13 +28,21 @@ const AppointmentsTabs = ({
   onTabChange,
   projectFilter,
   onUpdateStatus,
-  onUpdateProcedure
+  onUpdateProcedure,
+  tabCounts
 }: AppointmentsTabsProps) => {
   const isMobile = useIsMobile();
   
   const futureAppointments = filterAppointments(appointments, 'future');
   const pastAppointments = filterAppointments(appointments, 'past');
   const needsReviewAppointments = filterAppointments(appointments, 'needs-review');
+
+  // Use tabCounts if provided, otherwise fall back to filtered appointment counts
+  const displayCounts = tabCounts || {
+    needsReview: needsReviewAppointments.length,
+    future: futureAppointments.length,
+    past: pastAppointments.length
+  };
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
@@ -38,19 +51,19 @@ const AppointmentsTabs = ({
           value="needs-review" 
           className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
         >
-          Needs Review ({needsReviewAppointments.length})
+          Needs Review ({displayCounts.needsReview})
         </TabsTrigger>
         <TabsTrigger 
           value="future" 
           className={`${isMobile ? 'w-full mb-1 py-3 text-sm' : 'text-xs md:text-sm'}`}
         >
-          Future ({futureAppointments.length})
+          Future ({displayCounts.future})
         </TabsTrigger>
         <TabsTrigger 
           value="past" 
           className={`${isMobile ? 'w-full py-3 text-sm' : 'text-xs md:text-sm'}`}
         >
-          Past ({pastAppointments.length})
+          Past ({displayCounts.past})
         </TabsTrigger>
       </TabsList>
 
