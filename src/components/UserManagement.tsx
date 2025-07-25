@@ -47,18 +47,19 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      // Get profiles with their roles
+      // Get profiles first
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select(`
-          id,
-          email,
-          full_name,
-          created_at,
-          user_roles!inner(role)
-        `);
+        .select('id, email, full_name, created_at');
 
       if (profilesError) throw profilesError;
+
+      // Get user roles separately
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) throw rolesError;
 
       // Get project access for project users
       const { data: projectAccess, error: accessError } = await supabase
@@ -72,13 +73,15 @@ const UserManagement = () => {
         console.error('Error fetching project access:', accessError);
       }
 
+      // Combine the data
       const formattedUsers = profiles?.map((profile: any) => {
+        const userRole = userRoles?.find(role => role.user_id === profile.id);
         const userProjectAccess = projectAccess?.filter(access => access.user_id === profile.id) || [];
         const assignedProjects = userProjectAccess.map((access: any) => access.projects?.project_name).filter(Boolean);
         
         return {
           ...profile,
-          role: profile.user_roles[0]?.role as UserRole,
+          role: userRole?.role as UserRole,
           assignedProjects
         };
       }) || [];
