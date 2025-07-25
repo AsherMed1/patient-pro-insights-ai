@@ -20,26 +20,22 @@ const AppointmentsList = ({
 }: AppointmentsListProps) => {
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <div className="text-muted-foreground">Loading appointments...</div>
+      <div className="text-center py-8">
+        <div className="text-gray-500">Loading appointments...</div>
       </div>
     );
   }
 
   if (appointments.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="text-muted-foreground text-lg mb-2">No appointments found</div>
-        <div className="text-sm text-muted-foreground">
-          Try adjusting your filters or check a different category
-        </div>
+      <div className="text-center py-8">
+        <div className="text-gray-500">No appointments found for this category</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {appointments.map(appointment => (
         <AppointmentCard
           key={appointment.id}

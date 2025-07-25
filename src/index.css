@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -98,55 +97,5 @@
 
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-@layer components {
-  /* Custom range slider styles */
-  .slider::-webkit-slider-thumb {
-    appearance: none;
-    height: 24px;
-    width: 24px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #3B82F6, #8B5CF6);
-    border: 3px solid white;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .slider::-webkit-slider-thumb:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6);
-  }
-
-  .slider::-moz-range-thumb {
-    height: 24px;
-    width: 24px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #3B82F6, #8B5CF6);
-    border: 3px solid white;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
-  }
-
-  .slider::-moz-range-thumb:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6);
-  }
-
-  .slider::-webkit-slider-track {
-    height: 8px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #E5E7EB, #D1D5DB);
-  }
-
-  .slider::-moz-range-track {
-    height: 8px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #E5E7EB, #D1D5DB);
-    border: none;
   }
 }

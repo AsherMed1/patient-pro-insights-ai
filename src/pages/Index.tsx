@@ -14,8 +14,6 @@ import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
 import AdSpendManager from "@/components/AdSpendManager";
 import AIAssistant from "@/components/AIAssistant";
-import FormManagement from "@/components/forms/FormManagement";
-import AgentPerformanceDashboard from "@/components/AgentPerformanceDashboard";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -29,16 +27,14 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-11">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
-            <TabsTrigger value="agent-performance">Agent Performance</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="forms">Forms</TabsTrigger>
             <TabsTrigger value="adspend">Ad Spend</TabsTrigger>
             <TabsTrigger value="ai">AI Assistant</TabsTrigger>
           </TabsList>
@@ -67,16 +63,8 @@ const Index = () => {
             <AgentManager />
           </TabsContent>
 
-          <TabsContent value="agent-performance" className="space-y-6">
-            <AgentPerformanceDashboard />
-          </TabsContent>
-
           <TabsContent value="projects" className="space-y-6">
             <ProjectsManager />
-          </TabsContent>
-
-          <TabsContent value="forms" className="space-y-6">
-            <FormManagement />
           </TabsContent>
 
           <TabsContent value="adspend" className="space-y-6">
@@ -88,7 +76,7 @@ const Index = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Quick Actions Card */}
+        {/* Quick Actions Card - moved to bottom */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

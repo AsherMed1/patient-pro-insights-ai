@@ -1,31 +1,24 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
-import SearchFilter from './filters/SearchFilter';
-import StatusFilter from './filters/StatusFilter';
-import TagFilter from './filters/TagFilter';
-import DateFilter from './filters/DateFilter';
-import DateRangeFilter from './filters/DateRangeFilter';
-import { useProjectTags } from './filters/hooks/useProjectTags';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon, X } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface AppointmentsFiltersProps {
   onStatusFilter?: (status: string | null) => void;
   onDateFilter?: (date: Date | null) => void;
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
-  onSearchFilter?: (searchTerm: string) => void;
-  onTagFilter?: (tagId: string | null) => void;
-  projectName?: string;
 }
 
 const AppointmentsFilters = ({
   onStatusFilter,
   onDateFilter,
-  onDateRangeFilter,
-  onSearchFilter,
-  onTagFilter,
-  projectName
+  onDateRangeFilter
 }: AppointmentsFiltersProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -33,10 +26,16 @@ const AppointmentsFilters = ({
     start: null,
     end: null
   });
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  const { availableTags } = useProjectTags(projectName);
+  const statusOptions = [
+    'Showed',
+    'No Show', 
+    'Cancelled',
+    'Rescheduled',
+    'Confirmed',
+    'Welcome Call',
+    'Won'
+  ];
 
   const handleStatusChange = (status: string) => {
     const newStatus = status === 'all' ? null : status;
@@ -60,62 +59,115 @@ const AppointmentsFilters = ({
     onDateRangeFilter?.(newDateRange.start, newDateRange.end);
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    onSearchFilter?.(value);
-  };
-
-  const handleTagChange = (tagId: string) => {
-    const newTagId = tagId === 'all' ? null : tagId;
-    setSelectedTag(newTagId);
-    onTagFilter?.(newTagId);
-  };
-
   const clearFilters = () => {
     setSelectedStatus(null);
     setSelectedDate(null);
     setDateRange({ start: null, end: null });
-    setSearchTerm('');
-    setSelectedTag(null);
     onStatusFilter?.(null);
     onDateFilter?.(null);
     onDateRangeFilter?.(null, null);
-    onSearchFilter?.('');
-    onTagFilter?.(null);
   };
 
   return (
     <Card className="mb-4">
       <CardContent className="p-4">
         <div className="flex flex-wrap gap-4 items-center">
-          <SearchFilter 
-            searchTerm={searchTerm}
-            onSearchChange={handleSearchChange}
-          />
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-sm font-medium mb-2 block">Filter by Status</label>
+            <Select value={selectedStatus || 'all'} onValueChange={handleStatusChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {statusOptions.map(status => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <StatusFilter 
-            selectedStatus={selectedStatus}
-            onStatusChange={handleStatusChange}
-          />
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-sm font-medium mb-2 block">Filter by Date</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={handleDateChange}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
 
-          {onTagFilter && (
-            <TagFilter
-              selectedTag={selectedTag}
-              availableTags={availableTags}
-              onTagChange={handleTagChange}
-            />
-          )}
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-sm font-medium mb-2 block">Date Range</label>
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "flex-1 justify-start text-left font-normal",
+                      !dateRange.start && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange.start ? format(dateRange.start, "MMM dd") : "Start"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateRange.start}
+                    onSelect={(date) => handleDateRangeChange('start', date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
 
-          <DateFilter 
-            selectedDate={selectedDate}
-            onDateChange={handleDateChange}
-          />
-
-          <DateRangeFilter 
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-          />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "flex-1 justify-start text-left font-normal",
+                      !dateRange.end && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange.end ? format(dateRange.end, "MMM dd") : "End"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateRange.end}
+                    onSelect={(date) => handleDateRangeChange('end', date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
 
           <div className="flex items-end">
             <Button 

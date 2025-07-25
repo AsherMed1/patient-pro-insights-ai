@@ -31,11 +31,6 @@ export const useMasterDatabase = () => {
     fetchStats();
   }, []);
 
-  const isAppointmentConfirmed = (appointment: any) => {
-    return appointment.confirmed === true || 
-           (appointment.status && appointment.status.toLowerCase() === 'confirmed');
-  };
-
   const fetchStats = async () => {
     try {
       setLoading(true);
@@ -117,7 +112,7 @@ export const useMasterDatabase = () => {
   const getAggregatedMetrics = async (projectName?: string, dateRange?: { from: Date; to: Date }) => {
     let appointmentsQuery = supabase
       .from('all_appointments')
-      .select('showed, confirmed, status');
+      .select('showed, confirmed');
 
     let adSpendQuery = supabase
       .from('facebook_ad_spend')
@@ -154,10 +149,10 @@ export const useMasterDatabase = () => {
     const appointments = appointmentsResult.data || [];
     const adSpendRecords = adSpendResult.data || [];
 
-    // Calculate aggregated metrics from appointments using standardized confirmed logic
+    // Calculate aggregated metrics from appointments
     const totalAppointments = appointments.length;
     const showedAppointments = appointments.filter(a => a.showed).length;
-    const confirmedAppointments = appointments.filter(isAppointmentConfirmed).length;
+    const confirmedAppointments = appointments.filter(a => a.confirmed).length;
     const totalAdSpend = adSpendRecords.reduce((sum, record) => {
       const spendValue = typeof record.spend === 'string' ? parseFloat(record.spend) : Number(record.spend);
       return sum + (isNaN(spendValue) ? 0 : spendValue);

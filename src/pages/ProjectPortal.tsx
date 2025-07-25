@@ -1,18 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Tag } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
+import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
-import { ProjectPasswordPrompt } from '@/components/projects/ProjectPasswordPrompt';
-import { useProjectPortalAuth } from '@/hooks/useProjectPortalAuth';
-import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
-import TagManager from '@/components/projects/TagManager';
 
 interface Project {
   id: string;
@@ -32,7 +29,6 @@ const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showTagManager, setShowTagManager] = useState(false);
   const [stats, setStats] = useState<AppointmentStats>({
     totalAppointments: 0,
     totalShowed: 0,
@@ -41,61 +37,24 @@ const ProjectPortal = () => {
   });
   const { toast } = useToast();
 
-  const {
-    isAuthenticated,
-    loading: authLoading,
-    error: authError,
-    verifyPassword
-  } = useProjectPortalAuth(projectName || '');
-
   useEffect(() => {
-    console.log('ProjectPortal mounted with projectName:', projectName);
-    if (projectName && isAuthenticated === true) {
+    if (projectName) {
       fetchProject();
       fetchAppointmentStats();
     }
-  }, [projectName, isAuthenticated]);
-
-  // Show password prompt if authentication is required
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center py-8">
-            <span>Loading project...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isAuthenticated === false) {
-    return (
-      <ProjectPasswordPrompt
-        projectName={decodeURIComponent(projectName || '')}
-        onPasswordSubmit={verifyPassword}
-        error={authError}
-        loading={authLoading}
-      />
-    );
-  }
+  }, [projectName]);
 
   const fetchProject = async () => {
     try {
       setLoading(true);
-      console.log('Fetching project with name:', projectName);
-      
-      const decodedProjectName = decodeURIComponent(projectName!);
-      console.log('Decoded project name:', decodedProjectName);
       
       const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('project_name', decodedProjectName)
+        .eq('project_name', decodeURIComponent(projectName!))
         .single();
       
       if (error) {
-        console.error('Error fetching project:', error);
         if (error.code === 'PGRST116') {
           toast({
             title: "Project Not Found",
@@ -108,7 +67,6 @@ const ProjectPortal = () => {
         return;
       }
       
-      console.log('Project data fetched:', data);
       setProject(data);
     } catch (error) {
       console.error('Error fetching project:', error);
@@ -124,41 +82,31 @@ const ProjectPortal = () => {
 
   const fetchAppointmentStats = async () => {
     try {
-      const decodedProjectName = decodeURIComponent(projectName!);
-      console.log('Fetching appointment stats for project:', decodedProjectName);
-      
       // Fetch all appointments for this project and filter for confirmed ones
       const { data, error } = await supabase
         .from('all_appointments')
         .select('showed, procedure_ordered, confirmed, status')
-        .eq('project_name', decodedProjectName);
+        .eq('project_name', decodeURIComponent(projectName!));
       
-      if (error) {
-        console.error('Error fetching appointment stats:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      console.log('Raw appointment data:', data);
-      
-      // Filter for confirmed appointments using standardized logic
-      const confirmedAppointments = data?.filter(isAppointmentConfirmed) || [];
-      
-      console.log('Confirmed appointments:', confirmedAppointments);
+      // Filter for confirmed appointments (either confirmed boolean is true OR status is 'Confirmed')
+      const confirmedAppointments = data?.filter(apt => {
+        return apt.confirmed === true || 
+               (apt.status && apt.status.toLowerCase() === 'confirmed');
+      }) || [];
       
       const totalAppointments = confirmedAppointments.length;
       const totalShowed = confirmedAppointments.filter(apt => apt.showed === true).length;
       const totalProceduresOrdered = confirmedAppointments.filter(apt => apt.procedure_ordered === true).length;
       const projectedRevenue = totalProceduresOrdered * 7000;
       
-      const calculatedStats = {
+      setStats({
         totalAppointments,
         totalShowed,
         totalProceduresOrdered,
         projectedRevenue
-      };
-      
-      console.log('Calculated stats:', calculatedStats);
-      setStats(calculatedStats);
+      });
     } catch (error) {
       console.error('Error fetching appointment stats:', error);
       toast({
@@ -185,6 +133,12 @@ const ProjectPortal = () => {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
+          <Link to="/">
+            <Button variant="outline" className="mb-6">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
           <Card>
             <CardContent className="flex items-center justify-center py-8">
               <div className="text-center">
@@ -201,38 +155,32 @@ const ProjectPortal = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header with back button only */}
+        <div className="flex items-center justify-between">
+          <Link to="/">
+            <Button variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
+
         {/* Project Header */}
         <ProjectHeader projectName={project.project_name} />
 
         {/* Stats Cards */}
         <ProjectStatsCards stats={stats} />
 
-        {/* Tag Manager Section with Toggle */}
-        <Card>
-          <div className="p-4">
-            <Button
-              variant="ghost"
-              onClick={() => setShowTagManager(!showTagManager)}
-              className="flex items-center space-x-2 text-left p-0 h-auto font-medium"
-            >
-              {showTagManager ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-              <Tag className="h-4 w-4" />
-              <span>Tag Manager</span>
-            </Button>
-            
-            {showTagManager && (
-              <div className="mt-4">
-                <TagManager projectId={project.id} projectName={project.project_name} />
-              </div>
-            )}
-          </div>
-        </Card>
+        {/* Small detailed analytics link below stats */}
+        <div className="text-center">
+          <ProjectDetailedDashboard project={project}>
+            <button className="text-sm text-blue-600 hover:text-blue-800 underline">
+              View detailed analytics
+            </button>
+          </ProjectDetailedDashboard>
+        </div>
 
-        {/* Appointments Section - Only confirmed appointments for status updates */}
+        {/* Appointments Section - Only confirmed appointments */}
         <AllAppointmentsManager 
           projectFilter={project.project_name} 
           isProjectPortal={true}

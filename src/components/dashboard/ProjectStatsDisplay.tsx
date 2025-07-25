@@ -1,7 +1,24 @@
+
 import React from 'react';
 import StatCard from './StatCard';
 import { DollarSign, Users, Target, Calendar as CalendarEventIcon, CheckCircle, XCircle, Clock, Phone } from 'lucide-react';
-import type { ProjectStats } from './types';
+
+interface ProjectStats {
+  adSpend: number;
+  newLeads: number;
+  costPerLead: number;
+  bookedAppointments: number;
+  confirmedAppointments: number;
+  unconfirmedAppointments: number;
+  appointmentsToTakePlace: number;
+  shows: number;
+  noShows: number;
+  confirmedPercentage: number;
+  outboundDials: number;
+  pickups40Plus: number;
+  conversations2Plus: number;
+  bookingPercentage: number;
+}
 
 interface ProjectStatsDisplayProps {
   stats: ProjectStats;

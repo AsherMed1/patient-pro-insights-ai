@@ -1,11 +1,15 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import type { SpeedRangeData } from './types';
 
 interface SpeedToLeadChartsProps {
-  speedRangeData: SpeedRangeData[];
+  speedRangeData: Array<{
+    range: string;
+    count: number;
+    color: string;
+  }>;
 }
 
 const SpeedToLeadCharts = ({ speedRangeData }: SpeedToLeadChartsProps) => {

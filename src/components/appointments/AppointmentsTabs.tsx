@@ -3,21 +3,15 @@ import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { AllAppointment } from './types';
+import { filterAppointments } from './utils';
 import AppointmentsList from './AppointmentsList';
 import AppointmentsFilters from './AppointmentsFilters';
 
 interface AppointmentsTabsProps {
   appointments: AllAppointment[];
-  totalCounts: {
-    all: number;
-    future: number;
-    past: number;
-    needsReview: number;
-    cancelled: number;
-  };
   loading: boolean;
   activeTab: string;
-  onTabChange: (tab: string) => void;
+  onTabChange: (value: string) => void;
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
@@ -25,13 +19,10 @@ interface AppointmentsTabsProps {
   onStatusFilter?: (status: string | null) => void;
   onDateFilter?: (date: Date | null) => void;
   onDateRangeFilter?: (startDate: Date | null, endDate: Date | null) => void;
-  onSearchFilter?: (searchTerm: string) => void;
-  onTagFilter?: (tagId: string | null) => void;
 }
 
 const AppointmentsTabs = ({
   appointments,
-  totalCounts,
   loading,
   activeTab,
   onTabChange,
@@ -41,46 +32,53 @@ const AppointmentsTabs = ({
   isProjectPortal = false,
   onStatusFilter,
   onDateFilter,
-  onDateRangeFilter,
-  onSearchFilter,
-  onTagFilter
+  onDateRangeFilter
 }: AppointmentsTabsProps) => {
-  const tabs = [
-    { id: 'all', label: 'All Appointments', count: totalCounts.all },
-    { id: 'future', label: 'Future', count: totalCounts.future },
-    { id: 'past', label: 'Past', count: totalCounts.past },
-    { id: 'needs-review', label: 'Needs Review', count: totalCounts.needsReview },
-    { id: 'cancelled', label: 'Cancelled', count: totalCounts.cancelled }
-  ];
+  const futureAppointments = filterAppointments(appointments, 'future', isProjectPortal);
+  const pastAppointments = filterAppointments(appointments, 'past', isProjectPortal);
+  const needsReviewAppointments = filterAppointments(appointments, 'needs-review', isProjectPortal);
+  const cancelledAppointments = filterAppointments(appointments, 'cancelled', isProjectPortal);
 
-  // Filter tabs for project portal
-  const visibleTabs = isProjectPortal ? tabs.filter(tab => tab.id !== 'all') : tabs;
+  // For project portal, default to future tab if all tab is selected
+  const currentTab = isProjectPortal && activeTab === "all" ? "future" : activeTab;
 
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-4 lg:grid-cols-5">
-        {visibleTabs.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
-            <span className="hidden sm:inline">{tab.label}</span>
-            <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
-            <Badge variant="secondary" className="ml-1">
-              {tab.count}
+    <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
+      <TabsList className={`grid w-full ${isProjectPortal ? 'grid-cols-4' : 'grid-cols-5'}`}>
+        {!isProjectPortal && (
+          <TabsTrigger value="all" className="relative">
+            All
+            <Badge variant="outline" className="ml-2 text-xs">
+              {appointments.length}
             </Badge>
           </TabsTrigger>
-        ))}
+        )}
+        <TabsTrigger value="needs-review" className="relative">
+          Needs Review
+          {needsReviewAppointments.length > 0 && (
+            <Badge variant="destructive" className="ml-2 text-xs">
+              {needsReviewAppointments.length}
+            </Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="future" className="relative">
+          Future
+        </TabsTrigger>
+        <TabsTrigger value="past" className="relative">
+          Past
+        </TabsTrigger>
+        <TabsTrigger value="cancelled" className="relative">
+          Cancelled
+        </TabsTrigger>
       </TabsList>
 
-      {visibleTabs.map((tab) => (
-        <TabsContent key={tab.id} value={tab.id} className="space-y-4">
+      {!isProjectPortal && (
+        <TabsContent value="all" className="mt-4">
           <AppointmentsFilters
             onStatusFilter={onStatusFilter}
             onDateFilter={onDateFilter}
             onDateRangeFilter={onDateRangeFilter}
-            onSearchFilter={onSearchFilter}
-            onTagFilter={onTagFilter}
-            projectName={projectFilter}
           />
-          
           <AppointmentsList
             appointments={appointments}
             loading={loading}
@@ -89,7 +87,47 @@ const AppointmentsTabs = ({
             onUpdateProcedure={onUpdateProcedure}
           />
         </TabsContent>
-      ))}
+      )}
+
+      <TabsContent value="needs-review" className="mt-4">
+        <AppointmentsList
+          appointments={needsReviewAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
+
+      <TabsContent value="future" className="mt-4">
+        <AppointmentsList
+          appointments={futureAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
+
+      <TabsContent value="past" className="mt-4">
+        <AppointmentsList
+          appointments={pastAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
+
+      <TabsContent value="cancelled" className="mt-4">
+        <AppointmentsList
+          appointments={cancelledAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+        />
+      </TabsContent>
     </Tabs>
   );
 };

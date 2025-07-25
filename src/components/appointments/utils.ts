@@ -1,7 +1,5 @@
-
 import { AllAppointment } from './types';
 import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
-import { isAppointmentConfirmed } from '@/utils/appointmentUtils';
 
 export const formatDate = (dateString: string | null) => {
   if (!dateString) return 'Not set';
@@ -16,18 +14,14 @@ export const formatTime = (timeString: string | null) => {
 export const isAppointmentInPast = (appointmentDate: string | null) => {
   if (!appointmentDate) return false;
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Start of today
   const appointmentDay = new Date(appointmentDate);
-  appointmentDay.setHours(0, 0, 0, 0); // Start of appointment day
   return appointmentDay < today;
 };
 
 export const isAppointmentInFuture = (appointmentDate: string | null) => {
   if (!appointmentDate) return false;
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Start of today
   const appointmentDay = new Date(appointmentDate);
-  appointmentDay.setHours(0, 0, 0, 0); // Start of appointment day
   return appointmentDay >= today;
 };
 
@@ -36,8 +30,40 @@ export const isStatusUpdated = (appointment: AllAppointment) => {
 };
 
 export const isProcedureUpdated = (appointment: AllAppointment) => {
-  // After database migration: null means "not set", true/false means "explicitly set"
-  return appointment.procedure_ordered !== null;
+  return appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+};
+
+export const filterAppointments = (appointments: AllAppointment[], filterType: string, isProjectPortal: boolean = false) => {
+  return appointments.filter(appointment => {
+    // For project portals, only show confirmed appointments
+    if (isProjectPortal && !appointment.confirmed) {
+      return false;
+    }
+
+    switch (filterType) {
+      case 'future':
+        // Exclude cancelled appointments from future tab
+        return isAppointmentInFuture(appointment.date_of_appointment) && 
+               !isCancelledStatus(appointment.status);
+      case 'past':
+        // Include cancelled appointments and unconfirmed past appointments (now marked as No Show)
+        return isAppointmentInPast(appointment.date_of_appointment) && 
+               (isCancelledStatus(appointment.status) || 
+                (!appointment.confirmed && !isStatusUpdated(appointment)) ||
+                (isStatusUpdated(appointment) && isProcedureUpdated(appointment)));
+      case 'needs-review':
+        // Only show confirmed past appointments that need review
+        return isAppointmentInPast(appointment.date_of_appointment) && 
+               appointment.confirmed === true &&
+               !isCancelledStatus(appointment.status) &&
+               (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
+      case 'cancelled':
+        // Show all appointments with Cancelled status regardless of date
+        return isCancelledStatus(appointment.status);
+      default:
+        return true;
+    }
+  });
 };
 
 // Helper function to check if status indicates cancelled
@@ -45,58 +71,6 @@ const isCancelledStatus = (status: string | null) => {
   if (!status) return false;
   const normalizedStatus = status.toLowerCase().trim();
   return normalizedStatus === 'cancelled' || normalizedStatus === 'canceled';
-};
-
-export const filterAppointments = (appointments: AllAppointment[], filterType: string, isProjectPortal: boolean = false) => {
-  console.log(`Filtering appointments - Type: ${filterType}, Total: ${appointments.length}, IsProjectPortal: ${isProjectPortal}`);
-  
-  return appointments.filter(appointment => {
-    // For project portals, only show confirmed appointments (confirmed boolean OR status = 'Confirmed')
-    if (isProjectPortal) {
-      const isConfirmed = isAppointmentConfirmed(appointment);
-      if (!isConfirmed) {
-        console.log(`Filtered out non-confirmed appointment: ${appointment.lead_name}`);
-        return false;
-      }
-    }
-
-    const isPast = isAppointmentInPast(appointment.date_of_appointment);
-    const isFuture = isAppointmentInFuture(appointment.date_of_appointment);
-    const isCancelled = isCancelledStatus(appointment.status);
-    const hasStatus = isStatusUpdated(appointment);
-    const hasProcedure = isProcedureUpdated(appointment);
-
-    console.log(`Appointment ${appointment.lead_name}: isPast=${isPast}, isFuture=${isFuture}, isCancelled=${isCancelled}, status=${appointment.status}`);
-
-    switch (filterType) {
-      case 'future':
-        // Future appointments that are not cancelled
-        const futureResult = isFuture && !isCancelled;
-        console.log(`Future filter result for ${appointment.lead_name}: ${futureResult}`);
-        return futureResult;
-      
-      case 'past':
-        // Past appointments that are not cancelled
-        const pastResult = isPast && !isCancelled;
-        console.log(`Past filter result for ${appointment.lead_name}: ${pastResult}`);
-        return pastResult;
-      
-      case 'needs-review':
-        // Past appointments that need review (no status or no procedure info) and not cancelled
-        const needsReviewResult = isPast && !isCancelled && (!hasStatus || !hasProcedure);
-        console.log(`Needs review filter result for ${appointment.lead_name}: ${needsReviewResult} (hasStatus=${hasStatus}, hasProcedure=${hasProcedure})`);
-        return needsReviewResult;
-      
-      case 'cancelled':
-        // All appointments with Cancelled status regardless of date
-        const cancelledResult = isCancelled;
-        console.log(`Cancelled filter result for ${appointment.lead_name}: ${cancelledResult}`);
-        return cancelledResult;
-      
-      default:
-        return true;
-    }
-  });
 };
 
 export const getAppointmentStatus = (appointment: AllAppointment) => {

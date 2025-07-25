@@ -11,7 +11,6 @@ const AllAppointmentsManager = ({
 }: AllAppointmentsManagerProps) => {
   const {
     appointments,
-    totalCounts,
     loading,
     currentPage,
     totalPages,
@@ -20,8 +19,7 @@ const AllAppointmentsManager = ({
     fetchAppointments,
     updateAppointmentStatus,
     updateProcedureOrdered,
-    handlePageChange,
-    handleTabChange
+    handlePageChange
   } = useAppointments(projectFilter, isProjectPortal);
 
   return (
@@ -34,7 +32,6 @@ const AllAppointmentsManager = ({
       {/* Appointments List */}
       <AppointmentsDisplay
         appointments={appointments}
-        totalCounts={totalCounts}
         loading={loading}
         projectFilter={projectFilter}
         isProjectPortal={isProjectPortal}
@@ -45,7 +42,6 @@ const AllAppointmentsManager = ({
         onUpdateStatus={updateAppointmentStatus}
         onUpdateProcedure={updateProcedureOrdered}
         onPageChange={handlePageChange}
-        onTabChange={handleTabChange}
       />
     </div>
   );

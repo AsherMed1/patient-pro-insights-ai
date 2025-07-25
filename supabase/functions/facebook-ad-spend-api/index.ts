@@ -10,7 +10,6 @@ interface AdSpendData {
   date: string;
   project_name: string;
   spend: number;
-  campaign_name?: string;
 }
 
 Deno.serve(async (req) => {
@@ -103,41 +102,27 @@ Deno.serve(async (req) => {
     const adSpendData: AdSpendData = {
       date: body.date,
       project_name: body.project_name,
-      spend: spend,
-      campaign_name: body.campaign_name || null
+      spend: spend
     };
 
-    console.log('Prepared ad spend data for insert:', adSpendData);
-
-    // Insert the ad spend data (allowing multiple records per day per project)
+    // Insert or update the ad spend data (upsert)
     const { data, error } = await supabase
       .from('facebook_ad_spend')
-      .insert({
-        date: adSpendData.date,
-        project_name: adSpendData.project_name,
-        spend: adSpendData.spend,
-        campaign_name: adSpendData.campaign_name,
-        updated_at: new Date().toISOString()
-      })
+      .upsert(
+        {
+          date: adSpendData.date,
+          project_name: adSpendData.project_name,
+          spend: adSpendData.spend,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: 'project_name,date'
+        }
+      )
       .select();
 
     if (error) {
       console.error('Database error:', error);
-      
-      // Check if it's still a unique constraint error and provide helpful message
-      if (error.code === '23505') {
-        return new Response(
-          JSON.stringify({ 
-            error: 'A record with this project and date combination already exists. Please use a different campaign name or check if the record already exists.',
-            details: error.message 
-          }),
-          { 
-            status: 409, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
-      
       return new Response(
         JSON.stringify({ 
           error: 'Failed to save ad spend data',

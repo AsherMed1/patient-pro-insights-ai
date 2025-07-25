@@ -52,77 +52,31 @@ const AgentsDashboard = () => {
     }
   };
 
-  const fetchAllCalls = async (baseQuery: any) => {
-    let allCalls: any[] = [];
-    let from = 0;
-    const batchSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await baseQuery
-        .range(from, from + batchSize - 1);
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        allCalls = [...allCalls, ...data];
-        from += batchSize;
-        hasMore = data.length === batchSize; // Continue if we got a full batch
-        console.log(`Fetched batch: ${data.length} calls, total so far: ${allCalls.length}`);
-      } else {
-        hasMore = false;
-      }
-    }
-
-    console.log(`Total calls fetched: ${allCalls.length}`);
-    return allCalls;
-  };
-
-  const fetchAllAppointments = async (baseQuery: any) => {
-    let allAppointments: any[] = [];
-    let from = 0;
-    const batchSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await baseQuery
-        .range(from, from + batchSize - 1);
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        allAppointments = [...allAppointments, ...data];
-        from += batchSize;
-        hasMore = data.length === batchSize; // Continue if we got a full batch
-        console.log(`Fetched appointments batch: ${data.length} records, total so far: ${allAppointments.length}`);
-      } else {
-        hasMore = false;
-      }
-    }
-
-    console.log(`Total appointments fetched: ${allAppointments.length}`);
-    return allAppointments;
-  };
-
   const fetchStats = async () => {
     try {
       setLoading(true);
       
       // Build base queries
-      let callsBaseQuery = supabase.from('all_calls').select('*');
-      let appointmentsBaseQuery = supabase.from('all_appointments').select('*');
+      let callsQuery = supabase.from('all_calls').select('*');
+      let appointmentsQuery = supabase.from('all_appointments').select('*');
 
       // Apply agent filter if not ALL
       if (selectedAgent !== 'ALL') {
-        callsBaseQuery = callsBaseQuery.eq('agent', selectedAgent);
-        appointmentsBaseQuery = appointmentsBaseQuery.eq('agent', selectedAgent);
+        callsQuery = callsQuery.eq('agent', selectedAgent);
+        appointmentsQuery = appointmentsQuery.eq('agent', selectedAgent);
       }
 
-      // Execute queries - fetch all data with proper pagination
-      const [calls, appointments] = await Promise.all([
-        fetchAllCalls(callsBaseQuery),
-        fetchAllAppointments(appointmentsBaseQuery)
+      // Execute queries
+      const [callsResult, appointmentsResult] = await Promise.all([
+        callsQuery,
+        appointmentsQuery
       ]);
+
+      if (callsResult.error) throw callsResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
+
+      const calls = callsResult.data || [];
+      const appointments = appointmentsResult.data || [];
 
       // Calculate metrics
       const totalDialsMade = calls.length;
@@ -131,7 +85,8 @@ const AgentsDashboard = () => {
       ).length;
       
       const pickups40Plus = calls.filter(call => 
-        call.status === 'completed' && call.duration_seconds >= 40
+        (call.status === 'answered' || call.status === 'connected' || call.status === 'pickup') && 
+        call.duration_seconds >= 40
       ).length;
       
       const conversations2Plus = calls.filter(call => call.duration_seconds >= 120).length;
@@ -141,8 +96,7 @@ const AgentsDashboard = () => {
       const noShows = appointments.filter(apt => apt.showed === false).length;
       
       const totalCallDuration = calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0);
-      // Convert average duration from seconds to minutes for display
-      const avgDurationPerCall = totalDialsMade > 0 ? (totalCallDuration / totalDialsMade) / 60 : 0;
+      const avgDurationPerCall = totalDialsMade > 0 ? totalCallDuration / totalDialsMade : 0;
       const timeOnPhoneMinutes = totalCallDuration / 60;
 
       setStats({

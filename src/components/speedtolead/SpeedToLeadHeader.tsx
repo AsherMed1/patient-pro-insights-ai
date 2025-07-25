@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Play, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Clock, Play, AlertTriangle } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 
 interface SpeedToLeadHeaderProps {
@@ -11,7 +11,6 @@ interface SpeedToLeadHeaderProps {
   onTriggerCalculation: () => void;
   outlierCount: number;
   onViewOutliers: () => void;
-  onForceRefresh?: () => void;
 }
 
 const SpeedToLeadHeader = ({ 
@@ -19,8 +18,7 @@ const SpeedToLeadHeader = ({
   calculating, 
   onTriggerCalculation,
   outlierCount,
-  onViewOutliers,
-  onForceRefresh
+  onViewOutliers
 }: SpeedToLeadHeaderProps) => {
   return (
     <Card>
@@ -37,16 +35,6 @@ const SpeedToLeadHeader = ({
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            {onForceRefresh && (
-              <Button
-                variant="outline"
-                onClick={onForceRefresh}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh Data
-              </Button>
-            )}
             {outlierCount > 0 && (
               <Button
                 variant="outline"

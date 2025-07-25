@@ -7,28 +7,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Function to check if a date is within business hours (8am-9pm CST/CDT)
+// Function to check if a date is within business hours (8am-9pm CST)
 function isWithinBusinessHours(dateString: string): boolean {
   const date = new Date(dateString);
   
-  // Convert to Central Time using proper timezone handling
-  // This accounts for both CST and CDT automatically
-  const centralTimeString = date.toLocaleString("en-US", {
-    timeZone: "America/Chicago",
-    hour12: false
-  });
+  // Convert to CST (UTC-6) or CDT (UTC-5) - we'll use a fixed offset approach
+  // Note: This is a simplified approach. For production, consider using a proper timezone library
+  const cstOffset = -6; // CST is UTC-6 (during standard time)
+  const cdtOffset = -5; // CDT is UTC-5 (during daylight time)
   
-  // Extract the hour from the Central Time string
-  const centralDate = new Date(centralTimeString);
-  const hours = centralDate.getHours();
+  // For simplicity, we'll use CST offset consistently
+  // In a production environment, you'd want to handle DST properly
+  const cstDate = new Date(date.getTime() + (cstOffset * 60 * 60 * 1000));
+  const hours = cstDate.getUTCHours();
   
-  console.log(`Lead created at: ${dateString}, Central Time: ${centralTimeString}, Hour: ${hours}`);
-  
-  // Business hours: 8am (8) to 9pm (21) Central Time
-  const isBusinessHours = hours >= 8 && hours < 21;
-  console.log(`Is within business hours (8-21): ${isBusinessHours}`);
-  
-  return isBusinessHours;
+  // Business hours: 8am (8) to 9pm (21) CST
+  return hours >= 8 && hours < 21;
 }
 
 serve(async (req) => {
@@ -92,9 +86,9 @@ serve(async (req) => {
       try {
         console.log(`Processing lead: ${lead.lead_name}`)
 
-        // Check if lead was created within business hours using improved function
+        // Check if lead was created within business hours
         if (!isWithinBusinessHours(lead.created_at)) {
-          console.log(`Lead ${lead.lead_name} created outside business hours (8AM-9PM Central), skipping`)
+          console.log(`Lead ${lead.lead_name} created outside business hours, skipping`)
           outsideBusinessHoursCount++
           continue
         }

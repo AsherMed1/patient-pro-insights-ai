@@ -1,35 +1,32 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
-import { ProjectFormData } from './types';
+import { Button } from "@/components/ui/button";
+import { Plus } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+
+interface ProjectFormData {
+  project_name: string;
+}
 
 interface AddProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: ProjectFormData) => void;
+  onSubmit: (data: ProjectFormData) => Promise<void>;
 }
 
-export const AddProjectDialog = ({ open, onOpenChange, onSubmit }: AddProjectDialogProps) => {
-  const [formData, setFormData] = useState<ProjectFormData>({
-    project_name: '',
-    portal_password: ''
-  });
+export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
+  open,
+  onOpenChange,
+  onSubmit
+}) => {
+  const form = useForm<ProjectFormData>();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-    setFormData({ project_name: '', portal_password: '' });
-  };
-
-  const handleInputChange = (field: keyof ProjectFormData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleSubmit = async (data: ProjectFormData) => {
+    await onSubmit(data);
+    form.reset();
   };
 
   return (
@@ -40,52 +37,37 @@ export const AddProjectDialog = ({ open, onOpenChange, onSubmit }: AddProjectDia
           Add Project
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Add New Project</DialogTitle>
           <DialogDescription>
-            Create a new project. Set a password to protect the project portal.
+            Create a new project to track leads, calls, and appointments.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="project_name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="project_name"
-                value={formData.project_name}
-                onChange={(e) => handleInputChange('project_name', e.target.value)}
-                className="col-span-3"
-                required
-                placeholder="Enter project name"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="portal_password" className="text-right">
-                Portal Password
-              </Label>
-              <Input
-                id="portal_password"
-                type="password"
-                value={formData.portal_password}
-                onChange={(e) => handleInputChange('portal_password', e.target.value)}
-                className="col-span-3"
-                placeholder="Optional - for portal protection"
-              />
-            </div>
-            <div className="col-span-4 text-sm text-muted-foreground">
-              <p>Setting a password will require visitors to enter it before accessing the project portal.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Add Project</Button>
-          </DialogFooter>
-        </form>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="project_name"
+              rules={{ required: "Project name is required" }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter project name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Add Project</Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

@@ -6,9 +6,7 @@ interface ProjectHeaderProps {
   projectName: string;
 }
 
-export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
-  projectName
-}) => {
+export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ projectName }) => {
   return (
     <div className="text-center space-y-2">
       <div className="flex items-center justify-center space-x-2">
