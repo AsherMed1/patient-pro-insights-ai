@@ -9,6 +9,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { AuthGuard } from "./components/auth/AuthGuard";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AdminSignup from "./pages/AdminSignup";
 import AgentClaim from "./pages/AgentClaim";
 import ApiDocs from "./pages/ApiDocs";
 import ProjectPortal from "./pages/ProjectPortal";
@@ -25,6 +26,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/admin-signup" element={<AdminSignup />} />
             <Route path="/" element={
               <AuthGuard>
                 <Index />
