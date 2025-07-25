@@ -43,7 +43,8 @@ const AllCallsManager = ({ projectFilter }: AllCallsManagerProps) => {
       let callsQuery = supabase
         .from('all_calls')
         .select('*')
-        .order('call_datetime', { ascending: false });
+        .order('call_datetime', { ascending: false })
+        .limit(10000);
       
       if (projectFilter) {
         callsQuery = callsQuery.eq('project_name', projectFilter);

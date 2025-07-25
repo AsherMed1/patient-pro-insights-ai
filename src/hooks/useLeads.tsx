@@ -79,7 +79,8 @@ export const useLeads = (projectFilter?: string) => {
       let leadsQuery = supabase
         .from('new_leads')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
       
       if (projectFilter) {
         leadsQuery = leadsQuery.eq('project_name', projectFilter);
@@ -92,7 +93,8 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch all calls to calculate actual call counts
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
-        .select('lead_name');
+        .select('lead_name')
+        .limit(10000);
       
       if (callsError) throw callsError;
 
