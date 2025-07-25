@@ -48,8 +48,7 @@ const AllAppointmentsManager = ({
           status,
           procedure_ordered
         `)
-        .order('date_appointment_created', { ascending: false })
-        .limit(50000);
+        .order('date_appointment_created', { ascending: false });
 
       if (projectFilter) {
         appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
