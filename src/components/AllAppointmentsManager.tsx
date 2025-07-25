@@ -57,6 +57,7 @@ const AllAppointmentsManager = ({
 
       const { data, error } = await appointmentsQuery;
       if (error) throw error;
+      console.log(`Fetched ${data?.length || 0} appointments from database`);
       setAppointments(data || []);
     } catch (error) {
       console.error('Error fetching appointments:', error);
