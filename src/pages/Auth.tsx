@@ -65,6 +65,12 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-2xl">Welcome</CardTitle>
+          <div className="text-center text-sm text-muted-foreground space-y-1">
+            <p className="font-medium">Demo Accounts:</p>
+            <p>Admin: admin@example.com / admin123</p>
+            <p>Agent: agent@example.com / agent123</p>
+            <p>Project User: projectuser@example.com / project123</p>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="space-y-4">
