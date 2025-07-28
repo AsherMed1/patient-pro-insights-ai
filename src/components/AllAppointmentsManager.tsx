@@ -83,12 +83,14 @@ const AllAppointmentsManager = ({
       
       if (activeTab === 'needs-review') {
         countQuery = countQuery
-          .is('status', null)
-          .gte('date_of_appointment', todayString);
+          .lt('date_of_appointment', todayString)
+          .not('status', 'in', '(Cancelled,No Show,Won,Lost)');
       } else if (activeTab === 'future') {
-        countQuery = countQuery.gt('date_of_appointment', todayString);
+        countQuery = countQuery.gte('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        countQuery = countQuery.lt('date_of_appointment', todayString);
+        countQuery = countQuery
+          .lt('date_of_appointment', todayString)
+          .in('status', ['Cancelled', 'No Show', 'Won', 'Lost']);
       }
 
       // Get the total count first
@@ -142,12 +144,14 @@ const AllAppointmentsManager = ({
       
       if (activeTab === 'needs-review') {
         appointmentsQuery = appointmentsQuery
-          .is('status', null)
-          .gte('date_of_appointment', todayString);
+          .lt('date_of_appointment', todayString)
+          .not('status', 'in', '(Cancelled,No Show,Won,Lost)');
       } else if (activeTab === 'future') {
-        appointmentsQuery = appointmentsQuery.gt('date_of_appointment', todayString);
+        appointmentsQuery = appointmentsQuery.gte('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        appointmentsQuery = appointmentsQuery.lt('date_of_appointment', todayString);
+        appointmentsQuery = appointmentsQuery
+          .lt('date_of_appointment', todayString)
+          .in('status', ['Cancelled', 'No Show', 'Won', 'Lost']);
       }
       
       // Apply pagination
@@ -201,18 +205,19 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: status is null/empty and date_of_appointment is today or future
+      // Needs Review: past appointments without completion status
       const needsReviewQuery = getBaseQuery()
-        .is('status', null)
+        .lt('date_of_appointment', todayString)
+        .not('status', 'in', '(Cancelled,No Show,Won,Lost)');
+
+      // Future: date_of_appointment is today or future
+      const futureQuery = getBaseQuery()
         .gte('date_of_appointment', todayString);
 
-      // Future: date_of_appointment is future (after today)
-      const futureQuery = getBaseQuery()
-        .gt('date_of_appointment', todayString);
-
-      // Past: date_of_appointment is past (before today)
+      // Past: past appointments with completion status
       const pastQuery = getBaseQuery()
-        .lt('date_of_appointment', todayString);
+        .lt('date_of_appointment', todayString)
+        .in('status', ['Cancelled', 'No Show', 'Won', 'Lost']);
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
         needsReviewQuery,

@@ -35,17 +35,19 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
+  const completedStatuses = ['Cancelled', 'No Show', 'Won', 'Lost'];
+  
   return appointments.filter(appointment => {
     switch (filterType) {
       case 'future':
         return isAppointmentInFuture(appointment.date_of_appointment);
       case 'past':
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               isStatusUpdated(appointment) && 
-               isProcedureUpdated(appointment);
+               appointment.status && 
+               completedStatuses.includes(appointment.status);
       case 'needs-review':
         return isAppointmentInPast(appointment.date_of_appointment) && 
-               (!isStatusUpdated(appointment) || !isProcedureUpdated(appointment));
+               (!appointment.status || !completedStatuses.includes(appointment.status));
       default:
         return true;
     }
