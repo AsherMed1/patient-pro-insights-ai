@@ -42,13 +42,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate identifier - must have either id OR (lead_name + project_name)
-    const { id, lead_name, project_name, ...updateFields } = body
+    // Validate identifier - must have either id OR (lead_name + project_name) OR contact_id
+    const { id, lead_name, project_name, contact_id, ...updateFields } = body
 
-    if (!id && !(lead_name && project_name)) {
+    if (!id && !(lead_name && project_name) && !contact_id) {
       return new Response(
         JSON.stringify({ 
-          error: 'Must provide either "id" OR both "lead_name" and "project_name" to identify the lead' 
+          error: 'Must provide either "id" OR both "lead_name" and "project_name" OR "contact_id" to identify the lead' 
         }),
         { 
           status: 400, 
@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
 
     // Remove any fields that shouldn't be updated directly
     delete updateFields.id
+    delete updateFields.contact_id
     delete updateFields.created_at
     delete updateFields.updated_at
 
@@ -97,6 +98,8 @@ Deno.serve(async (req) => {
 
     if (id) {
       query = query.eq('id', id)
+    } else if (contact_id) {
+      query = query.eq('contact_id', contact_id)
     } else {
       query = query.eq('lead_name', lead_name).eq('project_name', project_name)
     }
