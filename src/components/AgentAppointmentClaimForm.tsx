@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -15,8 +16,14 @@ interface ClaimFormData {
   phoneNumber: string;
 }
 
+interface Agent {
+  agent_number: string;
+  agent_name: string;
+}
+
 const AgentAppointmentClaimForm = () => {
   const [loading, setLoading] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const { toast } = useToast();
   
   const form = useForm<ClaimFormData>({
@@ -25,6 +32,30 @@ const AgentAppointmentClaimForm = () => {
       phoneNumber: ''
     }
   });
+
+  // Fetch active agents on component mount
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('agents')
+          .select('agent_number, agent_name')
+          .eq('active', true)
+          .order('agent_number');
+
+        if (error) {
+          console.error('Error fetching agents:', error);
+          return;
+        }
+
+        setAgents(data || []);
+      } catch (error) {
+        console.error('Error fetching agents:', error);
+      }
+    };
+
+    fetchAgents();
+  }, []);
 
   const normalizePhoneNumber = (phone: string) => {
     // Remove all non-digit characters
@@ -170,11 +201,18 @@ const AgentAppointmentClaimForm = () => {
                 <FormItem>
                   <FormLabel>Agent ID</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="Enter your agent ID (e.g., 001)"
-                      {...field}
-                      disabled={loading}
-                    />
+                    <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your agent ID" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {agents.map((agent) => (
+                          <SelectItem key={agent.agent_number} value={agent.agent_number}>
+                            {agent.agent_number} - {agent.agent_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

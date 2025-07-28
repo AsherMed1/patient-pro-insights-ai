@@ -22,6 +22,11 @@ export async function createCallRecord(
 
   console.log('Final UTC datetime to save:', callDateTimeObj.toISOString());
 
+  // Check if agent exists and create if needed
+  if (validatedData.agent) {
+    await ensureAgentExists(supabase, validatedData.agent);
+  }
+
   // Insert new call record into database
   const { data, error } = await supabase
     .from('all_calls')
@@ -47,4 +52,62 @@ export async function createCallRecord(
 
   console.log('Successfully saved call record with UTC datetime:', data[0].call_datetime);
   return data[0];
+}
+
+/**
+ * Ensure agent exists in the database, create if not found
+ */
+async function ensureAgentExists(supabase: any, agentName: string) {
+  try {
+    // Check if agent already exists
+    const { data: existingAgent, error: searchError } = await supabase
+      .from('agents')
+      .select('id, agent_name')
+      .eq('agent_name', agentName)
+      .single();
+
+    if (searchError && searchError.code !== 'PGRST116') {
+      console.error('Error searching for agent:', searchError);
+      return;
+    }
+
+    if (existingAgent) {
+      console.log(`Agent ${agentName} already exists`);
+      return;
+    }
+
+    // Get next available agent number
+    const { data: lastAgent, error: lastAgentError } = await supabase
+      .from('agents')
+      .select('agent_number')
+      .order('agent_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    let nextAgentNumber = '001';
+    if (!lastAgentError && lastAgent) {
+      const lastNumber = parseInt(lastAgent.agent_number);
+      nextAgentNumber = String(lastNumber + 1).padStart(3, '0');
+    }
+
+    // Create new agent
+    const { data: newAgent, error: createError } = await supabase
+      .from('agents')
+      .insert([{
+        agent_name: agentName,
+        agent_number: nextAgentNumber,
+        active: true
+      }])
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating agent:', createError);
+      return;
+    }
+
+    console.log(`Created new agent: ${agentName} with number ${nextAgentNumber}`);
+  } catch (error) {
+    console.error('Error in ensureAgentExists:', error);
+  }
 }
