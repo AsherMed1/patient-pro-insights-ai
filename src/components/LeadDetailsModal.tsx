@@ -47,6 +47,7 @@ interface NewLead {
   plantar_fasciitis_mobility_impact?: boolean;
   plantar_fasciitis_imaging?: boolean;
   email?: string;
+  patient_intake_notes?: string;
 }
 
 interface LeadDetailsModalProps {
@@ -210,6 +211,17 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
               <InfoRow label="Treatments Tried" value={lead.plantar_fasciitis_treatments} />
               <InfoRow label="Mobility Impact" value={lead.plantar_fasciitis_mobility_impact} type="boolean" />
               <InfoRow label="Imaging Done" value={lead.plantar_fasciitis_imaging} type="boolean" />
+            </InfoSection>
+          )}
+
+          {/* Patient Intake Notes */}
+          {lead.patient_intake_notes && (
+            <InfoSection title="Patient Intake Notes" icon={FileText}>
+              <div className="py-2">
+                <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{lead.patient_intake_notes}</p>
+                </div>
+              </div>
             </InfoSection>
           )}
 

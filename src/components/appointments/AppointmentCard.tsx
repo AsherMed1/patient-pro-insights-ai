@@ -55,6 +55,7 @@ interface NewLead {
   plantar_fasciitis_mobility_impact?: boolean;
   plantar_fasciitis_imaging?: boolean;
   email?: string;
+  patient_intake_notes?: string;
 }
 const AppointmentCard = ({
   appointment,
