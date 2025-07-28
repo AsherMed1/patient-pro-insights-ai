@@ -115,67 +115,57 @@ const UserManagement = () => {
   };
 
   const createUser = async () => {
-    try {
-      // Validate project selection for project users
-      if (newUser.role === 'project_user' && !newUser.selectedProjectId) {
-        toast({
-          title: "Error",
-          description: "Please select a project for the project user",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Create the auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
-        password: newUser.password,
-        user_metadata: {
-          full_name: newUser.fullName
-        },
-        email_confirm: true
-      });
-
-      if (authError) throw authError;
-
-      // Assign role
-      if (authData.user) {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: authData.user.id,
-            role: newUser.role
-          });
-
-        if (roleError) throw roleError;
-
-        // If project user, assign to selected project
-        if (newUser.role === 'project_user' && newUser.selectedProjectId) {
-          const { error: accessError } = await supabase
-            .from('project_user_access')
-            .insert({
-              user_id: authData.user.id,
-              project_id: newUser.selectedProjectId
-            });
-
-          if (accessError) throw accessError;
-        }
-      }
-
+    if (!newUser.email || !newUser.password) {
       toast({
-        title: "Success",
-        description: "User created successfully",
+        title: "Error",
+        description: "Email and password are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newUser.role === 'project_user' && !newUser.selectedProjectId) {
+      toast({
+        title: "Error",
+        description: "Please select a project for the project user",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Call the secure edge function to create user
+      const { data, error } = await supabase.functions.invoke('create-user-with-role', {
+        body: {
+          email: newUser.email,
+          password: newUser.password,
+          fullName: newUser.fullName,
+          role: newUser.role,
+          projectId: newUser.role === 'project_user' ? newUser.selectedProjectId : null,
+        },
       });
 
-      setShowCreateDialog(false);
-      setNewUser({
-        email: '',
-        password: '',
-        fullName: '',
-        role: 'project_user',
-        selectedProjectId: ''
-      });
-      fetchUsers();
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Success",
+          description: "User created successfully",
+        });
+
+        setShowCreateDialog(false);
+        setNewUser({
+          email: '',
+          password: '',
+          fullName: '',
+          role: 'project_user',
+          selectedProjectId: ''
+        });
+        fetchUsers();
+      } else {
+        throw new Error(data?.error || "Failed to create user");
+      }
     } catch (error: any) {
       console.error('Error creating user:', error);
       toast({
@@ -183,6 +173,8 @@ const UserManagement = () => {
         description: error.message || "Failed to create user",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
