@@ -36,7 +36,8 @@ const UserManagement = () => {
     email: '',
     password: '',
     fullName: '',
-    role: 'project_user' as UserRole
+    role: 'project_user' as UserRole,
+    selectedProjectId: ''
   });
   const { toast } = useToast();
 
@@ -115,6 +116,16 @@ const UserManagement = () => {
 
   const createUser = async () => {
     try {
+      // Validate project selection for project users
+      if (newUser.role === 'project_user' && !newUser.selectedProjectId) {
+        toast({
+          title: "Error",
+          description: "Please select a project for the project user",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Create the auth user
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: newUser.email,
@@ -137,6 +148,18 @@ const UserManagement = () => {
           });
 
         if (roleError) throw roleError;
+
+        // If project user, assign to selected project
+        if (newUser.role === 'project_user' && newUser.selectedProjectId) {
+          const { error: accessError } = await supabase
+            .from('project_user_access')
+            .insert({
+              user_id: authData.user.id,
+              project_id: newUser.selectedProjectId
+            });
+
+          if (accessError) throw accessError;
+        }
       }
 
       toast({
@@ -149,7 +172,8 @@ const UserManagement = () => {
         email: '',
         password: '',
         fullName: '',
-        role: 'project_user'
+        role: 'project_user',
+        selectedProjectId: ''
       });
       fetchUsers();
     } catch (error: any) {
@@ -307,7 +331,7 @@ const UserManagement = () => {
                       <Label htmlFor="role">Role</Label>
                       <Select 
                         value={newUser.role} 
-                        onValueChange={(value: UserRole) => setNewUser(prev => ({ ...prev, role: value }))}
+                        onValueChange={(value: UserRole) => setNewUser(prev => ({ ...prev, role: value, selectedProjectId: '' }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -319,6 +343,26 @@ const UserManagement = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    {newUser.role === 'project_user' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="project">Assign to Project</Label>
+                        <Select 
+                          value={newUser.selectedProjectId} 
+                          onValueChange={(value: string) => setNewUser(prev => ({ ...prev, selectedProjectId: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a project" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.project_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <Button onClick={createUser} className="w-full">
                       Create User
                     </Button>
