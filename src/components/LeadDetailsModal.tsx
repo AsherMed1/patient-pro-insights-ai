@@ -1,10 +1,13 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Phone, Mail, MapPin, Calendar, Building, FileText, Shield, Camera, AlertTriangle } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
+import { User, Phone, Mail, MapPin, Calendar, Building, FileText, Shield, Camera, AlertTriangle, CalendarCheck } from 'lucide-react';
 import { formatDateInCentralTime, formatDateTimeForTable } from '@/utils/dateTimeUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { AllAppointment } from '@/components/appointments/types';
 
 interface NewLead {
   id: string;
@@ -42,6 +45,9 @@ interface LeadDetailsModalProps {
 }
 
 const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
+  const [appointments, setAppointments] = useState<AllAppointment[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+
   if (!lead) return null;
 
   const getDisplayName = () => {
@@ -50,6 +56,32 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
     }
     return lead.lead_name;
   };
+
+  const fetchAssociatedAppointments = async () => {
+    try {
+      setAppointmentsLoading(true);
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .select('*')
+        .eq('lead_name', lead.lead_name)
+        .eq('project_name', lead.project_name)
+        .order('date_appointment_created', { ascending: false });
+
+      if (error) throw error;
+      setAppointments(data || []);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      setAppointments([]);
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && lead) {
+      fetchAssociatedAppointments();
+    }
+  }, [isOpen, lead]);
 
 
   const formatDate = (dateString?: string) => {
@@ -165,6 +197,65 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
               </div>
             </InfoSection>
           )}
+
+          {/* Associated Appointments */}
+          <InfoSection title={`Associated Appointments (${appointments.length})`} icon={CalendarCheck}>
+            {appointmentsLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : appointments.length > 0 ? (
+              <div className="space-y-3">
+                {appointments.map((appointment) => (
+                  <div key={appointment.id} className="bg-muted/50 p-3 rounded-lg border">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">Created:</span>
+                        <p className="text-foreground">{formatDate(appointment.date_appointment_created)}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Appointment:</span>
+                        <p className="text-foreground">{appointment.date_of_appointment ? formatDate(appointment.date_of_appointment) : 'Not set'}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Agent:</span>
+                        <p className="text-foreground">{appointment.agent || 'Not assigned'}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Status:</span>
+                        <div className="flex items-center space-x-2">
+                          {appointment.confirmed && <Badge variant="default" className="text-xs">Confirmed</Badge>}
+                          {appointment.showed === true && <Badge variant="secondary" className="text-xs">Showed</Badge>}
+                          {appointment.showed === false && <Badge variant="destructive" className="text-xs">No Show</Badge>}
+                          {appointment.procedure_ordered && <Badge variant="outline" className="text-xs">Procedure Ordered</Badge>}
+                          {appointment.status && <Badge variant="outline" className="text-xs">{appointment.status}</Badge>}
+                        </div>
+                      </div>
+                      {appointment.calendar_name && (
+                        <div className="col-span-2">
+                          <span className="font-medium text-muted-foreground">Calendar:</span>
+                          <p className="text-foreground">{appointment.calendar_name}</p>
+                        </div>
+                      )}
+                      {appointment.requested_time && (
+                        <div className="col-span-2">
+                          <span className="font-medium text-muted-foreground">Requested Time:</span>
+                          <p className="text-foreground">{appointment.requested_time}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <CalendarCheck className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No appointments found for this lead</p>
+              </div>
+            )}
+          </InfoSection>
 
           {/* Additional Information */}
           {(lead.notes || lead.card_image) && (
