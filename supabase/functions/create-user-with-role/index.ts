@@ -12,27 +12,47 @@ serve(async (req) => {
   }
 
   try {
+    console.log('🔧 Starting create-user-with-role function');
+    
+    // Check environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    console.log('📊 Environment check:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!serviceRoleKey,
+      hasAnonKey: !!anonKey
+    });
+
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+      console.error('❌ Missing environment variables');
+      return new Response(JSON.stringify({ 
+        error: 'Server configuration error',
+        details: 'Missing required environment variables'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Create admin client with service role key
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
-    );
+    });
 
     // Create regular client to verify the requesting user
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
+    const supabaseClient = createClient(supabaseUrl, anonKey);
 
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
+    console.log('🔐 Auth header present:', !!authHeader);
+    
     if (!authHeader) {
+      console.error('❌ No authorization header');
       return new Response(JSON.stringify({ error: 'Authorization required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -40,34 +60,76 @@ serve(async (req) => {
     }
 
     // Verify the user is authenticated and is an admin
+    console.log('🔍 Verifying user authentication...');
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
       authHeader.replace('Bearer ', '')
     );
 
-    if (authError || !user) {
+    if (authError) {
+      console.error('❌ Auth error:', authError);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid authentication',
+        details: authError.message 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!user) {
+      console.error('❌ No user found');
       return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    console.log('✅ User authenticated:', user.id);
+
     // Check if user has admin role
+    console.log('🔍 Checking user role...');
     const { data: userRole, error: roleError } = await supabaseClient
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
 
-    if (roleError || userRole?.role !== 'admin') {
+    if (roleError) {
+      console.error('❌ Role check error:', roleError);
+      return new Response(JSON.stringify({ 
+        error: 'Role verification failed',
+        details: roleError.message 
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('👤 User role:', userRole?.role);
+
+    if (userRole?.role !== 'admin') {
+      console.error('❌ User is not admin. Role:', userRole?.role);
       return new Response(JSON.stringify({ error: 'Admin access required' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    console.log('✅ Admin access verified');
+
+    console.log('📝 Parsing request body...');
     const { email, password, fullName, role, projectId } = await req.json();
+    
+    console.log('📋 Request data:', {
+      email,
+      hasPassword: !!password,
+      fullName,
+      role,
+      projectId
+    });
 
     if (!email || !password || !role) {
+      console.error('❌ Missing required fields');
       return new Response(JSON.stringify({ error: 'Email, password, and role are required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -75,6 +137,7 @@ serve(async (req) => {
     }
 
     // Create the user using admin client
+    console.log('👤 Creating user with admin client...');
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -85,21 +148,28 @@ serve(async (req) => {
     });
 
     if (createError) {
-      console.error('Error creating user:', createError);
-      return new Response(JSON.stringify({ error: createError.message }), {
+      console.error('❌ Error creating user:', createError);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to create user',
+        details: createError.message 
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (!newUser.user) {
+      console.error('❌ No user returned from creation');
       return new Response(JSON.stringify({ error: 'Failed to create user' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    console.log('✅ User created successfully:', newUser.user.id);
+
     // Create profile
+    console.log('📝 Creating user profile...');
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .insert({
@@ -109,10 +179,14 @@ serve(async (req) => {
       });
 
     if (profileError) {
-      console.error('Error creating profile:', profileError);
+      console.error('⚠️ Error creating profile:', profileError);
+      // Don't fail the entire operation for profile errors
+    } else {
+      console.log('✅ Profile created successfully');
     }
 
     // Assign role
+    console.log('🏷️ Assigning user role...');
     const { error: roleAssignError } = await supabaseAdmin
       .from('user_roles')
       .insert({
@@ -121,15 +195,21 @@ serve(async (req) => {
       });
 
     if (roleAssignError) {
-      console.error('Error assigning role:', roleAssignError);
-      return new Response(JSON.stringify({ error: 'Failed to assign role' }), {
+      console.error('❌ Error assigning role:', roleAssignError);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to assign role',
+        details: roleAssignError.message 
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    console.log('✅ Role assigned successfully');
+
     // If role is project_user and projectId is provided, assign project access
     if (role === 'project_user' && projectId) {
+      console.log('🔗 Assigning project access...');
       const { error: projectAccessError } = await supabaseAdmin
         .from('project_user_access')
         .insert({
@@ -139,27 +219,38 @@ serve(async (req) => {
         });
 
       if (projectAccessError) {
-        console.error('Error assigning project access:', projectAccessError);
-        return new Response(JSON.stringify({ error: 'Failed to assign project access' }), {
+        console.error('❌ Error assigning project access:', projectAccessError);
+        return new Response(JSON.stringify({ 
+          error: 'Failed to assign project access',
+          details: projectAccessError.message 
+        }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      console.log('✅ Project access assigned successfully');
     }
 
-    // Log security event
-    await supabaseAdmin
-      .from('security_audit_log')
-      .insert({
-        event_type: 'user_created',
-        user_id: user.id,
-        details: {
-          created_user_id: newUser.user.id,
-          created_user_email: email,
-          assigned_role: role,
-          project_id: projectId
-        }
-      });
+    // Log security event (optional - don't fail if this fails)
+    console.log('📋 Logging security event...');
+    try {
+      await supabaseAdmin
+        .from('security_audit_log')
+        .insert({
+          event_type: 'user_created',
+          user_id: user.id,
+          details: {
+            created_user_id: newUser.user.id,
+            created_user_email: email,
+            assigned_role: role,
+            project_id: projectId
+          }
+        });
+      console.log('✅ Security event logged');
+    } catch (auditError) {
+      console.warn('⚠️ Failed to log security event:', auditError);
+      // Don't fail the entire operation for audit logging errors
+    }
 
     return new Response(JSON.stringify({ 
       success: true, 
