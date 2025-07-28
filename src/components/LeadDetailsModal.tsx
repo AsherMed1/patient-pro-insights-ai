@@ -3,7 +3,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Phone, Mail, MapPin, Calendar, Building, FileText, Heart, Shield, Camera, AlertTriangle, Activity } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Calendar, Building, FileText, Shield, Camera, AlertTriangle } from 'lucide-react';
 import { formatDateInCentralTime, formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface NewLead {
@@ -30,22 +30,6 @@ interface NewLead {
   address?: string;
   notes?: string;
   card_image?: string;
-  knee_pain_duration?: string;
-  knee_osteoarthritis_diagnosis?: boolean;
-  gae_candidate?: boolean;
-  trauma_injury_onset?: boolean;
-  pain_severity_scale?: number;
-  symptoms_description?: string;
-  knee_treatments_tried?: string;
-  fever_chills?: boolean;
-  knee_imaging?: boolean;
-  heel_morning_pain?: boolean;
-  heel_pain_improves_rest?: boolean;
-  heel_pain_duration?: string;
-  heel_pain_exercise_frequency?: string;
-  plantar_fasciitis_treatments?: string;
-  plantar_fasciitis_mobility_impact?: boolean;
-  plantar_fasciitis_imaging?: boolean;
   email?: string;
   patient_intake_notes?: string;
 }
@@ -66,13 +50,6 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
     return lead.lead_name;
   };
 
-  const getPainSeverityColor = (scale?: number) => {
-    if (!scale) return 'text-gray-500';
-    if (scale <= 3) return 'text-green-600';
-    if (scale <= 6) return 'text-yellow-600';
-    if (scale <= 8) return 'text-orange-600';
-    return 'text-red-600';
-  };
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return null;
@@ -175,44 +152,6 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
             </InfoSection>
           )}
 
-          {/* Knee Pain Assessment */}
-          {(lead.knee_pain_duration || lead.knee_osteoarthritis_diagnosis !== undefined || lead.gae_candidate !== undefined || 
-            lead.trauma_injury_onset !== undefined || lead.pain_severity_scale || lead.symptoms_description || 
-            lead.knee_treatments_tried || lead.fever_chills !== undefined || lead.knee_imaging !== undefined) && (
-            <InfoSection title="Knee Pain Assessment" icon={Heart}>
-              <InfoRow label="Pain Duration" value={lead.knee_pain_duration} />
-              <InfoRow label="Osteoarthritis Diagnosis" value={lead.knee_osteoarthritis_diagnosis} type="boolean" />
-              <InfoRow label="GAE Candidate" value={lead.gae_candidate} type="boolean" />
-              <InfoRow label="Trauma/Injury Onset" value={lead.trauma_injury_onset} type="boolean" />
-              {lead.pain_severity_scale && (
-                <div className="flex justify-between items-start py-1 border-b border-gray-100">
-                  <span className="text-sm font-medium text-gray-600 w-1/3">Pain Severity:</span>
-                  <span className={`text-sm font-bold w-2/3 text-right ${getPainSeverityColor(lead.pain_severity_scale)}`}>
-                    {lead.pain_severity_scale}/10
-                  </span>
-                </div>
-              )}
-              <InfoRow label="Symptoms Description" value={lead.symptoms_description} />
-              <InfoRow label="Treatments Tried" value={lead.knee_treatments_tried} />
-              <InfoRow label="Fever/Chills" value={lead.fever_chills} type="boolean" />
-              <InfoRow label="Knee Imaging Done" value={lead.knee_imaging} type="boolean" />
-            </InfoSection>
-          )}
-
-          {/* Plantar Fasciitis Assessment */}
-          {(lead.heel_morning_pain !== undefined || lead.heel_pain_improves_rest !== undefined || 
-            lead.heel_pain_duration || lead.heel_pain_exercise_frequency || lead.plantar_fasciitis_treatments || 
-            lead.plantar_fasciitis_mobility_impact !== undefined || lead.plantar_fasciitis_imaging !== undefined) && (
-            <InfoSection title="Plantar Fasciitis Assessment" icon={Activity}>
-              <InfoRow label="Heel Morning Pain" value={lead.heel_morning_pain} type="boolean" />
-              <InfoRow label="Pain Improves with Rest" value={lead.heel_pain_improves_rest} type="boolean" />
-              <InfoRow label="Heel Pain Duration" value={lead.heel_pain_duration} />
-              <InfoRow label="Exercise Impact Frequency" value={lead.heel_pain_exercise_frequency} />
-              <InfoRow label="Treatments Tried" value={lead.plantar_fasciitis_treatments} />
-              <InfoRow label="Mobility Impact" value={lead.plantar_fasciitis_mobility_impact} type="boolean" />
-              <InfoRow label="Imaging Done" value={lead.plantar_fasciitis_imaging} type="boolean" />
-            </InfoSection>
-          )}
 
           {/* Patient Intake Notes */}
           {lead.patient_intake_notes && (

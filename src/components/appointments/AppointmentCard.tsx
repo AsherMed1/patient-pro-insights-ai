@@ -38,22 +38,6 @@ interface NewLead {
   address?: string;
   notes?: string;
   card_image?: string;
-  knee_pain_duration?: string;
-  knee_osteoarthritis_diagnosis?: boolean;
-  gae_candidate?: boolean;
-  trauma_injury_onset?: boolean;
-  pain_severity_scale?: number;
-  symptoms_description?: string;
-  knee_treatments_tried?: string;
-  fever_chills?: boolean;
-  knee_imaging?: boolean;
-  heel_morning_pain?: boolean;
-  heel_pain_improves_rest?: boolean;
-  heel_pain_duration?: string;
-  heel_pain_exercise_frequency?: string;
-  plantar_fasciitis_treatments?: string;
-  plantar_fasciitis_mobility_impact?: boolean;
-  plantar_fasciitis_imaging?: boolean;
   email?: string;
   patient_intake_notes?: string;
 }
