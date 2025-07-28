@@ -23,6 +23,7 @@ interface NewLead {
   created_at: string;
   updated_at: string;
   actual_calls_count?: number;
+  contact_id?: string;
   appt_date?: string;
   first_name?: string;
   last_name?: string;

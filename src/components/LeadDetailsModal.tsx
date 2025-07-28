@@ -15,6 +15,7 @@ interface NewLead {
   created_at: string;
   updated_at: string;
   actual_calls_count?: number;
+  contact_id?: string;
   appt_date?: string;
   first_name?: string;
   last_name?: string;
@@ -114,6 +115,7 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
           {/* Basic Information */}
           <InfoSection title="Basic Information" icon={User}>
             <InfoRow label="Full Name" value={getDisplayName()} />
+            <InfoRow label="Contact ID" value={lead.contact_id} />
             <InfoRow label="First Name" value={lead.first_name} />
             <InfoRow label="Last Name" value={lead.last_name} />
             <InfoRow label="Date of Birth" value={lead.dob} type="date" />

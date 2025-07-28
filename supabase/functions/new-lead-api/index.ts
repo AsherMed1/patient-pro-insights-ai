@@ -122,6 +122,7 @@ serve(async (req) => {
       date: dateObj.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
       times_called: parseInt(times_called) || 0,
       // Optional fields
+      contact_id: body.contact_id || null,
       appt_date: body.appt_date ? new Date(body.appt_date).toISOString().split('T')[0] : null,
       first_name: body.first_name || null,
       last_name: body.last_name || null,

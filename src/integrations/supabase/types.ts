@@ -592,6 +592,7 @@ export type Database = {
           appt_date: string | null
           calendar_location: string | null
           card_image: string | null
+          contact_id: string | null
           created_at: string
           date: string
           dob: string | null
@@ -634,6 +635,7 @@ export type Database = {
           appt_date?: string | null
           calendar_location?: string | null
           card_image?: string | null
+          contact_id?: string | null
           created_at?: string
           date: string
           dob?: string | null
@@ -676,6 +678,7 @@ export type Database = {
           appt_date?: string | null
           calendar_location?: string | null
           card_image?: string | null
+          contact_id?: string | null
           created_at?: string
           date?: string
           dob?: string | null
