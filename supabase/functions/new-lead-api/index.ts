@@ -136,6 +136,7 @@ serve(async (req) => {
       group_number: body.group_number || null,
       address: body.address || null,
       notes: body.notes || null,
+      patient_intake_notes: body.patient_intake_notes || null,
       card_image: body.card_image || null,
       knee_pain_duration: body.knee_pain_duration || null,
       knee_osteoarthritis_diagnosis: body.knee_osteoarthritis_diagnosis === true,

@@ -616,6 +616,7 @@ export type Database = {
           lead_name: string
           notes: string | null
           pain_severity_scale: number | null
+          patient_intake_notes: string | null
           phone_number: string | null
           plantar_fasciitis_imaging: boolean | null
           plantar_fasciitis_mobility_impact: boolean | null
@@ -657,6 +658,7 @@ export type Database = {
           lead_name: string
           notes?: string | null
           pain_severity_scale?: number | null
+          patient_intake_notes?: string | null
           phone_number?: string | null
           plantar_fasciitis_imaging?: boolean | null
           plantar_fasciitis_mobility_impact?: boolean | null
@@ -698,6 +700,7 @@ export type Database = {
           lead_name?: string
           notes?: string | null
           pain_severity_scale?: number | null
+          patient_intake_notes?: string | null
           phone_number?: string | null
           plantar_fasciitis_imaging?: boolean | null
           plantar_fasciitis_mobility_impact?: boolean | null
