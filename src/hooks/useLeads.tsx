@@ -75,6 +75,7 @@ export const useLeads = (projectFilter?: string) => {
     from: undefined,
     to: undefined
   });
+  const [nameSearch, setNameSearch] = useState<string>('');
   const { toast } = useToast();
 
   const LEADS_PER_PAGE = 50;
@@ -101,6 +102,11 @@ export const useLeads = (projectFilter?: string) => {
         countQuery = countQuery.lte('date', dateRange.to.toISOString().split('T')[0]);
       }
 
+      // Apply name search filter
+      if (nameSearch.trim()) {
+        countQuery = countQuery.or(`lead_name.ilike.%${nameSearch.trim()}%,first_name.ilike.%${nameSearch.trim()}%,last_name.ilike.%${nameSearch.trim()}%`);
+      }
+
       // Get the total count first
       const { count, error: countError } = await countQuery;
       if (countError) throw countError;
@@ -122,6 +128,11 @@ export const useLeads = (projectFilter?: string) => {
       }
       if (dateRange.to) {
         leadsQuery = leadsQuery.lte('date', dateRange.to.toISOString().split('T')[0]);
+      }
+
+      // Apply name search filter to data query
+      if (nameSearch.trim()) {
+        leadsQuery = leadsQuery.or(`lead_name.ilike.%${nameSearch.trim()}%,first_name.ilike.%${nameSearch.trim()}%,last_name.ilike.%${nameSearch.trim()}%`);
       }
       
       // Apply pagination
@@ -196,7 +207,7 @@ export const useLeads = (projectFilter?: string) => {
   useEffect(() => {
     setCurrentPage(1); // Reset to first page when filters change
     fetchLeadsWithCallCounts(1);
-  }, [projectFilter, dateRange]);
+  }, [projectFilter, dateRange, nameSearch]);
 
   useEffect(() => {
     fetchLeadsWithCallCounts(currentPage);
@@ -220,6 +231,8 @@ export const useLeads = (projectFilter?: string) => {
     totalCount,
     dateRange,
     setDateRange,
+    nameSearch,
+    setNameSearch,
     leadsPerPage: LEADS_PER_PAGE
   };
 };

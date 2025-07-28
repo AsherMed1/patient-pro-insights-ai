@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { Upload, CalendarIcon, Filter } from 'lucide-react';
+import { Upload, CalendarIcon, Filter, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import CallDetailsModal from './CallDetailsModal';
@@ -40,6 +41,8 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     totalCount,
     dateRange,
     setDateRange,
+    nameSearch,
+    setNameSearch,
     leadsPerPage
   } = useLeads(projectFilter);
 
@@ -146,6 +149,20 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4">
+            {/* Name Search */}
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">Search by Name</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search lead name, first name, or last name..."
+                  value={nameSearch}
+                  onChange={(e) => setNameSearch(e.target.value)}
+                  className="pl-10 w-full md:w-80"
+                />
+              </div>
+            </div>
+            
             {/* Date Range Picker */}
             <div className="flex flex-col space-y-2">
               <label className="text-sm font-medium">Date Range</label>
@@ -204,7 +221,10 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
             <div className="flex flex-col justify-end">
               <Button 
                 variant="outline" 
-                onClick={() => handleDateRangeChange({ from: undefined, to: undefined })}
+                onClick={() => {
+                  handleDateRangeChange({ from: undefined, to: undefined });
+                  setNameSearch('');
+                }}
                 className="w-fit"
               >
                 Clear Filters
