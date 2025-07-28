@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Filter, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { AllAppointment, AllAppointmentsManagerProps } from './appointments/types';
@@ -33,6 +34,7 @@ const AllAppointmentsManager = ({
     past: 0
   });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -41,7 +43,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab]);
+  }, [projectFilter, dateRange, activeTab, searchTerm]);
 
   useEffect(() => {
     fetchAppointments();
@@ -67,6 +69,11 @@ const AllAppointmentsManager = ({
       }
       if (dateRange.to) {
         countQuery = countQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+      }
+      
+      // Apply search filter
+      if (searchTerm.trim()) {
+        countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
       }
       
       // Apply tab-based filtering to count query
@@ -128,6 +135,11 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
       }
       
+      // Apply search filter
+      if (searchTerm.trim()) {
+        appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
+      }
+      
       if (activeTab === 'needs-review') {
         appointmentsQuery = appointmentsQuery
           .is('status', null)
@@ -174,6 +186,11 @@ const AllAppointmentsManager = ({
         }
         if (dateRange.to) {
           query = query.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+        }
+        
+        // Apply search filter
+        if (searchTerm.trim()) {
+          query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
         }
         
         return query;
@@ -346,14 +363,29 @@ const AllAppointmentsManager = ({
         </div>
       )}
 
-      {/* Date Filter */}
+      {/* Search and Date Filter */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="space-y-4">
+            {/* Search Bar */}
             <div className="flex items-center space-x-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filter by Date Range:</span>
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <div className="flex-1">
+                <Input
+                  placeholder="Search appointments by patient name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-md"
+                />
+              </div>
             </div>
+            
+            {/* Date Range Filter */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Filter by Date Range:</span>
+              </div>
             
             <div className="flex gap-2">
               <Popover>
@@ -405,16 +437,21 @@ const AllAppointmentsManager = ({
               </Popover>
             </div>
 
-            <Button 
-              variant="outline" 
-              onClick={() => setDateRange({ from: undefined, to: undefined })}
-              className="w-fit"
-            >
-              Clear Filters
-            </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setDateRange({ from: undefined, to: undefined });
+                  setSearchTerm('');
+                }}
+                className="w-fit"
+              >
+                Clear Filters
+              </Button>
 
-            <div className="text-sm text-muted-foreground">
-              Showing: {getDateRangeText()}
+              <div className="text-sm text-muted-foreground">
+                Showing: {getDateRangeText()}
+                {searchTerm && ` • Search: "${searchTerm}"`}
+              </div>
             </div>
           </div>
         </CardContent>
