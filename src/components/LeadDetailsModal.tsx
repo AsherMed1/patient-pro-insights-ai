@@ -48,16 +48,16 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
 
-  if (!lead) return null;
-
   const getDisplayName = () => {
-    if (lead.first_name && lead.last_name) {
+    if (lead?.first_name && lead?.last_name) {
       return `${lead.first_name} ${lead.last_name}`;
     }
-    return lead.lead_name;
+    return lead?.lead_name || '';
   };
 
   const fetchAssociatedAppointments = async () => {
+    if (!lead) return;
+    
     try {
       setAppointmentsLoading(true);
       const { data, error } = await supabase
@@ -82,6 +82,9 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
       fetchAssociatedAppointments();
     }
   }, [isOpen, lead]);
+
+  // Early return AFTER all hooks are declared
+  if (!lead) return null;
 
 
   const formatDate = (dateString?: string) => {
