@@ -47,6 +47,15 @@ interface NewLead {
   patient_intake_notes?: string;
   contact_id?: string;
   ai_summary?: string;
+  appointment_info?: {
+    lead_name: string;
+    date_of_appointment: string | null;
+    requested_time: string | null;
+    status: string | null;
+    confirmed: boolean | null;
+    showed: boolean | null;
+    calendar_name: string | null;
+  } | null;
 }
 
 interface CallRecord {
@@ -154,15 +163,31 @@ export const useLeads = (projectFilter?: string) => {
       
       if (callsError) throw callsError;
 
-      // Calculate actual call counts for each lead
+      // Fetch appointments for these leads
+      const { data: appointmentsData, error: appointmentsError } = await supabase
+        .from('all_appointments')
+        .select('lead_name, date_of_appointment, requested_time, status, confirmed, showed, calendar_name')
+        .order('date_of_appointment', { ascending: false });
+      
+      if (appointmentsError) throw appointmentsError;
+
+      // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const actualCallsCount = (callsData || []).filter(
           call => call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim()
         ).length;
         
+        // Find the most recent appointment for this lead
+        const leadAppointments = (appointmentsData || []).filter(
+          appt => appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim()
+        );
+        
+        const mostRecentAppointment = leadAppointments.length > 0 ? leadAppointments[0] : null;
+        
         return {
           ...lead,
-          actual_calls_count: actualCallsCount
+          actual_calls_count: actualCallsCount,
+          appointment_info: mostRecentAppointment
         };
       });
 

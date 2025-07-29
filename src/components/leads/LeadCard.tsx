@@ -46,6 +46,15 @@ interface NewLead {
   plantar_fasciitis_mobility_impact?: boolean;
   plantar_fasciitis_imaging?: boolean;
   email?: string;
+  appointment_info?: {
+    lead_name: string;
+    date_of_appointment: string | null;
+    requested_time: string | null;
+    status: string | null;
+    confirmed: boolean | null;
+    showed: boolean | null;
+    calendar_name: string | null;
+  } | null;
 }
 
 interface LeadCardProps {
@@ -114,6 +123,21 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
               Came in: {formatDateTime(lead.created_at)}
             </span>
           </div>
+
+          {lead.appointment_info && (
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-4 w-4 text-green-500" />
+              <span className="text-sm text-green-600 font-medium">
+                Appointment: {lead.appointment_info.date_of_appointment ? formatDate(lead.appointment_info.date_of_appointment) : 'Date TBD'}
+                {lead.appointment_info.requested_time && ` at ${lead.appointment_info.requested_time}`}
+                {lead.appointment_info.status && (
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {lead.appointment_info.status}
+                  </Badge>
+                )}
+              </span>
+            </div>
+          )}
 
           {/* Additional Information Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 pt-3 border-t">
