@@ -41,7 +41,7 @@ const ProjectLogin = () => {
         const { data, error } = await supabase
           .from('projects')
           .select('id, project_name, custom_logo_url, brand_primary_color, brand_secondary_color')
-          .eq('project_name', decodeURIComponent(projectName))
+          .eq('project_name', decodeURIComponent(projectName).trim())
           .eq('active', true)
           .single();
 
@@ -65,7 +65,8 @@ const ProjectLogin = () => {
     if (!projectName || !password.trim()) return;
 
     setLoading(true);
-    const result = await signIn(decodeURIComponent(projectName), password);
+    const decodedProjectName = decodeURIComponent(projectName).trim();
+    const result = await signIn(decodedProjectName, password);
     
     if (result.success) {
       navigate(`/project/${projectName}`);
