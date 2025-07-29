@@ -95,17 +95,28 @@ const Index = () => {
                 <User className="h-4 w-4" />
                 <span className="text-sm text-gray-600">{user?.email} ({role})</span>
               </div>
-              {(role === 'admin') && (
+              <div className="flex space-x-2">
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => setActiveTab('users')}
+                  onClick={() => navigate('/settings')}
                   className="text-xs"
                 >
                   <Settings className="h-3 w-3 mr-1" />
-                  Admin Control
+                  Settings
                 </Button>
-              )}
+                {(role === 'admin') && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setActiveTab('users')}
+                    className="text-xs"
+                  >
+                    <Settings className="h-3 w-3 mr-1" />
+                    Admin Control
+                  </Button>
+                )}
+              </div>
             </div>
             <Button variant="outline" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />

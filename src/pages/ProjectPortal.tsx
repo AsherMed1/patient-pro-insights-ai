@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
-import { AuthGuard } from '@/components/auth/AuthGuard';
+import { useProjectAuth } from '@/hooks/useProjectAuth';
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
@@ -148,39 +148,37 @@ const ProjectPortal = () => {
   }
 
   return (
-    <AuthGuard projectName={decodeURIComponent(projectName!)}>
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header with back button only */}
-          <div className="flex items-center justify-between">
-            <Link to="/">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
-          </div>
-
-          {/* Project Header */}
-          <ProjectHeader projectName={project.project_name} />
-
-          {/* Stats Cards */}
-          <ProjectStatsCards stats={stats} />
-
-          {/* Small detailed analytics link below stats */}
-          <div className="text-center">
-            <ProjectDetailedDashboard project={project}>
-              <button className="text-sm text-blue-600 hover:text-blue-800 underline">
-                View detailed analytics
-              </button>
-            </ProjectDetailedDashboard>
-          </div>
-
-          {/* Appointments Section */}
-          <AllAppointmentsManager projectFilter={project.project_name} />
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header with back button only */}
+        <div className="flex items-center justify-between">
+          <Link to="/">
+            <Button variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
         </div>
+
+        {/* Project Header */}
+        <ProjectHeader projectName={project.project_name} />
+
+        {/* Stats Cards */}
+        <ProjectStatsCards stats={stats} />
+
+        {/* Small detailed analytics link below stats */}
+        <div className="text-center">
+          <ProjectDetailedDashboard project={project}>
+            <button className="text-sm text-blue-600 hover:text-blue-800 underline">
+              View detailed analytics
+            </button>
+          </ProjectDetailedDashboard>
+        </div>
+
+        {/* Appointments Section */}
+        <AllAppointmentsManager projectFilter={project.project_name} />
       </div>
-    </AuthGuard>
+    </div>
   );
 };
 
