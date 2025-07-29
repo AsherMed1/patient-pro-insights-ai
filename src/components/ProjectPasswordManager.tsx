@@ -60,7 +60,7 @@ export const ProjectPasswordManager: React.FC = () => {
 
   const startEditing = (projectId: string, currentPassword: string | null) => {
     setEditingProject(projectId);
-    setNewPassword(currentPassword || '');
+    setNewPassword(''); // Always start with empty password for security
   };
 
   const cancelEditing = () => {
