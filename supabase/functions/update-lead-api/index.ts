@@ -28,13 +28,37 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Parse request body
+    // Parse request body based on content type
     let body
+    const contentType = req.headers.get('content-type') || ''
+    
     try {
-      body = await req.json()
+      if (contentType.includes('application/json')) {
+        body = await req.json()
+      } else if (contentType.includes('application/x-www-form-urlencoded')) {
+        const formData = await req.formData()
+        body = Object.fromEntries(formData.entries())
+      } else if (contentType.includes('text/plain')) {
+        const text = await req.text()
+        // For plain text, assume it's patient_intake_notes and require other params as query params
+        const url = new URL(req.url)
+        body = {
+          patient_intake_notes: text,
+          id: url.searchParams.get('id'),
+          lead_name: url.searchParams.get('lead_name'),
+          project_name: url.searchParams.get('project_name'),
+          contact_id: url.searchParams.get('contact_id')
+        }
+      } else {
+        // Default to JSON parsing
+        body = await req.json()
+      }
     } catch (error) {
       return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        JSON.stringify({ 
+          error: 'Invalid request body format. Supports JSON, form data, or plain text.',
+          details: error.message 
+        }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
