@@ -178,12 +178,12 @@ export const ProjectPasswordManager: React.FC = () => {
                 <div className="flex items-center space-x-2 mt-2">
                   <Label className="text-sm text-muted-foreground">Login URL:</Label>
                   <code className="text-xs bg-muted px-2 py-1 rounded">
-                    {window.location.origin}/project/{encodeURIComponent(project.project_name.trim())}/login
+                    https://patientproclients.com/project/{encodeURIComponent(project.project_name.trim())}/login
                   </code>
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => window.open(`/project/${encodeURIComponent(project.project_name.trim())}/login`, '_blank')}
+                    onClick={() => window.open(`https://patientproclients.com/project/${encodeURIComponent(project.project_name.trim())}/login`, '_blank')}
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>
