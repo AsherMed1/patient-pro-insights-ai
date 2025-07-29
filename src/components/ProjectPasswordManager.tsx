@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Edit, Save, X } from 'lucide-react';
+import { Eye, EyeOff, Edit, Save, X, ExternalLink } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -174,6 +174,19 @@ export const ProjectPasswordManager: React.FC = () => {
                       </Button>
                     </div>
                   )}
+                </div>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Label className="text-sm text-muted-foreground">Login URL:</Label>
+                  <code className="text-xs bg-muted px-2 py-1 rounded">
+                    {window.location.origin}/project-login/{project.project_name}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => window.open(`/project-login/${project.project_name}`, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>
