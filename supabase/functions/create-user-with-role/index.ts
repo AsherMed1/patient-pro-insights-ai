@@ -86,9 +86,9 @@ serve(async (req) => {
 
     console.log('✅ User authenticated:', user.id);
 
-    // Check if user has admin role
+    // Check if user has admin role using admin client to bypass RLS
     console.log('🔍 Checking user role...');
-    const { data: userRole, error: roleError } = await supabaseClient
+    const { data: userRole, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
