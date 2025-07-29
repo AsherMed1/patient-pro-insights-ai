@@ -22,10 +22,33 @@ serve(async (req) => {
 
     if (action === 'login') {
       console.log(`Project login attempt for: ${projectName}`)
+      console.log(`Password provided: ${password ? '[REDACTED]' : 'NONE'}`)
+
+      // First, let's check if the project exists
+      const { data: projectData, error: projectError } = await supabaseClient
+        .from('projects')
+        .select('project_name, portal_password')
+        .eq('project_name', projectName.trim())
+        .eq('active', true)
+        .single()
+
+      if (projectError) {
+        console.error('Project lookup error:', projectError)
+        return new Response(
+          JSON.stringify({ error: 'Project not found' }),
+          { 
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
+      console.log(`Project found: ${projectData.project_name}`)
+      console.log(`Has password: ${projectData.portal_password ? 'YES' : 'NO'}`)
 
       // Create session using existing database function
       const { data, error } = await supabaseClient.rpc('create_secure_portal_session', {
-        project_name_param: projectName,
+        project_name_param: projectName.trim(),
         password_param: password,
         ip_address_param: ipAddress,
         user_agent_param: userAgent
