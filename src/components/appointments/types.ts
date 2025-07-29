@@ -21,6 +21,7 @@ export interface AllAppointment {
   status: string | null;
   procedure_ordered: boolean | null;
   patient_intake_notes: string | null;
+  ai_summary?: string;
 }
 
 export interface AllAppointmentsManagerProps {

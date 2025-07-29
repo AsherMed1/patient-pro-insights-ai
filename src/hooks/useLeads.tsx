@@ -46,6 +46,7 @@ interface NewLead {
   email?: string;
   patient_intake_notes?: string;
   contact_id?: string;
+  ai_summary?: string;
 }
 
 interface CallRecord {

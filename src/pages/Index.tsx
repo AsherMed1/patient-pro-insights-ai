@@ -14,7 +14,7 @@ import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
-
+import { IntakeFormattingDemo } from "@/components/IntakeFormattingDemo";
 import UserManagement from "@/components/UserManagement";
 
 const Index = () => {
@@ -126,7 +126,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-4 lg:grid-cols-8' : 'grid-cols-4 lg:grid-cols-7'}`}>
+          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-4 lg:grid-cols-9' : 'grid-cols-4 lg:grid-cols-8'}`}>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -134,6 +134,7 @@ const Index = () => {
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="ai-formatting">AI Formatting</TabsTrigger>
             {hasManagementAccess() && (
               <TabsTrigger value="users">Users</TabsTrigger>
             )}
@@ -166,6 +167,10 @@ const Index = () => {
 
           <TabsContent value="projects" className="space-y-6">
             <ProjectsManager />
+          </TabsContent>
+
+          <TabsContent value="ai-formatting" className="space-y-6">
+            <IntakeFormattingDemo />
           </TabsContent>
 
 
