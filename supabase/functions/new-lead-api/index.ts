@@ -175,6 +175,31 @@ serve(async (req) => {
       )
     }
 
+    // Automatically format patient intake notes if present
+    if (data && data[0] && leadData.patient_intake_notes) {
+      try {
+        console.log('Auto-formatting intake notes for lead:', data[0].id);
+        
+        const formatResponse = await supabase.functions.invoke('format-intake-ai', {
+          body: {
+            type: 'patient_intake_notes',
+            data: leadData.patient_intake_notes,
+            recordId: data[0].id,
+            tableName: 'new_leads'
+          }
+        });
+
+        if (formatResponse.error) {
+          console.error('Auto-formatting failed:', formatResponse.error);
+        } else {
+          console.log('Auto-formatting completed successfully');
+        }
+      } catch (formatError) {
+        console.error('Error during auto-formatting:', formatError);
+        // Don't fail the lead creation if formatting fails
+      }
+    }
+
     // Return success response
     return new Response(
       JSON.stringify({ 

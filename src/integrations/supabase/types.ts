@@ -592,6 +592,7 @@ export type Database = {
       new_leads: {
         Row: {
           address: string | null
+          ai_summary: string | null
           appt_date: string | null
           calendar_location: string | null
           card_image: string | null
@@ -635,6 +636,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_summary?: string | null
           appt_date?: string | null
           calendar_location?: string | null
           card_image?: string | null
@@ -678,6 +680,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_summary?: string | null
           appt_date?: string | null
           calendar_location?: string | null
           card_image?: string | null
