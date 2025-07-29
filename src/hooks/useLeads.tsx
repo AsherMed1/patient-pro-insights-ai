@@ -44,6 +44,8 @@ interface NewLead {
   plantar_fasciitis_mobility_impact?: boolean;
   plantar_fasciitis_imaging?: boolean;
   email?: string;
+  patient_intake_notes?: string;
+  contact_id?: string;
 }
 
 interface CallRecord {
