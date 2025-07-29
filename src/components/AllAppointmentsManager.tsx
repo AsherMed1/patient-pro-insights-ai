@@ -83,7 +83,7 @@ const AllAppointmentsManager = ({
       
       if (activeTab === 'needs-review') {
         countQuery = countQuery
-          .lt('date_of_appointment', todayString)
+          .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
           .not('status', 'in', '(Cancelled,No Show,Won,Lost)');
       } else if (activeTab === 'future') {
         countQuery = countQuery.gte('date_of_appointment', todayString);
@@ -145,7 +145,7 @@ const AllAppointmentsManager = ({
       
       if (activeTab === 'needs-review') {
         appointmentsQuery = appointmentsQuery
-          .lt('date_of_appointment', todayString)
+          .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
           .not('status', 'in', '(Cancelled,No Show,Won,Lost)');
       } else if (activeTab === 'future') {
         appointmentsQuery = appointmentsQuery.gte('date_of_appointment', todayString);
@@ -206,9 +206,9 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: past appointments without completion status
+      // Needs Review: past appointments without completion status (including NULL dates)
       const needsReviewQuery = getBaseQuery()
-        .lt('date_of_appointment', todayString)
+        .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
         .not('status', 'in', '(Cancelled,No Show,Won,Lost)');
 
       // Future: date_of_appointment is today or future
