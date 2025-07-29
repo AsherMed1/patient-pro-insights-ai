@@ -99,6 +99,17 @@ serve(async (req) => {
       confirmed_number: body.confirmed_number || null
     }
 
+    // Check if appointment already exists
+    const { data: existingAppointment } = await supabase
+      .from('all_appointments')
+      .select('id')
+      .eq('ghl_id', appointmentData.ghl_id)
+      .eq('date_of_appointment', appointmentData.date_of_appointment)
+      .eq('requested_time', appointmentData.requested_time)
+      .maybeSingle()
+
+    const isUpdate = !!existingAppointment
+
     // Upsert appointment data - insert new or update existing
     const { data, error } = await supabase
       .from('all_appointments')
@@ -121,16 +132,17 @@ serve(async (req) => {
       )
     }
 
-    console.log('Successfully created appointment:', data[0])
+    console.log(`Successfully ${isUpdate ? 'updated' : 'created'} appointment:`, data[0])
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Appointment created successfully',
-        data: data[0]
+        message: `Appointment ${isUpdate ? 'updated' : 'created'} successfully`,
+        data: data[0],
+        operation: isUpdate ? 'update' : 'create'
       }),
       { 
-        status: 201, 
+        status: isUpdate ? 200 : 201, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
