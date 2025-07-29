@@ -147,7 +147,7 @@ export const ProjectPasswordManager: React.FC = () => {
                       <span className="font-mono text-sm">
                         {project.portal_password ? (
                           visiblePasswords.has(project.id) ? 
-                            '••••••••' : // Show dots when visible (since it's hashed)
+                            <span className="text-amber-600">Password is hashed - cannot reveal</span> :
                             '••••••••'
                         ) : (
                           <span className="text-muted-foreground italic">No password set</span>
