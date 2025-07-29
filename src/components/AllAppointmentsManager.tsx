@@ -121,7 +121,8 @@ const AllAppointmentsManager = ({
           created_at,
           updated_at,
           status,
-          procedure_ordered
+          procedure_ordered,
+          patient_intake_notes
         `)
         .order('date_appointment_created', { ascending: false });
 

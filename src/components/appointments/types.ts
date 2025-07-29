@@ -20,6 +20,7 @@ export interface AllAppointment {
   updated_at: string;
   status: string | null;
   procedure_ordered: boolean | null;
+  patient_intake_notes: string | null;
 }
 
 export interface AllAppointmentsManagerProps {

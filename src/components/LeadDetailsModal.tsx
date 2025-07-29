@@ -228,6 +228,12 @@ const LeadDetailsModal = ({
                           <span className="font-medium text-muted-foreground">Requested Time:</span>
                           <p className="text-foreground">{appointment.requested_time}</p>
                         </div>}
+                      {appointment.patient_intake_notes && <div className="col-span-full">
+                          <span className="font-medium text-muted-foreground">Patient Intake Notes:</span>
+                          <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400 mt-1">
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
+                          </div>
+                        </div>}
                     </div>
                   </div>)}
               </div> : <div className="text-center py-6 text-muted-foreground">
