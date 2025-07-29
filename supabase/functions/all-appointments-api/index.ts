@@ -99,14 +99,59 @@ serve(async (req) => {
       confirmed_number: body.confirmed_number || null
     }
 
-    // Insert into all_appointments table
+    // Insert into all_appointments table with upsert to handle duplicates
     const { data, error } = await supabase
       .from('all_appointments')
-      .insert([appointmentData])
+      .upsert([appointmentData], {
+        onConflict: 'ghl_id,date_of_appointment,requested_time',
+        ignoreDuplicates: false
+      })
       .select()
 
     if (error) {
       console.error('Database error:', error)
+      
+      // Handle specific duplicate key error more gracefully
+      if (error.code === '23505') {
+        console.log('Duplicate appointment detected, attempting to fetch existing record')
+        
+        // Try to fetch the existing appointment
+        const { data: existingData, error: fetchError } = await supabase
+          .from('all_appointments')
+          .select()
+          .eq('ghl_id', appointmentData.ghl_id)
+          .eq('date_of_appointment', appointmentData.date_of_appointment)
+          .eq('requested_time', appointmentData.requested_time)
+          .single()
+        
+        if (fetchError) {
+          console.error('Error fetching existing appointment:', fetchError)
+          return new Response(
+            JSON.stringify({ 
+              error: 'Duplicate appointment exists but could not retrieve details', 
+              details: error.message 
+            }),
+            { 
+              status: 409, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          )
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Appointment already exists',
+            data: existingData,
+            duplicate: true
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Database error', 
