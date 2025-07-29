@@ -42,11 +42,7 @@ const App = () => (
                   <UserSettings />
                 </AuthGuard>
               } />
-              <Route path="/agent-claim" element={
-                <AuthGuard>
-                  <AgentClaim />
-                </AuthGuard>
-              } />
+              <Route path="/agent-claim" element={<AgentClaim />} />
               <Route path="/api-docs" element={
                 <AuthGuard requiredRole={['admin', 'agent']}>
                   <ApiDocs />
