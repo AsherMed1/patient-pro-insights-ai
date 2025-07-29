@@ -83,24 +83,37 @@ const AppointmentCard = ({
     try {
       setLoadingLeadData(true);
 
-      // Try to find the lead by exact name match first
+      // Try to find the lead by exact name match first, get the most recent one if multiple exist
       let {
         data,
         error
-      } = await supabase.from('new_leads').select('*').eq('lead_name', appointment.lead_name).eq('project_name', appointment.project_name).maybeSingle();
+      } = await supabase.from('new_leads')
+        .select('*')
+        .eq('lead_name', appointment.lead_name)
+        .eq('project_name', appointment.project_name)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
       if (error) throw error;
 
       // If no exact match, try case-insensitive search
-      if (!data) {
+      if (!data || data.length === 0) {
         const {
           data: altData,
           error: altError
-        } = await supabase.from('new_leads').select('*').ilike('lead_name', appointment.lead_name).eq('project_name', appointment.project_name).maybeSingle();
+        } = await supabase.from('new_leads')
+          .select('*')
+          .ilike('lead_name', appointment.lead_name)
+          .eq('project_name', appointment.project_name)
+          .order('created_at', { ascending: false })
+          .limit(1);
         if (altError) throw altError;
         data = altData;
       }
-      if (data) {
-        setLeadData(data);
+      
+      const leadRecord = data && data.length > 0 ? data[0] : null;
+      if (leadRecord) {
+        setLeadData(leadRecord);
         setShowLeadDetails(true);
       } else {
         toast({
