@@ -48,19 +48,29 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
+      console.log('🔍 Fetching users...');
+      
       // Get profiles first
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, email, full_name, created_at');
 
-      if (profilesError) throw profilesError;
+      console.log('📋 Profiles fetched:', profiles);
+      if (profilesError) {
+        console.error('❌ Profiles error:', profilesError);
+        throw profilesError;
+      }
 
       // Get user roles separately
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
-      if (rolesError) throw rolesError;
+      console.log('👤 User roles fetched:', userRoles);
+      if (rolesError) {
+        console.error('❌ Roles error:', rolesError);
+        throw rolesError;
+      }
 
       // Get project access for project users
       const { data: projectAccess, error: accessError } = await supabase
@@ -70,8 +80,9 @@ const UserManagement = () => {
           projects(project_name)
         `);
 
+      console.log('🔗 Project access fetched:', projectAccess);
       if (accessError) {
-        console.error('Error fetching project access:', accessError);
+        console.error('❌ Project access error:', accessError);
       }
 
       // Combine the data
@@ -87,9 +98,10 @@ const UserManagement = () => {
         };
       }) || [];
 
+      console.log('✅ Formatted users:', formattedUsers);
       setUsers(formattedUsers);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('❌ Error fetching users:', error);
       toast({
         title: "Error",
         description: "Failed to fetch users",
