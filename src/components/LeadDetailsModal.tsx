@@ -7,7 +7,7 @@ import { User, Phone, Mail, MapPin, Calendar, Building, FileText, Shield, Camera
 import { formatDateInCentralTime, formatDateTimeForTable } from '@/utils/dateTimeUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { AllAppointment } from '@/components/appointments/types';
-import { AIFormattingButton } from '@/components/AIFormattingButton';
+
 interface NewLead {
   id: string;
   date: string;
@@ -185,17 +185,7 @@ const LeadDetailsModal = ({
           {/* Patient Intake Notes */}
           {lead.patient_intake_notes && <InfoSection title="Patient Intake Notes" icon={FileText}>
               <div className="py-2 space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-sm font-medium text-gray-600">Raw Notes:</span>
-                  <AIFormattingButton
-                    data={lead.patient_intake_notes}
-                    type="patient_intake_notes"
-                    recordId={lead.id}
-                    tableName="new_leads"
-                    originalLabel="Format with AI"
-                    size="sm"
-                  />
-                </div>
+                <span className="text-sm font-medium text-gray-600">Raw Notes:</span>
                 <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400">
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{lead.patient_intake_notes}</p>
                 </div>
@@ -252,18 +242,7 @@ const LeadDetailsModal = ({
                           <p className="text-foreground">{appointment.requested_time}</p>
                         </div>}
                       {appointment.patient_intake_notes && <div className="col-span-full">
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="font-medium text-muted-foreground">Patient Intake Notes:</span>
-                            <AIFormattingButton
-                              data={appointment.patient_intake_notes}
-                              type="patient_intake_notes"
-                              recordId={appointment.id}
-                              tableName="all_appointments"
-                              originalLabel="Format"
-                              size="sm"
-                              variant="ghost"
-                            />
-                          </div>
+                          <span className="font-medium text-muted-foreground">Patient Intake Notes:</span>
                           <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
                             <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
                           </div>

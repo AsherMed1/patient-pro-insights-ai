@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Calendar, User } from 'lucide-react';
-import { AIFormattingButton } from '@/components/AIFormattingButton';
+
 import { formatDateTimeForTable } from '@/utils/dateTimeUtils';
 
 interface FormSubmission {
@@ -56,14 +56,6 @@ export const FormSubmissionCard = ({ submission, projectName }: FormSubmissionCa
               </Badge>
             )}
           </CardTitle>
-          <AIFormattingButton
-            data={submission.submission_data}
-            type="form_submission"
-            recordId={submission.id}
-            tableName="form_submissions"
-            originalLabel="Format with AI"
-            size="sm"
-          />
         </div>
       </CardHeader>
       
