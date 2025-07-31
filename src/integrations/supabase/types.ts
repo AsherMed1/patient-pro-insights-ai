@@ -1111,6 +1111,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bulk_sync_patient_intake_notes: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          appointment_id: string
+          lead_name: string
+          project_name: string
+          notes_synced: boolean
+        }[]
+      }
       check_rate_limit_enhanced: {
         Args: {
           identifier_param: string
