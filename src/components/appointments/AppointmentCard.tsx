@@ -8,7 +8,6 @@ import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVarian
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
-
 import AppointmentNotes from './AppointmentNotes';
 interface AppointmentCardProps {
   appointment: AllAppointment;
@@ -89,14 +88,12 @@ const AppointmentCard = ({
       // Strategy 1: Match by lead_name and project_name (most specific)
       if (appointment.lead_name && appointment.project_name) {
         console.log('Trying strategy 1: name + project');
-        const { data: nameProjectResults, error: nameProjectError } = await supabase
-          .from('new_leads')
-          .select('*')
-          .eq('lead_name', appointment.lead_name)
-          .eq('project_name', appointment.project_name)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
+        const {
+          data: nameProjectResults,
+          error: nameProjectError
+        } = await supabase.from('new_leads').select('*').eq('lead_name', appointment.lead_name).eq('project_name', appointment.project_name).order('created_at', {
+          ascending: false
+        }).limit(1);
         if (!nameProjectError && nameProjectResults && nameProjectResults.length > 0) {
           leadRecord = nameProjectResults[0];
           console.log('Found lead by name + project');
@@ -106,13 +103,12 @@ const AppointmentCard = ({
       // Strategy 2: If no results, try phone number matching
       if (!leadRecord && appointment.lead_phone_number) {
         console.log('Trying strategy 2: phone number');
-        const { data: phoneResults, error: phoneError } = await supabase
-          .from('new_leads')
-          .select('*')
-          .eq('phone_number', appointment.lead_phone_number)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
+        const {
+          data: phoneResults,
+          error: phoneError
+        } = await supabase.from('new_leads').select('*').eq('phone_number', appointment.lead_phone_number).order('created_at', {
+          ascending: false
+        }).limit(1);
         if (!phoneError && phoneResults && phoneResults.length > 0) {
           leadRecord = phoneResults[0];
           console.log('Found lead by phone number');
@@ -122,13 +118,12 @@ const AppointmentCard = ({
       // Strategy 3: If no results, try email matching
       if (!leadRecord && appointment.lead_email) {
         console.log('Trying strategy 3: email');
-        const { data: emailResults, error: emailError } = await supabase
-          .from('new_leads')
-          .select('*')
-          .eq('email', appointment.lead_email)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
+        const {
+          data: emailResults,
+          error: emailError
+        } = await supabase.from('new_leads').select('*').eq('email', appointment.lead_email).order('created_at', {
+          ascending: false
+        }).limit(1);
         if (!emailError && emailResults && emailResults.length > 0) {
           leadRecord = emailResults[0];
           console.log('Found lead by email');
@@ -138,13 +133,12 @@ const AppointmentCard = ({
       // Strategy 4: If no results, try GHL ID matching (ghl_id in appointments maps to contact_id in leads)
       if (!leadRecord && appointment.ghl_id) {
         console.log('Trying strategy 4: GHL ID');
-        const { data: ghlResults, error: ghlError } = await supabase
-          .from('new_leads')
-          .select('*')
-          .eq('contact_id', appointment.ghl_id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
+        const {
+          data: ghlResults,
+          error: ghlError
+        } = await supabase.from('new_leads').select('*').eq('contact_id', appointment.ghl_id).order('created_at', {
+          ascending: false
+        }).limit(1);
         if (!ghlError && ghlResults && ghlResults.length > 0) {
           leadRecord = ghlResults[0];
           console.log('Found lead by GHL ID');
@@ -154,20 +148,17 @@ const AppointmentCard = ({
       // Strategy 5: If still no results, try case-insensitive name search as fallback
       if (!leadRecord && appointment.lead_name) {
         console.log('Trying strategy 5: case-insensitive name search');
-        const { data: ilikResults, error: ilikError } = await supabase
-          .from('new_leads')
-          .select('*')
-          .ilike('lead_name', appointment.lead_name)
-          .eq('project_name', appointment.project_name)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
+        const {
+          data: ilikResults,
+          error: ilikError
+        } = await supabase.from('new_leads').select('*').ilike('lead_name', appointment.lead_name).eq('project_name', appointment.project_name).order('created_at', {
+          ascending: false
+        }).limit(1);
         if (!ilikError && ilikResults && ilikResults.length > 0) {
           leadRecord = ilikResults[0];
           console.log('Found lead by case-insensitive name search');
         }
       }
-      
       if (leadRecord) {
         setLeadData(leadRecord);
         setShowLeadDetails(true);
@@ -260,18 +251,12 @@ const AppointmentCard = ({
 
           {/* Internal Notes */}
           <div className="space-y-2">
-            <AppointmentNotes 
-              appointmentId={appointment.id}
-              leadName={appointment.lead_name}
-              projectName={appointment.project_name}
-            />
+            <AppointmentNotes appointmentId={appointment.id} leadName={appointment.lead_name} projectName={appointment.project_name} />
           </div>
 
           {/* Status and Procedure Badges - Responsive layout */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
-            <Badge variant={appointmentStatus.variant} className="text-xs w-fit">
-              {appointmentStatus.text}
-            </Badge>
+            
             
           </div>
 
