@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, Calendar as CalendarIcon, Filter, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { AllAppointment, AllAppointmentsManagerProps } from './appointments/types';
 import AppointmentsTabs from './appointments/AppointmentsTabs';
 import AppointmentsCsvImport from './AppointmentsCsvImport';
 import PaginationControls from './shared/PaginationControls';
+import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 
 interface DateRange {
   from: Date | undefined;
@@ -326,158 +322,42 @@ const AllAppointmentsManager = ({
     }
   };
 
-  const getDateRangeText = () => {
-    if (!dateRange.from && !dateRange.to) return 'All dates';
-    if (dateRange.from && !dateRange.to) {
-      return `From ${format(dateRange.from, "MMM dd, yyyy")}`;
-    }
-    if (!dateRange.from && dateRange.to) {
-      return `Until ${format(dateRange.to, "MMM dd, yyyy")}`;
-    }
-    if (dateRange.from && dateRange.to) {
-      if (dateRange.from.toDateString() === dateRange.to.toDateString()) {
-        return format(dateRange.from, "MMM dd, yyyy");
-      }
-      return `${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd, yyyy")}`;
-    }
-    return 'Select date range';
-  };
 
   const totalPages = Math.ceil(totalCount / APPOINTMENTS_PER_PAGE);
   const startRecord = (currentPage - 1) * APPOINTMENTS_PER_PAGE + 1;
   const endRecord = Math.min(currentPage * APPOINTMENTS_PER_PAGE, totalCount);
 
   return (
-    <div className="space-y-6">
-      {/* Import Section */}
-      {!showImport && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Import Historical Appointments</CardTitle>
-                <CardDescription>Upload past appointments data from CSV file</CardDescription>
-              </div>
-              <Button 
-                onClick={() => setShowImport(true)}
-                className="flex items-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Import CSV
-              </Button>
-            </div>
-          </CardHeader>
-        </Card>
-      )}
+    <div className="space-y-8">
+      {/* Enhanced Filter Component */}
+      <AppointmentFilters
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        onClearFilters={() => {
+          setDateRange({ from: undefined, to: undefined });
+          setSearchTerm('');
+        }}
+        onShowImport={() => setShowImport(true)}
+        showImport={showImport}
+      />
 
       {/* CSV Import Component */}
       {showImport && (
-        <div className="space-y-4">
+        <div className="portal-section">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Import Historical Data</h3>
           <AppointmentsCsvImport />
-          <div className="flex gap-2">
+          <div className="flex gap-3 mt-4">
             <Button variant="outline" onClick={() => setShowImport(false)}>
-              Cancel
+              Cancel Import
             </Button>
-            <Button onClick={handleImportComplete}>
-              Done
+            <Button onClick={handleImportComplete} className="bg-primary">
+              Complete Import
             </Button>
           </div>
         </div>
       )}
-
-      {/* Search and Date Filter */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="flex items-center space-x-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <div className="flex-1">
-                <Input
-                  placeholder="Search appointments by patient name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
-                />
-              </div>
-            </div>
-            
-            {/* Date Range Filter */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Filter by Date Range:</span>
-              </div>
-            
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-[140px] justify-start text-left font-normal",
-                      !dateRange.from && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateRange.from}
-                    onSelect={(date) => setDateRange({ ...dateRange, from: date })}
-                    initialFocus
-                    className="p-3"
-                  />
-                </PopoverContent>
-              </Popover>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-[140px] justify-start text-left font-normal",
-                      !dateRange.to && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateRange.to}
-                    onSelect={(date) => setDateRange({ ...dateRange, to: date })}
-                    initialFocus
-                    className="p-3"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setDateRange({ from: undefined, to: undefined });
-                  setSearchTerm('');
-                }}
-                className="w-fit"
-              >
-                Clear Filters
-              </Button>
-
-              <div className="text-sm text-muted-foreground">
-                Showing: {getDateRangeText()}
-                {searchTerm && ` • Search: "${searchTerm}"`}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Appointments List */}
       <Card className="w-full">

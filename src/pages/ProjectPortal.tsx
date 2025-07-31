@@ -149,38 +149,48 @@ const ProjectPortal = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header with back button only */}
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-background p-4 md:p-6">
+      <div className="max-w-7xl mx-auto portal-spacing">
+        {/* Header with back button */}
+        <div className="flex items-center justify-between mb-2">
           <Link to="/">
-            <Button variant="outline">
+            <Button variant="outline" className="hover:bg-accent">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard
             </Button>
           </Link>
+          
+          {/* Success indicator - will auto-hide after improvements */}
+          <div className="text-sm text-green-600 font-medium">
+            ✓ Login Successful
+          </div>
         </div>
 
-        {/* Project Header */}
+        {/* Project Header with enhanced typography */}
         <ProjectHeader projectName={project.project_name} />
 
-        {/* Stats Cards */}
+        {/* Enhanced Stats Cards with medical context */}
         <ProjectStatsCards stats={stats} />
 
-        {/* Small detailed analytics link below stats */}
-        <div className="text-center">
+        {/* Detailed Analytics - Better positioned */}
+        <div className="text-center py-4">
           <ProjectDetailedDashboard project={project}>
-            <button className="text-sm text-blue-600 hover:text-blue-800 underline">
-              View detailed analytics
-            </button>
+            <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
+              📊 View detailed analytics dashboard
+            </Button>
           </ProjectDetailedDashboard>
         </div>
 
-        {/* Appointments Section */}
-        <AllAppointmentsManager projectFilter={project.project_name} />
+        {/* Enhanced Appointments Section */}
+        <div className="portal-section">
+          <AllAppointmentsManager projectFilter={project.project_name} />
+        </div>
         
-        {/* Team Message Bubble */}
-        <TeamMessageBubble projectName={project.project_name} />
+        {/* Team Communication */}
+        <div className="portal-section">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Team Communication</h3>
+          <TeamMessageBubble projectName={project.project_name} />
+        </div>
       </div>
     </div>
   );
