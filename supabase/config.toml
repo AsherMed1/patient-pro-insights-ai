@@ -24,3 +24,6 @@ verify_jwt = false
 
 [functions.format-intake-ai]
 verify_jwt = false
+
+[functions.send-team-message]
+verify_jwt = false
