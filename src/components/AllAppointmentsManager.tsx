@@ -82,20 +82,19 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'needs-review') {
-        // Needs review: appointments where both status and procedure_ordered are NOT complete
+        // Needs review: appointments where status is NOT set (needs attention)
         countQuery = countQuery
           .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
-          .not('status', 'in', '(Cancelled,No Show,Won,Lost)')
-          .or('status.is.null,procedure_ordered.is.null');
+          .or('status.is.null');
       } else if (activeTab === 'future') {
-        // Future: appointments in future AND both status and procedure_ordered are NOT complete
+        // Future: appointments in future with no status set
         countQuery = countQuery
           .gte('date_of_appointment', todayString)
-          .or('status.is.null,procedure_ordered.is.null');
+          .or('status.is.null');
       } else if (activeTab === 'past') {
-        // Past: appointments where both status and procedure_ordered are complete OR past with completion status
+        // Past: appointments where status is set OR past appointments with final status
         countQuery = countQuery
-          .or(`and(status.not.is.null,procedure_ordered.not.is.null),and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost))`);
+          .or(`status.not.is.null,and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost,Showed))`);
       }
 
       // Get the total count first
@@ -149,20 +148,19 @@ const AllAppointmentsManager = ({
       }
       
       if (activeTab === 'needs-review') {
-        // Needs review: appointments where both status and procedure_ordered are NOT complete
+        // Needs review: appointments where status is NOT set (needs attention)
         appointmentsQuery = appointmentsQuery
           .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
-          .not('status', 'in', '(Cancelled,No Show,Won,Lost)')
-          .or('status.is.null,procedure_ordered.is.null');
+          .or('status.is.null');
       } else if (activeTab === 'future') {
-        // Future: appointments in future AND both status and procedure_ordered are NOT complete
+        // Future: appointments in future with no status set
         appointmentsQuery = appointmentsQuery
           .gte('date_of_appointment', todayString)
-          .or('status.is.null,procedure_ordered.is.null');
+          .or('status.is.null');
       } else if (activeTab === 'past') {
-        // Past: appointments where both status and procedure_ordered are complete OR past with completion status
+        // Past: appointments where status is set OR past appointments with final status
         appointmentsQuery = appointmentsQuery
-          .or(`and(status.not.is.null,procedure_ordered.not.is.null),and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost))`);
+          .or(`status.not.is.null,and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost,Showed))`);
       }
       
       // Apply pagination
@@ -216,20 +214,19 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: appointments where both status and procedure_ordered are NOT complete
+      // Needs Review: appointments where status is NOT set (needs attention)
       const needsReviewQuery = getBaseQuery()
         .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
-        .not('status', 'in', '(Cancelled,No Show,Won,Lost)')
-        .or('status.is.null,procedure_ordered.is.null');
+        .or('status.is.null');
 
-      // Future: appointments in future AND both status and procedure_ordered are NOT complete
+      // Future: appointments in future with no status set
       const futureQuery = getBaseQuery()
         .gte('date_of_appointment', todayString)
-        .or('status.is.null,procedure_ordered.is.null');
+        .or('status.is.null');
 
-      // Past: appointments where both status and procedure_ordered are complete OR past with completion status
+      // Past: appointments where status is set OR past appointments with final status
       const pastQuery = getBaseQuery()
-        .or(`and(status.not.is.null,procedure_ordered.not.is.null),and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost))`);
+        .or(`status.not.is.null,and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost,Showed))`);
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
         needsReviewQuery,

@@ -57,7 +57,7 @@ const AppointmentCard = ({
   } = useToast();
   const appointmentStatus = getAppointmentStatus(appointment);
 
-  // Check if status and procedure have been updated
+  // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
   const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
 
