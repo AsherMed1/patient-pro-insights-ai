@@ -1,6 +1,7 @@
 
 import { AllAppointment } from './types';
-import { formatDateInCentralTime } from '@/utils/dateTimeUtils';
+import { formatDateInCentralTime, toCentralTime } from '@/utils/dateTimeUtils';
+import { format, startOfDay, endOfDay } from 'date-fns';
 
 export const formatDate = (dateString: string | null) => {
   if (!dateString) return 'Not set';
@@ -14,16 +15,60 @@ export const formatTime = (timeString: string | null) => {
 
 export const isAppointmentInPast = (appointmentDate: string | null) => {
   if (!appointmentDate) return false;
-  const today = new Date();
-  const appointmentDay = new Date(appointmentDate);
-  return appointmentDay < today;
+  
+  try {
+    // Get current date in Central Time, start of day
+    const nowCentral = toCentralTime(new Date());
+    const todayStartCentral = nowCentral ? startOfDay(nowCentral) : startOfDay(new Date());
+    
+    // Convert appointment date to Central Time, start of day
+    const appointmentCentral = toCentralTime(appointmentDate);
+    const appointmentStartCentral = appointmentCentral ? startOfDay(appointmentCentral) : startOfDay(new Date(appointmentDate));
+    
+    const isPast = appointmentStartCentral < todayStartCentral;
+    
+    // Debug logging for Wendy Chavis case
+    if (appointmentDate.includes('2025-07-31')) {
+      console.log('DEBUG: Wendy Chavis appointment date check:', {
+        appointmentDate,
+        appointmentStartCentral,
+        todayStartCentral,
+        isPast,
+        todayFormatted: format(todayStartCentral, 'yyyy-MM-dd'),
+        appointmentFormatted: format(appointmentStartCentral, 'yyyy-MM-dd')
+      });
+    }
+    
+    return isPast;
+  } catch (error) {
+    console.error('Error in isAppointmentInPast:', error);
+    // Fallback to simple comparison
+    const today = new Date();
+    const appointmentDay = new Date(appointmentDate);
+    return appointmentDay < today;
+  }
 };
 
 export const isAppointmentInFuture = (appointmentDate: string | null) => {
   if (!appointmentDate) return false;
-  const today = new Date();
-  const appointmentDay = new Date(appointmentDate);
-  return appointmentDay >= today;
+  
+  try {
+    // Get current date in Central Time, start of day
+    const nowCentral = toCentralTime(new Date());
+    const todayStartCentral = nowCentral ? startOfDay(nowCentral) : startOfDay(new Date());
+    
+    // Convert appointment date to Central Time, start of day  
+    const appointmentCentral = toCentralTime(appointmentDate);
+    const appointmentStartCentral = appointmentCentral ? startOfDay(appointmentCentral) : startOfDay(new Date(appointmentDate));
+    
+    return appointmentStartCentral >= todayStartCentral;
+  } catch (error) {
+    console.error('Error in isAppointmentInFuture:', error);
+    // Fallback to simple comparison
+    const today = new Date();
+    const appointmentDay = new Date(appointmentDate);
+    return appointmentDay >= today;
+  }
 };
 
 export const isStatusUpdated = (appointment: AllAppointment) => {
@@ -43,17 +88,40 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     const isProcedureComplete = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
     const isBothComplete = isStatusComplete && isProcedureComplete;
     
+    const isInPast = isAppointmentInPast(appointment.date_of_appointment);
+    const isInFuture = isAppointmentInFuture(appointment.date_of_appointment);
+    
+    // Debug logging for Wendy Chavis case
+    if (appointment.lead_name && appointment.lead_name.includes('Wendy')) {
+      console.log('DEBUG: Wendy Chavis appointment filtering:', {
+        lead_name: appointment.lead_name,
+        date_of_appointment: appointment.date_of_appointment,
+        status: appointment.status,
+        procedure_ordered: appointment.procedure_ordered,
+        filterType,
+        isStatusComplete,
+        isProcedureComplete,
+        isBothComplete,
+        isInPast,
+        isInFuture
+      });
+    }
+    
     switch (filterType) {
       case 'future':
-        return isAppointmentInFuture(appointment.date_of_appointment) && !isBothComplete;
+        const futureResult = isInFuture && !isBothComplete;
+        if (appointment.lead_name && appointment.lead_name.includes('Wendy')) {
+          console.log('DEBUG: Wendy future filter result:', futureResult);
+        }
+        return futureResult;
       case 'past':
         return isBothComplete || 
-               (isAppointmentInPast(appointment.date_of_appointment) && 
+               (isInPast && 
                 appointment.status && 
                 completedStatuses.includes(appointment.status));
       case 'needs-review':
         return !isBothComplete && 
-               (isAppointmentInPast(appointment.date_of_appointment) && 
+               (isInPast && 
                 (!appointment.status || !completedStatuses.includes(appointment.status)));
       default:
         return true;
