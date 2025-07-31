@@ -241,13 +241,6 @@ const AppointmentCard = ({
               Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
             </div>}
 
-          {/* Patient Intake Notes */}
-          {appointment.patient_intake_notes && <div className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Patient Intake Notes:</span>
-              <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
-              </div>
-            </div>}
 
 
           {/* Internal Notes */}

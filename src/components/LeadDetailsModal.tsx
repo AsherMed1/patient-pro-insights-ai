@@ -298,18 +298,6 @@ const LeadDetailsModal = ({
                           <span className="font-medium text-muted-foreground">Requested Time:</span>
                           <p className="text-foreground">{appointment.requested_time}</p>
                         </div>}
-                      {appointment.patient_intake_notes && <div className="col-span-full">
-                          <span className="font-medium text-muted-foreground">Patient Intake Notes:</span>
-                          <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
-                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
-                          </div>
-                          {appointment.ai_summary && (
-                            <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400 mt-2">
-                              <span className="text-xs font-medium text-muted-foreground">AI Summary:</span>
-                              <div className="whitespace-pre-wrap text-sm text-gray-800 mt-1">{appointment.ai_summary}</div>
-                            </div>
-                          )}
-                        </div>}
                     </div>
                   </div>)}
               </div> : <div className="text-center py-6 text-muted-foreground">

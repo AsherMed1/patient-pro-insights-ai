@@ -9,7 +9,7 @@ import AppointmentsCsvImport from './AppointmentsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
-import TestDeborahUpdate from './TestDeborahUpdate';
+
 
 interface DateRange {
   from: Date | undefined;
@@ -334,7 +334,7 @@ const AllAppointmentsManager = ({
   return (
     <div className="space-y-8">
       {/* Test Component - TEMPORARY */}
-      <TestDeborahUpdate />
+      
       
       {/* Enhanced Filter Component */}
       <AppointmentFilters
