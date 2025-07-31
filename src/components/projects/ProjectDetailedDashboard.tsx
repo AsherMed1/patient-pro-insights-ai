@@ -79,7 +79,10 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       const bookedAppointments = appointments?.length || 0;
       const shows = appointments?.filter(apt => apt.showed).length || 0;
       const noShows = appointments?.filter(apt => apt.showed === false).length || 0;
-      const confirmedAppointments = appointments?.filter(apt => apt.confirmed).length || 0;
+      // Use same logic as tabs: appointments with both status and procedure_ordered completed
+      const confirmedAppointments = appointments?.filter(apt => 
+        apt.status !== null && apt.procedure_ordered !== null
+      ).length || 0;
       const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
       const appointmentsToTakePlace = appointments?.filter(apt => 
         new Date(apt.date_of_appointment) >= new Date()
