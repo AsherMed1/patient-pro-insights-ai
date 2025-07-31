@@ -15,9 +15,15 @@ interface Project {
   updated_at: string;
 }
 
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
 interface ProjectDetailedDashboardProps {
   project: Project;
   children: React.ReactNode;
+  dateRange?: DateRange;
 }
 
 interface DashboardStats {
@@ -41,7 +47,8 @@ interface DashboardStats {
 
 export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> = ({
   project,
-  children
+  children,
+  dateRange
 }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,29 +59,51 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     try {
       setLoading(true);
       
-      // Fetch leads
-      const { data: leads, error: leadsError } = await supabase
+      // Build queries with date filtering
+      let leadsQuery = supabase
         .from('new_leads')
         .select('*')
         .eq('project_name', project.project_name);
       
-      if (leadsError) throw leadsError;
-
-      // Fetch appointments
-      const { data: appointments, error: appointmentsError } = await supabase
+      let appointmentsQuery = supabase
         .from('all_appointments')
         .select('*')
         .eq('project_name', project.project_name);
       
-      if (appointmentsError) throw appointmentsError;
-
-      // Fetch calls
-      const { data: calls, error: callsError } = await supabase
+      let callsQuery = supabase
         .from('all_calls')
         .select('*')
         .eq('project_name', project.project_name);
+
+      // Apply date filters if provided
+      if (dateRange?.from) {
+        const fromDate = dateRange.from.toISOString().split('T')[0];
+        leadsQuery = leadsQuery.gte('date', fromDate);
+        appointmentsQuery = appointmentsQuery.gte('date_appointment_created', fromDate);
+        callsQuery = callsQuery.gte('date', fromDate);
+      }
       
-      if (callsError) throw callsError;
+      if (dateRange?.to) {
+        const toDate = dateRange.to.toISOString().split('T')[0];
+        leadsQuery = leadsQuery.lte('date', toDate);
+        appointmentsQuery = appointmentsQuery.lte('date_appointment_created', toDate);
+        callsQuery = callsQuery.lte('date', toDate);
+      }
+
+      // Execute queries
+      const [leadsResult, appointmentsResult, callsResult] = await Promise.all([
+        leadsQuery,
+        appointmentsQuery,
+        callsQuery
+      ]);
+      
+      if (leadsResult.error) throw leadsResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
+      if (callsResult.error) throw callsResult.error;
+
+      const leads = leadsResult.data;
+      const appointments = appointmentsResult.data;
+      const calls = callsResult.data;
 
       // Calculate stats
       const newLeads = leads?.length || 0;
@@ -162,10 +191,17 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (newOpen && !stats) {
-      fetchDetailedStats();
+    if (newOpen) {
+      fetchDetailedStats(); // Always refresh when opening
     }
   };
+
+  // Refresh stats when date range changes
+  useEffect(() => {
+    if (open) {
+      fetchDetailedStats();
+    }
+  }, [dateRange, open]);
 
   const StatCard = ({ 
     title, 

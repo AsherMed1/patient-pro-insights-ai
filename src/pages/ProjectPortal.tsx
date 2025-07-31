@@ -13,6 +13,7 @@ import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedD
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import TeamMessageBubble from '@/components/TeamMessageBubble';
+import DateRangeFilter from '@/components/projects/DateRangeFilter';
 
 interface Project {
   id: string;
@@ -28,6 +29,11 @@ interface AppointmentStats {
   projectedRevenue: number;
 }
 
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
 const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
   const [project, setProject] = useState<Project | null>(null);
@@ -38,6 +44,10 @@ const ProjectPortal = () => {
     totalProceduresOrdered: 0,
     projectedRevenue: 0
   });
+  const [dateRange, setDateRange] = useState<DateRange>({ 
+    from: undefined, 
+    to: undefined 
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,7 +55,7 @@ const ProjectPortal = () => {
       fetchProject();
       fetchAppointmentStats();
     }
-  }, [projectName]);
+  }, [projectName, dateRange]);
 
   const fetchProject = async () => {
     try {
@@ -85,10 +95,20 @@ const ProjectPortal = () => {
 
   const fetchAppointmentStats = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('all_appointments')
-        .select('showed, procedure_ordered')
+        .select('showed, procedure_ordered, date_appointment_created')
         .eq('project_name', decodeURIComponent(projectName!));
+
+      // Apply date filter if range is selected
+      if (dateRange.from) {
+        query = query.gte('date_appointment_created', dateRange.from.toISOString().split('T')[0]);
+      }
+      if (dateRange.to) {
+        query = query.lte('date_appointment_created', dateRange.to.toISOString().split('T')[0]);
+      }
+
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -169,12 +189,19 @@ const ProjectPortal = () => {
         {/* Project Header with enhanced typography */}
         <ProjectHeader projectName={project.project_name} />
 
+        {/* Date Range Filter */}
+        <DateRangeFilter 
+          dateRange={dateRange} 
+          onDateRangeChange={setDateRange}
+          className="mb-6"
+        />
+
         {/* Enhanced Stats Cards with medical context */}
         <ProjectStatsCards stats={stats} />
 
         {/* Detailed Analytics - Better positioned */}
         <div className="text-center py-4">
-          <ProjectDetailedDashboard project={project}>
+          <ProjectDetailedDashboard project={project} dateRange={dateRange}>
             <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
               📊 View detailed analytics dashboard
             </Button>
