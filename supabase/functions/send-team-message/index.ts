@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,10 +48,34 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Initialize Supabase client to fetch project data
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch project details to get locationID (stored in ghl_api_key field)
+    let locationID = null;
+    try {
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('ghl_api_key')
+        .eq('project_name', project_name)
+        .single();
+
+      if (projectError) {
+        console.error('Error fetching project:', projectError);
+      } else {
+        locationID = projectData?.ghl_api_key || null;
+      }
+    } catch (error) {
+      console.error('Failed to fetch project locationID:', error);
+    }
+
     // Prepare webhook payload
     const webhookPayload = {
       message,
       project_name,
+      locationID,
       patient_reference,
       sender_info,
       timestamp: new Date().toISOString(),
