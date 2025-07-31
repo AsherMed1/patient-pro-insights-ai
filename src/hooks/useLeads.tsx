@@ -11,7 +11,6 @@ interface NewLead {
   times_called: number;
   created_at: string;
   updated_at: string;
-  actual_calls_count?: number;
   appt_date?: string;
   first_name?: string;
   last_name?: string;
@@ -94,7 +93,7 @@ export const useLeads = (projectFilter?: string) => {
 
   const LEADS_PER_PAGE = 50;
 
-  const fetchLeadsWithCallCounts = async (page: number = currentPage) => {
+  const fetchLeads = async (page: number = currentPage) => {
     try {
       setLoading(true);
       
@@ -158,13 +157,6 @@ export const useLeads = (projectFilter?: string) => {
       
       if (leadsError) throw leadsError;
 
-      // Fetch all calls to calculate actual call counts (no limit)
-      const { data: callsData, error: callsError } = await supabase
-        .from('all_calls')
-        .select('lead_name, lead_phone_number');
-      
-      if (callsError) throw callsError;
-
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
@@ -173,29 +165,8 @@ export const useLeads = (projectFilter?: string) => {
       
       if (appointmentsError) throw appointmentsError;
 
-      // Calculate actual call counts and add appointment info for each lead
-      const leadsWithCallCounts = (leadsData || []).map(lead => {
-        const actualCallsCount = (callsData || []).filter(call => {
-          // 1. Try exact name match first
-          const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
-          if (nameMatch) return true;
-          
-          // 2. Try phone number match (normalize phone numbers by removing non-digits)
-          if (lead.phone_number && call.lead_phone_number) {
-            const leadPhone = lead.phone_number.replace(/\D/g, '');
-            const callPhone = call.lead_phone_number.replace(/\D/g, '');
-            if (leadPhone === callPhone && leadPhone.length >= 10) return true;
-          }
-          
-          // 3. Try contact_id match by searching for calls with similar contact identifiers
-          if (lead.contact_id) {
-            // Since calls table doesn't have contact_id, we can't directly match
-            // This would require additional logic or database changes
-          }
-          
-          return false;
-        }).length;
-        
+      // Add appointment info for each lead
+      const leadsWithAppointments = (leadsData || []).map(lead => {
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
           appt => {
@@ -224,12 +195,11 @@ export const useLeads = (projectFilter?: string) => {
         
         return {
           ...lead,
-          actual_calls_count: actualCallsCount,
           appointment_info: mostRecentAppointment
         };
       });
 
-      setLeads(leadsWithCallCounts);
+      setLeads(leadsWithAppointments);
     } catch (error) {
       console.error('Error fetching leads:', error);
       toast({
@@ -294,11 +264,11 @@ export const useLeads = (projectFilter?: string) => {
 
   useEffect(() => {
     setCurrentPage(1); // Reset to first page when filters change
-    fetchLeadsWithCallCounts(1);
+    fetchLeads(1);
   }, [projectFilter, dateRange, nameSearch]);
 
   useEffect(() => {
-    fetchLeadsWithCallCounts(currentPage);
+    fetchLeads(currentPage);
   }, [currentPage]);
 
   return {
@@ -313,7 +283,7 @@ export const useLeads = (projectFilter?: string) => {
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
-    fetchLeadsWithCallCounts,
+    fetchLeads,
     currentPage,
     setCurrentPage,
     totalCount,
