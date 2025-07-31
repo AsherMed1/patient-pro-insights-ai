@@ -187,8 +187,11 @@ export const useLeads = (projectFilter?: string) => {
             if (leadPhone === callPhone && leadPhone.length >= 10) return true;
           }
           
-          // Note: all_calls table only has lead_name and lead_phone_number
-          // Email and contact_id matching not available for calls
+          // 3. Try contact_id match by searching for calls with similar contact identifiers
+          if (lead.contact_id) {
+            // Since calls table doesn't have contact_id, we can't directly match
+            // This would require additional logic or database changes
+          }
           
           return false;
         }).length;
