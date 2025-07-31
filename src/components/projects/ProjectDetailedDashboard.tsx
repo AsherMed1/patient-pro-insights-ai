@@ -79,9 +79,9 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       const bookedAppointments = appointments?.length || 0;
       const shows = appointments?.filter(apt => apt.showed).length || 0;
       const noShows = appointments?.filter(apt => apt.showed === false).length || 0;
-      // Use status as the primary indicator: appointments with status set are "confirmed"
+      // Confirmed appointments: only those with status = "confirmed"
       const confirmedAppointments = appointments?.filter(apt => 
-        apt.status !== null && apt.status.trim() !== ''
+        apt.status?.toLowerCase() === 'confirmed'
       ).length || 0;
       const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
       const appointmentsToTakePlace = appointments?.filter(apt => 
