@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RotateCcw, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, CheckCircle } from 'lucide-react';
 
 const BulkSyncPatientNotes = () => {
   const [syncing, setSyncing] = useState(false);
@@ -41,7 +41,7 @@ const BulkSyncPatientNotes = () => {
   return (
     <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
       <h3 className="text-lg font-semibold mb-2 flex items-center">
-        <RotateCcw className="h-5 w-5 mr-2" />
+        <RefreshCw className="h-5 w-5 mr-2" />
         Sync Patient Intake Notes
       </h3>
       <p className="text-sm text-gray-600 mb-4">
@@ -57,7 +57,7 @@ const BulkSyncPatientNotes = () => {
           </>
         ) : (
           <>
-            <RotateCcw className="h-4 w-4 mr-2" />
+            <RefreshCw className="h-4 w-4 mr-2" />
             Sync All Patient Notes
           </>
         )}
