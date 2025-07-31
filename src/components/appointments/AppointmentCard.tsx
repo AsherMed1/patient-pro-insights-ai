@@ -24,7 +24,6 @@ interface NewLead {
   created_at: string;
   updated_at: string;
   actual_calls_count?: number;
-  
   contact_id?: string;
   appt_date?: string;
   first_name?: string;
@@ -182,16 +181,16 @@ const AppointmentCard = ({
       setLoadingLeadData(false);
     }
   };
-
   const handleGenerateAISummary = async () => {
     if (!appointment.patient_intake_notes || appointment.ai_summary) {
       return;
     }
-
     try {
       setGeneratingAI(true);
-      
-      const { data, error } = await supabase.functions.invoke('format-intake-ai', {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('format-intake-ai', {
         body: {
           type: 'appointment_summary',
           data: {
@@ -206,17 +205,15 @@ const AppointmentCard = ({
           tableName: 'all_appointments'
         }
       });
-
       if (error) {
         throw error;
       }
-
       if (data?.success) {
         toast({
           title: "AI Summary Generated",
-          description: "Patient intake notes have been formatted with AI assistance.",
+          description: "Patient intake notes have been formatted with AI assistance."
         });
-        
+
         // Trigger a refresh of the appointment data if needed
         // The component should re-render when the parent component refetches data
       } else {
@@ -297,37 +294,15 @@ const AppointmentCard = ({
           {appointment.patient_intake_notes && <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Patient Intake Notes:</span>
-                {!appointment.ai_summary && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleGenerateAISummary}
-                    disabled={generatingAI}
-                    className="ml-2 text-xs"
-                  >
-                    {generatingAI ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Formatting...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        Format with AI
-                      </>
-                    )}
-                  </Button>
-                )}
+                {!appointment.ai_summary}
               </div>
               <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
                 <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
               </div>
-              {appointment.ai_summary && (
-                <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400 mt-2">
+              {appointment.ai_summary && <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400 mt-2">
                   <span className="text-xs font-medium text-muted-foreground">AI Summary:</span>
                   <div className="whitespace-pre-wrap text-sm text-gray-800 mt-1">{appointment.ai_summary}</div>
-                </div>
-              )}
+                </div>}
             </div>}
 
           {/* Internal Notes */}
