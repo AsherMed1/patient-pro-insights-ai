@@ -59,14 +59,70 @@ const LeadDetailsModal = ({
     if (!lead) return;
     try {
       setAppointmentsLoading(true);
-      const {
-        data,
-        error
-      } = await supabase.from('all_appointments').select('*').eq('lead_name', lead.lead_name).eq('project_name', lead.project_name).order('date_appointment_created', {
-        ascending: false
-      });
-      if (error) throw error;
-      setAppointments(data || []);
+      let appointments: AllAppointment[] = [];
+      
+      // Strategy 1: Match by lead_name and project_name (most specific)
+      if (lead.lead_name && lead.project_name) {
+        console.log('Trying strategy 1: name + project');
+        const { data: nameProjectResults, error: nameProjectError } = await supabase
+          .from('all_appointments')
+          .select('*')
+          .eq('lead_name', lead.lead_name)
+          .eq('project_name', lead.project_name)
+          .order('date_appointment_created', { ascending: false });
+        
+        if (!nameProjectError && nameProjectResults) {
+          appointments = nameProjectResults;
+          console.log(`Found ${appointments.length} appointments by name + project`);
+        }
+      }
+      
+      // Strategy 2: If no results, try phone number matching
+      if (appointments.length === 0 && lead.phone_number) {
+        console.log('Trying strategy 2: phone number');
+        const { data: phoneResults, error: phoneError } = await supabase
+          .from('all_appointments')
+          .select('*')
+          .eq('lead_phone_number', lead.phone_number)
+          .order('date_appointment_created', { ascending: false });
+        
+        if (!phoneError && phoneResults) {
+          appointments = phoneResults;
+          console.log(`Found ${appointments.length} appointments by phone number`);
+        }
+      }
+      
+      // Strategy 3: If no results, try email matching
+      if (appointments.length === 0 && lead.email) {
+        console.log('Trying strategy 3: email');
+        const { data: emailResults, error: emailError } = await supabase
+          .from('all_appointments')
+          .select('*')
+          .eq('lead_email', lead.email)
+          .order('date_appointment_created', { ascending: false });
+        
+        if (!emailError && emailResults) {
+          appointments = emailResults;
+          console.log(`Found ${appointments.length} appointments by email`);
+        }
+      }
+      
+      // Strategy 4: If no results, try GHL ID matching (contact_id in leads maps to ghl_id in appointments)
+      if (appointments.length === 0 && lead.contact_id) {
+        console.log('Trying strategy 4: GHL ID');
+        const { data: ghlResults, error: ghlError } = await supabase
+          .from('all_appointments')
+          .select('*')
+          .eq('ghl_id', lead.contact_id)
+          .order('date_appointment_created', { ascending: false });
+        
+        if (!ghlError && ghlResults) {
+          appointments = ghlResults;
+          console.log(`Found ${appointments.length} appointments by GHL ID`);
+        }
+      }
+      
+      setAppointments(appointments);
     } catch (error) {
       console.error('Error fetching appointments:', error);
       setAppointments([]);
