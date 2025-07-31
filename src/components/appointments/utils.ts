@@ -27,15 +27,17 @@ export const isAppointmentInPast = (appointmentDate: string | null) => {
     
     const isPast = appointmentStartCentral < todayStartCentral;
     
-    // Debug logging for Wendy Chavis case
-    if (appointmentDate.includes('2025-07-31')) {
-      console.log('DEBUG: Wendy Chavis appointment date check:', {
+    // Debug logging for ANY appointment on July 30 or 31, 2025
+    if (appointmentDate.includes('2025-07-30') || appointmentDate.includes('2025-07-31')) {
+      console.log('DEBUG: July 30/31 appointment date check:', {
         appointmentDate,
-        appointmentStartCentral,
-        todayStartCentral,
+        appointmentStartCentral: format(appointmentStartCentral, 'yyyy-MM-dd HH:mm:ss'),
+        todayStartCentral: format(todayStartCentral, 'yyyy-MM-dd HH:mm:ss'),
         isPast,
         todayFormatted: format(todayStartCentral, 'yyyy-MM-dd'),
-        appointmentFormatted: format(appointmentStartCentral, 'yyyy-MM-dd')
+        appointmentFormatted: format(appointmentStartCentral, 'yyyy-MM-dd'),
+        currentTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        currentTimeCentral: nowCentral ? format(nowCentral, 'yyyy-MM-dd HH:mm:ss') : 'null'
       });
     }
     
