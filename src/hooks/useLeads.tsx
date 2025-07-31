@@ -176,22 +176,26 @@ export const useLeads = (projectFilter?: string) => {
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const actualCallsCount = (callsData || []).filter(call => {
-          // Priority 1: Match by phone number (normalize phone numbers by removing non-digits)
+          // PRIMARY: Match lead_phone_number (calls) to phone_number (leads)
           if (lead.phone_number && call.lead_phone_number) {
             const leadPhone = lead.phone_number.replace(/\D/g, '');
             const callPhone = call.lead_phone_number.replace(/\D/g, '');
-            if (leadPhone === callPhone && leadPhone.length >= 10) return true;
+            if (leadPhone === callPhone && leadPhone.length >= 10) {
+              return true;
+            }
           }
           
-          // Priority 2: Match by contact_id/ghl_id
+          // SECONDARY: Match by contact_id/ghl_id if phone numbers don't match
           if (lead.contact_id && call.ghl_id && 
               lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
             return true;
           }
           
-          // Fallback: Exact name match
-          const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
-          if (nameMatch) return true;
+          // FALLBACK: Only use name match if no phone number is available
+          if (!lead.phone_number && !call.lead_phone_number) {
+            const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
+            if (nameMatch) return true;
+          }
           
           return false;
         }).length;
@@ -261,24 +265,28 @@ export const useLeads = (projectFilter?: string) => {
       
       if (error) throw error;
       
-      // Filter calls using comprehensive matching logic with priority order
+      // Filter calls using phone number matching as primary method
       const matchingCalls = (allCallsData || []).filter(call => {
-        // Priority 1: Match by phone number (normalize phone numbers)
+        // PRIMARY: Match lead_phone_number (calls) to phone_number (leads)
         if (lead?.phone_number && call.lead_phone_number) {
           const leadPhone = lead.phone_number.replace(/\D/g, '');
           const callPhone = call.lead_phone_number.replace(/\D/g, '');
-          if (leadPhone === callPhone && leadPhone.length >= 10) return true;
+          if (leadPhone === callPhone && leadPhone.length >= 10) {
+            return true;
+          }
         }
         
-        // Priority 2: Match by contact_id/ghl_id
+        // SECONDARY: Match by contact_id/ghl_id if phone numbers don't match
         if (lead?.contact_id && call.ghl_id && 
             lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
           return true;
         }
         
-        // Fallback: Exact name match
-        const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();
-        if (nameMatch) return true;
+        // FALLBACK: Only use name match if no phone number is available
+        if (!lead?.phone_number && !call.lead_phone_number) {
+          const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();
+          if (nameMatch) return true;
+        }
         
         return false;
       });
