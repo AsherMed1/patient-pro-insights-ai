@@ -47,16 +47,20 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
     try {
       setLoading(true);
       
-      // Build queries with date filters
+      // Build queries with date filters - show ALL projects unless a specific projectId is provided
       let callsQuery = supabase
         .from('all_calls')
-        .select('*')
-        .eq('project_name', projectId);
+        .select('*');
 
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select('*')
-        .eq('project_name', projectId);
+        .select('*');
+
+      // Only filter by project if it's not the default "project-1" or "ALL"
+      if (projectId && projectId !== 'project-1' && projectId !== 'ALL') {
+        callsQuery = callsQuery.eq('project_name', projectId);
+        appointmentsQuery = appointmentsQuery.eq('project_name', projectId);
+      }
 
       // Apply date filters if set
       if (dateRange.from) {
