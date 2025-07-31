@@ -183,38 +183,67 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Build the query based on identifier type
-    let query = supabase.from('new_leads').update({
-      ...updateFields,
-      updated_at: new Date().toISOString()
-    })
+    // Build the query based on identifier type with fallback strategy
+    let data = null;
+    let error = null;
+    let identificationMethod = '';
 
+    // Strategy 1: Try by ID first (highest priority)
     if (id) {
-      query = query.eq('id', id)
-    } else if (contact_id) {
-      query = query.eq('contact_id', contact_id)
-    } else {
-      query = query.eq('lead_name', lead_name).eq('project_name', project_name)
+      console.log('Attempting to find lead by ID:', id);
+      const result = await supabase.from('new_leads').update({
+        ...updateFields,
+        updated_at: new Date().toISOString()
+      }).eq('id', id).select().maybeSingle();
+      
+      data = result.data;
+      error = result.error;
+      identificationMethod = 'id';
     }
-
-    // Execute the update
-    const { data, error } = await query.select().single()
+    
+    // Strategy 2: Try by contact_id if ID didn't work
+    if (!data && !error && contact_id) {
+      console.log('Attempting to find lead by contact_id:', contact_id);
+      const result = await supabase.from('new_leads').update({
+        ...updateFields,
+        updated_at: new Date().toISOString()
+      }).eq('contact_id', contact_id).select().maybeSingle();
+      
+      data = result.data;
+      error = result.error;
+      identificationMethod = 'contact_id';
+      
+      // Strategy 3: If contact_id fails and we have phone_number, try phone fallback
+      if (!data && !error && updateFields.phone_number) {
+        console.log('Contact ID not found, attempting fallback by phone number:', updateFields.phone_number);
+        const phoneResult = await supabase.from('new_leads').update({
+          ...updateFields,
+          contact_id: contact_id, // Set the contact_id while we're at it
+          updated_at: new Date().toISOString()
+        }).eq('phone_number', updateFields.phone_number).select().maybeSingle();
+        
+        data = phoneResult.data;
+        error = phoneResult.error;
+        identificationMethod = 'phone_number_fallback';
+      }
+    }
+    
+    // Strategy 4: Try by lead_name + project_name if nothing else worked
+    if (!data && !error && lead_name && project_name) {
+      console.log('Attempting to find lead by name and project:', lead_name, project_name);
+      const result = await supabase.from('new_leads').update({
+        ...updateFields,
+        updated_at: new Date().toISOString()
+      }).eq('lead_name', lead_name).eq('project_name', project_name).select().maybeSingle();
+      
+      data = result.data;
+      error = result.error;
+      identificationMethod = 'name_and_project';
+    }
 
     if (error) {
       console.error('Database error:', error)
       
-      if (error.code === 'PGRST116') {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Lead not found with the provided identifier' 
-          }),
-          { 
-            status: 404, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
-      }
-
       return new Response(
         JSON.stringify({ 
           error: 'Database error occurred while updating lead',
@@ -222,6 +251,25 @@ Deno.serve(async (req) => {
         }),
         { 
           status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    if (!data) {
+      console.log('Lead not found with any of the provided identifiers');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Lead not found with the provided identifier(s)',
+          attempted_methods: {
+            id: !!id,
+            contact_id: !!contact_id,
+            phone_fallback: !!(contact_id && updateFields.phone_number),
+            name_and_project: !!(lead_name && project_name)
+          }
+        }),
+        { 
+          status: 404, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
