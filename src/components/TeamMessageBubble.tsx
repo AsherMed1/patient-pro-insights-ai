@@ -31,7 +31,7 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
   const [searching, setSearching] = useState(false);
   const { toast } = useToast();
 
-  // Search for patients
+  // Search for patients within the current project only
   const searchPatients = async (search: string) => {
     if (!search.trim()) {
       setSearchResults([]);
@@ -40,15 +40,62 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
 
     try {
       setSearching(true);
-      const { data, error } = await supabase
+      
+      // Search in leads first
+      const { data: leadsData, error: leadsError } = await supabase
         .from('new_leads')
         .select('id, lead_name, phone_number, contact_id, email')
         .eq('project_name', projectName)
         .or(`lead_name.ilike.%${search}%,phone_number.ilike.%${search}%,email.ilike.%${search}%`)
-        .limit(10);
+        .limit(5);
 
-      if (error) throw error;
-      setSearchResults(data || []);
+      if (leadsError) throw leadsError;
+
+      // Search in appointments for additional patient data
+      const { data: appointmentsData, error: appointmentsError } = await supabase
+        .from('all_appointments')
+        .select('id, lead_name, lead_phone_number, lead_email')
+        .eq('project_name', projectName)
+        .or(`lead_name.ilike.%${search}%,lead_phone_number.ilike.%${search}%,lead_email.ilike.%${search}%`)
+        .limit(5);
+
+      if (appointmentsError) throw appointmentsError;
+
+      // Combine and deduplicate results
+      const combinedResults: Patient[] = [];
+      const seen = new Set<string>();
+
+      // Add leads
+      (leadsData || []).forEach(lead => {
+        const key = `${lead.lead_name}-${lead.phone_number}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          combinedResults.push({
+            id: lead.id,
+            lead_name: lead.lead_name,
+            phone_number: lead.phone_number,
+            contact_id: lead.contact_id,
+            email: lead.email
+          });
+        }
+      });
+
+      // Add appointments (if not already in leads)
+      (appointmentsData || []).forEach(appt => {
+        const key = `${appt.lead_name}-${appt.lead_phone_number}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          combinedResults.push({
+            id: appt.id,
+            lead_name: appt.lead_name,
+            phone_number: appt.lead_phone_number,
+            contact_id: null,
+            email: appt.lead_email
+          });
+        }
+      });
+
+      setSearchResults(combinedResults.slice(0, 10));
     } catch (error) {
       console.error('Error searching patients:', error);
       setSearchResults([]);
