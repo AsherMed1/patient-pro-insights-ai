@@ -61,41 +61,60 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
 
       if (appointmentsError) throw appointmentsError;
 
-      // Combine and deduplicate results
+      // Combine and deduplicate results, prioritizing records with phone numbers
       const combinedResults: Patient[] = [];
-      const seen = new Set<string>();
+      const seenPatients = new Map<string, Patient>();
+
+      // Helper function to add/update patient with preference for complete data
+      const addOrUpdatePatient = (patient: Patient) => {
+        const key = patient.lead_name.toLowerCase().trim();
+        const existing = seenPatients.get(key);
+        
+        if (!existing) {
+          seenPatients.set(key, patient);
+        } else {
+          // Prefer patient with phone number, or more complete data
+          const hasPhone = patient.phone_number && patient.phone_number.trim();
+          const existingHasPhone = existing.phone_number && existing.phone_number.trim();
+          
+          if (hasPhone && !existingHasPhone) {
+            // New patient has phone, existing doesn't - replace
+            seenPatients.set(key, patient);
+          } else if (!hasPhone && existingHasPhone) {
+            // Keep existing (has phone, new doesn't)
+            return;
+          } else if (hasPhone && existingHasPhone) {
+            // Both have phones, prefer one with contact_id or email
+            if ((patient.contact_id || patient.email) && !(existing.contact_id || existing.email)) {
+              seenPatients.set(key, patient);
+            }
+          }
+        }
+      };
 
       // Add leads
       (leadsData || []).forEach(lead => {
-        const key = `${lead.lead_name}-${lead.phone_number}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          combinedResults.push({
-            id: lead.id,
-            lead_name: lead.lead_name,
-            phone_number: lead.phone_number,
-            contact_id: lead.contact_id,
-            email: lead.email
-          });
-        }
+        addOrUpdatePatient({
+          id: lead.id,
+          lead_name: lead.lead_name,
+          phone_number: lead.phone_number,
+          contact_id: lead.contact_id,
+          email: lead.email
+        });
       });
 
-      // Add appointments (if not already in leads)
+      // Add appointments (may override leads if they have better data)
       (appointmentsData || []).forEach(appt => {
-        const key = `${appt.lead_name}-${appt.lead_phone_number}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          combinedResults.push({
-            id: appt.id,
-            lead_name: appt.lead_name,
-            phone_number: appt.lead_phone_number,
-            contact_id: null,
-            email: appt.lead_email
-          });
-        }
+        addOrUpdatePatient({
+          id: appt.id,
+          lead_name: appt.lead_name,
+          phone_number: appt.lead_phone_number,
+          contact_id: null,
+          email: appt.lead_email
+        });
       });
 
-      setSearchResults(combinedResults.slice(0, 10));
+      setSearchResults(Array.from(seenPatients.values()).slice(0, 10));
     } catch (error) {
       console.error('Error searching patients:', error);
       setSearchResults([]);
