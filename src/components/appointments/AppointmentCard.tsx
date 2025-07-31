@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentTags from './AppointmentTags';
+import AppointmentNotes from './AppointmentNotes';
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -266,6 +267,15 @@ const AppointmentCard = ({
                 // Refresh appointment data if needed
                 // This will trigger any parent components to refetch data
               }}
+            />
+          </div>
+
+          {/* Internal Notes */}
+          <div className="space-y-2">
+            <AppointmentNotes 
+              appointmentId={appointment.id}
+              leadName={appointment.lead_name}
+              projectName={appointment.project_name}
             />
           </div>
 
