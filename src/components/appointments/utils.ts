@@ -38,16 +38,23 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
   const completedStatuses = ['Cancelled', 'No Show', 'Won', 'Lost'];
   
   return appointments.filter(appointment => {
+    // Check if both status and procedure_ordered are completed
+    const isStatusComplete = appointment.status && appointment.status.trim() !== '';
+    const isProcedureComplete = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+    const isBothComplete = isStatusComplete && isProcedureComplete;
+    
     switch (filterType) {
       case 'future':
-        return isAppointmentInFuture(appointment.date_of_appointment);
+        return isAppointmentInFuture(appointment.date_of_appointment) && !isBothComplete;
       case 'past':
-        return isAppointmentInPast(appointment.date_of_appointment) && 
-               appointment.status && 
-               completedStatuses.includes(appointment.status);
+        return isBothComplete || 
+               (isAppointmentInPast(appointment.date_of_appointment) && 
+                appointment.status && 
+                completedStatuses.includes(appointment.status));
       case 'needs-review':
-        return isAppointmentInPast(appointment.date_of_appointment) && 
-               (!appointment.status || !completedStatuses.includes(appointment.status));
+        return !isBothComplete && 
+               (isAppointmentInPast(appointment.date_of_appointment) && 
+                (!appointment.status || !completedStatuses.includes(appointment.status)));
       default:
         return true;
     }
