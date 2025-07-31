@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, statusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,6 +53,7 @@ const AppointmentCard = ({
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
   const {
     toast
   } = useToast();
@@ -181,6 +182,57 @@ const AppointmentCard = ({
       setLoadingLeadData(false);
     }
   };
+
+  const handleGenerateAISummary = async () => {
+    if (!appointment.patient_intake_notes || appointment.ai_summary) {
+      return;
+    }
+
+    try {
+      setGeneratingAI(true);
+      
+      const { data, error } = await supabase.functions.invoke('format-intake-ai', {
+        body: {
+          type: 'appointment_summary',
+          data: {
+            patient_intake_notes: appointment.patient_intake_notes,
+            lead_name: appointment.lead_name,
+            project_name: appointment.project_name,
+            appointment_date: appointment.date_of_appointment,
+            requested_time: appointment.requested_time,
+            calendar_name: appointment.calendar_name
+          },
+          recordId: appointment.id,
+          tableName: 'all_appointments'
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        toast({
+          title: "AI Summary Generated",
+          description: "Patient intake notes have been formatted with AI assistance.",
+        });
+        
+        // Trigger a refresh of the appointment data if needed
+        // The component should re-render when the parent component refetches data
+      } else {
+        throw new Error(data?.error || 'Failed to generate AI summary');
+      }
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate AI summary. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
   return <>
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
         <div className="space-y-2">
@@ -243,7 +295,30 @@ const AppointmentCard = ({
 
           {/* Patient Intake Notes */}
           {appointment.patient_intake_notes && <div className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Patient Intake Notes:</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Patient Intake Notes:</span>
+                {!appointment.ai_summary && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleGenerateAISummary}
+                    disabled={generatingAI}
+                    className="ml-2 text-xs"
+                  >
+                    {generatingAI ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Formatting...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Format with AI
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
               <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
                 <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
               </div>
