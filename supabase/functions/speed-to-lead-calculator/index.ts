@@ -32,18 +32,35 @@ serve(async (req) => {
 
     console.log('Starting speed-to-lead calculation...')
 
-    // Get all new leads
-    const { data: newLeads, error: leadsError } = await supabase
-      .from('new_leads')
-      .select('*')
-      .order('created_at', { ascending: false })
+    // Get all new leads in batches to handle more than 1000 records
+    let allNewLeads = []
+    let currentPage = 0
+    const pageSize = 1000
+    let hasMoreData = true
 
-    if (leadsError) {
-      console.error('Error fetching new leads:', leadsError)
-      throw leadsError
+    while (hasMoreData) {
+      const { data: newLeads, error: leadsError } = await supabase
+        .from('new_leads')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1)
+
+      if (leadsError) {
+        console.error('Error fetching new leads:', leadsError)
+        throw leadsError
+      }
+
+      if (newLeads && newLeads.length > 0) {
+        allNewLeads = allNewLeads.concat(newLeads)
+        console.log(`Fetched page ${currentPage + 1}: ${newLeads.length} leads`)
+        currentPage++
+        hasMoreData = newLeads.length === pageSize
+      } else {
+        hasMoreData = false
+      }
     }
 
-    console.log(`Found ${newLeads?.length || 0} new leads to process`)
+    console.log(`Found ${allNewLeads.length} total new leads to process`)
 
     // Get all calls for debugging
     const { data: allCalls, error: callsError } = await supabase
@@ -63,7 +80,7 @@ serve(async (req) => {
     let noCallsCount = 0
 
     // Process each new lead
-    for (const lead of newLeads || []) {
+    for (const lead of allNewLeads || []) {
       try {
         console.log(`Processing lead: ${lead.lead_name}`)
 
