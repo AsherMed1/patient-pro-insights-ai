@@ -165,6 +165,23 @@ export const useLeads = (projectFilter?: string) => {
       
       if (callsError) throw callsError;
 
+      // Debug logging for calls data
+      console.log('=== CALLS DATA DEBUG ===');
+      console.log('Total calls fetched:', callsData?.length || 0);
+      const loydaCalls = (callsData || []).filter(call => 
+        call.lead_name?.toLowerCase().includes('loyda') ||
+        call.lead_phone_number?.includes('9177011710')
+      );
+      console.log('Loyda-related calls found:', loydaCalls.length);
+      loydaCalls.forEach(call => {
+        console.log('Loyda call:', {
+          lead_name: call.lead_name,
+          lead_phone_number: call.lead_phone_number,
+          normalized_phone: call.lead_phone_number?.replace(/\D/g, ''),
+          ghl_id: call.ghl_id
+        });
+      });
+
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
@@ -173,13 +190,51 @@ export const useLeads = (projectFilter?: string) => {
       
       if (appointmentsError) throw appointmentsError;
 
+      // Debug logging for leads data
+      console.log('=== LEADS DATA DEBUG ===');
+      console.log('Total leads fetched:', leadsData?.length || 0);
+      const loydaLeads = (leadsData || []).filter(lead => 
+        lead.lead_name?.toLowerCase().includes('loyda')
+      );
+      console.log('Loyda-related leads found:', loydaLeads.length);
+      loydaLeads.forEach(lead => {
+        console.log('Loyda lead:', {
+          lead_name: lead.lead_name,
+          phone_number: lead.phone_number,
+          normalized_phone: lead.phone_number?.replace(/\D/g, ''),
+          contact_id: lead.contact_id
+        });
+      });
+
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
-        const actualCallsCount = (callsData || []).filter(call => {
+        const matchingCalls = (callsData || []).filter(call => {
           // ONLY match by phone number - no name matching at all
           if (lead.phone_number && call.lead_phone_number) {
             const leadPhone = lead.phone_number.replace(/\D/g, '');
             const callPhone = call.lead_phone_number.replace(/\D/g, '');
+            
+            // Debug logging for Loyda Garcia specifically
+            if (lead.lead_name?.toLowerCase().includes('loyda')) {
+              console.log('=== LOYDA PHONE MATCHING DEBUG ===');
+              console.log('Lead:', {
+                name: lead.lead_name,
+                raw_phone: lead.phone_number,
+                normalized_phone: leadPhone
+              });
+              console.log('Call:', {
+                name: call.lead_name,
+                raw_phone: call.lead_phone_number,
+                normalized_phone: callPhone
+              });
+              console.log('Phone match result:', {
+                phones_equal: leadPhone === callPhone,
+                lead_phone_length: leadPhone.length,
+                call_phone_length: callPhone.length,
+                min_length_check: leadPhone.length >= 10,
+                final_match: leadPhone === callPhone && leadPhone.length >= 10
+              });
+            }
             
             if (leadPhone === callPhone && leadPhone.length >= 10) {
               return true;
@@ -189,11 +244,35 @@ export const useLeads = (projectFilter?: string) => {
           // Secondary: Match by contact_id/ghl_id only
           if (lead.contact_id && call.ghl_id && 
               lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
+            
+            // Debug logging for Loyda Garcia specifically
+            if (lead.lead_name?.toLowerCase().includes('loyda')) {
+              console.log('=== LOYDA ID MATCHING DEBUG ===');
+              console.log('ID match result:', {
+                lead_contact_id: lead.contact_id,
+                call_ghl_id: call.ghl_id,
+                ids_equal: lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()
+              });
+            }
+            
             return true;
           }
           
           return false;
-        }).length;
+        });
+        
+        const actualCallsCount = matchingCalls.length;
+        
+        // Debug logging for final count for Loyda Garcia
+        if (lead.lead_name?.toLowerCase().includes('loyda')) {
+          console.log('=== LOYDA FINAL COUNT DEBUG ===');
+          console.log('Final call count for', lead.lead_name, ':', actualCallsCount);
+          console.log('Matching calls:', matchingCalls.map(call => ({
+            name: call.lead_name,
+            phone: call.lead_phone_number,
+            ghl_id: call.ghl_id
+          })));
+        }
         
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
