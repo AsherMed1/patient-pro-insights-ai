@@ -205,6 +205,7 @@ export type Database = {
           date: string
           direction: string
           duration_seconds: number
+          ghl_id: string | null
           id: string
           lead_name: string
           lead_phone_number: string
@@ -221,6 +222,7 @@ export type Database = {
           date: string
           direction: string
           duration_seconds?: number
+          ghl_id?: string | null
           id?: string
           lead_name: string
           lead_phone_number: string
@@ -237,6 +239,7 @@ export type Database = {
           date?: string
           direction?: string
           duration_seconds?: number
+          ghl_id?: string | null
           id?: string
           lead_name?: string
           lead_phone_number?: string

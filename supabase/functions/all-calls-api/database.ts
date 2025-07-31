@@ -41,7 +41,8 @@ export async function createCallRecord(
       duration_seconds: parseInt(validatedData.duration_seconds?.toString() || '0') || 0,
       agent: validatedData.agent,
       recording_url: validatedData.recording_url,
-      call_summary: validatedData.call_summary
+      call_summary: validatedData.call_summary,
+      ghl_id: validatedData.ghl_id
     }])
     .select();
 

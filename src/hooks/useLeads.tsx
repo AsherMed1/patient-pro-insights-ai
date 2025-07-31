@@ -161,14 +161,14 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch all calls for matching
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
-        .select('lead_name, lead_phone_number');
+        .select('lead_name, lead_phone_number, ghl_id');
       
       if (callsError) throw callsError;
 
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
-        .select('lead_name, lead_phone_number, lead_email, date_of_appointment, requested_time, status, confirmed, showed, calendar_name')
+        .select('lead_name, lead_phone_number, lead_email, date_of_appointment, requested_time, status, confirmed, showed, calendar_name, ghl_id')
         .order('date_of_appointment', { ascending: false });
       
       if (appointmentsError) throw appointmentsError;
@@ -183,8 +183,11 @@ export const useLeads = (projectFilter?: string) => {
             if (leadPhone === callPhone && leadPhone.length >= 10) return true;
           }
           
-          // Priority 2: Email matching - not available in all_calls table
-          // Priority 3: Contact ID matching - not available in all_calls table
+          // Priority 2: Match by contact_id/ghl_id
+          if (lead.contact_id && call.ghl_id && 
+              lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
+            return true;
+          }
           
           // Fallback: Exact name match
           const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
@@ -209,7 +212,11 @@ export const useLeads = (projectFilter?: string) => {
               return true;
             }
             
-            // Priority 3: Contact ID matching - not available in appointments table
+            // Priority 3: Match by contact_id/ghl_id
+            if (lead.contact_id && appt.ghl_id && 
+                lead.contact_id.toLowerCase().trim() === appt.ghl_id.toLowerCase().trim()) {
+              return true;
+            }
             
             // Fallback: Exact name match
             const nameMatch = appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
@@ -263,8 +270,11 @@ export const useLeads = (projectFilter?: string) => {
           if (leadPhone === callPhone && leadPhone.length >= 10) return true;
         }
         
-        // Priority 2: Email matching - not available in all_calls table
-        // Priority 3: Contact ID matching - not available in all_calls table
+        // Priority 2: Match by contact_id/ghl_id
+        if (lead?.contact_id && call.ghl_id && 
+            lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
+          return true;
+        }
         
         // Fallback: Exact name match
         const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();

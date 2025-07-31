@@ -15,6 +15,7 @@ export interface CallRecordData {
   agent?: string | null;
   recording_url?: string | null;
   call_summary?: string | null;
+  ghl_id?: string | null;
 }
 
 export interface ValidationError {
@@ -37,7 +38,8 @@ export function validateRequiredFields(body: any): CallRecordData | ValidationEr
     duration_seconds = 0,
     agent = null,
     recording_url = null,
-    call_summary = null
+    call_summary = null,
+    ghl_id = null
   } = body;
 
   if (!lead_name || !lead_phone_number || !project_name || !date || !call_datetime || !direction || !status) {
@@ -58,7 +60,8 @@ export function validateRequiredFields(body: any): CallRecordData | ValidationEr
     duration_seconds,
     agent,
     recording_url,
-    call_summary
+    call_summary,
+    ghl_id
   };
 }
 
