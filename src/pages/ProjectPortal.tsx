@@ -12,6 +12,7 @@ import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
+import TeamMessageBubble from '@/components/TeamMessageBubble';
 
 interface Project {
   id: string;
@@ -177,6 +178,9 @@ const ProjectPortal = () => {
 
         {/* Appointments Section */}
         <AllAppointmentsManager projectFilter={project.project_name} />
+        
+        {/* Team Message Bubble */}
+        <TeamMessageBubble projectName={project.project_name} />
       </div>
     </div>
   );
