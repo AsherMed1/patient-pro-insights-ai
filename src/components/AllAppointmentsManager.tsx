@@ -31,6 +31,7 @@ const AllAppointmentsManager = ({
   });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [searchTerm, setSearchTerm] = useState('');
+  const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -39,7 +40,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter]);
 
   useEffect(() => {
     fetchAppointments();
@@ -54,9 +55,10 @@ const AllAppointmentsManager = ({
         .from('all_appointments')
         .select('*', { count: 'exact', head: true });
 
-      // Apply project filter
-      if (projectFilter) {
-        countQuery = countQuery.eq('project_name', projectFilter);
+      // Apply project filter (use local filter if available, otherwise fallback to prop)
+      const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
+      if (activeProjectFilter) {
+        countQuery = countQuery.eq('project_name', activeProjectFilter);
       }
       
       // Apply date range filter
@@ -127,8 +129,8 @@ const AllAppointmentsManager = ({
         .order('date_appointment_created', { ascending: false });
 
       // Apply the same filters to the data query
-      if (projectFilter) {
-        appointmentsQuery = appointmentsQuery.eq('project_name', projectFilter);
+      if (activeProjectFilter) {
+        appointmentsQuery = appointmentsQuery.eq('project_name', activeProjectFilter);
       }
       
       if (dateRange.from) {
@@ -186,8 +188,9 @@ const AllAppointmentsManager = ({
       const getBaseQuery = () => {
         let query = supabase.from('all_appointments').select('*', { count: 'exact', head: true });
         
-        if (projectFilter) {
-          query = query.eq('project_name', projectFilter);
+        const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
+        if (activeProjectFilter) {
+          query = query.eq('project_name', activeProjectFilter);
         }
         
         if (dateRange.from) {
@@ -338,7 +341,10 @@ const AllAppointmentsManager = ({
         onClearFilters={() => {
           setDateRange({ from: undefined, to: undefined });
           setSearchTerm('');
+          setLocalProjectFilter('ALL');
         }}
+        projectFilter={localProjectFilter}
+        onProjectFilterChange={setLocalProjectFilter}
         onShowImport={() => setShowImport(true)}
         showImport={showImport}
       />

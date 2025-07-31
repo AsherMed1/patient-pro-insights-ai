@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2 } from 'lucide-react';
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DateRange {
   from: Date | undefined;
@@ -21,6 +23,8 @@ interface AppointmentFiltersProps {
   onClearFilters: () => void;
   onShowImport: () => void;
   showImport: boolean;
+  projectFilter: string;
+  onProjectFilterChange: (value: string) => void;
 }
 
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
@@ -30,8 +34,31 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onDateRangeChange,
   onClearFilters,
   onShowImport,
-  showImport
+  showImport,
+  projectFilter,
+  onProjectFilterChange
 }) => {
+  const [projects, setProjects] = useState<string[]>([]);
+  
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('project_name')
+        .not('project_name', 'is', null);
+      
+      if (data) {
+        const uniqueProjects = [...new Set(data.map(item => item.project_name))].sort();
+        setProjects(uniqueProjects);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  };
   const getDateRangeText = () => {
     if (!dateRange.from && !dateRange.to) return 'All dates';
     if (dateRange.from && !dateRange.to) {
@@ -96,15 +123,34 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         </div>
         
         <div className="space-y-6">
-          {/* Search Bar */}
-          <div className="flex items-center space-x-3">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by patient name..."
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="max-w-sm"
-            />
+          {/* Search Bar and Project Filter */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center space-x-3">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by patient name..."
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select value={projectFilter} onValueChange={onProjectFilterChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project} value={project}>
+                      {project}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
           {/* Quick Filters */}
@@ -213,6 +259,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Showing:</span>
               <span className="font-medium">{getDateRangeText()}</span>
+              {projectFilter !== 'ALL' && (
+                <>
+                  <span>•</span>
+                  <span>Project: "{projectFilter}"</span>
+                </>
+              )}
               {searchTerm && (
                 <>
                   <span>•</span>
