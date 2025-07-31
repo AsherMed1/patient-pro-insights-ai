@@ -160,7 +160,7 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch all calls to calculate actual call counts (no limit)
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
-        .select('lead_name');
+        .select('lead_name, lead_phone_number');
       
       if (callsError) throw callsError;
 
@@ -174,9 +174,21 @@ export const useLeads = (projectFilter?: string) => {
 
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
-        const actualCallsCount = (callsData || []).filter(
-          call => call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim()
-        ).length;
+        const actualCallsCount = (callsData || []).filter(call => {
+          // 1. Try name match first
+          const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
+          if (nameMatch) return true;
+          
+          // 2. Try phone number match
+          const phoneMatch = lead.phone_number && call.lead_phone_number && 
+            call.lead_phone_number === lead.phone_number;
+          if (phoneMatch) return true;
+          
+          // Note: all_calls table doesn't have email or contact_id fields based on schema
+          // Only name and phone matching available for calls
+          
+          return false;
+        }).length;
         
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
