@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, statusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,8 +53,7 @@ const AppointmentCard = ({
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
-  const [generatingAI, setGeneratingAI] = useState(false);
-  const [detectingInsurance, setDetectingInsurance] = useState(false);
+  const [notesExpanded, setNotesExpanded] = useState(false);
   const {
     toast
   } = useToast();
@@ -182,104 +182,6 @@ const AppointmentCard = ({
       setLoadingLeadData(false);
     }
   };
-  const handleGenerateAISummary = async () => {
-    if (!appointment.patient_intake_notes || appointment.ai_summary) {
-      return;
-    }
-    try {
-      setGeneratingAI(true);
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('format-intake-ai', {
-        body: {
-          type: 'appointment_summary',
-          data: {
-            patient_intake_notes: appointment.patient_intake_notes,
-            lead_name: appointment.lead_name,
-            project_name: appointment.project_name,
-            appointment_date: appointment.date_of_appointment,
-            requested_time: appointment.requested_time,
-            calendar_name: appointment.calendar_name
-          },
-          recordId: appointment.id,
-          tableName: 'all_appointments'
-        }
-      });
-      if (error) {
-        throw error;
-      }
-      if (data?.success) {
-        toast({
-          title: "AI Summary Generated",
-          description: "Patient intake notes have been formatted with AI assistance."
-        });
-
-        // Trigger a refresh of the appointment data if needed
-        // The component should re-render when the parent component refetches data
-      } else {
-        throw new Error(data?.error || 'Failed to generate AI summary');
-      }
-    } catch (error) {
-      console.error('Error generating AI summary:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate AI summary. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setGeneratingAI(false);
-    }
-  };
-  const handleDetectInsurance = async () => {
-    if (!appointment.patient_intake_notes) {
-      toast({
-        title: "No Notes Available",
-        description: "Patient intake notes are required to detect insurance",
-        variant: "destructive"
-      });
-      return;
-    }
-    setDetectingInsurance(true);
-    try {
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('format-intake-ai', {
-        body: {
-          type: 'patient_intake_notes',
-          data: appointment.patient_intake_notes,
-          recordId: appointment.id,
-          tableName: 'all_appointments'
-        }
-      });
-      if (error) {
-        console.error('Insurance detection error:', error);
-        toast({
-          title: "Insurance Detection Failed",
-          description: error.message || "Failed to detect insurance information",
-          variant: "destructive"
-        });
-        return;
-      }
-      if (data?.success) {
-        toast({
-          title: "Insurance Detection Complete",
-          description: "Successfully analyzed intake notes for insurance information"
-        });
-        window.location.reload(); // Refresh to show new insurance data
-      }
-    } catch (error) {
-      console.error('Error detecting insurance:', error);
-      toast({
-        title: "Detection Error",
-        description: "An error occurred while detecting insurance information",
-        variant: "destructive"
-      });
-    } finally {
-      setDetectingInsurance(false);
-    }
-  };
   return <>
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
         <div className="space-y-2">
@@ -340,23 +242,28 @@ const AppointmentCard = ({
             Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
             </div>}
 
-          {/* Insurance Information Section */}
-          {appointment.detected_insurance_provider || appointment.patient_intake_notes}
-
-          {/* Patient Intake Notes */}
-          {appointment.patient_intake_notes && <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Patient Intake Notes:</span>
-                {!appointment.ai_summary}
-              </div>
-              <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
-              </div>
-              {appointment.ai_summary && <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400 mt-2">
-                  <span className="text-xs font-medium text-muted-foreground">AI Summary:</span>
-                  <div className="whitespace-pre-wrap text-sm text-gray-800 mt-1">{appointment.ai_summary}</div>
-                </div>}
-            </div>}
+          {/* Patient Intake Notes - Collapsible */}
+          {appointment.patient_intake_notes && (
+            <Collapsible open={notesExpanded} onOpenChange={setNotesExpanded}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="flex items-center justify-between w-full p-0 h-auto font-medium text-gray-700">
+                  <span className="text-sm">Patient Intake Notes</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${notesExpanded ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 mt-2">
+                <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
+                </div>
+                {appointment.ai_summary && (
+                  <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400">
+                    <span className="text-xs font-medium text-muted-foreground">AI Summary:</span>
+                    <div className="whitespace-pre-wrap text-sm text-gray-800 mt-1">{appointment.ai_summary}</div>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           {/* Internal Notes */}
           <div className="space-y-2">
