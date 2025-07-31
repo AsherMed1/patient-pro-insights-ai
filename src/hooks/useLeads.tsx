@@ -49,6 +49,7 @@ interface NewLead {
   ai_summary?: string;
   appointment_info?: {
     lead_name: string;
+    lead_phone_number: string | null;
     date_of_appointment: string | null;
     requested_time: string | null;
     status: string | null;
@@ -166,7 +167,7 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
-        .select('lead_name, date_of_appointment, requested_time, status, confirmed, showed, calendar_name')
+        .select('lead_name, lead_phone_number, date_of_appointment, requested_time, status, confirmed, showed, calendar_name')
         .order('date_of_appointment', { ascending: false });
       
       if (appointmentsError) throw appointmentsError;
@@ -179,7 +180,16 @@ export const useLeads = (projectFilter?: string) => {
         
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
-          appt => appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim()
+          appt => {
+            // First try exact name match
+            const nameMatch = appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
+            
+            // If no name match, try phone number match
+            const phoneMatch = lead.phone_number && appt.lead_phone_number && 
+              appt.lead_phone_number === lead.phone_number;
+            
+            return nameMatch || phoneMatch;
+          }
         );
         
         const mostRecentAppointment = leadAppointments.length > 0 ? leadAppointments[0] : null;
