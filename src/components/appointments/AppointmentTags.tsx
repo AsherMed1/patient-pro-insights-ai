@@ -172,58 +172,33 @@ const AppointmentTags = ({ appointmentId, projectName, onTagsChanged }: Appointm
   };
 
   return (
-    <div className="space-y-2">
-      {/* Display existing tags */}
-      {appointmentTags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {appointmentTags.map((tag) => (
-            <Badge
-              key={tag.id}
-              style={{ backgroundColor: tag.project_tag?.tag_color || '#6B7280' }}
-              className="text-white text-xs flex items-center gap-1"
-            >
-              <span>{tag.project_tag?.tag_name || 'Unknown Tag'}</span>
-              <button
-                onClick={() => removeTag(tag.id)}
-                disabled={loading}
-                className="ml-1 hover:bg-black/20 rounded-full p-0.5"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+    <div className="flex items-center gap-2">
+      <Select value={selectedTagId} onValueChange={setSelectedTagId}>
+        <SelectTrigger className="flex-1 h-8 text-xs">
+          <SelectValue placeholder="Update status..." />
+        </SelectTrigger>
+        <SelectContent>
+          {getAvailableTagsForSelection().map((tag) => (
+            <SelectItem key={tag.id} value={tag.id} className="text-xs">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: tag.tag_color }}
+                />
+                <span>{tag.tag_name}</span>
+              </div>
+            </SelectItem>
           ))}
-        </div>
-      )}
-
-      {/* Add new tag */}
-      <div className="flex items-center gap-2">
-        <Select value={selectedTagId} onValueChange={setSelectedTagId}>
-          <SelectTrigger className="flex-1 h-8 text-xs">
-            <SelectValue placeholder="Add tag..." />
-          </SelectTrigger>
-          <SelectContent>
-            {getAvailableTagsForSelection().map((tag) => (
-              <SelectItem key={tag.id} value={tag.id} className="text-xs">
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: tag.tag_color }}
-                  />
-                  <span>{tag.tag_name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          onClick={addTag}
-          disabled={!selectedTagId || loading}
-          size="sm"
-          className="h-8 px-2"
-        >
-          <Plus className="h-3 w-3" />
-        </Button>
-      </div>
+        </SelectContent>
+      </Select>
+      <Button
+        onClick={addTag}
+        disabled={!selectedTagId || loading}
+        size="sm"
+        className="h-8 px-2"
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
     </div>
   );
 };
