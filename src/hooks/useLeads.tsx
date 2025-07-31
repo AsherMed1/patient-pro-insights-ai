@@ -176,39 +176,20 @@ export const useLeads = (projectFilter?: string) => {
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const actualCallsCount = (callsData || []).filter(call => {
-          // PRIMARY: Match lead_phone_number (calls) to phone_number (leads)
+          // ONLY match by phone number - no name matching at all
           if (lead.phone_number && call.lead_phone_number) {
             const leadPhone = lead.phone_number.replace(/\D/g, '');
             const callPhone = call.lead_phone_number.replace(/\D/g, '');
-            
-            // Debug logging for Loyda Garcia
-            if (lead.lead_name.toLowerCase().includes('loyda')) {
-              console.log('Loyda Garcia matching debug:', {
-                leadName: lead.lead_name,
-                leadPhone: lead.phone_number,
-                leadPhoneNormalized: leadPhone,
-                callName: call.lead_name,
-                callPhone: call.lead_phone_number,
-                callPhoneNormalized: callPhone,
-                phoneMatch: leadPhone === callPhone && leadPhone.length >= 10
-              });
-            }
             
             if (leadPhone === callPhone && leadPhone.length >= 10) {
               return true;
             }
           }
           
-          // SECONDARY: Match by contact_id/ghl_id if phone numbers don't match
+          // Secondary: Match by contact_id/ghl_id only
           if (lead.contact_id && call.ghl_id && 
               lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
             return true;
-          }
-          
-          // FALLBACK: Only use name match if no phone number is available
-          if (!lead.phone_number && !call.lead_phone_number) {
-            const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
-            if (nameMatch) return true;
           }
           
           return false;
@@ -279,27 +260,22 @@ export const useLeads = (projectFilter?: string) => {
       
       if (error) throw error;
       
-      // Filter calls using phone number matching as primary method
+      // Filter calls using ONLY phone number matching
       const matchingCalls = (allCallsData || []).filter(call => {
-        // PRIMARY: Match lead_phone_number (calls) to phone_number (leads)
+        // ONLY match by phone number - no name matching at all
         if (lead?.phone_number && call.lead_phone_number) {
           const leadPhone = lead.phone_number.replace(/\D/g, '');
           const callPhone = call.lead_phone_number.replace(/\D/g, '');
+          
           if (leadPhone === callPhone && leadPhone.length >= 10) {
             return true;
           }
         }
         
-        // SECONDARY: Match by contact_id/ghl_id if phone numbers don't match
+        // Secondary: Match by contact_id/ghl_id only
         if (lead?.contact_id && call.ghl_id && 
             lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
           return true;
-        }
-        
-        // FALLBACK: Only use name match if no phone number is available
-        if (!lead?.phone_number && !call.lead_phone_number) {
-          const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();
-          if (nameMatch) return true;
         }
         
         return false;
