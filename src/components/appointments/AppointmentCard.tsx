@@ -82,36 +82,90 @@ const AppointmentCard = ({
   const handleViewDetails = async () => {
     try {
       setLoadingLeadData(true);
+      let leadRecord: NewLead | null = null;
 
-      // Try to find the lead by exact name match first, get the most recent one if multiple exist
-      let {
-        data,
-        error
-      } = await supabase.from('new_leads')
-        .select('*')
-        .eq('lead_name', appointment.lead_name)
-        .eq('project_name', appointment.project_name)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (error) throw error;
+      // Strategy 1: Match by lead_name and project_name (most specific)
+      if (appointment.lead_name && appointment.project_name) {
+        console.log('Trying strategy 1: name + project');
+        const { data: nameProjectResults, error: nameProjectError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('lead_name', appointment.lead_name)
+          .eq('project_name', appointment.project_name)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!nameProjectError && nameProjectResults && nameProjectResults.length > 0) {
+          leadRecord = nameProjectResults[0];
+          console.log('Found lead by name + project');
+        }
+      }
 
-      // If no exact match, try case-insensitive search
-      if (!data || data.length === 0) {
-        const {
-          data: altData,
-          error: altError
-        } = await supabase.from('new_leads')
+      // Strategy 2: If no results, try phone number matching
+      if (!leadRecord && appointment.lead_phone_number) {
+        console.log('Trying strategy 2: phone number');
+        const { data: phoneResults, error: phoneError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('phone_number', appointment.lead_phone_number)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!phoneError && phoneResults && phoneResults.length > 0) {
+          leadRecord = phoneResults[0];
+          console.log('Found lead by phone number');
+        }
+      }
+
+      // Strategy 3: If no results, try email matching
+      if (!leadRecord && appointment.lead_email) {
+        console.log('Trying strategy 3: email');
+        const { data: emailResults, error: emailError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('email', appointment.lead_email)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!emailError && emailResults && emailResults.length > 0) {
+          leadRecord = emailResults[0];
+          console.log('Found lead by email');
+        }
+      }
+
+      // Strategy 4: If no results, try GHL ID matching (ghl_id in appointments maps to contact_id in leads)
+      if (!leadRecord && appointment.ghl_id) {
+        console.log('Trying strategy 4: GHL ID');
+        const { data: ghlResults, error: ghlError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('contact_id', appointment.ghl_id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!ghlError && ghlResults && ghlResults.length > 0) {
+          leadRecord = ghlResults[0];
+          console.log('Found lead by GHL ID');
+        }
+      }
+
+      // Strategy 5: If still no results, try case-insensitive name search as fallback
+      if (!leadRecord && appointment.lead_name) {
+        console.log('Trying strategy 5: case-insensitive name search');
+        const { data: ilikResults, error: ilikError } = await supabase
+          .from('new_leads')
           .select('*')
           .ilike('lead_name', appointment.lead_name)
           .eq('project_name', appointment.project_name)
           .order('created_at', { ascending: false })
           .limit(1);
-        if (altError) throw altError;
-        data = altData;
+        
+        if (!ilikError && ilikResults && ilikResults.length > 0) {
+          leadRecord = ilikResults[0];
+          console.log('Found lead by case-insensitive name search');
+        }
       }
       
-      const leadRecord = data && data.length > 0 ? data[0] : null;
       if (leadRecord) {
         setLeadData(leadRecord);
         setShowLeadDetails(true);
