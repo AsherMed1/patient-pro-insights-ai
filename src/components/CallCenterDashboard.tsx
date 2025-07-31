@@ -48,13 +48,16 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
       setLoading(true);
       
       // Build queries with date filters - show ALL projects unless a specific projectId is provided
+      // Remove any default limits to allow fetching all records
       let callsQuery = supabase
         .from('all_calls')
-        .select('*');
+        .select('*')
+        .order('date', { ascending: false });
 
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select('*');
+        .select('*')
+        .order('date_appointment_created', { ascending: false });
 
       // Only filter by project if it's not the default "project-1" or "ALL"
       if (projectId && projectId !== 'project-1' && projectId !== 'ALL') {
@@ -81,12 +84,51 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         appointmentsQuery = appointmentsQuery.eq('agent', selectedAgent);
       }
 
-      // Execute queries
-      const { data: calls, error: callsError } = await callsQuery;
-      if (callsError) throw new Error(callsError.message);
+      // Execute queries with pagination to handle large datasets
+      let allCalls = [];
+      let allAppointments = [];
+      
+      // Fetch all calls in batches
+      let callsPage = 0;
+      const pageSize = 1000;
+      let hasMoreCalls = true;
+      
+      while (hasMoreCalls) {
+        const { data: callsBatch, error: callsError } = await callsQuery
+          .range(callsPage * pageSize, (callsPage + 1) * pageSize - 1);
+          
+        if (callsError) throw new Error(callsError.message);
+        
+        if (callsBatch && callsBatch.length > 0) {
+          allCalls = allCalls.concat(callsBatch);
+          hasMoreCalls = callsBatch.length === pageSize;
+          callsPage++;
+        } else {
+          hasMoreCalls = false;
+        }
+      }
 
-      const { data: appointments, error: apptsError } = await appointmentsQuery;
-      if (apptsError) throw new Error(apptsError.message);
+      // Fetch all appointments in batches
+      let appointmentsPage = 0;
+      let hasMoreAppointments = true;
+      
+      while (hasMoreAppointments) {
+        const { data: appointmentsBatch, error: apptsError } = await appointmentsQuery
+          .range(appointmentsPage * pageSize, (appointmentsPage + 1) * pageSize - 1);
+          
+        if (apptsError) throw new Error(apptsError.message);
+        
+        if (appointmentsBatch && appointmentsBatch.length > 0) {
+          allAppointments = allAppointments.concat(appointmentsBatch);
+          hasMoreAppointments = appointmentsBatch.length === pageSize;
+          appointmentsPage++;
+        } else {
+          hasMoreAppointments = false;
+        }
+      }
+
+      const calls = allCalls;
+      const appointments = allAppointments;
 
       // Fetch agents
       const { data: agents, error: agentsError } = await supabase
@@ -105,14 +147,15 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
       // Calculate statistics - totalDials is now the actual count of call records
       const totalDials = calls ? calls.length : 0;
       
-      const answeredCalls = calls ? calls.filter(call => 
-        call.status === 'answered' || call.status === 'connected' || call.status === 'pickup'
+      // NEW: Connect rate based on calls longer than 20 seconds
+      const connectedCalls = calls ? calls.filter(call => 
+        (call.duration_seconds || 0) > 20
       ).length : 0;
       
-      const connectRate = totalDials > 0 ? (answeredCalls / totalDials) * 100 : 0;
+      const connectRate = totalDials > 0 ? (connectedCalls / totalDials) * 100 : 0;
       
       const totalCallDuration = calls ? calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0) : 0;
-      const avgCallDuration = answeredCalls > 0 ? totalCallDuration / answeredCalls / 60 : 0;
+      const avgCallDuration = connectedCalls > 0 ? totalCallDuration / connectedCalls / 60 : 0;
       
       const appointmentsSet = appointments ? appointments.length : 0;
       
@@ -121,11 +164,12 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         const agentCalls = calls ? calls.filter(call => call.agent === agent.agent_name) : [];
         const agentCallsCount = agentCalls.length;
         
-        const agentAnsweredCalls = agentCalls.filter(call => 
-          call.status === 'answered' || call.status === 'connected' || call.status === 'pickup'
+        // Use the new connect rate calculation for agents too (calls > 20 seconds)
+        const agentConnectedCalls = agentCalls.filter(call => 
+          (call.duration_seconds || 0) > 20
         ).length;
         
-        const agentConnectRate = agentCallsCount > 0 ? (agentAnsweredCalls / agentCallsCount) * 100 : 0;
+        const agentConnectRate = agentCallsCount > 0 ? (agentConnectedCalls / agentCallsCount) * 100 : 0;
         
         const agentAppointments = appointments ? 
           appointments.filter(appt => appt.agent === agent.agent_name).length : 0;
