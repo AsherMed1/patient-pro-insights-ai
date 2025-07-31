@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MessageCircle, X, Send, Loader2, Search, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,11 +13,58 @@ interface TeamMessageBubbleProps {
   projectName: string;
 }
 
+interface Patient {
+  id: string;
+  lead_name: string;
+  phone_number?: string;
+  contact_id?: string;
+  email?: string;
+}
+
 const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [searching, setSearching] = useState(false);
   const { toast } = useToast();
+
+  // Search for patients
+  const searchPatients = async (search: string) => {
+    if (!search.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setSearching(true);
+      const { data, error } = await supabase
+        .from('new_leads')
+        .select('id, lead_name, phone_number, contact_id, email')
+        .eq('project_name', projectName)
+        .or(`lead_name.ilike.%${search}%,phone_number.ilike.%${search}%,email.ilike.%${search}%`)
+        .limit(10);
+
+      if (error) throw error;
+      setSearchResults(data || []);
+    } catch (error) {
+      console.error('Error searching patients:', error);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      searchPatients(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, projectName]);
 
   const handleSendMessage = async () => {
     if (!message.trim()) {
@@ -33,6 +83,12 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
         body: {
           message: message.trim(),
           project_name: projectName,
+          patient_reference: selectedPatient ? {
+            name: selectedPatient.lead_name,
+            phone: selectedPatient.phone_number,
+            contact_id: selectedPatient.contact_id,
+            email: selectedPatient.email
+          } : null,
           sender_info: {
             source: 'project_portal',
             timestamp: new Date().toISOString()
@@ -58,6 +114,9 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
       });
 
       setMessage('');
+      setSelectedPatient(null);
+      setSearchTerm('');
+      setSearchResults([]);
       setIsOpen(false);
 
     } catch (error) {
@@ -95,7 +154,7 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
 
       {/* Message panel */}
       {isOpen && (
-        <Card className="fixed bottom-6 right-6 w-80 max-w-[calc(100vw-2rem)] shadow-xl border z-50">
+        <Card className="fixed bottom-6 right-6 w-96 max-w-[calc(100vw-2rem)] shadow-xl border z-50">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -105,7 +164,13 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  setMessage('');
+                  setSelectedPatient(null);
+                  setSearchTerm('');
+                  setSearchResults([]);
+                }}
                 className="h-8 w-8 p-0"
               >
                 <X className="h-4 w-4" />
@@ -117,15 +182,116 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
           </CardHeader>
           
           <CardContent className="space-y-4">
-            <Textarea
-              placeholder="Type your message here... (Press Enter to send, Shift+Enter for new line)"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              rows={4}
-              className="resize-none"
-              disabled={sending}
-            />
+            {/* Patient Search Section */}
+            <div className="space-y-2">
+              <Label htmlFor="patient-search" className="text-sm font-medium">
+                Reference Patient (Optional)
+              </Label>
+              
+              {selectedPatient ? (
+                <div className="flex items-center justify-between p-2 bg-blue-50 rounded-md border">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-blue-600" />
+                    <div className="text-sm">
+                      <div className="font-medium">{selectedPatient.lead_name}</div>
+                      {selectedPatient.phone_number && (
+                        <div className="text-gray-600">{selectedPatient.phone_number}</div>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPatient(null);
+                      setSearchTerm('');
+                      setSearchResults([]);
+                    }}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="patient-search"
+                    placeholder="Search by name, phone, or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                    disabled={sending}
+                  />
+                  
+                  {/* Search Results Dropdown */}
+                  {(searchResults.length > 0 || searching) && searchTerm && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
+                      {searching ? (
+                        <div className="p-2 text-sm text-gray-500 flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Searching...
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            className="w-full text-left p-2 hover:bg-gray-50 text-sm border-b"
+                            onClick={() => {
+                              setSelectedPatient(null);
+                              setSearchTerm('');
+                              setSearchResults([]);
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <X className="h-4 w-4 text-gray-400" />
+                              <span className="text-gray-600">No patient reference</span>
+                            </div>
+                          </button>
+                          {searchResults.map((patient) => (
+                            <button
+                              key={patient.id}
+                              className="w-full text-left p-2 hover:bg-gray-50 text-sm"
+                              onClick={() => {
+                                setSelectedPatient(patient);
+                                setSearchTerm('');
+                                setSearchResults([]);
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-blue-600" />
+                                <div>
+                                  <div className="font-medium">{patient.lead_name}</div>
+                                  {patient.phone_number && (
+                                    <div className="text-gray-600 text-xs">{patient.phone_number}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Message Text Area */}
+            <div className="space-y-2">
+              <Label htmlFor="message" className="text-sm font-medium">
+                Message
+              </Label>
+              <Textarea
+                id="message"
+                placeholder="Type your message here... (Press Enter to send, Shift+Enter for new line)"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                rows={4}
+                className="resize-none"
+                disabled={sending}
+              />
+            </div>
             
             <div className="flex gap-2">
               <Button
@@ -150,6 +316,9 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
                 variant="outline"
                 onClick={() => {
                   setMessage('');
+                  setSelectedPatient(null);
+                  setSearchTerm('');
+                  setSearchResults([]);
                   setIsOpen(false);
                 }}
                 disabled={sending}
@@ -160,6 +329,11 @@ const TeamMessageBubble = ({ projectName }: TeamMessageBubbleProps) => {
             
             <p className="text-xs text-muted-foreground">
               Your message will be sent directly to the appointment team and they will respond as soon as possible.
+              {selectedPatient && (
+                <span className="block mt-1 text-blue-600">
+                  Referenced patient: {selectedPatient.lead_name}
+                </span>
+              )}
             </p>
           </CardContent>
         </Card>

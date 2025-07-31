@@ -5,12 +5,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface PatientReference {
+  name: string;
+  phone?: string;
+  contact_id?: string;
+  email?: string;
+}
+
 interface MessageRequest {
   message: string;
   project_name: string;
+  patient_reference?: PatientReference | null;
   sender_info?: {
     name?: string;
     email?: string;
+    source?: string;
+    timestamp?: string;
   };
 }
 
@@ -23,7 +33,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     console.log('Received team message request');
     
-    const { message, project_name, sender_info }: MessageRequest = await req.json();
+    const { message, project_name, patient_reference, sender_info }: MessageRequest = await req.json();
 
     // Validate required fields
     if (!message || !project_name) {
@@ -41,6 +51,7 @@ const handler = async (req: Request): Promise<Response> => {
     const webhookPayload = {
       message,
       project_name,
+      patient_reference,
       sender_info,
       timestamp: new Date().toISOString(),
       source: 'project_portal'
