@@ -35,7 +35,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
-    fetchLeads,
+    fetchLeadsWithCallCounts,
     currentPage,
     setCurrentPage,
     totalCount,
@@ -98,7 +98,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
 
   const handleImportComplete = () => {
     setShowImport(false);
-    fetchLeads(); // Refresh the leads list
+    fetchLeadsWithCallCounts(); // Refresh the leads list
   };
 
   return (

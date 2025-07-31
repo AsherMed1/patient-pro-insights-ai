@@ -13,6 +13,7 @@ interface NewLead {
   times_called: number;
   created_at: string;
   updated_at: string;
+  actual_calls_count?: number;
   
   appt_date?: string;
   first_name?: string;
@@ -200,9 +201,13 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
             size="sm"
             onClick={() => onViewCalls(lead.lead_name)}
             className="flex items-center space-x-1"
+            disabled={!lead.actual_calls_count || lead.actual_calls_count === 0}
           >
             <Phone className="h-3 w-3" />
-            <span>View Calls</span>
+            <span>{lead.actual_calls_count || 0} calls</span>
+            {lead.actual_calls_count && lead.actual_calls_count > 0 && (
+              <span className="h-3 w-3">👁</span>
+            )}
           </Button>
           
           <Button

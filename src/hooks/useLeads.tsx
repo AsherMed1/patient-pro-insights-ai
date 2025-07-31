@@ -11,6 +11,7 @@ interface NewLead {
   times_called: number;
   created_at: string;
   updated_at: string;
+  actual_calls_count?: number;
   appt_date?: string;
   first_name?: string;
   last_name?: string;
@@ -93,7 +94,7 @@ export const useLeads = (projectFilter?: string) => {
 
   const LEADS_PER_PAGE = 50;
 
-  const fetchLeads = async (page: number = currentPage) => {
+  const fetchLeadsWithCallCounts = async (page: number = currentPage) => {
     try {
       setLoading(true);
       
@@ -157,6 +158,13 @@ export const useLeads = (projectFilter?: string) => {
       
       if (leadsError) throw leadsError;
 
+      // Fetch all calls for matching
+      const { data: callsData, error: callsError } = await supabase
+        .from('all_calls')
+        .select('lead_name, lead_phone_number');
+      
+      if (callsError) throw callsError;
+
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
@@ -165,27 +173,47 @@ export const useLeads = (projectFilter?: string) => {
       
       if (appointmentsError) throw appointmentsError;
 
-      // Add appointment info for each lead
-      const leadsWithAppointments = (leadsData || []).map(lead => {
+      // Calculate actual call counts and add appointment info for each lead
+      const leadsWithCallCounts = (leadsData || []).map(lead => {
+        const actualCallsCount = (callsData || []).filter(call => {
+          // Priority 1: Match by phone number (normalize phone numbers by removing non-digits)
+          if (lead.phone_number && call.lead_phone_number) {
+            const leadPhone = lead.phone_number.replace(/\D/g, '');
+            const callPhone = call.lead_phone_number.replace(/\D/g, '');
+            if (leadPhone === callPhone && leadPhone.length >= 10) return true;
+          }
+          
+          // Priority 2: Email matching - not available in all_calls table
+          // Priority 3: Contact ID matching - not available in all_calls table
+          
+          // Fallback: Exact name match
+          const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
+          if (nameMatch) return true;
+          
+          return false;
+        }).length;
+        
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
           appt => {
-            // 1. Try exact name match
-            const nameMatch = appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
-            if (nameMatch) return true;
-            
-            // 2. Try phone number match (normalize phone numbers)
+            // Priority 1: Match by phone number (normalize phone numbers)
             if (lead.phone_number && appt.lead_phone_number) {
               const leadPhone = lead.phone_number.replace(/\D/g, '');
               const apptPhone = appt.lead_phone_number.replace(/\D/g, '');
               if (leadPhone === apptPhone && leadPhone.length >= 10) return true;
             }
             
-            // 3. Try email match
+            // Priority 2: Match by email
             if (lead.email && appt.lead_email && 
                 lead.email.toLowerCase().trim() === appt.lead_email.toLowerCase().trim()) {
               return true;
             }
+            
+            // Priority 3: Contact ID matching - not available in appointments table
+            
+            // Fallback: Exact name match
+            const nameMatch = appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
+            if (nameMatch) return true;
             
             return false;
           }
@@ -195,11 +223,12 @@ export const useLeads = (projectFilter?: string) => {
         
         return {
           ...lead,
+          actual_calls_count: actualCallsCount,
           appointment_info: mostRecentAppointment
         };
       });
 
-      setLeads(leadsWithAppointments);
+      setLeads(leadsWithCallCounts);
     } catch (error) {
       console.error('Error fetching leads:', error);
       toast({
@@ -225,21 +254,21 @@ export const useLeads = (projectFilter?: string) => {
       
       if (error) throw error;
       
-      // Filter calls using comprehensive matching logic
+      // Filter calls using comprehensive matching logic with priority order
       const matchingCalls = (allCallsData || []).filter(call => {
-        // 1. Try exact name match
-        const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();
-        if (nameMatch) return true;
-        
-        // 2. Try phone number match (normalize phone numbers)
+        // Priority 1: Match by phone number (normalize phone numbers)
         if (lead?.phone_number && call.lead_phone_number) {
           const leadPhone = lead.phone_number.replace(/\D/g, '');
           const callPhone = call.lead_phone_number.replace(/\D/g, '');
           if (leadPhone === callPhone && leadPhone.length >= 10) return true;
         }
         
-        // Note: all_calls table only has lead_name and lead_phone_number
-        // Email and contact_id fields are not available in calls table
+        // Priority 2: Email matching - not available in all_calls table
+        // Priority 3: Contact ID matching - not available in all_calls table
+        
+        // Fallback: Exact name match
+        const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();
+        if (nameMatch) return true;
         
         return false;
       });
@@ -264,11 +293,11 @@ export const useLeads = (projectFilter?: string) => {
 
   useEffect(() => {
     setCurrentPage(1); // Reset to first page when filters change
-    fetchLeads(1);
+    fetchLeadsWithCallCounts(1);
   }, [projectFilter, dateRange, nameSearch]);
 
   useEffect(() => {
-    fetchLeads(currentPage);
+    fetchLeadsWithCallCounts(currentPage);
   }, [currentPage]);
 
   return {
@@ -283,7 +312,7 @@ export const useLeads = (projectFilter?: string) => {
     setShowLeadDetailsModal,
     handleViewCalls,
     handleViewFullDetails,
-    fetchLeads,
+    fetchLeadsWithCallCounts,
     currentPage,
     setCurrentPage,
     totalCount,

@@ -16,6 +16,7 @@ interface NewLead {
   times_called: number;
   created_at: string;
   updated_at: string;
+  actual_calls_count?: number;
   
   contact_id?: string;
   appt_date?: string;
@@ -211,6 +212,7 @@ const LeadDetailsModal = ({
             <InfoRow label="Project" value={lead.project_name} />
             <InfoRow label="Lead Date" value={lead.date} type="date" />
             <InfoRow label="Times Called" value={lead.times_called} />
+            <InfoRow label="Actual Calls" value={lead.actual_calls_count} />
             <InfoRow label="Created" value={lead.created_at} type="datetime" />
           </InfoSection>
 
