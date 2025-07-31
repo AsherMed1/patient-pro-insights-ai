@@ -180,6 +180,20 @@ export const useLeads = (projectFilter?: string) => {
           if (lead.phone_number && call.lead_phone_number) {
             const leadPhone = lead.phone_number.replace(/\D/g, '');
             const callPhone = call.lead_phone_number.replace(/\D/g, '');
+            
+            // Debug logging for Loyda Garcia
+            if (lead.lead_name.toLowerCase().includes('loyda')) {
+              console.log('Loyda Garcia matching debug:', {
+                leadName: lead.lead_name,
+                leadPhone: lead.phone_number,
+                leadPhoneNormalized: leadPhone,
+                callName: call.lead_name,
+                callPhone: call.lead_phone_number,
+                callPhoneNormalized: callPhone,
+                phoneMatch: leadPhone === callPhone && leadPhone.length >= 10
+              });
+            }
+            
             if (leadPhone === callPhone && leadPhone.length >= 10) {
               return true;
             }
