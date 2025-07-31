@@ -228,11 +228,21 @@ export const useLeads = (projectFilter?: string) => {
 
   const handleViewCalls = async (leadName: string) => {
     try {
-      const { data: callsData, error } = await supabase
+      // Find the lead to get phone number for matching
+      const lead = leads.find(l => l.lead_name === leadName);
+      
+      let callsQuery = supabase
         .from('all_calls')
-        .select('*')
-        .ilike('lead_name', leadName)
-        .order('call_datetime', { ascending: false });
+        .select('*');
+      
+      // Use both name and phone number matching like in the count calculation
+      if (lead?.phone_number) {
+        callsQuery = callsQuery.or(`lead_name.ilike.%${leadName}%,lead_phone_number.eq.${lead.phone_number}`);
+      } else {
+        callsQuery = callsQuery.ilike('lead_name', `%${leadName}%`);
+      }
+      
+      const { data: callsData, error } = await callsQuery.order('call_datetime', { ascending: false });
       
       if (error) throw error;
       
