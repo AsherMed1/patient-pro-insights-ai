@@ -24,13 +24,15 @@ interface DashboardStats {
   adSpend: number;
   newLeads: number;
   bookedAppointments: number;
-  noShows: number;
   confirmedAppointments: number;
+  showedAppointments: number;
+  noShowAppointments: number;
+  cancelledAppointments: number;
+  newAppointments: number;
+  rescheduledAppointments: number;
+  wonAppointments: number;
   costPerLead: number;
   bookingPercentage: number;
-  shows: number;
-  unconfirmedAppointments: number;
-  appointmentsToTakePlace: number;
   confirmedPercentage: number;
   outboundDials: number;
   pickups40Plus: number;
@@ -77,13 +79,35 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       // Calculate stats
       const newLeads = leads?.length || 0;
       const bookedAppointments = appointments?.length || 0;
-      const shows = appointments?.filter(apt => apt.showed).length || 0;
-      const noShows = appointments?.filter(apt => apt.showed === false).length || 0;
-      // Confirmed appointments: only those with status = "confirmed"
+      
+      // Categorize by specific status values
       const confirmedAppointments = appointments?.filter(apt => 
         apt.status?.toLowerCase() === 'confirmed'
       ).length || 0;
-      const unconfirmedAppointments = bookedAppointments - confirmedAppointments;
+      
+      const showedAppointments = appointments?.filter(apt => 
+        apt.status?.toLowerCase() === 'showed'
+      ).length || 0;
+      
+      const noShowAppointments = appointments?.filter(apt => 
+        apt.status?.toLowerCase() === 'no show'
+      ).length || 0;
+      
+      const cancelledAppointments = appointments?.filter(apt => 
+        apt.status?.toLowerCase() === 'cancelled'
+      ).length || 0;
+      
+      const newAppointments = appointments?.filter(apt => 
+        apt.status === null || apt.status?.trim() === ''
+      ).length || 0;
+      
+      const rescheduledAppointments = appointments?.filter(apt => 
+        apt.status?.toLowerCase() === 'rescheduled'
+      ).length || 0;
+      
+      const wonAppointments = appointments?.filter(apt => 
+        apt.status?.toLowerCase() === 'won'
+      ).length || 0;
       const appointmentsToTakePlace = appointments?.filter(apt => 
         new Date(apt.date_of_appointment) >= new Date()
       ).length || 0;
@@ -109,13 +133,15 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         adSpend,
         newLeads,
         bookedAppointments,
-        noShows,
         confirmedAppointments,
+        showedAppointments,
+        noShowAppointments,
+        cancelledAppointments,
+        newAppointments,
+        rescheduledAppointments,
+        wonAppointments,
         costPerLead,
         bookingPercentage,
-        shows,
-        unconfirmedAppointments,
-        appointmentsToTakePlace,
         confirmedPercentage,
         outboundDials,
         pickups40Plus,
@@ -236,57 +262,62 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <StatCard
-                  title="Booked Appointments"
+                  title="Total Booked"
                   value={stats.bookedAppointments}
                   icon={Calendar}
                   color="blue"
                 />
                 <StatCard
-                  title="Confirmed Appointments"
+                  title="New/Unconfirmed"
+                  value={stats.newAppointments}
+                  icon={Clock}
+                  color="yellow"
+                />
+                <StatCard
+                  title="Confirmed"
                   value={stats.confirmedAppointments}
                   icon={CheckCircle}
                   color="green"
                 />
                 <StatCard
-                  title="Unconfirmed Appointments"
-                  value={stats.unconfirmedAppointments}
-                  icon={Clock}
-                  color="yellow"
-                />
-                <StatCard
-                  title="Appointments To Take Place"
-                  value={stats.appointmentsToTakePlace}
+                  title="Rescheduled"
+                  value={stats.rescheduledAppointments}
                   icon={Calendar}
-                  color="purple"
+                  color="orange"
                 />
               </div>
             </div>
 
-            {/* Show Metrics */}
+            {/* Show/Outcome Metrics */}
             <div>
               <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5" />
-                <span>Show Metrics</span>
+                <span>Appointment Outcomes</span>
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <StatCard
-                  title="Shows"
-                  value={stats.shows}
+                  title="Showed"
+                  value={stats.showedAppointments}
                   icon={CheckCircle}
                   color="green"
                 />
                 <StatCard
                   title="No Shows"
-                  value={stats.noShows}
+                  value={stats.noShowAppointments}
                   icon={XCircle}
                   color="red"
                 />
                 <StatCard
-                  title="Confirmed Percentage"
-                  value={stats.confirmedPercentage}
+                  title="Cancelled"
+                  value={stats.cancelledAppointments}
+                  icon={XCircle}
+                  color="gray"
+                />
+                <StatCard
+                  title="Won (Converted)"
+                  value={stats.wonAppointments}
                   icon={Target}
-                  color="blue"
-                  isPercentage
+                  color="purple"
                 />
               </div>
             </div>
