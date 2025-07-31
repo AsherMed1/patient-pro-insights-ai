@@ -50,6 +50,7 @@ interface NewLead {
   appointment_info?: {
     lead_name: string;
     lead_phone_number: string | null;
+    lead_email: string | null;
     date_of_appointment: string | null;
     requested_time: string | null;
     status: string | null;
@@ -167,7 +168,7 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
-        .select('lead_name, lead_phone_number, date_of_appointment, requested_time, status, confirmed, showed, calendar_name')
+        .select('lead_name, lead_phone_number, lead_email, date_of_appointment, requested_time, status, confirmed, showed, calendar_name')
         .order('date_of_appointment', { ascending: false });
       
       if (appointmentsError) throw appointmentsError;
@@ -175,17 +176,19 @@ export const useLeads = (projectFilter?: string) => {
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const actualCallsCount = (callsData || []).filter(call => {
-          // 1. Try name match first
+          // 1. Try exact name match first
           const nameMatch = call.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
           if (nameMatch) return true;
           
-          // 2. Try phone number match
-          const phoneMatch = lead.phone_number && call.lead_phone_number && 
-            call.lead_phone_number === lead.phone_number;
-          if (phoneMatch) return true;
+          // 2. Try phone number match (normalize phone numbers by removing non-digits)
+          if (lead.phone_number && call.lead_phone_number) {
+            const leadPhone = lead.phone_number.replace(/\D/g, '');
+            const callPhone = call.lead_phone_number.replace(/\D/g, '');
+            if (leadPhone === callPhone && leadPhone.length >= 10) return true;
+          }
           
-          // Note: all_calls table doesn't have email or contact_id fields based on schema
-          // Only name and phone matching available for calls
+          // Note: all_calls table only has lead_name and lead_phone_number
+          // Email and contact_id matching not available for calls
           
           return false;
         }).length;
@@ -193,14 +196,24 @@ export const useLeads = (projectFilter?: string) => {
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
           appt => {
-            // First try exact name match
+            // 1. Try exact name match
             const nameMatch = appt.lead_name.toLowerCase().trim() === lead.lead_name.toLowerCase().trim();
+            if (nameMatch) return true;
             
-            // If no name match, try phone number match
-            const phoneMatch = lead.phone_number && appt.lead_phone_number && 
-              appt.lead_phone_number === lead.phone_number;
+            // 2. Try phone number match (normalize phone numbers)
+            if (lead.phone_number && appt.lead_phone_number) {
+              const leadPhone = lead.phone_number.replace(/\D/g, '');
+              const apptPhone = appt.lead_phone_number.replace(/\D/g, '');
+              if (leadPhone === apptPhone && leadPhone.length >= 10) return true;
+            }
             
-            return nameMatch || phoneMatch;
+            // 3. Try email match
+            if (lead.email && appt.lead_email && 
+                lead.email.toLowerCase().trim() === appt.lead_email.toLowerCase().trim()) {
+              return true;
+            }
+            
+            return false;
           }
         );
         
@@ -228,25 +241,37 @@ export const useLeads = (projectFilter?: string) => {
 
   const handleViewCalls = async (leadName: string) => {
     try {
-      // Find the lead to get phone number for matching
+      // Find the lead to get phone number and contact_id for matching
       const lead = leads.find(l => l.lead_name === leadName);
       
-      let callsQuery = supabase
+      // Get all calls and filter client-side for better matching control
+      const { data: allCallsData, error } = await supabase
         .from('all_calls')
-        .select('*');
-      
-      // Use both name and phone number matching like in the count calculation
-      if (lead?.phone_number) {
-        callsQuery = callsQuery.or(`lead_name.ilike.%${leadName}%,lead_phone_number.eq.${lead.phone_number}`);
-      } else {
-        callsQuery = callsQuery.ilike('lead_name', `%${leadName}%`);
-      }
-      
-      const { data: callsData, error } = await callsQuery.order('call_datetime', { ascending: false });
+        .select('*')
+        .order('call_datetime', { ascending: false });
       
       if (error) throw error;
       
-      setSelectedLeadCalls(callsData || []);
+      // Filter calls using comprehensive matching logic
+      const matchingCalls = (allCallsData || []).filter(call => {
+        // 1. Try exact name match
+        const nameMatch = call.lead_name.toLowerCase().trim() === leadName.toLowerCase().trim();
+        if (nameMatch) return true;
+        
+        // 2. Try phone number match (normalize phone numbers)
+        if (lead?.phone_number && call.lead_phone_number) {
+          const leadPhone = lead.phone_number.replace(/\D/g, '');
+          const callPhone = call.lead_phone_number.replace(/\D/g, '');
+          if (leadPhone === callPhone && leadPhone.length >= 10) return true;
+        }
+        
+        // Note: all_calls table only has lead_name and lead_phone_number
+        // Email and contact_id fields are not available in calls table
+        
+        return false;
+      });
+      
+      setSelectedLeadCalls(matchingCalls);
       setSelectedLeadName(leadName);
       setShowCallsModal(true);
     } catch (error) {
