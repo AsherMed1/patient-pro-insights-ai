@@ -80,6 +80,60 @@ serve(async (req) => {
       )
     }
 
+    // Helper function to format webhook payload as patient intake notes
+    const formatWebhookPayload = (body) => {
+      // If the body contains a pre-formatted intake note, use it
+      if (body.patient_intake_notes) {
+        return body.patient_intake_notes;
+      }
+      
+      // If the body contains detailed structured data, format it
+      let formattedNotes = '';
+      
+      // Contact Information
+      if (body.lead_name || body.lead_phone_number || body.lead_email || body.ghl_id) {
+        formattedNotes += 'Contact: ';
+        if (body.lead_name) formattedNotes += `Name: ${body.lead_name}`;
+        if (body.lead_phone_number) formattedNotes += `, Phone: ${body.lead_phone_number}`;
+        if (body.lead_email) formattedNotes += `, Email: ${body.lead_email}`;
+        if (body.ghl_id) formattedNotes += `, Patient ID: ${body.ghl_id}`;
+        formattedNotes += ' /n ';
+      }
+      
+      // Insurance Information
+      if (body.insurance_provider || body.insurance_plan || body.insurance_id || body.group_number) {
+        formattedNotes += 'Insurance: ';
+        if (body.insurance_plan) formattedNotes += `Plan: ${body.insurance_plan}`;
+        if (body.insurance_provider) formattedNotes += `, Alt Selection: ${body.insurance_provider}`;
+        if (body.insurance_id) formattedNotes += `, ID: ${body.insurance_id}`;
+        if (body.group_number) formattedNotes += `, Group: ${body.group_number}`;
+        formattedNotes += ' /n ';
+      }
+      
+      // Pathology Information
+      const hasPathology = body.pain_severity_scale || body.symptoms_description || body.treatments_tried || 
+                          body.pain_duration || body.diagnosis || body.trauma_onset || body.imaging_done;
+                          
+      if (hasPathology) {
+        formattedNotes += 'Pathology: ';
+        if (body.pain_duration) formattedNotes += `Duration: ${body.pain_duration}`;
+        if (body.diagnosis) formattedNotes += `, Diagnosis: ${body.diagnosis}`;
+        if (body.trauma_onset !== undefined) formattedNotes += `, Trauma-related Onset: ${body.trauma_onset ? 'YES' : 'NO'}`;
+        if (body.pain_severity_scale) formattedNotes += `, Pain Level: ${body.pain_severity_scale}`;
+        if (body.symptoms_description) formattedNotes += `, Symptoms: ${body.symptoms_description}`;
+        if (body.treatments_tried) formattedNotes += `, Treatments Tried: ${body.treatments_tried}`;
+        if (body.imaging_done !== undefined) formattedNotes += `, Imaging Done: ${body.imaging_done ? 'YES' : 'NO'}`;
+        formattedNotes += ' /n ';
+      }
+      
+      // Additional Notes
+      if (body.notes || body.additional_notes) {
+        formattedNotes += `Notes: ${body.notes || body.additional_notes}`;
+      }
+      
+      return formattedNotes || null;
+    };
+
     // Prepare appointment data
     const appointmentData = {
       date_appointment_created: body.date_appointment_created,
@@ -96,7 +150,8 @@ serve(async (req) => {
       agent: body.agent || null,
       agent_number: body.agent_number || null,
       ghl_id: body.ghl_id || null,
-      confirmed_number: body.confirmed_number || null
+      confirmed_number: body.confirmed_number || null,
+      patient_intake_notes: formatWebhookPayload(body)
     }
 
     // Check if appointment already exists

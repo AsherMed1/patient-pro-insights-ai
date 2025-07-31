@@ -115,6 +115,65 @@ serve(async (req) => {
       console.log('Created new project:', project_name)
     }
 
+    // Helper function to format webhook payload as patient intake notes
+    const formatWebhookPayload = (body) => {
+      // If the body contains a pre-formatted intake note, use it
+      if (body.patient_intake_notes) {
+        return body.patient_intake_notes;
+      }
+      
+      // If the body contains detailed structured data, format it
+      let formattedNotes = '';
+      
+      // Contact Information
+      if (body.lead_name || body.phone_number || body.email || body.contact_id) {
+        formattedNotes += 'Contact: ';
+        if (body.lead_name) formattedNotes += `Name: ${body.lead_name}`;
+        if (body.phone_number) formattedNotes += `, Phone: ${body.phone_number}`;
+        if (body.email) formattedNotes += `, Email: ${body.email}`;
+        if (body.contact_id) formattedNotes += `, Patient ID: ${body.contact_id}`;
+        if (body.dob) formattedNotes += `, DOB: ${body.dob}`;
+        if (body.address) formattedNotes += `, Address: ${body.address}`;
+        formattedNotes += ' /n ';
+      }
+      
+      // Insurance Information
+      if (body.insurance_provider || body.insurance_plan || body.insurance_id || body.group_number) {
+        formattedNotes += 'Insurance: ';
+        if (body.insurance_plan) formattedNotes += `Plan: ${body.insurance_plan}`;
+        if (body.insurance_provider) formattedNotes += `, Alt Selection: ${body.insurance_provider}`;
+        if (body.insurance_id) formattedNotes += `, ID: ${body.insurance_id}`;
+        if (body.group_number) formattedNotes += `, Group: ${body.group_number}`;
+        formattedNotes += ' /n ';
+      }
+      
+      // Pathology Information
+      const hasPathology = body.pain_severity_scale || body.symptoms_description || body.knee_treatments_tried || 
+                          body.knee_pain_duration || body.heel_pain_duration || body.knee_osteoarthritis_diagnosis ||
+                          body.gae_candidate || body.trauma_injury_onset || body.knee_imaging || body.plantar_fasciitis_treatments;
+                          
+      if (hasPathology) {
+        formattedNotes += 'Pathology: ';
+        if (body.knee_pain_duration) formattedNotes += `Duration: ${body.knee_pain_duration}`;
+        if (body.heel_pain_duration) formattedNotes += `Duration: ${body.heel_pain_duration}`;
+        if (body.knee_osteoarthritis_diagnosis !== undefined) formattedNotes += `, OA or TKR Diagnosed: ${body.knee_osteoarthritis_diagnosis ? 'YES' : 'NO'}`;
+        if (body.trauma_injury_onset !== undefined) formattedNotes += `, Trauma-related Onset: ${body.trauma_injury_onset ? 'YES' : 'NO'}`;
+        if (body.pain_severity_scale) formattedNotes += `, Pain Level: ${body.pain_severity_scale}`;
+        if (body.symptoms_description) formattedNotes += `, Symptoms: ${body.symptoms_description}`;
+        if (body.knee_treatments_tried) formattedNotes += `, Treatments Tried: ${body.knee_treatments_tried}`;
+        if (body.plantar_fasciitis_treatments) formattedNotes += `, Treatments: ${body.plantar_fasciitis_treatments}`;
+        if (body.knee_imaging !== undefined) formattedNotes += `, Imaging Done: ${body.knee_imaging ? 'YES' : 'NO'}`;
+        formattedNotes += ' /n ';
+      }
+      
+      // Additional Notes
+      if (body.notes) {
+        formattedNotes += `Notes: ${body.notes}`;
+      }
+      
+      return formattedNotes || null;
+    };
+
     // Prepare the lead data with all possible fields
     const leadData = {
       lead_name,
@@ -137,7 +196,7 @@ serve(async (req) => {
       group_number: body.group_number || null,
       address: body.address || null,
       notes: body.notes || null,
-      patient_intake_notes: body.patient_intake_notes || null,
+      patient_intake_notes: formatWebhookPayload(body),
       card_image: body.card_image || null,
       knee_pain_duration: body.knee_pain_duration || null,
       knee_osteoarthritis_diagnosis: body.knee_osteoarthritis_diagnosis === true,
