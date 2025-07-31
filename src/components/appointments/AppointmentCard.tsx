@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, statusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,6 +53,7 @@ const AppointmentCard = ({
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [detectingInsurance, setDetectingInsurance] = useState(false);
   const {
     toast
   } = useToast();
@@ -230,6 +231,56 @@ const AppointmentCard = ({
       setGeneratingAI(false);
     }
   };
+
+  const handleDetectInsurance = async () => {
+    if (!appointment.patient_intake_notes) {
+      toast({
+        title: "No Notes Available",
+        description: "Patient intake notes are required to detect insurance",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDetectingInsurance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('format-intake-ai', {
+        body: {
+          type: 'patient_intake_notes',
+          data: appointment.patient_intake_notes,
+          recordId: appointment.id,
+          tableName: 'all_appointments'
+        }
+      });
+
+      if (error) {
+        console.error('Insurance detection error:', error);
+        toast({
+          title: "Insurance Detection Failed",
+          description: error.message || "Failed to detect insurance information",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data?.success) {
+        toast({
+          title: "Insurance Detection Complete",
+          description: "Successfully analyzed intake notes for insurance information",
+        });
+        window.location.reload(); // Refresh to show new insurance data
+      }
+    } catch (error) {
+      console.error('Error detecting insurance:', error);
+      toast({
+        title: "Detection Error",
+        description: "An error occurred while detecting insurance information",
+        variant: "destructive",
+      });
+    } finally {
+      setDetectingInsurance(false);
+    }
+  };
   return <>
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
         <div className="space-y-2">
@@ -289,6 +340,70 @@ const AppointmentCard = ({
           {appointment.agent && <div className="text-sm text-gray-600">
             Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
             </div>}
+
+          {/* Insurance Information Section */}
+          {(appointment.detected_insurance_provider || appointment.patient_intake_notes) && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Insurance Information</span>
+                  {appointment.detected_insurance_provider && (
+                    <Badge variant="secondary" className="text-xs">
+                      AI Detected
+                    </Badge>
+                  )}
+                </div>
+                {appointment.patient_intake_notes && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDetectInsurance}
+                    disabled={detectingInsurance}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {detectingInsurance ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Re-detect
+                  </Button>
+                )}
+              </div>
+              
+              {appointment.detected_insurance_provider ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-500">Provider:</span>
+                    <div className="font-medium text-primary">{appointment.detected_insurance_provider}</div>
+                  </div>
+                  {appointment.detected_insurance_plan && (
+                    <div>
+                      <span className="text-gray-500">Plan:</span>
+                      <div className="font-medium">{appointment.detected_insurance_plan}</div>
+                    </div>
+                  )}
+                  {appointment.detected_insurance_id && (
+                    <div>
+                      <span className="text-gray-500">Member ID:</span>
+                      <div className="font-medium font-mono text-sm">{appointment.detected_insurance_id}</div>
+                    </div>
+                  )}
+                  {appointment.insurance_detection_confidence && appointment.insurance_detection_confidence > 0 && (
+                    <div className="md:col-span-3 text-xs text-gray-500">
+                      Detection Confidence: {Math.round(appointment.insurance_detection_confidence * 100)}%
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-sm text-gray-500 mb-1">No insurance information detected</p>
+                  <p className="text-xs text-gray-400">Click "Re-detect" to analyze intake notes for insurance details</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Patient Intake Notes */}
           {appointment.patient_intake_notes && <div className="space-y-1">

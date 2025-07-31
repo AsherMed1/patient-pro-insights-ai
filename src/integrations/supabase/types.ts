@@ -125,8 +125,12 @@ export type Database = {
           created_at: string
           date_appointment_created: string
           date_of_appointment: string | null
+          detected_insurance_id: string | null
+          detected_insurance_plan: string | null
+          detected_insurance_provider: string | null
           ghl_id: string | null
           id: string
+          insurance_detection_confidence: number | null
           is_viewed: boolean | null
           lead_email: string | null
           lead_name: string
@@ -152,8 +156,12 @@ export type Database = {
           created_at?: string
           date_appointment_created: string
           date_of_appointment?: string | null
+          detected_insurance_id?: string | null
+          detected_insurance_plan?: string | null
+          detected_insurance_provider?: string | null
           ghl_id?: string | null
           id?: string
+          insurance_detection_confidence?: number | null
           is_viewed?: boolean | null
           lead_email?: string | null
           lead_name: string
@@ -179,8 +187,12 @@ export type Database = {
           created_at?: string
           date_appointment_created?: string
           date_of_appointment?: string | null
+          detected_insurance_id?: string | null
+          detected_insurance_plan?: string | null
+          detected_insurance_provider?: string | null
           ghl_id?: string | null
           id?: string
+          insurance_detection_confidence?: number | null
           is_viewed?: boolean | null
           lead_email?: string | null
           lead_name?: string

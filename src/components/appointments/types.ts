@@ -22,6 +22,10 @@ export interface AllAppointment {
   procedure_ordered: boolean | null;
   patient_intake_notes: string | null;
   ai_summary?: string;
+  detected_insurance_provider: string | null;
+  detected_insurance_plan: string | null;
+  detected_insurance_id: string | null;
+  insurance_detection_confidence: number | null;
 }
 
 export interface AllAppointmentsManagerProps {

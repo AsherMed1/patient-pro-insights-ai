@@ -125,7 +125,12 @@ const AllAppointmentsManager = ({
           updated_at,
           status,
           procedure_ordered,
-          patient_intake_notes
+          patient_intake_notes,
+          ai_summary,
+          detected_insurance_provider,
+          detected_insurance_plan,
+          detected_insurance_id,
+          insurance_detection_confidence
         `)
         .order('date_appointment_created', { ascending: false });
 

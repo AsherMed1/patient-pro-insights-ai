@@ -41,21 +41,31 @@ serve(async (req) => {
 
     switch (type) {
       case 'patient_intake_notes':
-        systemPrompt = `You are a medical intake specialist. Your job is to format raw patient intake notes into clean, professional, and easy-to-read summaries. 
+        systemPrompt = `You are a medical intake specialist. Format the provided patient intake notes into a clear, professional summary AND extract insurance information.
 
 Guidelines:
-- Organize information into clear sections (Symptoms, Medical History, Current Medications, etc.)
-- Use proper medical terminology while keeping it readable
-- Maintain all important medical details
-- Fix grammar and spelling errors
-- Structure the information logically
-- Use bullet points or numbered lists where appropriate
-- Keep the tone professional but compassionate
-- If any critical information is unclear, note it as "Needs Clarification"
+- Extract key medical information (conditions, symptoms, medications, allergies)
+- Organize information logically with clear headings
+- Use proper medical terminology
+- Remove redundant or unnecessary text
+- Maintain HIPAA compliance
+- Keep the tone professional and clinical
+- Format in structured paragraphs with clear sections
 
-Format the output in a clean, structured way that healthcare professionals can easily scan and understand.`;
+CRITICAL: Also extract any insurance information and return it in a JSON structure at the end of your response like this:
+{
+  "summary": "your formatted summary here",
+  "insurance": {
+    "provider": "insurance company name (e.g., Humana, Medicare, Blue Cross, etc.)",
+    "plan": "plan details if mentioned",
+    "member_id": "member/insurance ID if mentioned",
+    "confidence": 0.9
+  }
+}
 
-        userPrompt = `Please format and clean up these patient intake notes:\n\n${data}`;
+If no insurance information is found, set insurance fields to null and confidence to 0.`;
+        
+        userPrompt = `Please format these patient intake notes into a clear medical summary AND extract any insurance information:\n\n${data}`;
         break;
 
       case 'form_submission':
@@ -130,11 +140,31 @@ Guidelines:
     }
 
     const aiResponse = await response.json();
-    const formattedText = aiResponse.choices[0].message.content;
+    let formattedText = aiResponse.choices[0].message.content;
+    let insuranceData = null;
+    
+    // Try to extract JSON insurance data for patient_intake_notes
+    if (type === 'patient_intake_notes') {
+      try {
+        const jsonMatch = formattedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const jsonData = JSON.parse(jsonMatch[0]);
+          if (jsonData.summary && jsonData.insurance) {
+            formattedText = jsonData.summary;
+            insuranceData = jsonData.insurance;
+          }
+        }
+      } catch (e) {
+        console.log('No JSON structure found, using full response as summary');
+      }
+    }
 
     console.log('AI formatting successful')
+    if (insuranceData) {
+      console.log('Insurance data extracted:', insuranceData);
+    }
 
-    // If recordId and tableName are provided, update the record with AI summary
+    // If recordId and tableName are provided, update the record with AI summary and insurance data
     if (recordId && tableName) {
       try {
         console.log(`Updating ${tableName} record ${recordId} with AI summary`)
@@ -143,6 +173,14 @@ Guidelines:
           ai_summary: formattedText,
           updated_at: new Date().toISOString()
         };
+        
+        // Add insurance data if detected and table is all_appointments
+        if (insuranceData && tableName === 'all_appointments') {
+          updateData.detected_insurance_provider = insuranceData.provider;
+          updateData.detected_insurance_plan = insuranceData.plan;
+          updateData.detected_insurance_id = insuranceData.member_id;
+          updateData.insurance_detection_confidence = insuranceData.confidence || 0;
+        }
 
         const { error: updateError } = await supabaseClient
           .from(tableName)
@@ -153,7 +191,7 @@ Guidelines:
           console.error('Error updating record:', updateError);
           // Don't throw here, still return the formatted text
         } else {
-          console.log('Record updated successfully with AI summary')
+          console.log('Record updated successfully with AI summary and insurance data')
         }
       } catch (updateError) {
         console.error('Error updating record:', updateError);
