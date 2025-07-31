@@ -8,6 +8,7 @@ import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVarian
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
+import AppointmentTags from './AppointmentTags';
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -254,6 +255,19 @@ const AppointmentCard = ({
                 <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
               </div>
             </div>}
+
+          {/* Appointment Tags */}
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-gray-700">Tags:</span>
+            <AppointmentTags 
+              appointmentId={appointment.id}
+              projectName={appointment.project_name}
+              onTagsChanged={() => {
+                // Refresh appointment data if needed
+                // This will trigger any parent components to refetch data
+              }}
+            />
+          </div>
 
           {/* Status and Procedure Badges - Responsive layout */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
