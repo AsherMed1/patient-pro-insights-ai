@@ -18,6 +18,12 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   parsedDemographics,
   className = ""
 }) => {
+  // Debug logging
+  console.log('ParsedIntakeInfo - parsedInsuranceInfo:', parsedInsuranceInfo);
+  console.log('ParsedIntakeInfo - parsedPathologyInfo:', parsedPathologyInfo);
+  console.log('ParsedIntakeInfo - parsedContactInfo:', parsedContactInfo);
+  console.log('ParsedIntakeInfo - parsedDemographics:', parsedDemographics);
+  
   const hasAnyData = parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics;
 
   if (!hasAnyData) {

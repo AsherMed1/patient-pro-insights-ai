@@ -244,6 +244,11 @@ const AppointmentCard = ({
             </div>}
 
           {/* Insurance Information - Quick View */}
+          {(() => {
+            console.log('AppointmentCard - appointment.parsed_insurance_info:', appointment.parsed_insurance_info);
+            console.log('AppointmentCard - appointment.detected_insurance_provider:', appointment.detected_insurance_provider);
+            return null;
+          })()}
           {(appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider) && (
             <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
               <div className="flex items-center space-x-2">
