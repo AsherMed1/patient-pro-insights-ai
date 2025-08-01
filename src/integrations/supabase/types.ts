@@ -135,6 +135,11 @@ export type Database = {
           lead_email: string | null
           lead_name: string
           lead_phone_number: string | null
+          parsed_contact_info: Json | null
+          parsed_demographics: Json | null
+          parsed_insurance_info: Json | null
+          parsed_pathology_info: Json | null
+          parsing_completed_at: string | null
           patient_intake_notes: string | null
           procedure_ordered: boolean | null
           project_name: string
@@ -166,6 +171,11 @@ export type Database = {
           lead_email?: string | null
           lead_name: string
           lead_phone_number?: string | null
+          parsed_contact_info?: Json | null
+          parsed_demographics?: Json | null
+          parsed_insurance_info?: Json | null
+          parsed_pathology_info?: Json | null
+          parsing_completed_at?: string | null
           patient_intake_notes?: string | null
           procedure_ordered?: boolean | null
           project_name: string
@@ -197,6 +207,11 @@ export type Database = {
           lead_email?: string | null
           lead_name?: string
           lead_phone_number?: string | null
+          parsed_contact_info?: Json | null
+          parsed_demographics?: Json | null
+          parsed_insurance_info?: Json | null
+          parsed_pathology_info?: Json | null
+          parsing_completed_at?: string | null
           patient_intake_notes?: string | null
           procedure_ordered?: boolean | null
           project_name?: string
@@ -639,6 +654,11 @@ export type Database = {
           lead_name: string
           notes: string | null
           pain_severity_scale: number | null
+          parsed_contact_info: Json | null
+          parsed_demographics: Json | null
+          parsed_insurance_info: Json | null
+          parsed_pathology_info: Json | null
+          parsing_completed_at: string | null
           patient_intake_notes: string | null
           phone_number: string | null
           plantar_fasciitis_imaging: boolean | null
@@ -683,6 +703,11 @@ export type Database = {
           lead_name: string
           notes?: string | null
           pain_severity_scale?: number | null
+          parsed_contact_info?: Json | null
+          parsed_demographics?: Json | null
+          parsed_insurance_info?: Json | null
+          parsed_pathology_info?: Json | null
+          parsing_completed_at?: string | null
           patient_intake_notes?: string | null
           phone_number?: string | null
           plantar_fasciitis_imaging?: boolean | null
@@ -727,6 +752,11 @@ export type Database = {
           lead_name?: string
           notes?: string | null
           pain_severity_scale?: number | null
+          parsed_contact_info?: Json | null
+          parsed_demographics?: Json | null
+          parsed_insurance_info?: Json | null
+          parsed_pathology_info?: Json | null
+          parsing_completed_at?: string | null
           patient_intake_notes?: string | null
           phone_number?: string | null
           plantar_fasciitis_imaging?: boolean | null
