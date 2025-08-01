@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.bulk-parse-all-intake-notes]
 verify_jwt = false
+
+[functions.sync-intake-notes]
+verify_jwt = false

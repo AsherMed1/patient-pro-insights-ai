@@ -244,15 +244,6 @@ const AppointmentCard = ({
             </div>}
 
           {/* Insurance Information - Quick View */}
-          {(() => {
-            console.log('Larry McDonald insurance debug:', {
-              leadName: appointment.lead_name,
-              parsedInsuranceInfo: appointment.parsed_insurance_info,
-              detectedProvider: appointment.detected_insurance_provider,
-              hasProvider: !!(appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider)
-            });
-            return null;
-          })()}
           {(appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider) && (
             <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
               <div className="flex items-center space-x-2">
