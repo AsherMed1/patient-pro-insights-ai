@@ -34,6 +34,23 @@ const UpdateLarryMcDonald: React.FC = () => {
       setUpdating(false);
     }
   };
-  return;
+  return (
+    <div className="space-y-4">
+      <Button 
+        onClick={handleUpdate} 
+        disabled={updating}
+        className="w-full"
+      >
+        {updating ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Updating...
+          </>
+        ) : (
+          'Update Larry McDonald Appointment'
+        )}
+      </Button>
+    </div>
+  );
 };
 export default UpdateLarryMcDonald;

@@ -36,6 +36,40 @@ const BulkSyncPatientNotes = () => {
       setSyncing(false);
     }
   };
-  return;
+  return (
+    <div className="space-y-4">
+      <Button 
+        onClick={handleBulkSync} 
+        disabled={syncing}
+        className="w-full"
+      >
+        {syncing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Syncing Patient Notes...
+          </>
+        ) : (
+          <>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Bulk Sync Patient Notes
+          </>
+        )}
+      </Button>
+      
+      {results.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <h3 className="font-medium">Sync Results:</h3>
+          <div className="max-h-40 overflow-y-auto space-y-1">
+            {results.map((result, index) => (
+              <div key={index} className="flex items-center text-sm text-muted-foreground">
+                <CheckCircle className="mr-2 h-3 w-3 text-green-500" />
+                {result.appointment_id} - {result.status}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 export default BulkSyncPatientNotes;
