@@ -253,11 +253,12 @@ const AppointmentCard = ({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{appointment.patient_intake_notes}</p>
+                  <span className="text-xs font-medium text-muted-foreground">Raw Notes:</span>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap mt-1">{appointment.patient_intake_notes}</p>
                 </div>
                 {appointment.ai_summary && (
                   <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400">
-                    <span className="text-xs font-medium text-muted-foreground">AI Summary:</span>
+                    <span className="text-xs font-medium text-muted-foreground">AI Formatted Summary:</span>
                     <div className="whitespace-pre-wrap text-sm text-gray-800 mt-1">{appointment.ai_summary}</div>
                   </div>
                 )}
