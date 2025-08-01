@@ -66,13 +66,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate identifier - must have either id OR (lead_name + project_name) OR contact_id
-    const { id, lead_name, project_name, contact_id, ...updateFields } = body
+    // Validate identifier - must have either id OR (lead_name + project_name) OR contact_id OR phone_number
+    const { id, lead_name, project_name, contact_id, phone_number, ...updateFields } = body
 
-    if (!id && !(lead_name && project_name) && !contact_id) {
+    if (!id && !(lead_name && project_name) && !contact_id && !phone_number) {
       return new Response(
         JSON.stringify({ 
-          error: 'Must provide either "id" OR both "lead_name" and "project_name" OR "contact_id" to identify the lead' 
+          error: 'Must provide either "id" OR both "lead_name" and "project_name" OR "contact_id" OR "phone_number" to identify the lead' 
         }),
         { 
           status: 400, 
@@ -228,6 +228,19 @@ Deno.serve(async (req) => {
       }
     }
     
+    // Strategy 3a: Try by phone_number if previous strategies didn't work
+    if (!data && !error && phone_number) {
+      console.log('Attempting to find lead by phone number:', phone_number);
+      const result = await supabase.from('new_leads').update({
+        ...updateFields,
+        updated_at: new Date().toISOString()
+      }).eq('phone_number', phone_number).select().maybeSingle();
+      
+      data = result.data;
+      error = result.error;
+      identificationMethod = 'phone_number';
+    }
+    
     // Strategy 4: Try by lead_name + project_name if nothing else worked
     if (!data && !error && lead_name && project_name) {
       console.log('Attempting to find lead by name and project:', lead_name, project_name);
@@ -264,6 +277,7 @@ Deno.serve(async (req) => {
           attempted_methods: {
             id: !!id,
             contact_id: !!contact_id,
+            phone_number: !!phone_number,
             phone_fallback: !!(contact_id && updateFields.phone_number),
             name_and_project: !!(lead_name && project_name)
           }
