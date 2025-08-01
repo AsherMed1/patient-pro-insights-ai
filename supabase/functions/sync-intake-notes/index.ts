@@ -21,83 +21,22 @@ serve(async (req) => {
 
     console.log('Starting intake notes sync process...');
 
-    // Find appointments that don't have patient_intake_notes but have matching leads that do
-    const { data: appointmentsToSync, error: queryError } = await supabase
-      .from('all_appointments')
-      .select('id, lead_name, project_name, patient_intake_notes')
-      .is('patient_intake_notes', null)
-      .limit(50);
+    // Use a direct SQL approach to sync in one operation
+    const { data: syncResults, error: syncError } = await supabase.rpc('bulk_sync_patient_intake_notes');
 
-    if (queryError) {
-      console.error('Error fetching appointments:', queryError);
-      throw queryError;
+    if (syncError) {
+      console.error('Sync error:', syncError);
+      throw syncError;
     }
 
-    console.log(`Found ${appointmentsToSync?.length || 0} appointments without intake notes`);
-    console.log(`First few appointments:`, appointmentsToSync?.slice(0, 3)?.map(a => `${a.lead_name} (${a.project_name})`));
-
-    let syncCount = 0;
-    let updatePromises = [];
-
-    for (const appointment of appointmentsToSync || []) {
-      console.log(`Processing appointment: ${appointment.lead_name} - ${appointment.project_name}`);
-      
-      // Find matching lead with intake notes (exact match first, then case-insensitive)
-      const { data: matchingLeads, error: leadError } = await supabase
-        .from('new_leads')
-        .select('patient_intake_notes')
-        .eq('lead_name', appointment.lead_name)
-        .eq('project_name', appointment.project_name)
-        .not('patient_intake_notes', 'is', null)
-        .neq('patient_intake_notes', '')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (leadError) {
-        console.error(`Error fetching lead for ${appointment.lead_name}:`, leadError);
-        continue;
-      }
-
-      console.log(`Found ${matchingLeads?.length || 0} matching leads for ${appointment.lead_name}`);
-
-      if (matchingLeads && matchingLeads.length > 0) {
-        const leadNotes = matchingLeads[0].patient_intake_notes;
-        console.log(`Syncing notes for ${appointment.lead_name}... (notes length: ${leadNotes?.length})`);
-
-        // Update appointment with intake notes
-        const updatePromise = supabase
-          .from('all_appointments')
-          .update({ 
-            patient_intake_notes: leadNotes,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', appointment.id);
-
-        updatePromises.push(updatePromise);
-        syncCount++;
-
-        // Process in batches of 10 to avoid overwhelming the database
-        if (updatePromises.length >= 10) {
-          const results = await Promise.all(updatePromises);
-          console.log(`Processed batch of ${updatePromises.length} updates, results:`, results.map(r => r.error || 'success'));
-          updatePromises = [];
-        }
-      } else {
-        console.log(`No matching lead found for ${appointment.lead_name} in project ${appointment.project_name}`);
-      }
-    }
-
-    // Process remaining updates
-    if (updatePromises.length > 0) {
-      await Promise.all(updatePromises);
-    }
-
-    console.log(`Sync completed. Updated ${syncCount} appointments with intake notes.`);
+    console.log(`Sync completed. Updated ${syncResults?.length || 0} appointments with intake notes.`);
+    console.log('Sync details:', syncResults?.slice(0, 5));
 
     return new Response(JSON.stringify({ 
       success: true, 
-      syncedCount: syncCount,
-      message: `Successfully synced ${syncCount} appointment records with intake notes from leads`
+      syncedCount: syncResults?.length || 0,
+      message: `Successfully synced ${syncResults?.length || 0} appointment records with intake notes from leads`,
+      details: syncResults?.slice(0, 10) // Show first 10 synced records
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
