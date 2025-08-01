@@ -22,6 +22,9 @@ verify_jwt = false
 [functions.project-auth]
 verify_jwt = false
 
+[functions.debug-password]
+verify_jwt = false
+
 [functions.format-intake-ai]
 verify_jwt = false
 
