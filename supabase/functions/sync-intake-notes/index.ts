@@ -38,12 +38,12 @@ serve(async (req) => {
     let updatePromises = [];
 
     for (const appointment of appointmentsToSync || []) {
-      // Find matching lead with intake notes (case-insensitive)
+      // Find matching lead with intake notes (exact match first, then case-insensitive)
       const { data: matchingLeads, error: leadError } = await supabase
         .from('new_leads')
         .select('patient_intake_notes')
-        .ilike('lead_name', appointment.lead_name)
-        .ilike('project_name', appointment.project_name)
+        .eq('lead_name', appointment.lead_name)
+        .eq('project_name', appointment.project_name)
         .not('patient_intake_notes', 'is', null)
         .neq('patient_intake_notes', '')
         .order('created_at', { ascending: false })
