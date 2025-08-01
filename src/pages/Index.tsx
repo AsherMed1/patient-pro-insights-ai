@@ -17,6 +17,7 @@ import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 
 import UserManagement from "@/components/UserManagement";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
+import { BulkParseAllIntakeNotes } from "@/components/BulkParseAllIntakeNotes";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -144,6 +145,7 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
+            <BulkParseAllIntakeNotes />
             <MasterDatabaseStats />
             <CallCenterDashboard projectId="ALL" />
           </TabsContent>
