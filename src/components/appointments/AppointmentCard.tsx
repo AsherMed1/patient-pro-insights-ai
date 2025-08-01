@@ -243,6 +243,25 @@ const AppointmentCard = ({
             Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
             </div>}
 
+          {/* Insurance Information - Quick View */}
+          {(appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider) && (
+            <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-medium text-blue-700">Insurance:</span>
+                <span className="text-sm text-blue-800">
+                  {appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider}
+                  {(appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan) && 
+                    ` - ${appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan}`}
+                </span>
+              </div>
+              {(appointment.parsed_insurance_info?.id || appointment.detected_insurance_id) && (
+                <div className="text-xs text-blue-600 mt-1">
+                  ID: {appointment.parsed_insurance_info?.id || appointment.detected_insurance_id}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Patient Intake Notes - Collapsible */}
           {appointment.patient_intake_notes && (
             <Collapsible open={notesExpanded} onOpenChange={setNotesExpanded}>
