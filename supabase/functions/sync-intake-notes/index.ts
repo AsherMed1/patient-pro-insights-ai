@@ -25,7 +25,8 @@ serve(async (req) => {
     const { data: appointmentsToSync, error: queryError } = await supabase
       .from('all_appointments')
       .select('id, lead_name, project_name, patient_intake_notes')
-      .is('patient_intake_notes', null);
+      .is('patient_intake_notes', null)
+      .limit(50);
 
     if (queryError) {
       console.error('Error fetching appointments:', queryError);
@@ -33,6 +34,7 @@ serve(async (req) => {
     }
 
     console.log(`Found ${appointmentsToSync?.length || 0} appointments without intake notes`);
+    console.log(`First few appointments:`, appointmentsToSync?.slice(0, 3)?.map(a => `${a.lead_name} (${a.project_name})`));
 
     let syncCount = 0;
     let updatePromises = [];
