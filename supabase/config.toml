@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.send-team-message]
 verify_jwt = false
+
+[functions.auto-parse-intake-notes]
+verify_jwt = false

@@ -26,6 +26,11 @@ export interface AllAppointment {
   detected_insurance_plan: string | null;
   detected_insurance_id: string | null;
   insurance_detection_confidence: number | null;
+  parsed_insurance_info?: any;
+  parsed_pathology_info?: any;
+  parsed_contact_info?: any;
+  parsed_demographics?: any;
+  parsing_completed_at?: string | null;
 }
 
 export interface AllAppointmentsManagerProps {

@@ -16,12 +16,16 @@ import ProjectsManager from "@/components/ProjectsManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 
 import UserManagement from "@/components/UserManagement";
+import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const { user, signOut } = useAuth();
   const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
+  
+  // Initialize automatic intake notes parsing
+  useAutoIntakeParsing();
 
   // Redirect project users with single project access to project portal
   useEffect(() => {

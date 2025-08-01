@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
+import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -265,6 +266,15 @@ const AppointmentCard = ({
               </CollapsibleContent>
             </Collapsible>
           )}
+
+          {/* Parsed Intake Information */}
+          <ParsedIntakeInfo 
+            parsedInsuranceInfo={appointment.parsed_insurance_info}
+            parsedPathologyInfo={appointment.parsed_pathology_info}
+            parsedContactInfo={appointment.parsed_contact_info}
+            parsedDemographics={appointment.parsed_demographics}
+            className="mt-3"
+          />
 
           {/* Internal Notes */}
           <div className="space-y-2">
