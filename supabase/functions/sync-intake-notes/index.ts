@@ -38,6 +38,8 @@ serve(async (req) => {
     let updatePromises = [];
 
     for (const appointment of appointmentsToSync || []) {
+      console.log(`Processing appointment: ${appointment.lead_name} - ${appointment.project_name}`);
+      
       // Find matching lead with intake notes (exact match first, then case-insensitive)
       const { data: matchingLeads, error: leadError } = await supabase
         .from('new_leads')
@@ -54,9 +56,11 @@ serve(async (req) => {
         continue;
       }
 
+      console.log(`Found ${matchingLeads?.length || 0} matching leads for ${appointment.lead_name}`);
+
       if (matchingLeads && matchingLeads.length > 0) {
         const leadNotes = matchingLeads[0].patient_intake_notes;
-        console.log(`Syncing notes for ${appointment.lead_name}...`);
+        console.log(`Syncing notes for ${appointment.lead_name}... (notes length: ${leadNotes?.length})`);
 
         // Update appointment with intake notes
         const updatePromise = supabase
@@ -72,10 +76,12 @@ serve(async (req) => {
 
         // Process in batches of 10 to avoid overwhelming the database
         if (updatePromises.length >= 10) {
-          await Promise.all(updatePromises);
+          const results = await Promise.all(updatePromises);
+          console.log(`Processed batch of ${updatePromises.length} updates, results:`, results.map(r => r.error || 'success'));
           updatePromises = [];
-          console.log(`Processed batch of 10 updates...`);
         }
+      } else {
+        console.log(`No matching lead found for ${appointment.lead_name} in project ${appointment.project_name}`);
       }
     }
 
