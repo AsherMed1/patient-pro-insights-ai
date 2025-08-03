@@ -33,6 +33,7 @@ const AllAppointmentsManager = ({
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [searchTerm, setSearchTerm] = useState('');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -41,7 +42,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter, statusFilter]);
 
   useEffect(() => {
     fetchAppointments();
@@ -73,6 +74,11 @@ const AllAppointmentsManager = ({
       // Apply search filter
       if (searchTerm.trim()) {
         countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
+      }
+      
+      // Apply status filter
+      if (statusFilter !== 'ALL') {
+        countQuery = countQuery.eq('status', statusFilter);
       }
       
       // Apply tab-based filtering to count query
@@ -151,6 +157,11 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
       }
       
+      // Apply status filter
+      if (statusFilter !== 'ALL') {
+        appointmentsQuery = appointmentsQuery.eq('status', statusFilter);
+      }
+      
       if (activeTab === 'needs-review') {
         // Needs review: appointments where status is NOT set (needs attention)
         appointmentsQuery = appointmentsQuery
@@ -209,6 +220,11 @@ const AllAppointmentsManager = ({
         // Apply search filter
         if (searchTerm.trim()) {
           query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
+        }
+        
+        // Apply status filter
+        if (statusFilter !== 'ALL') {
+          query = query.eq('status', statusFilter);
         }
         
         return query;
@@ -351,9 +367,12 @@ const AllAppointmentsManager = ({
           setDateRange({ from: undefined, to: undefined });
           setSearchTerm('');
           setLocalProjectFilter('ALL');
+          setStatusFilter('ALL');
         }}
         projectFilter={localProjectFilter}
         onProjectFilterChange={setLocalProjectFilter}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
         onShowImport={() => setShowImport(true)}
         showImport={showImport}
       />

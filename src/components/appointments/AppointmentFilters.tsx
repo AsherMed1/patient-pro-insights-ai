@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2 } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle } from 'lucide-react';
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { statusOptions } from './utils';
 
 interface DateRange {
   from: Date | undefined;
@@ -25,6 +26,8 @@ interface AppointmentFiltersProps {
   showImport: boolean;
   projectFilter: string;
   onProjectFilterChange: (value: string) => void;
+  statusFilter: string;
+  onStatusFilterChange: (value: string) => void;
 }
 
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
@@ -36,7 +39,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onShowImport,
   showImport,
   projectFilter,
-  onProjectFilterChange
+  onProjectFilterChange,
+  statusFilter,
+  onStatusFilterChange
 }) => {
   const [projects, setProjects] = useState<string[]>([]);
   
@@ -146,6 +151,23 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                   {projects.map((project) => (
                     <SelectItem key={project} value={project}>
                       {project}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Statuses</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -263,6 +285,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 <>
                   <span>•</span>
                   <span>Project: "{projectFilter}"</span>
+                </>
+              )}
+              {statusFilter !== 'ALL' && (
+                <>
+                  <span>•</span>
+                  <span>Status: "{statusFilter}"</span>
                 </>
               )}
               {searchTerm && (
