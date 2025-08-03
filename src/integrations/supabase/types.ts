@@ -1206,6 +1206,16 @@ export type Database = {
         }
         Returns: string
       }
+      debug_password_verification: {
+        Args: { project_name_param: string; password_param: string }
+        Returns: {
+          project_found: boolean
+          has_password: boolean
+          password_hash: string
+          verification_result: boolean
+          debug_info: Json
+        }[]
+      }
       get_dashboard_data: {
         Args: {
           p_project_name?: string
