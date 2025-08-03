@@ -14,6 +14,7 @@ interface Project {
   custom_logo_url?: string;
   brand_primary_color?: string;
   brand_secondary_color?: string;
+  portal_password?: string | null;
 }
 
 const ProjectLogin = () => {
@@ -40,7 +41,7 @@ const ProjectLogin = () => {
       try {
         const { data, error } = await supabase
           .from('projects')
-          .select('id, project_name, custom_logo_url, brand_primary_color, brand_secondary_color')
+          .select('id, project_name, custom_logo_url, brand_primary_color, brand_secondary_color, portal_password')
           .eq('project_name', decodeURIComponent(projectName).trim())
           .eq('active', true)
           .single();
@@ -62,11 +63,15 @@ const ProjectLogin = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projectName || !password.trim()) return;
+    if (!projectName) return;
+    
+    // Only require password if project has one configured
+    const requiresPassword = project?.portal_password !== null;
+    if (requiresPassword && !password.trim()) return;
 
     setLoading(true);
     const decodedProjectName = decodeURIComponent(projectName).trim();
-    const result = await signIn(decodedProjectName, password);
+    const result = await signIn(decodedProjectName, requiresPassword ? password : '');
     
     if (result.success) {
       navigate(`/project/${projectName}`);
@@ -133,35 +138,40 @@ const ProjectLogin = () => {
               {project.project_name}
             </CardTitle>
             <CardDescription className="mt-2">
-              Enter your project password to access the portal
+              {project.portal_password ? 
+                'Enter your project password to access the portal' : 
+                'Click Sign In to access the portal'
+              }
             </CardDescription>
           </div>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password" className="flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                Project Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter project password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading || authLoading}
-              />
-            </div>
+            {project.portal_password && (
+              <div className="space-y-2">
+                <Label htmlFor="password" className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Project Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter project password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading || authLoading}
+                />
+              </div>
+            )}
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-3">
             <Button 
               type="submit" 
               className="w-full"
-              disabled={loading || authLoading || !password.trim()}
+              disabled={loading || authLoading || (project.portal_password && !password.trim())}
               style={{ 
                 backgroundColor: primaryColor,
                 borderColor: primaryColor
