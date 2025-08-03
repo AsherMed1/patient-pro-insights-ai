@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
+import InsuranceViewModal from '@/components/InsuranceViewModal';
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -55,6 +56,8 @@ const AppointmentCard = ({
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [showInsurance, setShowInsurance] = useState(false);
+  const [leadInsuranceData, setLeadInsuranceData] = useState<NewLead | null>(null);
   const {
     toast
   } = useToast();
@@ -183,6 +186,105 @@ const AppointmentCard = ({
       setLoadingLeadData(false);
     }
   };
+
+  const handleViewInsurance = async () => {
+    try {
+      setLoadingLeadData(true);
+      let leadRecord: NewLead | null = null;
+
+      // Use the same strategies as handleViewDetails to find the lead
+      if (appointment.lead_name && appointment.project_name) {
+        const { data: nameProjectResults, error: nameProjectError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('lead_name', appointment.lead_name)
+          .eq('project_name', appointment.project_name)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!nameProjectError && nameProjectResults && nameProjectResults.length > 0) {
+          leadRecord = nameProjectResults[0];
+        }
+      }
+
+      if (!leadRecord && appointment.lead_phone_number) {
+        const { data: phoneResults, error: phoneError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('phone_number', appointment.lead_phone_number)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!phoneError && phoneResults && phoneResults.length > 0) {
+          leadRecord = phoneResults[0];
+        }
+      }
+
+      if (!leadRecord && appointment.ghl_id) {
+        const { data: ghlResults, error: ghlError } = await supabase
+          .from('new_leads')
+          .select('*')
+          .eq('contact_id', appointment.ghl_id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!ghlError && ghlResults && ghlResults.length > 0) {
+          leadRecord = ghlResults[0];
+        }
+      }
+
+      if (leadRecord) {
+        setLeadInsuranceData(leadRecord);
+        setShowInsurance(true);
+      } else {
+        toast({
+          title: "No Insurance Information",
+          description: "No insurance information found for this appointment.",
+          variant: "default"
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching insurance details:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch insurance details",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingLeadData(false);
+    }
+  };
+
+  // Check if there's insurance info available (from appointment parsed data or lead data)
+  const hasInsuranceInfo = () => {
+    // Check appointment's parsed insurance info
+    const appointmentInsurance = appointment.parsed_insurance_info?.provider || 
+                                appointment.detected_insurance_provider ||
+                                appointment.parsed_insurance_info?.plan ||
+                                appointment.parsed_insurance_info?.id ||
+                                appointment.parsed_insurance_info?.group_number;
+    
+    return appointmentInsurance;
+  };
+
+  const getInsuranceData = () => {
+    if (leadInsuranceData) {
+      return {
+        insurance_provider: leadInsuranceData.insurance_provider,
+        insurance_plan: leadInsuranceData.insurance_plan,
+        insurance_id: leadInsuranceData.insurance_id,
+        group_number: leadInsuranceData.group_number
+      };
+    }
+    
+    // Fallback to appointment parsed data
+    return {
+      insurance_provider: appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider,
+      insurance_plan: appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
+      insurance_id: appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
+      group_number: appointment.parsed_insurance_info?.group_number
+    };
+  };
   return <>
       <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
         <div className="space-y-2">
@@ -192,10 +294,25 @@ const AppointmentCard = ({
               <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
             </div>
-            <Button variant="outline" size="sm" onClick={handleViewDetails} disabled={loadingLeadData} className="ml-2 flex items-center space-x-1">
-              <Info className="h-3 w-3" />
-              <span className="hidden sm:inline">View Details</span>
-            </Button>
+            <div className="flex flex-col items-end space-y-1 ml-2">
+              <Button variant="outline" size="sm" onClick={handleViewDetails} disabled={loadingLeadData} className="flex items-center space-x-1">
+                <Info className="h-3 w-3" />
+                <span className="hidden sm:inline">View Details</span>
+              </Button>
+              {hasInsuranceInfo() && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleViewInsurance}
+                  disabled={loadingLeadData}
+                  className="flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                >
+                  <Shield className="h-3 w-3 text-blue-600" />
+                  <span className="text-blue-600 hidden sm:inline">View Insurance</span>
+                  <span className="text-blue-600 sm:hidden">Insurance</span>
+                </Button>
+              )}
+            </div>
           </div>
           
           {/* Project Name */}
@@ -350,6 +467,14 @@ const AppointmentCard = ({
       </div>
 
       <LeadDetailsModal isOpen={showLeadDetails} onClose={() => setShowLeadDetails(false)} lead={leadData} />
+      
+      <InsuranceViewModal
+        isOpen={showInsurance}
+        onClose={() => setShowInsurance(false)}
+        insuranceInfo={getInsuranceData()}
+        patientName={appointment.lead_name}
+        patientPhone={appointment.lead_phone_number}
+      />
     </>;
 };
 export default AppointmentCard;
