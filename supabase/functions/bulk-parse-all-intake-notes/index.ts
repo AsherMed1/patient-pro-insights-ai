@@ -74,10 +74,10 @@ serve(async (req) => {
 Parse the following patient intake notes and return a JSON object with these exact fields:
 {
   "insurance_info": {
-    "provider": "string or null",
-    "plan": "string or null", 
-    "id": "string or null",
-    "group_number": "string or null"
+    "insurance_provider": "string or null",
+    "insurance_plan": "string or null", 
+    "insurance_id_number": "string or null",
+    "insurance_group_number": "string or null"
   },
   "contact_info": {
     "name": "string or null",
