@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +58,7 @@ const AppointmentCard = ({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [showInsurance, setShowInsurance] = useState(false);
   const [leadInsuranceData, setLeadInsuranceData] = useState<NewLead | null>(null);
+  const [hasLeadInsurance, setHasLeadInsurance] = useState(false);
   const {
     toast
   } = useToast();
@@ -86,6 +87,72 @@ const AppointmentCard = ({
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     }
   };
+
+  // Check for lead insurance information on component mount
+  useEffect(() => {
+    const checkLeadInsurance = async () => {
+      try {
+        let leadRecord: NewLead | null = null;
+
+        // Strategy 1: Match by lead_name and project_name
+        if (appointment.lead_name && appointment.project_name) {
+          const { data: nameProjectResults, error: nameProjectError } = await supabase
+            .from('new_leads')
+            .select('insurance_provider, insurance_plan, insurance_id, group_number')
+            .eq('lead_name', appointment.lead_name)
+            .eq('project_name', appointment.project_name)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (!nameProjectError && nameProjectResults && nameProjectResults.length > 0) {
+            leadRecord = nameProjectResults[0] as NewLead;
+          }
+        }
+
+        // Strategy 2: Try phone number if name+project didn't work
+        if (!leadRecord && appointment.lead_phone_number) {
+          const { data: phoneResults, error: phoneError } = await supabase
+            .from('new_leads')
+            .select('insurance_provider, insurance_plan, insurance_id, group_number')
+            .eq('phone_number', appointment.lead_phone_number)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (!phoneError && phoneResults && phoneResults.length > 0) {
+            leadRecord = phoneResults[0] as NewLead;
+          }
+        }
+
+        // Strategy 3: Try GHL ID
+        if (!leadRecord && appointment.ghl_id) {
+          const { data: ghlResults, error: ghlError } = await supabase
+            .from('new_leads')
+            .select('insurance_provider, insurance_plan, insurance_id, group_number')
+            .eq('contact_id', appointment.ghl_id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (!ghlError && ghlResults && ghlResults.length > 0) {
+            leadRecord = ghlResults[0] as NewLead;
+          }
+        }
+
+        // Check if lead has insurance info
+        if (leadRecord) {
+          const hasInsurance = leadRecord.insurance_provider || 
+                              leadRecord.insurance_plan || 
+                              leadRecord.insurance_id || 
+                              leadRecord.group_number;
+          setHasLeadInsurance(!!hasInsurance);
+          console.log('Lead insurance check:', { leadRecord, hasInsurance });
+        }
+      } catch (error) {
+        console.error('Error checking lead insurance:', error);
+      }
+    };
+
+    checkLeadInsurance();
+  }, [appointment.lead_name, appointment.project_name, appointment.lead_phone_number, appointment.ghl_id]);
   const handleViewDetails = async () => {
     try {
       setLoadingLeadData(true);
@@ -257,14 +324,15 @@ const AppointmentCard = ({
 
   // Check if there's insurance info available (from appointment parsed data or lead data)
   const hasInsuranceInfo = () => {
-    // Check appointment's parsed insurance info
+    // Check appointment's parsed insurance info first
     const appointmentInsurance = appointment.parsed_insurance_info?.provider || 
                                 appointment.detected_insurance_provider ||
                                 appointment.parsed_insurance_info?.plan ||
                                 appointment.parsed_insurance_info?.id ||
                                 appointment.parsed_insurance_info?.group_number;
     
-    return appointmentInsurance;
+    // Also check if we found lead insurance data
+    return appointmentInsurance || hasLeadInsurance;
   };
 
   const getInsuranceData = () => {
