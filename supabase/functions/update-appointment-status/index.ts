@@ -86,6 +86,18 @@ serve(async (req) => {
     // Build the update data object with only valid fields
     const updateData: any = {}
     
+    // Status normalization mapping for case-insensitive input
+    const statusNormalization: Record<string, string> = {
+      'confirmed': 'Confirmed',
+      'cancelled': 'Cancelled', 
+      'canceled': 'Cancelled', // Handle both spellings
+      'no show': 'No Show',
+      'noshow': 'No Show',
+      'showed': 'Showed',
+      'attended': 'Showed', // Alternative for showed
+      'pending': 'Pending'
+    }
+    
     // Allow updating these status fields
     if (body.showed !== undefined) updateData.showed = body.showed
     if (body.confirmed !== undefined) updateData.confirmed = body.confirmed
@@ -95,7 +107,12 @@ serve(async (req) => {
     if (body.stage_booked !== undefined) updateData.stage_booked = body.stage_booked
     if (body.date_of_appointment !== undefined) updateData.date_of_appointment = body.date_of_appointment
     if (body.requested_time !== undefined) updateData.requested_time = body.requested_time
-    if (body.status !== undefined) updateData.status = body.status
+    if (body.status !== undefined) {
+      // Normalize status to proper capitalization
+      const normalizedStatus = statusNormalization[body.status.toLowerCase()] || body.status
+      updateData.status = normalizedStatus
+      console.log(`Status normalized: "${body.status}" -> "${normalizedStatus}"`)
+    }
     if (body.procedure_ordered !== undefined) updateData.procedure_ordered = body.procedure_ordered
 
     // Always update the updated_at timestamp
