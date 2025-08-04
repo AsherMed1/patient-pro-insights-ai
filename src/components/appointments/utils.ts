@@ -117,10 +117,7 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         }
         return futureResult;
       case 'past':
-        return isBothComplete || 
-               (isInPast && 
-                appointment.status && 
-                completedStatuses.includes(appointment.status));
+        return isBothComplete;
       case 'needs-review':
         return !isBothComplete && 
                (isInPast && 
