@@ -428,6 +428,12 @@ const AppointmentCard = ({
             Agent: {appointment.agent} {appointment.agent_number && `(${appointment.agent_number})`}
             </div>}
 
+          {/* Status */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Status:</span>
+            <Badge variant={appointmentStatus.variant}>{appointmentStatus.text}</Badge>
+          </div>
+
           {/* Insurance Information - Quick View */}
           {(() => {
             console.log('AppointmentCard - appointment.parsed_insurance_info:', appointment.parsed_insurance_info);
