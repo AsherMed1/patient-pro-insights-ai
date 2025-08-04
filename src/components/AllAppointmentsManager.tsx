@@ -34,6 +34,7 @@ const AllAppointmentsManager = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState<'date' | 'procedure_ordered'>('date');
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -42,7 +43,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter, statusFilter]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter, statusFilter, sortBy]);
 
   useEffect(() => {
     fetchAppointments();
@@ -139,7 +140,10 @@ const AllAppointmentsManager = ({
           detected_insurance_id,
           insurance_detection_confidence
         `)
-        .order('date_appointment_created', { ascending: false });
+        .order(
+          sortBy === 'procedure_ordered' ? 'procedure_ordered' : 'date_appointment_created', 
+          { ascending: false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
+        );
 
       // Apply the same filters to the data query
       if (activeProjectFilter) {
@@ -386,6 +390,7 @@ const AllAppointmentsManager = ({
           setSearchTerm('');
           setLocalProjectFilter('ALL');
           setStatusFilter('ALL');
+          setSortBy('date');
         }}
         projectFilter={localProjectFilter}
         onProjectFilterChange={setLocalProjectFilter}
@@ -393,6 +398,8 @@ const AllAppointmentsManager = ({
         onStatusFilterChange={setStatusFilter}
         onShowImport={() => setShowImport(true)}
         showImport={showImport}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
       />
 
       {/* CSV Import Component */}

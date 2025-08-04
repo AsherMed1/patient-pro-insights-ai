@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown } from 'lucide-react';
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,6 +28,8 @@ interface AppointmentFiltersProps {
   onProjectFilterChange: (value: string) => void;
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
+  sortBy: 'date' | 'procedure_ordered';
+  onSortChange: (value: 'date' | 'procedure_ordered') => void;
 }
 
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
@@ -41,7 +43,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   projectFilter,
   onProjectFilterChange,
   statusFilter,
-  onStatusFilterChange
+  onStatusFilterChange,
+  sortBy,
+  onSortChange
 }) => {
   const [projects, setProjects] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
@@ -177,6 +181,19 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                       {status}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+              <Select value={sortBy} onValueChange={onSortChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Sort by Date</SelectItem>
+                  <SelectItem value="procedure_ordered">Sort by Procedure Status</SelectItem>
                 </SelectContent>
               </Select>
             </div>
