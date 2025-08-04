@@ -274,7 +274,7 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
-      // Automatically set procedure_ordered to true when status is "Won"
+      // Automatically set procedure_ordered based on status
       const updateData: any = {
         status,
         showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
@@ -283,6 +283,8 @@ const AllAppointmentsManager = ({
       
       if (status === 'Won') {
         updateData.procedure_ordered = true;
+      } else if (status === 'Cancelled' || status === 'No Show') {
+        updateData.procedure_ordered = false;
       }
       
       const { error } = await supabase
@@ -298,7 +300,7 @@ const AllAppointmentsManager = ({
               ...appointment,
               status,
               showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
-              procedure_ordered: status === 'Won' ? true : appointment.procedure_ordered
+              procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show') ? false : appointment.procedure_ordered
             }
           : appointment
       ));
