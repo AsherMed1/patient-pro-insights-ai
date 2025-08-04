@@ -13,8 +13,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 204 96% 27%;
     --primary-foreground: 210 40% 98%;
+    --primary-glow: 204 86% 45%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -22,32 +23,34 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 204 96% 27%;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 204 96% 27%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Brand gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(204 96% 27%), hsl(204 86% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(204 96% 27% / 0.95), hsl(204 86% 45% / 0.9));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 40% 98%));
+
+    /* Shadows */
+    --shadow-brand: 0 10px 40px -15px hsl(204 96% 27% / 0.3);
+    --shadow-card: 0 4px 20px -8px hsl(222.2 84% 4.9% / 0.1);
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -101,6 +104,49 @@
 }
 
 @layer components {
+  /* Auth Page Brand Styling */
+  .auth-container {
+    @apply min-h-screen flex;
+  }
+  
+  .auth-hero {
+    @apply hidden lg:flex lg:w-1/2 relative overflow-hidden;
+    background: var(--gradient-primary);
+  }
+  
+  .auth-hero-content {
+    @apply absolute inset-0 flex flex-col justify-center items-center text-white p-12 z-10;
+  }
+  
+  .auth-hero-overlay {
+    @apply absolute inset-0 bg-black/20;
+  }
+  
+  .auth-form-section {
+    @apply w-full lg:w-1/2 flex flex-col justify-center px-8 lg:px-16 py-12;
+    background: var(--gradient-card);
+  }
+  
+  .auth-card {
+    @apply w-full max-w-md mx-auto space-y-8;
+  }
+  
+  .auth-brand-card {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20 shadow-2xl;
+    box-shadow: var(--shadow-brand);
+  }
+  
+  .brand-button {
+    @apply relative overflow-hidden transition-all duration-300 hover:scale-105;
+    background: var(--gradient-primary);
+    box-shadow: var(--shadow-brand);
+  }
+  
+  .brand-button:hover {
+    @apply shadow-lg;
+    box-shadow: 0 20px 60px -15px hsl(204 96% 27% / 0.4);
+  }
+
   /* Medical Portal Visual Enhancements */
   .portal-section {
     @apply bg-card rounded-lg border border-border/50 p-6 shadow-sm;
