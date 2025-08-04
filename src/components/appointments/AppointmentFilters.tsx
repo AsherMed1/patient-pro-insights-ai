@@ -10,12 +10,10 @@ import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getStatusOptions } from './utils';
-
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
 }
-
 interface AppointmentFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
@@ -31,7 +29,6 @@ interface AppointmentFiltersProps {
   sortBy: 'date' | 'procedure_ordered';
   onSortChange: (value: 'date' | 'procedure_ordered') => void;
 }
-
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   searchTerm,
   onSearchChange,
@@ -49,19 +46,15 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
 }) => {
   const [projects, setProjects] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
-  
   useEffect(() => {
     fetchProjects();
     fetchStatusOptions();
   }, []);
-
   const fetchProjects = async () => {
     try {
-      const { data } = await supabase
-        .from('all_appointments')
-        .select('project_name')
-        .not('project_name', 'is', null);
-      
+      const {
+        data
+      } = await supabase.from('all_appointments').select('project_name').not('project_name', 'is', null);
       if (data) {
         const uniqueProjects = [...new Set(data.map(item => item.project_name))].sort();
         setProjects(uniqueProjects);
@@ -70,7 +63,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       console.error('Error fetching projects:', error);
     }
   };
-
   const fetchStatusOptions = async () => {
     const statuses = await getStatusOptions();
     setStatusOptions(statuses);
@@ -91,45 +83,44 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     }
     return 'Select date range';
   };
-
   const setQuickDateRange = (type: 'today' | 'week' | 'month') => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
     switch (type) {
       case 'today':
-        onDateRangeChange({ from: today, to: today });
+        onDateRangeChange({
+          from: today,
+          to: today
+        });
         break;
       case 'week':
-        onDateRangeChange({ from: startOfWeek(today), to: today });
+        onDateRangeChange({
+          from: startOfWeek(today),
+          to: today
+        });
         break;
       case 'month':
-        onDateRangeChange({ from: startOfMonth(today), to: today });
+        onDateRangeChange({
+          from: startOfMonth(today),
+          to: today
+        });
         break;
     }
   };
-
-  return (
-    <div className="portal-spacing">
+  return <div className="portal-spacing">
       {/* Admin Actions - Import CSV */}
-      {!showImport && (
-        <div className="portal-section">
+      {!showImport && <div className="portal-section">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-foreground">Data Management</h3>
               <p className="text-sm text-muted-foreground">Import historical appointment data</p>
             </div>
-            <Button 
-              onClick={onShowImport}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
+            <Button onClick={onShowImport} variant="outline" className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
               Import CSV
             </Button>
           </div>
-        </div>
-      )}
+        </div>}
 
       {/* Search and Filter Panel */}
       <div className="portal-section">
@@ -143,30 +134,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-3">
               <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by patient name..."
-                value={searchTerm}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="max-w-sm"
-              />
+              <Input placeholder="Search by patient name..." value={searchTerm} onChange={e => onSearchChange(e.target.value)} className="max-w-sm" />
             </div>
             
-            <div className="flex items-center space-x-3">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <Select value={projectFilter} onValueChange={onProjectFilterChange}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Projects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Projects</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project} value={project}>
-                      {project}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            
             
             <div className="flex items-center space-x-3">
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -176,11 +147,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Statuses</SelectItem>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status}>
+                  {statusOptions.map(status => <SelectItem key={status} value={status}>
                       {status}
-                    </SelectItem>
-                  ))}
+                    </SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -206,30 +175,15 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               <span className="text-sm font-medium text-foreground">Quick Filters:</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setQuickDateRange('today')}
-                className="quick-filter-btn"
-              >
+              <Button variant="outline" size="sm" onClick={() => setQuickDateRange('today')} className="quick-filter-btn">
                 <Clock className="h-3 w-3 mr-1" />
                 Today
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setQuickDateRange('week')}
-                className="quick-filter-btn"
-              >
+              <Button variant="outline" size="sm" onClick={() => setQuickDateRange('week')} className="quick-filter-btn">
                 <CalendarRange className="h-3 w-3 mr-1" />
                 This Week
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setQuickDateRange('month')}
-                className="quick-filter-btn"
-              >
+              <Button variant="outline" size="sm" onClick={() => setQuickDateRange('month')} className="quick-filter-btn">
                 <CalendarIcon className="h-3 w-3 mr-1" />
                 This Month
               </Button>
@@ -246,57 +200,35 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             <div className="flex flex-wrap gap-3 items-center">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-[140px] justify-start text-left font-normal",
-                      !dateRange.from && "text-muted-foreground"
-                    )}
-                  >
+                  <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateRange.from}
-                    onSelect={(date) => onDateRangeChange({ ...dateRange, from: date })}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={dateRange.from} onSelect={date => onDateRangeChange({
+                  ...dateRange,
+                  from: date
+                })} initialFocus className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
 
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-[140px] justify-start text-left font-normal",
-                      !dateRange.to && "text-muted-foreground"
-                    )}
-                  >
+                  <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateRange.to}
-                    onSelect={(date) => onDateRangeChange({ ...dateRange, to: date })}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={dateRange.to} onSelect={date => onDateRangeChange({
+                  ...dateRange,
+                  to: date
+                })} initialFocus className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
 
-              <Button 
-                variant="outline" 
-                onClick={onClearFilters}
-                className="text-sm"
-              >
+              <Button variant="outline" onClick={onClearFilters} className="text-sm">
                 Clear All
               </Button>
             </div>
@@ -305,28 +237,21 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Showing:</span>
               <span className="font-medium">{getDateRangeText()}</span>
-              {projectFilter !== 'ALL' && (
-                <>
+              {projectFilter !== 'ALL' && <>
                   <span>•</span>
                   <span>Project: "{projectFilter}"</span>
-                </>
-              )}
-              {statusFilter !== 'ALL' && (
-                <>
+                </>}
+              {statusFilter !== 'ALL' && <>
                   <span>•</span>
                   <span>Status: "{statusFilter}"</span>
-                </>
-              )}
-              {searchTerm && (
-                <>
+                </>}
+              {searchTerm && <>
                   <span>•</span>
                   <span>Search: "{searchTerm}"</span>
-                </>
-              )}
+                </>}
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
