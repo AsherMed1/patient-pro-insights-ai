@@ -19,6 +19,9 @@ verify_jwt = false
 [functions.update-lead-api]
 verify_jwt = false
 
+[functions.debug-user-deletion]
+verify_jwt = false
+
 [functions.debug-password]
 verify_jwt = false
 

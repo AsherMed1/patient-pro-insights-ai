@@ -172,6 +172,41 @@ const UserManagement = () => {
     }
   };
 
+  const debugUserDeletion = async (userId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('debug-user-deletion', {
+        body: { userId }
+      });
+
+      if (error) {
+        console.error('Debug error:', error);
+        toast({
+          title: "Debug Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Debug result:', data);
+      toast({
+        title: "Debug Complete",
+        description: `Status: ${data.status}`,
+      });
+
+      if (data.success && data.status === 'auth_user_deleted') {
+        fetchUsers(true); // Refresh the user list
+      }
+    } catch (error: any) {
+      console.error('Debug error:', error);
+      toast({
+        title: "Debug Error", 
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const fetchProjects = async () => {
     try {
       const { data, error } = await supabase
@@ -482,6 +517,9 @@ const UserManagement = () => {
           <div className="flex justify-between items-center">
             <CardTitle>User Management ({users.length} users)</CardTitle>
             <div className="space-x-2">
+              <Button onClick={() => debugUserDeletion('87063d02-7d29-4d3d-99af-edba76a02db2')}>
+                Debug Trevor User
+              </Button>
               <Button 
                 onClick={() => fetchUsers(true)} 
                 variant="outline"
