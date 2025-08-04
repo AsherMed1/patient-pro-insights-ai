@@ -172,40 +172,6 @@ const UserManagement = () => {
     }
   };
 
-  const debugUserDeletion = async (userId: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('debug-user-deletion', {
-        body: { userId }
-      });
-
-      if (error) {
-        console.error('Debug error:', error);
-        toast({
-          title: "Debug Error",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log('Debug result:', data);
-      toast({
-        title: "Debug Complete",
-        description: `Status: ${data.status}`,
-      });
-
-      if (data.success && data.status === 'auth_user_deleted') {
-        fetchUsers(true); // Refresh the user list
-      }
-    } catch (error: any) {
-      console.error('Debug error:', error);
-      toast({
-        title: "Debug Error", 
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
 
   const fetchProjects = async () => {
     try {
@@ -301,82 +267,6 @@ const UserManagement = () => {
     }
   };
 
-  const createDummyAccounts = async () => {
-    const dummyUsers = [
-      {
-        email: 'admin@example.com',
-        password: 'admin123',
-        fullName: 'Admin User',
-        role: 'admin' as UserRole
-      },
-      {
-        email: 'agent@example.com',
-        password: 'agent123',
-        fullName: 'Agent User',
-        role: 'agent' as UserRole
-      },
-      {
-        email: 'projectuser@example.com',
-        password: 'project123',
-        fullName: 'Project User',
-        role: 'project_user' as UserRole
-      }
-    ];
-
-    for (const user of dummyUsers) {
-      try {
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: user.email,
-          password: user.password,
-          user_metadata: {
-            full_name: user.fullName
-          },
-          email_confirm: true
-        });
-
-        if (authError) {
-          console.error(`Error creating ${user.email}:`, authError);
-          continue;
-        }
-
-        if (authData.user) {
-          const { error: roleError } = await supabase
-            .from('user_roles')
-            .insert({
-              user_id: authData.user.id,
-              role: user.role
-            });
-
-          if (roleError) {
-            console.error(`Error assigning role to ${user.email}:`, roleError);
-          }
-
-          // If project user, assign to first project
-          if (user.role === 'project_user' && projects.length > 0) {
-            const { error: accessError } = await supabase
-              .from('project_user_access')
-              .insert({
-                user_id: authData.user.id,
-                project_id: projects[0].id
-              });
-
-            if (accessError) {
-              console.error(`Error assigning project access to ${user.email}:`, accessError);
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`Error creating dummy user ${user.email}:`, error);
-      }
-    }
-
-    toast({
-      title: "Success",
-      description: "Dummy accounts created successfully",
-    });
-
-    fetchUsers(true);
-  };
 
   const startEdit = (user: User) => {
     setEditingUser(user);
@@ -517,9 +407,6 @@ const UserManagement = () => {
           <div className="flex justify-between items-center">
             <CardTitle>User Management ({users.length} users)</CardTitle>
             <div className="space-x-2">
-              <Button onClick={() => debugUserDeletion('87063d02-7d29-4d3d-99af-edba76a02db2')}>
-                Debug Trevor User
-              </Button>
               <Button 
                 onClick={() => fetchUsers(true)} 
                 variant="outline"
@@ -527,9 +414,6 @@ const UserManagement = () => {
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
-              </Button>
-              <Button onClick={createDummyAccounts} variant="outline">
-                Create Dummy Accounts
               </Button>
               <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
                 <DialogTrigger asChild>
