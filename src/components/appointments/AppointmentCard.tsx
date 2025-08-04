@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown } from 'lucide-react';
 import { AllAppointment } from './types';
-import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, statusOptions } from './utils';
+import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
@@ -59,6 +59,7 @@ const AppointmentCard = ({
   const [showInsurance, setShowInsurance] = useState(false);
   const [leadInsuranceData, setLeadInsuranceData] = useState<NewLead | null>(null);
   const [hasLeadInsurance, setHasLeadInsurance] = useState(false);
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const {
     toast
   } = useToast();
@@ -153,6 +154,16 @@ const AppointmentCard = ({
 
     checkLeadInsurance();
   }, [appointment.lead_name, appointment.project_name, appointment.lead_phone_number, appointment.ghl_id]);
+
+  // Fetch status options on component mount
+  useEffect(() => {
+    const fetchStatusOptions = async () => {
+      const statuses = await getStatusOptions();
+      setStatusOptions(statuses);
+    };
+    
+    fetchStatusOptions();
+  }, []);
   const handleViewDetails = async () => {
     try {
       setLoadingLeadData(true);

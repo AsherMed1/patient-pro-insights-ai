@@ -9,7 +9,7 @@ import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange,
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { statusOptions } from './utils';
+import { getStatusOptions } from './utils';
 
 interface DateRange {
   from: Date | undefined;
@@ -44,9 +44,11 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onStatusFilterChange
 }) => {
   const [projects, setProjects] = useState<string[]>([]);
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
   
   useEffect(() => {
     fetchProjects();
+    fetchStatusOptions();
   }, []);
 
   const fetchProjects = async () => {
@@ -63,6 +65,11 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     } catch (error) {
       console.error('Error fetching projects:', error);
     }
+  };
+
+  const fetchStatusOptions = async () => {
+    const statuses = await getStatusOptions();
+    setStatusOptions(statuses);
   };
   const getDateRangeText = () => {
     if (!dateRange.from && !dateRange.to) return 'All dates';

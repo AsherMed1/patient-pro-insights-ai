@@ -191,4 +191,26 @@ export const getProcedureOrderedVariant = (procedureOrdered: boolean | null) => 
   return 'secondary' as const;
 };
 
+// Function to fetch actual status options from the database
+export const getStatusOptions = async () => {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data } = await supabase
+      .from('all_appointments')
+      .select('status')
+      .not('status', 'is', null)
+      .neq('status', '');
+    
+    if (data) {
+      const uniqueStatuses = [...new Set(data.map(item => item.status))].sort();
+      return uniqueStatuses;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching status options:', error);
+    return [];
+  }
+};
+
+// Default status options for fallback
 export const statusOptions = ['New', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
