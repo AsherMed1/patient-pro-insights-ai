@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Shield, Users, BarChart } from 'lucide-react';
-import brandHeroImage from '@/assets/brand-hero.webp';
+import { Loader2, Users, BarChart } from 'lucide-react';
 
 const Auth = () => {
   const { user, loading, signIn, signUp } = useAuth();
@@ -64,16 +63,10 @@ const Auth = () => {
     <div className="auth-container">
       {/* Hero Section */}
       <div className="auth-hero">
-        <div className="auth-hero-overlay" />
-        <img 
-          src={brandHeroImage} 
-          alt="Brand Hero" 
-          className="absolute inset-0 w-full h-full object-cover"
-        />
         <div className="auth-hero-content">
           <div className="text-center space-y-8">
             <div className="space-y-4">
-              <Shield className="h-16 w-16 mx-auto text-white" />
+              <div className="text-6xl font-bold text-white">PatientPro</div>
               <h1 className="text-4xl font-bold">Welcome to PatientPro</h1>
               <p className="text-xl text-white/90 max-w-md">
                 Secure medical practice management platform designed for modern healthcare professionals
