@@ -35,9 +35,11 @@ const AppointmentsTabs = ({
 }: AppointmentsTabsProps) => {
   const isMobile = useIsMobile();
   
-  // Since appointments are now filtered at the database level, 
-  // we show all appointments for the active tab
-  const displayedAppointments = appointments;
+  // Filter out "new" status appointments when in project portal mode
+  // This allows updates to work while hiding them from display
+  const displayedAppointments = projectFilter 
+    ? appointments.filter(appointment => appointment.status !== 'new')
+    : appointments;
 
   // Use tabCounts if provided, otherwise fall back to current appointment count
   const displayCounts = tabCounts || {
