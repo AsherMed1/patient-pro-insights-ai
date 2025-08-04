@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 export const useProjectRedirect = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
     const checkAndRedirectUser = async () => {
-      // Prevent multiple redirects and only run once per session
-      if (!user || loading || isRedirecting || hasRedirected) return;
+      // Only run on auth page and prevent multiple redirects
+      if (!user || loading || isRedirecting || hasRedirected || location.pathname !== '/auth') return;
 
       try {
         setIsRedirecting(true);
@@ -95,7 +96,7 @@ export const useProjectRedirect = () => {
     };
 
     checkAndRedirectUser();
-  }, [user, loading, navigate, isRedirecting, hasRedirected]);
+  }, [user, loading, navigate, isRedirecting, hasRedirected, location.pathname]);
 
   return { isRedirecting };
 };
