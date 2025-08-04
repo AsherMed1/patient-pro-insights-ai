@@ -470,7 +470,7 @@ const AppointmentCard = ({
           )}
 
           {/* Patient Intake Notes - Collapsible */}
-          {appointment.patient_intake_notes && (
+          {(appointment.ai_summary || appointment.patient_intake_notes) && (
             <Collapsible open={notesExpanded} onOpenChange={setNotesExpanded}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="flex items-center justify-between w-full p-0 h-auto font-medium text-gray-700">
@@ -479,14 +479,21 @@ const AppointmentCard = ({
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
-                <div className="bg-blue-50 p-2 rounded-md border-l-4 border-blue-400">
-                  <span className="text-xs font-medium text-muted-foreground">Raw Notes:</span>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap mt-1">{appointment.patient_intake_notes}</p>
-                </div>
-                {appointment.ai_summary && (
+                {appointment.ai_summary ? (
                   <div className="bg-green-50 p-2 rounded-md border-l-4 border-green-400">
-                    <span className="text-xs font-medium text-muted-foreground">AI Formatted Summary:</span>
+                    <span className="text-xs font-medium text-muted-foreground">AI Formatted Notes:</span>
                     <div className="whitespace-pre-wrap text-sm text-gray-800 mt-1">{appointment.ai_summary}</div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 p-2 rounded-md border-l-4 border-yellow-400">
+                    <span className="text-xs font-medium text-muted-foreground">Raw Notes (Processing...):</span>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap mt-1">{appointment.patient_intake_notes}</p>
+                  </div>
+                )}
+                {appointment.ai_summary && appointment.patient_intake_notes && (
+                  <div className="bg-gray-50 p-2 rounded-md border-l-4 border-gray-400">
+                    <span className="text-xs font-medium text-muted-foreground">Original Raw Input:</span>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap mt-1">{appointment.patient_intake_notes}</p>
                   </div>
                 )}
               </CollapsibleContent>
