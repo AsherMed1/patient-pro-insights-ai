@@ -179,13 +179,17 @@ export const getStatusOptions = async () => {
       .neq('status', '');
     
     if (data) {
-      const uniqueStatuses = [...new Set(data.map(item => item.status))].sort();
-      return uniqueStatuses;
+      const dbStatuses = data.map(item => item.status);
+      // Merge database statuses with predefined options, ensuring all are available
+      const allStatuses = [...new Set([...dbStatuses, ...statusOptions])].sort();
+      return allStatuses;
     }
-    return [];
+    // Return predefined options if no database data
+    return statusOptions.sort();
   } catch (error) {
     console.error('Error fetching status options:', error);
-    return [];
+    // Return predefined options on error
+    return statusOptions.sort();
   }
 };
 
