@@ -34,9 +34,19 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState({
     email: '',
     password: '',
+    fullName: '',
+    role: 'project_user' as UserRole,
+    selectedProjectId: ''
+  });
+  const [editUser, setEditUser] = useState({
+    email: '',
     fullName: '',
     role: 'project_user' as UserRole,
     selectedProjectId: ''
@@ -317,6 +327,121 @@ const UserManagement = () => {
     fetchUsers(true);
   };
 
+  const startEdit = (user: User) => {
+    setEditingUser(user);
+    setEditUser({
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role || 'project_user',
+      selectedProjectId: ''
+    });
+    setShowEditDialog(true);
+  };
+
+  const updateUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      setLoading(true);
+
+      // Update profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          email: editUser.email,
+          full_name: editUser.fullName,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingUser.id);
+
+      if (profileError) throw profileError;
+
+      // Update role if changed
+      if (editUser.role !== editingUser.role) {
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .update({ role: editUser.role })
+          .eq('user_id', editingUser.id);
+
+        if (roleError) throw roleError;
+      }
+
+      toast({
+        title: "Success",
+        description: "User updated successfully",
+      });
+
+      setShowEditDialog(false);
+      setEditingUser(null);
+      fetchUsers(true);
+    } catch (error: any) {
+      console.error('Error updating user:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update user",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startDelete = (user: User) => {
+    setDeletingUser(user);
+    setShowDeleteDialog(true);
+  };
+
+  const deleteUser = async () => {
+    if (!deletingUser) return;
+
+    try {
+      setLoading(true);
+
+      // Delete from project_user_access first (foreign key constraints)
+      await supabase
+        .from('project_user_access')
+        .delete()
+        .eq('user_id', deletingUser.id);
+
+      // Delete from user_roles
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', deletingUser.id);
+
+      // Delete from profiles
+      await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', deletingUser.id);
+
+      // Delete from auth.users using admin client
+      const { error: authError } = await supabase.auth.admin.deleteUser(deletingUser.id);
+      if (authError) {
+        console.error('Error deleting auth user:', authError);
+        // Continue anyway as the user might already be deleted from auth
+      }
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+
+      setShowDeleteDialog(false);
+      setDeletingUser(null);
+      fetchUsers(true);
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete user",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
       case 'admin':
@@ -484,11 +609,11 @@ const UserManagement = () => {
                           userEmail={user.email} 
                         />
                       )}
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => startEdit(user)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="h-4 w-4" />
+                      <Button variant="outline" size="sm" onClick={() => startDelete(user)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </TableCell>
@@ -498,6 +623,80 @@ const UserManagement = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editEmail">Email</Label>
+              <Input
+                id="editEmail"
+                value={editUser.email}
+                onChange={(e) => setEditUser(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editFullName">Full Name</Label>
+              <Input
+                id="editFullName"
+                value={editUser.fullName}
+                onChange={(e) => setEditUser(prev => ({ ...prev, fullName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editRole">Role</Label>
+              <Select 
+                value={editUser.role} 
+                onValueChange={(value: UserRole) => setEditUser(prev => ({ ...prev, role: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="project_user">Project User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex space-x-2">
+              <Button onClick={updateUser} className="flex-1">
+                Update User
+              </Button>
+              <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>Are you sure you want to delete <strong>{deletingUser?.email}</strong>?</p>
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. This will permanently delete the user account and all associated data.
+            </p>
+            <div className="flex space-x-2">
+              <Button variant="destructive" onClick={deleteUser} className="flex-1">
+                Delete User
+              </Button>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ProjectPasswordManager />
     </div>
