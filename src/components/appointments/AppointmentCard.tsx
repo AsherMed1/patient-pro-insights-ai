@@ -509,8 +509,19 @@ const AppointmentCard = ({
 
           {/* Status and Procedure Badges - Responsive layout */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
-            
-            
+            {/* Completion Status Indicator */}
+            {projectFilter && (
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                appointment.status && appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined
+                  ? 'bg-green-100 text-green-800 border border-green-200'
+                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+              }`}>
+                {appointment.status && appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined
+                  ? '✓ Completed'
+                  : '⏳ Pending Completion'
+                }
+              </div>
+            )}
           </div>
 
           {/* Status Update Section - Better mobile layout */}
