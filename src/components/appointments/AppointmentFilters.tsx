@@ -144,6 +144,21 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             
             
             <div className="flex items-center space-x-3">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select value={projectFilter} onValueChange={onProjectFilterChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Projects</SelectItem>
+                  {projects.map(project => <SelectItem key={project} value={project}>
+                      {project}
+                    </SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center space-x-3">
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
               <Select value={statusFilter} onValueChange={onStatusFilterChange}>
                 <SelectTrigger className="w-[200px]">
