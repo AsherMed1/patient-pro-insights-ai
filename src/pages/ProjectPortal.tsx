@@ -127,8 +127,10 @@ const ProjectPortal = () => {
     try {
       let query = supabase
         .from('all_appointments')
-        .select('showed, procedure_ordered, date_appointment_created')
-        .eq('project_name', decodeURIComponent(projectName!));
+        .select('showed, procedure_ordered, date_appointment_created, status, date_of_appointment')
+        .eq('project_name', decodeURIComponent(projectName!))
+        // Only count appointments with non-null status that appear in the portal tabs
+        .not('status', 'is', null);
 
       // Apply date filter if range is selected
       if (dateRange.from) {
@@ -142,9 +144,34 @@ const ProjectPortal = () => {
       
       if (error) throw error;
       
-      const totalAppointments = data?.length || 0;
-      const totalShowed = data?.filter(apt => apt.showed === true).length || 0;
-      const totalProceduresOrdered = data?.filter(apt => apt.procedure_ordered === true).length || 0;
+      // Filter to only include appointments that would be visible in the portal tabs
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayString = today.toISOString().split('T')[0];
+      
+      const visibleAppointments = data?.filter(apt => {
+        const status = apt.status?.toLowerCase();
+        const appointmentDate = apt.date_of_appointment;
+        
+        // Include appointments that appear in any of the three tabs:
+        // 1. Needs Review: status = 'confirmed' AND date_of_appointment <= today
+        // 2. Future: status = 'confirmed' AND date_of_appointment > today  
+        // 3. Past: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
+        
+        if (status === 'confirmed') {
+          return true; // Will appear in either Needs Review or Future tab
+        }
+        
+        if (['cancelled', 'no show', 'noshow', 'showed', 'won'].includes(status) && apt.procedure_ordered !== null) {
+          return true; // Will appear in Past tab
+        }
+        
+        return false;
+      }) || [];
+      
+      const totalAppointments = visibleAppointments.length;
+      const totalShowed = visibleAppointments.filter(apt => apt.showed === true).length;
+      const totalProceduresOrdered = visibleAppointments.filter(apt => apt.procedure_ordered === true).length;
       const projectedRevenue = totalProceduresOrdered * 7000;
       
       setStats({

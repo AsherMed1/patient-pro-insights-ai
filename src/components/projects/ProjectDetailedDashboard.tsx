@@ -105,41 +105,64 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       const appointments = appointmentsResult.data;
       const calls = callsResult.data;
 
-      // Calculate stats
+      // Filter to only include appointments that would be visible in the portal tabs
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const visibleAppointments = appointments?.filter(apt => {
+        const status = apt.status?.toLowerCase();
+        
+        // Include appointments that appear in any of the three tabs:
+        // 1. Needs Review: status = 'confirmed' AND date_of_appointment <= today
+        // 2. Future: status = 'confirmed' AND date_of_appointment > today  
+        // 3. Past: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
+        
+        if (status === 'confirmed') {
+          return true; // Will appear in either Needs Review or Future tab
+        }
+        
+        if (['cancelled', 'no show', 'noshow', 'showed', 'won'].includes(status) && apt.procedure_ordered !== null) {
+          return true; // Will appear in Past tab
+        }
+        
+        return false;
+      }) || [];
+
+      // Calculate stats based on visible appointments only
       const newLeads = leads?.length || 0;
-      const bookedAppointments = appointments?.length || 0;
+      const bookedAppointments = visibleAppointments.length;
       
-      // Categorize by specific status values
-      const confirmedAppointments = appointments?.filter(apt => 
+      // Categorize by specific status values (using visible appointments only)
+      const confirmedAppointments = visibleAppointments.filter(apt => 
         apt.status?.toLowerCase() === 'confirmed'
-      ).length || 0;
+      ).length;
       
-      const showedAppointments = appointments?.filter(apt => 
+      const showedAppointments = visibleAppointments.filter(apt => 
         apt.status?.toLowerCase() === 'showed'
-      ).length || 0;
+      ).length;
       
-      const noShowAppointments = appointments?.filter(apt => 
+      const noShowAppointments = visibleAppointments.filter(apt => 
         apt.status?.toLowerCase() === 'no show'
-      ).length || 0;
+      ).length;
       
-      const cancelledAppointments = appointments?.filter(apt => 
+      const cancelledAppointments = visibleAppointments.filter(apt => 
         apt.status?.toLowerCase() === 'cancelled'
-      ).length || 0;
+      ).length;
       
-      const newAppointments = appointments?.filter(apt => 
+      const newAppointments = visibleAppointments.filter(apt => 
         apt.status === null || apt.status?.trim() === ''
-      ).length || 0;
+      ).length;
       
-      const rescheduledAppointments = appointments?.filter(apt => 
+      const rescheduledAppointments = visibleAppointments.filter(apt => 
         apt.status?.toLowerCase() === 'rescheduled'
-      ).length || 0;
+      ).length;
       
-      const wonAppointments = appointments?.filter(apt => 
+      const wonAppointments = visibleAppointments.filter(apt => 
         apt.status?.toLowerCase() === 'won'
-      ).length || 0;
-      const appointmentsToTakePlace = appointments?.filter(apt => 
+      ).length;
+      const appointmentsToTakePlace = visibleAppointments.filter(apt => 
         new Date(apt.date_of_appointment) >= new Date()
-      ).length || 0;
+      ).length;
       
       const outboundDials = calls?.filter(call => call.direction === 'outbound').length || 0;
       const pickups40Plus = calls?.filter(call => 
