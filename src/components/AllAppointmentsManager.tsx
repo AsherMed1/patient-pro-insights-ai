@@ -102,23 +102,23 @@ const AllAppointmentsManager = ({
       if (activeTab === 'needs-review') {
         // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
         if (activeProjectFilter) {
-          // Project-specific view: only confirmed appointments
+          // Project-specific view: only confirmed appointments (case-insensitive)
           countQuery = countQuery
-            .eq('status', 'confirmed')
+            .ilike('status', 'confirmed')
             .lte('date_of_appointment', todayString);
         } else {
           // Main analytics view: include null status appointments OR confirmed appointments for today/past
-          countQuery = countQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+          countQuery = countQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString})`);
         }
       } else if (activeTab === 'future') {
-        // Upcoming: confirmed appointments in the future
+        // Upcoming: confirmed appointments in the future (case-insensitive)
         countQuery = countQuery
-          .eq('status', 'confirmed')
+          .ilike('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: appointments with final status and procedure order set
+        // Completed: appointments with final status and procedure order set (case-insensitive)
         countQuery = countQuery
-          .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
           .not('procedure_ordered', 'is', null);
       }
 
@@ -201,23 +201,23 @@ const AllAppointmentsManager = ({
       if (activeTab === 'needs-review') {
         // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
         if (activeProjectFilter) {
-          // Project-specific view: only confirmed appointments
+          // Project-specific view: only confirmed appointments (case-insensitive)
           appointmentsQuery = appointmentsQuery
-            .eq('status', 'confirmed')
+            .ilike('status', 'confirmed')
             .lte('date_of_appointment', todayString);
         } else {
           // Main analytics view: include null status appointments OR confirmed appointments for today/past
-          appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+          appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString})`);
         }
       } else if (activeTab === 'future') {
-        // Upcoming: confirmed appointments in the future
+        // Upcoming: confirmed appointments in the future (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .eq('status', 'confirmed')
+          .ilike('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: appointments with final status and procedure order set
+        // Completed: appointments with final status and procedure order set (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
           .not('procedure_ordered', 'is', null);
       }
       
@@ -294,23 +294,23 @@ const AllAppointmentsManager = ({
       const needsReviewQuery = getBaseQuery();
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
       if (activeProjectFilter) {
-        // Project-specific view: only confirmed appointments
+        // Project-specific view: only confirmed appointments (case-insensitive)
         needsReviewQuery
-          .eq('status', 'confirmed')
+          .ilike('status', 'confirmed')
           .lte('date_of_appointment', todayString);
       } else {
         // Main analytics view: include null status appointments OR confirmed appointments for today/past
-        needsReviewQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+        needsReviewQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString})`);
       }
 
-      // Upcoming: status = 'confirmed' AND date_of_appointment > today
+      // Upcoming: confirmed appointments in the future (case-insensitive)
       const futureQuery = getBaseQuery()
-        .eq('status', 'confirmed')
+        .ilike('status', 'confirmed')
         .gt('date_of_appointment', todayString);
 
-      // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
+      // Completed: appointments with final status and procedure order set (case-insensitive)
       const pastQuery = getBaseQuery()
-        .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
         .not('procedure_ordered', 'is', null);
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
