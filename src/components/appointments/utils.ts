@@ -82,7 +82,7 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
-  const completedStatuses = ['Cancelled', 'No Show', 'Showed', 'Won'];
+  const completedStatuses = ['cancelled', 'no show', 'noshow', 'showed', 'won'];
   
   return appointments.filter(appointment => {
     const normalizedStatus = appointment.status?.trim().toLowerCase();
@@ -97,12 +97,9 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         // Upcoming: status = 'confirmed' AND date_of_appointment > today
         return normalizedStatus === 'confirmed' && isInFuture;
       case 'past':
-        // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
+        // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
         const isCompletedStatus = appointment.status && 
-          completedStatuses.some(status => 
-            status.toLowerCase() === normalizedStatus || 
-            (status === 'No Show' && normalizedStatus === 'noshow')
-          );
+          completedStatuses.includes(normalizedStatus);
         const hasProcedureDecision = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
         return isCompletedStatus && hasProcedureDecision;
       default:
