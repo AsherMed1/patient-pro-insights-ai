@@ -277,18 +277,20 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
-      // Automatically set procedure_ordered based on status
+      // Set status and attendance fields, but leave procedure_ordered independent for "Showed" status
       const updateData: any = {
         status,
         showed: status === 'Showed' ? true : (status === 'No Show' || status.toLowerCase() === 'noshow') ? false : null,
         updated_at: new Date().toISOString()
       };
       
+      // Only automatically set procedure_ordered for specific statuses
       if (status === 'Won') {
         updateData.procedure_ordered = true;
       } else if (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') {
         updateData.procedure_ordered = false;
       }
+      // Note: "Showed" status does NOT automatically set procedure_ordered - it should be set independently
       
       const { error } = await supabase
         .from('all_appointments')
@@ -303,6 +305,7 @@ const AllAppointmentsManager = ({
               ...appointment,
               status,
               showed: status === 'Showed' ? true : (status === 'No Show' || status.toLowerCase() === 'noshow') ? false : null,
+              // Only update procedure_ordered for specific statuses, leave unchanged for "Showed"
               procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') ? false : appointment.procedure_ordered
             }
           : appointment
