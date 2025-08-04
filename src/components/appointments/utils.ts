@@ -82,46 +82,29 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
-  const completedStatuses = ['Cancelled', 'No Show', 'Won', 'Lost'];
+  const completedStatuses = ['Cancelled', 'No Show', 'Showed', 'Won'];
   
   return appointments.filter(appointment => {
-    // Check if both status and procedure_ordered are completed
-    const isStatusComplete = appointment.status && appointment.status.trim() !== '';
-    const isProcedureComplete = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
-    const isBothComplete = isStatusComplete && isProcedureComplete;
-    
+    const normalizedStatus = appointment.status?.trim().toLowerCase();
     const isInPast = isAppointmentInPast(appointment.date_of_appointment);
     const isInFuture = isAppointmentInFuture(appointment.date_of_appointment);
     
-    // Debug logging for Wendy Chavis case
-    if (appointment.lead_name && appointment.lead_name.includes('Wendy')) {
-      console.log('DEBUG: Wendy Chavis appointment filtering:', {
-        lead_name: appointment.lead_name,
-        date_of_appointment: appointment.date_of_appointment,
-        status: appointment.status,
-        procedure_ordered: appointment.procedure_ordered,
-        filterType,
-        isStatusComplete,
-        isProcedureComplete,
-        isBothComplete,
-        isInPast,
-        isInFuture
-      });
-    }
-    
     switch (filterType) {
-      case 'future':
-        const futureResult = isInFuture && !isBothComplete;
-        if (appointment.lead_name && appointment.lead_name.includes('Wendy')) {
-          console.log('DEBUG: Wendy future filter result:', futureResult);
-        }
-        return futureResult;
-      case 'past':
-        return isBothComplete;
       case 'needs-review':
-        return !isBothComplete && 
-               (isInPast && 
-                (!appointment.status || !completedStatuses.includes(appointment.status)));
+        // Needs Review: status = 'confirmed' AND date_of_appointment <= today
+        return normalizedStatus === 'confirmed' && !isInFuture;
+      case 'future':
+        // Upcoming: status = 'confirmed' AND date_of_appointment > today
+        return normalizedStatus === 'confirmed' && isInFuture;
+      case 'past':
+        // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
+        const isCompletedStatus = appointment.status && 
+          completedStatuses.some(status => 
+            status.toLowerCase() === normalizedStatus || 
+            (status === 'No Show' && normalizedStatus === 'noshow')
+          );
+        const hasProcedureDecision = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
+        return isCompletedStatus && hasProcedureDecision;
       default:
         return true;
     }

@@ -87,19 +87,20 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'needs-review') {
-        // Needs review: appointments where status is NOT set (needs attention)
+        // Needs Review: status = 'confirmed' AND date_of_appointment <= today
         countQuery = countQuery
-          .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
-          .or('status.is.null');
+          .eq('status', 'confirmed')
+          .lte('date_of_appointment', todayString);
       } else if (activeTab === 'future') {
-        // Future: appointments in future with no status set
+        // Upcoming: status = 'confirmed' AND date_of_appointment > today
         countQuery = countQuery
-          .gte('date_of_appointment', todayString)
-          .or('status.is.null');
+          .eq('status', 'confirmed')
+          .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Past: appointments where status is set OR past appointments with final status
+        // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
         countQuery = countQuery
-          .or(`status.not.is.null,and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost,Showed))`);
+          .in('status', ['Cancelled', 'No Show', 'Showed', 'Won'])
+          .not('procedure_ordered', 'is', null);
       }
 
       // Get the total count first
@@ -164,19 +165,20 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'needs-review') {
-        // Needs review: appointments where status is NOT set (needs attention)
+        // Needs Review: status = 'confirmed' AND date_of_appointment <= today
         appointmentsQuery = appointmentsQuery
-          .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
-          .or('status.is.null');
+          .eq('status', 'confirmed')
+          .lte('date_of_appointment', todayString);
       } else if (activeTab === 'future') {
-        // Future: appointments in future with no status set
+        // Upcoming: status = 'confirmed' AND date_of_appointment > today
         appointmentsQuery = appointmentsQuery
-          .gte('date_of_appointment', todayString)
-          .or('status.is.null');
+          .eq('status', 'confirmed')
+          .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Past: appointments where status is set OR past appointments with final status
+        // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
         appointmentsQuery = appointmentsQuery
-          .or(`status.not.is.null,and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost,Showed))`);
+          .in('status', ['Cancelled', 'No Show', 'Showed', 'Won'])
+          .not('procedure_ordered', 'is', null);
       }
       
       // Apply pagination
@@ -237,19 +239,20 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: appointments where status is NOT set (needs attention)
+      // Needs Review: status = 'confirmed' AND date_of_appointment <= today
       const needsReviewQuery = getBaseQuery()
-        .or(`date_of_appointment.lt.${todayString},date_of_appointment.is.null`)
-        .or('status.is.null');
+        .eq('status', 'confirmed')
+        .lte('date_of_appointment', todayString);
 
-      // Future: appointments in future with no status set
+      // Upcoming: status = 'confirmed' AND date_of_appointment > today
       const futureQuery = getBaseQuery()
-        .gte('date_of_appointment', todayString)
-        .or('status.is.null');
+        .eq('status', 'confirmed')
+        .gt('date_of_appointment', todayString);
 
-      // Past: appointments where status is set OR past appointments with final status
+      // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
       const pastQuery = getBaseQuery()
-        .or(`status.not.is.null,and(date_of_appointment.lt.${todayString},status.in.(Cancelled,No Show,Won,Lost,Showed))`);
+        .in('status', ['Cancelled', 'No Show', 'Showed', 'Won'])
+        .not('procedure_ordered', 'is', null);
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
         needsReviewQuery,
