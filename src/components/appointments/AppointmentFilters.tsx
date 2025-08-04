@@ -26,6 +26,8 @@ interface AppointmentFiltersProps {
   onProjectFilterChange: (value: string) => void;
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
+  procedureOrderFilter: string;
+  onProcedureOrderFilterChange: (value: string) => void;
   sortBy: 'date' | 'procedure_ordered';
   onSortChange: (value: 'date' | 'procedure_ordered') => void;
 }
@@ -41,6 +43,8 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onProjectFilterChange,
   statusFilter,
   onStatusFilterChange,
+  procedureOrderFilter,
+  onProcedureOrderFilterChange,
   sortBy,
   onSortChange
 }) => {
@@ -155,6 +159,21 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             </div>
             
             <div className="flex items-center space-x-3">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Procedures" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Procedures</SelectItem>
+                  <SelectItem value="true">Procedure Ordered</SelectItem>
+                  <SelectItem value="false">No Procedure</SelectItem>
+                  <SelectItem value="null">Not Set</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center space-x-3">
               <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
               <Select value={sortBy} onValueChange={onSortChange}>
                 <SelectTrigger className="w-[200px]">
@@ -244,6 +263,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               {statusFilter !== 'ALL' && <>
                   <span>•</span>
                   <span>Status: "{statusFilter}"</span>
+                </>}
+              {procedureOrderFilter !== 'ALL' && <>
+                  <span>•</span>
+                  <span>Procedure: "{procedureOrderFilter === 'true' ? 'Ordered' : procedureOrderFilter === 'false' ? 'No Procedure' : 'Not Set'}"</span>
                 </>}
               {searchTerm && <>
                   <span>•</span>

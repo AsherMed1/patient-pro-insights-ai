@@ -34,6 +34,7 @@ const AllAppointmentsManager = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date' | 'procedure_ordered'>('date');
   const { toast } = useToast();
   
@@ -43,7 +44,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter, statusFilter, sortBy]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter, statusFilter, procedureOrderFilter, sortBy]);
 
   useEffect(() => {
     fetchAppointments();
@@ -80,6 +81,17 @@ const AllAppointmentsManager = ({
       // Apply status filter
       if (statusFilter !== 'ALL') {
         countQuery = countQuery.eq('status', statusFilter);
+      }
+      
+      // Apply procedure order filter
+      if (procedureOrderFilter !== 'ALL') {
+        if (procedureOrderFilter === 'true') {
+          countQuery = countQuery.eq('procedure_ordered', true);
+        } else if (procedureOrderFilter === 'false') {
+          countQuery = countQuery.eq('procedure_ordered', false);
+        } else if (procedureOrderFilter === 'null') {
+          countQuery = countQuery.is('procedure_ordered', null);
+        }
       }
       
       // Apply tab-based filtering to count query
@@ -167,6 +179,17 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery.eq('status', statusFilter);
       }
       
+      // Apply procedure order filter
+      if (procedureOrderFilter !== 'ALL') {
+        if (procedureOrderFilter === 'true') {
+          appointmentsQuery = appointmentsQuery.eq('procedure_ordered', true);
+        } else if (procedureOrderFilter === 'false') {
+          appointmentsQuery = appointmentsQuery.eq('procedure_ordered', false);
+        } else if (procedureOrderFilter === 'null') {
+          appointmentsQuery = appointmentsQuery.is('procedure_ordered', null);
+        }
+      }
+      
       
       if (activeTab === 'needs-review') {
         // Needs Review: status = 'confirmed' AND date_of_appointment <= today
@@ -232,6 +255,17 @@ const AllAppointmentsManager = ({
         // Apply status filter
         if (statusFilter !== 'ALL') {
           query = query.eq('status', statusFilter);
+        }
+        
+        // Apply procedure order filter
+        if (procedureOrderFilter !== 'ALL') {
+          if (procedureOrderFilter === 'true') {
+            query = query.eq('procedure_ordered', true);
+          } else if (procedureOrderFilter === 'false') {
+            query = query.eq('procedure_ordered', false);
+          } else if (procedureOrderFilter === 'null') {
+            query = query.is('procedure_ordered', null);
+          }
         }
         
         
@@ -390,12 +424,15 @@ const AllAppointmentsManager = ({
           setSearchTerm('');
           setLocalProjectFilter('ALL');
           setStatusFilter('ALL');
+          setProcedureOrderFilter('ALL');
           setSortBy('date');
         }}
         projectFilter={localProjectFilter}
         onProjectFilterChange={setLocalProjectFilter}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        procedureOrderFilter={procedureOrderFilter}
+        onProcedureOrderFilterChange={setProcedureOrderFilter}
         onShowImport={() => setShowImport(true)}
         showImport={showImport}
         sortBy={sortBy}
