@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useProjectRedirect } from '@/hooks/useProjectRedirect';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import logoImage from '@/assets/logo.webp';
 
 const Auth = () => {
   const { user, loading, signIn, signUp } = useAuth();
+  const { isRedirecting } = useProjectRedirect();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -21,10 +23,13 @@ const Auth = () => {
   const from = location.state?.from || '/';
 
   useEffect(() => {
-    if (user && !loading) {
-      navigate(from, { replace: true });
+    // Only redirect admin/agent users to main dashboard
+    // Project users will be handled by useProjectRedirect hook
+    if (user && !loading && !isRedirecting) {
+      // Let useProjectRedirect handle project users
+      // For now, we'll let the hook determine the redirect
     }
-  }, [user, loading, navigate, from]);
+  }, [user, loading, isRedirecting]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +38,8 @@ const Auth = () => {
     const { error } = await signIn(email, password);
     
     if (!error) {
-      navigate(from, { replace: true });
+      // Let useProjectRedirect hook handle the redirect logic
+      // based on user role
     }
     
     setIsSubmitting(false);
@@ -48,7 +54,7 @@ const Auth = () => {
     setIsSubmitting(false);
   };
 
-  if (loading) {
+  if (loading || isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
