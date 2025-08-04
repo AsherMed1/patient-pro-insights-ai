@@ -164,17 +164,18 @@ export const getAppointmentStatus = (appointment: AllAppointment) => {
 };
 
 export const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'Showed':
-    case 'Won':
+  switch (status?.toLowerCase()) {
+    case 'showed':
+    case 'won':
       return 'default' as const;
-    case 'No Show':
-    case 'Cancelled':
+    case 'no show':
+    case 'cancelled':
       return 'destructive' as const;
-    case 'Confirmed':
-    case 'Welcome Call':
+    case 'confirmed':
+    case 'welcome call':
+    case 'new':
       return 'secondary' as const;
-    case 'Rescheduled':
+    case 'rescheduled':
       return 'outline' as const;
     default:
       return 'outline' as const;
@@ -190,4 +191,4 @@ export const getProcedureOrderedVariant = (procedureOrdered: boolean | null) => 
   return 'secondary' as const;
 };
 
-export const statusOptions = ['Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
+export const statusOptions = ['New', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
