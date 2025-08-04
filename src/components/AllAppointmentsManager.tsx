@@ -277,13 +277,13 @@ const AllAppointmentsManager = ({
       // Automatically set procedure_ordered based on status
       const updateData: any = {
         status,
-        showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
+        showed: status === 'Showed' ? true : (status === 'No Show' || status.toLowerCase() === 'noshow') ? false : null,
         updated_at: new Date().toISOString()
       };
       
       if (status === 'Won') {
         updateData.procedure_ordered = true;
-      } else if (status === 'Cancelled' || status === 'No Show') {
+      } else if (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') {
         updateData.procedure_ordered = false;
       }
       
@@ -299,8 +299,8 @@ const AllAppointmentsManager = ({
           ? {
               ...appointment,
               status,
-              showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
-              procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show') ? false : appointment.procedure_ordered
+              showed: status === 'Showed' ? true : (status === 'No Show' || status.toLowerCase() === 'noshow') ? false : null,
+              procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') ? false : appointment.procedure_ordered
             }
           : appointment
       ));
