@@ -100,8 +100,16 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'needs-review') {
-        // Needs Review: appointments that need status updates (null status) OR confirmed appointments for today/past
-        countQuery = countQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+        // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
+        if (activeProjectFilter) {
+          // Project-specific view: only confirmed appointments
+          countQuery = countQuery
+            .eq('status', 'confirmed')
+            .lte('date_of_appointment', todayString);
+        } else {
+          // Main analytics view: include null status appointments OR confirmed appointments for today/past
+          countQuery = countQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+        }
       } else if (activeTab === 'future') {
         // Upcoming: confirmed appointments in the future
         countQuery = countQuery
@@ -191,8 +199,16 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'needs-review') {
-        // Needs Review: appointments that need status updates (null status) OR confirmed appointments for today/past
-        appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+        // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
+        if (activeProjectFilter) {
+          // Project-specific view: only confirmed appointments
+          appointmentsQuery = appointmentsQuery
+            .eq('status', 'confirmed')
+            .lte('date_of_appointment', todayString);
+        } else {
+          // Main analytics view: include null status appointments OR confirmed appointments for today/past
+          appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+        }
       } else if (activeTab === 'future') {
         // Upcoming: confirmed appointments in the future
         appointmentsQuery = appointmentsQuery
@@ -274,9 +290,18 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: appointments that need status updates (null status) OR confirmed appointments for today/past
-      const needsReviewQuery = getBaseQuery()
-        .or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+      // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
+      const needsReviewQuery = getBaseQuery();
+      const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
+      if (activeProjectFilter) {
+        // Project-specific view: only confirmed appointments
+        needsReviewQuery
+          .eq('status', 'confirmed')
+          .lte('date_of_appointment', todayString);
+      } else {
+        // Main analytics view: include null status appointments OR confirmed appointments for today/past
+        needsReviewQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
+      }
 
       // Upcoming: status = 'confirmed' AND date_of_appointment > today
       const futureQuery = getBaseQuery()
