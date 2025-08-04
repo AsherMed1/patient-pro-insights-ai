@@ -518,7 +518,7 @@ const AppointmentCard = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium block">Status:</label>
-                  <Select value={appointment.status && appointment.status.trim() !== '' ? statusOptions.find(option => option.toLowerCase() === appointment.status.toLowerCase()) || appointment.status : undefined} onValueChange={value => onUpdateStatus(appointment.id, value)}>
+                  <Select value={appointment.status || undefined} onValueChange={value => onUpdateStatus(appointment.id, value)}>
                     <SelectTrigger className={getStatusTriggerClass()}>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
