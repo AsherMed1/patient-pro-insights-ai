@@ -524,7 +524,7 @@ const AppointmentCard = ({
                     </SelectTrigger>
                     <SelectContent className="bg-white border shadow-lg z-50">
                       {statusOptions.map(status => <SelectItem key={status} value={status} className="text-base md:text-sm py-3 md:py-2">
-                          {status}
+                          {status === 'noshow' ? 'No Show' : status}
                         </SelectItem>)}
                     </SelectContent>
                   </Select>
