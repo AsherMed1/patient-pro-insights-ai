@@ -81,6 +81,11 @@ const AllAppointmentsManager = ({
         countQuery = countQuery.eq('status', statusFilter);
       }
       
+      // Exclude "new" status appointments in project portal
+      if (projectFilter) {
+        countQuery = countQuery.neq('status', 'new');
+      }
+      
       // Apply tab-based filtering to count query
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -162,6 +167,11 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery.eq('status', statusFilter);
       }
       
+      // Exclude "new" status appointments in project portal
+      if (projectFilter) {
+        appointmentsQuery = appointmentsQuery.neq('status', 'new');
+      }
+      
       if (activeTab === 'needs-review') {
         // Needs review: appointments where status is NOT set (needs attention)
         appointmentsQuery = appointmentsQuery
@@ -225,6 +235,11 @@ const AllAppointmentsManager = ({
         // Apply status filter
         if (statusFilter !== 'ALL') {
           query = query.eq('status', statusFilter);
+        }
+        
+        // Exclude "new" status appointments in project portal
+        if (projectFilter) {
+          query = query.neq('status', 'new');
         }
         
         return query;
