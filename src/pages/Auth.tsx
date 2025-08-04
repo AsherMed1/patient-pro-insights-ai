@@ -64,7 +64,7 @@ const Auth = () => {
     <div className="auth-container">
       {/* Hero Section */}
       <div className="auth-hero">
-        <div className="auth-hero-content">
+        <div className="auth-hero-content bg-white">
           <div className="text-center space-y-8">
             <div className="space-y-4">
               <img 
@@ -72,22 +72,22 @@ const Auth = () => {
                 alt="PatientPro Logo" 
                 className="h-20 w-auto mx-auto"
               />
-              <h1 className="text-4xl font-bold">Welcome to PatientPro</h1>
-              <p className="text-xl text-white/90 max-w-md">
+              <h1 className="text-4xl font-bold text-primary">Welcome to PatientPro</h1>
+              <p className="text-xl text-primary/70 max-w-md">
                 Secure medical practice management platform designed for modern healthcare professionals
               </p>
             </div>
             
             <div className="grid grid-cols-2 gap-6 mt-12">
               <div className="text-center space-y-2">
-                <Users className="h-8 w-8 mx-auto text-white/80" />
-                <h3 className="font-semibold">Patient Management</h3>
-                <p className="text-sm text-white/70">Comprehensive patient records and care coordination</p>
+                <Users className="h-8 w-8 mx-auto text-primary/60" />
+                <h3 className="font-semibold text-primary">Patient Management</h3>
+                <p className="text-sm text-primary/60">Comprehensive patient records and care coordination</p>
               </div>
               <div className="text-center space-y-2">
-                <BarChart className="h-8 w-8 mx-auto text-white/80" />
-                <h3 className="font-semibold">Analytics Dashboard</h3>
-                <p className="text-sm text-white/70">Real-time insights and performance metrics</p>
+                <BarChart className="h-8 w-8 mx-auto text-primary/60" />
+                <h3 className="font-semibold text-primary">Analytics Dashboard</h3>
+                <p className="text-sm text-primary/60">Real-time insights and performance metrics</p>
               </div>
             </div>
           </div>
