@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Users, BarChart } from 'lucide-react';
+import logoImage from '@/assets/logo.webp';
 
 const Auth = () => {
   const { user, loading, signIn, signUp } = useAuth();
@@ -66,7 +67,11 @@ const Auth = () => {
         <div className="auth-hero-content">
           <div className="text-center space-y-8">
             <div className="space-y-4">
-              <div className="text-6xl font-bold text-white">PatientPro</div>
+              <img 
+                src={logoImage} 
+                alt="PatientPro Logo" 
+                className="h-20 w-auto mx-auto"
+              />
               <h1 className="text-4xl font-bold">Welcome to PatientPro</h1>
               <p className="text-xl text-white/90 max-w-md">
                 Secure medical practice management platform designed for modern healthcare professionals
