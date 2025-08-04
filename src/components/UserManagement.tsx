@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
 import { ProjectPasswordManager } from './ProjectPasswordManager';
 
@@ -32,6 +32,7 @@ const UserManagement = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newUser, setNewUser] = useState({
     email: '',
@@ -47,19 +48,30 @@ const UserManagement = () => {
     fetchProjects();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) {
+      setRefreshing(true);
+    }
+    
     try {
       console.log('🔍 Fetching users...');
+      console.log('🕐 Timestamp:', new Date().toISOString());
       
       // Get profiles first
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, email, full_name, created_at');
 
-      console.log('📋 Profiles fetched:', profiles);
+      console.log('📋 Raw profiles data:', profiles);
+      console.log('📋 Profiles count:', profiles?.length || 0);
+      
       if (profilesError) {
         console.error('❌ Profiles error:', profilesError);
         throw profilesError;
+      }
+
+      if (!profiles || profiles.length === 0) {
+        console.warn('⚠️ No profiles found in database');
       }
 
       // Get user roles separately
@@ -67,7 +79,9 @@ const UserManagement = () => {
         .from('user_roles')
         .select('user_id, role');
 
-      console.log('👤 User roles fetched:', userRoles);
+      console.log('👤 Raw user roles data:', userRoles);
+      console.log('👤 User roles count:', userRoles?.length || 0);
+      
       if (rolesError) {
         console.error('❌ Roles error:', rolesError);
         throw rolesError;
@@ -81,35 +95,70 @@ const UserManagement = () => {
           projects(project_name)
         `);
 
-      console.log('🔗 Project access fetched:', projectAccess);
+      console.log('🔗 Raw project access data:', projectAccess);
+      console.log('🔗 Project access count:', projectAccess?.length || 0);
+      
       if (accessError) {
         console.error('❌ Project access error:', accessError);
       }
 
-      // Combine the data
+      // Combine the data with detailed logging
       const formattedUsers = profiles?.map((profile: any) => {
+        console.log(`🔄 Processing profile: ${profile.email} (ID: ${profile.id})`);
+        
         const userRole = userRoles?.find(role => role.user_id === profile.id);
+        console.log(`👤 Found role for ${profile.email}:`, userRole);
+        
         const userProjectAccess = projectAccess?.filter(access => access.user_id === profile.id) || [];
         const assignedProjects = userProjectAccess.map((access: any) => access.projects?.project_name).filter(Boolean);
         
-        return {
+        console.log(`🔗 Project access for ${profile.email}:`, assignedProjects);
+        
+        const formattedUser = {
           ...profile,
           role: userRole?.role as UserRole,
           assignedProjects
         };
+        
+        console.log(`✅ Formatted user ${profile.email}:`, formattedUser);
+        return formattedUser;
       }) || [];
 
-      console.log('✅ Formatted users:', formattedUsers);
+      console.log('🎯 Final formatted users array:', formattedUsers);
+      console.log('🎯 Total users to display:', formattedUsers.length);
+      
+      // Check specifically for Justin
+      const justinUser = formattedUsers.find(user => user.email === 'justin@patientpromarketing.com');
+      if (justinUser) {
+        console.log('🎉 FOUND JUSTIN:', justinUser);
+      } else {
+        console.error('❌ JUSTIN NOT FOUND in formatted users');
+        // Check if Justin exists in raw data
+        const justinProfile = profiles?.find(p => p.email === 'justin@patientpromarketing.com');
+        const justinRole = userRoles?.find(r => r.user_id === justinProfile?.id);
+        console.log('🔍 Justin in profiles:', justinProfile);
+        console.log('🔍 Justin role:', justinRole);
+      }
+
       setUsers(formattedUsers);
+      
+      toast({
+        title: "Users Refreshed",
+        description: `Loaded ${formattedUsers.length} users`,
+      });
+      
     } catch (error) {
       console.error('❌ Error fetching users:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch users",
+        description: "Failed to fetch users. Check console for details.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      if (showRefreshIndicator) {
+        setRefreshing(false);
+      }
     }
   };
 
@@ -175,7 +224,7 @@ const UserManagement = () => {
           role: 'project_user',
           selectedProjectId: ''
         });
-        fetchUsers();
+        fetchUsers(true);
       } else {
         throw new Error(data?.error || "Failed to create user");
       }
@@ -265,7 +314,7 @@ const UserManagement = () => {
       description: "Dummy accounts created successfully",
     });
 
-    fetchUsers();
+    fetchUsers(true);
   };
 
   const getRoleBadgeVariant = (role: UserRole) => {
@@ -290,8 +339,16 @@ const UserManagement = () => {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>User Management</CardTitle>
+            <CardTitle>User Management ({users.length} users)</CardTitle>
             <div className="space-x-2">
+              <Button 
+                onClick={() => fetchUsers(true)} 
+                variant="outline"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
               <Button onClick={createDummyAccounts} variant="outline">
                 Create Dummy Accounts
               </Button>
