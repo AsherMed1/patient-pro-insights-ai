@@ -97,9 +97,9 @@ const AllAppointmentsManager = ({
           .eq('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
+        // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
         countQuery = countQuery
-          .in('status', ['Cancelled', 'No Show', 'Showed', 'Won'])
+          .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
           .not('procedure_ordered', 'is', null);
       }
 
@@ -175,9 +175,9 @@ const AllAppointmentsManager = ({
           .eq('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
+        // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
         appointmentsQuery = appointmentsQuery
-          .in('status', ['Cancelled', 'No Show', 'Showed', 'Won'])
+          .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
           .not('procedure_ordered', 'is', null);
       }
       
@@ -249,9 +249,9 @@ const AllAppointmentsManager = ({
         .eq('status', 'confirmed')
         .gt('date_of_appointment', todayString);
 
-      // Completed: status IN ('Cancelled', 'No Show', 'Showed', 'Won') AND procedure_ordered IS NOT NULL
+      // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
       const pastQuery = getBaseQuery()
-        .in('status', ['Cancelled', 'No Show', 'Showed', 'Won'])
+        .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
         .not('procedure_ordered', 'is', null);
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
