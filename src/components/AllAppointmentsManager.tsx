@@ -35,7 +35,7 @@ const AllAppointmentsManager = ({
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState<'date' | 'procedure_ordered'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'procedure_ordered' | 'project'>('date');
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -153,8 +153,9 @@ const AllAppointmentsManager = ({
           insurance_detection_confidence
         `)
         .order(
-          sortBy === 'procedure_ordered' ? 'procedure_ordered' : 'date_appointment_created', 
-          { ascending: false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
+          sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
+          sortBy === 'project' ? 'project_name' : 'date_appointment_created', 
+          { ascending: sortBy === 'project' ? true : false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
         );
 
       // Apply the same filters to the data query

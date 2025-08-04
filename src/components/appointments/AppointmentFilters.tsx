@@ -28,8 +28,8 @@ interface AppointmentFiltersProps {
   onStatusFilterChange: (value: string) => void;
   procedureOrderFilter: string;
   onProcedureOrderFilterChange: (value: string) => void;
-  sortBy: 'date' | 'procedure_ordered';
-  onSortChange: (value: 'date' | 'procedure_ordered') => void;
+  sortBy: 'date' | 'procedure_ordered' | 'project';
+  onSortChange: (value: 'date' | 'procedure_ordered' | 'project') => void;
 }
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   searchTerm,
@@ -182,6 +182,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 <SelectContent>
                   <SelectItem value="date">Sort by Date</SelectItem>
                   <SelectItem value="procedure_ordered">Sort by Procedure Status</SelectItem>
+                  <SelectItem value="project">Sort by Project</SelectItem>
                 </SelectContent>
               </Select>
             </div>
