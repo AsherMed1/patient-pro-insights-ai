@@ -15,6 +15,7 @@ import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import TeamMessageBubble from '@/components/TeamMessageBubble';
 import DateRangeFilter from '@/components/projects/DateRangeFilter';
+import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 
 interface Project {
   id: string;
@@ -201,10 +202,16 @@ const ProjectPortal = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-7xl mx-auto portal-spacing">
-        {/* Header with user info and sign out */}
+        {/* Header with user info, project switcher, and sign out */}
         <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-muted-foreground">
-            Welcome, {user?.email}
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              Welcome, {user?.email}
+            </div>
+            <ProjectSwitcher 
+              currentProject={project.project_name} 
+              showBackToDashboard={true}
+            />
           </div>
           
           <Button variant="outline" onClick={signOut} className="hover:bg-accent">

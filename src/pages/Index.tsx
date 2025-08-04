@@ -49,17 +49,20 @@ const Index = () => {
   // Project users with multiple projects see a project selection dashboard
   if (isProjectUser()) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-7xl mx-auto space-y-8">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900">Your Projects</h1>
-              <p className="text-xl text-gray-600">Select a project to view its dashboard</p>
+            <div className="space-y-2">
+              <h1 className="text-4xl font-bold text-foreground">Your Projects</h1>
+              <p className="text-xl text-muted-foreground">
+                You have access to {accessibleProjects.length} project{accessibleProjects.length !== 1 ? 's' : ''}. 
+                Select one to view its dashboard.
+              </p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
-                <span className="text-sm text-gray-600">{user?.email}</span>
+                <span>{user?.email}</span>
               </div>
               <Button variant="outline" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
@@ -68,21 +71,52 @@ const Index = () => {
             </div>
           </div>
           
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {accessibleProjects.map((projectName) => (
-              <Button
+              <div
                 key={projectName}
-                variant="outline"
-                className="h-24 text-left justify-start"
+                className="group relative overflow-hidden rounded-lg border bg-card p-6 hover:shadow-lg transition-all duration-200 cursor-pointer"
                 onClick={() => navigate(`/project/${encodeURIComponent(projectName)}`)}
               >
-                <div>
-                  <h3 className="font-semibold">{projectName}</h3>
-                  <p className="text-sm text-gray-600">View project dashboard</p>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <h3 className="text-lg font-semibold text-card-foreground group-hover:text-primary transition-colors">
+                      {projectName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      View appointments, analytics, and team communication
+                    </p>
+                  </div>
+                  <div className="opacity-50 group-hover:opacity-100 transition-opacity">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
-              </Button>
+                
+                <div className="mt-4 flex items-center text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                    Active Project
+                  </span>
+                </div>
+              </div>
             ))}
           </div>
+          
+          {accessibleProjects.length === 0 && (
+            <div className="text-center py-12">
+              <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">No Projects Available</h3>
+              <p className="text-muted-foreground">
+                You don't have access to any projects yet. Contact your administrator for access.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
