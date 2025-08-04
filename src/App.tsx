@@ -20,7 +20,7 @@ import NotFound from "./pages/NotFound";
 const ProjectPortalWithAuth = () => {
   const { projectName } = useParams<{ projectName: string }>();
   return (
-    <AuthGuard requiredRole="project_user" projectName={projectName}>
+    <AuthGuard projectName={projectName}>
       <ProjectPortal />
     </AuthGuard>
   );

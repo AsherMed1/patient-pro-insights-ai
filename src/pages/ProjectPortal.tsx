@@ -38,7 +38,7 @@ interface DateRange {
 const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
   const { user, signOut } = useAuth();
-  const { hasProjectAccess } = useRole();
+  const { role, loading: roleLoading, hasProjectAccess, accessibleProjects } = useRole();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AppointmentStats>({
@@ -53,17 +53,31 @@ const ProjectPortal = () => {
   });
   const { toast } = useToast();
 
-  // Check if user has access to this specific project
+  // Check if user has access to this specific project (after role data loads)
   useEffect(() => {
-    if (projectName && !hasProjectAccess(decodeURIComponent(projectName))) {
-      toast({
-        title: "Access Denied",
-        description: "You don't have access to this project.",
-        variant: "destructive",
-      });
-      signOut();
+    if (roleLoading || !role) return; // Wait for role data to load
+    
+    if (projectName) {
+      const decodedProjectName = decodeURIComponent(projectName);
+      
+      // For project users, wait until we have project access data
+      if (role === 'project_user' && accessibleProjects.length === 0) {
+        console.log('🕐 [ProjectPortal] Waiting for project access data...');
+        return;
+      }
+      
+      // Only check access after we have complete data
+      if (!hasProjectAccess(decodedProjectName)) {
+        console.log('❌ [ProjectPortal] Access denied to project:', decodedProjectName);
+        toast({
+          title: "Access Denied",
+          description: "You don't have access to this project.",
+          variant: "destructive",
+        });
+        signOut();
+      }
     }
-  }, [projectName, hasProjectAccess, toast, signOut]);
+  }, [projectName, role, roleLoading, hasProjectAccess, accessibleProjects, toast, signOut]);
 
   useEffect(() => {
     if (projectName) {
@@ -148,7 +162,8 @@ const ProjectPortal = () => {
     }
   };
 
-  if (loading) {
+  // Show loading while role data or project data is loading
+  if (loading || roleLoading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto">

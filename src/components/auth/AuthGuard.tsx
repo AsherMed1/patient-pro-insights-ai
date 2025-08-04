@@ -18,11 +18,12 @@ export const AuthGuard = ({
   fallbackPath = '/auth' 
 }: AuthGuardProps) => {
   const { user, loading: authLoading } = useAuth();
-  const { role, loading: roleLoading, hasRole, hasProjectAccess } = useRole();
+  const { role, loading: roleLoading, hasRole, hasProjectAccess, accessibleProjects } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
+    // Extended wait for role loading to prevent race conditions
     if (authLoading || roleLoading) return;
 
     // Redirect to auth if not authenticated
@@ -33,14 +34,27 @@ export const AuthGuard = ({
       return;
     }
 
-    // Check role requirement
-    if (requiredRole && !hasRole(requiredRole)) {
-      navigate('/', { replace: true });
-      return;
+    // For project access checks, be more patient and allow for loading states
+    if (projectName) {
+      const decodedProjectName = decodeURIComponent(projectName);
+      
+      // If we have role data but no accessible projects yet, wait a bit longer
+      if (role === 'project_user' && accessibleProjects.length === 0) {
+        console.log('🕐 [AuthGuard] Waiting for project access data to load...');
+        return;
+      }
+      
+      // Only check project access after we have complete data
+      if (role && !hasProjectAccess(decodedProjectName)) {
+        console.log('❌ [AuthGuard] No access to project:', decodedProjectName);
+        navigate('/', { replace: true });
+        return;
+      }
     }
 
-    // Check project access requirement
-    if (projectName && !hasProjectAccess(decodeURIComponent(projectName))) {
+    // Check role requirement (but be more lenient for project users)
+    if (requiredRole && role && !hasRole(requiredRole)) {
+      console.log('❌ [AuthGuard] Role check failed. Required:', requiredRole, 'Current:', role);
       navigate('/', { replace: true });
       return;
     }
@@ -53,6 +67,7 @@ export const AuthGuard = ({
     projectName, 
     hasRole, 
     hasProjectAccess, 
+    accessibleProjects,
     navigate, 
     location.pathname, 
     fallbackPath
@@ -70,12 +85,28 @@ export const AuthGuard = ({
     return null;
   }
 
-  if (requiredRole && !hasRole(requiredRole)) {
+  // More patient checking for role requirements
+  if (requiredRole && role && !hasRole(requiredRole)) {
     return null;
   }
 
-  if (projectName && !hasProjectAccess(decodeURIComponent(projectName))) {
-    return null;
+  // More patient checking for project access
+  if (projectName) {
+    const decodedProjectName = decodeURIComponent(projectName);
+    
+    // If we're still loading project data for a project user, keep waiting
+    if (role === 'project_user' && accessibleProjects.length === 0) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      );
+    }
+    
+    // Only block access if we have complete data and no access
+    if (role && !hasProjectAccess(decodedProjectName)) {
+      return null;
+    }
   }
 
   return <>{children}</>;
