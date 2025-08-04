@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
 import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
-import { ProjectPasswordManager } from './ProjectPasswordManager';
+
 
 interface User {
   id: string;
@@ -698,7 +698,7 @@ const UserManagement = () => {
         </DialogContent>
       </Dialog>
 
-      <ProjectPasswordManager />
+      
     </div>
   );
 };

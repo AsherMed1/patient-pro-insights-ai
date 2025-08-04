@@ -29,10 +29,13 @@ const Index = () => {
   // Initialize automatic intake notes parsing
   useAutoIntakeParsing();
 
-  // Redirect project users with single project access to project portal
+  // Redirect project users to their project portal immediately  
   useEffect(() => {
     if (!roleLoading && isProjectUser() && accessibleProjects.length === 1) {
       navigate(`/project/${encodeURIComponent(accessibleProjects[0])}`);
+    } else if (!roleLoading && isProjectUser() && accessibleProjects.length === 0) {
+      // If project user has no accessible projects, sign them out
+      handleSignOut();
     }
   }, [role, accessibleProjects, roleLoading, isProjectUser, navigate]);
 

@@ -19,9 +19,6 @@ verify_jwt = false
 [functions.update-lead-api]
 verify_jwt = false
 
-[functions.project-auth]
-verify_jwt = false
-
 [functions.debug-password]
 verify_jwt = false
 

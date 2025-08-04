@@ -3,11 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
-import { useProjectAuth } from '@/hooks/useProjectAuth';
+import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole';
 import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
@@ -36,6 +37,8 @@ interface DateRange {
 
 const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
+  const { user, signOut } = useAuth();
+  const { hasProjectAccess } = useRole();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AppointmentStats>({
@@ -49,6 +52,18 @@ const ProjectPortal = () => {
     to: undefined 
   });
   const { toast } = useToast();
+
+  // Check if user has access to this specific project
+  useEffect(() => {
+    if (projectName && !hasProjectAccess(decodeURIComponent(projectName))) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have access to this project.",
+        variant: "destructive",
+      });
+      signOut();
+    }
+  }, [projectName, hasProjectAccess, toast, signOut]);
 
   useEffect(() => {
     if (projectName) {
@@ -171,19 +186,16 @@ const ProjectPortal = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-7xl mx-auto portal-spacing">
-        {/* Header with back button */}
+        {/* Header with user info and sign out */}
         <div className="flex items-center justify-between mb-2">
-          <Link to="/">
-            <Button variant="outline" className="hover:bg-accent">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          
-          {/* Success indicator - will auto-hide after improvements */}
-          <div className="text-sm text-green-600 font-medium">
-            ✓ Login Successful
+          <div className="text-sm text-muted-foreground">
+            Welcome, {user?.email}
           </div>
+          
+          <Button variant="outline" onClick={signOut} className="hover:bg-accent">
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
         </div>
 
         {/* Project Header with enhanced typography */}

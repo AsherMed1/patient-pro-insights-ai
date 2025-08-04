@@ -841,36 +841,6 @@ export type Database = {
           },
         ]
       }
-      project_portal_sessions: {
-        Row: {
-          created_at: string | null
-          expires_at: string
-          id: string
-          ip_address: unknown | null
-          project_name: string
-          session_token: string
-          user_agent: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          expires_at: string
-          id?: string
-          ip_address?: unknown | null
-          project_name: string
-          session_token: string
-          user_agent?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          expires_at?: string
-          id?: string
-          ip_address?: unknown | null
-          project_name?: string
-          session_token?: string
-          user_agent?: string | null
-        }
-        Relationships: []
-      }
       project_tags: {
         Row: {
           created_at: string
@@ -959,7 +929,6 @@ export type Database = {
           custom_logo_url: string | null
           ghl_api_key: string | null
           id: string
-          portal_password: string | null
           project_name: string
           selected_form_types: string[] | null
           updated_at: string
@@ -975,7 +944,6 @@ export type Database = {
           custom_logo_url?: string | null
           ghl_api_key?: string | null
           id?: string
-          portal_password?: string | null
           project_name: string
           selected_form_types?: string[] | null
           updated_at?: string
@@ -991,7 +959,6 @@ export type Database = {
           custom_logo_url?: string | null
           ghl_api_key?: string | null
           id?: string
-          portal_password?: string | null
           project_name?: string
           selected_form_types?: string[] | null
           updated_at?: string
@@ -1180,31 +1147,9 @@ export type Database = {
         }
         Returns: boolean
       }
-      cleanup_expired_portal_sessions: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
       cleanup_security_tables: {
         Args: Record<PropertyKey, never>
         Returns: number
-      }
-      create_portal_session: {
-        Args: {
-          project_name_param: string
-          password_param: string
-          ip_address_param?: unknown
-          user_agent_param?: string
-        }
-        Returns: string
-      }
-      create_secure_portal_session: {
-        Args: {
-          project_name_param: string
-          password_param: string
-          ip_address_param?: unknown
-          user_agent_param?: string
-        }
-        Returns: string
       }
       debug_password_verification: {
         Args: { project_name_param: string; password_param: string }
@@ -1311,14 +1256,6 @@ export type Database = {
         Args: { project_name_param: string }
         Returns: boolean
       }
-      validate_secure_session: {
-        Args: {
-          project_name_param: string
-          session_token_param: string
-          ip_address_param?: unknown
-        }
-        Returns: boolean
-      }
       validate_security_policies: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1331,22 +1268,6 @@ export type Database = {
       }
       verify_password: {
         Args: { password: string; hash: string }
-        Returns: boolean
-      }
-      verify_portal_session: {
-        Args: {
-          project_name_param: string
-          session_token_param: string
-          ip_address_param?: unknown
-        }
-        Returns: boolean
-      }
-      verify_secure_portal_session: {
-        Args: {
-          project_name_param: string
-          session_token_param: string
-          ip_address_param?: unknown
-        }
         Returns: boolean
       }
     }

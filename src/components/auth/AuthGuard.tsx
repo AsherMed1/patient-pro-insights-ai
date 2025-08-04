@@ -40,7 +40,7 @@ export const AuthGuard = ({
     }
 
     // Check project access requirement
-    if (projectName && !hasProjectAccess(projectName)) {
+    if (projectName && !hasProjectAccess(decodeURIComponent(projectName))) {
       navigate('/', { replace: true });
       return;
     }
@@ -74,7 +74,7 @@ export const AuthGuard = ({
     return null;
   }
 
-  if (projectName && !hasProjectAccess(projectName)) {
+  if (projectName && !hasProjectAccess(decodeURIComponent(projectName))) {
     return null;
   }
 
