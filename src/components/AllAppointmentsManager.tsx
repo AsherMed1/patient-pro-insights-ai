@@ -100,17 +100,15 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'needs-review') {
-        // Needs Review: status = 'confirmed' AND date_of_appointment <= today
-        countQuery = countQuery
-          .eq('status', 'confirmed')
-          .lte('date_of_appointment', todayString);
+        // Needs Review: appointments that need status updates (null status) OR confirmed appointments for today/past
+        countQuery = countQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
       } else if (activeTab === 'future') {
-        // Upcoming: status = 'confirmed' AND date_of_appointment > today
+        // Upcoming: confirmed appointments in the future
         countQuery = countQuery
           .eq('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
+        // Completed: appointments with final status and procedure order set
         countQuery = countQuery
           .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
           .not('procedure_ordered', 'is', null);
@@ -193,17 +191,15 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'needs-review') {
-        // Needs Review: status = 'confirmed' AND date_of_appointment <= today
-        appointmentsQuery = appointmentsQuery
-          .eq('status', 'confirmed')
-          .lte('date_of_appointment', todayString);
+        // Needs Review: appointments that need status updates (null status) OR confirmed appointments for today/past
+        appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
       } else if (activeTab === 'future') {
-        // Upcoming: status = 'confirmed' AND date_of_appointment > today
+        // Upcoming: confirmed appointments in the future
         appointmentsQuery = appointmentsQuery
           .eq('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
+        // Completed: appointments with final status and procedure order set
         appointmentsQuery = appointmentsQuery
           .in('status', ['cancelled', 'no show', 'noshow', 'showed', 'won'])
           .not('procedure_ordered', 'is', null);
@@ -278,10 +274,9 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: status = 'confirmed' AND date_of_appointment <= today
+      // Needs Review: appointments that need status updates (null status) OR confirmed appointments for today/past
       const needsReviewQuery = getBaseQuery()
-        .eq('status', 'confirmed')
-        .lte('date_of_appointment', todayString);
+        .or(`status.is.null,and(status.eq.confirmed,date_of_appointment.lte.${todayString})`);
 
       // Upcoming: status = 'confirmed' AND date_of_appointment > today
       const futureQuery = getBaseQuery()
