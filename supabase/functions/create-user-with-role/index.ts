@@ -149,11 +149,22 @@ serve(async (req) => {
 
     if (createError) {
       console.error('❌ Error creating user:', createError);
+      
+      // Handle specific error cases
+      let errorMessage = 'Failed to create user';
+      if (createError.message.includes('already been registered')) {
+        errorMessage = `A user with email ${email} already exists in the system. Please use a different email address.`;
+      } else if (createError.message.includes('email_exists')) {
+        errorMessage = `A user with email ${email} already exists in the system. Please use a different email address.`;
+      } else {
+        errorMessage = createError.message || 'Failed to create user';
+      }
+      
       return new Response(JSON.stringify({ 
-        error: 'Failed to create user',
-        details: createError.message 
+        error: errorMessage,
+        code: createError.status === 422 ? 'EMAIL_EXISTS' : 'CREATE_ERROR'
       }), {
-        status: 400,
+        status: createError.status === 422 ? 422 : 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

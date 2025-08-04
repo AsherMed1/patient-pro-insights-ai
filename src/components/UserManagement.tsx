@@ -218,7 +218,10 @@ const UserManagement = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle edge function errors (network, etc.)
+        throw new Error(error.message || "Failed to create user");
+      }
 
       if (data?.success) {
         toast({
@@ -236,13 +239,26 @@ const UserManagement = () => {
         });
         fetchUsers(true);
       } else {
-        throw new Error(data?.error || "Failed to create user");
+        // Handle application-level errors returned from the edge function
+        const errorMessage = data?.error || "Failed to create user";
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
       console.error('Error creating user:', error);
+      
+      // Provide user-friendly error messages
+      let userMessage = error.message || "Failed to create user";
+      
+      // Check for specific error patterns
+      if (userMessage.includes('already exists in the system')) {
+        // This is already a user-friendly message from the edge function
+      } else if (userMessage.includes('Edge Function returned a non-2xx status code')) {
+        userMessage = "Unable to create user. Please check that the email is not already in use and try again.";
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to create user",
+        description: userMessage,
         variant: "destructive",
       });
     } finally {
