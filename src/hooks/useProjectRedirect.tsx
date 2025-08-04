@@ -63,8 +63,8 @@ export const useProjectRedirect = () => {
 
         const project = projectAccess.projects as any;
         if (project) {
-          // Redirect to project portal
-          navigate(`/project-portal?project=${encodeURIComponent(project.project_name)}`, { replace: true });
+          // Redirect to project portal using the correct route structure
+          navigate(`/project/${encodeURIComponent(project.project_name)}`, { replace: true });
         }
       } catch (error) {
         console.error('Error in project redirect:', error);
