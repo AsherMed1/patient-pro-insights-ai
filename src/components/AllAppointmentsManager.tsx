@@ -274,13 +274,20 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
+      // Automatically set procedure_ordered to true when status is "Won"
+      const updateData: any = {
+        status,
+        showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
+        updated_at: new Date().toISOString()
+      };
+      
+      if (status === 'Won') {
+        updateData.procedure_ordered = true;
+      }
+      
       const { error } = await supabase
         .from('all_appointments')
-        .update({
-          status,
-          showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', appointmentId);
 
       if (error) throw error;
@@ -290,7 +297,8 @@ const AllAppointmentsManager = ({
           ? {
               ...appointment,
               status,
-              showed: status === 'Showed' ? true : status === 'No Show' ? false : null
+              showed: status === 'Showed' ? true : status === 'No Show' ? false : null,
+              procedure_ordered: status === 'Won' ? true : appointment.procedure_ordered
             }
           : appointment
       ));
