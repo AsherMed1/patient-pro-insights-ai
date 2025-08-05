@@ -127,7 +127,7 @@ export const getAppointmentStatus = (appointment: AllAppointment) => {
       variant: 'outline' as const
     };
   }
-  if (appointment.showed) {
+  if (appointment.status?.toLowerCase() === 'showed') {
     return {
       text: 'Showed',
       variant: 'default' as const

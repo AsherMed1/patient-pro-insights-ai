@@ -127,7 +127,7 @@ const ProjectPortal = () => {
     try {
       let query = supabase
         .from('all_appointments')
-        .select('showed, procedure_ordered, date_appointment_created, status, date_of_appointment')
+        .select('procedure_ordered, date_appointment_created, status, date_of_appointment')
         .eq('project_name', decodeURIComponent(projectName!))
         // Only count appointments with non-null status that appear in the portal tabs
         .not('status', 'is', null);
@@ -170,7 +170,7 @@ const ProjectPortal = () => {
       }) || [];
       
       const totalAppointments = visibleAppointments.length;
-      const totalShowed = visibleAppointments.filter(apt => apt.showed === true).length;
+      const totalShowed = visibleAppointments.filter(apt => apt.status?.toLowerCase() === 'showed').length;
       const totalProceduresOrdered = visibleAppointments.filter(apt => apt.procedure_ordered === true).length;
       const projectedRevenue = totalProceduresOrdered * 7000;
       

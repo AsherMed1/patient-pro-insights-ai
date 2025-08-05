@@ -46,7 +46,7 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
       // Fetch all required data in parallel
       const [callsResult, appointmentsResult, agentsResult, projectsResult, leadsResult] = await Promise.all([
         supabase.from('all_calls').select('duration_seconds, status'),
-        supabase.from('all_appointments').select('showed, confirmed'),
+        supabase.from('all_appointments').select('status'),
         supabase.from('agents').select('id').eq('active', true),
         supabase.from('projects').select('id'),
         supabase.from('new_leads').select('id')
@@ -68,8 +68,11 @@ const AIAssistant = ({ clientId }: AIAssistantProps) => {
       const totalCallDuration = calls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0);
       const averageCallDuration = calls.length > 0 ? totalCallDuration / calls.length / 60 : 0;
       
-      const showedAppointments = appointments.filter(apt => apt.showed).length;
-      const totalCompletedAppointments = appointments.filter(apt => apt.showed !== null).length;
+      // Calculate show rate based on status
+      const showedAppointments = appointments.filter(apt => apt.status?.toLowerCase() === 'showed').length;
+      const totalCompletedAppointments = appointments.filter(apt => 
+        apt.status && ['showed', 'no show', 'noshow', 'cancelled', 'canceled'].includes(apt.status.toLowerCase())
+      ).length;
       const showRate = totalCompletedAppointments > 0 ? (showedAppointments / totalCompletedAppointments) * 100 : 0;
 
       setStats({

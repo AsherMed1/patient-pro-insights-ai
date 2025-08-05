@@ -141,8 +141,6 @@ const AllAppointmentsManager = ({
           calendar_name,
           requested_time,
           stage_booked,
-          showed,
-          confirmed,
           agent,
           agent_number,
           ghl_id,

@@ -54,8 +54,6 @@ interface NewLead {
     date_of_appointment: string | null;
     requested_time: string | null;
     status: string | null;
-    confirmed: boolean | null;
-    showed: boolean | null;
     calendar_name: string | null;
   } | null;
 }
@@ -185,7 +183,7 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
-        .select('lead_name, lead_phone_number, lead_email, date_of_appointment, requested_time, status, confirmed, showed, calendar_name, ghl_id')
+        .select('lead_name, lead_phone_number, lead_email, date_of_appointment, requested_time, status, calendar_name, ghl_id')
         .order('date_of_appointment', { ascending: false });
       
       if (appointmentsError) throw appointmentsError;

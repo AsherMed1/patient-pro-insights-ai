@@ -156,8 +156,8 @@ const AgentPerformanceDashboard = () => {
           const timeOnPhoneMinutes = Math.round(totalDuration / 60);
           
           const bookedAppointments = agentAppointments.length;
-          const shows = agentAppointments.filter(apt => apt.showed).length;
-          const noShows = agentAppointments.filter(apt => !apt.showed && apt.date_of_appointment && new Date(apt.date_of_appointment) < new Date()).length;
+          const shows = agentAppointments.filter(apt => apt.status?.toLowerCase() === 'showed').length;
+          const noShows = agentAppointments.filter(apt => apt.status?.toLowerCase().includes('no show') || apt.status?.toLowerCase() === 'noshow').length;
           const showRate = (shows + noShows) > 0 ? (shows / (shows + noShows)) * 100 : 0;
 
           calculatedPerformance.push({

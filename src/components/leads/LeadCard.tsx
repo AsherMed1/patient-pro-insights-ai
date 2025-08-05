@@ -53,8 +53,6 @@ interface NewLead {
     date_of_appointment: string | null;
     requested_time: string | null;
     status: string | null;
-    confirmed: boolean | null;
-    showed: boolean | null;
     calendar_name: string | null;
   } | null;
 }

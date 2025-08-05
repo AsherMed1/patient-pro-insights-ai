@@ -75,11 +75,7 @@ export const useMasterDatabase = () => {
     }
 
     if (filters.status) {
-      if (filters.status === 'showed') {
-        query = query.eq('showed', true);
-      } else if (filters.status === 'no-show') {
-        query = query.eq('showed', false);
-      }
+      query = query.ilike('status', `%${filters.status}%`);
     }
 
     const { data, error } = await query;
@@ -95,7 +91,7 @@ export const useMasterDatabase = () => {
   const getAggregatedMetrics = async (projectName?: string, dateRange?: { from: Date; to: Date }) => {
     let appointmentsQuery = supabase
       .from('all_appointments')
-      .select('showed, confirmed');
+      .select('status');
 
     if (projectName) {
       appointmentsQuery = appointmentsQuery.eq('project_name', projectName);
@@ -119,10 +115,10 @@ export const useMasterDatabase = () => {
 
     const appointments = appointmentsResult.data || [];
 
-    // Calculate aggregated metrics from appointments
+    // Calculate aggregated metrics based on status
     const totalAppointments = appointments.length;
-    const showedAppointments = appointments.filter(a => a.showed).length;
-    const confirmedAppointments = appointments.filter(a => a.confirmed).length;
+    const showedAppointments = appointments.filter(a => a.status?.toLowerCase() === 'showed').length;
+    const confirmedAppointments = appointments.filter(a => a.status?.toLowerCase() === 'confirmed').length;
 
     const showRate = totalAppointments > 0 ? (showedAppointments / totalAppointments) * 100 : 0;
 

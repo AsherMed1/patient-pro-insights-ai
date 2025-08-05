@@ -283,9 +283,6 @@ const LeadDetailsModal = ({
                       <div>
                         <span className="font-medium text-muted-foreground">Status:</span>
                         <div className="flex items-center space-x-2">
-                          {appointment.confirmed && <Badge variant="default" className="text-xs">Confirmed</Badge>}
-                          {appointment.showed === true && <Badge variant="secondary" className="text-xs">Showed</Badge>}
-                          {appointment.showed === false}
                           {appointment.procedure_ordered && <Badge variant="outline" className="text-xs">Procedure Ordered</Badge>}
                           {appointment.status && <Badge variant="outline" className="text-xs">{appointment.status}</Badge>}
                         </div>

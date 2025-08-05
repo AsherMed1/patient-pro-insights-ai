@@ -10,8 +10,6 @@ export interface AllAppointment {
   calendar_name: string | null;
   requested_time: string | null;
   stage_booked: string | null;
-  showed: boolean | null;
-  confirmed: boolean | null;
   agent: string | null;
   agent_number: string | null;
   ghl_id: string | null;
