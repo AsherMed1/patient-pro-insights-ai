@@ -121,10 +121,9 @@ const AllAppointmentsManager = ({
           .ilike('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: appointments with final status and procedure order set (case-insensitive)
+        // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
-          .not('procedure_ordered', 'is', null);
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
       }
 
       // Get the total count first
@@ -223,10 +222,9 @@ const AllAppointmentsManager = ({
           .ilike('status', 'confirmed')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
-        // Completed: appointments with final status and procedure order set (case-insensitive)
+        // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
-          .not('procedure_ordered', 'is', null);
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
       }
       
       // Apply pagination
@@ -321,10 +319,9 @@ const AllAppointmentsManager = ({
         .ilike('status', 'confirmed')
         .gt('date_of_appointment', todayString);
 
-      // Completed: appointments with final status and procedure order set (case-insensitive)
+      // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
-        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
-        .not('procedure_ordered', 'is', null);
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
         needsReviewQuery,
