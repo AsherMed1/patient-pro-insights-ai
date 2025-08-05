@@ -123,7 +123,7 @@ export const getAppointmentStatus = (appointment: AllAppointment) => {
   }
   if (!isAppointmentInPast(appointment.date_of_appointment)) {
     return {
-      text: 'Pending',
+      text: 'New',
       variant: 'outline' as const
     };
   }
