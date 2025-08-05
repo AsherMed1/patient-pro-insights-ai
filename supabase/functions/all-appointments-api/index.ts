@@ -154,24 +154,50 @@ serve(async (req) => {
       patient_intake_notes: formatWebhookPayload(body)
     }
 
-    // Check if appointment already exists
-    const { data: existingAppointment } = await supabase
-      .from('all_appointments')
-      .select('id')
-      .eq('ghl_id', appointmentData.ghl_id)
-      .eq('date_of_appointment', appointmentData.date_of_appointment)
-      .eq('requested_time', appointmentData.requested_time)
-      .maybeSingle()
+    // Check if appointment already exists based on ghl_appointment_id or ghl_id
+    let existingAppointment = null;
+    
+    if (appointmentData.ghl_appointment_id) {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('id')
+        .eq('ghl_appointment_id', appointmentData.ghl_appointment_id)
+        .maybeSingle()
+      existingAppointment = data;
+    }
+    
+    if (!existingAppointment && appointmentData.ghl_id) {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('id')
+        .eq('ghl_id', appointmentData.ghl_id)
+        .eq('lead_name', appointmentData.lead_name)
+        .maybeSingle()
+      existingAppointment = data;
+    }
 
     const isUpdate = !!existingAppointment
 
-    // Upsert appointment data - insert new or update existing
-    const { data, error } = await supabase
-      .from('all_appointments')
-      .upsert([appointmentData], {
-        onConflict: 'ghl_id,date_of_appointment,requested_time'
-      })
-      .select()
+    let data, error;
+    
+    if (isUpdate) {
+      // Update existing appointment
+      const updateResult = await supabase
+        .from('all_appointments')
+        .update(appointmentData)
+        .eq('id', existingAppointment.id)
+        .select()
+      data = updateResult.data;
+      error = updateResult.error;
+    } else {
+      // Insert new appointment
+      const insertResult = await supabase
+        .from('all_appointments')
+        .insert([appointmentData])
+        .select()
+      data = insertResult.data;
+      error = insertResult.error;
+    }
 
     if (error) {
       console.error('Database error:', error)
