@@ -400,6 +400,14 @@ const AppointmentCard = ({
             <span className="text-sm text-gray-600 break-words">{appointment.project_name}</span>
           </div>
           
+          {/* Calendar Name */}
+          {appointment.calendar_name && (
+            <div className="flex items-center space-x-2">
+              <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
+            </div>
+          )}
+          
           {/* Contact Info - Stacked on mobile */}
           {appointment.lead_email && <div className="flex items-start space-x-2">
               <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
