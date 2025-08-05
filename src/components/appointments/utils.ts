@@ -180,8 +180,12 @@ export const getStatusOptions = async () => {
     
     if (data) {
       const dbStatuses = data.map(item => item.status);
-      // Merge database statuses with predefined options, ensuring all are available
-      const allStatuses = [...new Set([...dbStatuses, ...statusOptions])].sort();
+      // Filter to only include allowed statuses (case insensitive)
+      const allowedStatuses = dbStatuses.filter(status => 
+        statusOptions.some(allowed => allowed.toLowerCase() === status.toLowerCase())
+      );
+      // Merge filtered database statuses with predefined options
+      const allStatuses = [...new Set([...allowedStatuses, ...statusOptions])].sort();
       return allStatuses;
     }
     // Return predefined options if no database data
@@ -193,5 +197,5 @@ export const getStatusOptions = async () => {
   }
 };
 
-// Default status options for fallback
-export const statusOptions = ['New', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Confirmed', 'Welcome Call', 'Won'];
+// Default status options - only these statuses are allowed
+export const statusOptions = ['New', 'Confirmed', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'Won'];
