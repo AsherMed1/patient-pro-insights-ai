@@ -63,17 +63,21 @@ serve(async (req) => {
     console.log('Parsed appointment update data:', body)
 
     // Validate required fields - need either id or combination of identifiers
-    if (!body.id && !body.ghl_id && !body.lead_name) {
+    if (!body.id && !body.ghl_appointment_id && !body.ghl_id && !body.lead_phone_number && !body.lead_name) {
       return new Response(
         JSON.stringify({ 
           error: 'Missing required identifier', 
-          message: 'Must provide either "id" or "ghl_id" or "lead_name" to identify the appointment',
+          message: 'Must provide one of: "id", "ghl_appointment_id", "ghl_id", "lead_phone_number", or "lead_name" to identify the appointment',
           example: {
-            id: 'uuid-of-appointment',
+            ghl_appointment_id: 'ghl_appointment_id_123',
             // OR
-            ghl_id: 'ghl_appointment_id',
-            // OR 
-            lead_name: 'John Doe'
+            ghl_id: 'ghl_contact_id_456',
+            // OR
+            lead_phone_number: '+1234567890',
+            // OR
+            lead_name: 'John Doe',
+            // OR
+            id: 'uuid-of-appointment'
           }
         }),
         { 
@@ -132,13 +136,17 @@ serve(async (req) => {
       )
     }
 
-    // Build the query based on available identifier - FIXED VERSION
+    // Build the query based on available identifier - Priority order: ghl_appointment_id, ghl_id, lead_phone_number, then others
     let updateQuery = supabase.from('all_appointments').update(updateData)
 
-    if (body.id) {
-      updateQuery = updateQuery.eq('id', body.id)
+    if (body.ghl_appointment_id) {
+      updateQuery = updateQuery.eq('appointment_id', body.ghl_appointment_id)
     } else if (body.ghl_id) {
       updateQuery = updateQuery.eq('ghl_id', body.ghl_id)
+    } else if (body.lead_phone_number) {
+      updateQuery = updateQuery.eq('lead_phone_number', body.lead_phone_number)
+    } else if (body.id) {
+      updateQuery = updateQuery.eq('id', body.id)
     } else if (body.lead_name) {
       updateQuery = updateQuery.eq('lead_name', body.lead_name)
       // Optionally filter by project_name if provided for more precision
