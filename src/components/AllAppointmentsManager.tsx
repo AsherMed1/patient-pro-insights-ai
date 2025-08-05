@@ -80,7 +80,12 @@ const AllAppointmentsManager = ({
       
       // Apply status filter
       if (statusFilter !== 'ALL') {
-        countQuery = countQuery.eq('status', statusFilter);
+        if (statusFilter === 'New') {
+          // For "New" status, include both actual "New" status AND null status (which shows as "New" in UI)
+          countQuery = countQuery.or(`status.eq.${statusFilter},status.is.null`);
+        } else {
+          countQuery = countQuery.eq('status', statusFilter);
+        }
       }
       
       // Apply procedure order filter
@@ -181,7 +186,12 @@ const AllAppointmentsManager = ({
       
       // Apply status filter
       if (statusFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.eq('status', statusFilter);
+        if (statusFilter === 'New') {
+          // For "New" status, include both actual "New" status AND null status (which shows as "New" in UI)
+          appointmentsQuery = appointmentsQuery.or(`status.eq.${statusFilter},status.is.null`);
+        } else {
+          appointmentsQuery = appointmentsQuery.eq('status', statusFilter);
+        }
       }
       
       // Apply procedure order filter
@@ -265,7 +275,12 @@ const AllAppointmentsManager = ({
         
         // Apply status filter
         if (statusFilter !== 'ALL') {
-          query = query.eq('status', statusFilter);
+          if (statusFilter === 'New') {
+            // For "New" status, include both actual "New" status AND null status (which shows as "New" in UI)
+            query = query.or(`status.eq.${statusFilter},status.is.null`);
+          } else {
+            query = query.eq('status', statusFilter);
+          }
         }
         
         // Apply procedure order filter
