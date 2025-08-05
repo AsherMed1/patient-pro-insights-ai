@@ -120,7 +120,6 @@ export type Database = {
           appointment_id: string | null
           calendar_name: string | null
           color_indicator: string | null
-          confirmed: boolean | null
           confirmed_number: string | null
           created_at: string
           date_appointment_created: string
@@ -144,7 +143,6 @@ export type Database = {
           procedure_ordered: boolean | null
           project_name: string
           requested_time: string | null
-          showed: boolean | null
           stage_booked: string | null
           status: string | null
           updated_at: string
@@ -156,7 +154,6 @@ export type Database = {
           appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
-          confirmed?: boolean | null
           confirmed_number?: string | null
           created_at?: string
           date_appointment_created: string
@@ -180,7 +177,6 @@ export type Database = {
           procedure_ordered?: boolean | null
           project_name: string
           requested_time?: string | null
-          showed?: boolean | null
           stage_booked?: string | null
           status?: string | null
           updated_at?: string
@@ -192,7 +188,6 @@ export type Database = {
           appointment_id?: string | null
           calendar_name?: string | null
           color_indicator?: string | null
-          confirmed?: boolean | null
           confirmed_number?: string | null
           created_at?: string
           date_appointment_created?: string
@@ -216,7 +211,6 @@ export type Database = {
           procedure_ordered?: boolean | null
           project_name?: string
           requested_time?: string | null
-          showed?: boolean | null
           stage_booked?: string | null
           status?: string | null
           updated_at?: string
