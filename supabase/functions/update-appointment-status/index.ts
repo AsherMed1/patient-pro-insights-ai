@@ -102,9 +102,7 @@ serve(async (req) => {
       'pending': 'Pending'
     }
     
-    // Allow updating these status fields
-    if (body.showed !== undefined) updateData.showed = body.showed
-    if (body.confirmed !== undefined) updateData.confirmed = body.confirmed
+    // Allow updating these status fields (removed showed/confirmed as they're not needed)
     if (body.agent !== undefined) updateData.agent = body.agent
     if (body.agent_number !== undefined) updateData.agent_number = body.agent_number
     if (body.confirmed_number !== undefined) updateData.confirmed_number = body.confirmed_number
@@ -127,7 +125,7 @@ serve(async (req) => {
         JSON.stringify({ 
           error: 'No valid fields to update', 
           message: 'Please provide at least one valid field to update',
-          validFields: ['showed', 'confirmed', 'agent', 'agent_number', 'confirmed_number', 'stage_booked', 'date_of_appointment', 'requested_time', 'status', 'procedure_ordered']
+          validFields: ['agent', 'agent_number', 'confirmed_number', 'stage_booked', 'date_of_appointment', 'requested_time', 'status', 'procedure_ordered']
         }),
         { 
           status: 400, 
