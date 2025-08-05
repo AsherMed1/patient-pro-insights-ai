@@ -151,7 +151,12 @@ serve(async (req) => {
       ghl_appointment_id: body.ghl_appointment_id || null,
       confirmed_number: body.confirmed_number || null,
       status: body.status || null,
-      patient_intake_notes: formatWebhookPayload(body)
+      patient_intake_notes: formatWebhookPayload(body),
+      // Set procedure_ordered to false if status is cancelled or no show
+      procedure_ordered: body.status && 
+        ['cancelled', 'canceled', 'no show'].includes(body.status.toLowerCase().trim()) 
+        ? false 
+        : null,
     }
 
     // Check if appointment already exists based on ghl_appointment_id or ghl_id
