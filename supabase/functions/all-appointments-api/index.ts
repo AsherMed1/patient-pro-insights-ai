@@ -145,12 +145,12 @@ serve(async (req) => {
       calendar_name: body.calendar_name || null,
       requested_time: body.requested_time || null,
       stage_booked: body.stage_booked || null,
-      showed: body.showed || false,
-      confirmed: body.confirmed || false,
       agent: body.agent || null,
       agent_number: body.agent_number || null,
       ghl_id: body.ghl_id || null,
+      ghl_appointment_id: body.ghl_appointment_id || null,
       confirmed_number: body.confirmed_number || null,
+      status: body.status || null,
       patient_intake_notes: formatWebhookPayload(body)
     }
 
