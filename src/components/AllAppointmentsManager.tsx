@@ -108,12 +108,10 @@ const AllAppointmentsManager = ({
         // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
         if (activeProjectFilter) {
           // Project-specific view: only confirmed appointments (case-insensitive)
-          countQuery = countQuery
-            .ilike('status', 'confirmed')
-            .lte('date_of_appointment', todayString);
+          countQuery = countQuery.or(`and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
         } else {
           // Main analytics view: include null status appointments OR confirmed appointments for today/past
-          countQuery = countQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString})`);
+          countQuery = countQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
         }
       } else if (activeTab === 'future') {
         // Upcoming: confirmed appointments in the future (case-insensitive)
@@ -209,12 +207,10 @@ const AllAppointmentsManager = ({
         // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
         if (activeProjectFilter) {
           // Project-specific view: only confirmed appointments (case-insensitive)
-          appointmentsQuery = appointmentsQuery
-            .ilike('status', 'confirmed')
-            .lte('date_of_appointment', todayString);
+          appointmentsQuery = appointmentsQuery.or(`and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
         } else {
           // Main analytics view: include null status appointments OR confirmed appointments for today/past
-          appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString})`);
+          appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
         }
       } else if (activeTab === 'future') {
         // Upcoming: confirmed appointments in the future (case-insensitive)
@@ -301,17 +297,15 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
+      // Needs Review: In main analytics, include null status appointments and new status. In projects, only confirmed appointments for today/past and new status
       const needsReviewQuery = getBaseQuery();
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
       if (activeProjectFilter) {
-        // Project-specific view: only confirmed appointments (case-insensitive)
-        needsReviewQuery
-          .ilike('status', 'confirmed')
-          .lte('date_of_appointment', todayString);
+        // Project-specific view: confirmed appointments (case-insensitive) for today/past OR new status appointments
+        needsReviewQuery.or(`and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
       } else {
-        // Main analytics view: include null status appointments OR confirmed appointments for today/past
-        needsReviewQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString})`);
+        // Main analytics view: include null status appointments OR confirmed appointments for today/past OR new status appointments
+        needsReviewQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
       }
 
       // Upcoming: confirmed appointments in the future (case-insensitive)
