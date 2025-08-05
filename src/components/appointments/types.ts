@@ -15,6 +15,7 @@ export interface AllAppointment {
   agent: string | null;
   agent_number: string | null;
   ghl_id: string | null;
+  ghl_appointment_id?: string | null;
   confirmed_number: string | null;
   created_at: string;
   updated_at: string;
