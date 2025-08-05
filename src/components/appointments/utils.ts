@@ -197,5 +197,11 @@ export const getStatusOptions = async () => {
   }
 };
 
+// Function to get only base statuses for dropdown (no variations like "- Completed")
+export const getBaseStatusOptions = async () => {
+  // Only return the base predefined statuses for dropdown display
+  return statusOptions.sort();
+};
+
 // Default status options - only these statuses are allowed
 export const statusOptions = ['New', 'Confirmed', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'Won'];
