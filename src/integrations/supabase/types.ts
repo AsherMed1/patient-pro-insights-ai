@@ -127,6 +127,7 @@ export type Database = {
           detected_insurance_id: string | null
           detected_insurance_plan: string | null
           detected_insurance_provider: string | null
+          ghl_appointment_id: string | null
           ghl_id: string | null
           id: string
           insurance_detection_confidence: number | null
@@ -161,6 +162,7 @@ export type Database = {
           detected_insurance_id?: string | null
           detected_insurance_plan?: string | null
           detected_insurance_provider?: string | null
+          ghl_appointment_id?: string | null
           ghl_id?: string | null
           id?: string
           insurance_detection_confidence?: number | null
@@ -195,6 +197,7 @@ export type Database = {
           detected_insurance_id?: string | null
           detected_insurance_plan?: string | null
           detected_insurance_provider?: string | null
+          ghl_appointment_id?: string | null
           ghl_id?: string | null
           id?: string
           insurance_detection_confidence?: number | null
