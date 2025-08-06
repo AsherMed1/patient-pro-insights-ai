@@ -190,10 +190,10 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
                 </div>
               ) : associatedAppointments.length > 0 ? (
                 <div className="space-y-3">
-                  {associatedAppointments.map((appointment) => (
+                  {associatedAppointments.filter(appointment => appointment && appointment.project_name).map((appointment) => (
                     <div key={appointment.id} className="border rounded-lg p-3 bg-gray-50">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{appointment.lead_name}</span>
+                        <span className="font-medium">{appointment.lead_name || 'Unknown'}</span>
                         <Badge variant="outline">{appointment.status || 'Pending'}</Badge>
                       </div>
                       <div className="text-sm text-gray-600 space-y-1">
