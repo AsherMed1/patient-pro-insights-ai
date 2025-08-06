@@ -120,8 +120,16 @@ const AllAppointmentsManager = ({
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
-        countQuery = countQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+        if (activeProjectFilter) {
+          // Project-specific view: final status AND non-null status required
+          countQuery = countQuery
+            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
+            .not('status', 'is', null);
+        } else {
+          // Main analytics view: just final status
+          countQuery = countQuery
+            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+        }
       }
 
       // Get the total count first
@@ -219,8 +227,16 @@ const AllAppointmentsManager = ({
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
-        appointmentsQuery = appointmentsQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+        if (activeProjectFilter) {
+          // Project-specific view: final status AND non-null status required
+          appointmentsQuery = appointmentsQuery
+            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
+            .not('status', 'is', null);
+        } else {
+          // Main analytics view: just final status
+          appointmentsQuery = appointmentsQuery
+            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+        }
       }
       
       // Apply pagination
@@ -314,8 +330,12 @@ const AllAppointmentsManager = ({
         .gt('date_of_appointment', todayString);
 
       // Completed: appointments with final status (case-insensitive)
-      const pastQuery = getBaseQuery()
-        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+      const pastQuery = activeProjectFilter 
+        ? getBaseQuery()
+            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
+            .not('status', 'is', null)
+        : getBaseQuery()
+            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
         needsReviewQuery,
