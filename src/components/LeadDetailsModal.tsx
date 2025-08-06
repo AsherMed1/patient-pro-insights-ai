@@ -70,10 +70,12 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
   }, [isOpen, lead]);
 
   const getDisplayName = () => {
+    if (!lead) return 'Unknown Lead';
+    
     if (lead.first_name || lead.last_name) {
       return `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
     }
-    return lead.lead_name;
+    return lead.lead_name || 'Unknown Lead';
   };
 
   const InfoSection = ({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) => (
