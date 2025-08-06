@@ -1095,6 +1095,29 @@ export type Database = {
           debug_info: Json
         }[]
       }
+      get_appointment_lead_association: {
+        Args: {
+          appointment_ghl_id?: string
+          appointment_phone?: string
+          appointment_email?: string
+          appointment_lead_name?: string
+          appointment_project_name?: string
+        }
+        Returns: {
+          lead_id: string
+          contact_id: string
+          phone_number: string
+          email: string
+          lead_name: string
+          project_name: string
+          insurance_provider: string
+          insurance_plan: string
+          insurance_id: string
+          group_number: string
+          patient_intake_notes: string
+          match_strategy: string
+        }[]
+      }
       get_dashboard_data: {
         Args: {
           p_project_name?: string
