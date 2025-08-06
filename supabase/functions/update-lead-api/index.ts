@@ -66,13 +66,16 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate identifier - must have either id OR (lead_name + project_name) OR contact_id OR phone_number
-    const { id, lead_name, project_name, contact_id, phone_number, ...updateFields } = body
+    // Validate identifier - must have either id OR (lead_name + project_name) OR contact_id OR ghl_id OR phone_number
+    const { id, lead_name, project_name, contact_id, ghl_id, phone_number, ...updateFields } = body
 
-    if (!id && !(lead_name && project_name) && !contact_id && !phone_number) {
+    // Map ghl_id to contact_id for compatibility
+    const effectiveContactId = contact_id || ghl_id;
+
+    if (!id && !(lead_name && project_name) && !effectiveContactId && !phone_number) {
       return new Response(
         JSON.stringify({ 
-          error: 'Must provide either "id" OR both "lead_name" and "project_name" OR "contact_id" OR "phone_number" to identify the lead' 
+          error: 'Must provide either "id" OR both "lead_name" and "project_name" OR "contact_id" OR "ghl_id" OR "phone_number" to identify the lead' 
         }),
         { 
           status: 400, 
@@ -201,13 +204,13 @@ Deno.serve(async (req) => {
       identificationMethod = 'id';
     }
     
-    // Strategy 2: Try by contact_id if ID didn't work
-    if (!data && !error && contact_id) {
-      console.log('Attempting to find lead by contact_id:', contact_id);
+    // Strategy 2: Try by contact_id (or ghl_id) if ID didn't work
+    if (!data && !error && effectiveContactId) {
+      console.log('Attempting to find lead by contact_id:', effectiveContactId);
       const result = await supabase.from('new_leads').update({
         ...updateFields,
         updated_at: new Date().toISOString()
-      }).eq('contact_id', contact_id).select().maybeSingle();
+      }).eq('contact_id', effectiveContactId).select().maybeSingle();
       
       data = result.data;
       error = result.error;
@@ -218,7 +221,7 @@ Deno.serve(async (req) => {
         console.log('Contact ID not found, attempting fallback by phone number:', updateFields.phone_number);
         const phoneResult = await supabase.from('new_leads').update({
           ...updateFields,
-          contact_id: contact_id, // Set the contact_id while we're at it
+          contact_id: effectiveContactId, // Set the contact_id while we're at it
           updated_at: new Date().toISOString()
         }).eq('phone_number', updateFields.phone_number).select().maybeSingle();
         
@@ -276,9 +279,9 @@ Deno.serve(async (req) => {
           error: 'Lead not found with the provided identifier(s)',
           attempted_methods: {
             id: !!id,
-            contact_id: !!contact_id,
+            contact_id: !!effectiveContactId,
             phone_number: !!phone_number,
-            phone_fallback: !!(contact_id && updateFields.phone_number),
+            phone_fallback: !!(effectiveContactId && updateFields.phone_number),
             name_and_project: !!(lead_name && project_name)
           }
         }),
