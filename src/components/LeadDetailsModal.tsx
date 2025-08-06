@@ -136,40 +136,40 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
             {/* Basic Information */}
             <InfoSection title="Basic Information" icon={User}>
               <InfoRow label="Full Name" value={getDisplayName()} />
-              <InfoRow label="Project" value={lead.project_name} />
-              <InfoRow label="Date of Birth" value={lead.dob} type="date" />
-              <InfoRow label="Status" value={lead.status} />
-              <InfoRow label="Times Called" value={lead.times_called} />
-              <InfoRow label="Procedure Ordered" value={lead.procedure_ordered} type="boolean" />
+              <InfoRow label="Project" value={lead?.project_name} />
+              <InfoRow label="Date of Birth" value={lead?.dob} type="date" />
+              <InfoRow label="Status" value={lead?.status} />
+              <InfoRow label="Times Called" value={lead?.times_called} />
+              <InfoRow label="Procedure Ordered" value={lead?.procedure_ordered} type="boolean" />
             </InfoSection>
 
             {/* Contact Information */}
             <InfoSection title="Contact Information" icon={Phone}>
-              <InfoRow label="Phone Number" value={lead.phone_number} />
-              <InfoRow label="Email" value={lead.email} />
-              <InfoRow label="Address" value={lead.address} />
-              <InfoRow label="Contact ID" value={lead.contact_id} />
+              <InfoRow label="Phone Number" value={lead?.phone_number} />
+              <InfoRow label="Email" value={lead?.email} />
+              <InfoRow label="Address" value={lead?.address} />
+              <InfoRow label="Contact ID" value={lead?.contact_id} />
             </InfoSection>
 
             {/* Appointment Information */}
             <InfoSection title="Appointment Information" icon={Calendar}>
-              <InfoRow label="Appointment Date" value={lead.appt_date} type="date" />
-              <InfoRow label="Calendar Location" value={lead.calendar_location} />
+              <InfoRow label="Appointment Date" value={lead?.appt_date} type="date" />
+              <InfoRow label="Calendar Location" value={lead?.calendar_location} />
             </InfoSection>
 
             {/* Insurance Information */}
             <InfoSection title="Insurance Information" icon={Shield}>
-              <InfoRow label="Provider" value={lead.insurance_provider} />
-              <InfoRow label="Plan" value={lead.insurance_plan} />
-              <InfoRow label="Insurance ID" value={lead.insurance_id} />
-              <InfoRow label="Group Number" value={lead.group_number} />
+              <InfoRow label="Provider" value={lead?.insurance_provider} />
+              <InfoRow label="Plan" value={lead?.insurance_plan} />
+              <InfoRow label="Insurance ID" value={lead?.insurance_id} />
+              <InfoRow label="Group Number" value={lead?.group_number} />
             </InfoSection>
 
             {/* Notes */}
-            {(lead.notes || lead.patient_intake_notes) && (
+            {(lead?.notes || lead?.patient_intake_notes) && (
               <InfoSection title="Notes" icon={FileText}>
-                {lead.notes && <InfoRow label="General Notes" value={lead.notes} />}
-                {lead.patient_intake_notes && (
+                {lead?.notes && <InfoRow label="General Notes" value={lead.notes} />}
+                {lead?.patient_intake_notes && (
                   <div className="space-y-1">
                     <span className="font-medium text-gray-600 text-sm">Patient Intake Notes:</span>
                     <div className="text-sm text-gray-900 whitespace-pre-wrap bg-gray-50 p-3 rounded border">
@@ -214,10 +214,10 @@ const LeadDetailsModal = ({ isOpen, onClose, lead }: LeadDetailsModalProps) => {
 
             {/* System Information */}
             <InfoSection title="System Information" icon={Building2}>
-              <InfoRow label="Lead ID" value={lead.id} />
-              <InfoRow label="Created" value={lead.created_at} type="datetime" />
-              <InfoRow label="Updated" value={lead.updated_at} type="datetime" />
-              <InfoRow label="Lead Date" value={lead.date} type="date" />
+              <InfoRow label="Lead ID" value={lead?.id} />
+              <InfoRow label="Created" value={lead?.created_at} type="datetime" />
+              <InfoRow label="Updated" value={lead?.updated_at} type="datetime" />
+              <InfoRow label="Lead Date" value={lead?.date} type="date" />
             </InfoSection>
           </div>
         </ScrollArea>
