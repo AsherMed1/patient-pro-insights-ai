@@ -197,23 +197,6 @@ serve(async (req) => {
       address: body.address || null,
       notes: body.notes || null,
       patient_intake_notes: formatWebhookPayload(body),
-      card_image: body.card_image || null,
-      knee_pain_duration: body.knee_pain_duration || null,
-      knee_osteoarthritis_diagnosis: body.knee_osteoarthritis_diagnosis === true,
-      gae_candidate: body.gae_candidate === true,
-      trauma_injury_onset: body.trauma_injury_onset === true,
-      pain_severity_scale: body.pain_severity_scale ? parseInt(body.pain_severity_scale) : null,
-      symptoms_description: body.symptoms_description || null,
-      knee_treatments_tried: body.knee_treatments_tried || null,
-      fever_chills: body.fever_chills === true,
-      knee_imaging: body.knee_imaging === true,
-      heel_morning_pain: body.heel_morning_pain === true,
-      heel_pain_improves_rest: body.heel_pain_improves_rest === true,
-      heel_pain_duration: body.heel_pain_duration || null,
-      heel_pain_exercise_frequency: body.heel_pain_exercise_frequency || null,
-      plantar_fasciitis_treatments: body.plantar_fasciitis_treatments || null,
-      plantar_fasciitis_mobility_impact: body.plantar_fasciitis_mobility_impact === true,
-      plantar_fasciitis_imaging: body.plantar_fasciitis_imaging === true,
       email: body.email || null
     }
 
