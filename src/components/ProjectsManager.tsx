@@ -222,7 +222,7 @@ const ProjectsManager = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((project) => {
+            {projects.filter(project => project && project.project_name).map((project) => {
               const stats = projectStats.find(s => s.project_name === project.project_name);
               
               return (
