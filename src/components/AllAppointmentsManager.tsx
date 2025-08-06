@@ -107,8 +107,8 @@ const AllAppointmentsManager = ({
       if (activeTab === 'needs-review') {
         // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
         if (activeProjectFilter) {
-          // Project-specific view: only confirmed appointments (case-insensitive)
-          countQuery = countQuery.or(`and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
+          // Project-specific view: only confirmed appointments (case-insensitive), exclude 'new' status
+          countQuery = countQuery.ilike('status', 'confirmed').lte('date_of_appointment', todayString);
         } else {
           // Main analytics view: include null status appointments OR confirmed appointments for today/past
           countQuery = countQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
@@ -206,8 +206,8 @@ const AllAppointmentsManager = ({
       if (activeTab === 'needs-review') {
         // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
         if (activeProjectFilter) {
-          // Project-specific view: only confirmed appointments (case-insensitive)
-          appointmentsQuery = appointmentsQuery.or(`and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
+          // Project-specific view: only confirmed appointments (case-insensitive), exclude 'new' status
+          appointmentsQuery = appointmentsQuery.ilike('status', 'confirmed').lte('date_of_appointment', todayString);
         } else {
           // Main analytics view: include null status appointments OR confirmed appointments for today/past
           appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
@@ -301,8 +301,8 @@ const AllAppointmentsManager = ({
       const needsReviewQuery = getBaseQuery();
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
       if (activeProjectFilter) {
-        // Project-specific view: confirmed appointments (case-insensitive) for today/past OR new status appointments
-        needsReviewQuery.or(`and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
+        // Project-specific view: only confirmed appointments (case-insensitive) for today/past, exclude 'new' status
+        needsReviewQuery.ilike('status', 'confirmed').lte('date_of_appointment', todayString);
       } else {
         // Main analytics view: include null status appointments OR confirmed appointments for today/past OR new status appointments
         needsReviewQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
