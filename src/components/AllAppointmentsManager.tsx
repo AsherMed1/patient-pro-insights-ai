@@ -82,9 +82,9 @@ const AllAppointmentsManager = ({
       if (statusFilter !== 'ALL') {
         if (statusFilter === 'New') {
           // For "New" status, include both actual "New" status AND null status (which shows as "New" in UI)
-          countQuery = countQuery.or(`status.eq.${statusFilter},status.is.null`);
+          countQuery = countQuery.or(`status.ilike.${statusFilter},status.is.null`);
         } else {
-          countQuery = countQuery.eq('status', statusFilter);
+          countQuery = countQuery.ilike('status', statusFilter);
         }
       }
       
@@ -193,9 +193,9 @@ const AllAppointmentsManager = ({
       if (statusFilter !== 'ALL') {
         if (statusFilter === 'New') {
           // For "New" status, include both actual "New" status AND null status (which shows as "New" in UI)
-          appointmentsQuery = appointmentsQuery.or(`status.eq.${statusFilter},status.is.null`);
+          appointmentsQuery = appointmentsQuery.or(`status.ilike.${statusFilter},status.is.null`);
         } else {
-          appointmentsQuery = appointmentsQuery.eq('status', statusFilter);
+          appointmentsQuery = appointmentsQuery.ilike('status', statusFilter);
         }
       }
       
@@ -287,9 +287,9 @@ const AllAppointmentsManager = ({
         if (statusFilter !== 'ALL') {
           if (statusFilter === 'New') {
             // For "New" status, include both actual "New" status AND null status (which shows as "New" in UI)
-            query = query.or(`status.eq.${statusFilter},status.is.null`);
+            query = query.or(`status.ilike.${statusFilter},status.is.null`);
           } else {
-            query = query.eq('status', statusFilter);
+            query = query.ilike('status', statusFilter);
           }
         }
         
