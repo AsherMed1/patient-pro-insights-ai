@@ -237,14 +237,31 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
       {/* Leads List */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            {projectFilter ? `${projectFilter} - New Leads` : 'New Leads'}
-          </CardTitle>
-          <CardDescription>
-            Showing {((currentPage - 1) * leadsPerPage) + 1} to {Math.min(currentPage * leadsPerPage, totalCount)} of {totalCount} leads (Times in Central Time Zone)
-            {viewOnly && " (View Only - Records created via API)"}
-            {projectFilter && ` for ${projectFilter}`}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-3">
+                <span>{projectFilter ? `${projectFilter} - New Leads` : 'New Leads'}</span>
+                {(() => {
+                  const leadsWithNoCalls = leads.filter(lead => (lead.actual_calls_count || 0) === 0).length;
+                  const totalCurrentPageLeads = leads.length;
+                  const percentageNoCalls = totalCurrentPageLeads > 0 ? ((leadsWithNoCalls / totalCurrentPageLeads) * 100).toFixed(1) : '0';
+                  
+                  return (
+                    <div className="flex items-center gap-2 text-sm font-normal">
+                      <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md border border-orange-200">
+                        {leadsWithNoCalls} leads with 0 calls ({percentageNoCalls}%)
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardTitle>
+              <CardDescription>
+                Showing {((currentPage - 1) * leadsPerPage) + 1} to {Math.min(currentPage * leadsPerPage, totalCount)} of {totalCount} leads (Times in Central Time Zone)
+                {viewOnly && " (View Only - Records created via API)"}
+                {projectFilter && ` for ${projectFilter}`}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Top Pagination */}
