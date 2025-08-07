@@ -19,8 +19,9 @@ interface CallData {
   leadContactRatio: number;
   agents: Array<{
     name: string;
-    appointments: number;
-    connectRate: number;
+    callsMade: number;
+    timeOnCalls: number;
+    appointmentsBooked: number;
   }>;
 }
 
@@ -164,20 +165,17 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
         const agentCalls = calls ? calls.filter(call => call.agent === agent.agent_name) : [];
         const agentCallsCount = agentCalls.length;
         
-        // Use the new connect rate calculation for agents too (calls > 20 seconds)
-        const agentConnectedCalls = agentCalls.filter(call => 
-          (call.duration_seconds || 0) > 20
-        ).length;
-        
-        const agentConnectRate = agentCallsCount > 0 ? (agentConnectedCalls / agentCallsCount) * 100 : 0;
+        // Calculate total time on calls in minutes
+        const agentTotalCallTime = agentCalls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0) / 60;
         
         const agentAppointments = appointments ? 
           appointments.filter(appt => appt.agent === agent.agent_name).length : 0;
         
         return {
           name: agent.agent_name,
-          appointments: agentAppointments,
-          connectRate: agentConnectRate
+          callsMade: agentCallsCount,
+          timeOnCalls: agentTotalCallTime,
+          appointmentsBooked: agentAppointments
         };
       }) : [];
 

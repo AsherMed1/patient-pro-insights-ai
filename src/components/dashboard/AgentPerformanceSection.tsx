@@ -7,8 +7,9 @@ import { TrendingUp } from 'lucide-react';
 
 interface Agent {
   name: string;
-  appointments: number;
-  connectRate: number;
+  callsMade: number;
+  timeOnCalls: number; // in minutes
+  appointmentsBooked: number;
 }
 
 interface AgentPerformanceSectionProps {
@@ -37,37 +38,32 @@ const AgentPerformanceSection = ({ agents, totalAppointments }: AgentPerformance
                     <p className="text-sm text-gray-600">Call Center Agent</p>
                   </div>
                   <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                    {agent.appointments} appointments
+                    {agent.appointmentsBooked} appointments booked
                   </Badge>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Connect Rate</label>
+                    <label className="text-sm font-medium text-gray-600">Calls Made</label>
                     <div className="mt-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-lg font-bold">{agent.connectRate.toFixed(1)}%</span>
-                        <span className="text-sm text-gray-500">Target: 65%</span>
-                      </div>
-                      <Progress value={agent.connectRate} className="h-2" />
+                      <span className="text-lg font-bold">{agent.callsMade}</span>
+                      <p className="text-sm text-gray-500">Total calls</p>
                     </div>
                   </div>
                   
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Appointment Contribution</label>
+                    <label className="text-sm font-medium text-gray-600">Time on Calls</label>
                     <div className="mt-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-lg font-bold">
-                          {totalAppointments > 0
-                            ? ((agent.appointments / totalAppointments) * 100).toFixed(1)
-                            : '0.0'}%
-                        </span>
-                        <span className="text-sm text-gray-500">of total</span>
-                      </div>
-                      <Progress 
-                        value={totalAppointments > 0 ? (agent.appointments / totalAppointments) * 100 : 0} 
-                        className="h-2" 
-                      />
+                      <span className="text-lg font-bold">{Math.round(agent.timeOnCalls)} min</span>
+                      <p className="text-sm text-gray-500">Talk time</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Appointments Booked</label>
+                    <div className="mt-1">
+                      <span className="text-lg font-bold">{agent.appointmentsBooked}</span>
+                      <p className="text-sm text-gray-500">Scheduled</p>
                     </div>
                   </div>
                 </div>
