@@ -478,10 +478,11 @@ const AllAppointmentsManager = ({
         onStatusFilterChange={setStatusFilter}
         procedureOrderFilter={procedureOrderFilter}
         onProcedureOrderFilterChange={setProcedureOrderFilter}
-        onShowImport={() => setShowImport(true)}
-        showImport={showImport}
         sortBy={sortBy}
         onSortChange={setSortBy}
+        showImport={showImport}
+        onShowImport={() => setShowImport(true)}
+        isProjectSpecificView={!!projectFilter} // Pass true if we have a projectFilter prop
       />
 
       {/* CSV Import Component */}

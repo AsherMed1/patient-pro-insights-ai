@@ -30,6 +30,7 @@ interface AppointmentFiltersProps {
   onProcedureOrderFilterChange: (value: string) => void;
   sortBy: 'date' | 'procedure_ordered' | 'project';
   onSortChange: (value: 'date' | 'procedure_ordered' | 'project') => void;
+  isProjectSpecificView?: boolean; // New prop to indicate we're in a project-specific view
 }
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   searchTerm,
@@ -46,7 +47,8 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   procedureOrderFilter,
   onProcedureOrderFilterChange,
   sortBy,
-  onSortChange
+  onSortChange,
+  isProjectSpecificView = false
 }) => {
   const [projects, setProjects] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
@@ -142,21 +144,23 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             </div>
             
             
-            
-            <div className="flex items-center space-x-3">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <Select value={projectFilter} onValueChange={onProjectFilterChange}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Projects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Projects</SelectItem>
-                  {projects.map(project => <SelectItem key={project} value={project}>
-                      {project}
-                    </SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Project Filter - Only show if not in project-specific view */}
+            {!isProjectSpecificView && (
+              <div className="flex items-center space-x-3">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <Select value={projectFilter} onValueChange={onProjectFilterChange}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Projects" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Projects</SelectItem>
+                    {projects.map(project => <SelectItem key={project} value={project}>
+                        {project}
+                      </SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             <div className="flex items-center space-x-3">
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -272,7 +276,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Showing:</span>
               <span className="font-medium">{getDateRangeText()}</span>
-              {projectFilter !== 'ALL' && <>
+              {!isProjectSpecificView && projectFilter !== 'ALL' && <>
                   <span>•</span>
                   <span>Project: "{projectFilter}"</span>
                 </>}
