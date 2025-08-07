@@ -47,22 +47,28 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   };
 
   const getActivityStatus = (lastActivity: string | null) => {
-    if (!lastActivity) return { status: 'No Activity', color: 'bg-gray-100 text-gray-600' };
+    if (!lastActivity) return { status: 'No Activity', color: 'bg-red-100 text-red-600', isInactive: true };
     
     const daysSinceActivity = Math.floor(
       (new Date().getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24)
     );
     
-    if (daysSinceActivity === 0) return { status: 'Active Today', color: 'bg-green-100 text-green-600' };
-    if (daysSinceActivity <= 7) return { status: 'Active This Week', color: 'bg-blue-100 text-blue-600' };
-    if (daysSinceActivity <= 30) return { status: 'Active This Month', color: 'bg-yellow-100 text-yellow-600' };
-    return { status: 'Inactive', color: 'bg-red-100 text-red-600' };
+    if (daysSinceActivity === 0) return { status: 'Active Today', color: 'bg-green-100 text-green-600', isInactive: false };
+    if (daysSinceActivity <= 3) return { status: 'Recent Activity', color: 'bg-blue-100 text-blue-600', isInactive: false };
+    if (daysSinceActivity <= 7) return { status: 'This Week', color: 'bg-yellow-100 text-yellow-600', isInactive: false };
+    return { status: 'Inactive 3+ Days', color: 'bg-red-100 text-red-600', isInactive: true };
   };
 
   const activityStatus = getActivityStatus(stats?.last_activity || null);
 
   return (
-    <Card className={`border-l-4 ${project.active ? 'border-l-blue-500' : 'border-l-gray-300 opacity-60'} ${!project.active ? 'bg-gray-50' : ''}`}>
+    <Card className={`border-l-4 ${
+      !project.active 
+        ? 'border-l-gray-300 opacity-60 bg-gray-50' 
+        : activityStatus.isInactive 
+          ? 'border-l-red-500 bg-red-50' 
+          : 'border-l-blue-500'
+    }`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-2">
