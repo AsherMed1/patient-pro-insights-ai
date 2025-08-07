@@ -185,10 +185,24 @@ export const useLeads = (projectFilter?: string) => {
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const matchingCalls = (callsData || []).filter(call => {
+          // Debug specific lead
+          const isDebugLead = lead.lead_name === 'Tricia Norwood';
+          
           // Primary: Match by contact_id/ghl_id (case-insensitive)
           if (lead.contact_id && call.ghl_id) {
             const leadId = lead.contact_id.toLowerCase().trim();
             const callId = call.ghl_id.toLowerCase().trim();
+            
+            if (isDebugLead) {
+              console.log('GHL ID match attempt:', {
+                leadId: leadId,
+                callId: callId,
+                match: leadId === callId,
+                leadContactId: lead.contact_id,
+                callGhlId: call.ghl_id
+              });
+            }
+            
             if (leadId === callId) {
               return true;
             }
@@ -198,6 +212,14 @@ export const useLeads = (projectFilter?: string) => {
           if (lead.phone_number && call.lead_phone_number) {
             const leadPhone = normalizePhoneNumber(lead.phone_number);
             const callPhone = normalizePhoneNumber(call.lead_phone_number);
+            
+            if (isDebugLead) {
+              console.log('Phone match attempt:', {
+                leadPhone: leadPhone,
+                callPhone: callPhone,
+                match: leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10
+              });
+            }
             
             if (leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10) {
               return true;
