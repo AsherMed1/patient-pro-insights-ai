@@ -251,7 +251,17 @@ const ProjectsManager = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.filter(project => project && project.project_name).map((project) => {
+            {projects
+              .filter(project => project && project.project_name)
+              .sort((a, b) => {
+                // First sort by active status (active projects first)
+                if (a.active !== b.active) {
+                  return a.active ? -1 : 1;
+                }
+                // Then sort by updated_at (most recent first)
+                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+              })
+              .map((project) => {
               const stats = projectStats.find(s => s.project_name === project.project_name);
               
               return (
