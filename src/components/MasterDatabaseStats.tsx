@@ -28,7 +28,10 @@ const MasterDatabaseStats = () => {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.totalProjects}</div>
-          <p className="text-xs opacity-90 mt-1">Active projects</p>
+          <div className="flex items-center justify-between mt-2 text-xs opacity-90">
+            <span>{stats.activeProjects} active</span>
+            <span>{stats.disabledProjects} disabled</span>
+          </div>
         </CardContent>
       </Card>
 

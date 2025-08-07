@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface DatabaseStats {
   totalProjects: number;
+  activeProjects: number;
+  disabledProjects: number;
   totalAppointments: number;
   totalAgents: number;
   lastSyncTime?: string;
@@ -20,6 +22,8 @@ interface AppointmentFilters {
 export const useMasterDatabase = () => {
   const [stats, setStats] = useState<DatabaseStats>({
     totalProjects: 0,
+    activeProjects: 0,
+    disabledProjects: 0,
     totalAppointments: 0,
     totalAgents: 0
   });
@@ -34,14 +38,18 @@ export const useMasterDatabase = () => {
       setLoading(true);
       
       // Get counts from all tables
-      const [projectsResult, appointmentsResult, agentsResult] = await Promise.all([
+      const [projectsResult, activeProjectsResult, disabledProjectsResult, appointmentsResult, agentsResult] = await Promise.all([
         supabase.from('projects').select('id', { count: 'exact', head: true }),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', true),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', false),
         supabase.from('all_appointments').select('id', { count: 'exact', head: true }),
         supabase.from('agents').select('id', { count: 'exact', head: true })
       ]);
       
       setStats({
         totalProjects: projectsResult.count || 0,
+        activeProjects: activeProjectsResult.count || 0,
+        disabledProjects: disabledProjectsResult.count || 0,
         totalAppointments: appointmentsResult.count || 0,
         totalAgents: agentsResult.count || 0,
         lastSyncTime: new Date().toISOString()
