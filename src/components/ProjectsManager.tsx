@@ -231,9 +231,14 @@ const ProjectsManager = () => {
             <CardTitle className="flex items-center space-x-2">
               <FolderOpen className="h-5 w-5" />
               <span>Active Projects</span>
-              <span className="text-sm font-normal text-gray-500">
-                ({projects.length} total)
-              </span>
+              <div className="flex items-center space-x-2 text-sm font-normal">
+                <span className="bg-green-100 text-green-700 px-2 py-1 rounded">
+                  {projects.filter(p => p.active).length} Active
+                </span>
+                <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                  {projects.filter(p => !p.active).length} Disabled
+                </span>
+              </div>
             </CardTitle>
             <CardDescription>
               Overview of all projects and their activity status
