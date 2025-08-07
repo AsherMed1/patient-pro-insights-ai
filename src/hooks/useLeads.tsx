@@ -159,7 +159,7 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch all calls for matching
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
-        .select('lead_name, lead_phone_number, ghl_id');
+        .select('lead_name, lead_phone_number, ghl_id, project_name');
       
       if (callsError) throw callsError;
 
@@ -242,13 +242,19 @@ export const useLeads = (projectFilter?: string) => {
         
         const mostRecentAppointment = leadAppointments.length > 0 ? leadAppointments[0] : null;
         
-        // Debug log for specific lead
-        if (lead.lead_name === 'AnaMaria DaSilva') {
-          console.log('AnaMaria DaSilva debug:', {
+        // Debug log for specific leads
+        if (lead.lead_name === 'AnaMaria DaSilva' || lead.lead_name === 'Tricia Norwood') {
+          console.log(`${lead.lead_name} debug:`, {
             contact_id: lead.contact_id,
             phone_number: lead.phone_number,
             matchingCallsCount: actualCallsCount,
-            matchingCalls: matchingCalls.length > 0 ? matchingCalls : 'No matches found'
+            totalCallsInDatabase: (callsData || []).length,
+            callsWithSameProject: (callsData || []).filter(call => call.project_name === lead.project_name).length,
+            matchingCalls: matchingCalls.length > 0 ? matchingCalls.map(call => ({
+              ghl_id: call.ghl_id,
+              phone: call.lead_phone_number,
+              project: call.project_name
+            })) : 'No matches found'
           });
         }
 
