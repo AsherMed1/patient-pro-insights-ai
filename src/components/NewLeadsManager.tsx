@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,13 +14,14 @@ import LeadCard from './leads/LeadCard';
 import LeadsCsvImport from './LeadsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { useLeads } from '@/hooks/useLeads';
-
 interface NewLeadsManagerProps {
   viewOnly?: boolean;
   projectFilter?: string;
 }
-
-const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerProps) => {
+const NewLeadsManager = ({
+  viewOnly = false,
+  projectFilter
+}: NewLeadsManagerProps) => {
   const [showImport, setShowImport] = useState(false);
   const {
     leads,
@@ -47,17 +47,16 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     totalLeadsWithNoCalls,
     totalPercentageNoCalls
   } = useLeads(projectFilter);
-
   const totalPages = Math.ceil(totalCount / leadsPerPage);
-
-  const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined }) => {
+  const handleDateRangeChange = (range: {
+    from: Date | undefined;
+    to: Date | undefined;
+  }) => {
     setDateRange(range);
   };
-
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
     const showEllipsis = totalPages > 7;
-
     if (!showEllipsis) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -81,54 +80,42 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
     }
     return pages;
   };
-
   const goToPreviousPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
   };
-
   const goToNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
   };
-
   const goToPage = (page: number) => {
     setCurrentPage(page);
   };
-
   const handleImportComplete = () => {
     setShowImport(false);
     fetchLeadsWithCallCounts(); // Refresh the leads list
   };
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       {/* Import Section */}
-      {!viewOnly && !showImport && (
-        <Card>
+      {!viewOnly && !showImport && <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg">Import Historical Leads</CardTitle>
                 <CardDescription>Upload past leads data from CSV file</CardDescription>
               </div>
-              <Button 
-                onClick={() => setShowImport(true)}
-                className="flex items-center gap-2"
-              >
+              <Button onClick={() => setShowImport(true)} className="flex items-center gap-2">
                 <Upload className="h-4 w-4" />
                 Import CSV
               </Button>
             </div>
           </CardHeader>
-        </Card>
-      )}
+        </Card>}
 
       {/* CSV Import Component */}
-      {showImport && (
-        <div className="space-y-4">
+      {showImport && <div className="space-y-4">
           <LeadsCsvImport />
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setShowImport(false)}>
@@ -138,8 +125,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
               Done
             </Button>
           </div>
-        </div>
-      )}
+        </div>}
 
       {/* Date Filter */}
       <Card className="mb-6">
@@ -156,12 +142,7 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
               <label className="text-sm font-medium">Search by Name</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Search lead name, first name, or last name..."
-                  value={nameSearch}
-                  onChange={(e) => setNameSearch(e.target.value)}
-                  className="pl-10 w-full md:w-80"
-                />
+                <Input placeholder="Search lead name, first name, or last name..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="pl-10 w-full md:w-80" />
               </div>
             </div>
             
@@ -171,49 +152,31 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
               <div className="flex gap-2">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[140px] justify-start text-left font-normal",
-                        !dateRange.from && "text-muted-foreground"
-                      )}
-                    >
+                    <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(date) => handleDateRangeChange({ ...dateRange, from: date })}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
+                    <Calendar mode="single" selected={dateRange.from} onSelect={date => handleDateRangeChange({
+                    ...dateRange,
+                    from: date
+                  })} initialFocus className="p-3 pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
 
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[140px] justify-start text-left font-normal",
-                        !dateRange.to && "text-muted-foreground"
-                      )}
-                    >
+                    <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(date) => handleDateRangeChange({ ...dateRange, to: date })}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
+                    <Calendar mode="single" selected={dateRange.to} onSelect={date => handleDateRangeChange({
+                    ...dateRange,
+                    to: date
+                  })} initialFocus className="p-3 pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -221,14 +184,13 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
 
             {/* Clear Filters Button */}
             <div className="flex flex-col justify-end">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  handleDateRangeChange({ from: undefined, to: undefined });
-                  setNameSearch('');
-                }}
-                className="w-fit"
-              >
+              <Button variant="outline" onClick={() => {
+              handleDateRangeChange({
+                from: undefined,
+                to: undefined
+              });
+              setNameSearch('');
+            }} className="w-fit">
                 Clear Filters
               </Button>
             </div>
@@ -244,13 +206,11 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
               <CardTitle className="flex items-center gap-3">
                 <span>{projectFilter ? `${projectFilter} - New Leads` : 'New Leads'}</span>
                 <div className="flex items-center gap-2 text-sm font-normal">
-                  <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md border border-orange-200">
-                    {totalLeadsWithNoCalls} leads with 0 calls ({totalPercentageNoCalls.toFixed(1)}%)
-                  </div>
+                  
                 </div>
               </CardTitle>
               <CardDescription>
-                Showing {((currentPage - 1) * leadsPerPage) + 1} to {Math.min(currentPage * leadsPerPage, totalCount)} of {totalCount} leads (Times in Central Time Zone)
+                Showing {(currentPage - 1) * leadsPerPage + 1} to {Math.min(currentPage * leadsPerPage, totalCount)} of {totalCount} leads (Times in Central Time Zone)
                 {viewOnly && " (View Only - Records created via API)"}
                 {projectFilter && ` for ${projectFilter}`}
               </CardDescription>
@@ -259,64 +219,26 @@ const NewLeadsManager = ({ viewOnly = false, projectFilter }: NewLeadsManagerPro
         </CardHeader>
         <CardContent>
           {/* Top Pagination */}
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalCount={totalCount}
-            itemsPerPage={leadsPerPage}
-            onPageChange={setCurrentPage}
-            className="mb-4 border-b pb-4"
-          />
+          <PaginationControls currentPage={currentPage} totalPages={totalPages} totalCount={totalCount} itemsPerPage={leadsPerPage} onPageChange={setCurrentPage} className="mb-4 border-b pb-4" />
 
-          {loading ? (
-            <div className="text-center py-8">
+          {loading ? <div className="text-center py-8">
               <div className="text-gray-500">Loading leads...</div>
-            </div>
-          ) : leads.length === 0 ? (
-            <div className="text-center py-8">
+            </div> : leads.length === 0 ? <div className="text-center py-8">
               <div className="text-gray-500">No leads recorded yet</div>
-            </div>
-          ) : (
-            <>
+            </div> : <>
               <div className="space-y-4">
-                {leads.map((lead) => (
-                  <LeadCard
-                    key={lead.id}
-                    lead={lead}
-                    onViewCalls={handleViewCalls}
-                    onViewFullDetails={handleViewFullDetails}
-                  />
-                ))}
+                {leads.map(lead => <LeadCard key={lead.id} lead={lead} onViewCalls={handleViewCalls} onViewFullDetails={handleViewFullDetails} />)}
               </div>
 
               {/* Bottom Pagination */}
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
-                itemsPerPage={leadsPerPage}
-                onPageChange={setCurrentPage}
-                className="mt-4"
-              />
-            </>
-          )}
+              <PaginationControls currentPage={currentPage} totalPages={totalPages} totalCount={totalCount} itemsPerPage={leadsPerPage} onPageChange={setCurrentPage} className="mt-4" />
+            </>}
         </CardContent>
       </Card>
 
-      <CallDetailsModal
-        isOpen={showCallsModal}
-        onClose={() => setShowCallsModal(false)}
-        leadName={selectedLeadName}
-        calls={selectedLeadCalls}
-      />
+      <CallDetailsModal isOpen={showCallsModal} onClose={() => setShowCallsModal(false)} leadName={selectedLeadName} calls={selectedLeadCalls} />
 
-      <LeadDetailsModal
-        isOpen={showLeadDetailsModal}
-        onClose={() => setShowLeadDetailsModal(false)}
-        lead={selectedLead}
-      />
-    </div>
-  );
+      <LeadDetailsModal isOpen={showLeadDetailsModal} onClose={() => setShowLeadDetailsModal(false)} lead={selectedLead} />
+    </div>;
 };
-
 export default NewLeadsManager;
