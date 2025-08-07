@@ -159,8 +159,9 @@ export const useLeads = (projectFilter?: string) => {
       // Fetch all calls for matching - set a high limit to get all records
       const { data: callsData, error: callsError } = await supabase
         .from('all_calls')
-        .select('lead_name, lead_phone_number, ghl_id, project_name')
-        .limit(50000); // Increased limit to capture all calls
+        .select('*')
+        .limit(50000) // Increased limit to capture all calls
+        .order('call_datetime', { ascending: false });
       
       if (callsError) throw callsError;
 
