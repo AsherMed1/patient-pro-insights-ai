@@ -242,6 +242,16 @@ export const useLeads = (projectFilter?: string) => {
         
         const mostRecentAppointment = leadAppointments.length > 0 ? leadAppointments[0] : null;
         
+        // Debug log for specific lead
+        if (lead.lead_name === 'AnaMaria DaSilva') {
+          console.log('AnaMaria DaSilva debug:', {
+            contact_id: lead.contact_id,
+            phone_number: lead.phone_number,
+            matchingCallsCount: actualCallsCount,
+            matchingCalls: matchingCalls.length > 0 ? matchingCalls : 'No matches found'
+          });
+        }
+
         return {
           ...lead,
           actual_calls_count: actualCallsCount,

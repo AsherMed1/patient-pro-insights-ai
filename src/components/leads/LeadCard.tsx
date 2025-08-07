@@ -209,13 +209,11 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
                 size="sm"
                 onClick={() => onViewCalls(lead.lead_name)}
                 className="flex items-center space-x-1"
-                disabled={!lead.actual_calls_count || lead.actual_calls_count === 0}
               >
                 <Phone className="h-3 w-3" />
-                <span>{lead.actual_calls_count || 0} calls</span>
-                {lead.actual_calls_count && lead.actual_calls_count > 0 && (
-                  <span className="h-3 w-3">👁</span>
-                )}
+                <span className="text-sm">
+                  {lead.actual_calls_count || 0} calls
+                </span>
               </Button>
               
               <Button
