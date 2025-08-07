@@ -59,21 +59,24 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     try {
       setLoading(true);
       
-      // Build queries with date filtering
+      // Build queries with date filtering (no limits to show all data)
       let leadsQuery = supabase
         .from('new_leads')
         .select('*')
-        .eq('project_name', project.project_name);
+        .eq('project_name', project.project_name)
+        .limit(50000);
       
       let appointmentsQuery = supabase
         .from('all_appointments')
         .select('*')
-        .eq('project_name', project.project_name);
+        .eq('project_name', project.project_name)
+        .limit(50000);
       
       let callsQuery = supabase
         .from('all_calls')
         .select('*')
-        .eq('project_name', project.project_name);
+        .eq('project_name', project.project_name)
+        .limit(50000);
 
       // Apply date filters if provided
       if (dateRange?.from) {
