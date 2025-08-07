@@ -185,21 +185,21 @@ export const useLeads = (projectFilter?: string) => {
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const matchingCalls = (callsData || []).filter(call => {
-          // Primary: Match by phone number
+          // Primary: Match by contact_id/ghl_id (case-insensitive)
+          if (lead.contact_id && call.ghl_id) {
+            const leadId = lead.contact_id.toLowerCase().trim();
+            const callId = call.ghl_id.toLowerCase().trim();
+            if (leadId === callId) {
+              return true;
+            }
+          }
+          
+          // Secondary: Match by phone number
           if (lead.phone_number && call.lead_phone_number) {
             const leadPhone = normalizePhoneNumber(lead.phone_number);
             const callPhone = normalizePhoneNumber(call.lead_phone_number);
             
             if (leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10) {
-              return true;
-            }
-          }
-          
-          // Secondary: Match by contact_id/ghl_id (case-insensitive)
-          if (lead.contact_id && call.ghl_id) {
-            const leadId = lead.contact_id.toLowerCase().trim();
-            const callId = call.ghl_id.toLowerCase().trim();
-            if (leadId === callId) {
               return true;
             }
           }
@@ -293,21 +293,21 @@ export const useLeads = (projectFilter?: string) => {
       
       // Filter calls using consistent matching logic
       const matchingCalls = (allCallsData || []).filter(call => {
-        // Primary: Match by phone number
+        // Primary: Match by contact_id/ghl_id (case-insensitive)
+        if (lead.contact_id && call.ghl_id) {
+          const leadId = lead.contact_id.toLowerCase().trim();
+          const callId = call.ghl_id.toLowerCase().trim();
+          if (leadId === callId) {
+            return true;
+          }
+        }
+        
+        // Secondary: Match by phone number
         if (lead.phone_number && call.lead_phone_number) {
           const leadPhone = normalizePhoneNumber(lead.phone_number);
           const callPhone = normalizePhoneNumber(call.lead_phone_number);
           
           if (leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10) {
-            return true;
-          }
-        }
-        
-        // Secondary: Match by contact_id/ghl_id (case-insensitive)
-        if (lead.contact_id && call.ghl_id) {
-          const leadId = lead.contact_id.toLowerCase().trim();
-          const callId = call.ghl_id.toLowerCase().trim();
-          if (leadId === callId) {
             return true;
           }
         }
