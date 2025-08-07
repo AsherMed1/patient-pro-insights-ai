@@ -231,6 +231,9 @@ const ProjectsManager = () => {
             <CardTitle className="flex items-center space-x-2">
               <FolderOpen className="h-5 w-5" />
               <span>Active Projects</span>
+              <span className="text-sm font-normal text-gray-500">
+                ({projects.length} total)
+              </span>
             </CardTitle>
             <CardDescription>
               Overview of all projects and their activity status
