@@ -163,23 +163,6 @@ export const useLeads = (projectFilter?: string) => {
       
       if (callsError) throw callsError;
 
-      // Debug logging for calls data
-      console.log('=== CALLS DATA DEBUG ===');
-      console.log('Total calls fetched:', callsData?.length || 0);
-      const loydaCalls = (callsData || []).filter(call => 
-        call.lead_name?.toLowerCase().includes('loyda') ||
-        call.lead_phone_number?.includes('9177011710')
-      );
-      console.log('Loyda-related calls found:', loydaCalls.length);
-      loydaCalls.forEach(call => {
-        console.log('Loyda call:', {
-          lead_name: call.lead_name,
-          lead_phone_number: call.lead_phone_number,
-          normalized_phone: call.lead_phone_number?.replace(/\D/g, ''),
-          ghl_id: call.ghl_id
-        });
-      });
-
       // Fetch appointments for these leads
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('all_appointments')
@@ -188,72 +171,37 @@ export const useLeads = (projectFilter?: string) => {
       
       if (appointmentsError) throw appointmentsError;
 
-      // Debug logging for leads data
-      console.log('=== LEADS DATA DEBUG ===');
-      console.log('Total leads fetched:', leadsData?.length || 0);
-      const loydaLeads = (leadsData || []).filter(lead => 
-        lead.lead_name?.toLowerCase().includes('loyda')
-      );
-      console.log('Loyda-related leads found:', loydaLeads.length);
-      loydaLeads.forEach(lead => {
-        console.log('Loyda lead:', {
-          lead_name: lead.lead_name,
-          phone_number: lead.phone_number,
-          normalized_phone: lead.phone_number?.replace(/\D/g, ''),
-          contact_id: lead.contact_id
-        });
-      });
+      // Helper function to normalize phone numbers (handle +1 prefix properly)
+      const normalizePhoneNumber = (phone: string | null | undefined): string => {
+        if (!phone) return '';
+        const cleaned = phone.replace(/\D/g, '');
+        // For US numbers starting with '1', remove the '1' prefix to get 10-digit number
+        if (cleaned.length === 11 && cleaned.startsWith('1')) {
+          return cleaned.slice(1);
+        }
+        return cleaned;
+      };
 
       // Calculate actual call counts and add appointment info for each lead
       const leadsWithCallCounts = (leadsData || []).map(lead => {
         const matchingCalls = (callsData || []).filter(call => {
-          // ONLY match by phone number - no name matching at all
+          // Primary: Match by phone number
           if (lead.phone_number && call.lead_phone_number) {
-            const leadPhone = lead.phone_number.replace(/\D/g, '');
-            const callPhone = call.lead_phone_number.replace(/\D/g, '');
+            const leadPhone = normalizePhoneNumber(lead.phone_number);
+            const callPhone = normalizePhoneNumber(call.lead_phone_number);
             
-            // Debug logging for Loyda Garcia specifically
-            if (lead.lead_name?.toLowerCase().includes('loyda')) {
-              console.log('=== LOYDA PHONE MATCHING DEBUG ===');
-              console.log('Lead:', {
-                name: lead.lead_name,
-                raw_phone: lead.phone_number,
-                normalized_phone: leadPhone
-              });
-              console.log('Call:', {
-                name: call.lead_name,
-                raw_phone: call.lead_phone_number,
-                normalized_phone: callPhone
-              });
-              console.log('Phone match result:', {
-                phones_equal: leadPhone === callPhone,
-                lead_phone_length: leadPhone.length,
-                call_phone_length: callPhone.length,
-                min_length_check: leadPhone.length >= 10,
-                final_match: leadPhone === callPhone && leadPhone.length >= 10
-              });
-            }
-            
-            if (leadPhone === callPhone && leadPhone.length >= 10) {
+            if (leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10) {
               return true;
             }
           }
           
-          // Secondary: Match by contact_id/ghl_id only
-          if (lead.contact_id && call.ghl_id && 
-              lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
-            
-            // Debug logging for Loyda Garcia specifically
-            if (lead.lead_name?.toLowerCase().includes('loyda')) {
-              console.log('=== LOYDA ID MATCHING DEBUG ===');
-              console.log('ID match result:', {
-                lead_contact_id: lead.contact_id,
-                call_ghl_id: call.ghl_id,
-                ids_equal: lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()
-              });
+          // Secondary: Match by contact_id/ghl_id (case-insensitive)
+          if (lead.contact_id && call.ghl_id) {
+            const leadId = lead.contact_id.toLowerCase().trim();
+            const callId = call.ghl_id.toLowerCase().trim();
+            if (leadId === callId) {
+              return true;
             }
-            
-            return true;
           }
           
           return false;
@@ -261,25 +209,14 @@ export const useLeads = (projectFilter?: string) => {
         
         const actualCallsCount = matchingCalls.length;
         
-        // Debug logging for final count for Loyda Garcia
-        if (lead.lead_name?.toLowerCase().includes('loyda')) {
-          console.log('=== LOYDA FINAL COUNT DEBUG ===');
-          console.log('Final call count for', lead.lead_name, ':', actualCallsCount);
-          console.log('Matching calls:', matchingCalls.map(call => ({
-            name: call.lead_name,
-            phone: call.lead_phone_number,
-            ghl_id: call.ghl_id
-          })));
-        }
-        
         // Find the most recent appointment for this lead
         const leadAppointments = (appointmentsData || []).filter(
           appt => {
-            // Priority 1: Match by phone number (normalize phone numbers)
+            // Priority 1: Match by phone number (use same normalization function)
             if (lead.phone_number && appt.lead_phone_number) {
-              const leadPhone = lead.phone_number.replace(/\D/g, '');
-              const apptPhone = appt.lead_phone_number.replace(/\D/g, '');
-              if (leadPhone === apptPhone && leadPhone.length >= 10) return true;
+              const leadPhone = normalizePhoneNumber(lead.phone_number);
+              const apptPhone = normalizePhoneNumber(appt.lead_phone_number);
+              if (leadPhone && apptPhone && leadPhone === apptPhone && leadPhone.length >= 10) return true;
             }
             
             // Priority 2: Match by email
@@ -288,10 +225,11 @@ export const useLeads = (projectFilter?: string) => {
               return true;
             }
             
-            // Priority 3: Match by contact_id/ghl_id
-            if (lead.contact_id && appt.ghl_id && 
-                lead.contact_id.toLowerCase().trim() === appt.ghl_id.toLowerCase().trim()) {
-              return true;
+            // Priority 3: Match by contact_id/ghl_id (case-insensitive)
+            if (lead.contact_id && appt.ghl_id) {
+              const leadId = lead.contact_id.toLowerCase().trim();
+              const apptId = appt.ghl_id.toLowerCase().trim();
+              if (leadId === apptId) return true;
             }
             
             // Fallback: Exact name match
@@ -329,6 +267,11 @@ export const useLeads = (projectFilter?: string) => {
       // Find the lead to get phone number and contact_id for matching
       const lead = leads.find(l => l.lead_name === leadName);
       
+      if (!lead) {
+        console.error('Lead not found:', leadName);
+        return;
+      }
+      
       // Get all calls and filter client-side for better matching control
       const { data: allCallsData, error } = await supabase
         .from('all_calls')
@@ -337,22 +280,36 @@ export const useLeads = (projectFilter?: string) => {
       
       if (error) throw error;
       
-      // Filter calls using ONLY phone number matching
+      // Helper function to normalize phone numbers (same as in fetchLeadsWithCallCounts)
+      const normalizePhoneNumber = (phone: string | null | undefined): string => {
+        if (!phone) return '';
+        const cleaned = phone.replace(/\D/g, '');
+        // For US numbers starting with '1', remove the '1' prefix to get 10-digit number
+        if (cleaned.length === 11 && cleaned.startsWith('1')) {
+          return cleaned.slice(1);
+        }
+        return cleaned;
+      };
+      
+      // Filter calls using consistent matching logic
       const matchingCalls = (allCallsData || []).filter(call => {
-        // ONLY match by phone number - no name matching at all
-        if (lead?.phone_number && call.lead_phone_number) {
-          const leadPhone = lead.phone_number.replace(/\D/g, '');
-          const callPhone = call.lead_phone_number.replace(/\D/g, '');
+        // Primary: Match by phone number
+        if (lead.phone_number && call.lead_phone_number) {
+          const leadPhone = normalizePhoneNumber(lead.phone_number);
+          const callPhone = normalizePhoneNumber(call.lead_phone_number);
           
-          if (leadPhone === callPhone && leadPhone.length >= 10) {
+          if (leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10) {
             return true;
           }
         }
         
-        // Secondary: Match by contact_id/ghl_id only
-        if (lead?.contact_id && call.ghl_id && 
-            lead.contact_id.toLowerCase().trim() === call.ghl_id.toLowerCase().trim()) {
-          return true;
+        // Secondary: Match by contact_id/ghl_id (case-insensitive)
+        if (lead.contact_id && call.ghl_id) {
+          const leadId = lead.contact_id.toLowerCase().trim();
+          const callId = call.ghl_id.toLowerCase().trim();
+          if (leadId === callId) {
+            return true;
+          }
         }
         
         return false;
