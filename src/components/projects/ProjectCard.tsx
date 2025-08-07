@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink } from 'lucide-react';
+import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, Power, PowerOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
@@ -12,6 +12,7 @@ interface Project {
   project_name: string;
   created_at: string;
   updated_at: string;
+  active: boolean;
 }
 
 interface ProjectStats {
@@ -27,13 +28,15 @@ interface ProjectCardProps {
   stats?: ProjectStats;
   onEdit: (project: Project) => void;
   onDelete: (project: Project) => void;
+  onToggleActive: (project: Project) => void;
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({
   project,
   stats,
   onEdit,
-  onDelete
+  onDelete,
+  onToggleActive
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -59,17 +62,36 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const activityStatus = getActivityStatus(stats?.last_activity || null);
 
   return (
-    <Card className="border-l-4 border-l-blue-500">
+    <Card className={`border-l-4 ${project.active ? 'border-l-blue-500' : 'border-l-gray-300 opacity-60'} ${!project.active ? 'bg-gray-50' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <CardTitle className="text-lg font-medium">
-            {project.project_name}
-          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <CardTitle className={`text-lg font-medium ${!project.active ? 'text-gray-500' : ''}`}>
+              {project.project_name}
+            </CardTitle>
+            {!project.active && (
+              <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600">
+                Disabled
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center space-x-2">
             <Badge className={`text-xs ${activityStatus.color}`}>
               {activityStatus.status}
             </Badge>
             <div className="flex space-x-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onToggleActive(project)}
+                title={project.active ? 'Disable Project' : 'Enable Project'}
+              >
+                {project.active ? (
+                  <PowerOff className="h-3 w-3 text-orange-600" />
+                ) : (
+                  <Power className="h-3 w-3 text-green-600" />
+                )}
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"

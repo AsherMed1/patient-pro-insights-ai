@@ -13,6 +13,7 @@ interface Project {
   project_name: string;
   created_at: string;
   updated_at: string;
+  active: boolean;
 }
 
 interface ProjectStats {
@@ -154,6 +155,34 @@ const ProjectsManager = () => {
     }
   };
 
+  const handleToggleActive = async (project: Project) => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          active: !project.active,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', project.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Project ${!project.active ? 'enabled' : 'disabled'} successfully`,
+      });
+
+      await fetchProjectsAndStats();
+    } catch (error) {
+      console.error('Error toggling project status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update project status",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteProject = async (project: Project) => {
     try {
       const { error } = await supabase
@@ -232,6 +261,7 @@ const ProjectsManager = () => {
                   stats={stats}
                   onEdit={openEditDialog}
                   onDelete={handleDeleteProject}
+                  onToggleActive={handleToggleActive}
                 />
               );
             })}
