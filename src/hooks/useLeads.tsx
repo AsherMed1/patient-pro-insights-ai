@@ -267,12 +267,22 @@ export const useLeads = (projectFilter?: string) => {
         
         // Debug log for specific leads
         if (lead.lead_name === 'AnaMaria DaSilva' || lead.lead_name === 'Tricia Norwood') {
+          // Debug: Check if the calls data includes GHL IDs for this project
+          const projectCalls = (callsData || []).filter(call => call.project_name === lead.project_name);
+          const callsWithGhlId = projectCalls.filter(call => call.ghl_id);
+          
           console.log(`${lead.lead_name} debug:`, {
             contact_id: lead.contact_id,
             phone_number: lead.phone_number,
             matchingCallsCount: actualCallsCount,
             totalCallsInDatabase: (callsData || []).length,
-            callsWithSameProject: (callsData || []).filter(call => call.project_name === lead.project_name).length,
+            callsWithSameProject: projectCalls.length,
+            callsWithGhlId: callsWithGhlId.length,
+            sampleCallsWithGhlId: callsWithGhlId.slice(0, 3).map(call => ({
+              ghl_id: call.ghl_id,
+              lead_name: call.lead_name,
+              phone: call.lead_phone_number
+            })),
             matchingCalls: matchingCalls.length > 0 ? matchingCalls.map(call => ({
               ghl_id: call.ghl_id,
               phone: call.lead_phone_number,
@@ -315,6 +325,7 @@ export const useLeads = (projectFilter?: string) => {
       const { data: allCallsData, error } = await supabase
         .from('all_calls')
         .select('*')
+        .limit(50000) // Match the same limit as fetchLeadsWithCallCounts
         .order('call_datetime', { ascending: false });
       
       if (error) throw error;
