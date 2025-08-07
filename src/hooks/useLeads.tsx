@@ -88,9 +88,92 @@ export const useLeads = (projectFilter?: string) => {
     to: undefined
   });
   const [nameSearch, setNameSearch] = useState<string>('');
+  const [totalLeadsWithNoCalls, setTotalLeadsWithNoCalls] = useState(0);
+  const [totalPercentageNoCalls, setTotalPercentageNoCalls] = useState(0);
   const { toast } = useToast();
 
   const LEADS_PER_PAGE = 50;
+
+  const calculateTotalLeadsWithNoCalls = async () => {
+    try {
+      // Build the same query for all leads with filters
+      let allLeadsQuery = supabase
+        .from('new_leads')
+        .select('*');
+
+      // Apply the same filters
+      if (projectFilter) {
+        allLeadsQuery = allLeadsQuery.eq('project_name', projectFilter);
+      }
+      
+      if (dateRange.from) {
+        allLeadsQuery = allLeadsQuery.gte('date', dateRange.from.toISOString().split('T')[0]);
+      }
+      if (dateRange.to) {
+        allLeadsQuery = allLeadsQuery.lte('date', dateRange.to.toISOString().split('T')[0]);
+      }
+
+      if (nameSearch.trim()) {
+        allLeadsQuery = allLeadsQuery.or(`lead_name.ilike.%${nameSearch.trim()}%,first_name.ilike.%${nameSearch.trim()}%,last_name.ilike.%${nameSearch.trim()}%`);
+      }
+
+      const { data: allLeadsData, error: allLeadsError } = await allLeadsQuery;
+      if (allLeadsError) throw allLeadsError;
+
+      // Fetch all calls data (same as in fetchLeadsWithCallCounts)
+      const { data: callsData, error: callsError } = await supabase
+        .from('all_calls')
+        .select('*')
+        .limit(50000);
+      
+      if (callsError) throw callsError;
+
+      // Helper function to normalize phone numbers
+      const normalizePhoneNumber = (phone: string | null | undefined): string => {
+        if (!phone) return '';
+        const cleaned = phone.replace(/\D/g, '');
+        if (cleaned.length === 11 && cleaned.startsWith('1')) {
+          return cleaned.slice(1);
+        }
+        return cleaned;
+      };
+
+      // Calculate leads with no calls
+      let leadsWithNoCalls = 0;
+      
+      (allLeadsData || []).forEach(lead => {
+        const matchingCalls = (callsData || []).filter(call => {
+          // Primary: Match by contact_id/ghl_id (case-insensitive)
+          if (lead.contact_id && call.ghl_id) {
+            const leadId = lead.contact_id.toLowerCase().trim();
+            const callId = call.ghl_id.toLowerCase().trim();
+            if (leadId === callId) return true;
+          }
+          
+          // Secondary: Match by phone number
+          if (lead.phone_number && call.lead_phone_number) {
+            const leadPhone = normalizePhoneNumber(lead.phone_number);
+            const callPhone = normalizePhoneNumber(call.lead_phone_number);
+            if (leadPhone && callPhone && leadPhone === callPhone && leadPhone.length >= 10) return true;
+          }
+          
+          return false;
+        });
+        
+        if (matchingCalls.length === 0) {
+          leadsWithNoCalls++;
+        }
+      });
+
+      const totalLeads = (allLeadsData || []).length;
+      const percentage = totalLeads > 0 ? ((leadsWithNoCalls / totalLeads) * 100) : 0;
+      
+      setTotalLeadsWithNoCalls(leadsWithNoCalls);
+      setTotalPercentageNoCalls(percentage);
+    } catch (error) {
+      console.error('Error calculating leads with no calls:', error);
+    }
+  };
 
   const fetchLeadsWithCallCounts = async (page: number = currentPage) => {
     try {
@@ -387,6 +470,7 @@ export const useLeads = (projectFilter?: string) => {
   useEffect(() => {
     setCurrentPage(1); // Reset to first page when filters change
     fetchLeadsWithCallCounts(1);
+    calculateTotalLeadsWithNoCalls();
   }, [projectFilter, dateRange, nameSearch]);
 
   useEffect(() => {
@@ -413,6 +497,8 @@ export const useLeads = (projectFilter?: string) => {
     setDateRange,
     nameSearch,
     setNameSearch,
-    leadsPerPage: LEADS_PER_PAGE
+    leadsPerPage: LEADS_PER_PAGE,
+    totalLeadsWithNoCalls,
+    totalPercentageNoCalls
   };
 };
