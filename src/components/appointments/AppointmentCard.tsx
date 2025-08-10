@@ -325,6 +325,15 @@ const AppointmentCard = ({
                   Time: {formatTime(appointment.requested_time)}
                 </span>
               </div>}
+
+            {(appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob) && (
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm text-gray-600">
+                  DOB: {formatDate(appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
         
