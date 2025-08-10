@@ -16,6 +16,8 @@ interface AppointmentsTabsProps {
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  onUpdateDate: (appointmentId: string, date: string | null) => void;
+  onUpdateTime: (appointmentId: string, time: string | null) => void;
   tabCounts?: {
     needsReview: number;
     future: number;
@@ -31,6 +33,8 @@ const AppointmentsTabs = ({
   projectFilter,
   onUpdateStatus,
   onUpdateProcedure,
+  onUpdateDate,
+  onUpdateTime,
   tabCounts
 }: AppointmentsTabsProps) => {
   const isMobile = useIsMobile();
@@ -102,6 +106,8 @@ const AppointmentsTabs = ({
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
+          onUpdateDate={onUpdateDate}
+          onUpdateTime={onUpdateTime}
         />
       </TabsContent>
 
@@ -112,6 +118,8 @@ const AppointmentsTabs = ({
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
+          onUpdateDate={onUpdateDate}
+          onUpdateTime={onUpdateTime}
         />
       </TabsContent>
 
@@ -122,6 +130,8 @@ const AppointmentsTabs = ({
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
+          onUpdateDate={onUpdateDate}
+          onUpdateTime={onUpdateTime}
         />
       </TabsContent>
       </Tabs>

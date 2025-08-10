@@ -13,12 +13,18 @@ import AppointmentNotes from './AppointmentNotes';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil, type LeadAssociation } from "@/utils/appointmentLeadMatcher";
-
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { format as formatDateFns } from "date-fns";
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  onUpdateDate: (appointmentId: string, date: string | null) => void;
+  onUpdateTime: (appointmentId: string, time: string | null) => void;
 }
 
 interface NewLead {
@@ -54,7 +60,9 @@ const AppointmentCard = ({
   appointment,
   projectFilter,
   onUpdateStatus,
-  onUpdateProcedure
+  onUpdateProcedure,
+  onUpdateDate,
+  onUpdateTime
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
@@ -66,7 +74,8 @@ const AppointmentCard = ({
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const { toast } = useToast();
   const appointmentStatus = getAppointmentStatus(appointment);
-
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
+  const [timeValue, setTimeValue] = useState<string>(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
   const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
@@ -110,6 +119,12 @@ const AppointmentCard = ({
 
     checkLeadInsurance();
   }, [appointment]);
+
+  // Sync local date/time state when appointment prop changes
+  useEffect(() => {
+    setSelectedDate(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
+    setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
+  }, [appointment.date_of_appointment, appointment.requested_time]);
 
   // Fetch status options on component mount
   useEffect(() => {
@@ -392,6 +407,47 @@ const AppointmentCard = ({
                   <SelectItem value="false">No Procedure</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Appointment Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-11 md:h-10",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? formatDateFns(selectedDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      setSelectedDate(date);
+                      onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                    }}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Appointment Time</label>
+              <Input
+                type="time"
+                value={timeValue}
+                onChange={(e) => setTimeValue(e.target.value)}
+                onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                className="h-11 md:h-10"
+              />
             </div>
           </div>
         )}

@@ -11,6 +11,8 @@ interface AppointmentsListProps {
   projectFilter?: string;
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  onUpdateDate: (appointmentId: string, date: string | null) => void;
+  onUpdateTime: (appointmentId: string, time: string | null) => void;
 }
 
 const AppointmentsList = ({
@@ -18,7 +20,9 @@ const AppointmentsList = ({
   loading,
   projectFilter,
   onUpdateStatus,
-  onUpdateProcedure
+  onUpdateProcedure,
+  onUpdateDate,
+  onUpdateTime
 }: AppointmentsListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -102,6 +106,8 @@ const AppointmentsList = ({
             projectFilter={projectFilter}
             onUpdateStatus={onUpdateStatus}
             onUpdateProcedure={onUpdateProcedure}
+            onUpdateDate={onUpdateDate}
+            onUpdateTime={onUpdateTime}
           />
         ))}
       </div>

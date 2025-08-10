@@ -435,7 +435,6 @@ const AllAppointmentsManager = ({
         description: "Procedure information updated successfully"
       });
       
-      // Refresh tab counts and appointments since filtering logic changed
       fetchTabCounts();
       fetchAppointments();
     } catch (error) {
@@ -443,6 +442,77 @@ const AllAppointmentsManager = ({
       toast({
         title: "Error",
         description: "Failed to update procedure information",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateAppointmentDate = async (appointmentId: string, date: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          date_of_appointment: date,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, date_of_appointment: date }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Appointment date updated"
+      });
+
+      fetchTabCounts();
+      fetchAppointments();
+    } catch (error) {
+      console.error('Error updating appointment date:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update appointment date",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateRequestedTime = async (appointmentId: string, time: string | null) => {
+    try {
+      const normalizedTime = time && time.length === 5 ? `${time}:00` : time; // to HH:mm:ss
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          requested_time: normalizedTime,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, requested_time: normalizedTime }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Appointment time updated"
+      });
+
+      fetchTabCounts();
+      fetchAppointments();
+    } catch (error) {
+      console.error('Error updating appointment time:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update appointment time",
         variant: "destructive"
       });
     }
@@ -534,6 +604,8 @@ const AllAppointmentsManager = ({
             projectFilter={projectFilter}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}
+            onUpdateDate={updateAppointmentDate}
+            onUpdateTime={updateRequestedTime}
             tabCounts={tabCounts}
           />
           
