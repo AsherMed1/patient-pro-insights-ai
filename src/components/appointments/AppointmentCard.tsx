@@ -371,86 +371,84 @@ const AppointmentCard = ({
           )}
         </div>
         
-        {/* Status and Procedure Selectors - Only show if projectFilter is active */}
-        {projectFilter && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Status</label>
-              <Select 
-                value={appointment.status || ''} 
-                onValueChange={(value) => onUpdateStatus(appointment.id, value)}
-              >
-                <SelectTrigger className={getStatusTriggerClass()}>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Procedure</label>
-              <Select 
-                value={appointment.procedure_ordered === null ? '' : appointment.procedure_ordered.toString()} 
-                onValueChange={(value) => onUpdateProcedure(appointment.id, value === 'true')}
-              >
-                <SelectTrigger className={getProcedureTriggerClass()}>
-                  <SelectValue placeholder="Select procedure status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Procedure Ordered</SelectItem>
-                  <SelectItem value="false">No Procedure</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Appointment Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal h-11 md:h-10",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? formatDateFns(selectedDate, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      setSelectedDate(date);
-                      onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                    }}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Appointment Time</label>
-              <Input
-                type="time"
-                value={timeValue}
-                onChange={(e) => setTimeValue(e.target.value)}
-                onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                className="h-11 md:h-10"
-              />
-            </div>
+        {/* Status and Procedure Selectors */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Status</label>
+            <Select 
+              value={appointment.status || ''} 
+              onValueChange={(value) => onUpdateStatus(appointment.id, value)}
+            >
+              <SelectTrigger className={getStatusTriggerClass()}>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Procedure</label>
+            <Select 
+              value={appointment.procedure_ordered === null ? '' : appointment.procedure_ordered.toString()} 
+              onValueChange={(value) => onUpdateProcedure(appointment.id, value === 'true')}
+            >
+              <SelectTrigger className={getProcedureTriggerClass()}>
+                <SelectValue placeholder="Select procedure status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Procedure Ordered</SelectItem>
+                <SelectItem value="false">No Procedure</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Appointment Date</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-11 md:h-10",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? formatDateFns(selectedDate, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                  }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Appointment Time</label>
+            <Input
+              type="time"
+              value={timeValue}
+              onChange={(e) => setTimeValue(e.target.value)}
+              onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+              className="h-11 md:h-10"
+            />
+          </div>
+        </div>
         
         {/* AI Summary */}
         {appointment.ai_summary && (
