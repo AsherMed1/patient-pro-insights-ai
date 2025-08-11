@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -327,19 +327,68 @@ const AppointmentCard = ({
               </span>
             </div>
             
-            {appointment.date_of_appointment && <div className="flex items-center space-x-2">
-                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm text-gray-600">
-                  Appointment: {formatDate(appointment.date_of_appointment)}
-                </span>
-              </div>}
+            {appointment.date_of_appointment && (
+                <div className="flex items-center space-x-2">
+                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">
+                    Appointment: {formatDate(appointment.date_of_appointment)}
+                  </span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Edit appointment date"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          setSelectedDate(date);
+                          onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                        }}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             
-            {appointment.requested_time && <div className="flex items-center space-x-2">
-                <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm text-gray-600">
-                  Time: {formatTime(appointment.requested_time)}
-                </span>
-              </div>}
+            {appointment.requested_time && (
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">
+                    Time: {formatTime(appointment.requested_time)}
+                  </span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Edit appointment time"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-2" align="start">
+                      <Input
+                        type="time"
+                        value={timeValue}
+                        onChange={(e) => setTimeValue(e.target.value)}
+                        onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                        className="h-9"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
 
             {(appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob) && (
               <div className="flex items-center space-x-2">
@@ -408,46 +457,6 @@ const AppointmentCard = ({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Appointment Date</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal h-11 md:h-10",
-                    !selectedDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? formatDateFns(selectedDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => {
-                    setSelectedDate(date);
-                    onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                  }}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Appointment Time</label>
-            <Input
-              type="time"
-              value={timeValue}
-              onChange={(e) => setTimeValue(e.target.value)}
-              onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-              className="h-11 md:h-10"
-            />
-          </div>
         </div>
         
         {/* AI Summary */}
