@@ -14,6 +14,7 @@ import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
+import CallTeamTab from "@/components/callteam/CallTeamTab";
 
 import UserManagement from "@/components/UserManagement";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
@@ -191,10 +192,11 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-4 lg:grid-cols-8' : 'grid-cols-4 lg:grid-cols-7'}`}>
+          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-9' : 'grid-cols-5 lg:grid-cols-8'}`}>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
+            <TabsTrigger value="call-team">Call Team</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
@@ -215,6 +217,10 @@ const Index = () => {
 
           <TabsContent value="calls" className="space-y-6">
             <AllCallsManager />
+          </TabsContent>
+
+          <TabsContent value="call-team" className="space-y-6">
+            <CallTeamTab />
           </TabsContent>
 
           <TabsContent value="leads" className="space-y-6">
