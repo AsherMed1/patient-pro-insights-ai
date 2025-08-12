@@ -27,35 +27,63 @@ const CallTeamTab = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      let callsQuery = supabase.from("all_calls").select("*");
-      let apptsQuery = supabase.from("all_appointments").select("*");
 
-      if (dateRange.from) {
-        const from = dateRange.from.toISOString().split("T")[0];
-        callsQuery = callsQuery.gte("date", from);
-        apptsQuery = apptsQuery.gte("date_of_appointment", from);
-      }
-      if (dateRange.to) {
-        const to = dateRange.to.toISOString().split("T")[0];
-        callsQuery = callsQuery.lte("date", to);
-        apptsQuery = apptsQuery.lte("date_of_appointment", to);
-      }
-      if (selectedAgent !== "ALL") {
-        callsQuery = callsQuery.eq("agent", selectedAgent);
-        apptsQuery = apptsQuery.eq("agent", selectedAgent);
-      }
+      const PAGE_SIZE = 1000;
 
-      // Fetch data
-      const [{ data: calls, error: callsError }, { data: appts, error: apptsError }] = await Promise.all([
-        callsQuery,
-        apptsQuery
+      const buildCallsQuery = () => {
+        let q = supabase.from("all_calls").select("*");
+        if (dateRange.from) {
+          const from = dateRange.from.toISOString().split("T")[0];
+          q = q.gte("date", from);
+        }
+        if (dateRange.to) {
+          const to = dateRange.to.toISOString().split("T")[0];
+          q = q.lte("date", to);
+        }
+        if (selectedAgent !== "ALL") {
+          q = q.eq("agent", selectedAgent);
+        }
+        return q;
+      };
+
+      const buildApptsQuery = () => {
+        let q = supabase.from("all_appointments").select("*");
+        if (dateRange.from) {
+          const from = dateRange.from.toISOString().split("T")[0];
+          q = q.gte("date_of_appointment", from);
+        }
+        if (dateRange.to) {
+          const to = dateRange.to.toISOString().split("T")[0];
+          q = q.lte("date_of_appointment", to);
+        }
+        if (selectedAgent !== "ALL") {
+          q = q.eq("agent", selectedAgent);
+        }
+        return q;
+      };
+
+      const fetchAll = async (buildQuery: () => any) => {
+        let all: any[] = [];
+        let offset = 0;
+        while (true) {
+          const { data, error } = await buildQuery().range(offset, offset + PAGE_SIZE - 1);
+          if (error) throw error;
+          const chunk = data || [];
+          all = all.concat(chunk);
+          if (chunk.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
+        }
+        return all;
+      };
+
+      const [calls, appts] = await Promise.all([
+        fetchAll(buildCallsQuery),
+        fetchAll(buildApptsQuery),
       ]);
-      if (callsError) throw callsError;
-      if (apptsError) throw apptsError;
 
       // Build agent list for filter
-      const callAgents = (calls || []).map((c) => c.agent).filter(Boolean);
-      const apptAgents = (appts || []).map((a) => a.agent).filter(Boolean);
+      const callAgents = (calls || []).map((c: any) => c.agent).filter(Boolean);
+      const apptAgents = (appts || []).map((a: any) => a.agent).filter(Boolean);
       const uniqueAgents = Array.from(new Set([...(callAgents as string[]), ...(apptAgents as string[])])).sort();
       setAvailableAgents(uniqueAgents);
 
