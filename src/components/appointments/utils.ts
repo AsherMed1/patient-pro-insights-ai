@@ -1,6 +1,6 @@
 
 import { AllAppointment } from './types';
-import { formatDateInCentralTime, toCentralTime } from '@/utils/dateTimeUtils';
+import { formatDateInCentralTime, toCentralTime, getCTStartOfDayUTC } from '@/utils/dateTimeUtils';
 import { format, startOfDay, endOfDay } from 'date-fns';
 
 export const formatDate = (dateString: string | null) => {
@@ -17,27 +17,20 @@ export const isAppointmentInPast = (appointmentDate: string | null) => {
   if (!appointmentDate) return false;
   
   try {
-    // Get current date in Central Time, start of day
-    const nowCentral = toCentralTime(new Date());
-    const todayStartCentral = nowCentral ? startOfDay(nowCentral) : startOfDay(new Date());
-    
-    // Convert appointment date to Central Time, start of day
-    const appointmentCentral = toCentralTime(appointmentDate);
-    const appointmentStartCentral = appointmentCentral ? startOfDay(appointmentCentral) : startOfDay(new Date(appointmentDate));
-    
-    const isPast = appointmentStartCentral < todayStartCentral;
-    
+    const todayStartCT_UTC = getCTStartOfDayUTC(new Date());
+    const apptStartCT_UTC = getCTStartOfDayUTC(appointmentDate);
+
+    if (!todayStartCT_UTC || !apptStartCT_UTC) return false;
+
+    const isPast = apptStartCT_UTC.getTime() < todayStartCT_UTC.getTime();
+
     // Debug logging for ANY appointment on July 30 or 31, 2025
     if (appointmentDate.includes('2025-07-30') || appointmentDate.includes('2025-07-31')) {
       console.log('DEBUG: July 30/31 appointment date check:', {
         appointmentDate,
-        appointmentStartCentral: format(appointmentStartCentral, 'yyyy-MM-dd HH:mm:ss'),
-        todayStartCentral: format(todayStartCentral, 'yyyy-MM-dd HH:mm:ss'),
+        apptStartCT_UTC: format(apptStartCT_UTC, 'yyyy-MM-dd HH:mm:ss'),
+        todayStartCT_UTC: format(todayStartCT_UTC, 'yyyy-MM-dd HH:mm:ss'),
         isPast,
-        todayFormatted: format(todayStartCentral, 'yyyy-MM-dd'),
-        appointmentFormatted: format(appointmentStartCentral, 'yyyy-MM-dd'),
-        currentTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
-        currentTimeCentral: nowCentral ? format(nowCentral, 'yyyy-MM-dd HH:mm:ss') : 'null'
       });
     }
     
@@ -55,15 +48,12 @@ export const isAppointmentInFuture = (appointmentDate: string | null) => {
   if (!appointmentDate) return false;
   
   try {
-    // Get current date in Central Time, start of day
-    const nowCentral = toCentralTime(new Date());
-    const todayStartCentral = nowCentral ? startOfDay(nowCentral) : startOfDay(new Date());
-    
-    // Convert appointment date to Central Time, start of day  
-    const appointmentCentral = toCentralTime(appointmentDate);
-    const appointmentStartCentral = appointmentCentral ? startOfDay(appointmentCentral) : startOfDay(new Date(appointmentDate));
-    
-    return appointmentStartCentral >= todayStartCentral;
+    const todayStartCT_UTC = getCTStartOfDayUTC(new Date());
+    const apptStartCT_UTC = getCTStartOfDayUTC(appointmentDate);
+
+    if (!todayStartCT_UTC || !apptStartCT_UTC) return false;
+
+    return apptStartCT_UTC.getTime() >= todayStartCT_UTC.getTime();
   } catch (error) {
     console.error('Error in isAppointmentInFuture:', error);
     // Fallback to simple comparison
