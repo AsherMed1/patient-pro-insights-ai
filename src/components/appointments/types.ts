@@ -7,6 +7,7 @@ export interface AllAppointment {
   lead_name: string;
   lead_email: string | null;
   lead_phone_number: string | null;
+  dob?: string | null;
   calendar_name: string | null;
   requested_time: string | null;
   stage_booked: string | null;

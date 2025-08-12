@@ -80,6 +80,9 @@ const AppointmentCard = ({
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
   const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
 
+  // Prefer top-level dob from API, fallback to parsed fields
+  const dobDisplay = appointment.dob || appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob || null;
+
   // Get styling classes for dropdowns
   const getStatusTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
@@ -271,6 +274,12 @@ const AppointmentCard = ({
             <div className="flex items-center space-x-2 flex-1">
               <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
+              {dobDisplay && (
+                <Badge variant="destructive" className="ml-2 flex items-center">
+                  <CalendarIcon className="h-3 w-3 mr-1" />
+                  DOB: {dobDisplay}
+                </Badge>
+              )}
             </div>
             <div className="flex flex-col items-end space-y-1 ml-2">
               <Button variant="outline" size="sm" onClick={handleViewDetails} disabled={loadingLeadData} className="flex items-center space-x-1">
@@ -390,14 +399,6 @@ const AppointmentCard = ({
                 </div>
               )}
 
-            {(appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob) && (
-              <div className="flex items-center space-x-2">
-                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm text-gray-600">
-                  DOB: {formatDate(appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob)}
-                </span>
-              </div>
-            )}
           </div>
         </div>
         

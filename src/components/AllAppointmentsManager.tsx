@@ -140,32 +140,7 @@ const AllAppointmentsManager = ({
       // Now build the data query with the same filters
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select(`
-          id,
-          date_appointment_created,
-          date_of_appointment,
-          project_name,
-          lead_name,
-          lead_email,
-          lead_phone_number,
-          calendar_name,
-          requested_time,
-          stage_booked,
-          agent,
-          agent_number,
-          ghl_id,
-          confirmed_number,
-          created_at,
-          updated_at,
-          status,
-          procedure_ordered,
-          patient_intake_notes,
-          ai_summary,
-          detected_insurance_provider,
-          detected_insurance_plan,
-          detected_insurance_id,
-          insurance_detection_confidence
-        `)
+        .select('*')
         .order(
           sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
           sortBy === 'project' ? 'project_name' : 'date_appointment_created', 
