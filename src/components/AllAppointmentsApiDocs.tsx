@@ -14,6 +14,7 @@ const AllAppointmentsApiDocs = () => {
     "date_of_appointment": "2024-01-20",
     "lead_email": "john.doe@example.com",
     "lead_phone_number": "+1234567890",
+    "dob": "1988-06-25",
     "calendar_name": "Dr. Smith Calendar",
     "requested_time": "10:30:00",
     "stage_booked": "consultation",
@@ -90,6 +91,10 @@ const AllAppointmentsApiDocs = () => {
               <div className="flex items-center space-x-2">
                 <Badge variant="secondary">Optional</Badge>
                 <span className="font-mono">lead_phone_number</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="secondary">Optional</Badge>
+                <span className="font-mono">dob</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Badge variant="secondary">Optional</Badge>

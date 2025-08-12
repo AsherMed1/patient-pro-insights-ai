@@ -134,6 +134,41 @@ serve(async (req) => {
       return formattedNotes || null;
     };
 
+    // Normalize a date-only input to YYYY-MM-DD (supports ISO and MM/DD/YYYY)
+    const normalizeDateOnly = (input: unknown): string | null => {
+      if (!input) return null;
+      if (typeof input === 'string') {
+        const s = input.trim();
+        // YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // Full ISO -> extract date part
+        if (s.includes('T')) {
+          const d = new Date(s);
+          if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+        }
+        // MM/DD/YYYY
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+          const [m, d, y] = s.split('/').map(Number);
+          const mm = String(m).padStart(2, '0');
+          const dd = String(d).padStart(2, '0');
+          return `${y}-${mm}-${dd}`;
+        }
+        return null;
+      }
+      if (input instanceof Date) {
+        // Use the UTC date components to avoid TZ shifts
+        const y = input.getUTCFullYear();
+        const m = input.getUTCMonth() + 1;
+        const d = input.getUTCDate();
+        const mm = String(m).padStart(2, '0');
+        const dd = String(d).padStart(2, '0');
+        return `${y}-${mm}-${dd}`;
+      }
+      return null;
+    };
+
+    const normalizedDob = normalizeDateOnly(body.dob || body.date_of_birth || body.birth_date || null);
+
     // Prepare appointment data
     const appointmentData = {
       date_appointment_created: body.date_appointment_created,
@@ -157,6 +192,8 @@ serve(async (req) => {
         ['cancelled', 'canceled', 'no show'].includes(body.status.toLowerCase().trim()) 
         ? false 
         : null,
+      // Newly supported field
+      dob: normalizedDob,
     }
 
     // Check if appointment already exists based on ghl_appointment_id or ghl_id
