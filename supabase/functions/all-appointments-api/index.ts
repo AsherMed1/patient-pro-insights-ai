@@ -167,6 +167,15 @@ serve(async (req) => {
       return null;
     };
 
+    // Format YYYY-MM-DD to MM-DD-YYYY for API responses
+    const formatToMMDDYYYY = (iso: string | null | undefined): string | null => {
+      if (!iso) return null;
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+      if (!m) return iso as string;
+      const [, y, mm, dd] = m;
+      return `${mm}-${dd}-${y}`;
+    };
+
     const normalizedDob = normalizeDateOnly(body.dob || body.date_of_birth || body.birth_date || null);
 
     // Prepare appointment data
@@ -255,13 +264,19 @@ serve(async (req) => {
       )
     }
 
-    console.log(`Successfully ${isUpdate ? 'updated' : 'created'} appointment:`, data[0])
+    // Format dob in response as MM-DD-YYYY
+    const record = data && data[0] ? { ...data[0] } : null;
+    if (record && (record as any).dob) {
+      (record as any).dob = formatToMMDDYYYY((record as any).dob);
+    }
+
+    console.log(`Successfully ${isUpdate ? 'updated' : 'created'} appointment:`, record)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `Appointment ${isUpdate ? 'updated' : 'created'} successfully`,
-        data: data[0],
+        data: record,
         operation: isUpdate ? 'update' : 'create'
       }),
       { 
