@@ -335,10 +335,9 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     try {
-      // Set status and attendance fields, but leave procedure_ordered independent for "Showed" status
+      // Set status and updated timestamp
       const updateData: any = {
         status,
-        showed: status === 'Showed' ? true : (status === 'No Show' || status.toLowerCase() === 'noshow') ? false : null,
         updated_at: new Date().toISOString()
       };
       
@@ -362,7 +361,6 @@ const AllAppointmentsManager = ({
           ? {
               ...appointment,
               status,
-              showed: status === 'Showed' ? true : (status === 'No Show' || status.toLowerCase() === 'noshow') ? false : null,
               // Only update procedure_ordered for specific statuses, leave unchanged for "Showed"
               procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') ? false : appointment.procedure_ordered
             }
