@@ -59,10 +59,19 @@ const AllAppointmentsManager = ({
         .from('all_appointments')
         .select('*', { count: 'exact', head: true });
 
-      // Apply project filter (use local filter if available, otherwise fallback to prop)
+      // Apply project filter first
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
+      
+      // For project-specific views, only show appointments that were ever confirmed OR are currently confirmed
       if (activeProjectFilter) {
-        countQuery = countQuery.eq('project_name', activeProjectFilter);
+        countQuery = countQuery
+          .eq('project_name', activeProjectFilter)
+          .or('was_ever_confirmed.eq.true,status.ilike.confirmed');
+      }
+
+      // For main analytics view (no project filter), don't apply the was_ever_confirmed filter
+      if (!activeProjectFilter) {
+        // No additional filtering needed for main analytics
       }
       
       // Apply date range filter
@@ -149,7 +158,9 @@ const AllAppointmentsManager = ({
 
       // Apply the same filters to the data query
       if (activeProjectFilter) {
-        appointmentsQuery = appointmentsQuery.eq('project_name', activeProjectFilter);
+        appointmentsQuery = appointmentsQuery
+          .eq('project_name', activeProjectFilter)
+          .or('was_ever_confirmed.eq.true,status.ilike.confirmed');
       }
       
       if (dateRange.from) {

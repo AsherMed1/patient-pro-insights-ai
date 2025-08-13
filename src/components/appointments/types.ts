@@ -31,6 +31,7 @@ export interface AllAppointment {
   parsed_contact_info?: any;
   parsed_demographics?: any;
   parsing_completed_at?: string | null;
+  was_ever_confirmed?: boolean;
 }
 
 export interface AllAppointmentsManagerProps {

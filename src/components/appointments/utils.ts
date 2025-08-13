@@ -87,7 +87,7 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         // Upcoming: status = 'confirmed' AND date_of_appointment > today
         return normalizedStatus === 'confirmed' && isInFuture;
       case 'past':
-        // Completed: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
+        // Completed: appointments with completed status that were ever confirmed
         const isCompletedStatus = appointment.status && 
           completedStatuses.includes(normalizedStatus);
         const hasProcedureDecision = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;

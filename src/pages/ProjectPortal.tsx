@@ -127,10 +127,10 @@ const ProjectPortal = () => {
     try {
       let query = supabase
         .from('all_appointments')
-        .select('procedure_ordered, date_appointment_created, status, date_of_appointment')
+        .select('procedure_ordered, date_appointment_created, status, date_of_appointment, was_ever_confirmed')
         .eq('project_name', decodeURIComponent(projectName!))
-        // Only count appointments with non-null status that appear in the portal tabs
-        .not('status', 'is', null);
+        // Only show appointments that were ever confirmed OR are currently confirmed
+        .or('was_ever_confirmed.eq.true,status.ilike.confirmed');
 
       // Apply date filter if range is selected
       if (dateRange.from) {
@@ -144,30 +144,8 @@ const ProjectPortal = () => {
       
       if (error) throw error;
       
-      // Filter to only include appointments that would be visible in the portal tabs
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayString = today.toISOString().split('T')[0];
-      
-      const visibleAppointments = data?.filter(apt => {
-        const status = apt.status?.toLowerCase();
-        const appointmentDate = apt.date_of_appointment;
-        
-        // Include appointments that appear in any of the three tabs:
-        // 1. Needs Review: status = 'confirmed' AND date_of_appointment <= today
-        // 2. Future: status = 'confirmed' AND date_of_appointment > today  
-        // 3. Past: status IN ('cancelled', 'no show', 'noshow', 'showed', 'won') AND procedure_ordered IS NOT NULL
-        
-        if (status === 'confirmed') {
-          return true; // Will appear in either Needs Review or Future tab
-        }
-        
-        if (['cancelled', 'no show', 'noshow', 'showed', 'won'].includes(status) && apt.procedure_ordered !== null) {
-          return true; // Will appear in Past tab
-        }
-        
-        return false;
-      }) || [];
+      // Data is already filtered by the query to only include appointments that were ever confirmed
+      const visibleAppointments = data || [];
       
       const totalAppointments = visibleAppointments.length;
       const totalShowed = visibleAppointments.filter(apt => apt.status?.toLowerCase() === 'showed').length;
