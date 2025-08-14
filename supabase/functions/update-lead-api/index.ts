@@ -34,7 +34,10 @@ Deno.serve(async (req) => {
     
     try {
       if (contentType.includes('application/json')) {
-        body = await req.json()
+        const rawText = await req.text()
+        // Sanitize control characters from JSON string before parsing
+        const sanitizedText = rawText.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
+        body = JSON.parse(sanitizedText)
       } else if (contentType.includes('application/x-www-form-urlencoded')) {
         const formData = await req.formData()
         body = Object.fromEntries(formData.entries())
@@ -50,13 +53,31 @@ Deno.serve(async (req) => {
           contact_id: url.searchParams.get('contact_id')
         }
       } else {
-        // Default to JSON parsing
-        body = await req.json()
+        // Default to JSON parsing with sanitization
+        const rawText = await req.text()
+        const sanitizedText = rawText.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
+        body = JSON.parse(sanitizedText)
       }
+      
+      // Additional sanitization of string fields to remove control characters
+      const sanitizeString = (str) => {
+        if (typeof str === 'string') {
+          return str.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ').trim()
+        }
+        return str
+      }
+      
+      // Sanitize common text fields
+      if (body.insurance_provider) body.insurance_provider = sanitizeString(body.insurance_provider)
+      if (body.insurance_plan) body.insurance_plan = sanitizeString(body.insurance_plan)
+      if (body.notes) body.notes = sanitizeString(body.notes)
+      if (body.patient_intake_notes) body.patient_intake_notes = sanitizeString(body.patient_intake_notes)
+      
     } catch (error) {
+      console.error('Request parsing error:', error)
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid request body format. Supports JSON, form data, or plain text.',
+          error: 'Invalid request body format. Please check for control characters in text fields.',
           details: error.message 
         }),
         { 
