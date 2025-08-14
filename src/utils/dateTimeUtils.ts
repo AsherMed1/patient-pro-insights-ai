@@ -23,7 +23,7 @@ const makeUTCFromCTCalendar = (dateString: string, time: 'start' | 'mid' | 'end'
 /**
  * Convert any date to Central Time Zone and format it
  */
-export const formatInCentralTime = (date: string | Date, formatString: string = 'MMM dd, yyyy HH:mm:ss') => {
+export const formatInCentralTime = (date: string | Date, formatString: string = 'MMM dd, yyyy h:mm:ss a') => {
   if (!date) return 'N/A';
   try {
     const baseUTC =
@@ -67,14 +67,14 @@ export const formatDateInCentralTime = (date: string | Date) => {
  * Format time only in Central Time Zone
  */
 export const formatTimeInCentralTime = (date: string | Date) => {
-  return formatInCentralTime(date, 'HH:mm:ss');
+  return formatInCentralTime(date, 'h:mm:ss a');
 };
 
 /**
  * Format date and time for tables in Central Time Zone
  */
 export const formatDateTimeForTable = (date: string | Date) => {
-  return formatInCentralTime(date, 'MMM dd, yyyy HH:mm');
+  return formatInCentralTime(date, 'MMM dd, yyyy h:mm a');
 };
 
 /**
