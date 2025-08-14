@@ -192,6 +192,7 @@ serve(async (req) => {
       calendar_location: body.calendar_location || null,
       insurance_provider: body.insurance_provider || null,
       insurance_id: body.insurance_id || null,
+      insurance_id_link: body.insurance_id_link || null,
       insurance_plan: body.insurance_plan || null,
       group_number: body.group_number || null,
       address: body.address || null,

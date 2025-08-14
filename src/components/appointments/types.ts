@@ -33,6 +33,7 @@ export interface AllAppointment {
   parsing_completed_at?: string | null;
   was_ever_confirmed?: boolean;
   internal_process_complete?: boolean;
+  insurance_id_link?: string;
 }
 
 export interface AllAppointmentsManagerProps {

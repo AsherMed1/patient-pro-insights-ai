@@ -132,6 +132,7 @@ export type Database = {
           ghl_id: string | null
           id: string
           insurance_detection_confidence: number | null
+          insurance_id_link: string | null
           internal_process_complete: boolean
           is_viewed: boolean | null
           lead_email: string | null
@@ -170,6 +171,7 @@ export type Database = {
           ghl_id?: string | null
           id?: string
           insurance_detection_confidence?: number | null
+          insurance_id_link?: string | null
           internal_process_complete?: boolean
           is_viewed?: boolean | null
           lead_email?: string | null
@@ -208,6 +210,7 @@ export type Database = {
           ghl_id?: string | null
           id?: string
           insurance_detection_confidence?: number | null
+          insurance_id_link?: string | null
           internal_process_complete?: boolean
           is_viewed?: boolean | null
           lead_email?: string | null
@@ -643,6 +646,7 @@ export type Database = {
           group_number: string | null
           id: string
           insurance_id: string | null
+          insurance_id_link: string | null
           insurance_plan: string | null
           insurance_provider: string | null
           last_name: string | null
@@ -671,6 +675,7 @@ export type Database = {
           group_number?: string | null
           id?: string
           insurance_id?: string | null
+          insurance_id_link?: string | null
           insurance_plan?: string | null
           insurance_provider?: string | null
           last_name?: string | null
@@ -699,6 +704,7 @@ export type Database = {
           group_number?: string | null
           id?: string
           insurance_id?: string | null
+          insurance_id_link?: string | null
           insurance_plan?: string | null
           insurance_provider?: string | null
           last_name?: string | null

@@ -196,6 +196,7 @@ serve(async (req) => {
       confirmed_number: body.confirmed_number || null,
       status: body.status || null,
       patient_intake_notes: formatWebhookPayload(body),
+      insurance_id_link: body.insurance_id_link || null,
       // Set procedure_ordered to false if status is cancelled or no show
       procedure_ordered: body.status && 
         ['cancelled', 'canceled', 'no show'].includes(body.status.toLowerCase().trim()) 
