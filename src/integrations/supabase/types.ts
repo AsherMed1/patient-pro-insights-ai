@@ -1123,6 +1123,7 @@ export type Database = {
           email: string
           group_number: string
           insurance_id: string
+          insurance_id_link: string
           insurance_plan: string
           insurance_provider: string
           lead_id: string

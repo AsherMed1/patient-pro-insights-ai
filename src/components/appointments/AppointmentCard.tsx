@@ -160,6 +160,7 @@ const AppointmentCard = ({
           insurance_provider: associatedLead.insurance_provider,
           insurance_plan: associatedLead.insurance_plan,
           insurance_id: associatedLead.insurance_id,
+          insurance_id_link: associatedLead.insurance_id_link,
           group_number: associatedLead.group_number,
           patient_intake_notes: associatedLead.patient_intake_notes,
           // Default values for other required fields
@@ -208,6 +209,7 @@ const AppointmentCard = ({
           insurance_provider: associatedLead.insurance_provider,
           insurance_plan: associatedLead.insurance_plan,
           insurance_id: associatedLead.insurance_id,
+          insurance_id_link: associatedLead.insurance_id_link,
           group_number: associatedLead.group_number,
           patient_intake_notes: associatedLead.patient_intake_notes,
           // Default values for other required fields
