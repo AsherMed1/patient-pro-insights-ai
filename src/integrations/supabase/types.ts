@@ -524,6 +524,42 @@ export type Database = {
         }
         Relationships: []
       }
+      data_retention_policies: {
+        Row: {
+          conditions: Json | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_executed: string | null
+          policy_type: string
+          retention_period_days: number
+          table_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          conditions?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_executed?: string | null
+          policy_type: string
+          retention_period_days: number
+          table_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          conditions?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_executed?: string | null
+          policy_type?: string
+          retention_period_days?: number
+          table_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       facebook_ad_spend: {
         Row: {
           campaign_name: string | null
@@ -631,6 +667,57 @@ export type Database = {
         }
         Relationships: []
       }
+      hipaa_audit_log: {
+        Row: {
+          access_justification: string | null
+          action: string
+          created_at: string | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          patient_identifier: string | null
+          phi_accessed: boolean | null
+          resource_id: string | null
+          resource_type: string
+          session_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          access_justification?: string | null
+          action: string
+          created_at?: string | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          patient_identifier?: string | null
+          phi_accessed?: boolean | null
+          resource_id?: string | null
+          resource_type: string
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          access_justification?: string | null
+          action?: string
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          patient_identifier?: string | null
+          phi_accessed?: boolean | null
+          resource_id?: string | null
+          resource_type?: string
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       new_leads: {
         Row: {
           address: string | null
@@ -718,6 +805,48 @@ export type Database = {
           status?: string | null
           times_called?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      patient_data_access: {
+        Row: {
+          access_type: string
+          created_at: string | null
+          data_elements: string[] | null
+          duration_seconds: number | null
+          id: string
+          ip_address: unknown | null
+          patient_identifier: string
+          project_name: string
+          purpose: string | null
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          access_type: string
+          created_at?: string | null
+          data_elements?: string[] | null
+          duration_seconds?: number | null
+          id?: string
+          ip_address?: unknown | null
+          patient_identifier: string
+          project_name: string
+          purpose?: string | null
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          access_type?: string
+          created_at?: string | null
+          data_elements?: string[] | null
+          duration_seconds?: number | null
+          id?: string
+          ip_address?: unknown | null
+          patient_identifier?: string
+          project_name?: string
+          purpose?: string | null
+          session_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -1064,6 +1193,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          last_activity: string | null
+          session_token: string
+          terminated_reason: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token: string
+          terminated_reason?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token?: string
+          terminated_reason?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1095,6 +1263,10 @@ export type Database = {
           window_minutes_param?: number
         }
         Returns: boolean
+      }
+      cleanup_expired_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       cleanup_security_tables: {
         Args: Record<PropertyKey, never>
@@ -1177,6 +1349,28 @@ export type Database = {
       }
       hash_password: {
         Args: { password: string }
+        Returns: string
+      }
+      log_hipaa_audit: {
+        Args: {
+          p_action?: string
+          p_event_type: string
+          p_metadata?: Json
+          p_patient_identifier?: string
+          p_phi_accessed?: boolean
+          p_resource_id?: string
+          p_resource_type: string
+        }
+        Returns: string
+      }
+      log_patient_access: {
+        Args: {
+          p_access_type: string
+          p_data_elements?: string[]
+          p_patient_identifier: string
+          p_project_name: string
+          p_purpose?: string
+        }
         Returns: string
       }
       log_security_event: {
