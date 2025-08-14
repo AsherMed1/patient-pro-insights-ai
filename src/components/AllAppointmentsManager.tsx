@@ -153,7 +153,7 @@ const AllAppointmentsManager = ({
 
       // For project-specific views, sort by appointment date (soonest first), then by created date
       // For main analytics, keep original sorting by created date
-      if (projectFilter) {
+      if (activeProjectFilter) {
         appointmentsQuery = appointmentsQuery.order('date_of_appointment', { ascending: true, nullsFirst: false })
                                            .order('date_appointment_created', { ascending: false });
       } else {
