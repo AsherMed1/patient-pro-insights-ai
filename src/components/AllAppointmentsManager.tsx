@@ -149,12 +149,20 @@ const AllAppointmentsManager = ({
       // Now build the data query with the same filters
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select('*')
-        .order(
+        .select('*');
+
+      // For project-specific views, sort by appointment date (soonest first), then by created date
+      // For main analytics, keep original sorting by created date
+      if (projectFilter) {
+        appointmentsQuery = appointmentsQuery.order('date_of_appointment', { ascending: true, nullsFirst: false })
+                                           .order('date_appointment_created', { ascending: false });
+      } else {
+        appointmentsQuery = appointmentsQuery.order(
           sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
           sortBy === 'project' ? 'project_name' : 'date_appointment_created', 
           { ascending: sortBy === 'project' ? true : false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
         );
+      }
 
       // Apply the same filters to the data query
       if (activeProjectFilter) {
