@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil } from 'lucide-react';
@@ -25,6 +26,7 @@ interface AppointmentCardProps {
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
+  onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
 }
 
 interface NewLead {
@@ -62,7 +64,8 @@ const AppointmentCard = ({
   onUpdateStatus,
   onUpdateProcedure,
   onUpdateDate,
-  onUpdateTime
+  onUpdateTime,
+  onUpdateInternalProcess
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
@@ -267,7 +270,12 @@ const AppointmentCard = ({
   };
 
   return <>
-      <div className="border rounded-lg p-3 md:p-4 space-y-3 bg-white shadow-sm">
+      <div className={cn(
+        "border rounded-lg p-3 md:p-4 space-y-3 shadow-sm transition-colors duration-300",
+        projectFilter && appointment.internal_process_complete 
+          ? "bg-green-50 border-green-200" 
+          : "bg-white"
+      )}>
         <div className="space-y-2">
           {/* Lead Name - Prominent on mobile */}
           <div className="flex items-center justify-between">
@@ -459,6 +467,26 @@ const AppointmentCard = ({
           </div>
 
         </div>
+        
+        {/* Internal Process Complete Checkbox - Only in project portals */}
+        {projectFilter && onUpdateInternalProcess && (
+          <div className="border-t pt-3">
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                id={`internal-process-${appointment.id}`}
+                checked={appointment.internal_process_complete || false}
+                onCheckedChange={(checked) => onUpdateInternalProcess(appointment.id, checked as boolean)}
+                className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+              />
+              <label 
+                htmlFor={`internal-process-${appointment.id}`}
+                className="text-sm font-medium text-gray-700 cursor-pointer"
+              >
+                Internal Process Complete
+              </label>
+            </div>
+          </div>
+        )}
         
         {/* AI Summary */}
         {appointment.ai_summary && (

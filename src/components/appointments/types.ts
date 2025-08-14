@@ -32,6 +32,7 @@ export interface AllAppointment {
   parsed_demographics?: any;
   parsing_completed_at?: string | null;
   was_ever_confirmed?: boolean;
+  internal_process_complete?: boolean;
 }
 
 export interface AllAppointmentsManagerProps {

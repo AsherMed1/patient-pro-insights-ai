@@ -474,6 +474,38 @@ const AllAppointmentsManager = ({
     }
   };
 
+  const updateInternalProcessComplete = async (appointmentId: string, isComplete: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          internal_process_complete: isComplete,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, internal_process_complete: isComplete }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: `Internal process marked as ${isComplete ? 'complete' : 'incomplete'}`,
+      });
+    } catch (error) {
+      console.error('Error updating internal process status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update internal process status",
+        variant: "destructive"
+      });
+    }
+  };
+
   const updateRequestedTime = async (appointmentId: string, time: string | null) => {
     try {
       const normalizedTime = time && time.length === 5 ? `${time}:00` : time; // to HH:mm:ss
@@ -598,6 +630,7 @@ const AllAppointmentsManager = ({
             onUpdateProcedure={updateProcedureOrdered}
             onUpdateDate={updateAppointmentDate}
             onUpdateTime={updateRequestedTime}
+            onUpdateInternalProcess={updateInternalProcessComplete}
             tabCounts={tabCounts}
           />
           

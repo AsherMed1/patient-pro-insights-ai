@@ -13,6 +13,7 @@ interface AppointmentsListProps {
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
+  onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
 }
 
 const AppointmentsList = ({
@@ -22,7 +23,8 @@ const AppointmentsList = ({
   onUpdateStatus,
   onUpdateProcedure,
   onUpdateDate,
-  onUpdateTime
+  onUpdateTime,
+  onUpdateInternalProcess
 }: AppointmentsListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -108,6 +110,7 @@ const AppointmentsList = ({
             onUpdateProcedure={onUpdateProcedure}
             onUpdateDate={onUpdateDate}
             onUpdateTime={onUpdateTime}
+            onUpdateInternalProcess={onUpdateInternalProcess}
           />
         ))}
       </div>

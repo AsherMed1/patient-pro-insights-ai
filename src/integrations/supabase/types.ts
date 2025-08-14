@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -132,6 +132,7 @@ export type Database = {
           ghl_id: string | null
           id: string
           insurance_detection_confidence: number | null
+          internal_process_complete: boolean
           is_viewed: boolean | null
           lead_email: string | null
           lead_name: string
@@ -169,6 +170,7 @@ export type Database = {
           ghl_id?: string | null
           id?: string
           insurance_detection_confidence?: number | null
+          internal_process_complete?: boolean
           is_viewed?: boolean | null
           lead_email?: string | null
           lead_name: string
@@ -206,6 +208,7 @@ export type Database = {
           ghl_id?: string | null
           id?: string
           insurance_detection_confidence?: number | null
+          internal_process_complete?: boolean
           is_viewed?: boolean | null
           lead_email?: string | null
           lead_name?: string
@@ -1065,14 +1068,14 @@ export type Database = {
         Returns: {
           appointment_id: string
           lead_name: string
-          project_name: string
           notes_synced: boolean
+          project_name: string
         }[]
       }
       check_rate_limit_enhanced: {
         Args: {
-          identifier_param: string
           action_type_param: string
+          identifier_param: string
           max_attempts_param?: number
           window_minutes_param?: number
         }
@@ -1080,8 +1083,8 @@ export type Database = {
       }
       check_rate_limit_v2: {
         Args: {
-          identifier_param: string
           endpoint_param: string
+          identifier_param: string
           max_requests_param?: number
           window_minutes_param?: number
         }
@@ -1092,62 +1095,62 @@ export type Database = {
         Returns: number
       }
       debug_password_verification: {
-        Args: { project_name_param: string; password_param: string }
+        Args: { password_param: string; project_name_param: string }
         Returns: {
-          project_found: boolean
+          debug_info: Json
           has_password: boolean
           password_hash: string
+          project_found: boolean
           verification_result: boolean
-          debug_info: Json
         }[]
       }
       get_appointment_lead_association: {
         Args: {
-          appointment_ghl_id?: string
-          appointment_phone?: string
           appointment_email?: string
+          appointment_ghl_id?: string
           appointment_lead_name?: string
+          appointment_phone?: string
           appointment_project_name?: string
         }
         Returns: {
-          lead_id: string
           contact_id: string
-          phone_number: string
           email: string
-          lead_name: string
-          project_name: string
-          insurance_provider: string
-          insurance_plan: string
-          insurance_id: string
           group_number: string
-          patient_intake_notes: string
+          insurance_id: string
+          insurance_plan: string
+          insurance_provider: string
+          lead_id: string
+          lead_name: string
           match_strategy: string
+          patient_intake_notes: string
+          phone_number: string
+          project_name: string
         }[]
       }
       get_dashboard_data: {
         Args: {
-          p_project_name?: string
           p_date_from?: string
           p_date_to?: string
           p_limit?: number
+          p_project_name?: string
         }
         Returns: {
-          leads_count: number
+          ad_spend_total: number
           appointments_count: number
           calls_count: number
-          ad_spend_total: number
+          leads_count: number
         }[]
       }
       get_project_stats: {
         Args: { project_filter?: string }
         Returns: {
-          project_name: string
-          leads_count: number
-          calls_count: number
-          appointments_count: number
-          confirmed_appointments_count: number
           ad_spend: number
+          appointments_count: number
+          calls_count: number
+          confirmed_appointments_count: number
           last_activity: string
+          leads_count: number
+          project_name: string
         }[]
       }
       get_user_role: {
@@ -1155,13 +1158,13 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       has_project_access: {
-        Args: { _user_id: string; _project_id: string }
+        Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
@@ -1171,43 +1174,43 @@ export type Database = {
       }
       log_security_event: {
         Args: {
+          details_param?: Json
           event_type_param: string
           ip_address_param?: unknown
           user_agent_param?: string
-          details_param?: Json
         }
         Returns: undefined
       }
       log_security_event_critical: {
         Args: {
+          details_param?: Json
           event_type_param: string
           ip_address_param?: unknown
-          user_agent_param?: string
-          details_param?: Json
           severity_param?: string
+          user_agent_param?: string
         }
         Returns: undefined
       }
       log_security_event_enhanced: {
         Args: {
+          details_param?: Json
           event_type_param: string
           ip_address_param?: unknown
-          user_agent_param?: string
-          details_param?: Json
           severity_param?: string
+          user_agent_param?: string
         }
         Returns: undefined
       }
       log_security_event_v2: {
         Args: {
-          event_type_param: string
-          severity_param?: string
-          user_id_param?: string
-          session_id_param?: string
-          ip_address_param?: unknown
-          user_agent_param?: string
           details_param?: Json
           endpoint_param?: string
+          event_type_param: string
+          ip_address_param?: unknown
+          session_id_param?: string
+          severity_param?: string
+          user_agent_param?: string
+          user_id_param?: string
         }
         Returns: string
       }
@@ -1222,15 +1225,15 @@ export type Database = {
       validate_security_policies: {
         Args: Record<PropertyKey, never>
         Returns: {
-          table_name: string
+          authenticated_access_count: number
           has_rls: boolean
           public_access_count: number
-          authenticated_access_count: number
           security_status: string
+          table_name: string
         }[]
       }
       verify_password: {
-        Args: { password: string; hash: string }
+        Args: { hash: string; password: string }
         Returns: boolean
       }
     }
