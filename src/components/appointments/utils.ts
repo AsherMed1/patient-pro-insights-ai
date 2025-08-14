@@ -10,7 +10,12 @@ export const formatDate = (dateString: string | null) => {
 
 export const formatTime = (timeString: string | null) => {
   if (!timeString) return 'Not set';
-  return timeString;
+  // Convert 24-hour format to 12-hour format with AM/PM
+  const [hours, minutes] = timeString.split(':');
+  const hour24 = parseInt(hours, 10);
+  const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+  const ampm = hour24 >= 12 ? 'PM' : 'AM';
+  return `${hour12}:${minutes} ${ampm}`;
 };
 
 export const isAppointmentInPast = (appointmentDate: string | null) => {
