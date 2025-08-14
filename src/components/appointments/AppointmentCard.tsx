@@ -49,6 +49,7 @@ interface NewLead {
   calendar_location?: string;
   insurance_provider?: string;
   insurance_id?: string;
+  insurance_id_link?: string;
   insurance_plan?: string;
   group_number?: string;
   address?: string;
@@ -256,6 +257,7 @@ const AppointmentCard = ({
         insurance_provider: leadInsuranceData.insurance_provider,
         insurance_plan: leadInsuranceData.insurance_plan,
         insurance_id: leadInsuranceData.insurance_id,
+        insurance_id_link: leadInsuranceData.insurance_id_link,
         group_number: leadInsuranceData.group_number
       };
     }
@@ -265,6 +267,7 @@ const AppointmentCard = ({
       insurance_provider: appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider,
       insurance_plan: appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
       insurance_id: appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
+      insurance_id_link: appointment.insurance_id_link,
       group_number: appointment.parsed_insurance_info?.group_number
     };
   };

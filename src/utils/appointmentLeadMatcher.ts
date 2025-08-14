@@ -11,6 +11,7 @@ export interface LeadAssociation {
   insurance_provider: string | null;
   insurance_plan: string | null;
   insurance_id: string | null;
+  insurance_id_link: string | null;
   group_number: string | null;
   patient_intake_notes: string | null;
   match_strategy: 'ghl_id' | 'phone' | 'email' | 'name_project';

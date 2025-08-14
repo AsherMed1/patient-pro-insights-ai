@@ -1,12 +1,14 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Shield, FileText, User, Phone } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Shield, FileText, User, Phone, ExternalLink } from 'lucide-react';
 
 interface InsuranceInfo {
   insurance_provider?: string;
   insurance_plan?: string;
   insurance_id?: string;
+  insurance_id_link?: string;
   group_number?: string;
 }
 
@@ -85,9 +87,20 @@ const InsuranceViewModal = ({
 
               {insuranceInfo.insurance_id && (
                 <div className="flex items-start justify-between p-3 bg-purple-50 rounded-lg">
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1">
                     <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Insurance ID</div>
                     <div className="text-sm font-medium text-purple-900 font-mono">{insuranceInfo.insurance_id}</div>
+                    {insuranceInfo.insurance_id_link && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 px-2 text-xs"
+                        onClick={() => window.open(insuranceInfo.insurance_id_link, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        View Insurance Details
+                      </Button>
+                    )}
                   </div>
                   <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">ID</Badge>
                 </div>
