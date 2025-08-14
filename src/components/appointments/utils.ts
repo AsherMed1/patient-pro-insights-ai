@@ -174,9 +174,24 @@ export const getStatusOptions = async () => {
       const allowedStatuses = dbStatuses.filter(status => 
         statusOptions.some(allowed => allowed.toLowerCase() === status.toLowerCase())
       );
-      // Merge filtered database statuses with predefined options
-      const allStatuses = [...new Set([...allowedStatuses, ...statusOptions])].sort();
-      return allStatuses;
+      
+      // Create a map to deduplicate by lowercase version, keeping the predefined format
+      const statusMap = new Map();
+      
+      // First add predefined statuses (these have the preferred capitalization)
+      statusOptions.forEach(status => {
+        statusMap.set(status.toLowerCase(), status);
+      });
+      
+      // Then add any allowed database statuses that aren't already covered
+      allowedStatuses.forEach(status => {
+        const lowerStatus = status.toLowerCase();
+        if (!statusMap.has(lowerStatus)) {
+          statusMap.set(lowerStatus, status);
+        }
+      });
+      
+      return Array.from(statusMap.values()).sort();
     }
     // Return predefined options if no database data
     return statusOptions.sort();
