@@ -546,6 +546,47 @@ const AllAppointmentsManager = ({
     }
   };
 
+  const updateDOB = async (appointmentId: string, dob: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({ 
+          dob: dob,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) {
+        console.error('Error updating DOB:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update date of birth",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Update local state
+      setAppointments(prev => prev.map(appointment => 
+        appointment.id === appointmentId 
+          ? { ...appointment, dob: dob }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Date of birth updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating DOB:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update date of birth",
+        variant: "destructive"
+      });
+    }
+  };
+
   const deleteAppointment = async (appointmentId: string) => {
     try {
       const { error } = await supabase
@@ -665,6 +706,7 @@ const AllAppointmentsManager = ({
             onUpdateDate={updateAppointmentDate}
             onUpdateTime={updateRequestedTime}
             onUpdateInternalProcess={updateInternalProcessComplete}
+            onUpdateDOB={updateDOB}
             onDelete={deleteAppointment}
             tabCounts={tabCounts}
           />

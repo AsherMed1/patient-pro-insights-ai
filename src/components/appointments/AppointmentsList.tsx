@@ -14,6 +14,7 @@ interface AppointmentsListProps {
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
+  onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
 }
 
@@ -26,6 +27,7 @@ const AppointmentsList = ({
   onUpdateDate,
   onUpdateTime,
   onUpdateInternalProcess,
+  onUpdateDOB,
   onDelete
 }: AppointmentsListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -113,6 +115,7 @@ const AppointmentsList = ({
             onUpdateDate={onUpdateDate}
             onUpdateTime={onUpdateTime}
             onUpdateInternalProcess={onUpdateInternalProcess}
+            onUpdateDOB={onUpdateDOB}
             onDelete={onDelete}
           />
         ))}

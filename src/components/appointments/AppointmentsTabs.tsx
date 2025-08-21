@@ -19,6 +19,7 @@ interface AppointmentsTabsProps {
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
+  onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
   tabCounts?: {
     needsReview: number;
@@ -38,6 +39,7 @@ const AppointmentsTabs = ({
   onUpdateDate,
   onUpdateTime,
   onUpdateInternalProcess,
+  onUpdateDOB,
   onDelete,
   tabCounts
 }: AppointmentsTabsProps) => {
@@ -110,10 +112,11 @@ const AppointmentsTabs = ({
           projectFilter={projectFilter}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
-          onUpdateDate={onUpdateDate}
-          onUpdateTime={onUpdateTime}
-          onUpdateInternalProcess={onUpdateInternalProcess}
-          onDelete={onDelete}
+            onUpdateDate={onUpdateDate}
+            onUpdateTime={onUpdateTime}
+            onUpdateInternalProcess={onUpdateInternalProcess}
+            onUpdateDOB={onUpdateDOB}
+            onDelete={onDelete}
         />
       </TabsContent>
 
@@ -127,7 +130,8 @@ const AppointmentsTabs = ({
           onUpdateDate={onUpdateDate}
           onUpdateTime={onUpdateTime}
           onUpdateInternalProcess={onUpdateInternalProcess}
-          onDelete={onDelete}
+            onUpdateDOB={onUpdateDOB}
+            onDelete={onDelete}
         />
       </TabsContent>
 
@@ -141,7 +145,8 @@ const AppointmentsTabs = ({
           onUpdateDate={onUpdateDate}
           onUpdateTime={onUpdateTime}
           onUpdateInternalProcess={onUpdateInternalProcess}
-          onDelete={onDelete}
+            onUpdateDOB={onUpdateDOB}
+            onDelete={onDelete}
         />
       </TabsContent>
       </Tabs>

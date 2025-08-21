@@ -28,6 +28,7 @@ interface AppointmentCardProps {
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
+  onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
 }
 
@@ -69,6 +70,7 @@ const AppointmentCard = ({
   onUpdateDate,
   onUpdateTime,
   onUpdateInternalProcess,
+  onUpdateDOB,
   onDelete
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
@@ -81,14 +83,17 @@ const AppointmentCard = ({
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const { toast } = useToast();
   const appointmentStatus = getAppointmentStatus(appointment);
+  
+  // Prefer top-level dob from API, fallback to parsed fields
+  const dobDisplay = appointment.dob || appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob || null;
+  
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
   const [timeValue, setTimeValue] = useState<string>(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
+  const [selectedDOB, setSelectedDOB] = useState<Date | undefined>(dobDisplay ? new Date(dobDisplay) : undefined);
+  
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
   const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
-
-  // Prefer top-level dob from API, fallback to parsed fields
-  const dobDisplay = appointment.dob || appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob || null;
 
   // Get styling classes for dropdowns
   const getStatusTriggerClass = () => {
@@ -134,7 +139,8 @@ const AppointmentCard = ({
   useEffect(() => {
     setSelectedDate(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
     setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
-  }, [appointment.date_of_appointment, appointment.requested_time]);
+    setSelectedDOB(dobDisplay ? new Date(dobDisplay) : undefined);
+  }, [appointment.date_of_appointment, appointment.requested_time, dobDisplay]);
 
   // Fetch status options on component mount
   useEffect(() => {
@@ -290,10 +296,65 @@ const AppointmentCard = ({
             <div className="flex items-center space-x-2 flex-1">
               <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
-              {dobDisplay && (
-                <Badge variant="destructive" className="ml-2 flex items-center">
+              {dobDisplay ? (
+                <Badge variant="secondary" className="ml-2 flex items-center">
                   <CalendarIcon className="h-3 w-3 mr-1" />
                   DOB: {dobDisplay}
+                  {onUpdateDOB && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 p-0"
+                          aria-label="Edit DOB"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDOB}
+                          onSelect={(date) => {
+                            setSelectedDOB(date);
+                            onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="ml-2 flex items-center">
+                  <CalendarIcon className="h-3 w-3 mr-1" />
+                  DOB Missing
+                  {onUpdateDOB && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 p-0 text-white hover:text-destructive-foreground"
+                          aria-label="Add DOB"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDOB}
+                          onSelect={(date) => {
+                            setSelectedDOB(date);
+                            onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </Badge>
               )}
             </div>
