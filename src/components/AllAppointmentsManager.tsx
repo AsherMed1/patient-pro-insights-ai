@@ -123,9 +123,9 @@ const AllAppointmentsManager = ({
           countQuery = countQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
         }
         } else if (activeTab === 'future') {
-        // Upcoming: confirmed or welcome call appointments in the future (case-insensitive)
+        // Upcoming: confirmed, welcome call, or rescheduled appointments in the future (case-insensitive)
         countQuery = countQuery
-          .or('status.ilike.confirmed,status.ilike.welcome call')
+          .or('status.ilike.confirmed,status.ilike.welcome call,status.ilike.rescheduled')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
@@ -215,9 +215,9 @@ const AllAppointmentsManager = ({
           appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
         }
       } else if (activeTab === 'future') {
-        // Upcoming: confirmed or welcome call appointments in the future (case-insensitive)
+        // Upcoming: confirmed, welcome call, or rescheduled appointments in the future (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .or('status.ilike.confirmed,status.ilike.welcome call')
+          .or('status.ilike.confirmed,status.ilike.welcome call,status.ilike.rescheduled')
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
@@ -322,9 +322,9 @@ const AllAppointmentsManager = ({
         needsReviewQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
       }
 
-      // Upcoming: confirmed or welcome call appointments in the future (case-insensitive)
+      // Upcoming: confirmed, welcome call, or rescheduled appointments in the future (case-insensitive)
       const futureQuery = getBaseQuery()
-        .or('status.ilike.confirmed,status.ilike.welcome call')
+        .or('status.ilike.confirmed,status.ilike.welcome call,status.ilike.rescheduled')
         .gt('date_of_appointment', todayString);
 
       // Completed: appointments with final status (case-insensitive)

@@ -89,8 +89,8 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         // Needs Review: status = 'confirmed' AND date_of_appointment <= today
         return normalizedStatus === 'confirmed' && !isInFuture;
       case 'future':
-        // Upcoming: status = 'confirmed' AND date_of_appointment > today
-        return normalizedStatus === 'confirmed' && isInFuture;
+        // Upcoming: status = 'confirmed', 'welcome call', or 'rescheduled' AND date_of_appointment > today
+        return (normalizedStatus === 'confirmed' || normalizedStatus === 'welcome call' || normalizedStatus === 'rescheduled') && isInFuture;
       case 'past':
         // Completed: appointments with completed status that were ever confirmed
         const isCompletedStatus = appointment.status && 
