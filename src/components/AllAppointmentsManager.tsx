@@ -62,11 +62,11 @@ const AllAppointmentsManager = ({
       // Apply project filter first
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
       
-      // For project-specific views, only show appointments that were ever confirmed OR are currently confirmed
+      // For project-specific views, only show appointments that were ever confirmed OR are currently confirmed OR have welcome call status
       if (activeProjectFilter) {
         countQuery = countQuery
           .eq('project_name', activeProjectFilter)
-          .or('was_ever_confirmed.eq.true,status.ilike.confirmed');
+          .or('was_ever_confirmed.eq.true,status.ilike.confirmed,status.ilike.welcome call');
       }
 
       // For main analytics view (no project filter), don't apply the was_ever_confirmed filter
@@ -168,7 +168,7 @@ const AllAppointmentsManager = ({
       if (activeProjectFilter) {
         appointmentsQuery = appointmentsQuery
           .eq('project_name', activeProjectFilter)
-          .or('was_ever_confirmed.eq.true,status.ilike.confirmed');
+          .or('was_ever_confirmed.eq.true,status.ilike.confirmed,status.ilike.welcome call');
       }
       
       if (dateRange.from) {
@@ -241,6 +241,9 @@ const AllAppointmentsManager = ({
       const { data, error } = await appointmentsQuery;
       if (error) throw error;
       console.log(`Fetched ${data?.length || 0} appointments from database`);
+      console.log('Active tab:', activeTab);
+      console.log('Project filter:', activeProjectFilter);
+      console.log('Welcome Call appointments found:', data?.filter(a => a.status?.toLowerCase() === 'welcome call').length || 0);
       setAppointments(data || []);
     } catch (error) {
       console.error('Error fetching appointments:', error);
@@ -262,7 +265,8 @@ const AllAppointmentsManager = ({
         
         const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
         if (activeProjectFilter) {
-          query = query.eq('project_name', activeProjectFilter);
+          query = query.eq('project_name', activeProjectFilter)
+                      .or('was_ever_confirmed.eq.true,status.ilike.confirmed,status.ilike.welcome call');
         }
         
         if (dateRange.from) {
