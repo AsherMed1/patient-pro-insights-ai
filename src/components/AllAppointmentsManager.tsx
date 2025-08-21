@@ -113,33 +113,25 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
       
-      if (activeTab === 'needs-review') {
-        // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
-        if (activeProjectFilter) {
-          // Project-specific view: only confirmed appointments (case-insensitive), exclude 'new' status
-          countQuery = countQuery.ilike('status', 'confirmed').lte('date_of_appointment', todayString);
-        } else {
-          // Main analytics view: include null status appointments OR confirmed appointments for today/past
-          countQuery = countQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
-        }
+        if (activeTab === 'needs-review') {
+        // Needs Review: All appointments that aren't in future or completed status
+        countQuery = countQuery
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won')
+          .or(`date_of_appointment.lte.${todayString},date_of_appointment.is.null,not.and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),not.and(status.ilike.welcome call,date_of_appointment.gt.${todayString}),not.and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
         } else if (activeTab === 'future') {
         // Upcoming: confirmed, welcome call, or rescheduled appointments in the future (case-insensitive)
         countQuery = countQuery
           .or('status.ilike.confirmed,status.ilike.welcome call,status.ilike.rescheduled')
           .gt('date_of_appointment', todayString);
-      } else if (activeTab === 'past') {
+        } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
-        if (activeProjectFilter) {
-          // Project-specific view: final status AND non-null status required
-          countQuery = countQuery
-            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
-            .not('status', 'is', null);
-        } else {
-          // Main analytics view: just final status
-          countQuery = countQuery
-            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+        countQuery = countQuery
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
         }
-      }
 
       // Get the total count first
       const { count, error: countError } = await countQuery;
@@ -206,14 +198,14 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'needs-review') {
-        // Needs Review: In main analytics, include null status appointments. In projects, only confirmed appointments for today/past
-        if (activeProjectFilter) {
-          // Project-specific view: only confirmed appointments (case-insensitive), exclude 'new' status
-          appointmentsQuery = appointmentsQuery.ilike('status', 'confirmed').lte('date_of_appointment', todayString);
-        } else {
-          // Main analytics view: include null status appointments OR confirmed appointments for today/past
-          appointmentsQuery = appointmentsQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
-        }
+        // Needs Review: All appointments that aren't in future or completed status
+        appointmentsQuery = appointmentsQuery
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won')
+          .or(`date_of_appointment.lte.${todayString},date_of_appointment.is.null,not.and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),not.and(status.ilike.welcome call,date_of_appointment.gt.${todayString}),not.and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
       } else if (activeTab === 'future') {
         // Upcoming: confirmed, welcome call, or rescheduled appointments in the future (case-insensitive)
         appointmentsQuery = appointmentsQuery
@@ -221,16 +213,8 @@ const AllAppointmentsManager = ({
           .gt('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
-        if (activeProjectFilter) {
-          // Project-specific view: final status AND non-null status required
-          appointmentsQuery = appointmentsQuery
-            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
-            .not('status', 'is', null);
-        } else {
-          // Main analytics view: just final status
-          appointmentsQuery = appointmentsQuery
-            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
-        }
+        appointmentsQuery = appointmentsQuery
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
       }
       
       // Apply pagination
@@ -311,29 +295,23 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // Needs Review: In main analytics, include null status appointments and new status. In projects, only confirmed appointments for today/past and new status
-      const needsReviewQuery = getBaseQuery();
-      const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
-      if (activeProjectFilter) {
-        // Project-specific view: only confirmed appointments (case-insensitive) for today/past, exclude 'new' status
-        needsReviewQuery.ilike('status', 'confirmed').lte('date_of_appointment', todayString);
-      } else {
-        // Main analytics view: include null status appointments OR confirmed appointments for today/past OR new status appointments
-        needsReviewQuery.or(`status.is.null,and(status.ilike.confirmed,date_of_appointment.lte.${todayString}),status.ilike.new`);
-      }
-
+      // Needs Review: All appointments that aren't in future or completed status
+      const needsReviewQuery = getBaseQuery()
+        .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'no show')
+        .not('status', 'ilike', 'noshow')
+        .not('status', 'ilike', 'showed')
+        .not('status', 'ilike', 'won')
+        .or(`date_of_appointment.lte.${todayString},date_of_appointment.is.null,not.and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),not.and(status.ilike.welcome call,date_of_appointment.gt.${todayString}),not.and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
+      
       // Upcoming: confirmed, welcome call, or rescheduled appointments in the future (case-insensitive)
       const futureQuery = getBaseQuery()
         .or('status.ilike.confirmed,status.ilike.welcome call,status.ilike.rescheduled')
         .gt('date_of_appointment', todayString);
-
+      
       // Completed: appointments with final status (case-insensitive)
-      const pastQuery = activeProjectFilter 
-        ? getBaseQuery()
-            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won')
-            .not('status', 'is', null)
-        : getBaseQuery()
-            .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+      const pastQuery = getBaseQuery()
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
 
       const [needsReviewResult, futureResult, pastResult] = await Promise.all([
         needsReviewQuery,

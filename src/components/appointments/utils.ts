@@ -86,17 +86,16 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     
     switch (filterType) {
       case 'needs-review':
-        // Needs Review: status = 'confirmed' AND date_of_appointment <= today
-        return normalizedStatus === 'confirmed' && !isInFuture;
+        // Needs Review: All appointments that aren't in future or completed
+        const isFutureAppointment = (normalizedStatus === 'confirmed' || normalizedStatus === 'welcome call' || normalizedStatus === 'rescheduled') && isInFuture;
+        const isCompletedAppointment = appointment.status && completedStatuses.includes(normalizedStatus);
+        return !isFutureAppointment && !isCompletedAppointment;
       case 'future':
         // Upcoming: status = 'confirmed', 'welcome call', or 'rescheduled' AND date_of_appointment > today
         return (normalizedStatus === 'confirmed' || normalizedStatus === 'welcome call' || normalizedStatus === 'rescheduled') && isInFuture;
       case 'past':
-        // Completed: appointments with completed status that were ever confirmed
-        const isCompletedStatus = appointment.status && 
-          completedStatuses.includes(normalizedStatus);
-        const hasProcedureDecision = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
-        return isCompletedStatus && hasProcedureDecision;
+        // Completed: appointments with completed status
+        return appointment.status && completedStatuses.includes(normalizedStatus);
       default:
         return true;
     }
