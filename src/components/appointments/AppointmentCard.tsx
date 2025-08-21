@@ -13,6 +13,7 @@ import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
+import DetailedAppointmentView from './DetailedAppointmentView';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil, type LeadAssociation } from "@/utils/appointmentLeadMatcher";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -74,6 +75,7 @@ const AppointmentCard = ({
   onDelete
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
+  const [showDetailedView, setShowDetailedView] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
   const [loadingLeadData, setLoadingLeadData] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -359,7 +361,7 @@ const AppointmentCard = ({
               )}
             </div>
             <div className="flex flex-col items-end space-y-1 ml-2">
-              <Button variant="outline" size="sm" onClick={handleViewDetails} disabled={loadingLeadData} className="flex items-center space-x-1">
+              <Button variant="outline" size="sm" onClick={() => setShowDetailedView(true)} className="flex items-center space-x-1">
                 <Info className="h-3 w-3" />
                 <span className="hidden sm:inline">View Details</span>
               </Button>
@@ -669,6 +671,12 @@ const AppointmentCard = ({
           patientPhone={appointment.lead_phone_number}
         />
       )}
+      
+      <DetailedAppointmentView
+        isOpen={showDetailedView}
+        onClose={() => setShowDetailedView(false)}
+        appointment={appointment}
+      />
     </>;
 };
 
