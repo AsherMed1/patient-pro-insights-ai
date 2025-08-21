@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,7 @@ import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil, type LeadAssociation } from "@/utils/appointmentLeadMatcher";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format as formatDateFns } from "date-fns";
@@ -27,6 +28,7 @@ interface AppointmentCardProps {
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
+  onDelete?: (appointmentId: string) => void;
 }
 
 interface NewLead {
@@ -66,7 +68,8 @@ const AppointmentCard = ({
   onUpdateProcedure,
   onUpdateDate,
   onUpdateTime,
-  onUpdateInternalProcess
+  onUpdateInternalProcess,
+  onDelete
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
@@ -311,6 +314,37 @@ const AppointmentCard = ({
                   <span className="text-blue-600 hidden sm:inline">View Insurance</span>
                   <span className="text-blue-600 sm:hidden">Insurance</span>
                 </Button>
+              )}
+              {onDelete && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex items-center space-x-1 bg-red-50 hover:bg-red-100 border-red-200 text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span className="hidden sm:inline">Delete</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete the appointment for "{appointment.lead_name}"? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => onDelete(appointment.id)}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </div>
           </div>

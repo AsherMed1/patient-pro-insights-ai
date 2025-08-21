@@ -546,6 +546,36 @@ const AllAppointmentsManager = ({
     }
   };
 
+  const deleteAppointment = async (appointmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .delete()
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      // Remove the appointment from local state
+      setAppointments(prev => prev.filter(appointment => appointment.id !== appointmentId));
+
+      toast({
+        title: "Success",
+        description: "Appointment deleted successfully"
+      });
+      
+      // Refresh tab counts and appointments
+      fetchTabCounts();
+      fetchAppointments();
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete appointment",
+        variant: "destructive"
+      });
+    }
+  };
+
 
   const totalPages = Math.ceil(totalCount / APPOINTMENTS_PER_PAGE);
   const startRecord = (currentPage - 1) * APPOINTMENTS_PER_PAGE + 1;
@@ -635,6 +665,7 @@ const AllAppointmentsManager = ({
             onUpdateDate={updateAppointmentDate}
             onUpdateTime={updateRequestedTime}
             onUpdateInternalProcess={updateInternalProcessComplete}
+            onDelete={deleteAppointment}
             tabCounts={tabCounts}
           />
           
