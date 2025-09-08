@@ -44,9 +44,6 @@ serve(async (req) => {
       }
     });
 
-    // Create regular client to verify the requesting user
-    const supabaseClient = createClient(supabaseUrl, anonKey);
-
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     console.log('🔐 Auth header present:', !!authHeader);
@@ -59,11 +56,10 @@ serve(async (req) => {
       });
     }
 
-    // Verify the user is authenticated and is an admin
+    // Verify the user is authenticated using the admin client
     console.log('🔍 Verifying user authentication...');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(jwt);
 
     if (authError) {
       console.error('❌ Auth error:', authError);
