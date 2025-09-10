@@ -115,8 +115,14 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'new') {
-        // New: All new appointments (status is null, empty, or "new")
-        countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new');
+        // New: All new appointments that haven't completed internal process and aren't final statuses
+        countQuery = countQuery
+          .eq('internal_process_complete', false)
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won');
       } else if (activeTab === 'needs-review') {
         // Needs Review: All appointments that aren't in future or completed status
         countQuery = countQuery
@@ -202,8 +208,14 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'new') {
-        // New: All new appointments (status is null, empty, or "new")
-        appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new');
+        // New: All new appointments that haven't completed internal process and aren't final statuses
+        appointmentsQuery = appointmentsQuery
+          .eq('internal_process_complete', false)
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won');
       } else if (activeTab === 'needs-review') {
         // Needs Review: All appointments that aren't in future or completed status
         appointmentsQuery = appointmentsQuery
@@ -302,9 +314,14 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // New: All new appointments (status is null, empty, or "new")
+      // New: All new appointments that haven't completed internal process and aren't final statuses
       const newQuery = getBaseQuery()
-        .or('status.is.null,status.eq.,status.ilike.new');
+        .eq('internal_process_complete', false)
+        .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'no show')
+        .not('status', 'ilike', 'noshow')
+        .not('status', 'ilike', 'showed')
+        .not('status', 'ilike', 'won');
 
       // Needs Review: All appointments that aren't in future or completed status
       const needsReviewQuery = getBaseQuery()
