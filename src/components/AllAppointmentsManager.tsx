@@ -115,35 +115,23 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'new') {
-        // New: All new appointments that haven't completed internal process and aren't final statuses or welcome call
-        countQuery = countQuery
-          .eq('internal_process_complete', false)
-          .not('status', 'ilike', 'cancelled')
-          .not('status', 'ilike', 'no show')
-          .not('status', 'ilike', 'noshow')
-          .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'welcome call');
+        // New: Appointments created today
+        countQuery = countQuery.eq('date_appointment_created', todayString);
       } else if (activeTab === 'needs-review') {
-        // Needs Review: All appointments that aren't in future, completed status, welcome call, or internal process complete
+        // Needs Review: Past appointments (appointment date has passed)
         countQuery = countQuery
-          .not('status', 'ilike', 'cancelled')
-          .not('status', 'ilike', 'no show')
-          .not('status', 'ilike', 'noshow')
-          .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'welcome call')
-          .eq('internal_process_complete', false)
-          .or(`date_of_appointment.lte.${todayString},date_of_appointment.is.null,not.and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),not.and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
-        } else if (activeTab === 'future') {
-        // Upcoming: welcome call OR internal process complete OR confirmed/rescheduled appointments in the future
+          .not('date_of_appointment', 'is', null)
+          .lt('date_of_appointment', todayString);
+      } else if (activeTab === 'future') {
+        // Upcoming: Future appointments (appointment date is today or later)
         countQuery = countQuery
-          .or(`status.ilike.welcome call,internal_process_complete.eq.true,and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
-        } else if (activeTab === 'past') {
+          .not('date_of_appointment', 'is', null)
+          .gte('date_of_appointment', todayString);
+      } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
           .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
-        }
+      }
 
       // Get the total count first
       const { count, error: countError } = await countQuery;
@@ -210,30 +198,18 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'new') {
-        // New: All new appointments that haven't completed internal process and aren't final statuses or welcome call
-        appointmentsQuery = appointmentsQuery
-          .eq('internal_process_complete', false)
-          .not('status', 'ilike', 'cancelled')
-          .not('status', 'ilike', 'no show')
-          .not('status', 'ilike', 'noshow')
-          .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'welcome call');
+        // New: Appointments created today
+        appointmentsQuery = appointmentsQuery.eq('date_appointment_created', todayString);
       } else if (activeTab === 'needs-review') {
-        // Needs Review: All appointments that aren't in future, completed status, welcome call, or internal process complete
+        // Needs Review: Past appointments (appointment date has passed)
         appointmentsQuery = appointmentsQuery
-          .not('status', 'ilike', 'cancelled')
-          .not('status', 'ilike', 'no show')
-          .not('status', 'ilike', 'noshow')
-          .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'welcome call')
-          .eq('internal_process_complete', false)
-          .or(`date_of_appointment.lte.${todayString},date_of_appointment.is.null,not.and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),not.and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
+          .not('date_of_appointment', 'is', null)
+          .lt('date_of_appointment', todayString);
       } else if (activeTab === 'future') {
-        // Upcoming: welcome call OR internal process complete OR confirmed/rescheduled appointments in the future
+        // Upcoming: Future appointments (appointment date is today or later)
         appointmentsQuery = appointmentsQuery
-          .or(`status.ilike.welcome call,internal_process_complete.eq.true,and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
+          .not('date_of_appointment', 'is', null)
+          .gte('date_of_appointment', todayString);
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
@@ -318,30 +294,19 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // New: All new appointments that haven't completed internal process and aren't final statuses or welcome call
+      // New: Appointments created today
       const newQuery = getBaseQuery()
-        .eq('internal_process_complete', false)
-        .not('status', 'ilike', 'cancelled')
-        .not('status', 'ilike', 'no show')
-        .not('status', 'ilike', 'noshow')
-        .not('status', 'ilike', 'showed')
-        .not('status', 'ilike', 'won')
-        .not('status', 'ilike', 'welcome call');
+        .eq('date_appointment_created', todayString);
 
-      // Needs Review: All appointments that aren't in future, completed status, welcome call, or internal process complete
+      // Needs Review: Past appointments (appointment date has passed)
       const needsReviewQuery = getBaseQuery()
-        .not('status', 'ilike', 'cancelled')
-        .not('status', 'ilike', 'no show')
-        .not('status', 'ilike', 'noshow')
-        .not('status', 'ilike', 'showed')
-        .not('status', 'ilike', 'won')
-        .not('status', 'ilike', 'welcome call')
-        .eq('internal_process_complete', false)
-        .or(`date_of_appointment.lte.${todayString},date_of_appointment.is.null,not.and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),not.and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
+        .not('date_of_appointment', 'is', null)
+        .lt('date_of_appointment', todayString);
       
-      // Upcoming: welcome call OR internal process complete OR confirmed/rescheduled appointments in the future
+      // Upcoming: Future appointments (appointment date is today or later)
       const futureQuery = getBaseQuery()
-        .or(`status.ilike.welcome call,internal_process_complete.eq.true,and(status.ilike.confirmed,date_of_appointment.gt.${todayString}),and(status.ilike.rescheduled,date_of_appointment.gt.${todayString})`);
+        .not('date_of_appointment', 'is', null)
+        .gte('date_of_appointment', todayString);
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
