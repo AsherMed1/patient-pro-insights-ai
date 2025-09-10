@@ -85,16 +85,17 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     const isInFuture = isAppointmentInFuture(appointment.date_of_appointment);
     
     switch (filterType) {
+      case 'new':
+        // New: All new appointments (status is null, empty, or "new")
+        return !appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new';
       case 'needs-review':
-        // Needs Review: All appointments that aren't in future or completed
-        const isFutureAppointment = (normalizedStatus === 'confirmed' || normalizedStatus === 'welcome call' || normalizedStatus === 'rescheduled') && isInFuture;
-        const isCompletedAppointment = appointment.status && completedStatuses.includes(normalizedStatus);
-        return !isFutureAppointment && !isCompletedAppointment;
+        // Needs Review: Past appointment + not updated (no status set or still "new")
+        return isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
       case 'future':
-        // Upcoming: status = 'confirmed', 'welcome call', or 'rescheduled' AND date_of_appointment > today
-        return (normalizedStatus === 'confirmed' || normalizedStatus === 'welcome call' || normalizedStatus === 'rescheduled') && isInFuture;
+        // Upcoming: Welcome Call OR Internal Process Complete
+        return (normalizedStatus === 'welcome call' || appointment.internal_process_complete === true);
       case 'past':
-        // Completed: appointments with completed status
+        // Completed: Final status (Showed / No-show / Canceled)
         return appointment.status && completedStatuses.includes(normalizedStatus);
       default:
         return true;

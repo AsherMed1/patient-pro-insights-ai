@@ -21,11 +21,12 @@ const AllAppointmentsManager = ({
 }: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("needs-review");
+  const [activeTab, setActiveTab] = useState("new");
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [tabCounts, setTabCounts] = useState({
+    new: 0,
     needsReview: 0,
     future: 0,
     past: 0
@@ -320,6 +321,7 @@ const AllAppointmentsManager = ({
       ]);
 
       setTabCounts({
+        new: 0,
         needsReview: needsReviewResult.count || 0,
         future: futureResult.count || 0,
         past: pastResult.count || 0
