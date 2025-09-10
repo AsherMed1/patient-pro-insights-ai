@@ -114,7 +114,10 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
       
-        if (activeTab === 'needs-review') {
+      if (activeTab === 'new') {
+        // New: All new appointments (status is null, empty, or "new")
+        countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new');
+      } else if (activeTab === 'needs-review') {
         // Needs Review: All appointments that aren't in future or completed status
         countQuery = countQuery
           .not('status', 'ilike', 'cancelled')
@@ -198,7 +201,10 @@ const AllAppointmentsManager = ({
       }
       
       
-      if (activeTab === 'needs-review') {
+      if (activeTab === 'new') {
+        // New: All new appointments (status is null, empty, or "new")
+        appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new');
+      } else if (activeTab === 'needs-review') {
         // Needs Review: All appointments that aren't in future or completed status
         appointmentsQuery = appointmentsQuery
           .not('status', 'ilike', 'cancelled')
@@ -296,6 +302,10 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
+      // New: All new appointments (status is null, empty, or "new")
+      const newQuery = getBaseQuery()
+        .or('status.is.null,status.eq.,status.ilike.new');
+
       // Needs Review: All appointments that aren't in future or completed status
       const needsReviewQuery = getBaseQuery()
         .not('status', 'ilike', 'cancelled')
@@ -314,14 +324,15 @@ const AllAppointmentsManager = ({
       const pastQuery = getBaseQuery()
         .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
 
-      const [needsReviewResult, futureResult, pastResult] = await Promise.all([
+      const [newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
+        newQuery,
         needsReviewQuery,
         futureQuery,
         pastQuery
       ]);
 
       setTabCounts({
-        new: 0,
+        new: newResult.count || 0,
         needsReview: needsReviewResult.count || 0,
         future: futureResult.count || 0,
         past: pastResult.count || 0
