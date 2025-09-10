@@ -134,16 +134,18 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
   };
 
   const getPatientAddress = (): string | null => {
-    const intakeNotes = appointment.patient_intake_notes || leadDetails?.patient_intake_notes;
-    if (!intakeNotes) return null;
-    
     // First try to get from parsed contact info
     if (appointment.parsed_contact_info?.address) {
       return appointment.parsed_contact_info.address;
     }
     
-    // Then try to extract from raw notes
-    return extractAddressFromNotes(intakeNotes);
+    // Then try to extract from raw notes if available
+    const intakeNotes = appointment.patient_intake_notes || leadDetails?.patient_intake_notes;
+    if (intakeNotes) {
+      return extractAddressFromNotes(intakeNotes);
+    }
+    
+    return null;
   };
 
   return (
