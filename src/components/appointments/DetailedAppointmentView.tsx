@@ -107,6 +107,45 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
     };
   };
 
+  const extractAddressFromNotes = (notes: string): string | null => {
+    if (!notes) return null;
+    
+    // Common address patterns
+    const patterns = [
+      // Full address pattern: number street, city, state zip
+      /(\d+\s+[A-Za-z0-9\s,.-]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy)[A-Za-z0-9\s,.-]*,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/gi,
+      // Address with city, state zip
+      /([A-Za-z0-9\s,.-]+,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/gi,
+      // Street address only
+      /(\d+\s+[A-Za-z0-9\s,.-]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy))/gi
+    ];
+    
+    for (const pattern of patterns) {
+      const matches = notes.match(pattern);
+      if (matches && matches.length > 0) {
+        // Return the longest match (most complete address)
+        return matches.reduce((longest, current) => 
+          current.length > longest.length ? current : longest
+        ).trim();
+      }
+    }
+    
+    return null;
+  };
+
+  const getPatientAddress = (): string | null => {
+    const intakeNotes = appointment.patient_intake_notes || leadDetails?.patient_intake_notes;
+    if (!intakeNotes) return null;
+    
+    // First try to get from parsed contact info
+    if (appointment.parsed_contact_info?.address) {
+      return appointment.parsed_contact_info.address;
+    }
+    
+    // Then try to extract from raw notes
+    return extractAddressFromNotes(intakeNotes);
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -149,6 +188,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                         <Mail className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">Email:</span>
                         <span>{appointment.lead_email || leadDetails?.email}</span>
+                      </div>
+                    )}
+
+                    {getPatientAddress() && (
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Address:</span>
+                        <span>{getPatientAddress()}</span>
                       </div>
                     )}
 
