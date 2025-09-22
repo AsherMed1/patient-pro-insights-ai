@@ -91,7 +91,7 @@ const Auth = () => {
                 alt="PatientPro Logo" 
                 className="h-20 w-auto mx-auto"
               />
-              <h1 className="text-4xl font-bold text-primary">Welcome to PatientPro</h1>
+              <h1 className="text-4xl font-bold text-primary">Patient Pro Insights</h1>
               <p className="text-xl text-primary/70 max-w-md">
                 Secure medical practice management platform designed for modern healthcare professionals
               </p>
