@@ -62,8 +62,21 @@ const Auth = () => {
     );
   }
 
+  // If user is authenticated but redirect failed, show error and redirect to home
   if (user) {
-    return null;
+    // Give the redirect hook a moment to work, then fallback to home
+    setTimeout(() => {
+      if (location.pathname === '/auth') {
+        console.warn('⚠️ Redirect failed, fallback to home');
+        navigate('/', { replace: true });
+      }
+    }, 1000);
+    
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
