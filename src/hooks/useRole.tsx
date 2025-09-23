@@ -38,8 +38,11 @@ export const useRole = () => {
           // If it's a temporary error (like 406) and we don't have role data yet, retry after delay
           if (roleError.code === 'PGRST301' || roleError.message?.includes('406')) {
             console.log('⏳ [useRole] Temporary error detected, retrying in 1 second...');
+            // Set loading to false to prevent infinite loading, then retry
+            setLoading(false);
             setTimeout(() => {
               if (user) { // Only retry if user is still authenticated
+                setLoading(true);
                 fetchRole();
               }
             }, 1000);
