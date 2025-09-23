@@ -351,6 +351,7 @@ const AllAppointmentsManager = ({
   };
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
+    console.log('🔄 updateAppointmentStatus called with:', { appointmentId, status });
     try {
       // Set status and updated timestamp
       const updateData: any = {
@@ -366,12 +367,18 @@ const AllAppointmentsManager = ({
       }
       // Note: "Showed" status does NOT automatically set procedure_ordered - it should be set independently
       
+      console.log('📡 Making API call with updateData:', updateData);
       const { error } = await supabase
         .from('all_appointments')
         .update(updateData)
         .eq('id', appointmentId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ API error:', error);
+        throw error;
+      }
+
+      console.log('✅ API call successful');
 
       // Update local state
       setAppointments(prev => prev.map(appointment =>
