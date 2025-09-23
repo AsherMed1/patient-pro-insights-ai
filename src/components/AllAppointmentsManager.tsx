@@ -373,6 +373,7 @@ const AllAppointmentsManager = ({
 
       if (error) throw error;
 
+      // Update local state
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId
           ? {
@@ -389,9 +390,8 @@ const AllAppointmentsManager = ({
         description: "Appointment status updated successfully"
       });
       
-      // Refresh tab counts and appointments since filtering logic changed
+      // Only refresh tab counts since filtering logic changed
       fetchTabCounts();
-      fetchAppointments();
     } catch (error) {
       console.error('Error updating appointment status:', error);
       toast({
@@ -414,6 +414,7 @@ const AllAppointmentsManager = ({
 
       if (error) throw error;
 
+      // Update local state
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId
           ? { ...appointment, procedure_ordered: procedureOrdered }
@@ -425,8 +426,8 @@ const AllAppointmentsManager = ({
         description: "Procedure information updated successfully"
       });
       
+      // Only refresh tab counts
       fetchTabCounts();
-      fetchAppointments();
     } catch (error) {
       console.error('Error updating procedure information:', error);
       toast({
