@@ -118,10 +118,15 @@ const AllAppointmentsManager = ({
         // New: Appointments created today
         countQuery = countQuery.eq('date_appointment_created', todayString);
       } else if (activeTab === 'needs-review') {
-        // Needs Review: Past appointments (appointment date has passed)
+        // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         countQuery = countQuery
           .not('date_of_appointment', 'is', null)
-          .lt('date_of_appointment', todayString);
+          .lt('date_of_appointment', todayString)
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments (appointment date is today or later)
         countQuery = countQuery
@@ -201,10 +206,15 @@ const AllAppointmentsManager = ({
         // New: Appointments created today
         appointmentsQuery = appointmentsQuery.eq('date_appointment_created', todayString);
       } else if (activeTab === 'needs-review') {
-        // Needs Review: Past appointments (appointment date has passed)
+        // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         appointmentsQuery = appointmentsQuery
           .not('date_of_appointment', 'is', null)
-          .lt('date_of_appointment', todayString);
+          .lt('date_of_appointment', todayString)
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments (appointment date is today or later)
         appointmentsQuery = appointmentsQuery
@@ -298,10 +308,15 @@ const AllAppointmentsManager = ({
       const newQuery = getBaseQuery()
         .eq('date_appointment_created', todayString);
 
-      // Needs Review: Past appointments (appointment date has passed)
+      // Needs Review: Past appointments (appointment date has passed) that don't have completed status
       const needsReviewQuery = getBaseQuery()
         .not('date_of_appointment', 'is', null)
-        .lt('date_of_appointment', todayString);
+        .lt('date_of_appointment', todayString)
+        .not('status', 'ilike', 'cancelled')
+        .not('status', 'ilike', 'no show')
+        .not('status', 'ilike', 'noshow')
+        .not('status', 'ilike', 'showed')
+        .not('status', 'ilike', 'won');
       
       // Upcoming: Future appointments (appointment date is today or later)
       const futureQuery = getBaseQuery()
