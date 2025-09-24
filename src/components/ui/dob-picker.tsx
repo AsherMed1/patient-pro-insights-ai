@@ -1,5 +1,5 @@
 import * as React from "react";
-import { format, parse, isValid, startOfYear, endOfYear } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 
@@ -35,20 +35,21 @@ export function DOBPicker({
   disabled = false,
   className 
 }: DOBPickerProps) {
+  const initialValid = value && isValid(value) ? value : null;
   const [inputValue, setInputValue] = React.useState(
-    value ? format(value, "MM/dd/yyyy") : ""
+    initialValid ? format(initialValid, "MM/dd/yyyy") : ""
   );
   const [calendarDate, setCalendarDate] = React.useState<Date>(
-    value || new Date(1980, 0, 1) // Default to 1980 for DOB
+    initialValid ?? new Date(1980, 0, 1) // Default to 1980 for DOB
   );
   const [isOpen, setIsOpen] = React.useState(false);
 
   // Update input when value changes externally
   React.useEffect(() => {
-    if (value) {
+    if (value && isValid(value)) {
       setInputValue(format(value, "MM/dd/yyyy"));
       setCalendarDate(value);
-    } else {
+    } else if (!value) {
       setInputValue("");
     }
   }, [value]);
@@ -72,7 +73,7 @@ export function DOBPicker({
 
   // Handle input blur - format the date if valid
   const handleInputBlur = () => {
-    if (value) {
+    if (value && isValid(value)) {
       setInputValue(format(value, "MM/dd/yyyy"));
     }
   };
@@ -181,7 +182,7 @@ export function DOBPicker({
             {/* Calendar */}
             <DayPicker
               mode="single"
-              selected={value || undefined}
+              selected={(value && isValid(value)) ? value : undefined}
               onSelect={handleCalendarSelect}
               month={calendarDate}
               onMonthChange={setCalendarDate}
