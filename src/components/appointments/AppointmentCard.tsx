@@ -16,6 +16,7 @@ import InsuranceViewModal from '@/components/InsuranceViewModal';
 import DetailedAppointmentView from './DetailedAppointmentView';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil, type LeadAssociation } from "@/utils/appointmentLeadMatcher";
 import { Calendar } from "@/components/ui/calendar";
+import { DOBPicker } from "@/components/ui/dob-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -315,15 +316,16 @@ const AppointmentCard = ({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDOB}
-                          onSelect={(date) => {
-                            setSelectedDOB(date);
-                            onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                          }}
-                          initialFocus
-                        />
+                        <div className="p-3">
+                          <DOBPicker
+                            value={selectedDOB}
+                            onChange={(date) => {
+                              setSelectedDOB(date);
+                              onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                            }}
+                            placeholder="Select date of birth"
+                          />
+                        </div>
                       </PopoverContent>
                     </Popover>
                   )}
@@ -345,15 +347,16 @@ const AppointmentCard = ({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDOB}
-                          onSelect={(date) => {
-                            setSelectedDOB(date);
-                            onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                          }}
-                          initialFocus
-                        />
+                        <div className="p-3">
+                          <DOBPicker
+                            value={selectedDOB}
+                            onChange={(date) => {
+                              setSelectedDOB(date);
+                              onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                            }}
+                            placeholder="Select date of birth"
+                          />
+                        </div>
                       </PopoverContent>
                     </Popover>
                   )}
