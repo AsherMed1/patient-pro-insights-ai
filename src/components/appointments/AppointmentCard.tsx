@@ -15,7 +15,6 @@ import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
 import DetailedAppointmentView from './DetailedAppointmentView';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil, type LeadAssociation } from "@/utils/appointmentLeadMatcher";
-import { DOBPicker } from "@/components/ui/dob-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -304,13 +303,29 @@ const AppointmentCard = ({
                   <CalendarIcon className="h-3 w-3 mr-1" />
                   DOB: {dobDisplay}
                   {onUpdateDOB && (
-                    <DOBPicker
-                      value={selectedDOB}
-                      onSelect={(date) => {
-                        setSelectedDOB(date);
-                        onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                      }}
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 p-0"
+                          aria-label="Edit DOB"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDOB}
+                          onSelect={(date) => {
+                            setSelectedDOB(date);
+                            onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   )}
                 </Badge>
               ) : (
@@ -318,14 +333,29 @@ const AppointmentCard = ({
                   <CalendarIcon className="h-3 w-3 mr-1" />
                   DOB Missing
                   {onUpdateDOB && (
-                    <DOBPicker
-                      value={selectedDOB}
-                      onSelect={(date) => {
-                        setSelectedDOB(date);
-                        onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                      }}
-                      className="text-white hover:text-destructive-foreground"
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 p-0 text-white hover:text-destructive-foreground"
+                          aria-label="Add DOB"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDOB}
+                          onSelect={(date) => {
+                            setSelectedDOB(date);
+                            onUpdateDOB(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   )}
                 </Badge>
               )}
