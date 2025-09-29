@@ -126,7 +126,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won');
+          .not('status', 'ilike', 'won')
+          .not('status', 'ilike', 'oon');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments (appointment date is today or later)
         countQuery = countQuery
@@ -135,7 +136,7 @@ const AllAppointmentsManager = ({
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
       }
 
       // Get the total count first
@@ -214,7 +215,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won');
+          .not('status', 'ilike', 'won')
+          .not('status', 'ilike', 'oon');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments (appointment date is today or later)
         appointmentsQuery = appointmentsQuery
@@ -223,7 +225,7 @@ const AllAppointmentsManager = ({
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
       }
       
       // Apply pagination
@@ -316,7 +318,8 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'no show')
         .not('status', 'ilike', 'noshow')
         .not('status', 'ilike', 'showed')
-        .not('status', 'ilike', 'won');
+        .not('status', 'ilike', 'won')
+        .not('status', 'ilike', 'oon');
       
       // Upcoming: Future appointments (appointment date is today or later)
       const futureQuery = getBaseQuery()
@@ -325,7 +328,7 @@ const AllAppointmentsManager = ({
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
-        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won');
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
 
       const [newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
         newQuery,
@@ -397,7 +400,8 @@ const AllAppointmentsManager = ({
         description: "Appointment status updated successfully"
       });
       
-      // Only refresh tab counts since filtering logic changed
+      // Refresh data to reflect tab movement (e.g., OON -> Completed)
+      fetchAppointments();
       fetchTabCounts();
     } catch (error) {
       console.error('Error updating appointment status:', error);
