@@ -149,6 +149,7 @@ export const getStatusVariant = (status: string) => {
       return 'secondary' as const;
     case 'pending':
     case 'rescheduled':
+    case 'oon':
       return 'outline' as const;
     default:
       return 'outline' as const;
@@ -215,4 +216,4 @@ export const getBaseStatusOptions = async () => {
 };
 
 // Default status options - only these statuses are allowed
-export const statusOptions = ['New', 'Pending', 'Confirmed', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'Won'];
+export const statusOptions = ['New', 'Pending', 'Confirmed', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'Won', 'OON'];
