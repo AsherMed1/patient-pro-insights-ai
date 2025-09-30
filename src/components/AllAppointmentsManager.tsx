@@ -115,8 +115,8 @@ const AllAppointmentsManager = ({
       const todayString = format(today, 'yyyy-MM-dd');
       
       if (activeTab === 'new') {
-        // New: Appointments created today
-        countQuery = countQuery.eq('date_appointment_created', todayString);
+        // New: Appointments with 'new' status or null/empty status
+        countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         countQuery = countQuery
@@ -204,8 +204,8 @@ const AllAppointmentsManager = ({
       
       
       if (activeTab === 'new') {
-        // New: Appointments created today
-        appointmentsQuery = appointmentsQuery.eq('date_appointment_created', todayString);
+        // New: Appointments with 'new' status or null/empty status
+        appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         appointmentsQuery = appointmentsQuery
@@ -306,10 +306,10 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
-      // New: Appointments created today
+      // New: Appointments with 'new' status or null/empty status
       const newQuery = getBaseQuery()
-        .eq('date_appointment_created', todayString);
-
+        .or('status.is.null,status.eq.,status.ilike.new');
+      
       // Needs Review: Past appointments (appointment date has passed) that don't have completed status
       const needsReviewQuery = getBaseQuery()
         .not('date_of_appointment', 'is', null)
