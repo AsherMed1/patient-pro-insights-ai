@@ -84,11 +84,12 @@ const AppointmentCard = ({
   const [leadInsuranceData, setLeadInsuranceData] = useState<NewLead | null>(null);
   const [hasLeadInsurance, setHasLeadInsurance] = useState(false);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [leadDOB, setLeadDOB] = useState<string | null>(null);
   const { toast } = useToast();
   const appointmentStatus = getAppointmentStatus(appointment);
   
-  // Prefer top-level dob from API, fallback to parsed fields
-  const dobDisplay = appointment.dob || appointment.parsed_contact_info?.dob || appointment.parsed_demographics?.dob || null;
+  // Prefer top-level dob from API, fallback to parsed fields or associated lead
+  const dobDisplay = appointment.dob || (appointment as any).parsed_contact_info?.dob || (appointment as any).parsed_demographics?.dob || leadDOB || null;
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
   const [timeValue, setTimeValue] = useState<string>(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
@@ -130,8 +131,32 @@ const AppointmentCard = ({
           hasInsurance: hasInsuranceInfoUtil(associatedLead),
           matchStrategy: associatedLead?.match_strategy 
         });
+
+        // Also try to fetch DOB from the associated lead if missing on the appointment
+        if (associatedLead?.lead_id) {
+          const { data: leadRow, error: leadFetchError } = await supabase
+            .from('new_leads')
+            .select('dob, parsed_contact_info')
+            .eq('id', associatedLead.lead_id)
+            .maybeSingle();
+
+          if (!leadFetchError && leadRow) {
+            const parsedContact = (leadRow as any)?.parsed_contact_info as any;
+            const dobFromLead: string | null = (leadRow as any)?.dob || parsedContact?.dob || null;
+            if (dobFromLead) {
+              setLeadDOB(dobFromLead);
+              // Persist to appointment if not already set
+              if (!appointment.dob) {
+                await supabase
+                  .from('all_appointments')
+                  .update({ dob: dobFromLead, updated_at: new Date().toISOString() })
+                  .eq('id', appointment.id);
+              }
+            }
+          }
+        }
       } catch (error) {
-        console.error('Error checking lead insurance:', error);
+        console.error('Error checking lead insurance / DOB:', error);
       }
     };
 
