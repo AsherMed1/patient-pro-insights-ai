@@ -90,8 +90,11 @@ const AllAppointmentsManager = ({
         if (searchType === 'name') {
           countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
-          countQuery = countQuery.ilike('phone_number', `%${searchTerm.trim()}%`);
+          // Strip all non-digit characters from search term for phone matching
+          const digitsOnly = searchTerm.replace(/\D/g, '');
+          countQuery = countQuery.ilike('phone_number', `%${digitsOnly}%`);
         } else if (searchType === 'dob') {
+          // DOB search supports partial matching (year, month, or full date)
           countQuery = countQuery.ilike('dob', `%${searchTerm.trim()}%`);
         }
       }
@@ -191,8 +194,11 @@ const AllAppointmentsManager = ({
         if (searchType === 'name') {
           appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
-          appointmentsQuery = appointmentsQuery.ilike('phone_number', `%${searchTerm.trim()}%`);
+          // Strip all non-digit characters from search term for phone matching
+          const digitsOnly = searchTerm.replace(/\D/g, '');
+          appointmentsQuery = appointmentsQuery.ilike('phone_number', `%${digitsOnly}%`);
         } else if (searchType === 'dob') {
+          // DOB search supports partial matching (year, month, or full date)
           appointmentsQuery = appointmentsQuery.ilike('dob', `%${searchTerm.trim()}%`);
         }
       }
@@ -294,8 +300,11 @@ const AllAppointmentsManager = ({
           if (searchType === 'name') {
             query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
           } else if (searchType === 'phone') {
-            query = query.ilike('phone_number', `%${searchTerm.trim()}%`);
+            // Strip all non-digit characters from search term for phone matching
+            const digitsOnly = searchTerm.replace(/\D/g, '');
+            query = query.ilike('phone_number', `%${digitsOnly}%`);
           } else if (searchType === 'dob') {
+            // DOB search supports partial matching (year, month, or full date)
             query = query.ilike('dob', `%${searchTerm.trim()}%`);
           }
         }
