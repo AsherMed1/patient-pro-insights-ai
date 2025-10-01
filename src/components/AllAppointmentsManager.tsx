@@ -21,11 +21,12 @@ const AllAppointmentsManager = ({
 }: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("new");
+  const [activeTab, setActiveTab] = useState("all");
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [tabCounts, setTabCounts] = useState({
+    all: 0,
     new: 0,
     needsReview: 0,
     future: 0,
@@ -33,6 +34,7 @@ const AllAppointmentsManager = ({
   });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState<'name' | 'phone' | 'dob'>('name');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
@@ -45,7 +47,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm, localProjectFilter, statusFilter, procedureOrderFilter, sortBy]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, searchType, localProjectFilter, statusFilter, procedureOrderFilter, sortBy]);
 
   useEffect(() => {
     fetchAppointments();
@@ -83,9 +85,15 @@ const AllAppointmentsManager = ({
         countQuery = countQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
       }
       
-      // Apply search filter
+      // Apply search filter based on search type
       if (searchTerm.trim()) {
-        countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
+        if (searchType === 'name') {
+          countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
+        } else if (searchType === 'phone') {
+          countQuery = countQuery.ilike('phone_number', `%${searchTerm.trim()}%`);
+        } else if (searchType === 'dob') {
+          countQuery = countQuery.ilike('dob', `%${searchTerm.trim()}%`);
+        }
       }
       
       // Apply status filter
@@ -114,7 +122,9 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
       
-      if (activeTab === 'new') {
+      if (activeTab === 'all') {
+        // All: No additional status filtering
+      } else if (activeTab === 'new') {
         // New: Appointments with 'new' status or null/empty status
         countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new');
       } else if (activeTab === 'needs-review') {
@@ -176,9 +186,15 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
       }
       
-      // Apply search filter
+      // Apply search filter based on search type
       if (searchTerm.trim()) {
-        appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
+        if (searchType === 'name') {
+          appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
+        } else if (searchType === 'phone') {
+          appointmentsQuery = appointmentsQuery.ilike('phone_number', `%${searchTerm.trim()}%`);
+        } else if (searchType === 'dob') {
+          appointmentsQuery = appointmentsQuery.ilike('dob', `%${searchTerm.trim()}%`);
+        }
       }
       
       // Apply status filter
@@ -203,7 +219,9 @@ const AllAppointmentsManager = ({
       }
       
       
-      if (activeTab === 'new') {
+      if (activeTab === 'all') {
+        // All: No additional status filtering
+      } else if (activeTab === 'new') {
         // New: Appointments with 'new' status or null/empty status
         appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new');
       } else if (activeTab === 'needs-review') {
@@ -271,9 +289,15 @@ const AllAppointmentsManager = ({
           query = query.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
         }
         
-        // Apply search filter
+        // Apply search filter based on search type
         if (searchTerm.trim()) {
-          query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
+          if (searchType === 'name') {
+            query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
+          } else if (searchType === 'phone') {
+            query = query.ilike('phone_number', `%${searchTerm.trim()}%`);
+          } else if (searchType === 'dob') {
+            query = query.ilike('dob', `%${searchTerm.trim()}%`);
+          }
         }
         
         // Apply status filter
@@ -306,6 +330,9 @@ const AllAppointmentsManager = ({
       today.setHours(0, 0, 0, 0);
       const todayString = format(today, 'yyyy-MM-dd');
 
+      // All: No additional filtering
+      const allQuery = getBaseQuery();
+
       // New: Appointments with 'new' status or null/empty status
       const newQuery = getBaseQuery()
         .or('status.is.null,status.eq.,status.ilike.new');
@@ -330,7 +357,8 @@ const AllAppointmentsManager = ({
       const pastQuery = getBaseQuery()
         .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
 
-      const [newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
+      const [allResult, newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
+        allQuery,
         newQuery,
         needsReviewQuery,
         futureQuery,
@@ -338,6 +366,7 @@ const AllAppointmentsManager = ({
       ]);
 
       setTabCounts({
+        all: allResult.count || 0,
         new: newResult.count || 0,
         needsReview: needsReviewResult.count || 0,
         future: futureResult.count || 0,
@@ -637,11 +666,14 @@ const AllAppointmentsManager = ({
       <AppointmentFilters
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
+        searchType={searchType}
+        onSearchTypeChange={setSearchType}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         onClearFilters={() => {
           setDateRange({ from: undefined, to: undefined });
           setSearchTerm('');
+          setSearchType('name');
           setLocalProjectFilter('ALL');
           setStatusFilter('ALL');
           setProcedureOrderFilter('ALL');

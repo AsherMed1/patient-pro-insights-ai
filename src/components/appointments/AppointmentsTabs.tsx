@@ -22,6 +22,7 @@ interface AppointmentsTabsProps {
   onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
   tabCounts?: {
+    all: number;
     new: number;
     needsReview: number;
     future: number;
@@ -54,6 +55,7 @@ const AppointmentsTabs = ({
 
   // Use tabCounts if provided, otherwise fall back to current appointment count
   const displayCounts = tabCounts || {
+    all: activeTab === 'all' ? appointments.length : 0,
     new: activeTab === 'new' ? appointments.length : 0,
     needsReview: activeTab === 'needs-review' ? appointments.length : 0,
     future: activeTab === 'future' ? appointments.length : 0,
@@ -68,7 +70,19 @@ const AppointmentsTabs = ({
       </div>
       
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-        <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1 gap-1' : 'grid-cols-4'} bg-muted/50 p-1 rounded-lg`}>
+        <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1 gap-1' : 'grid-cols-5'} bg-muted/50 p-1 rounded-lg`}>
+          <TabsTrigger 
+            value="all" 
+            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-purple-500" />
+              <span>All</span>
+              <Badge variant="secondary" className="ml-auto">
+                {displayCounts.all}
+              </Badge>
+            </div>
+          </TabsTrigger>
           <TabsTrigger 
             value="new" 
             className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
@@ -118,6 +132,21 @@ const AppointmentsTabs = ({
             </div>
           </TabsTrigger>
         </TabsList>
+
+      <TabsContent value="all" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+        <AppointmentsList
+          appointments={displayedAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+          onUpdateDate={onUpdateDate}
+          onUpdateTime={onUpdateTime}
+          onUpdateInternalProcess={onUpdateInternalProcess}
+          onUpdateDOB={onUpdateDOB}
+          onDelete={onDelete}
+        />
+      </TabsContent>
 
       <TabsContent value="new" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
         <AppointmentsList

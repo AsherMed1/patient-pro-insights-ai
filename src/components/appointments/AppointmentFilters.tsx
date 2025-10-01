@@ -17,6 +17,8 @@ interface DateRange {
 interface AppointmentFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  searchType: 'name' | 'phone' | 'dob';
+  onSearchTypeChange: (value: 'name' | 'phone' | 'dob') => void;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
   onClearFilters: () => void;
@@ -35,6 +37,8 @@ interface AppointmentFiltersProps {
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   searchTerm,
   onSearchChange,
+  searchType,
+  onSearchTypeChange,
   dateRange,
   onDateRangeChange,
   onClearFilters,
@@ -140,7 +144,26 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-3">
               <Search className="h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by patient name..." value={searchTerm} onChange={e => onSearchChange(e.target.value)} className="max-w-sm" />
+              <Select value={searchType} onValueChange={onSearchTypeChange}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="dob">DOB</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input 
+                placeholder={
+                  searchType === 'name' ? "Search by patient name..." :
+                  searchType === 'phone' ? "Search by phone number..." :
+                  "Search by DOB (YYYY-MM-DD)..."
+                } 
+                value={searchTerm} 
+                onChange={e => onSearchChange(e.target.value)} 
+                className="max-w-sm" 
+              />
             </div>
             
             
@@ -290,7 +313,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 </>}
               {searchTerm && <>
                   <span>•</span>
-                  <span>Search: "{searchTerm}"</span>
+                  <span>Search ({searchType === 'name' ? 'Name' : searchType === 'phone' ? 'Phone' : 'DOB'}): "{searchTerm}"</span>
                 </>}
             </div>
           </div>
