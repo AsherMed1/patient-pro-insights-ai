@@ -90,7 +90,7 @@ const AllAppointmentsManager = ({
         if (searchType === 'name') {
           countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
-          countQuery = countQuery.ilike('phone_number', `%${searchTerm.trim()}%`);
+          countQuery = countQuery.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
         } else if (searchType === 'dob') {
           countQuery = countQuery.ilike('dob', `%${searchTerm.trim()}%`);
         }
@@ -191,7 +191,7 @@ const AllAppointmentsManager = ({
         if (searchType === 'name') {
           appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
-          appointmentsQuery = appointmentsQuery.ilike('phone_number', `%${searchTerm.trim()}%`);
+          appointmentsQuery = appointmentsQuery.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
         } else if (searchType === 'dob') {
           appointmentsQuery = appointmentsQuery.ilike('dob', `%${searchTerm.trim()}%`);
         }
@@ -294,7 +294,7 @@ const AllAppointmentsManager = ({
           if (searchType === 'name') {
             query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
           } else if (searchType === 'phone') {
-            query = query.ilike('phone_number', `%${searchTerm.trim()}%`);
+            query = query.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
           } else if (searchType === 'dob') {
             query = query.ilike('dob', `%${searchTerm.trim()}%`);
           }
