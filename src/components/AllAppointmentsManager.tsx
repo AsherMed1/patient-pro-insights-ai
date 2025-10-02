@@ -91,9 +91,9 @@ const AllAppointmentsManager = ({
           countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
           countQuery = countQuery.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
-        } else if (searchType === 'dob') {
-          countQuery = countQuery.ilike('dob', `%${searchTerm.trim()}%`);
-        }
+         } else if (searchType === 'dob') {
+           countQuery = countQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
+         }
       }
       
       // Apply status filter
@@ -192,9 +192,9 @@ const AllAppointmentsManager = ({
           appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
           appointmentsQuery = appointmentsQuery.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
-        } else if (searchType === 'dob') {
-          appointmentsQuery = appointmentsQuery.ilike('dob', `%${searchTerm.trim()}%`);
-        }
+         } else if (searchType === 'dob') {
+           appointmentsQuery = appointmentsQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
+         }
       }
       
       // Apply status filter
@@ -295,9 +295,9 @@ const AllAppointmentsManager = ({
             query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
           } else if (searchType === 'phone') {
             query = query.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
-          } else if (searchType === 'dob') {
-            query = query.ilike('dob', `%${searchTerm.trim()}%`);
-          }
+           } else if (searchType === 'dob') {
+             query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+           }
         }
         
         // Apply status filter
