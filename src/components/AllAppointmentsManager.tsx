@@ -8,7 +8,6 @@ import AppointmentsTabs from './appointments/AppointmentsTabs';
 import AppointmentsCsvImport from './AppointmentsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
-import { SyncLeadDataButton } from './SyncLeadDataButton';
 import { format } from 'date-fns';
 
 
@@ -732,18 +731,13 @@ const AllAppointmentsManager = ({
       {/* Appointments List */}
       <Card className="w-full">
         <CardHeader className="pb-3 md:pb-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <CardTitle className="text-lg md:text-xl">
-                {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
-              </CardTitle>
-              <CardDescription className="text-sm">
-                Showing {totalCount > 0 ? startRecord : 0}-{endRecord} of {totalCount} appointment{totalCount !== 1 ? 's' : ''} (Times in Central Time Zone)
-                {projectFilter && ` for ${projectFilter}`}
-              </CardDescription>
-            </div>
-            <SyncLeadDataButton />
-          </div>
+          <CardTitle className="text-lg md:text-xl">
+            {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
+          </CardTitle>
+          <CardDescription className="text-sm">
+            Showing {totalCount > 0 ? startRecord : 0}-{endRecord} of {totalCount} appointment{totalCount !== 1 ? 's' : ''} (Times in Central Time Zone)
+            {projectFilter && ` for ${projectFilter}`}
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0">
           {/* Top Pagination */}

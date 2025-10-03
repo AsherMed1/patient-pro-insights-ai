@@ -2295,12 +2295,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      sync_lead_data_to_appointments: {
-        Args: { batch_size?: number }
-        Returns: {
-          total_updated: number
-        }[]
-      }
       validate_project_access: {
         Args: { project_name_param: string }
         Returns: boolean
