@@ -65,11 +65,10 @@ const AllAppointmentsManager = ({
       // Apply project filter first
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
       
-      // For project-specific views, only show appointments that were ever confirmed OR are currently confirmed OR have welcome call status
+      // For project-specific views, filter by project name
       if (activeProjectFilter) {
         countQuery = countQuery
-          .eq('project_name', activeProjectFilter)
-          .or('was_ever_confirmed.eq.true,status.ilike.confirmed,status.ilike.welcome call');
+          .eq('project_name', activeProjectFilter);
       }
 
       // For main analytics view (no project filter), don't apply the was_ever_confirmed filter
@@ -175,8 +174,7 @@ const AllAppointmentsManager = ({
       // Apply the same filters to the data query
       if (activeProjectFilter) {
         appointmentsQuery = appointmentsQuery
-          .eq('project_name', activeProjectFilter)
-          .or('was_ever_confirmed.eq.true,status.ilike.confirmed,status.ilike.welcome call');
+          .eq('project_name', activeProjectFilter);
       }
       
       if (dateRange.from) {
@@ -278,8 +276,7 @@ const AllAppointmentsManager = ({
         
         const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
         if (activeProjectFilter) {
-          query = query.eq('project_name', activeProjectFilter)
-                      .or('was_ever_confirmed.eq.true,status.ilike.confirmed,status.ilike.welcome call');
+          query = query.eq('project_name', activeProjectFilter);
         }
         
         if (dateRange.from) {
