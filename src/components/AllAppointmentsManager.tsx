@@ -551,6 +551,7 @@ const AllAppointmentsManager = ({
         title: "Success",
         description: `Internal process marked as ${isComplete ? 'complete' : 'incomplete'}`,
       });
+      onDataChanged?.();
     } catch (error) {
       console.error('Error updating internal process status:', error);
       toast({

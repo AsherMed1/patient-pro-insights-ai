@@ -148,11 +148,12 @@ const ProjectPortal = () => {
       
       if (error) throw error;
       
-      // Data is already filtered by the query to only include appointments that were ever confirmed
+      // Normalize and compute stats
       const visibleAppointments = data || [];
+      const normalizeStatus = (s?: string) => (s ?? '').toString().trim().toLowerCase();
       
       const totalAppointments = visibleAppointments.length;
-      const totalShowed = visibleAppointments.filter(apt => apt.status?.toLowerCase() === 'showed').length;
+      const totalShowed = visibleAppointments.filter(apt => normalizeStatus(apt.status) === 'showed').length;
       const totalProceduresOrdered = visibleAppointments.filter(apt => apt.procedure_ordered === true).length;
       const projectedRevenue = totalProceduresOrdered * 7000;
       
