@@ -17,7 +17,8 @@ interface DateRange {
 }
 
 const AllAppointmentsManager = ({
-  projectFilter
+  projectFilter,
+  onDataChanged
 }: AllAppointmentsManagerProps) => {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -390,6 +391,8 @@ const AllAppointmentsManager = ({
   const handleImportComplete = () => {
     setShowImport(false);
     fetchAppointments(); // Refresh the appointments list
+    fetchTabCounts();
+    onDataChanged?.();
   };
 
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
@@ -442,6 +445,7 @@ const AllAppointmentsManager = ({
       // Refresh data to reflect tab movement (e.g., OON -> Completed)
       fetchAppointments();
       fetchTabCounts();
+      onDataChanged?.();
     } catch (error) {
       console.error('Error updating appointment status:', error);
       toast({
@@ -478,6 +482,7 @@ const AllAppointmentsManager = ({
       
       // Only refresh tab counts
       fetchTabCounts();
+      onDataChanged?.();
     } catch (error) {
       console.error('Error updating procedure information:', error);
       toast({
@@ -513,6 +518,7 @@ const AllAppointmentsManager = ({
 
       fetchTabCounts();
       fetchAppointments();
+      onDataChanged?.();
     } catch (error) {
       console.error('Error updating appointment date:', error);
       toast({

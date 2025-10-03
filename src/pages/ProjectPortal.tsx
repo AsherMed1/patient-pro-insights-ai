@@ -135,9 +135,6 @@ const ProjectPortal = () => {
       } else {
         query = query.eq('project_name', decodedName);
       }
-      
-      // Only show appointments that were ever confirmed OR are currently confirmed
-      query = query.or('was_ever_confirmed.eq.true,status.ilike.confirmed');
 
       // Apply date filter if range is selected
       if (dateRange.from) {
@@ -256,7 +253,7 @@ const ProjectPortal = () => {
 
         {/* Enhanced Appointments Section */}
         <div className="portal-section">
-          <AllAppointmentsManager projectFilter={project.project_name} />
+          <AllAppointmentsManager projectFilter={project.project_name} onDataChanged={fetchAppointmentStats} />
         </div>
         
         {/* Team Communication */}
