@@ -587,6 +587,7 @@ const AllAppointmentsManager = ({
 
       fetchTabCounts();
       fetchAppointments();
+      onDataChanged?.();
     } catch (error) {
       console.error('Error updating appointment time:', error);
       toast({
@@ -628,6 +629,7 @@ const AllAppointmentsManager = ({
         title: "Success",
         description: "Date of birth updated successfully",
       });
+      onDataChanged?.();
     } catch (error) {
       console.error('Error updating DOB:', error);
       toast({
@@ -658,6 +660,7 @@ const AllAppointmentsManager = ({
       // Refresh tab counts and appointments
       fetchTabCounts();
       fetchAppointments();
+      onDataChanged?.();
     } catch (error) {
       console.error('Error deleting appointment:', error);
       toast({
