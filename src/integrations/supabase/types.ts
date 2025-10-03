@@ -2295,6 +2295,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      sync_lead_data_to_appointments: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          appointment_id: string
+          lead_name: string
+          synced_count: number
+        }[]
+      }
       validate_project_access: {
         Args: { project_name_param: string }
         Returns: boolean
