@@ -2296,11 +2296,9 @@ export type Database = {
         Returns: undefined
       }
       sync_lead_data_to_appointments: {
-        Args: Record<PropertyKey, never>
+        Args: { batch_size?: number }
         Returns: {
-          appointment_id: string
-          lead_name: string
-          synced_count: number
+          total_updated: number
         }[]
       }
       validate_project_access: {

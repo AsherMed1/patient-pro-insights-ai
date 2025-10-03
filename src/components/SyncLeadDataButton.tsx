@@ -14,12 +14,17 @@ export const SyncLeadDataButton = () => {
       setLoading(true);
       setSynced(false);
 
-      // Call the sync function
-      const { data, error } = await supabase.rpc('sync_lead_data_to_appointments');
+      // Call the optimized sync function
+      const { data, error } = await supabase.rpc('sync_lead_data_to_appointments', {
+        batch_size: 100
+      });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Sync error details:', error);
+        throw error;
+      }
 
-      const syncedCount = data?.[0]?.synced_count || 0;
+      const syncedCount = data?.[0]?.total_updated || data || 0;
 
       toast({
         title: "Sync Completed",
@@ -35,9 +40,10 @@ export const SyncLeadDataButton = () => {
 
     } catch (error) {
       console.error('Error syncing lead data:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to sync lead data";
       toast({
         title: "Sync Failed",
-        description: error instanceof Error ? error.message : "Failed to sync lead data",
+        description: `${errorMessage}. This might be due to a large number of records. Please try again or contact support.`,
         variant: "destructive"
       });
     } finally {
