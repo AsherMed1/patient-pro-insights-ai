@@ -54,11 +54,35 @@ const AppointmentsCsvImport = () => {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    // Handle CSV with quoted values that may contain commas
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    const headers = parseCSVLine(lines[0]);
     const rows = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+      if (!lines[i].trim()) continue; // Skip empty lines
+      
+      const values = parseCSVLine(lines[i]);
       const row: any = {};
       
       headers.forEach((header, index) => {
@@ -72,32 +96,102 @@ const AppointmentsCsvImport = () => {
     return rows;
   };
 
-  const validateAndTransformRow = (row: any): any => {
-    // Required fields validation
-    if (!row.date_appointment_created || !row.project_name || !row.lead_name) {
-      throw new Error('Missing required fields: date_appointment_created, project_name, or lead_name');
+  const parseDateString = (dateStr: string): string | null => {
+    if (!dateStr) return null;
+    
+    try {
+      // Handle various date formats
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      
+      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+    } catch {
+      return null;
     }
+  };
 
-    // Transform and validate data types
-    const transformedRow: any = {
-      date_appointment_created: row.date_appointment_created,
-      date_of_appointment: row.date_of_appointment || null,
-      project_name: row.project_name,
-      lead_name: row.lead_name,
-      lead_email: row.lead_email || null,
-      lead_phone_number: row.lead_phone_number || null,
-      calendar_name: row.calendar_name || null,
-      requested_time: row.requested_time || null,
-      stage_booked: row.stage_booked || null,
-      showed: row.showed === 'true' || row.showed === '1' ? true : row.showed === 'false' || row.showed === '0' ? false : null,
-      confirmed: row.confirmed === 'true' || row.confirmed === '1' ? true : row.confirmed === 'false' || row.confirmed === '0' ? false : null,
-      agent: row.agent || null,
-      agent_number: row.agent_number || null,
-      ghl_id: row.ghl_id || null,
-      confirmed_number: row.confirmed_number || null,
-      status: row.status || null,
-      procedure_ordered: row.procedure_ordered === 'true' || row.procedure_ordered === '1' ? true : row.procedure_ordered === 'false' || row.procedure_ordered === '0' ? false : null
-    };
+  const validateAndTransformRow = (row: any): any => {
+    // Support both standard format and Premier Vascular format
+    const isStandardFormat = 'date_appointment_created' in row && 'project_name' in row;
+    const isPremierFormat = 'Appt Date' in row || 'First Name' in row;
+
+    let transformedRow: any = {};
+
+    if (isStandardFormat) {
+      // Standard format
+      if (!row.date_appointment_created || !row.project_name || !row.lead_name) {
+        throw new Error('Missing required fields: date_appointment_created, project_name, or lead_name');
+      }
+
+      transformedRow = {
+        date_appointment_created: row.date_appointment_created,
+        date_of_appointment: row.date_of_appointment || null,
+        project_name: row.project_name,
+        lead_name: row.lead_name,
+        lead_email: row.lead_email || null,
+        lead_phone_number: row.lead_phone_number || null,
+        calendar_name: row.calendar_name || null,
+        requested_time: row.requested_time || null,
+        stage_booked: row.stage_booked || null,
+        showed: row.showed === 'true' || row.showed === '1' ? true : row.showed === 'false' || row.showed === '0' ? false : null,
+        confirmed: row.confirmed === 'true' || row.confirmed === '1' ? true : row.confirmed === 'false' || row.confirmed === '0' ? false : null,
+        agent: row.agent || null,
+        agent_number: row.agent_number || null,
+        ghl_id: row.ghl_id || null,
+        confirmed_number: row.confirmed_number || null,
+        status: row.status || null,
+        procedure_ordered: row.procedure_ordered === 'true' || row.procedure_ordered === '1' ? true : row.procedure_ordered === 'false' || row.procedure_ordered === '0' ? false : null,
+        dob: row.dob || null,
+        detected_insurance_provider: row.detected_insurance_provider || null,
+        detected_insurance_id: row.detected_insurance_id || null,
+        detected_insurance_plan: row.detected_insurance_plan || null,
+        patient_intake_notes: row.patient_intake_notes || row.notes || null
+      };
+    } else if (isPremierFormat) {
+      // Premier Vascular format
+      const firstName = row['First Name'] || '';
+      const lastName = row['Last Name'] || '';
+      const leadName = `${firstName} ${lastName}`.trim();
+      
+      if (!leadName) {
+        throw new Error('Missing First Name and Last Name');
+      }
+
+      const apptDate = parseDateString(row['Appt Date']);
+      const createdDate = parseDateString(row['Created Date']) || parseDateString(row['Appt Date']);
+      
+      transformedRow = {
+        date_appointment_created: createdDate || new Date().toISOString().split('T')[0],
+        date_of_appointment: apptDate,
+        project_name: 'Premier Vascular', // Default to Premier Vascular
+        lead_name: leadName,
+        lead_email: row['Email'] || null,
+        lead_phone_number: row['Phone #']?.replace(/\D/g, '') || null, // Remove non-digits
+        calendar_name: row['Calendar Location'] || null,
+        requested_time: null,
+        stage_booked: null,
+        showed: row['Status']?.toLowerCase().includes('showed') ? true : null,
+        confirmed: null,
+        agent: null,
+        agent_number: null,
+        ghl_id: null,
+        confirmed_number: null,
+        status: row['Status'] || null,
+        procedure_ordered: row['Procedure Ordered'] === 'TRUE' || row['Procedure Ordered'] === 'true' || row['Procedure Ordered'] === '1',
+        dob: parseDateString(row['DOB']),
+        detected_insurance_provider: row['Insurance Provider'] || null,
+        detected_insurance_id: row['Insurance ID'] || null,
+        detected_insurance_plan: row['Insurance Plan'] || null,
+        patient_intake_notes: [
+          row['Notes'],
+          row['Clinic Notes'],
+          row['Address'] ? `Address: ${row['Address']}` : null,
+          row['Group #'] ? `Group #: ${row['Group #']}` : null
+        ].filter(Boolean).join('\n\n') || null
+      };
+    } else {
+      throw new Error('Unrecognized CSV format');
+    }
 
     return transformedRow;
   };
