@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_manager_appointments: {
+        Row: {
+          appointment_date: string
+          client_name: string
+          first_name: string | null
+          id: string
+          insurance_provider: string | null
+          last_name: string | null
+          notes: string | null
+          phone_number: string | null
+          procedure_ordered: boolean
+          procedure_type: string
+          status: string
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          appointment_date: string
+          client_name: string
+          first_name?: string | null
+          id?: string
+          insurance_provider?: string | null
+          last_name?: string | null
+          notes?: string | null
+          phone_number?: string | null
+          procedure_ordered?: boolean
+          procedure_type: string
+          status: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          appointment_date?: string
+          client_name?: string
+          first_name?: string | null
+          id?: string
+          insurance_provider?: string | null
+          last_name?: string | null
+          notes?: string | null
+          phone_number?: string | null
+          procedure_ordered?: boolean
+          procedure_type?: string
+          status?: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       agent_performance_stats: {
         Row: {
           agent_id: string | null
@@ -476,6 +527,123 @@ export type Database = {
         }
         Relationships: []
       }
+      cpl_data: {
+        Row: {
+          amount_spent: number
+          business_name: string
+          cpl: number
+          created_at: string | null
+          id: string
+          leads_count: number
+          procedure_type: string
+          updated_at: string | null
+          upload_date: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          amount_spent: number
+          business_name: string
+          cpl: number
+          created_at?: string | null
+          id?: string
+          leads_count: number
+          procedure_type: string
+          updated_at?: string | null
+          upload_date?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          amount_spent?: number
+          business_name?: string
+          cpl?: number
+          created_at?: string | null
+          id?: string
+          leads_count?: number
+          procedure_type?: string
+          updated_at?: string | null
+          upload_date?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
+      cpl_kpi_summary: {
+        Row: {
+          created_at: string | null
+          id: string
+          overall_weighted_avg_cpl: number
+          period_end: string
+          period_start: string
+          period_type: string
+          procedure_breakdown: Json
+          status: string
+          total_leads: number
+          total_spent: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          overall_weighted_avg_cpl: number
+          period_end: string
+          period_start: string
+          period_type: string
+          procedure_breakdown?: Json
+          status: string
+          total_leads: number
+          total_spent: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          overall_weighted_avg_cpl?: number
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          procedure_breakdown?: Json
+          status?: string
+          total_leads?: number
+          total_spent?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      csv_import_batches: {
+        Row: {
+          created_at: string
+          errors: Json | null
+          failed_imports: number
+          file_name: string
+          id: string
+          skipped_duplicates: number
+          successful_imports: number
+          total_rows: number
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          errors?: Json | null
+          failed_imports?: number
+          file_name: string
+          id?: string
+          skipped_duplicates?: number
+          successful_imports?: number
+          total_rows?: number
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          errors?: Json | null
+          failed_imports?: number
+          file_name?: string
+          id?: string
+          skipped_duplicates?: number
+          successful_imports?: number
+          total_rows?: number
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       csv_import_history: {
         Row: {
           created_at: string
@@ -557,6 +725,45 @@ export type Database = {
           retention_period_days?: number
           table_name?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      expense_categories: {
+        Row: {
+          annual_amount: number | null
+          category_name: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          monthly_amount: number | null
+          subcategory: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          annual_amount?: number | null
+          category_name: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_amount?: number | null
+          subcategory?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          annual_amount?: number | null
+          category_name?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_amount?: number | null
+          subcategory?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -667,6 +874,359 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_appointments: {
+        Row: {
+          assigned_user_id: string | null
+          calendar_id: string | null
+          created_at: string
+          end_time: string | null
+          ghl_appointment_id: string
+          ghl_contact_id: string | null
+          ghl_location_id: string
+          id: string
+          notes: string | null
+          start_time: string | null
+          status: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          end_time?: string | null
+          ghl_appointment_id: string
+          ghl_contact_id?: string | null
+          ghl_location_id: string
+          id?: string
+          notes?: string | null
+          start_time?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_user_id?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          end_time?: string | null
+          ghl_appointment_id?: string
+          ghl_contact_id?: string | null
+          ghl_location_id?: string
+          id?: string
+          notes?: string | null
+          start_time?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ghl_appointments_ghl_contact_id_fkey"
+            columns: ["ghl_contact_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_contacts"
+            referencedColumns: ["ghl_contact_id"]
+          },
+          {
+            foreignKeyName: "ghl_appointments_ghl_location_id_fkey"
+            columns: ["ghl_location_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_subaccounts"
+            referencedColumns: ["ghl_location_id"]
+          },
+        ]
+      }
+      ghl_calls: {
+        Row: {
+          call_date: string | null
+          created_at: string
+          direction: string | null
+          duration: number | null
+          from_number: string | null
+          ghl_call_id: string
+          ghl_contact_id: string | null
+          ghl_location_id: string
+          ghl_user_id: string | null
+          id: string
+          recording_url: string | null
+          status: string | null
+          to_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          call_date?: string | null
+          created_at?: string
+          direction?: string | null
+          duration?: number | null
+          from_number?: string | null
+          ghl_call_id: string
+          ghl_contact_id?: string | null
+          ghl_location_id: string
+          ghl_user_id?: string | null
+          id?: string
+          recording_url?: string | null
+          status?: string | null
+          to_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          call_date?: string | null
+          created_at?: string
+          direction?: string | null
+          duration?: number | null
+          from_number?: string | null
+          ghl_call_id?: string
+          ghl_contact_id?: string | null
+          ghl_location_id?: string
+          ghl_user_id?: string | null
+          id?: string
+          recording_url?: string | null
+          status?: string | null
+          to_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ghl_calls_ghl_contact_id_fkey"
+            columns: ["ghl_contact_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_contacts"
+            referencedColumns: ["ghl_contact_id"]
+          },
+          {
+            foreignKeyName: "ghl_calls_ghl_location_id_fkey"
+            columns: ["ghl_location_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_subaccounts"
+            referencedColumns: ["ghl_location_id"]
+          },
+          {
+            foreignKeyName: "ghl_calls_ghl_user_id_fkey"
+            columns: ["ghl_user_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_users"
+            referencedColumns: ["ghl_user_id"]
+          },
+        ]
+      }
+      ghl_contacts: {
+        Row: {
+          created_at: string
+          custom_fields: Json | null
+          date_added: string | null
+          email: string | null
+          first_name: string | null
+          full_name: string | null
+          ghl_contact_id: string
+          ghl_location_id: string
+          id: string
+          last_name: string | null
+          phone: string | null
+          source: string | null
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_fields?: Json | null
+          date_added?: string | null
+          email?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          ghl_contact_id: string
+          ghl_location_id: string
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_fields?: Json | null
+          date_added?: string | null
+          email?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          ghl_contact_id?: string
+          ghl_location_id?: string
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ghl_contacts_ghl_location_id_fkey"
+            columns: ["ghl_location_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_subaccounts"
+            referencedColumns: ["ghl_location_id"]
+          },
+        ]
+      }
+      ghl_subaccounts: {
+        Row: {
+          address: string | null
+          business_name: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          email: string | null
+          ghl_location_id: string
+          id: string
+          last_synced_at: string | null
+          phone: string | null
+          postal_code: string | null
+          project_name: string
+          state: string | null
+          status: string | null
+          timezone: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          business_name?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          ghl_location_id: string
+          id?: string
+          last_synced_at?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          project_name: string
+          state?: string | null
+          status?: string | null
+          timezone?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          business_name?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          ghl_location_id?: string
+          id?: string
+          last_synced_at?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          project_name?: string
+          state?: string | null
+          status?: string | null
+          timezone?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      ghl_sync_config: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          last_synced_at: string | null
+          location_id: string
+          location_name: string
+          sync_appointments: boolean
+          sync_calls: boolean
+          sync_contacts: boolean
+          sync_users: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string | null
+          location_id: string
+          location_name: string
+          sync_appointments?: boolean
+          sync_calls?: boolean
+          sync_contacts?: boolean
+          sync_users?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string | null
+          location_id?: string
+          location_name?: string
+          sync_appointments?: boolean
+          sync_calls?: boolean
+          sync_contacts?: boolean
+          sync_users?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ghl_users: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          full_name: string | null
+          ghl_location_id: string | null
+          ghl_user_id: string
+          id: string
+          is_active: boolean | null
+          last_name: string | null
+          permissions: Json | null
+          phone: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          ghl_location_id?: string | null
+          ghl_user_id: string
+          id?: string
+          is_active?: boolean | null
+          last_name?: string | null
+          permissions?: Json | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          ghl_location_id?: string | null
+          ghl_user_id?: string
+          id?: string
+          is_active?: boolean | null
+          last_name?: string | null
+          permissions?: Json | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ghl_users_ghl_location_id_fkey"
+            columns: ["ghl_location_id"]
+            isOneToOne: false
+            referencedRelation: "ghl_subaccounts"
+            referencedColumns: ["ghl_location_id"]
+          },
+        ]
+      }
       hipaa_audit_log: {
         Row: {
           access_justification: string | null
@@ -715,6 +1275,39 @@ export type Database = {
           session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      meeting_transcripts: {
+        Row: {
+          attendees: string[] | null
+          created_at: string | null
+          id: string
+          meeting_date: string
+          meeting_name: string
+          transcript_text: string
+          updated_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          attendees?: string[] | null
+          created_at?: string | null
+          id?: string
+          meeting_date: string
+          meeting_name: string
+          transcript_text: string
+          updated_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          attendees?: string[] | null
+          created_at?: string | null
+          id?: string
+          meeting_date?: string
+          meeting_name?: string
+          transcript_text?: string
+          updated_at?: string | null
+          uploaded_by?: string | null
         }
         Relationships: []
       }
@@ -847,6 +1440,117 @@ export type Database = {
           purpose?: string | null
           session_id?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      payroll_employees: {
+        Row: {
+          annual_salary: number | null
+          commission_rate: number | null
+          contract_type: string | null
+          created_at: string | null
+          created_by: string | null
+          department: string
+          employment_type: string | null
+          full_name: string
+          hourly_rate: number | null
+          hours_per_week: number | null
+          id: string
+          is_active: boolean | null
+          monthly_salary: number | null
+          role_title: string | null
+          updated_at: string | null
+          updated_by: string | null
+          weekly_salary: number | null
+        }
+        Insert: {
+          annual_salary?: number | null
+          commission_rate?: number | null
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department: string
+          employment_type?: string | null
+          full_name: string
+          hourly_rate?: number | null
+          hours_per_week?: number | null
+          id?: string
+          is_active?: boolean | null
+          monthly_salary?: number | null
+          role_title?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          weekly_salary?: number | null
+        }
+        Update: {
+          annual_salary?: number | null
+          commission_rate?: number | null
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department?: string
+          employment_type?: string | null
+          full_name?: string
+          hourly_rate?: number | null
+          hours_per_week?: number | null
+          id?: string
+          is_active?: boolean | null
+          monthly_salary?: number | null
+          role_title?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          weekly_salary?: number | null
+        }
+        Relationships: []
+      }
+      potential_hires: {
+        Row: {
+          contract_type: string | null
+          created_at: string | null
+          created_by: string | null
+          department: string
+          employment_type: string | null
+          expected_monthly_salary: number | null
+          expected_start_date: string | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          priority: string | null
+          role_title: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department: string
+          employment_type?: string | null
+          expected_monthly_salary?: number | null
+          expected_start_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          priority?: string | null
+          role_title: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department?: string
+          employment_type?: string | null
+          expected_monthly_salary?: number | null
+          expected_start_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          priority?: string | null
+          role_title?: string
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1043,6 +1747,93 @@ export type Database = {
         }
         Relationships: []
       }
+      quarterly_strategy_submissions: {
+        Row: {
+          accountability: Json | null
+          automation_idea: string | null
+          automation_pilot: string | null
+          bottlenecks: string | null
+          breaking_point: string | null
+          breaking_points: string | null
+          created_at: string
+          current_capacity: string | null
+          dashboard_kpis: string | null
+          department: string
+          dependencies: string | null
+          documented_sops: string | null
+          doubling_breakpoint: string | null
+          id: string
+          kpi_table: Json | null
+          kpi_to_track: string | null
+          kpis: string | null
+          leader_name: string
+          never_lose_book_concept: string | null
+          never_lose_implementation: string | null
+          nlaca_concept: string | null
+          nlaca_implementation: string | null
+          staffing_gaps: string | null
+          submitted_by: string | null
+          tracking_cadence: string | null
+          updated_at: string
+        }
+        Insert: {
+          accountability?: Json | null
+          automation_idea?: string | null
+          automation_pilot?: string | null
+          bottlenecks?: string | null
+          breaking_point?: string | null
+          breaking_points?: string | null
+          created_at?: string
+          current_capacity?: string | null
+          dashboard_kpis?: string | null
+          department: string
+          dependencies?: string | null
+          documented_sops?: string | null
+          doubling_breakpoint?: string | null
+          id?: string
+          kpi_table?: Json | null
+          kpi_to_track?: string | null
+          kpis?: string | null
+          leader_name: string
+          never_lose_book_concept?: string | null
+          never_lose_implementation?: string | null
+          nlaca_concept?: string | null
+          nlaca_implementation?: string | null
+          staffing_gaps?: string | null
+          submitted_by?: string | null
+          tracking_cadence?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accountability?: Json | null
+          automation_idea?: string | null
+          automation_pilot?: string | null
+          bottlenecks?: string | null
+          breaking_point?: string | null
+          breaking_points?: string | null
+          created_at?: string
+          current_capacity?: string | null
+          dashboard_kpis?: string | null
+          department?: string
+          dependencies?: string | null
+          documented_sops?: string | null
+          doubling_breakpoint?: string | null
+          id?: string
+          kpi_table?: Json | null
+          kpi_to_track?: string | null
+          kpis?: string | null
+          leader_name?: string
+          never_lose_book_concept?: string | null
+          never_lose_implementation?: string | null
+          nlaca_concept?: string | null
+          nlaca_implementation?: string | null
+          staffing_gaps?: string | null
+          submitted_by?: string | null
+          tracking_cadence?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rate_limit_log: {
         Row: {
           action_type: string
@@ -1067,6 +1858,48 @@ export type Database = {
           id?: string
           identifier?: string
           window_start?: string | null
+        }
+        Relationships: []
+      }
+      revenue_projections: {
+        Row: {
+          category: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          is_direct_total: boolean | null
+          per_unit: number | null
+          quantity: number | null
+          total_projected: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_direct_total?: boolean | null
+          per_unit?: number | null
+          quantity?: number | null
+          total_projected?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_direct_total?: boolean | null
+          per_unit?: number | null
+          quantity?: number | null
+          total_projected?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1246,6 +2079,14 @@ export type Database = {
           project_name: string
         }[]
       }
+      calculate_cpl_summary: {
+        Args: {
+          p_period_end: string
+          p_period_start: string
+          p_period_type: string
+        }
+        Returns: string
+      }
       check_rate_limit_enhanced: {
         Args: {
           action_type_param: string
@@ -1282,6 +2123,26 @@ export type Database = {
           verification_result: boolean
         }[]
       }
+      get_account_manager_kpis: {
+        Args: {
+          p_client_name?: string
+          p_end_date?: string
+          p_procedure_type?: string
+          p_start_date?: string
+          p_user_id?: string
+        }
+        Returns: {
+          by_client: Json
+          by_procedure_type: Json
+          cancelled_appointments: number
+          conversion_rate: number
+          no_show_appointments: number
+          procedures_ordered: number
+          show_rate: number
+          showed_appointments: number
+          total_appointments: number
+        }[]
+      }
       get_appointment_lead_association: {
         Args: {
           appointment_email?: string
@@ -1304,6 +2165,21 @@ export type Database = {
           patient_intake_notes: string
           phone_number: string
           project_name: string
+        }[]
+      }
+      get_client_health_metrics: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          conversion_rate: number
+          cost_per_appointment: number
+          cost_per_procedure: number
+          procedure_appointments: number
+          procedure_breakdown: Json
+          proj_name: string
+          show_rate: number
+          showed_appointments: number
+          total_ad_spend: number
+          total_appointments: number
         }[]
       }
       get_dashboard_data: {
