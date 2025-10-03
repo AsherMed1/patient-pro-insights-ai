@@ -67,8 +67,12 @@ const AllAppointmentsManager = ({
       
       // For project-specific views, filter by project name
       if (activeProjectFilter) {
-        countQuery = countQuery
-          .eq('project_name', activeProjectFilter);
+        const normalizedProject = activeProjectFilter.trim();
+        if (normalizedProject !== activeProjectFilter) {
+          countQuery = countQuery.or(`project_name.eq.${activeProjectFilter},project_name.eq.${normalizedProject}`);
+        } else {
+          countQuery = countQuery.eq('project_name', activeProjectFilter);
+        }
       }
 
       // For main analytics view (no project filter), don't apply the was_ever_confirmed filter
@@ -173,8 +177,12 @@ const AllAppointmentsManager = ({
 
       // Apply the same filters to the data query
       if (activeProjectFilter) {
-        appointmentsQuery = appointmentsQuery
-          .eq('project_name', activeProjectFilter);
+        const normalizedProject = activeProjectFilter.trim();
+        if (normalizedProject !== activeProjectFilter) {
+          appointmentsQuery = appointmentsQuery.or(`project_name.eq.${activeProjectFilter},project_name.eq.${normalizedProject}`);
+        } else {
+          appointmentsQuery = appointmentsQuery.eq('project_name', activeProjectFilter);
+        }
       }
       
       if (dateRange.from) {
@@ -276,7 +284,12 @@ const AllAppointmentsManager = ({
         
         const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
         if (activeProjectFilter) {
-          query = query.eq('project_name', activeProjectFilter);
+          const normalizedProject = activeProjectFilter.trim();
+          if (normalizedProject !== activeProjectFilter) {
+            query = query.or(`project_name.eq.${activeProjectFilter},project_name.eq.${normalizedProject}`);
+          } else {
+            query = query.eq('project_name', activeProjectFilter);
+          }
         }
         
         if (dateRange.from) {

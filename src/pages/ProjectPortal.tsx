@@ -125,12 +125,19 @@ const ProjectPortal = () => {
 
   const fetchAppointmentStats = async () => {
     try {
+      const decodedName = decodeURIComponent(projectName!);
       let query = supabase
         .from('all_appointments')
-        .select('procedure_ordered, date_appointment_created, status, date_of_appointment, was_ever_confirmed')
-        .eq('project_name', decodeURIComponent(projectName!))
-        // Only show appointments that were ever confirmed OR are currently confirmed
-        .or('was_ever_confirmed.eq.true,status.ilike.confirmed');
+        .select('procedure_ordered, date_appointment_created, status, date_of_appointment, was_ever_confirmed');
+      
+      if (decodedName.trim() !== decodedName) {
+        query = query.or(`project_name.eq.${decodedName},project_name.eq.${decodedName.trim()}`);
+      } else {
+        query = query.eq('project_name', decodedName);
+      }
+      
+      // Only show appointments that were ever confirmed OR are currently confirmed
+      query = query.or('was_ever_confirmed.eq.true,status.ilike.confirmed');
 
       // Apply date filter if range is selected
       if (dateRange.from) {
