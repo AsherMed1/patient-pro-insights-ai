@@ -401,6 +401,10 @@ const AllAppointmentsManager = ({
   const updateAppointmentStatus = async (appointmentId: string, status: string) => {
     console.log('🔄 updateAppointmentStatus called with:', { appointmentId, status });
     try {
+      // Get the current appointment to track status change
+      const currentAppointment = appointments.find(a => a.id === appointmentId);
+      const oldStatus = currentAppointment?.status || 'None';
+      
       // Set status and updated timestamp
       const updateData: any = {
         status,
@@ -427,6 +431,28 @@ const AllAppointmentsManager = ({
       }
 
       console.log('✅ API call successful');
+
+      // Add system note to track status change
+      if (oldStatus !== status) {
+        const timestamp = new Date().toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric', 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        });
+        
+        const systemNote = `Status changed from "${oldStatus}" to "${status}" - ${timestamp}`;
+        
+        await supabase
+          .from('appointment_notes')
+          .insert({
+            appointment_id: appointmentId,
+            note_text: systemNote,
+            created_by: 'System'
+          });
+      }
 
       // Update local state
       setAppointments(prev => prev.map(appointment =>

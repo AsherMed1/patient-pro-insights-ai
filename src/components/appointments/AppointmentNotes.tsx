@@ -101,27 +101,45 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName }: AppointmentN
         </div>
       ) : notes.length > 0 ? (
         <div className="space-y-2">
-          {notes.map((note) => (
-            <Card key={note.id} className="bg-yellow-50 border-yellow-200">
-              <CardContent className="p-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <div className="flex items-center space-x-2">
-                      <User className="h-3 w-3" />
-                      <span>{note.created_by}</span>
+          {notes.map((note) => {
+            const isSystemNote = note.created_by === 'System';
+            return (
+              <Card 
+                key={note.id} 
+                className={isSystemNote 
+                  ? "bg-blue-50 border-blue-200" 
+                  : "bg-yellow-50 border-yellow-200"
+                }
+              >
+                <CardContent className="p-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center space-x-2">
+                        <User className="h-3 w-3" />
+                        <span className={isSystemNote ? "font-medium text-blue-700" : ""}>
+                          {note.created_by}
+                        </span>
+                        {isSystemNote && (
+                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                            Auto
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatTimeAgo(note.created_at)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{formatTimeAgo(note.created_at)}</span>
-                    </div>
+                    <p className={`text-sm whitespace-pre-wrap ${
+                      isSystemNote ? "text-blue-800 font-medium" : "text-gray-800"
+                    }`}>
+                      {note.note_text}
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                    {note.note_text}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <div className="text-sm text-gray-500 text-center py-4 border border-dashed border-gray-300 rounded-lg">
