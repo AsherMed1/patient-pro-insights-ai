@@ -49,49 +49,68 @@ const AppointmentsCsvImport = () => {
   };
 
   const parseCSV = (csvText: string): any[] => {
-    const lines = csvText.trim().split('\n');
-    if (lines.length < 2) return [];
-
-    // Handle CSV with quoted values that may contain commas
-    const parseCSVLine = (line: string): string[] => {
-      const result: string[] = [];
-      let current = '';
-      let inQuotes = false;
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+    
+    // Parse CSV character by character to handle multi-line quoted fields
+    for (let i = 0; i < csvText.length; i++) {
+      const char = csvText[i];
+      const nextChar = csvText[i + 1];
       
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim());
-          current = '';
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          // Escaped quote (two consecutive quotes)
+          currentField += '"';
+          i++; // Skip next quote
         } else {
-          current += char;
+          // Toggle quote state
+          inQuotes = !inQuotes;
         }
+      } else if (char === ',' && !inQuotes) {
+        // End of field
+        currentRow.push(currentField.trim());
+        currentField = '';
+      } else if (char === '\n' && !inQuotes) {
+        // End of row (only if not inside quotes)
+        if (currentField || currentRow.length > 0) {
+          currentRow.push(currentField.trim());
+          if (currentRow.some(field => field !== '')) {
+            rows.push(currentRow);
+          }
+          currentRow = [];
+          currentField = '';
+        }
+      } else if (char === '\r') {
+        // Skip carriage returns
+        continue;
+      } else {
+        currentField += char;
       }
-      result.push(current.trim());
-      return result;
-    };
-
-    const headers = parseCSVLine(lines[0]);
-    const rows = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue; // Skip empty lines
-      
-      const values = parseCSVLine(lines[i]);
+    }
+    
+    // Add final field and row
+    if (currentField || currentRow.length > 0) {
+      currentRow.push(currentField.trim());
+      if (currentRow.some(field => field !== '')) {
+        rows.push(currentRow);
+      }
+    }
+    
+    if (rows.length < 2) return [];
+    
+    const headers = rows[0];
+    const dataRows = rows.slice(1);
+    
+    return dataRows.map(values => {
       const row: any = {};
-      
       headers.forEach((header, index) => {
         const value = values[index] || '';
         row[header] = value === '' ? null : value;
       });
-
-      rows.push(row);
-    }
-
-    return rows;
+      return row;
+    });
   };
 
   const parseDateString = (dateStr: string): string | null => {
