@@ -2002,6 +2002,159 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_invoices: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          created_at: string | null
+          currency: string
+          customer_email: string | null
+          id: string
+          invoice_date: string | null
+          metadata: Json | null
+          paid_at: string | null
+          status: string
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_subscription_id: string | null
+        }
+        Insert: {
+          amount_due?: number
+          amount_paid?: number
+          created_at?: string | null
+          currency?: string
+          customer_email?: string | null
+          id?: string
+          invoice_date?: string | null
+          metadata?: Json | null
+          paid_at?: string | null
+          status: string
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_subscription_id?: string | null
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          created_at?: string | null
+          currency?: string
+          customer_email?: string | null
+          id?: string
+          invoice_date?: string | null
+          metadata?: Json | null
+          paid_at?: string | null
+          status?: string
+          stripe_customer_id?: string
+          stripe_invoice_id?: string
+          stripe_subscription_id?: string | null
+        }
+        Relationships: []
+      }
+      stripe_revenue_summary: {
+        Row: {
+          active_subscriptions: number
+          arr: number
+          churned_subscriptions: number
+          created_at: string | null
+          id: string
+          mrr: number
+          new_subscriptions: number
+          period_end: string
+          period_start: string
+          period_type: string
+          total_revenue: number
+          updated_at: string | null
+        }
+        Insert: {
+          active_subscriptions?: number
+          arr?: number
+          churned_subscriptions?: number
+          created_at?: string | null
+          id?: string
+          mrr?: number
+          new_subscriptions?: number
+          period_end: string
+          period_start: string
+          period_type: string
+          total_revenue?: number
+          updated_at?: string | null
+        }
+        Update: {
+          active_subscriptions?: number
+          arr?: number
+          churned_subscriptions?: number
+          created_at?: string | null
+          id?: string
+          mrr?: number
+          new_subscriptions?: number
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          total_revenue?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      stripe_subscriptions: {
+        Row: {
+          amount: number
+          billing_interval: string
+          cancel_at: string | null
+          canceled_at: string | null
+          created_at: string | null
+          currency: string
+          current_period_end: string | null
+          current_period_start: string | null
+          customer_email: string | null
+          customer_name: string | null
+          id: string
+          metadata: Json | null
+          plan_name: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number
+          billing_interval: string
+          cancel_at?: string | null
+          canceled_at?: string | null
+          created_at?: string | null
+          currency?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          metadata?: Json | null
+          plan_name: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          billing_interval?: string
+          cancel_at?: string | null
+          canceled_at?: string | null
+          created_at?: string | null
+          currency?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          metadata?: Json | null
+          plan_name?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -2294,6 +2447,12 @@ export type Database = {
       refresh_performance_views: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      sync_lead_data_to_appointments: {
+        Args: { batch_size?: number }
+        Returns: {
+          total_updated: number
+        }[]
       }
       validate_project_access: {
         Args: { project_name_param: string }
