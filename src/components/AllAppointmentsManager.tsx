@@ -81,12 +81,12 @@ const AllAppointmentsManager = ({
         // No additional filtering needed for main analytics
       }
       
-      // Apply date range filter
+      // Apply date range filter (filter by actual appointment date, not creation date)
       if (dateRange.from) {
-        countQuery = countQuery.gte('date_appointment_created', format(dateRange.from, 'yyyy-MM-dd'));
+        countQuery = countQuery.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
       }
       if (dateRange.to) {
-        countQuery = countQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+        countQuery = countQuery.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
       }
       
       // Apply search filter based on search type
@@ -163,9 +163,12 @@ const AllAppointmentsManager = ({
         .from('all_appointments')
         .select('*');
 
+      // Sort by newest first on the "New" tab
+      if (activeTab === 'new') {
+        appointmentsQuery = appointmentsQuery.order('date_appointment_created', { ascending: false });
+      }
       // For project-specific views, sort by appointment date (soonest first), then by created date
-      // For main analytics, keep original sorting by created date
-      if (activeProjectFilter) {
+      else if (activeProjectFilter) {
         appointmentsQuery = appointmentsQuery.order('date_of_appointment', { ascending: true, nullsFirst: false })
                                            .order('date_appointment_created', { ascending: false });
       } else {
@@ -187,10 +190,10 @@ const AllAppointmentsManager = ({
       }
       
       if (dateRange.from) {
-        appointmentsQuery = appointmentsQuery.gte('date_appointment_created', format(dateRange.from, 'yyyy-MM-dd'));
+        appointmentsQuery = appointmentsQuery.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
       }
       if (dateRange.to) {
-        appointmentsQuery = appointmentsQuery.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+        appointmentsQuery = appointmentsQuery.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
       }
       
       // Apply search filter based on search type
@@ -294,10 +297,10 @@ const AllAppointmentsManager = ({
         }
         
         if (dateRange.from) {
-          query = query.gte('date_appointment_created', format(dateRange.from, 'yyyy-MM-dd'));
+          query = query.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
         }
         if (dateRange.to) {
-          query = query.lte('date_appointment_created', format(dateRange.to, 'yyyy-MM-dd'));
+          query = query.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
         }
         
         // Apply search filter based on search type
