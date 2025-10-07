@@ -65,6 +65,48 @@ export type Database = {
         }
         Relationships: []
       }
+      action_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string
+          description: string
+          due_date: string
+          id: string
+          owner: string
+          priority: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department: string
+          description: string
+          due_date: string
+          id?: string
+          owner: string
+          priority?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string
+          description?: string
+          due_date?: string
+          id?: string
+          owner?: string
+          priority?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       agent_performance_stats: {
         Row: {
           agent_id: string | null
@@ -523,6 +565,51 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      core_objectives: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string
+          description: string
+          end_date: string
+          id: string
+          owner: string
+          progress: number
+          start_date: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department: string
+          description: string
+          end_date: string
+          id?: string
+          owner: string
+          progress?: number
+          start_date: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string
+          description?: string
+          end_date?: string
+          id?: string
+          owner?: string
+          progress?: number
+          start_date?: string
+          status?: string
+          title?: string
           updated_at?: string
         }
         Relationships: []
@@ -1503,6 +1590,54 @@ export type Database = {
         }
         Relationships: []
       }
+      positions: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          department: string
+          employee: string | null
+          four_rs: Json
+          id: string
+          kpis: Json
+          level: string
+          reporting_to: string | null
+          sops: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          department: string
+          employee?: string | null
+          four_rs?: Json
+          id?: string
+          kpis?: Json
+          level: string
+          reporting_to?: string | null
+          sops?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          department?: string
+          employee?: string | null
+          four_rs?: Json
+          id?: string
+          kpis?: Json
+          level?: string
+          reporting_to?: string | null
+          sops?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       potential_hires: {
         Row: {
           contract_type: string | null
@@ -1861,6 +1996,54 @@ export type Database = {
         }
         Relationships: []
       }
+      resources: {
+        Row: {
+          access_count: number
+          created_at: string
+          created_by: string | null
+          department: string
+          description: string
+          embed_id: string | null
+          id: string
+          status: string
+          tags: Json
+          title: string
+          type: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          access_count?: number
+          created_at?: string
+          created_by?: string | null
+          department: string
+          description: string
+          embed_id?: string | null
+          id?: string
+          status?: string
+          tags?: Json
+          title: string
+          type: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          access_count?: number
+          created_at?: string
+          created_by?: string | null
+          department?: string
+          description?: string
+          embed_id?: string | null
+          id?: string
+          status?: string
+          tags?: Json
+          title?: string
+          type?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       revenue_projections: {
         Row: {
           category: string
@@ -2152,6 +2335,123 @@ export type Database = {
           stripe_customer_id?: string
           stripe_subscription_id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      task_templates: {
+        Row: {
+          category: string
+          checklist_items: Json | null
+          created_at: string
+          created_by: string | null
+          default_collaborators: Json | null
+          default_priority: string
+          department: string
+          description: string
+          estimated_days: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          resources: Json | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          checklist_items?: Json | null
+          created_at?: string
+          created_by?: string | null
+          default_collaborators?: Json | null
+          default_priority?: string
+          department: string
+          description: string
+          estimated_days?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          resources?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          checklist_items?: Json | null
+          created_at?: string
+          created_by?: string | null
+          default_collaborators?: Json | null
+          default_priority?: string
+          department?: string
+          description?: string
+          estimated_days?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          resources?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          attachments: Json | null
+          blocked_by: string[] | null
+          category: string
+          collaborators: Json
+          comments: Json | null
+          created_at: string
+          created_by: string | null
+          deadline: string
+          department: string
+          description: string
+          details: string | null
+          id: string
+          notes: Json
+          priority: string
+          progress: number
+          resources: Json | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json | null
+          blocked_by?: string[] | null
+          category: string
+          collaborators?: Json
+          comments?: Json | null
+          created_at?: string
+          created_by?: string | null
+          deadline: string
+          department: string
+          description: string
+          details?: string | null
+          id?: string
+          notes?: Json
+          priority?: string
+          progress?: number
+          resources?: Json | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json | null
+          blocked_by?: string[] | null
+          category?: string
+          collaborators?: Json
+          comments?: Json | null
+          created_at?: string
+          created_by?: string | null
+          deadline?: string
+          department?: string
+          description?: string
+          details?: string | null
+          id?: string
+          notes?: Json
+          priority?: string
+          progress?: number
+          resources?: Json | null
+          status?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
