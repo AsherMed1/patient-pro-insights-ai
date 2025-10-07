@@ -14,13 +14,23 @@ interface CsvImportResult {
   errors: string[];
 }
 
-const AppointmentsCsvImport = () => {
+interface AppointmentsCsvImportProps {
+  defaultProject?: string;
+}
+
+const AppointmentsCsvImport = ({ defaultProject }: AppointmentsCsvImportProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<CsvImportResult | null>(null);
   const { toast } = useToast();
   const [projects, setProjects] = useState<{ id: string; project_name: string }[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
+
+  React.useEffect(() => {
+    if (defaultProject) {
+      setSelectedProject(defaultProject);
+    }
+  }, [defaultProject]);
 
   React.useEffect(() => {
     const fetchProjects = async () => {
@@ -333,7 +343,7 @@ const AppointmentsCsvImport = () => {
           <div className="space-y-2">
             <Label>Target Project</Label>
             <Select value={selectedProject} onValueChange={(v) => setSelectedProject(v)}>
-              <SelectTrigger>
+              <SelectTrigger disabled={!!defaultProject}>
                 <SelectValue placeholder="Select target project (required for Premier format)" />
               </SelectTrigger>
               <SelectContent>

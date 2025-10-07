@@ -745,7 +745,7 @@ const AllAppointmentsManager = ({
       {showImport && (
         <div className="portal-section">
           <h3 className="text-lg font-semibold text-foreground mb-4">Import Historical Data</h3>
-          <AppointmentsCsvImport />
+          <AppointmentsCsvImport defaultProject={projectFilter} />
           <div className="flex gap-3 mt-4">
             <Button variant="outline" onClick={() => setShowImport(false)}>
               Cancel Import
