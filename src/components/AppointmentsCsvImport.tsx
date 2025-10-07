@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CsvImportResult {
   success: number;
@@ -18,6 +19,19 @@ const AppointmentsCsvImport = () => {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<CsvImportResult | null>(null);
   const { toast } = useToast();
+  const [projects, setProjects] = useState<{ id: string; project_name: string }[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>('');
+
+  React.useEffect(() => {
+    const fetchProjects = async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, project_name')
+        .order('project_name', { ascending: true });
+      if (!error && data) setProjects(data as any);
+    };
+    fetchProjects();
+  }, []);
 
   const downloadTemplate = () => {
     const headers = [
@@ -136,21 +150,22 @@ const AppointmentsCsvImport = () => {
 
     if (isStandardFormat) {
       // Standard format
-      if (!row.date_appointment_created || !row.project_name || !row.lead_name) {
+      const projName = selectedProject || row.project_name;
+      if (!row.date_appointment_created || !projName || !row.lead_name) {
         throw new Error('Missing required fields: date_appointment_created, project_name, or lead_name');
       }
 
       transformedRow = {
         date_appointment_created: row.date_appointment_created,
         date_of_appointment: row.date_of_appointment || null,
-        project_name: row.project_name,
+        project_name: projName,
         lead_name: row.lead_name,
         lead_email: row.lead_email || null,
         lead_phone_number: row.lead_phone_number || null,
         calendar_name: row.calendar_name || null,
-          requested_time: row.requested_time || null,
-          stage_booked: row.stage_booked || null,
-          agent: row.agent || null,
+        requested_time: row.requested_time || null,
+        stage_booked: row.stage_booked || null,
+        agent: row.agent || null,
         agent_number: row.agent_number || null,
         ghl_id: row.ghl_id || null,
         confirmed_number: row.confirmed_number || null,
@@ -164,6 +179,9 @@ const AppointmentsCsvImport = () => {
       };
     } else if (isPremierFormat) {
       // Premier Vascular format
+      if (!selectedProject) {
+        throw new Error('Please select a Target Project for this CSV');
+      }
       const firstName = row['First Name'] || '';
       const lastName = row['Last Name'] || '';
       const leadName = `${firstName} ${lastName}`.trim();
@@ -178,15 +196,15 @@ const AppointmentsCsvImport = () => {
       transformedRow = {
         date_appointment_created: createdDate || new Date().toISOString().split('T')[0],
         date_of_appointment: apptDate,
-        project_name: 'Premier Vascular', // Default to Premier Vascular
+        project_name: selectedProject, // Use selected target project
         lead_name: leadName,
         lead_email: row['Email'] || null,
         lead_phone_number: row['Phone #']?.replace(/\D/g, '') || null, // Remove non-digits
         calendar_name: row['Calendar Location'] || null,
-          requested_time: null,
-          stage_booked: null,
-          agent: null,
-          agent_number: null,
+        requested_time: null,
+        stage_booked: null,
+        agent: null,
+        agent_number: null,
         ghl_id: null,
         confirmed_number: null,
         status: row['Status'] || null,
@@ -312,6 +330,19 @@ const AppointmentsCsvImport = () => {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Target Project</Label>
+            <Select value={selectedProject} onValueChange={(v) => setSelectedProject(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select target project (required for Premier format)" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.project_name}>{p.project_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="csv-file">CSV File</Label>
             <Input
