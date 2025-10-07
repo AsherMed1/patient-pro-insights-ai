@@ -136,13 +136,12 @@ const AppointmentCard = ({
         if (associatedLead?.lead_id) {
           const { data: leadRow, error: leadFetchError } = await supabase
             .from('new_leads')
-            .select('dob, parsed_contact_info')
+            .select('dob')
             .eq('id', associatedLead.lead_id)
             .maybeSingle();
 
           if (!leadFetchError && leadRow) {
-            const parsedContact = (leadRow as any)?.parsed_contact_info as any;
-            const dobFromLead: string | null = (leadRow as any)?.dob || parsedContact?.dob || null;
+            const dobFromLead: string | null = (leadRow as any)?.dob || null;
             if (dobFromLead) {
               setLeadDOB(dobFromLead);
               // Persist to appointment if not already set
