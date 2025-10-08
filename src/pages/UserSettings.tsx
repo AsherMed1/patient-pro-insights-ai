@@ -9,7 +9,9 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Lock, Shield } from 'lucide-react';
+import { ArrowLeft, User, Lock, Shield, FileText } from 'lucide-react';
+import { AuditLogDashboard } from '@/components/audit/AuditLogDashboard';
+import { useRole } from '@/hooks/useRole';
 
 interface UserProfile {
   id: string;
@@ -21,6 +23,7 @@ const UserSettings = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const { role } = useRole();
   
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,10 +203,11 @@ const UserSettings = () => {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            {role === 'admin' && <TabsTrigger value="audit">Audit Logs</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="profile">
@@ -349,6 +353,12 @@ const UserSettings = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {role === 'admin' && (
+            <TabsContent value="audit">
+              <AuditLogDashboard />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
