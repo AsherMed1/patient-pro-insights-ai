@@ -16,6 +16,10 @@ interface AppointmentsListProps {
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
   onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
+  onUpdateName?: (appointmentId: string, name: string) => void;
+  onUpdateEmail?: (appointmentId: string, email: string) => void;
+  onUpdatePhone?: (appointmentId: string, phone: string) => void;
+  onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
 }
 
 const AppointmentsList = ({
@@ -28,7 +32,11 @@ const AppointmentsList = ({
   onUpdateTime,
   onUpdateInternalProcess,
   onUpdateDOB,
-  onDelete
+  onDelete,
+  onUpdateName,
+  onUpdateEmail,
+  onUpdatePhone,
+  onUpdateCalendarLocation
 }: AppointmentsListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -117,6 +125,10 @@ const AppointmentsList = ({
             onUpdateInternalProcess={onUpdateInternalProcess}
             onUpdateDOB={onUpdateDOB}
             onDelete={onDelete}
+            onUpdateName={onUpdateName}
+            onUpdateEmail={onUpdateEmail}
+            onUpdatePhone={onUpdatePhone}
+            onUpdateCalendarLocation={onUpdateCalendarLocation}
           />
         ))}
       </div>

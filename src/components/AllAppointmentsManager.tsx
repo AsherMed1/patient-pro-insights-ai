@@ -701,6 +701,142 @@ const AllAppointmentsManager = ({
     }
   };
 
+  const updateAppointmentName = async (appointmentId: string, name: string) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          lead_name: name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, lead_name: name }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Patient name updated"
+      });
+      
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error updating patient name:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update patient name",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateAppointmentEmail = async (appointmentId: string, email: string) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          lead_email: email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, lead_email: email }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Email updated"
+      });
+      
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error updating email:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update email",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateAppointmentPhone = async (appointmentId: string, phone: string) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          lead_phone_number: phone,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, lead_phone_number: phone }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Phone number updated"
+      });
+      
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error updating phone:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update phone number",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateCalendarLocation = async (appointmentId: string, location: string) => {
+    try {
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          calendar_name: location,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.map(appointment =>
+        appointment.id === appointmentId
+          ? { ...appointment, calendar_name: location }
+          : appointment
+      ));
+
+      toast({
+        title: "Success",
+        description: "Location updated"
+      });
+      
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error updating location:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update location",
+        variant: "destructive"
+      });
+    }
+  };
+
 
   const totalPages = Math.ceil(totalCount / APPOINTMENTS_PER_PAGE);
   const startRecord = (currentPage - 1) * APPOINTMENTS_PER_PAGE + 1;
@@ -795,6 +931,10 @@ const AllAppointmentsManager = ({
             onUpdateInternalProcess={updateInternalProcessComplete}
             onUpdateDOB={updateDOB}
             onDelete={deleteAppointment}
+            onUpdateName={updateAppointmentName}
+            onUpdateEmail={updateAppointmentEmail}
+            onUpdatePhone={updateAppointmentPhone}
+            onUpdateCalendarLocation={updateCalendarLocation}
             tabCounts={tabCounts}
           />
           

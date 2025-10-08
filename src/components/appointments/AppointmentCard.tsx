@@ -32,6 +32,10 @@ interface AppointmentCardProps {
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
   onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
+  onUpdateName?: (appointmentId: string, name: string) => void;
+  onUpdateEmail?: (appointmentId: string, email: string) => void;
+  onUpdatePhone?: (appointmentId: string, phone: string) => void;
+  onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
 }
 
 interface NewLead {
@@ -73,7 +77,11 @@ const AppointmentCard = ({
   onUpdateTime,
   onUpdateInternalProcess,
   onUpdateDOB,
-  onDelete
+  onDelete,
+  onUpdateName,
+  onUpdateEmail,
+  onUpdatePhone,
+  onUpdateCalendarLocation
 }: AppointmentCardProps) => {
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
@@ -94,6 +102,16 @@ const AppointmentCard = ({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
   const [timeValue, setTimeValue] = useState<string>(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
   const [selectedDOB, setSelectedDOB] = useState<Date | undefined>(dobDisplay ? new Date(dobDisplay) : undefined);
+  
+  // Editing states
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState(appointment.lead_name);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [editingEmail, setEditingEmail] = useState(appointment.lead_email || '');
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(appointment.lead_phone_number || '');
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(appointment.calendar_name || '');
   
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
@@ -167,7 +185,11 @@ const AppointmentCard = ({
     setSelectedDate(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
     setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
     setSelectedDOB(dobDisplay ? new Date(dobDisplay) : undefined);
-  }, [appointment.date_of_appointment, appointment.requested_time, dobDisplay]);
+    setEditingName(appointment.lead_name);
+    setEditingEmail(appointment.lead_email || '');
+    setEditingPhone(appointment.lead_phone_number || '');
+    setEditingLocation(appointment.calendar_name || '');
+  }, [appointment.date_of_appointment, appointment.requested_time, dobDisplay, appointment.lead_name, appointment.lead_email, appointment.lead_phone_number, appointment.calendar_name]);
 
   // Fetch status options on component mount
   useEffect(() => {
@@ -322,7 +344,47 @@ const AppointmentCard = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 flex-1">
               <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
+              {isEditingName && onUpdateName ? (
+                <Input
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onBlur={() => {
+                    setIsEditingName(false);
+                    if (editingName !== appointment.lead_name) {
+                      onUpdateName(appointment.id, editingName);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setIsEditingName(false);
+                      if (editingName !== appointment.lead_name) {
+                        onUpdateName(appointment.id, editingName);
+                      }
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditingName(false);
+                      setEditingName(appointment.lead_name);
+                    }
+                  }}
+                  className="font-medium text-base md:text-sm"
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
+                  {onUpdateName && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setIsEditingName(true)}
+                      aria-label="Edit name"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
               {dobDisplay ? (
                 <Badge variant="secondary" className="ml-2 flex items-center">
                   <CalendarIcon className="h-3 w-3 mr-1" />
@@ -446,23 +508,152 @@ const AppointmentCard = ({
           </div>
           
           {/* Calendar Name */}
-          {appointment.calendar_name && (
+          {(appointment.calendar_name || isEditingLocation) && (
             <div className="flex items-center space-x-2">
               <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
+              {isEditingLocation && onUpdateCalendarLocation ? (
+                <Input
+                  value={editingLocation}
+                  onChange={(e) => setEditingLocation(e.target.value)}
+                  onBlur={() => {
+                    setIsEditingLocation(false);
+                    if (editingLocation !== appointment.calendar_name) {
+                      onUpdateCalendarLocation(appointment.id, editingLocation);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setIsEditingLocation(false);
+                      if (editingLocation !== appointment.calendar_name) {
+                        onUpdateCalendarLocation(appointment.id, editingLocation);
+                      }
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditingLocation(false);
+                      setEditingLocation(appointment.calendar_name || '');
+                    }
+                  }}
+                  className="text-sm flex-1"
+                  autoFocus
+                  placeholder="Enter location"
+                />
+              ) : (
+                <>
+                  <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
+                  {onUpdateCalendarLocation && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setIsEditingLocation(true)}
+                      aria-label="Edit location"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
             </div>
           )}
           
           {/* Contact Info - Stacked on mobile */}
-          {appointment.lead_email && <div className="flex items-start space-x-2">
+          {(appointment.lead_email || isEditingEmail) && (
+            <div className="flex items-start space-x-2">
               <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-600 break-all">{appointment.lead_email}</span>
-            </div>}
+              {isEditingEmail && onUpdateEmail ? (
+                <Input
+                  type="email"
+                  value={editingEmail}
+                  onChange={(e) => setEditingEmail(e.target.value)}
+                  onBlur={() => {
+                    setIsEditingEmail(false);
+                    if (editingEmail !== appointment.lead_email) {
+                      onUpdateEmail(appointment.id, editingEmail);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setIsEditingEmail(false);
+                      if (editingEmail !== appointment.lead_email) {
+                        onUpdateEmail(appointment.id, editingEmail);
+                      }
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditingEmail(false);
+                      setEditingEmail(appointment.lead_email || '');
+                    }
+                  }}
+                  className="text-sm flex-1"
+                  autoFocus
+                  placeholder="Enter email"
+                />
+              ) : (
+                <>
+                  <span className="text-sm text-gray-600 break-all">{appointment.lead_email}</span>
+                  {onUpdateEmail && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setIsEditingEmail(true)}
+                      aria-label="Edit email"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           
-          {appointment.lead_phone_number && <div className="flex items-center space-x-2">
+          {(appointment.lead_phone_number || isEditingPhone) && (
+            <div className="flex items-center space-x-2">
               <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-            </div>}
+              {isEditingPhone && onUpdatePhone ? (
+                <Input
+                  type="tel"
+                  value={editingPhone}
+                  onChange={(e) => setEditingPhone(e.target.value)}
+                  onBlur={() => {
+                    setIsEditingPhone(false);
+                    if (editingPhone !== appointment.lead_phone_number) {
+                      onUpdatePhone(appointment.id, editingPhone);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setIsEditingPhone(false);
+                      if (editingPhone !== appointment.lead_phone_number) {
+                        onUpdatePhone(appointment.id, editingPhone);
+                      }
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditingPhone(false);
+                      setEditingPhone(appointment.lead_phone_number || '');
+                    }
+                  }}
+                  className="text-sm flex-1"
+                  autoFocus
+                  placeholder="Enter phone number"
+                />
+              ) : (
+                <>
+                  <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
+                  {onUpdatePhone && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setIsEditingPhone(true)}
+                      aria-label="Edit phone"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           
           {/* Date Info - More compact on mobile */}
           <div className="space-y-1">
