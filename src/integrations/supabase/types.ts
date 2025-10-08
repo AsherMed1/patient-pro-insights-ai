@@ -545,6 +545,54 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          description: string
+          entity: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          session_id: string | null
+          source: string
+          timestamp: string
+          user_agent: string | null
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          description: string
+          entity: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          session_id?: string | null
+          source?: string
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          description?: string
+          entity?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          session_id?: string | null
+          source?: string
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           client_id: string
@@ -694,6 +742,151 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      creative_editors: {
+        Row: {
+          badges: Json | null
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          badges?: Json | null
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          badges?: Json | null
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      creative_projects: {
+        Row: {
+          created_at: string
+          date_completed: string | null
+          date_started: string | null
+          date_submitted: string | null
+          deliverable_link: string | null
+          due_date: string
+          edited_assets_link: string | null
+          editor_id: string | null
+          editor_name: string
+          id: string
+          notes: string | null
+          progress: number | null
+          project_name: string
+          project_type: string | null
+          raw_assets_link: string | null
+          revision_count: number | null
+          status: string
+          status_updates: Json | null
+          task_brief: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_completed?: string | null
+          date_started?: string | null
+          date_submitted?: string | null
+          deliverable_link?: string | null
+          due_date: string
+          edited_assets_link?: string | null
+          editor_id?: string | null
+          editor_name: string
+          id?: string
+          notes?: string | null
+          progress?: number | null
+          project_name: string
+          project_type?: string | null
+          raw_assets_link?: string | null
+          revision_count?: number | null
+          status?: string
+          status_updates?: Json | null
+          task_brief?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_completed?: string | null
+          date_started?: string | null
+          date_submitted?: string | null
+          deliverable_link?: string | null
+          due_date?: string
+          edited_assets_link?: string | null
+          editor_id?: string | null
+          editor_name?: string
+          id?: string
+          notes?: string | null
+          progress?: number | null
+          project_name?: string
+          project_type?: string | null
+          raw_assets_link?: string | null
+          revision_count?: number | null
+          status?: string
+          status_updates?: Json | null
+          task_brief?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_projects_editor_id_fkey"
+            columns: ["editor_id"]
+            isOneToOne: false
+            referencedRelation: "creative_editors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creative_weekly_notes: {
+        Row: {
+          completed: string | null
+          created_at: string
+          editor_id: string | null
+          editor_name: string
+          id: string
+          improving: string | null
+          in_progress: string | null
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          completed?: string | null
+          created_at?: string
+          editor_id?: string | null
+          editor_name: string
+          id?: string
+          improving?: string | null
+          in_progress?: string | null
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          completed?: string | null
+          created_at?: string
+          editor_id?: string | null
+          editor_name?: string
+          id?: string
+          improving?: string | null
+          in_progress?: string | null
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_weekly_notes_editor_id_fkey"
+            columns: ["editor_id"]
+            isOneToOne: false
+            referencedRelation: "creative_editors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       csv_import_batches: {
         Row: {
@@ -2396,14 +2589,20 @@ export type Database = {
           category: string
           collaborators: Json
           comments: Json | null
+          company_name: string | null
+          contact_person: string | null
           created_at: string
           created_by: string | null
           deadline: string
+          deal_value: number | null
           department: string
           description: string
           details: string | null
           id: string
+          lead_source: string | null
+          next_action_date: string | null
           notes: Json
+          pipeline_stage: string | null
           priority: string
           progress: number
           resources: Json | null
@@ -2417,14 +2616,20 @@ export type Database = {
           category: string
           collaborators?: Json
           comments?: Json | null
+          company_name?: string | null
+          contact_person?: string | null
           created_at?: string
           created_by?: string | null
           deadline: string
+          deal_value?: number | null
           department: string
           description: string
           details?: string | null
           id?: string
+          lead_source?: string | null
+          next_action_date?: string | null
           notes?: Json
+          pipeline_stage?: string | null
           priority?: string
           progress?: number
           resources?: Json | null
@@ -2438,14 +2643,20 @@ export type Database = {
           category?: string
           collaborators?: Json
           comments?: Json | null
+          company_name?: string | null
+          contact_person?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string
+          deal_value?: number | null
           department?: string
           description?: string
           details?: string | null
           id?: string
+          lead_source?: string | null
+          next_action_date?: string | null
           notes?: Json
+          pipeline_stage?: string | null
           priority?: string
           progress?: number
           resources?: Json | null
@@ -2678,6 +2889,16 @@ export type Database = {
       }
       hash_password: {
         Args: { password: string }
+        Returns: string
+      }
+      log_audit_event: {
+        Args: {
+          p_action: string
+          p_description: string
+          p_entity: string
+          p_metadata?: Json
+          p_source?: string
+        }
         Returns: string
       }
       log_hipaa_audit: {
