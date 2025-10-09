@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRole } from '@/hooks/useRole';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { ChevronDown, Building2, ArrowLeft } from 'lucide-react';
+import { ChevronDown, Building2, ArrowLeft, Pin } from 'lucide-react';
 
 interface ProjectSwitcherProps {
   currentProject?: string;
@@ -21,6 +21,33 @@ export const ProjectSwitcher = ({ currentProject, showBackToDashboard = false }:
   const { accessibleProjects, isProjectUser } = useRole();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [pinnedProjects, setPinnedProjects] = useState<string[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('pinnedProjects');
+    if (stored) {
+      setPinnedProjects(JSON.parse(stored));
+    }
+  }, []);
+
+  const togglePin = (projectName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newPinned = pinnedProjects.includes(projectName)
+      ? pinnedProjects.filter(p => p !== projectName)
+      : [...pinnedProjects, projectName];
+    setPinnedProjects(newPinned);
+    localStorage.setItem('pinnedProjects', JSON.stringify(newPinned));
+  };
+
+  const sortedProjects = [...accessibleProjects].sort((a, b) => {
+    const aIsPinned = pinnedProjects.includes(a);
+    const bIsPinned = pinnedProjects.includes(b);
+    
+    if (aIsPinned && !bIsPinned) return -1;
+    if (!aIsPinned && bIsPinned) return 1;
+    
+    return a.localeCompare(b);
+  });
 
   // Only show for project users with multiple projects or when explicitly requested
   if (!isProjectUser() || accessibleProjects.length <= 1) {
@@ -66,7 +93,7 @@ export const ProjectSwitcher = ({ currentProject, showBackToDashboard = false }:
         <DropdownMenuLabel>Your Projects</DropdownMenuLabel>
         <DropdownMenuSeparator />
         
-        {accessibleProjects.map((projectName) => (
+        {sortedProjects.map((projectName) => (
           <DropdownMenuItem
             key={projectName}
             onClick={() => handleProjectSelect(projectName)}
@@ -75,10 +102,20 @@ export const ProjectSwitcher = ({ currentProject, showBackToDashboard = false }:
             }`}
           >
             <Building2 className="h-4 w-4 mr-2" />
-            <span className="truncate">{projectName}</span>
-            {currentProject === projectName && (
-              <span className="ml-auto text-xs text-muted-foreground">Current</span>
-            )}
+            <span className="truncate flex-1">{projectName}</span>
+            <div className="flex items-center gap-1 ml-2">
+              {currentProject === projectName && (
+                <span className="text-xs text-muted-foreground">Current</span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={(e) => togglePin(projectName, e)}
+              >
+                <Pin className={`h-3 w-3 ${pinnedProjects.includes(projectName) ? 'fill-current text-primary' : 'text-muted-foreground'}`} />
+              </Button>
+            </div>
           </DropdownMenuItem>
         ))}
         
