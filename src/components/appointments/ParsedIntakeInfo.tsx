@@ -1,12 +1,18 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { User, Heart, Phone, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { User, Heart, Phone, Shield, ExternalLink } from 'lucide-react';
+
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
   parsedPathologyInfo?: any;
   parsedContactInfo?: any;
   parsedDemographics?: any;
+  detectedInsuranceProvider?: string | null;
+  detectedInsurancePlan?: string | null;
+  detectedInsuranceId?: string | null;
+  insuranceIdLink?: string | null;
   className?: string;
 }
 export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
@@ -14,6 +20,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   parsedPathologyInfo,
   parsedContactInfo,
   parsedDemographics,
+  detectedInsuranceProvider,
+  detectedInsurancePlan,
+  detectedInsuranceId,
+  insuranceIdLink,
   className = ""
 }) => {
   // Debug logging
@@ -104,36 +114,47 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       )}
 
       {/* Insurance Information Section */}
-      {parsedInsuranceInfo && (
+      {(parsedInsuranceInfo || detectedInsuranceProvider || detectedInsurancePlan || detectedInsuranceId) && (
         <Card className="bg-green-50 border-green-200">
           <CardContent className="pt-4 space-y-2">
             <div className="flex items-center gap-2 mb-2">
               <Shield className="h-4 w-4 text-green-600" />
               <span className="font-medium text-sm text-green-900">Insurance Information</span>
             </div>
-            {formatValue(parsedInsuranceInfo.provider) && (
+            {(formatValue(parsedInsuranceInfo?.provider) || detectedInsuranceProvider) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Provider:</span>{' '}
-                <span className="font-medium">{parsedInsuranceInfo.provider}</span>
+                <span className="font-medium">{formatValue(parsedInsuranceInfo?.provider) || detectedInsuranceProvider}</span>
               </div>
             )}
-            {formatValue(parsedInsuranceInfo.plan) && (
+            {(formatValue(parsedInsuranceInfo?.plan) || detectedInsurancePlan) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Plan:</span>{' '}
-                <span className="font-medium">{parsedInsuranceInfo.plan}</span>
+                <span className="font-medium">{formatValue(parsedInsuranceInfo?.plan) || detectedInsurancePlan}</span>
               </div>
             )}
-            {formatValue(parsedInsuranceInfo.id) && (
+            {(formatValue(parsedInsuranceInfo?.id) || detectedInsuranceId) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Member ID:</span>{' '}
-                <span className="font-medium">{parsedInsuranceInfo.id}</span>
+                <span className="font-medium">{formatValue(parsedInsuranceInfo?.id) || detectedInsuranceId}</span>
               </div>
             )}
-            {formatValue(parsedInsuranceInfo.group_number) && (
+            {formatValue(parsedInsuranceInfo?.group_number) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Group Number:</span>{' '}
                 <span className="font-medium">{parsedInsuranceInfo.group_number}</span>
               </div>
+            )}
+            {insuranceIdLink && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => window.open(insuranceIdLink, '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 mr-2" />
+                View Insurance Card
+              </Button>
             )}
           </CardContent>
         </Card>

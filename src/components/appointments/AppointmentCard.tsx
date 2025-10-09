@@ -827,54 +827,11 @@ const AppointmentCard = ({
           parsedPathologyInfo={appointment.parsed_pathology_info}
           parsedContactInfo={appointment.parsed_contact_info}
           parsedDemographics={appointment.parsed_demographics}
+          detectedInsuranceProvider={appointment.detected_insurance_provider}
+          detectedInsurancePlan={appointment.detected_insurance_plan}
+          detectedInsuranceId={appointment.detected_insurance_id}
+          insuranceIdLink={appointment.insurance_id_link}
         />
-        
-        {/* Detected Insurance Info */}
-        {(appointment.detected_insurance_provider || appointment.detected_insurance_plan || appointment.detected_insurance_id || appointment.insurance_id_link) && (
-          <div className="border-t pt-3">
-            <div className="flex items-center space-x-2 mb-3">
-              <Shield className="h-4 w-4 text-blue-500" />
-              <span className="text-sm font-medium text-gray-700">Insurance Information</span>
-            </div>
-            <div className="space-y-2">
-              {appointment.detected_insurance_provider && (
-                <div className="flex items-start justify-between p-2 bg-blue-50 rounded">
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-medium text-blue-700 uppercase tracking-wide">Provider</div>
-                    <div className="text-sm font-medium text-blue-900">{appointment.detected_insurance_provider}</div>
-                  </div>
-                </div>
-              )}
-              {appointment.detected_insurance_plan && (
-                <div className="flex items-start justify-between p-2 bg-green-50 rounded">
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-medium text-green-700 uppercase tracking-wide">Plan</div>
-                    <div className="text-sm font-medium text-green-900">{appointment.detected_insurance_plan}</div>
-                  </div>
-                </div>
-              )}
-              {appointment.detected_insurance_id && (
-                <div className="flex items-start justify-between p-2 bg-purple-50 rounded">
-                  <div className="space-y-0.5 flex-1">
-                    <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Insurance ID</div>
-                    <div className="text-sm font-medium text-purple-900 font-mono">{appointment.detected_insurance_id}</div>
-                  </div>
-                </div>
-              )}
-              {appointment.insurance_id_link && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-2"
-                  onClick={() => window.open(appointment.insurance_id_link || '', '_blank')}
-                >
-                  <ExternalLink className="h-3 w-3 mr-2" />
-                  View Insurance Card
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
         
         {/* Patient Intake Notes */}
         {appointment.patient_intake_notes && (
