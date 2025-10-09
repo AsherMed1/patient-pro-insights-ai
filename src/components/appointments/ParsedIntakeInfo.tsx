@@ -121,28 +121,28 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
               <Shield className="h-4 w-4 text-green-600" />
               <span className="font-medium text-sm text-green-900">Insurance Information</span>
             </div>
-            {(formatValue(parsedInsuranceInfo?.provider) || detectedInsuranceProvider) && (
+            {(formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Provider:</span>{' '}
-                <span className="font-medium">{formatValue(parsedInsuranceInfo?.provider) || detectedInsuranceProvider}</span>
+                <span className="font-medium">{formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider}</span>
               </div>
             )}
-            {(formatValue(parsedInsuranceInfo?.plan) || detectedInsurancePlan) && (
+            {(formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Plan:</span>{' '}
-                <span className="font-medium">{formatValue(parsedInsuranceInfo?.plan) || detectedInsurancePlan}</span>
+                <span className="font-medium">{formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan}</span>
               </div>
             )}
-            {(formatValue(parsedInsuranceInfo?.id) || detectedInsuranceId) && (
+            {(formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Member ID:</span>{' '}
-                <span className="font-medium">{formatValue(parsedInsuranceInfo?.id) || detectedInsuranceId}</span>
+                <span className="font-medium">{formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId}</span>
               </div>
             )}
-            {formatValue(parsedInsuranceInfo?.group_number) && (
+            {formatValue(parsedInsuranceInfo?.insurance_group_number) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Group Number:</span>{' '}
-                <span className="font-medium">{parsedInsuranceInfo.group_number}</span>
+                <span className="font-medium">{parsedInsuranceInfo.insurance_group_number}</span>
               </div>
             )}
             {insuranceIdLink && (
