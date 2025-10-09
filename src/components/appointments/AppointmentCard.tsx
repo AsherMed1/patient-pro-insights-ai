@@ -253,6 +253,45 @@ const AppointmentCard = ({
   const handleViewInsurance = async () => {
     try {
       setLoadingLeadData(true);
+      
+      // First check if we have insurance info from the appointment itself
+      const hasAppointmentInsurance = appointment.detected_insurance_provider || 
+                                      appointment.detected_insurance_plan || 
+                                      appointment.detected_insurance_id ||
+                                      appointment.parsed_insurance_info?.provider ||
+                                      appointment.parsed_insurance_info?.plan ||
+                                      appointment.parsed_insurance_info?.id ||
+                                      appointment.parsed_insurance_info?.group_number;
+      
+      if (hasAppointmentInsurance) {
+        // Use the appointment's insurance data directly
+        const leadRecord: NewLead = {
+          id: appointment.id,
+          contact_id: appointment.ghl_id,
+          phone_number: appointment.lead_phone_number,
+          email: appointment.lead_email,
+          lead_name: appointment.lead_name,
+          project_name: appointment.project_name,
+          insurance_provider: appointment.detected_insurance_provider || appointment.parsed_insurance_info?.provider,
+          insurance_plan: appointment.detected_insurance_plan || appointment.parsed_insurance_info?.plan,
+          insurance_id: appointment.detected_insurance_id || appointment.parsed_insurance_info?.id,
+          insurance_id_link: appointment.insurance_id_link,
+          group_number: appointment.parsed_insurance_info?.group_number,
+          patient_intake_notes: appointment.patient_intake_notes,
+          // Default values for other required fields
+          date: new Date().toISOString().split('T')[0],
+          times_called: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setLeadInsuranceData(leadRecord);
+        setShowInsurance(true);
+        setLoadingLeadData(false);
+        return;
+      }
+      
+      // If no appointment insurance, try to find associated lead
       const associatedLead = await findAssociatedLead(appointment);
 
       if (associatedLead) {
