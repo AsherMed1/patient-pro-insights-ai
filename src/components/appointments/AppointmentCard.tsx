@@ -693,51 +693,55 @@ const AppointmentCard = ({
               </span>
             </div>
             
-            {appointment.date_of_appointment && (
-                <div className="flex items-center space-x-2">
-                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-600">
-                    Appointment: {formatDate(appointment.date_of_appointment)}
-                    {appointment.requested_time && ` ${formatTime(appointment.requested_time)}`}
-                  </span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        aria-label="Edit appointment date and time"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <div className="flex flex-col gap-2">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => {
-                            setSelectedDate(date);
-                            onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                          }}
-                          initialFocus
-                          className={cn("p-3 pointer-events-auto")}
-                        />
-                        <div className="px-3 pb-3">
-                          <label className="text-sm font-medium mb-1 block">Time</label>
-                          <Input
-                            type="time"
-                            value={timeValue}
-                            onChange={(e) => setTimeValue(e.target.value)}
-                            onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                            className="h-9"
-                          />
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+            <div className="flex items-center space-x-2">
+              <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              {appointment.date_of_appointment ? (
+                <span className="text-sm text-gray-600">
+                  Appointment: {formatDate(appointment.date_of_appointment)}
+                  {appointment.requested_time && ` ${formatTime(appointment.requested_time)}`}
+                </span>
+              ) : (
+                <span className="text-sm text-gray-500 italic">
+                  No appointment date/time set
+                </span>
               )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Edit appointment date and time"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="flex flex-col gap-2">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                      }}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                    <div className="px-3 pb-3">
+                      <label className="text-sm font-medium mb-1 block">Time</label>
+                      <Input
+                        type="time"
+                        value={timeValue}
+                        onChange={(e) => setTimeValue(e.target.value)}
+                        onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
 
           </div>
         </div>
