@@ -734,29 +734,27 @@ const AppointmentCard = ({
                       />
                     </PopoverContent>
                   </Popover>
-                  {appointment.requested_time && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label="Edit appointment time"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="start">
-                        <Input
-                          type="time"
-                          value={timeValue}
-                          onChange={(e) => setTimeValue(e.target.value)}
-                          onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                          className="h-9"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label={appointment.requested_time ? "Edit appointment time" : "Add appointment time"}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-2" align="start">
+                      <Input
+                        type="time"
+                        value={timeValue}
+                        onChange={(e) => setTimeValue(e.target.value)}
+                        onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                        className="h-9"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               )}
 
