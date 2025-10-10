@@ -716,7 +716,7 @@ const AppointmentCard = ({
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="z-50 w-auto p-0 bg-background border shadow-md" align="start">
                   <div className="flex flex-col gap-2">
                     <Calendar
                       mode="single"
@@ -735,7 +735,16 @@ const AppointmentCard = ({
                         value={timeValue}
                         onChange={(e) => setTimeValue(e.target.value)}
                         onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            onUpdateTime(appointment.id, timeValue || null);
+                          }
+                          if (e.key === 'Escape') {
+                            setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
+                          }
+                        }}
                         className="h-9"
+                        placeholder="Select time"
                       />
                     </div>
                   </div>
