@@ -708,6 +708,7 @@ const AppointmentCard = ({
                   <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm text-gray-600">
                     Appointment: {formatDate(appointment.date_of_appointment)}
+                    {appointment.requested_time && ` ${formatTime(appointment.requested_time)}`}
                   </span>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -733,36 +734,29 @@ const AppointmentCard = ({
                       />
                     </PopoverContent>
                   </Popover>
-                </div>
-              )}
-            
-            {appointment.requested_time && (
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-600">
-                    Time: {formatTime(appointment.requested_time)}
-                  </span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        aria-label="Edit appointment time"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2" align="start">
-                      <Input
-                        type="time"
-                        value={timeValue}
-                        onChange={(e) => setTimeValue(e.target.value)}
-                        onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                        className="h-9"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  {appointment.requested_time && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label="Edit appointment time"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-2" align="start">
+                        <Input
+                          type="time"
+                          value={timeValue}
+                          onChange={(e) => setTimeValue(e.target.value)}
+                          onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                          className="h-9"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
               )}
 
