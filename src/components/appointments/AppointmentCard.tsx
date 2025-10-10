@@ -138,46 +138,36 @@ const AppointmentCard = ({
     }
   };
 
-  // Check for lead insurance information on component mount using centralized logic
+  // Check for lead insurance and DOB information on component mount using centralized logic
   useEffect(() => {
-    const checkLeadInsurance = async () => {
+    const checkLeadData = async () => {
       try {
         const associatedLead = await findAssociatedLead(appointment);
         setHasLeadInsurance(hasInsuranceInfoUtil(associatedLead));
-        console.log('Lead insurance check:', { 
+        console.log('Lead data check:', { 
           leadRecord: associatedLead, 
           hasInsurance: hasInsuranceInfoUtil(associatedLead),
+          hasDOB: !!associatedLead?.dob,
           matchStrategy: associatedLead?.match_strategy 
         });
 
-        // Also try to fetch DOB from the associated lead if missing on the appointment
-        if (associatedLead?.lead_id) {
-          const { data: leadRow, error: leadFetchError } = await supabase
-            .from('new_leads')
-            .select('dob')
-            .eq('id', associatedLead.lead_id)
-            .maybeSingle();
-
-          if (!leadFetchError && leadRow) {
-            const dobFromLead: string | null = (leadRow as any)?.dob || null;
-            if (dobFromLead) {
-              setLeadDOB(dobFromLead);
-              // Persist to appointment if not already set
-              if (!appointment.dob) {
-                await supabase
-                  .from('all_appointments')
-                  .update({ dob: dobFromLead, updated_at: new Date().toISOString() })
-                  .eq('id', appointment.id);
-              }
-            }
+        // Pull DOB directly from the lead association
+        if (associatedLead?.dob) {
+          setLeadDOB(associatedLead.dob);
+          // Persist to appointment if not already set
+          if (!appointment.dob) {
+            await supabase
+              .from('all_appointments')
+              .update({ dob: associatedLead.dob, updated_at: new Date().toISOString() })
+              .eq('id', appointment.id);
           }
         }
       } catch (error) {
-        console.error('Error checking lead insurance / DOB:', error);
+        console.error('Error checking lead data:', error);
       }
     };
 
-    checkLeadInsurance();
+    checkLeadData();
   }, [appointment]);
 
   // Sync local date/time state when appointment prop changes

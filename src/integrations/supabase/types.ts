@@ -2817,6 +2817,7 @@ export type Database = {
         }
         Returns: {
           contact_id: string
+          dob: string
           email: string
           group_number: string
           insurance_id: string
