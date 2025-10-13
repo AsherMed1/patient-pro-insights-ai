@@ -59,26 +59,40 @@ const ProjectsManager = () => {
         const [leadsResult, callsResult, appointmentsResult] = await Promise.all([
           supabase
             .from('new_leads')
-            .select('id', { count: 'exact', head: true })
-            .eq('project_name', project.project_name),
+            .select('date, updated_at', { count: 'exact' })
+            .eq('project_name', project.project_name)
+            .order('updated_at', { ascending: false })
+            .limit(1),
           supabase
             .from('all_calls')
-            .select('id, call_datetime', { count: 'exact' })
+            .select('call_datetime, updated_at', { count: 'exact' })
             .eq('project_name', project.project_name)
             .order('call_datetime', { ascending: false })
             .limit(1),
           supabase
             .from('all_appointments')
-            .select('id', { count: 'exact', head: true })
+            .select('date_appointment_created, updated_at', { count: 'exact' })
             .eq('project_name', project.project_name)
+            .order('updated_at', { ascending: false })
+            .limit(1)
         ]);
+
+        // Find most recent activity across all tables
+        const leadActivity = leadsResult.data?.[0]?.updated_at || leadsResult.data?.[0]?.date;
+        const callActivity = callsResult.data?.[0]?.call_datetime || callsResult.data?.[0]?.updated_at;
+        const appointmentActivity = appointmentsResult.data?.[0]?.updated_at || appointmentsResult.data?.[0]?.date_appointment_created;
+        
+        const allActivities = [leadActivity, callActivity, appointmentActivity].filter(Boolean);
+        const lastActivity = allActivities.length > 0 
+          ? new Date(Math.max(...allActivities.map(d => new Date(d).getTime()))).toISOString()
+          : null;
 
         return {
           project_name: project.project_name,
           leads_count: leadsResult.count || 0,
           calls_count: callsResult.count || 0,
           appointments_count: appointmentsResult.count || 0,
-          last_activity: callsResult.data?.[0]?.call_datetime || null
+          last_activity: lastActivity
         };
       });
 
