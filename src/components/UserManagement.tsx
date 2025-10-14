@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
-import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Mail } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
 import { useSendWelcomeEmail } from '@/hooks/useWelcomeEmail';
 
@@ -397,6 +397,41 @@ const UserManagement = () => {
     }
   };
 
+  const resendWelcomeEmail = async (user: User) => {
+    try {
+      setLoading(true);
+
+      // Reset the welcome email flag
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          welcome_email_sent: false,
+          welcome_email_sent_at: null,
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Send the welcome email
+      await sendWelcomeEmail(user.id, user.email, user.full_name);
+
+      toast({
+        title: "Success",
+        description: `Welcome email sent to ${user.email}`,
+      });
+
+    } catch (error: any) {
+      console.error('Error resending welcome email:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to resend welcome email",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
       case 'admin':
@@ -562,6 +597,14 @@ const UserManagement = () => {
                           userEmail={user.email} 
                         />
                       )}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => resendWelcomeEmail(user)}
+                        title="Resend Welcome Email"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => startEdit(user)}>
                         <Edit className="h-4 w-4" />
                       </Button>
