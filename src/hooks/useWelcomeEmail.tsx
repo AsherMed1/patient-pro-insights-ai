@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export const useSendWelcomeEmail = () => {
-  const sendWelcomeEmail = async (userId: string, email: string, fullName?: string) => {
+  const sendWelcomeEmail = async (userId: string, email: string, fullName?: string, password?: string) => {
     try {
       console.log("Sending welcome email to:", email);
       
@@ -10,6 +10,7 @@ export const useSendWelcomeEmail = () => {
           userId,
           email,
           fullName,
+          password,
         },
       });
 

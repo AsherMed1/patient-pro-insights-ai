@@ -116,17 +116,22 @@ serve(async (req) => {
     console.log('📝 Parsing request body...');
     const { email, password, fullName, role, projectId } = await req.json();
     
+    // Generate random password if not provided
+    const generatedPassword = password || crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+    const wasPasswordGenerated = !password;
+    
     console.log('📋 Request data:', {
       email,
       hasPassword: !!password,
+      passwordGenerated: wasPasswordGenerated,
       fullName,
       role,
       projectId
     });
 
-    if (!email || !password || !role) {
+    if (!email || !role) {
       console.error('❌ Missing required fields');
-      return new Response(JSON.stringify({ error: 'Email, password, and role are required' }), {
+      return new Response(JSON.stringify({ error: 'Email and role are required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -136,7 +141,7 @@ serve(async (req) => {
     console.log('👤 Creating user with admin client...');
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password,
+      password: generatedPassword,
       user_metadata: {
         full_name: fullName
       },
@@ -265,7 +270,8 @@ serve(async (req) => {
         id: newUser.user.id,
         email: newUser.user.email,
         full_name: fullName || email
-      }
+      },
+      generatedPassword: wasPasswordGenerated ? generatedPassword : undefined
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

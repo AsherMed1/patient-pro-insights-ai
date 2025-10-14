@@ -190,10 +190,10 @@ const UserManagement = () => {
   };
 
   const createUser = async () => {
-    if (!newUser.email || !newUser.password) {
+    if (!newUser.email) {
       toast({
         title: "Error",
-        description: "Email and password are required",
+        description: "Email is required",
         variant: "destructive",
       });
       return;
@@ -228,8 +228,8 @@ const UserManagement = () => {
 
       if (data?.success) {
         // Send welcome email in the background (don't block on it)
-        if (data.user?.id) {
-          sendWelcomeEmail(data.user.id, newUser.email, newUser.fullName)
+        if (data.user?.id && data.generatedPassword) {
+          sendWelcomeEmail(data.user.id, newUser.email, newUser.fullName, data.generatedPassword)
             .then(() => {
               console.log('Welcome email sent successfully');
             })
@@ -450,12 +450,13 @@ const UserManagement = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password">Password (Optional)</Label>
                       <Input
                         id="password"
                         type="password"
                         value={newUser.password}
                         onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Leave blank to auto-generate"
                       />
                     </div>
                     <div className="space-y-2">

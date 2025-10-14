@@ -14,9 +14,10 @@ interface WelcomeEmailRequest {
   userId: string;
   email: string;
   fullName?: string;
+  password?: string;
 }
 
-const generateWelcomeEmail = (fullName: string, email: string) => {
+const generateWelcomeEmail = (fullName: string, email: string, password?: string) => {
   const displayName = fullName || email.split('@')[0];
   
   return `
@@ -67,9 +68,25 @@ const generateWelcomeEmail = (fullName: string, email: string) => {
                 </ul>
               </div>
               
+              ${password ? `
+              <!-- Login Credentials Box -->
+              <div style="margin: 30px 0; padding: 24px; background-color: #fef3c7; border-radius: 6px; border-left: 4px solid #f59e0b;">
+                <h3 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px; font-weight: 600;">🔐 Your Login Credentials</h3>
+                <p style="margin: 0 0 12px 0; color: #78350f; font-size: 15px; line-height: 22px;">
+                  <strong>Email:</strong> ${email}
+                </p>
+                <p style="margin: 0 0 12px 0; color: #78350f; font-size: 15px; line-height: 22px;">
+                  <strong>Password:</strong> <code style="background-color: #fffbeb; padding: 4px 8px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 14px; border: 1px solid #fde68a;">${password}</code>
+                </p>
+                <p style="margin: 12px 0 0 0; color: #92400e; font-size: 13px; line-height: 18px; font-style: italic;">
+                  ⚠️ Please change your password after your first login for security.
+                </p>
+              </div>
+              ` : `
               <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 24px;">
                 Your login email is: <strong>${email}</strong>
               </p>
+              `}
               
               <!-- CTA Button -->
               <div style="text-align: center; margin: 30px 0;">
@@ -117,7 +134,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { userId, email, fullName }: WelcomeEmailRequest = await req.json();
+    const { userId, email, fullName, password }: WelcomeEmailRequest = await req.json();
 
     console.log(`Processing welcome email for user: ${email}`);
 
@@ -152,7 +169,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send welcome email using Resend
-    const emailHtml = generateWelcomeEmail(fullName || email, email);
+    const emailHtml = generateWelcomeEmail(fullName || email, email, password);
 
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
