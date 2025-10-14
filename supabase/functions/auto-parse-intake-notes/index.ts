@@ -138,7 +138,7 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
         }
 
         // Update the database with parsed information
-        const updateData = {
+        const updateData: any = {
           parsed_insurance_info: parsedData.insurance_info,
           parsed_pathology_info: parsedData.pathology_info,
           parsed_contact_info: parsedData.contact_info,
@@ -151,6 +151,40 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
             ...updateData.parsed_contact_info,
             medical_info: parsedData.medical_info
           };
+        }
+
+        // Sync key fields to main columns for easier querying
+        if (parsedData.contact_info?.dob && !updateData.dob) {
+          updateData.dob = parsedData.contact_info.dob;
+        }
+
+        // For appointments table, also sync insurance info
+        if (record.table === 'all_appointments') {
+          if (parsedData.insurance_info?.insurance_provider) {
+            updateData.detected_insurance_provider = parsedData.insurance_info.insurance_provider;
+          }
+          if (parsedData.insurance_info?.insurance_plan) {
+            updateData.detected_insurance_plan = parsedData.insurance_info.insurance_plan;
+          }
+          if (parsedData.insurance_info?.insurance_id_number) {
+            updateData.detected_insurance_id = parsedData.insurance_info.insurance_id_number;
+          }
+        }
+
+        // For leads table, also sync insurance info to main fields
+        if (record.table === 'new_leads') {
+          if (parsedData.insurance_info?.insurance_provider) {
+            updateData.insurance_provider = parsedData.insurance_info.insurance_provider;
+          }
+          if (parsedData.insurance_info?.insurance_plan) {
+            updateData.insurance_plan = parsedData.insurance_info.insurance_plan;
+          }
+          if (parsedData.insurance_info?.insurance_id_number) {
+            updateData.insurance_id = parsedData.insurance_info.insurance_id_number;
+          }
+          if (parsedData.insurance_info?.insurance_group_number) {
+            updateData.group_number = parsedData.insurance_info.insurance_group_number;
+          }
         }
 
         const { error: updateError } = await supabase
