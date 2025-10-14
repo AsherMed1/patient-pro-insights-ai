@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
 import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
+import { useSendWelcomeEmail } from '@/hooks/useWelcomeEmail';
 
 
 interface User {
@@ -52,6 +53,7 @@ const UserManagement = () => {
     selectedProjectId: ''
   });
   const { toast } = useToast();
+  const { sendWelcomeEmail } = useSendWelcomeEmail();
 
   useEffect(() => {
     fetchUsers();
@@ -225,9 +227,21 @@ const UserManagement = () => {
       }
 
       if (data?.success) {
+        // Send welcome email in the background (don't block on it)
+        if (data.user?.id) {
+          sendWelcomeEmail(data.user.id, newUser.email, newUser.fullName)
+            .then(() => {
+              console.log('Welcome email sent successfully');
+            })
+            .catch((emailError) => {
+              console.error('Failed to send welcome email:', emailError);
+              // Don't show error to user - email is non-critical
+            });
+        }
+
         toast({
           title: "Success",
-          description: "User created successfully",
+          description: "User created successfully. Welcome email will be sent shortly.",
         });
 
         setShowCreateDialog(false);
