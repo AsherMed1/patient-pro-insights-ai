@@ -178,7 +178,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "PatientPro Insights <onboarding@resend.dev>",
+        from: "PatientPro Insights <noreply@patientpromarketing.com>",
         to: [email],
         subject: "Welcome to PatientPro Insights - Let's Get Started!",
         html: emailHtml,
