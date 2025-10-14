@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const GHL_API_KEY = Deno.env.get("GOHIGHLEVEL_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -168,27 +168,28 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Send welcome email using Resend
+    // Send welcome email using GoHighLevel
     const emailHtml = generateWelcomeEmail(fullName || email, email, password);
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    const emailResponse = await fetch("https://services.leadconnectorhq.com/emails/", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Authorization": `Bearer ${GHL_API_KEY}`,
         "Content-Type": "application/json",
+        "Version": "2021-07-28"
       },
       body: JSON.stringify({
-        from: "PatientPro Insights <onboarding@resend.dev>",
-        to: [email],
+        emailFrom: "noreply@joinasher.com",
+        emailTo: email,
         subject: "Welcome to PatientPro Insights - Let's Get Started!",
         html: emailHtml,
       }),
     });
 
     if (!emailResponse.ok) {
-      const errorData = await emailResponse.json();
-      console.error("Resend API error:", errorData);
-      throw new Error(`Failed to send email: ${JSON.stringify(errorData)}`);
+      const errorText = await emailResponse.text();
+      console.error("GoHighLevel API error:", errorText);
+      throw new Error(`Failed to send email via GoHighLevel: ${errorText}`);
     }
 
     const emailData = await emailResponse.json();
