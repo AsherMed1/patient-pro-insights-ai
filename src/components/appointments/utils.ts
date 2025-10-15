@@ -86,8 +86,8 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     
     switch (filterType) {
       case 'new':
-        // New: All new appointments (status is null, empty, or "new")
-        return !appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new';
+        // New: All new appointments (status is null, empty, "new", or "confirmed")
+        return !appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || normalizedStatus === 'confirmed';
       case 'needs-review':
         // Needs Review: Past appointment + not updated (no status set or still "new")
         return isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
