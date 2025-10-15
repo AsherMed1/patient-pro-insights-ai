@@ -32,10 +32,25 @@ serve(async (req) => {
     console.log(`Sync completed. Updated ${syncResults?.length || 0} appointments with intake notes.`);
     console.log('Sync details:', syncResults?.slice(0, 5));
 
+    // Also sync lead data (including DOB) to appointments
+    console.log('Syncing lead data to appointments...');
+    const { data: leadSyncResults, error: leadSyncError } = await supabase.rpc('sync_lead_data_to_appointments', { batch_size: 200 });
+
+    if (leadSyncError) {
+      console.error('Lead sync error:', leadSyncError);
+      // Don't throw - partial success is still useful
+    } else {
+      const leadSyncCount = leadSyncResults?.[0]?.total_updated || 0;
+      console.log(`Lead data sync completed. Updated ${leadSyncCount} appointments.`);
+    }
+
+    const leadSyncCount = leadSyncResults?.[0]?.total_updated || 0;
+
     return new Response(JSON.stringify({ 
       success: true, 
       syncedCount: syncResults?.length || 0,
-      message: `Successfully synced ${syncResults?.length || 0} appointment records with intake notes from leads`,
+      leadDataSyncedCount: leadSyncCount,
+      message: `Successfully synced ${syncResults?.length || 0} appointment records with intake notes from leads and ${leadSyncCount} with lead data`,
       details: syncResults?.slice(0, 10) // Show first 10 synced records
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

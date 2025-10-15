@@ -7,6 +7,85 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Normalize DOB string to YYYY-MM-DD format or return null
+function normalizeDob(raw: string | null | undefined): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  
+  // Strip ordinal suffixes (1st, 2nd, 3rd, 4th) and commas
+  const cleaned = raw.replace(/(\d+)(st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
+  
+  // Try parsing with various formats
+  const formats = [
+    // Month name formats
+    /^([A-Za-z]+)\s+(\d{1,2})\s+(\d{4})$/, // Sep 20 1954
+    /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/, // 20 Sep 1954
+    // Numeric formats
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // 9/20/1954 or 09/20/1954
+    /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // 1954-09-20
+  ];
+  
+  for (const format of formats) {
+    const match = cleaned.match(format);
+    if (match) {
+      try {
+        let year: number, month: number, day: number;
+        
+        if (format.source.includes('[A-Za-z]')) {
+          // Month name format
+          const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          const monthStr = match[1].toLowerCase().substring(0, 3);
+          const monthIdx = monthNames.indexOf(monthStr);
+          
+          if (monthIdx === -1) continue;
+          
+          if (match[1].match(/[A-Za-z]/)) {
+            // Format: Month Day Year
+            month = monthIdx + 1;
+            day = parseInt(match[2]);
+            year = parseInt(match[3]);
+          } else {
+            // Format: Day Month Year
+            day = parseInt(match[1]);
+            const monthStr2 = match[2].toLowerCase().substring(0, 3);
+            const monthIdx2 = monthNames.indexOf(monthStr2);
+            if (monthIdx2 === -1) continue;
+            month = monthIdx2 + 1;
+            year = parseInt(match[3]);
+          }
+        } else if (match[1].length === 4) {
+          // YYYY-MM-DD format
+          year = parseInt(match[1]);
+          month = parseInt(match[2]);
+          day = parseInt(match[3]);
+        } else {
+          // M/D/YYYY format
+          month = parseInt(match[1]);
+          day = parseInt(match[2]);
+          year = parseInt(match[3]);
+        }
+        
+        // Validate date components
+        if (year < 1900 || year > 2100) continue;
+        if (month < 1 || month > 12) continue;
+        if (day < 1 || day > 31) continue;
+        
+        // Create date and format as YYYY-MM-DD
+        const date = new Date(year, month - 1, day);
+        if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+          const yyyy = date.getFullYear();
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+  }
+  
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -137,29 +216,34 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           throw new Error('Invalid JSON returned from AI');
         }
 
-        // Update the database with parsed information
+        // Normalize DOB to proper format
+        const dobIso = normalizeDob(parsedData.contact_info?.dob);
+        
+        // Build update data based on table
         const updateData: any = {
-          parsed_insurance_info: parsedData.insurance_info,
-          parsed_pathology_info: parsedData.pathology_info,
-          parsed_contact_info: parsedData.contact_info,
-          parsed_demographics: parsedData.demographics,
           parsing_completed_at: new Date().toISOString()
         };
 
-        if (parsedData.medical_info) {
-          updateData.parsed_contact_info = {
-            ...updateData.parsed_contact_info,
-            medical_info: parsedData.medical_info
-          };
-        }
-
-        // Sync key fields to main columns for easier querying
-        if (parsedData.contact_info?.dob && !updateData.dob) {
-          updateData.dob = parsedData.contact_info.dob;
-        }
-
-        // For appointments table, also sync insurance info
         if (record.table === 'all_appointments') {
+          // For appointments: include parsed_* JSON fields
+          updateData.parsed_insurance_info = parsedData.insurance_info;
+          updateData.parsed_pathology_info = parsedData.pathology_info;
+          updateData.parsed_contact_info = parsedData.contact_info;
+          updateData.parsed_demographics = parsedData.demographics;
+          
+          if (parsedData.medical_info) {
+            updateData.parsed_contact_info = {
+              ...updateData.parsed_contact_info,
+              medical_info: parsedData.medical_info
+            };
+          }
+
+          // Sync DOB if normalized successfully
+          if (dobIso) {
+            updateData.dob = dobIso;
+          }
+
+          // Sync insurance info to main columns
           if (parsedData.insurance_info?.insurance_provider) {
             updateData.detected_insurance_provider = parsedData.insurance_info.insurance_provider;
           }
@@ -169,10 +253,13 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           if (parsedData.insurance_info?.insurance_id_number) {
             updateData.detected_insurance_id = parsedData.insurance_info.insurance_id_number;
           }
-        }
-
-        // For leads table, also sync insurance info to main fields
-        if (record.table === 'new_leads') {
+        } else if (record.table === 'new_leads') {
+          // For leads: DO NOT include parsed_* fields (they don't exist)
+          // Only sync to main columns
+          if (dobIso) {
+            updateData.dob = dobIso;
+          }
+          
           if (parsedData.insurance_info?.insurance_provider) {
             updateData.insurance_provider = parsedData.insurance_info.insurance_provider;
           }
