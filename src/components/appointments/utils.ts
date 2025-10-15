@@ -92,8 +92,8 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         // Needs Review: Past appointment + not updated (no status set or still "new")
         return isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
       case 'future':
-        // Upcoming: Welcome Call OR Internal Process Complete
-        return (normalizedStatus === 'welcome call' || appointment.internal_process_complete === true);
+        // Upcoming: Welcome Call OR Internal Process Complete (but not confirmed)
+        return (normalizedStatus === 'welcome call' || appointment.internal_process_complete === true) && normalizedStatus !== 'confirmed';
       case 'past':
         // Completed: Final status (Showed / No-show / Canceled)
         return appointment.status && completedStatuses.includes(normalizedStatus);
