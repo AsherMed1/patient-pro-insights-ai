@@ -130,7 +130,7 @@ const AllAppointmentsManager = ({
         // All: No additional status filtering
       } else if (activeTab === 'new') {
         // New: Appointments with 'new' status or null/empty status
-        countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new');
+        countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new,status.ilike.confirmed');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         countQuery = countQuery
@@ -146,7 +146,8 @@ const AllAppointmentsManager = ({
         // Upcoming: Future appointments (appointment date is today or later)
         countQuery = countQuery
           .not('date_of_appointment', 'is', null)
-          .gte('date_of_appointment', todayString);
+          .gte('date_of_appointment', todayString)
+          .not('status', 'ilike', 'confirmed');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
@@ -233,7 +234,7 @@ const AllAppointmentsManager = ({
         // All: No additional status filtering
       } else if (activeTab === 'new') {
         // New: Appointments with 'new' status or null/empty status
-        appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new');
+        appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new,status.ilike.confirmed');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         appointmentsQuery = appointmentsQuery
@@ -249,7 +250,8 @@ const AllAppointmentsManager = ({
         // Upcoming: Future appointments (appointment date is today or later)
         appointmentsQuery = appointmentsQuery
           .not('date_of_appointment', 'is', null)
-          .gte('date_of_appointment', todayString);
+          .gte('date_of_appointment', todayString)
+          .not('status', 'ilike', 'confirmed');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
@@ -349,7 +351,7 @@ const AllAppointmentsManager = ({
 
       // New: Appointments with 'new' status or null/empty status
       const newQuery = getBaseQuery()
-        .or('status.is.null,status.eq.,status.ilike.new');
+        .or('status.is.null,status.eq.,status.ilike.new,status.ilike.confirmed');
       
       // Needs Review: Past appointments (appointment date has passed) that don't have completed status
       const needsReviewQuery = getBaseQuery()
@@ -363,9 +365,10 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'oon');
       
       // Upcoming: Future appointments (appointment date is today or later)
-      const futureQuery = getBaseQuery()
-        .not('date_of_appointment', 'is', null)
-        .gte('date_of_appointment', todayString);
+        const futureQuery = getBaseQuery()
+          .not('date_of_appointment', 'is', null)
+          .gte('date_of_appointment', todayString)
+          .not('status', 'ilike', 'confirmed');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
