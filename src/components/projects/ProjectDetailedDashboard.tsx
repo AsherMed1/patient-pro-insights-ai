@@ -48,12 +48,34 @@ interface DashboardStats {
 export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> = ({
   project,
   children,
-  dateRange
+  dateRange: externalDateRange
 }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [internalDateRange, setInternalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { toast } = useToast();
+
+  // Use internal date range if set, otherwise fall back to external
+  const dateRange = internalDateRange.from || internalDateRange.to ? internalDateRange : externalDateRange;
+
+  const setQuickDateRange = (days: number | 'today') => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (days === 'today') {
+      setInternalDateRange({ from: today, to: today });
+    } else {
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
+      setInternalDateRange({ from, to: today });
+    }
+  };
+
+  const clearDateRange = () => {
+    setInternalDateRange({ from: undefined, to: undefined });
+  };
 
   const fetchDetailedStats = async () => {
     try {
@@ -229,6 +251,19 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     }
   }, [dateRange, open]);
 
+  const getDateRangeText = () => {
+    if (!dateRange?.from && !dateRange?.to) return "All Time";
+    if (dateRange.from && dateRange.to) {
+      const from = dateRange.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const to = dateRange.to.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `${from} - ${to}`;
+    }
+    if (dateRange.from) {
+      return `From ${dateRange.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+    return `Until ${dateRange.to?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  };
+
   const StatCard = ({ 
     title, 
     value, 
@@ -279,6 +314,44 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
             <span>Detailed Stats - {project.project_name}</span>
           </DialogTitle>
         </DialogHeader>
+
+        {/* Date Range Filters */}
+        <div className="flex flex-wrap items-center gap-2 py-3 border-b">
+          <span className="text-sm font-medium text-muted-foreground">Date Range:</span>
+          <Button
+            variant={internalDateRange.from && !internalDateRange.to ? "default" : "outline"}
+            size="sm"
+            onClick={() => setQuickDateRange('today')}
+          >
+            Today
+          </Button>
+          <Button
+            variant={internalDateRange.from && Math.floor((new Date().getTime() - internalDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) === 6 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setQuickDateRange(7)}
+          >
+            Week
+          </Button>
+          <Button
+            variant={internalDateRange.from && Math.floor((new Date().getTime() - internalDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) === 29 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setQuickDateRange(30)}
+          >
+            Monthly
+          </Button>
+          {(internalDateRange.from || internalDateRange.to) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearDateRange}
+            >
+              Clear
+            </Button>
+          )}
+          <span className="text-sm text-muted-foreground ml-auto">
+            {getDateRangeText()}
+          </span>
+        </div>
         
         {loading ? (
           <div className="flex items-center justify-center py-8">
