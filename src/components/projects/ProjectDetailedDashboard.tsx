@@ -5,8 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, TrendingUp, Phone, Users, Target, DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar, TrendingUp, Phone, Users, Target, DollarSign, CheckCircle, XCircle, Clock, ChevronDown } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Project {
   id: string;
@@ -54,7 +55,17 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [internalDateRange, setInternalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [openSections, setOpenSections] = useState({
+    marketing: false,
+    appointment: false,
+    outcome: false,
+    call: false
+  });
   const { toast } = useToast();
+
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   // Use internal date range if set, otherwise fall back to external
   const dateRange = internalDateRange.from || internalDateRange.to ? internalDateRange : externalDateRange;
@@ -358,139 +369,167 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
             <span>Loading detailed statistics...</span>
           </div>
         ) : stats ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Marketing Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <DollarSign className="h-5 w-5" />
-                <span>Marketing Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatCard
-                  title="Ad Spend"
-                  value={stats.adSpend}
-                  icon={DollarSign}
-                  color="green"
-                  isCurrency
-                />
-                <StatCard
-                  title="New Leads"
-                  value={stats.newLeads}
-                  icon={Users}
-                  color="blue"
-                />
-                <StatCard
-                  title="Cost Per Lead"
-                  value={stats.costPerLead}
-                  icon={Target}
-                  color="purple"
-                  isCurrency
-                />
-              </div>
-            </div>
+            <Collapsible open={openSections.marketing} onOpenChange={() => toggleSection('marketing')}>
+              <CollapsibleTrigger className="w-full">
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
+                  <h3 className="text-lg font-semibold flex items-center space-x-2">
+                    <DollarSign className="h-5 w-5" />
+                    <span>Marketing Metrics</span>
+                  </h3>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${openSections.marketing ? 'rotate-180' : ''}`} />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3">
+                  <StatCard
+                    title="Ad Spend"
+                    value={stats.adSpend}
+                    icon={DollarSign}
+                    color="green"
+                    isCurrency
+                  />
+                  <StatCard
+                    title="New Leads"
+                    value={stats.newLeads}
+                    icon={Users}
+                    color="blue"
+                  />
+                  <StatCard
+                    title="Cost Per Lead"
+                    value={stats.costPerLead}
+                    icon={Target}
+                    color="purple"
+                    isCurrency
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Appointment Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <Calendar className="h-5 w-5" />
-                <span>Appointment Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard
-                  title="Total Booked"
-                  value={stats.bookedAppointments}
-                  icon={Calendar}
-                  color="blue"
-                />
-                <StatCard
-                  title="New/Unconfirmed"
-                  value={stats.newAppointments}
-                  icon={Clock}
-                  color="yellow"
-                />
-                <StatCard
-                  title="Confirmed"
-                  value={stats.confirmedAppointments}
-                  icon={CheckCircle}
-                  color="green"
-                />
-                <StatCard
-                  title="Rescheduled"
-                  value={stats.rescheduledAppointments}
-                  icon={Calendar}
-                  color="orange"
-                />
-              </div>
-            </div>
+            <Collapsible open={openSections.appointment} onOpenChange={() => toggleSection('appointment')}>
+              <CollapsibleTrigger className="w-full">
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
+                  <h3 className="text-lg font-semibold flex items-center space-x-2">
+                    <Calendar className="h-5 w-5" />
+                    <span>Appointment Metrics</span>
+                  </h3>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${openSections.appointment ? 'rotate-180' : ''}`} />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3">
+                  <StatCard
+                    title="Total Booked"
+                    value={stats.bookedAppointments}
+                    icon={Calendar}
+                    color="blue"
+                  />
+                  <StatCard
+                    title="New/Unconfirmed"
+                    value={stats.newAppointments}
+                    icon={Clock}
+                    color="yellow"
+                  />
+                  <StatCard
+                    title="Confirmed"
+                    value={stats.confirmedAppointments}
+                    icon={CheckCircle}
+                    color="green"
+                  />
+                  <StatCard
+                    title="Rescheduled"
+                    value={stats.rescheduledAppointments}
+                    icon={Calendar}
+                    color="orange"
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Show/Outcome Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5" />
-                <span>Appointment Outcomes</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard
-                  title="Showed"
-                  value={stats.showedAppointments}
-                  icon={CheckCircle}
-                  color="green"
-                />
-                <StatCard
-                  title="No Shows"
-                  value={stats.noShowAppointments}
-                  icon={XCircle}
-                  color="red"
-                />
-                <StatCard
-                  title="Cancelled"
-                  value={stats.cancelledAppointments}
-                  icon={XCircle}
-                  color="gray"
-                />
-                <StatCard
-                  title="Won (Converted)"
-                  value={stats.wonAppointments}
-                  icon={Target}
-                  color="purple"
-                />
-              </div>
-            </div>
+            <Collapsible open={openSections.outcome} onOpenChange={() => toggleSection('outcome')}>
+              <CollapsibleTrigger className="w-full">
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
+                  <h3 className="text-lg font-semibold flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5" />
+                    <span>Appointment Outcomes</span>
+                  </h3>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${openSections.outcome ? 'rotate-180' : ''}`} />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3">
+                  <StatCard
+                    title="Showed"
+                    value={stats.showedAppointments}
+                    icon={CheckCircle}
+                    color="green"
+                  />
+                  <StatCard
+                    title="No Shows"
+                    value={stats.noShowAppointments}
+                    icon={XCircle}
+                    color="red"
+                  />
+                  <StatCard
+                    title="Cancelled"
+                    value={stats.cancelledAppointments}
+                    icon={XCircle}
+                    color="gray"
+                  />
+                  <StatCard
+                    title="Won (Converted)"
+                    value={stats.wonAppointments}
+                    icon={Target}
+                    color="purple"
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Call Metrics */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center space-x-2">
-                <Phone className="h-5 w-5" />
-                <span>Call Metrics</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard
-                  title="Outbound Dials"
-                  value={stats.outboundDials}
-                  icon={Phone}
-                  color="blue"
-                />
-                <StatCard
-                  title="Pickups (40+ Seconds)"
-                  value={stats.pickups40Plus}
-                  icon={CheckCircle}
-                  color="green"
-                />
-                <StatCard
-                  title="Conversations (2+ Minutes)"
-                  value={stats.conversations2Plus}
-                  icon={Clock}
-                  color="purple"
-                />
-                <StatCard
-                  title="Booking Percentage"
-                  value={stats.bookingPercentage}
-                  icon={Target}
-                  color="orange"
-                  isPercentage
-                />
-              </div>
-            </div>
+            <Collapsible open={openSections.call} onOpenChange={() => toggleSection('call')}>
+              <CollapsibleTrigger className="w-full">
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
+                  <h3 className="text-lg font-semibold flex items-center space-x-2">
+                    <Phone className="h-5 w-5" />
+                    <span>Call Metrics</span>
+                  </h3>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${openSections.call ? 'rotate-180' : ''}`} />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3">
+                  <StatCard
+                    title="Outbound Dials"
+                    value={stats.outboundDials}
+                    icon={Phone}
+                    color="blue"
+                  />
+                  <StatCard
+                    title="Pickups (40+ Seconds)"
+                    value={stats.pickups40Plus}
+                    icon={CheckCircle}
+                    color="green"
+                  />
+                  <StatCard
+                    title="Conversations (2+ Minutes)"
+                    value={stats.conversations2Plus}
+                    icon={Clock}
+                    color="purple"
+                  />
+                  <StatCard
+                    title="Booking Percentage"
+                    value={stats.bookingPercentage}
+                    icon={Target}
+                    color="orange"
+                    isPercentage
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
