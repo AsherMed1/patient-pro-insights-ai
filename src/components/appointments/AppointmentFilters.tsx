@@ -30,8 +30,8 @@ interface AppointmentFiltersProps {
   onStatusFilterChange: (value: string) => void;
   procedureOrderFilter: string;
   onProcedureOrderFilterChange: (value: string) => void;
-  sortBy: 'date' | 'procedure_ordered' | 'project';
-  onSortChange: (value: 'date' | 'procedure_ordered' | 'project') => void;
+  sortBy: 'date' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc';
+  onSortChange: (value: 'date' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc') => void;
   isProjectSpecificView?: boolean; // New prop to indicate we're in a project-specific view
 }
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
@@ -225,6 +225,8 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                   <SelectItem value="date">Sort by Date</SelectItem>
                   <SelectItem value="procedure_ordered">Sort by Procedure Status</SelectItem>
                   <SelectItem value="project">Sort by Project</SelectItem>
+                  <SelectItem value="name_asc">Name (A-Z)</SelectItem>
+                  <SelectItem value="name_desc">Name (Z-A)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
