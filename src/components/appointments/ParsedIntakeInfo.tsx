@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { User, Heart, Phone, Shield, ExternalLink } from 'lucide-react';
+import { User, Heart, Phone, Shield, ExternalLink, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
@@ -26,6 +27,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   insuranceIdLink,
   className = ""
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
   // Debug logging
   console.log('ParsedIntakeInfo - parsedInsuranceInfo:', parsedInsuranceInfo);
   console.log('ParsedIntakeInfo - parsedPathologyInfo:', parsedPathologyInfo);
@@ -42,10 +45,17 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
 
   return (
     <div className={`space-y-4 mt-4 ${className}`}>
-      <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-        <Heart className="h-4 w-4" />
-        Patient Pro Insights
-      </h4>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent transition-colors">
+            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Heart className="h-4 w-4" />
+              Patient Pro Insights
+            </h4>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-4">
 
       {/* Demographics Section */}
       {parsedDemographics && (
@@ -189,6 +199,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
           </CardContent>
         </Card>
       )}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 };
