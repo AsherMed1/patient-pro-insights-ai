@@ -39,7 +39,7 @@ const AllAppointmentsManager = ({
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState<'date' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date');
+  const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -175,6 +175,8 @@ const AllAppointmentsManager = ({
       } else {
         if (sortBy === 'name_asc' || sortBy === 'name_desc') {
           appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
+        } else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
+          appointmentsQuery = appointmentsQuery.order('date_appointment_created', { ascending: sortBy === 'date_asc', nullsFirst: false });
         } else {
           appointmentsQuery = appointmentsQuery.order(
             sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
@@ -869,7 +871,7 @@ const AllAppointmentsManager = ({
           setLocalProjectFilter('ALL');
           setStatusFilter('ALL');
           setProcedureOrderFilter('ALL');
-          setSortBy('date');
+          setSortBy('date_desc');
         }}
         projectFilter={localProjectFilter}
         onProjectFilterChange={setLocalProjectFilter}
