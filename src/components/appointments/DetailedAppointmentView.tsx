@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   User, 
   Phone, 
@@ -169,81 +170,137 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">Patient:</span>
-                      <span>{appointment.lead_name}</span>
+                <TooltipProvider>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center space-x-2 cursor-default">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{appointment.lead_name}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Patient Name</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      
+                      {(appointment.lead_phone_number || leadDetails?.phone_number) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              <span>{appointment.lead_phone_number || leadDetails?.phone_number}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Phone Number</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                      
+                      {(appointment.lead_email || leadDetails?.email) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{appointment.lead_email || leadDetails?.email}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Email Address</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {getPatientAddress() && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{getPatientAddress()}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Address</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {appointment.project_name && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Building className="h-4 w-4 text-muted-foreground" />
+                              <span>{appointment.project_name}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Project</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
-                    
-                    {(appointment.lead_phone_number || leadDetails?.phone_number) && (
-                      <div className="flex items-center space-x-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Phone:</span>
-                        <span>{appointment.lead_phone_number || leadDetails?.phone_number}</span>
-                      </div>
-                    )}
-                    
-                    {(appointment.lead_email || leadDetails?.email) && (
-                      <div className="flex items-center space-x-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Email:</span>
-                        <span>{appointment.lead_email || leadDetails?.email}</span>
-                      </div>
-                    )}
 
-                    {getPatientAddress() && (
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Address:</span>
-                        <span>{getPatientAddress()}</span>
-                      </div>
-                    )}
+                    <div className="space-y-3">
+                      {appointment.date_of_appointment && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span>{formatDate(appointment.date_of_appointment)}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Appointment Date</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                      
+                      {appointment.requested_time && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <span>{formatTime(appointment.requested_time)}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Time</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
 
-                    {appointment.project_name && (
-                      <div className="flex items-center space-x-2">
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Project:</span>
-                        <span>{appointment.project_name}</span>
-                      </div>
-                    )}
+                      {appointment.status && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Hash className="h-4 w-4 text-muted-foreground" />
+                              <Badge variant="outline">{appointment.status}</Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Status</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {appointment.agent && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span>{appointment.agent}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Agent</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
                   </div>
-
-                  <div className="space-y-3">
-                    {appointment.date_of_appointment && (
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Date:</span>
-                        <span>{formatDate(appointment.date_of_appointment)}</span>
-                      </div>
-                    )}
-                    
-                    {appointment.requested_time && (
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Time:</span>
-                        <span>{formatTime(appointment.requested_time)}</span>
-                      </div>
-                    )}
-
-                    {appointment.status && (
-                      <div className="flex items-center space-x-2">
-                        <Hash className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Status:</span>
-                        <Badge variant="outline">{appointment.status}</Badge>
-                      </div>
-                    )}
-
-                    {appointment.agent && (
-                      <div className="flex items-center space-x-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">Agent:</span>
-                        <span>{appointment.agent}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                </TooltipProvider>
 
                 {hasInsuranceInfo() && (
                   <div className="pt-2">

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
@@ -531,157 +532,193 @@ const AppointmentCard = ({
           </div>
           
           {/* Project Name */}
-          <div className="flex items-center space-x-2">
-            <Building className="h-4 w-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-600 break-words">{appointment.project_name}</span>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-default">
+                  <Building className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-600 break-words">{appointment.project_name}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Project</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           {/* Calendar Name */}
           {(appointment.calendar_name || isEditingLocation) && (
-            <div className="flex items-center space-x-2">
-              <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              {isEditingLocation && onUpdateCalendarLocation ? (
-                <Input
-                  value={editingLocation}
-                  onChange={(e) => setEditingLocation(e.target.value)}
-                  onBlur={() => {
-                    setIsEditingLocation(false);
-                    if (editingLocation !== appointment.calendar_name) {
-                      onUpdateCalendarLocation(appointment.id, editingLocation);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setIsEditingLocation(false);
-                      if (editingLocation !== appointment.calendar_name) {
-                        onUpdateCalendarLocation(appointment.id, editingLocation);
-                      }
-                    }
-                    if (e.key === 'Escape') {
-                      setIsEditingLocation(false);
-                      setEditingLocation(appointment.calendar_name || '');
-                    }
-                  }}
-                  className="text-sm flex-1"
-                  autoFocus
-                  placeholder="Enter location"
-                />
-              ) : (
-                <>
-                  <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
-                  {onUpdateCalendarLocation && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setIsEditingLocation(true)}
-                      aria-label="Edit location"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center space-x-2">
+                    <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    {isEditingLocation && onUpdateCalendarLocation ? (
+                      <Input
+                        value={editingLocation}
+                        onChange={(e) => setEditingLocation(e.target.value)}
+                        onBlur={() => {
+                          setIsEditingLocation(false);
+                          if (editingLocation !== appointment.calendar_name) {
+                            onUpdateCalendarLocation(appointment.id, editingLocation);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setIsEditingLocation(false);
+                            if (editingLocation !== appointment.calendar_name) {
+                              onUpdateCalendarLocation(appointment.id, editingLocation);
+                            }
+                          }
+                          if (e.key === 'Escape') {
+                            setIsEditingLocation(false);
+                            setEditingLocation(appointment.calendar_name || '');
+                          }
+                        }}
+                        className="text-sm flex-1"
+                        autoFocus
+                        placeholder="Enter location"
+                      />
+                    ) : (
+                      <>
+                        <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
+                        {onUpdateCalendarLocation && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setIsEditingLocation(true)}
+                            aria-label="Edit location"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Location</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           
           {/* Contact Info - Stacked on mobile */}
           {(appointment.lead_email || isEditingEmail) && (
-            <div className="flex items-start space-x-2">
-              <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
-              {isEditingEmail && onUpdateEmail ? (
-                <Input
-                  type="email"
-                  value={editingEmail}
-                  onChange={(e) => setEditingEmail(e.target.value)}
-                  onBlur={() => {
-                    setIsEditingEmail(false);
-                    if (editingEmail !== appointment.lead_email) {
-                      onUpdateEmail(appointment.id, editingEmail);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setIsEditingEmail(false);
-                      if (editingEmail !== appointment.lead_email) {
-                        onUpdateEmail(appointment.id, editingEmail);
-                      }
-                    }
-                    if (e.key === 'Escape') {
-                      setIsEditingEmail(false);
-                      setEditingEmail(appointment.lead_email || '');
-                    }
-                  }}
-                  className="text-sm flex-1"
-                  autoFocus
-                  placeholder="Enter email"
-                />
-              ) : (
-                <>
-                  <span className="text-sm text-gray-600 break-all">{appointment.lead_email}</span>
-                  {onUpdateEmail && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setIsEditingEmail(true)}
-                      aria-label="Edit email"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-start space-x-2">
+                    <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                    {isEditingEmail && onUpdateEmail ? (
+                      <Input
+                        type="email"
+                        value={editingEmail}
+                        onChange={(e) => setEditingEmail(e.target.value)}
+                        onBlur={() => {
+                          setIsEditingEmail(false);
+                          if (editingEmail !== appointment.lead_email) {
+                            onUpdateEmail(appointment.id, editingEmail);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setIsEditingEmail(false);
+                            if (editingEmail !== appointment.lead_email) {
+                              onUpdateEmail(appointment.id, editingEmail);
+                            }
+                          }
+                          if (e.key === 'Escape') {
+                            setIsEditingEmail(false);
+                            setEditingEmail(appointment.lead_email || '');
+                          }
+                        }}
+                        className="text-sm flex-1"
+                        autoFocus
+                        placeholder="Enter email"
+                      />
+                    ) : (
+                      <>
+                        <span className="text-sm text-gray-600 break-all">{appointment.lead_email}</span>
+                        {onUpdateEmail && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setIsEditingEmail(true)}
+                            aria-label="Edit email"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Email Address</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           
           {(appointment.lead_phone_number || isEditingPhone) && (
-            <div className="flex items-center space-x-2">
-              <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              {isEditingPhone && onUpdatePhone ? (
-                <Input
-                  type="tel"
-                  value={editingPhone}
-                  onChange={(e) => setEditingPhone(e.target.value)}
-                  onBlur={() => {
-                    setIsEditingPhone(false);
-                    if (editingPhone !== appointment.lead_phone_number) {
-                      onUpdatePhone(appointment.id, editingPhone);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setIsEditingPhone(false);
-                      if (editingPhone !== appointment.lead_phone_number) {
-                        onUpdatePhone(appointment.id, editingPhone);
-                      }
-                    }
-                    if (e.key === 'Escape') {
-                      setIsEditingPhone(false);
-                      setEditingPhone(appointment.lead_phone_number || '');
-                    }
-                  }}
-                  className="text-sm flex-1"
-                  autoFocus
-                  placeholder="Enter phone number"
-                />
-              ) : (
-                <>
-                  <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-                  {onUpdatePhone && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setIsEditingPhone(true)}
-                      aria-label="Edit phone"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    {isEditingPhone && onUpdatePhone ? (
+                      <Input
+                        type="tel"
+                        value={editingPhone}
+                        onChange={(e) => setEditingPhone(e.target.value)}
+                        onBlur={() => {
+                          setIsEditingPhone(false);
+                          if (editingPhone !== appointment.lead_phone_number) {
+                            onUpdatePhone(appointment.id, editingPhone);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setIsEditingPhone(false);
+                            if (editingPhone !== appointment.lead_phone_number) {
+                              onUpdatePhone(appointment.id, editingPhone);
+                            }
+                          }
+                          if (e.key === 'Escape') {
+                            setIsEditingPhone(false);
+                            setEditingPhone(appointment.lead_phone_number || '');
+                          }
+                        }}
+                        className="text-sm flex-1"
+                        autoFocus
+                        placeholder="Enter phone number"
+                      />
+                    ) : (
+                      <>
+                        <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
+                        {onUpdatePhone && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setIsEditingPhone(true)}
+                            aria-label="Edit phone"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Phone Number</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           
           {/* Date Info - More compact on mobile */}
