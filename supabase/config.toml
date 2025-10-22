@@ -45,3 +45,6 @@ verify_jwt = false
 
 [functions.sync-intake-notes]
 verify_jwt = false
+
+[functions.receive-team-message]
+verify_jwt = false

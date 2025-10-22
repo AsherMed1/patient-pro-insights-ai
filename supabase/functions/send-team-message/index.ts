@@ -82,6 +82,33 @@ const handler = async (req: Request): Promise<Response> => {
       source: 'project_portal'
     };
 
+    // Store the outbound message in the database
+    const { data: messageRecord, error: insertError } = await supabase
+      .from('project_messages')
+      .insert({
+        project_name,
+        message,
+        direction: 'outbound',
+        sender_type: sender_info?.source === 'project_portal' ? 'user' : 'agent',
+        sender_name: sender_info?.name,
+        sender_email: sender_info?.email,
+        patient_reference,
+        metadata: {
+          source: sender_info?.source || 'project_portal',
+          locationID,
+          timestamp: sender_info?.timestamp
+        }
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Failed to store message in database:', insertError);
+      // Continue anyway - don't block webhook sending
+    } else {
+      console.log('Message stored in database:', messageRecord.id);
+    }
+
     console.log('Sending webhook with payload:', JSON.stringify(webhookPayload, null, 2));
 
     // Send to Make.com webhook
@@ -121,6 +148,7 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ 
         success: true, 
         message: 'Message sent to appointment team successfully',
+        message_record: messageRecord,
         webhook_response: webhookResult
       }),
       {

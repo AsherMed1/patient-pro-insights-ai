@@ -16,6 +16,8 @@ import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import TeamMessageBubble from '@/components/TeamMessageBubble';
 import DateRangeFilter from '@/components/projects/DateRangeFilter';
 import { ProjectSwitcher } from '@/components/ProjectSwitcher';
+import ProjectChat from '@/components/ProjectChat';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface Project {
   id: string;
@@ -240,28 +242,41 @@ const ProjectPortal = () => {
           className="mb-6"
         />
 
-        {/* Enhanced Stats Cards with medical context */}
-        <ProjectStatsCards stats={stats} />
+        {/* Tabbed Interface */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="appointments">Appointments</TabsTrigger>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+          </TabsList>
 
-        {/* Detailed Analytics - Better positioned */}
-        <div className="text-center py-4">
-          <ProjectDetailedDashboard project={project} dateRange={dateRange}>
-            <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
-              📊 View detailed analytics dashboard
-            </Button>
-          </ProjectDetailedDashboard>
-        </div>
+          <TabsContent value="overview" className="space-y-6">
+            {/* Enhanced Stats Cards with medical context */}
+            <ProjectStatsCards stats={stats} />
 
-        {/* Enhanced Appointments Section */}
-        <div className="portal-section">
-          <AllAppointmentsManager projectFilter={project.project_name} onDataChanged={fetchAppointmentStats} />
-        </div>
-        
-        {/* Team Communication */}
-        <div className="portal-section">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Team Communication</h3>
-          <TeamMessageBubble projectName={project.project_name} />
-        </div>
+            {/* Detailed Analytics - Better positioned */}
+            <div className="text-center py-4">
+              <ProjectDetailedDashboard project={project} dateRange={dateRange}>
+                <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
+                  📊 View detailed analytics dashboard
+                </Button>
+              </ProjectDetailedDashboard>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="appointments">
+            <div className="portal-section">
+              <AllAppointmentsManager projectFilter={project.project_name} onDataChanged={fetchAppointmentStats} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="chat">
+            <ProjectChat projectName={project.project_name} />
+          </TabsContent>
+        </Tabs>
+
+        {/* Keep floating message bubble for quick access */}
+        <TeamMessageBubble projectName={project.project_name} />
       </div>
     </div>
   );

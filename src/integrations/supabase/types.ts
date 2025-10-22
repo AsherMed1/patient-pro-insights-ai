@@ -1957,6 +1957,48 @@ export type Database = {
           },
         ]
       }
+      project_messages: {
+        Row: {
+          created_at: string | null
+          direction: string
+          id: string
+          message: string
+          metadata: Json | null
+          patient_reference: Json | null
+          project_name: string
+          read_at: string | null
+          sender_email: string | null
+          sender_name: string | null
+          sender_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          direction: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          patient_reference?: Json | null
+          project_name: string
+          read_at?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sender_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          patient_reference?: Json | null
+          project_name?: string
+          read_at?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sender_type?: string | null
+        }
+        Relationships: []
+      }
       project_tags: {
         Row: {
           created_at: string
