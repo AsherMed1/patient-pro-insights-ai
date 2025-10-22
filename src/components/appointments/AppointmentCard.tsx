@@ -26,6 +26,7 @@ import { format as formatDateFns } from "date-fns";
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
+  statusOptions: string[];
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
@@ -72,6 +73,7 @@ interface NewLead {
 const AppointmentCard = ({
   appointment,
   projectFilter,
+  statusOptions,
   onUpdateStatus,
   onUpdateProcedure,
   onUpdateDate,
@@ -92,7 +94,6 @@ const AppointmentCard = ({
   const [showInsurance, setShowInsurance] = useState(false);
   const [leadInsuranceData, setLeadInsuranceData] = useState<NewLead | null>(null);
   const [hasLeadInsurance, setHasLeadInsurance] = useState(false);
-  const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [leadDOB, setLeadDOB] = useState<string | null>(null);
   const { toast } = useToast();
   const appointmentStatus = getAppointmentStatus(appointment);
@@ -181,16 +182,6 @@ const AppointmentCard = ({
     setEditingPhone(appointment.lead_phone_number || '');
     setEditingLocation(appointment.calendar_name || '');
   }, [appointment.date_of_appointment, appointment.requested_time, dobDisplay, appointment.lead_name, appointment.lead_email, appointment.lead_phone_number, appointment.calendar_name]);
-
-  // Fetch status options on component mount
-  useEffect(() => {
-    const fetchStatusOptions = async () => {
-      const statuses = await getStatusOptions();
-      setStatusOptions(statuses);
-    };
-    
-    fetchStatusOptions();
-  }, []);
 
   const handleViewDetails = async () => {
     try {

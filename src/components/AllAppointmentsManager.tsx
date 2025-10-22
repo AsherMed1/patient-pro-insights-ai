@@ -40,9 +40,20 @@ const AllAppointmentsManager = ({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
+
+  // Fetch status options once on mount
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      const { getStatusOptions } = await import('./appointments/utils');
+      const statuses = await getStatusOptions();
+      setStatusOptions(statuses);
+    };
+    fetchStatuses();
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -948,6 +959,7 @@ const AllAppointmentsManager = ({
               setCurrentPage(1);
             }}
             projectFilter={projectFilter}
+            statusOptions={statusOptions}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}
             onUpdateDate={updateAppointmentDate}

@@ -9,6 +9,7 @@ interface AppointmentsListProps {
   appointments: AllAppointment[];
   loading: boolean;
   projectFilter?: string;
+  statusOptions: string[];
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
@@ -26,6 +27,7 @@ const AppointmentsList = ({
   appointments,
   loading,
   projectFilter,
+  statusOptions,
   onUpdateStatus,
   onUpdateProcedure,
   onUpdateDate,
@@ -118,6 +120,7 @@ const AppointmentsList = ({
             key={appointment.id}
             appointment={appointment}
             projectFilter={projectFilter}
+            statusOptions={statusOptions}
             onUpdateStatus={onUpdateStatus}
             onUpdateProcedure={onUpdateProcedure}
             onUpdateDate={onUpdateDate}

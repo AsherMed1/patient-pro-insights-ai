@@ -14,6 +14,7 @@ interface AppointmentsTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   projectFilter?: string;
+  statusOptions: string[];
   onUpdateStatus: (appointmentId: string, status: string) => void;
   onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
@@ -40,6 +41,7 @@ const AppointmentsTabs = ({
   activeTab,
   onTabChange,
   projectFilter,
+  statusOptions,
   onUpdateStatus,
   onUpdateProcedure,
   onUpdateDate,
@@ -143,6 +145,7 @@ const AppointmentsTabs = ({
           appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
+          statusOptions={statusOptions}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
           onUpdateDate={onUpdateDate}
@@ -162,6 +165,7 @@ const AppointmentsTabs = ({
           appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
+          statusOptions={statusOptions}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
           onUpdateDate={onUpdateDate}
@@ -181,6 +185,7 @@ const AppointmentsTabs = ({
           appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
+          statusOptions={statusOptions}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
             onUpdateDate={onUpdateDate}
@@ -200,6 +205,7 @@ const AppointmentsTabs = ({
           appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
+          statusOptions={statusOptions}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
           onUpdateDate={onUpdateDate}
@@ -219,6 +225,7 @@ const AppointmentsTabs = ({
           appointments={displayedAppointments}
           loading={loading}
           projectFilter={projectFilter}
+          statusOptions={statusOptions}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
           onUpdateDate={onUpdateDate}
