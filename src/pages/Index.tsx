@@ -15,12 +15,15 @@ import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import CallTeamTab from "@/components/callteam/CallTeamTab";
-
 import UserManagement from "@/components/UserManagement";
+import TeamMessagesManager from "@/components/TeamMessagesManager";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user, signOut } = useAuth();
   const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
@@ -42,6 +45,35 @@ const Index = () => {
     await signOut();
     navigate('/auth');
   };
+
+  // Fetch unread message count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const { count } = await supabase
+        .from('project_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'inbound')
+        .is('read_at', null);
+      
+      setUnreadCount(count || 0);
+    };
+
+    fetchUnreadCount();
+    
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('unread-messages-count')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'project_messages',
+      }, fetchUnreadCount)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   if (roleLoading) {
     return (
@@ -192,7 +224,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-9' : 'grid-cols-5 lg:grid-cols-8'}`}>
+          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-10' : 'grid-cols-5 lg:grid-cols-9'}`}>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -201,6 +233,14 @@ const Index = () => {
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="messages">
+              Messages
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {unreadCount}
+                </Badge>
+              )}
+            </TabsTrigger>
             {hasManagementAccess() && (
               <TabsTrigger value="users">Users</TabsTrigger>
             )}
@@ -237,6 +277,10 @@ const Index = () => {
 
           <TabsContent value="projects" className="space-y-6">
             <ProjectsManager />
+          </TabsContent>
+
+          <TabsContent value="messages" className="space-y-6">
+            <TeamMessagesManager />
           </TabsContent>
 
           {hasManagementAccess() && (
