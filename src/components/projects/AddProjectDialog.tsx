@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 
 interface ProjectFormData {
   project_name: string;
+  appointment_webhook_url?: string;
 }
 
 interface AddProjectDialogProps {
@@ -57,6 +58,25 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
                     <Input placeholder="Enter project name" {...field} />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="appointment_webhook_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Appointment Status Webhook URL (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="https://hook.us1.make.com/..." 
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-sm text-muted-foreground">
+                    This webhook will be triggered when appointment statuses change for this project.
+                  </p>
                 </FormItem>
               )}
             />

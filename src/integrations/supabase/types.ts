@@ -552,7 +552,7 @@ export type Database = {
           description: string
           entity: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           metadata: Json | null
           session_id: string | null
           source: string
@@ -567,7 +567,7 @@ export type Database = {
           description: string
           entity: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           session_id?: string | null
           source?: string
@@ -582,7 +582,7 @@ export type Database = {
           description?: string
           entity?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           session_id?: string | null
           source?: string
@@ -1514,7 +1514,7 @@ export type Database = {
           created_at: string | null
           event_type: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           metadata: Json | null
           patient_identifier: string | null
           phi_accessed: boolean | null
@@ -1530,7 +1530,7 @@ export type Database = {
           created_at?: string | null
           event_type: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           patient_identifier?: string | null
           phi_accessed?: boolean | null
@@ -1546,7 +1546,7 @@ export type Database = {
           created_at?: string | null
           event_type?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           patient_identifier?: string | null
           phi_accessed?: boolean | null
@@ -1688,7 +1688,7 @@ export type Database = {
           data_elements: string[] | null
           duration_seconds: number | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           patient_identifier: string
           project_name: string
           purpose: string | null
@@ -1701,7 +1701,7 @@ export type Database = {
           data_elements?: string[] | null
           duration_seconds?: number | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           patient_identifier: string
           project_name: string
           purpose?: string | null
@@ -1714,7 +1714,7 @@ export type Database = {
           data_elements?: string[] | null
           duration_seconds?: number | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           patient_identifier?: string
           project_name?: string
           purpose?: string | null
@@ -2036,6 +2036,7 @@ export type Database = {
       projects: {
         Row: {
           active: boolean
+          appointment_webhook_url: string | null
           brand_primary_color: string | null
           brand_secondary_color: string | null
           created_at: string
@@ -2051,6 +2052,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          appointment_webhook_url?: string | null
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
           created_at?: string
@@ -2066,6 +2068,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          appointment_webhook_url?: string | null
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
           created_at?: string
@@ -2291,7 +2294,7 @@ export type Database = {
           details: Json | null
           event_type: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           session_id: string | null
           user_agent: string | null
           user_id: string | null
@@ -2301,7 +2304,7 @@ export type Database = {
           details?: Json | null
           event_type: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
@@ -2311,7 +2314,7 @@ export type Database = {
           details?: Json | null
           event_type?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
@@ -2701,7 +2704,7 @@ export type Database = {
           created_at: string | null
           expires_at: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           is_active: boolean | null
           last_activity: string | null
           session_token: string
@@ -2713,7 +2716,7 @@ export type Database = {
           created_at?: string | null
           expires_at: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           session_token: string
@@ -2725,7 +2728,7 @@ export type Database = {
           created_at?: string | null
           expires_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           session_token?: string
@@ -2741,7 +2744,7 @@ export type Database = {
     }
     Functions: {
       bulk_sync_patient_intake_notes: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           appointment_id: string
           lead_name: string
@@ -2775,14 +2778,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      cleanup_expired_sessions: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      cleanup_security_tables: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
+      cleanup_expired_sessions: { Args: never; Returns: number }
+      cleanup_security_tables: { Args: never; Returns: number }
       debug_password_verification: {
         Args: { password_param: string; project_name_param: string }
         Returns: {
@@ -2894,10 +2891,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      hash_password: {
-        Args: { password: string }
-        Returns: string
-      }
+      hash_password: { Args: { password: string }; Returns: string }
       log_audit_event: {
         Args: {
           p_action: string
@@ -2972,10 +2966,7 @@ export type Database = {
         }
         Returns: string
       }
-      refresh_performance_views: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      refresh_performance_views: { Args: never; Returns: undefined }
       sync_lead_data_to_appointments: {
         Args: { batch_size?: number }
         Returns: {
@@ -2987,7 +2978,7 @@ export type Database = {
         Returns: boolean
       }
       validate_security_policies: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           authenticated_access_count: number
           has_rls: boolean

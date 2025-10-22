@@ -51,6 +51,47 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Fetch project webhook configuration
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('appointment_webhook_url')
+      .eq('project_name', appointment.project_name)
+      .single();
+
+    if (projectError) {
+      console.error('Error fetching project:', projectError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch project configuration' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // If no webhook URL configured for this project, skip webhook
+    if (!project?.appointment_webhook_url) {
+      console.log('No webhook URL configured for project:', appointment.project_name);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No webhook configured for this project',
+          appointment_id: appointment_id 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const webhookUrl = project.appointment_webhook_url;
+
+    // Validate webhook URL format
+    try {
+      new URL(webhookUrl);
+    } catch (e) {
+      console.error('Invalid webhook URL:', webhookUrl);
+      return new Response(
+        JSON.stringify({ error: 'Invalid webhook URL configured for project' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Construct comprehensive webhook payload
     const webhookPayload = {
       event: 'appointment_status_changed',
@@ -95,10 +136,9 @@ const handler = async (req: Request): Promise<Response> => {
       }
     };
 
-    console.log('Sending webhook payload for appointment:', appointment_id);
+    console.log('Sending webhook payload for appointment:', appointment_id, 'to URL:', webhookUrl);
 
-    // Send to Make.com webhook
-    const webhookUrl = 'https://hook.us1.make.com/5wgvlnwwqjxwk68argfocfra5h94ug4s';
+    // Send to project-specific webhook URL
     const webhookResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: {

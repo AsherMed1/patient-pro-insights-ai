@@ -11,10 +11,12 @@ interface Project {
   project_name: string;
   created_at: string;
   updated_at: string;
+  appointment_webhook_url?: string | null;
 }
 
 interface ProjectFormData {
   project_name: string;
+  appointment_webhook_url?: string;
 }
 
 interface EditProjectDialogProps {
@@ -35,6 +37,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
   useEffect(() => {
     if (project) {
       form.setValue('project_name', project.project_name);
+      form.setValue('appointment_webhook_url', project.appointment_webhook_url || '');
     }
   }, [project, form]);
 
@@ -65,6 +68,26 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                     <Input placeholder="Enter project name" {...field} />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="appointment_webhook_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Appointment Status Webhook URL (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="https://hook.us1.make.com/..." 
+                      {...field} 
+                      value={field.value || ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-sm text-muted-foreground">
+                    This webhook will be triggered when appointment statuses change for this project.
+                  </p>
                 </FormItem>
               )}
             />

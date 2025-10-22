@@ -14,6 +14,7 @@ interface Project {
   created_at: string;
   updated_at: string;
   active: boolean;
+  appointment_webhook_url?: string | null;
 }
 
 interface ProjectStats {
@@ -26,6 +27,7 @@ interface ProjectStats {
 
 interface ProjectFormData {
   project_name: string;
+  appointment_webhook_url?: string;
 }
 
 const ProjectsManager = () => {
@@ -115,7 +117,8 @@ const ProjectsManager = () => {
       const { error } = await supabase
         .from('projects')
         .insert({
-          project_name: data.project_name
+          project_name: data.project_name,
+          appointment_webhook_url: data.appointment_webhook_url || null
         });
 
       if (error) throw error;
@@ -145,6 +148,7 @@ const ProjectsManager = () => {
         .from('projects')
         .update({
           project_name: data.project_name,
+          appointment_webhook_url: data.appointment_webhook_url || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingProject.id);
