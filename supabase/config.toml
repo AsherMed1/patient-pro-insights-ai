@@ -1,6 +1,9 @@
 
 project_id = "bhabbokbhnqioykjimix"
 
+[functions.appointment-status-webhook]
+verify_jwt = false
+
 [functions.new-lead-api]
 verify_jwt = false
 

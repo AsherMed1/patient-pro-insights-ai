@@ -461,6 +461,21 @@ const AllAppointmentsManager = ({
             note_text: systemNote,
             created_by: 'System'
           });
+        
+        // Trigger webhook for status change
+        try {
+          await supabase.functions.invoke('appointment-status-webhook', {
+            body: {
+              appointment_id: appointmentId,
+              old_status: oldStatus,
+              new_status: status
+            }
+          });
+          console.log('✅ Webhook triggered successfully');
+        } catch (webhookError) {
+          console.error('⚠️ Webhook failed (non-critical):', webhookError);
+          // Don't throw - webhook failure shouldn't block the status update
+        }
       }
 
       // Update local state
