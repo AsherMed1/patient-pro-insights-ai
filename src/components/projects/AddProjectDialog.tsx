@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form';
 interface ProjectFormData {
   project_name: string;
   appointment_webhook_url?: string;
+  ghl_location_id?: string;
 }
 
 interface AddProjectDialogProps {
@@ -76,6 +77,25 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
                   <FormMessage />
                   <p className="text-sm text-muted-foreground">
                     This webhook will be triggered when appointment statuses change for this project.
+                  </p>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="ghl_location_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>HighLevel Location ID (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="9qcQctq3qbKJfJgtB6xL" 
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-sm text-muted-foreground">
+                    The location ID from your HighLevel account. Used for deep linking to contact pages.
                   </p>
                 </FormItem>
               )}

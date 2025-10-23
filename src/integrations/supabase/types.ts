@@ -2158,6 +2158,7 @@ export type Database = {
           custom_insurance_list: Json | null
           custom_logo_url: string | null
           ghl_api_key: string | null
+          ghl_location_id: string | null
           id: string
           project_name: string
           selected_form_types: string[] | null
@@ -2174,6 +2175,7 @@ export type Database = {
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
           ghl_api_key?: string | null
+          ghl_location_id?: string | null
           id?: string
           project_name: string
           selected_form_types?: string[] | null
@@ -2190,6 +2192,7 @@ export type Database = {
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
           ghl_api_key?: string | null
+          ghl_location_id?: string | null
           id?: string
           project_name?: string
           selected_form_types?: string[] | null

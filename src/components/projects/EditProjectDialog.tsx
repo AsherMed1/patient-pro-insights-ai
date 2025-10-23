@@ -12,11 +12,13 @@ interface Project {
   created_at: string;
   updated_at: string;
   appointment_webhook_url?: string | null;
+  ghl_location_id?: string | null;
 }
 
 interface ProjectFormData {
   project_name: string;
   appointment_webhook_url?: string;
+  ghl_location_id?: string;
 }
 
 interface EditProjectDialogProps {
@@ -38,6 +40,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
     if (project) {
       form.setValue('project_name', project.project_name);
       form.setValue('appointment_webhook_url', project.appointment_webhook_url || '');
+      form.setValue('ghl_location_id', project.ghl_location_id || '');
     }
   }, [project, form]);
 
@@ -87,6 +90,26 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                   <FormMessage />
                   <p className="text-sm text-muted-foreground">
                     This webhook will be triggered when appointment statuses change for this project.
+                  </p>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="ghl_location_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>HighLevel Location ID (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="9qcQctq3qbKJfJgtB6xL" 
+                      {...field} 
+                      value={field.value || ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-sm text-muted-foreground">
+                    The location ID from your HighLevel account. Used for deep linking to contact pages.
                   </p>
                 </FormItem>
               )}

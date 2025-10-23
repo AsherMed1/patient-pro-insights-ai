@@ -38,20 +38,30 @@ const ReschedulesManager = () => {
   const [projectFilter, setProjectFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [projects, setProjects] = useState<string[]>([]);
+  const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
-  // Fetch available projects
+  // Fetch available projects and location IDs
   useEffect(() => {
     const fetchProjects = async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('project_name')
+        .select('project_name, ghl_location_id')
         .eq('active', true)
         .order('project_name');
       
       if (!error && data) {
         setProjects(data.map(p => p.project_name));
+        
+        // Create location ID lookup map
+        const map: Record<string, string> = {};
+        data.forEach(p => {
+          if (p.ghl_location_id) {
+            map[p.project_name] = p.ghl_location_id;
+          }
+        });
+        setProjectLocationMap(map);
       }
     };
     fetchProjects();
@@ -238,9 +248,9 @@ const ReschedulesManager = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">
-                      {reschedule.appointment?.ghl_id ? (
+                      {reschedule.appointment?.ghl_id && projectLocationMap[reschedule.project_name] ? (
                         <a
-                          href={`https://app.patientpromarketing.com/v2/location/9qcQctq3qbKJfJgtB6xL/contacts/detail/${reschedule.appointment.ghl_id}`}
+                          href={`https://app.patientpromarketing.com/v2/location/${projectLocationMap[reschedule.project_name]}/contacts/detail/${reschedule.appointment.ghl_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"

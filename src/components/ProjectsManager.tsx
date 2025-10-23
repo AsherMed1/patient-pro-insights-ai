@@ -15,6 +15,7 @@ interface Project {
   updated_at: string;
   active: boolean;
   appointment_webhook_url?: string | null;
+  ghl_location_id?: string | null;
 }
 
 interface ProjectStats {
@@ -28,6 +29,7 @@ interface ProjectStats {
 interface ProjectFormData {
   project_name: string;
   appointment_webhook_url?: string;
+  ghl_location_id?: string;
 }
 
 const ProjectsManager = () => {
@@ -118,7 +120,8 @@ const ProjectsManager = () => {
         .from('projects')
         .insert({
           project_name: data.project_name,
-          appointment_webhook_url: data.appointment_webhook_url || null
+          appointment_webhook_url: data.appointment_webhook_url || null,
+          ghl_location_id: data.ghl_location_id || null
         });
 
       if (error) throw error;
@@ -149,6 +152,7 @@ const ProjectsManager = () => {
         .update({
           project_name: data.project_name,
           appointment_webhook_url: data.appointment_webhook_url || null,
+          ghl_location_id: data.ghl_location_id || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingProject.id);
