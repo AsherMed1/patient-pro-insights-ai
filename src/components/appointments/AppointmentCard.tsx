@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,7 +20,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { DOBPicker } from "@/components/ui/dob-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format as formatDateFns } from "date-fns";
 interface AppointmentCardProps {
@@ -114,6 +117,13 @@ const AppointmentCard = ({
   const [editingPhone, setEditingPhone] = useState(appointment.lead_phone_number || '');
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState(appointment.calendar_name || '');
+  
+  // Reschedule dialog states
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
+  const [rescheduleTime, setRescheduleTime] = useState<string>('');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [submittingReschedule, setSubmittingReschedule] = useState(false);
   
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
@@ -351,6 +361,76 @@ const AppointmentCard = ({
       insurance_id_link: appointment.insurance_id_link,
       group_number: appointment.parsed_insurance_info?.group_number
     };
+  };
+
+  // Handle status change - intercept "Rescheduled" to show dialog
+  const handleStatusChange = (newStatus: string) => {
+    if (newStatus.toLowerCase() === 'rescheduled') {
+      setShowRescheduleDialog(true);
+    } else {
+      onUpdateStatus(appointment.id, newStatus);
+    }
+  };
+
+  // Handle reschedule submission
+  const handleRescheduleSubmit = async () => {
+    if (!rescheduleDate) {
+      toast({
+        title: "Error",
+        description: "Please select a new date",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSubmittingReschedule(true);
+    
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      
+      // Create reschedule record
+      const { error: rescheduleError } = await supabase
+        .from('appointment_reschedules')
+        .insert({
+          appointment_id: appointment.id,
+          original_date: appointment.date_of_appointment,
+          original_time: appointment.requested_time,
+          new_date: formatDateFns(rescheduleDate, 'yyyy-MM-dd'),
+          new_time: rescheduleTime || null,
+          notes: rescheduleNotes || null,
+          requested_by: userData?.user?.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          lead_phone: appointment.lead_phone_number,
+          lead_email: appointment.lead_email
+        });
+      
+      if (rescheduleError) throw rescheduleError;
+      
+      // Update appointment status to "Rescheduled"
+      await onUpdateStatus(appointment.id, 'Rescheduled');
+      
+      toast({
+        title: "Success",
+        description: "Reschedule request submitted successfully"
+      });
+      
+      // Reset and close dialog
+      setShowRescheduleDialog(false);
+      setRescheduleDate(undefined);
+      setRescheduleTime('');
+      setRescheduleNotes('');
+      
+    } catch (error) {
+      console.error('Error submitting reschedule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit reschedule request",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmittingReschedule(false);
+    }
   };
 
   return <>
@@ -813,7 +893,7 @@ const AppointmentCard = ({
             <label className="text-sm font-medium text-gray-700">Status</label>
             <Select 
               value={appointment.status || ''} 
-              onValueChange={(value) => onUpdateStatus(appointment.id, value)}
+              onValueChange={handleStatusChange}
             >
               <SelectTrigger className={getStatusTriggerClass()}>
                 <SelectValue placeholder="Select status" />
@@ -957,6 +1037,105 @@ const AppointmentCard = ({
         onClose={() => setShowDetailedView(false)}
         appointment={appointment}
       />
+
+      {/* Reschedule Dialog */}
+      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reschedule Appointment</DialogTitle>
+            <DialogDescription>
+              Select the new date and time for {appointment.lead_name}'s appointment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Current Appointment Info */}
+            {(appointment.date_of_appointment || appointment.requested_time) && (
+              <div className="bg-muted p-3 rounded-lg">
+                <p className="text-sm font-medium mb-1">Current Appointment:</p>
+                <p className="text-sm">
+                  {appointment.date_of_appointment && formatDate(appointment.date_of_appointment)}
+                  {appointment.date_of_appointment && appointment.requested_time && ' at '}
+                  {appointment.requested_time && formatTime(appointment.requested_time)}
+                </p>
+              </div>
+            )}
+            
+            {/* New Date Picker */}
+            <div>
+              <Label>New Appointment Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start mt-1">
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    {rescheduleDate ? formatDateFns(rescheduleDate, "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={rescheduleDate}
+                    onSelect={setRescheduleDate}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            {/* New Time Picker */}
+            <div>
+              <Label>New Appointment Time (Optional)</Label>
+              <Input
+                type="time"
+                value={rescheduleTime}
+                onChange={(e) => setRescheduleTime(e.target.value)}
+                className="w-full mt-1"
+              />
+            </div>
+            
+            {/* Notes */}
+            <div>
+              <Label>Notes (Optional)</Label>
+              <Textarea
+                value={rescheduleNotes}
+                onChange={(e) => setRescheduleNotes(e.target.value)}
+                placeholder="Add any additional notes about the reschedule..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowRescheduleDialog(false);
+                setRescheduleDate(undefined);
+                setRescheduleTime('');
+                setRescheduleNotes('');
+              }}
+              disabled={submittingReschedule}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRescheduleSubmit} 
+              disabled={!rescheduleDate || submittingReschedule}
+            >
+              {submittingReschedule ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Reschedule Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>;
 };
 

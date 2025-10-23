@@ -444,6 +444,77 @@ export type Database = {
           },
         ]
       }
+      appointment_reschedules: {
+        Row: {
+          appointment_id: string
+          created_at: string | null
+          id: string
+          lead_email: string | null
+          lead_name: string
+          lead_phone: string | null
+          new_date: string
+          new_time: string | null
+          notes: string | null
+          original_date: string | null
+          original_time: string | null
+          processed: boolean | null
+          processed_at: string | null
+          processed_by: string | null
+          project_name: string
+          requested_at: string | null
+          requested_by: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string | null
+          id?: string
+          lead_email?: string | null
+          lead_name: string
+          lead_phone?: string | null
+          new_date: string
+          new_time?: string | null
+          notes?: string | null
+          original_date?: string | null
+          original_time?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processed_by?: string | null
+          project_name: string
+          requested_at?: string | null
+          requested_by?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string | null
+          id?: string
+          lead_email?: string | null
+          lead_name?: string
+          lead_phone?: string | null
+          new_date?: string
+          new_time?: string | null
+          notes?: string | null
+          original_date?: string | null
+          original_time?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processed_by?: string | null
+          project_name?: string
+          requested_at?: string | null
+          requested_by?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_reschedules_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_tags: {
         Row: {
           appointment_id: string
@@ -2635,6 +2706,9 @@ export type Database = {
       }
       tasks: {
         Row: {
+          account_name: string | null
+          additional_info: string | null
+          asset_code: string | null
           attachments: Json | null
           blocked_by: string[] | null
           category: string
@@ -2644,6 +2718,7 @@ export type Database = {
           contact_person: string | null
           created_at: string
           created_by: string | null
+          date_updated: string | null
           deadline: string
           deal_value: number | null
           department: string
@@ -2656,12 +2731,18 @@ export type Database = {
           pipeline_stage: string | null
           priority: string
           progress: number
+          remarks: string | null
           resources: Json | null
+          service_name: string | null
           status: string
           title: string
+          update_type: string | null
           updated_at: string
         }
         Insert: {
+          account_name?: string | null
+          additional_info?: string | null
+          asset_code?: string | null
           attachments?: Json | null
           blocked_by?: string[] | null
           category: string
@@ -2671,6 +2752,7 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           created_by?: string | null
+          date_updated?: string | null
           deadline: string
           deal_value?: number | null
           department: string
@@ -2683,12 +2765,18 @@ export type Database = {
           pipeline_stage?: string | null
           priority?: string
           progress?: number
+          remarks?: string | null
           resources?: Json | null
+          service_name?: string | null
           status?: string
           title: string
+          update_type?: string | null
           updated_at?: string
         }
         Update: {
+          account_name?: string | null
+          additional_info?: string | null
+          asset_code?: string | null
           attachments?: Json | null
           blocked_by?: string[] | null
           category?: string
@@ -2698,6 +2786,7 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           created_by?: string | null
+          date_updated?: string | null
           deadline?: string
           deal_value?: number | null
           department?: string
@@ -2710,9 +2799,12 @@ export type Database = {
           pipeline_stage?: string | null
           priority?: string
           progress?: number
+          remarks?: string | null
           resources?: Json | null
+          service_name?: string | null
           status?: string
           title?: string
+          update_type?: string | null
           updated_at?: string
         }
         Relationships: []

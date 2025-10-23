@@ -17,6 +17,7 @@ import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import CallTeamTab from "@/components/callteam/CallTeamTab";
 import UserManagement from "@/components/UserManagement";
 import TeamMessagesManager from "@/components/TeamMessagesManager";
+import ReschedulesManager from "@/components/ReschedulesManager";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingReschedulesCount, setPendingReschedulesCount] = useState(0);
   const { user, signOut } = useAuth();
   const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
@@ -68,6 +70,34 @@ const Index = () => {
         schema: 'public',
         table: 'project_messages',
       }, fetchUnreadCount)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Fetch pending reschedules count
+  useEffect(() => {
+    const fetchPendingReschedulesCount = async () => {
+      const { count } = await supabase
+        .from('appointment_reschedules')
+        .select('*', { count: 'exact', head: true })
+        .eq('processed', false);
+      
+      setPendingReschedulesCount(count || 0);
+    };
+
+    fetchPendingReschedulesCount();
+    
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('pending-reschedules-count')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointment_reschedules',
+      }, fetchPendingReschedulesCount)
       .subscribe();
 
     return () => {
@@ -224,7 +254,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-10' : 'grid-cols-5 lg:grid-cols-9'}`}>
+          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-11' : 'grid-cols-5 lg:grid-cols-10'}`}>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
@@ -238,6 +268,14 @@ const Index = () => {
               {unreadCount > 0 && (
                 <Badge variant="destructive" className="ml-2">
                   {unreadCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="reschedules">
+              Reschedules
+              {pendingReschedulesCount > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {pendingReschedulesCount}
                 </Badge>
               )}
             </TabsTrigger>
@@ -281,6 +319,10 @@ const Index = () => {
 
           <TabsContent value="messages" className="space-y-6">
             <TeamMessagesManager />
+          </TabsContent>
+
+          <TabsContent value="reschedules" className="space-y-6">
+            <ReschedulesManager />
           </TabsContent>
 
           {hasManagementAccess() && (
