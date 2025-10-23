@@ -26,6 +26,9 @@ interface RescheduleRecord {
   lead_name: string;
   lead_phone: string | null;
   lead_email: string | null;
+  appointment?: {
+    ghl_id: string | null;
+  };
 }
 
 const ReschedulesManager = () => {
@@ -58,10 +61,13 @@ const ReschedulesManager = () => {
   const fetchReschedules = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('appointment_reschedules')
-        .select('*')
-        .order('requested_at', { ascending: false });
+    let query = supabase
+      .from('appointment_reschedules')
+      .select(`
+        *,
+        appointment:all_appointments!inner(ghl_id)
+      `)
+      .order('requested_at', { ascending: false });
 
       // Filter by processed status
       if (!showProcessed) {
@@ -228,12 +234,25 @@ const ReschedulesManager = () => {
                 key={reschedule.id}
                 className={reschedule.processed ? 'bg-green-50 border-green-200' : 'bg-white'}
               >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{reschedule.lead_name}</CardTitle>
-                      <CardDescription>{reschedule.project_name}</CardDescription>
-                    </div>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">
+                      {reschedule.appointment?.ghl_id ? (
+                        <a
+                          href={`https://app.patientpromarketing.com/v2/location/9qcQctq3qbKJfJgtB6xL/contacts/detail/${reschedule.appointment.ghl_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                        >
+                          {reschedule.lead_name}
+                        </a>
+                      ) : (
+                        <span>{reschedule.lead_name}</span>
+                      )}
+                    </CardTitle>
+                    <CardDescription>{reschedule.project_name}</CardDescription>
+                  </div>
                     {reschedule.processed ? (
                       <Badge variant="default" className="bg-green-600">
                         <Check className="h-3 w-3 mr-1" />
