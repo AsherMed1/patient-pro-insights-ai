@@ -75,9 +75,11 @@ const ReschedulesManager = () => {
       .from('appointment_reschedules')
       .select(`
         *,
-        appointment:all_appointments!inner(ghl_id)
+        appointment:all_appointments(ghl_id)
       `)
       .order('requested_at', { ascending: false });
+    
+    console.log('Project Location Map:', projectLocationMap);
 
       // Filter by processed status
       if (!showProcessed) {
@@ -97,6 +99,8 @@ const ReschedulesManager = () => {
       const { data, error } = await query;
 
       if (error) throw error;
+      console.log('Fetched reschedules:', data);
+      console.log('Sample reschedule:', data?.[0]);
       setReschedules(data || []);
     } catch (error) {
       console.error('Error fetching reschedules:', error);
