@@ -48,7 +48,6 @@ const ReschedulesManager = () => {
       const { data, error } = await supabase
         .from('projects')
         .select('project_name, ghl_location_id')
-        .eq('active', true)
         .order('project_name');
       
       if (!error && data) {
