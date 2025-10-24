@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar as CalendarIcon, Clock, Phone, Mail, Check, ExternalLink, Loader2, CheckCircle2, XCircle, AlertCircle, Clock as ClockIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Phone, Mail, Check, ExternalLink, Loader2, CheckCircle2, XCircle, AlertCircle, Clock as ClockIcon, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatTime } from '@/components/appointments/utils';
@@ -44,6 +44,7 @@ const ReschedulesManager = () => {
   const [projects, setProjects] = useState<string[]>([]);
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Fetch available projects and location IDs
@@ -244,6 +245,101 @@ const ReschedulesManager = () => {
     }
   };
 
+  // Retry GHL sync only (without reprocessing)
+  const handleRetryGhlSync = async (rescheduleId: string) => {
+    setRetryingIds(prev => new Set(prev).add(rescheduleId));
+    
+    try {
+      const reschedule = reschedules.find(r => r.id === rescheduleId);
+      if (!reschedule) throw new Error('Reschedule not found');
+
+      // Must have GHL appointment ID and time data
+      if (!reschedule.appointment?.ghl_appointment_id || !reschedule.new_date || !reschedule.new_time) {
+        toast({
+          title: 'Cannot Retry',
+          description: 'Missing required GHL appointment ID or time data',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Fetch project data for timezone and location ID
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('timezone, ghl_location_id, ghl_api_key')
+        .eq('project_name', reschedule.project_name)
+        .single();
+
+      if (!projectData?.ghl_location_id) {
+        toast({
+          title: 'Cannot Retry',
+          description: 'Missing GHL location ID for this project',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Attempt GHL sync
+      const { data: ghlResponse, error: ghlError } = await supabase.functions.invoke(
+        'update-ghl-appointment',
+        {
+          body: {
+            ghl_appointment_id: reschedule.appointment.ghl_appointment_id,
+            ghl_location_id: projectData.ghl_location_id,
+            new_date: reschedule.new_date,
+            new_time: reschedule.new_time,
+            timezone: projectData.timezone || 'America/Chicago',
+            ghl_api_key: projectData.ghl_api_key,
+          },
+        }
+      );
+
+      if (ghlError) throw ghlError;
+
+      // Update sync status on success
+      await supabase
+        .from('appointment_reschedules')
+        .update({
+          ghl_sync_status: 'success',
+          ghl_synced_at: new Date().toISOString(),
+          ghl_sync_error: null,
+        })
+        .eq('id', rescheduleId);
+
+      toast({
+        title: 'Success',
+        description: 'Appointment successfully synced to GoHighLevel',
+      });
+      
+      fetchReschedules();
+    } catch (error: any) {
+      console.error('GHL retry error:', error);
+      
+      // Update with error
+      await supabase
+        .from('appointment_reschedules')
+        .update({
+          ghl_sync_status: 'failed',
+          ghl_sync_error: error.message || String(error),
+        })
+        .eq('id', rescheduleId);
+
+      toast({
+        title: 'Sync Failed',
+        description: error.message || 'Failed to sync with GoHighLevel',
+        variant: 'destructive',
+      });
+      
+      fetchReschedules();
+    } finally {
+      setRetryingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(rescheduleId);
+        return newSet;
+      });
+    }
+  };
+
   // Real-time subscription
   useEffect(() => {
     fetchReschedules();
@@ -432,24 +528,62 @@ const ReschedulesManager = () => {
                   {/* GHL Sync Status */}
                   {reschedule.ghl_sync_status && reschedule.ghl_sync_status !== 'pending' && (
                     <div className="mt-4">
-                      {reschedule.ghl_sync_status === 'success' && (
-                        <Badge variant="default" className="bg-green-600">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Synced to GHL
-                        </Badge>
-                      )}
-                      {reschedule.ghl_sync_status === 'failed' && (
-                        <Badge variant="destructive">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          GHL Sync Failed
-                        </Badge>
-                      )}
-                      {reschedule.ghl_sync_status === 'skipped' && (
-                        <Badge variant="secondary">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Not Synced
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {reschedule.ghl_sync_status === 'success' && (
+                          <Badge variant="default" className="bg-green-600">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Synced to GHL
+                          </Badge>
+                        )}
+                        {reschedule.ghl_sync_status === 'failed' && (
+                          <>
+                            <Badge variant="destructive">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              GHL Sync Failed
+                            </Badge>
+                            {reschedule.appointment?.ghl_appointment_id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRetryGhlSync(reschedule.id)}
+                                disabled={retryingIds.has(reschedule.id)}
+                                className="h-7"
+                              >
+                                {retryingIds.has(reschedule.id) ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3" />
+                                )}
+                                <span className="ml-1">Retry</span>
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        {reschedule.ghl_sync_status === 'skipped' && (
+                          <>
+                            <Badge variant="secondary">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Not Synced
+                            </Badge>
+                            {reschedule.appointment?.ghl_appointment_id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRetryGhlSync(reschedule.id)}
+                                disabled={retryingIds.has(reschedule.id)}
+                                className="h-7"
+                              >
+                                {retryingIds.has(reschedule.id) ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3" />
+                                )}
+                                <span className="ml-1">Retry</span>
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                       {reschedule.ghl_sync_error && (
                         <p className="text-xs text-muted-foreground mt-1">{reschedule.ghl_sync_error}</p>
                       )}
