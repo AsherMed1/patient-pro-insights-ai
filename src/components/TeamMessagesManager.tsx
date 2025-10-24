@@ -1,28 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from '@/hooks/use-toast';
-import { Send, MessageSquare, ExternalLink, Loader2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-
-interface Message {
-  id: string;
-  project_name: string;
-  message: string;
-  direction: 'inbound' | 'outbound';
-  sender_name?: string;
-  sender_phone?: string;
-  created_at: string;
-  read_at?: string;
-}
+import { MessageSquare, ExternalLink, Loader2, Search, Filter } from 'lucide-react';
+import { formatDistanceToNow, format } from 'date-fns';
+import { ModernMessageBubble } from './chat/ModernMessageBubble';
+import { MessageInput } from './chat/MessageInput';
+import { DateSeparator } from './chat/DateSeparator';
+import { EmptyState } from './chat/EmptyState';
+import type { Message, Patient } from './chat/types';
 
 interface Project {
   project_name: string;
@@ -35,19 +29,19 @@ interface GroupedMessages {
 export default function TeamMessagesManager() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [filterProject, setFilterProject] = useState<string>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [sendingMap, setSendingMap] = useState<Map<string, boolean>>(new Map());
-  const [replyTexts, setReplyTexts] = useState<Map<string, string>>(new Map());
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchProjects();
     fetchMessages();
     subscribeToRealtimeUpdates();
-  }, [selectedProject, showUnreadOnly, searchTerm]);
+  }, [filterProject, showUnreadOnly, searchTerm]);
 
   const fetchProjects = async () => {
     const { data, error } = await supabase
@@ -70,11 +64,11 @@ export default function TeamMessagesManager() {
     let query = supabase
       .from('project_messages')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
+      .order('created_at', { ascending: true })
+      .limit(200);
 
-    if (selectedProject !== 'all') {
-      query = query.eq('project_name', selectedProject);
+    if (filterProject !== 'all') {
+      query = query.eq('project_name', filterProject);
     }
 
     if (showUnreadOnly) {
@@ -98,7 +92,7 @@ export default function TeamMessagesManager() {
       return;
     }
 
-    setMessages((data as Message[]) || []);
+    setMessages((data as any[]) || []);
     setLoading(false);
   };
 
@@ -114,7 +108,7 @@ export default function TeamMessagesManager() {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setMessages((prev) => [payload.new as Message, ...prev]);
+            setMessages((prev) => [...prev, payload.new as Message]);
             
             if ((payload.new as Message).direction === 'inbound') {
               toast({
@@ -138,26 +132,29 @@ export default function TeamMessagesManager() {
     };
   };
 
-  const handleReply = async (projectName: string) => {
-    const message = replyTexts.get(projectName)?.trim();
-    
-    if (!message) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a message',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleSendMessage = async (message: string, patientReference?: Patient) => {
+    if (!selectedProject || !message.trim() || sending) return;
 
-    setSendingMap(new Map(sendingMap.set(projectName, true)));
-
+    setSending(true);
     try {
+      const payload: any = {
+        project_name: selectedProject,
+        message: message,
+        sender_type: 'team',
+        sender_name: 'Team Member',
+      };
+
+      if (patientReference) {
+        payload.patient_reference = {
+          patient_id: patientReference.id,
+          patient_name: patientReference.lead_name,
+          phone: patientReference.phone_number,
+          appointment_id: patientReference.appointment_id,
+        };
+      }
+
       const { error } = await supabase.functions.invoke('send-team-message', {
-        body: {
-          project_name: projectName,
-          message: message,
-        },
+        body: payload,
       });
 
       if (error) throw error;
@@ -166,8 +163,6 @@ export default function TeamMessagesManager() {
         title: 'Success',
         description: 'Message sent successfully',
       });
-
-      setReplyTexts(new Map(replyTexts.set(projectName, '')));
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -176,7 +171,7 @@ export default function TeamMessagesManager() {
         variant: 'destructive',
       });
     } finally {
-      setSendingMap(new Map(sendingMap.set(projectName, false)));
+      setSending(false);
     }
   };
 
@@ -212,47 +207,75 @@ export default function TeamMessagesManager() {
     ).length;
   };
 
-  const toggleProject = (projectName: string) => {
-    const newExpanded = new Set(expandedProjects);
-    if (newExpanded.has(projectName)) {
-      newExpanded.delete(projectName);
-    } else {
-      newExpanded.add(projectName);
-    }
-    setExpandedProjects(newExpanded);
+  const getProjectInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getLatestMessage = (projectName: string): Message | undefined => {
+    const projectMessages = messages.filter(m => m.project_name === projectName);
+    return projectMessages[projectMessages.length - 1];
   };
 
   const groupedMessages = groupMessagesByProject();
   const projectNames = Object.keys(groupedMessages).sort((a, b) => {
-    const aLatest = groupedMessages[a][0]?.created_at || '';
-    const bLatest = groupedMessages[b][0]?.created_at || '';
+    const aLatest = getLatestMessage(a)?.created_at || '';
+    const bLatest = getLatestMessage(b)?.created_at || '';
     return bLatest.localeCompare(aLatest);
   });
 
+  // Group selected project messages by date
+  const selectedProjectMessages = selectedProject ? groupedMessages[selectedProject] || [] : [];
+  const groupedByDate = selectedProjectMessages.reduce((groups, message) => {
+    const date = format(new Date(message.created_at), 'yyyy-MM-dd');
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(message);
+    return groups;
+  }, {} as Record<string, Message[]>);
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+    <div className="h-[calc(100vh-200px)] flex gap-4">
+      {/* Left Sidebar - Conversations List */}
+      <Card className="w-80 flex flex-col">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="flex items-center gap-2 mb-3">
             <MessageSquare className="h-5 w-5" />
             Team Messages
           </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project.project_name} value={project.project_name}>
-                    {project.project_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={filterProject} onValueChange={setFilterProject}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.project_name} value={project.project_name}>
+                      {project.project_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -260,147 +283,138 @@ export default function TeamMessagesManager() {
                 checked={showUnreadOnly}
                 onCheckedChange={(checked) => setShowUnreadOnly(checked as boolean)}
               />
-              <Label htmlFor="unread-only" className="cursor-pointer">
-                Unread Only
+              <Label htmlFor="unread-only" className="text-sm cursor-pointer">
+                Unread only
               </Label>
             </div>
-
-            <div className="md:col-span-2">
-              <Input
-                placeholder="Search messages..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
           </div>
-        </CardContent>
+        </CardHeader>
+
+        <ScrollArea className="flex-1">
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : projectNames.length === 0 ? (
+            <div className="text-center text-muted-foreground py-12 px-4">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm">No messages found</p>
+            </div>
+          ) : (
+            <div className="p-2 space-y-1">
+              {projectNames.map((projectName) => {
+                const unreadCount = getUnreadCount(projectName);
+                const latestMessage = getLatestMessage(projectName);
+                const isSelected = selectedProject === projectName;
+
+                return (
+                  <button
+                    key={projectName}
+                    onClick={() => setSelectedProject(projectName)}
+                    className={`w-full p-3 rounded-lg text-left transition-colors hover:bg-muted/50 ${
+                      isSelected ? 'bg-muted' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-10 w-10 flex-shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                          {getProjectInitials(projectName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-sm truncate">
+                            {projectName}
+                          </span>
+                          {unreadCount > 0 && (
+                            <Badge variant="default" className="ml-2 h-5 px-1.5 text-xs">
+                              {unreadCount}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {latestMessage && (
+                          <>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {latestMessage.message}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatDistanceToNow(new Date(latestMessage.created_at), {
+                                addSuffix: true
+                              })}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
       </Card>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : projectNames.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">
-              <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No messages found</p>
-            </div>
+      {/* Center - Message View */}
+      <Card className="flex-1 flex flex-col">
+        {!selectedProject ? (
+          <CardContent className="flex-1 flex items-center justify-center">
+            <EmptyState
+              title="Select a conversation"
+              description="Choose a project from the list to view and send messages"
+            />
           </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {projectNames.map((projectName) => {
-            const projectMessages = groupedMessages[projectName];
-            const unreadCount = getUnreadCount(projectName);
-            const isExpanded = expandedProjects.has(projectName);
-            const displayMessages = isExpanded ? projectMessages : projectMessages.slice(0, 5);
+        ) : (
+          <>
+            <CardHeader className="border-b">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                      {getProjectInitials(selectedProject)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {selectedProject}
+                </CardTitle>
+                <Button variant="ghost" size="sm" asChild>
+                  <a href={`/project/${encodeURIComponent(selectedProject)}`}>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open Portal
+                  </a>
+                </Button>
+              </div>
+            </CardHeader>
 
-            return (
-              <Card key={projectName}>
-                <CardHeader className="cursor-pointer" onClick={() => toggleProject(projectName)}>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {projectName}
-                      {unreadCount > 0 && (
-                        <Badge variant="destructive">{unreadCount}</Badge>
-                      )}
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <a href={`/project/${encodeURIComponent(projectName)}`}>
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ScrollArea className="h-auto max-h-96">
-                    <div className="space-y-3">
-                      {displayMessages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={`p-3 rounded-lg ${
-                            msg.direction === 'inbound'
-                              ? 'bg-muted'
-                              : 'bg-primary/10'
-                          }`}
-                          onClick={() => msg.direction === 'inbound' && !msg.read_at && markAsRead(msg.id)}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={msg.direction === 'inbound' ? 'default' : 'secondary'}>
-                                {msg.direction === 'inbound' ? 'Inbound' : 'Outbound'}
-                              </Badge>
-                              {msg.direction === 'inbound' && !msg.read_at && (
-                                <Badge variant="destructive" className="text-xs">New</Badge>
-                              )}
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-                            </span>
-                          </div>
-                          {msg.sender_name && (
-                            <p className="text-sm font-medium mb-1">
-                              {msg.sender_name}
-                              {msg.sender_phone && ` (${msg.sender_phone})`}
-                            </p>
-                          )}
-                          <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                        </div>
+            <ScrollArea className="flex-1 px-6" ref={scrollRef}>
+              {selectedProjectMessages.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <div className="py-4">
+                  {Object.entries(groupedByDate).map(([date, msgs]) => (
+                    <div key={date}>
+                      <DateSeparator date={msgs[0].created_at} />
+                      {msgs.map((message) => (
+                        <ModernMessageBubble
+                          key={message.id}
+                          message={message}
+                          projectName={selectedProject}
+                        />
                       ))}
                     </div>
-                  </ScrollArea>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
 
-                  {projectMessages.length > 5 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleProject(projectName)}
-                      className="w-full"
-                    >
-                      {isExpanded ? 'Show Less' : `Show ${projectMessages.length - 5} More Messages`}
-                    </Button>
-                  )}
-
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Textarea
-                      placeholder="Type your reply..."
-                      value={replyTexts.get(projectName) || ''}
-                      onChange={(e) =>
-                        setReplyTexts(new Map(replyTexts.set(projectName, e.target.value)))
-                      }
-                      className="min-h-[60px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                          handleReply(projectName);
-                        }
-                      }}
-                    />
-                    <Button
-                      onClick={() => handleReply(projectName)}
-                      disabled={sendingMap.get(projectName) || !replyTexts.get(projectName)?.trim()}
-                      size="icon"
-                      className="shrink-0"
-                    >
-                      {sendingMap.get(projectName) ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              projectName={selectedProject}
+              sending={sending}
+            />
+          </>
+        )}
+      </Card>
     </div>
   );
 }

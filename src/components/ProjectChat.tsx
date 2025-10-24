@@ -1,26 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Send, Loader2, User, Headset } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-
-interface Message {
-  id: string;
-  project_name: string;
-  message: string;
-  direction: 'inbound' | 'outbound';
-  sender_type: string | null;
-  sender_name: string | null;
-  sender_email: string | null;
-  patient_reference: any;
-  metadata: any;
-  created_at: string;
-  read_at: string | null;
-}
+import { MessageSquare, Search, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { ModernMessageBubble } from './chat/ModernMessageBubble';
+import { MessageInput } from './chat/MessageInput';
+import { DateSeparator } from './chat/DateSeparator';
+import { EmptyState } from './chat/EmptyState';
+import type { Message, Patient } from './chat/types';
+import { format, isSameDay } from 'date-fns';
 
 interface ProjectChatProps {
   projectName: string;
@@ -28,10 +19,11 @@ interface ProjectChatProps {
 
 export default function ProjectChat({ projectName }: ProjectChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
 
   // Fetch message history
   const fetchMessages = async () => {
@@ -44,12 +36,12 @@ export default function ProjectChat({ projectName }: ProjectChatProps) {
 
       if (error) throw error;
 
-      setMessages((data || []) as Message[]);
+      setMessages((data || []) as any[]);
     } catch (error: any) {
       console.error('Error fetching messages:', error);
       toast.error('Failed to load messages');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -68,8 +60,6 @@ export default function ProjectChat({ projectName }: ProjectChatProps) {
           filter: `project_name=eq.${projectName}`
         },
         (payload) => {
-          console.log('Realtime message update:', payload);
-          
           if (payload.eventType === 'INSERT') {
             setMessages((prev) => [...prev, payload.new as Message]);
           } else if (payload.eventType === 'UPDATE') {
@@ -95,167 +85,143 @@ export default function ProjectChat({ projectName }: ProjectChatProps) {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const scrollElement = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollElement) {
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      }
     }
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newMessage.trim() || sending) return;
+  const handleSendMessage = async (message: string, patientReference?: Patient) => {
+    if (!message.trim() || isSending) return;
 
-    setSending(true);
-
+    setIsSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-team-message', {
-        body: {
-          message: newMessage.trim(),
-          project_name: projectName,
-          sender_info: {
-            source: 'project_portal_chat',
-            timestamp: new Date().toISOString()
-          }
-        }
+      const payload: any = {
+        project_name: projectName,
+        message: message,
+        sender_type: 'user',
+        sender_name: user?.email,
+        sender_email: user?.email,
+      };
+
+      if (patientReference) {
+        payload.patient_reference = {
+          patient_id: patientReference.id,
+          patient_name: patientReference.lead_name,
+          phone: patientReference.phone_number,
+          appointment_id: patientReference.appointment_id,
+        };
+      }
+
+      const { data, error } = await supabase.functions.invoke('send-team-message', {
+        body: payload,
       });
 
       if (error) throw error;
 
-      setNewMessage('');
       toast.success('Message sent successfully');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error sending message:', error);
-      toast.error(error.message || 'Failed to send message');
+      toast.error('Failed to send message');
     } finally {
-      setSending(false);
+      setIsSending(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage(e);
+  // Group messages by date
+  const groupedMessages = messages.reduce((groups, message) => {
+    const date = format(new Date(message.created_at), 'yyyy-MM-dd');
+    if (!groups[date]) {
+      groups[date] = [];
     }
-  };
+    groups[date].push(message);
+    return groups;
+  }, {} as Record<string, Message[]>);
 
-  if (loading) {
+  // Filter messages by search term
+  const filteredGroupedMessages = Object.entries(groupedMessages).reduce((result, [date, msgs]) => {
+    const filtered = msgs.filter(msg => 
+      msg.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      msg.sender_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      msg.patient_reference?.patient_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (filtered.length > 0) {
+      result[date] = filtered;
+    }
+    return result;
+  }, {} as Record<string, Message[]>);
+
+  const hasMessages = Object.keys(filteredGroupedMessages).length > 0;
+
+  if (isLoading) {
     return (
-      <Card className="flex items-center justify-center h-[600px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <Card className="h-full flex flex-col">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Team Chat
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="flex flex-col h-[600px]">
-      {/* Chat Header */}
-      <div className="p-4 border-b">
-        <h3 className="font-semibold text-lg">Team Chat</h3>
-        <p className="text-sm text-muted-foreground">
-          Communicate with the appointment team
-        </p>
-      </div>
-
-      {/* Messages Area */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <Headset className="h-12 w-12 mb-4 opacity-50" />
-            <p>No messages yet</p>
-            <p className="text-sm">Send a message to start the conversation</p>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="border-b pb-4">
+        <div className="flex items-center justify-between mb-3">
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Team Chat
+          </CardTitle>
+          <div className="text-sm text-muted-foreground">
+            {projectName}
           </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${
-                  msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                <div
-                  className={`flex items-start gap-2 max-w-[80%] ${
-                    msg.direction === 'outbound' ? 'flex-row-reverse' : 'flex-row'
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      msg.direction === 'outbound'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground'
-                    }`}
-                  >
-                    {msg.direction === 'outbound' ? (
-                      <User className="h-4 w-4" />
-                    ) : (
-                      <Headset className="h-4 w-4" />
-                    )}
-                  </div>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search messages..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </CardHeader>
 
-                  {/* Message Bubble */}
-                  <div className="flex flex-col">
-                    <div
-                      className={`rounded-lg p-3 ${
-                        msg.direction === 'outbound'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary text-secondary-foreground'
-                      }`}
-                    >
-                      {msg.sender_name && (
-                        <p className="text-xs font-semibold mb-1 opacity-90">
-                          {msg.sender_name}
-                        </p>
-                      )}
-                      <p className="text-sm whitespace-pre-wrap break-words">
-                        {msg.message}
-                      </p>
-                      {msg.patient_reference?.name && (
-                        <p className="text-xs mt-2 opacity-75 border-t border-current pt-2">
-                          Patient: {msg.patient_reference.name}
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 px-1">
-                      {formatDistanceToNow(new Date(msg.created_at), {
-                        addSuffix: true
-                      })}
-                    </p>
-                  </div>
-                </div>
+      <ScrollArea className="flex-1 px-6" ref={scrollRef}>
+        {!hasMessages ? (
+          <EmptyState 
+            title={searchTerm ? 'No messages found' : 'No messages yet'}
+            description={searchTerm ? 'Try adjusting your search terms' : 'Start a conversation by sending a message below.'}
+          />
+        ) : (
+          <div className="py-4">
+            {Object.entries(filteredGroupedMessages).map(([date, msgs]) => (
+              <div key={date}>
+                <DateSeparator date={msgs[0].created_at} />
+                {msgs.map((message) => (
+                  <ModernMessageBubble
+                    key={message.id}
+                    message={message}
+                    projectName={projectName}
+                  />
+                ))}
               </div>
             ))}
           </div>
         )}
       </ScrollArea>
 
-      {/* Message Input */}
-      <form onSubmit={handleSendMessage} className="p-4 border-t">
-        <div className="flex gap-2">
-          <Textarea
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
-            className="min-h-[60px] max-h-[120px] resize-none"
-            disabled={sending}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!newMessage.trim() || sending}
-            className="flex-shrink-0"
-          >
-            {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Messages are sent to the appointment team and stored in the chat history
-        </p>
-      </form>
+      <MessageInput
+        onSendMessage={handleSendMessage}
+        projectName={projectName}
+        sending={isSending}
+      />
     </Card>
   );
 }
