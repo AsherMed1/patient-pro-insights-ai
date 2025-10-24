@@ -115,7 +115,7 @@ serve(async (req) => {
     }
 
     const existingAppointment = await getResponse.json();
-    const assignedUserId = existingAppointment.assignedUserId;
+    const assignedUserId = existingAppointment.appointment?.assignedUserId;
 
     if (!assignedUserId) {
       console.error('No assignedUserId found in existing appointment:', existingAppointment);
