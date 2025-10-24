@@ -165,6 +165,18 @@ const ReschedulesManager = () => {
               })
               .eq('id', rescheduleId);
 
+            // Also update the actual appointment record with new date/time
+            if (reschedule.appointment_id) {
+              await supabase
+                .from('all_appointments')
+                .update({
+                  date_of_appointment: reschedule.new_date,
+                  requested_time: reschedule.new_time,
+                  status: 'Rescheduled',
+                })
+                .eq('id', reschedule.appointment_id);
+            }
+
             toast({
               title: 'Success',
               description: 'Appointment updated in GoHighLevel and marked as processed',
@@ -305,6 +317,18 @@ const ReschedulesManager = () => {
           ghl_sync_error: null,
         })
         .eq('id', rescheduleId);
+
+      // Also update the actual appointment record with new date/time
+      if (reschedule.appointment_id) {
+        await supabase
+          .from('all_appointments')
+          .update({
+            date_of_appointment: reschedule.new_date,
+            requested_time: reschedule.new_time,
+            status: 'Rescheduled',
+          })
+          .eq('id', reschedule.appointment_id);
+      }
 
       toast({
         title: 'Success',
