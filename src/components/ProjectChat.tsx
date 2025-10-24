@@ -148,17 +148,20 @@ export default function ProjectChat({ projectName }: ProjectChatProps) {
       const payload: any = {
         project_name: projectName,
         message: message,
-        sender_type: 'user',
-        sender_name: user?.email,
-        sender_email: user?.email,
+        sender_info: {
+          name: user?.email || 'Project User',
+          email: user?.email,
+          source: 'project_portal',
+          timestamp: new Date().toISOString(),
+        },
       };
 
       if (patientReference) {
         payload.patient_reference = {
-          patient_id: patientReference.id,
-          patient_name: patientReference.lead_name,
+          name: patientReference.lead_name,
           phone: patientReference.phone_number,
-          appointment_id: patientReference.appointment_id,
+          contact_id: patientReference.id,
+          email: patientReference.email,
         };
       }
 

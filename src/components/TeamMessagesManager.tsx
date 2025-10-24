@@ -140,16 +140,19 @@ export default function TeamMessagesManager() {
       const payload: any = {
         project_name: selectedProject,
         message: message,
-        sender_type: 'team',
-        sender_name: 'Team Member',
+        sender_info: {
+          name: 'Team Member',
+          source: 'dashboard',
+          timestamp: new Date().toISOString(),
+        },
       };
 
       if (patientReference) {
         payload.patient_reference = {
-          patient_id: patientReference.id,
-          patient_name: patientReference.lead_name,
+          name: patientReference.lead_name,
           phone: patientReference.phone_number,
-          appointment_id: patientReference.appointment_id,
+          contact_id: patientReference.id,
+          email: patientReference.email,
         };
       }
 
