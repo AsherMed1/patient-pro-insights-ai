@@ -1,16 +1,19 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProjectFormData {
   project_name: string;
   appointment_webhook_url?: string;
   ghl_location_id?: string;
+  timezone?: string;
 }
 
 interface AddProjectDialogProps {
@@ -25,6 +28,46 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
   onSubmit
 }) => {
   const form = useForm<ProjectFormData>();
+  const [syncingTimezone, setSyncingTimezone] = useState(false);
+  const { toast } = useToast();
+
+  const handleSyncTimezone = async () => {
+    const ghlLocationId = form.getValues('ghl_location_id');
+    if (!ghlLocationId) {
+      toast({
+        title: 'Location ID Required',
+        description: 'Please enter a HighLevel Location ID first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSyncingTimezone(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-ghl-location-timezone', {
+        body: { ghl_location_id: ghlLocationId },
+      });
+
+      if (error) throw error;
+
+      if (data?.timezone) {
+        form.setValue('timezone', data.timezone);
+        toast({
+          title: 'Timezone Synced',
+          description: `Location timezone: ${data.timezone}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing timezone:', error);
+      toast({
+        title: 'Sync Failed',
+        description: 'Failed to fetch timezone from GoHighLevel',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingTimezone(false);
+    }
+  };
 
   const handleSubmit = async (data: ProjectFormData) => {
     await onSubmit(data);
@@ -96,6 +139,40 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
                   <FormMessage />
                   <p className="text-sm text-muted-foreground">
                     The location ID from your HighLevel account. Used for deep linking to contact pages.
+                  </p>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="timezone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Timezone</FormLabel>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <Input 
+                        placeholder="America/Chicago" 
+                        {...field} 
+                        readOnly
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSyncTimezone}
+                      disabled={syncingTimezone || !form.watch('ghl_location_id')}
+                    >
+                      {syncingTimezone ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                  <p className="text-sm text-muted-foreground">
+                    Sync timezone from GoHighLevel location for accurate scheduling
                   </p>
                 </FormItem>
               )}

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar as CalendarIcon, Clock, Phone, Mail, Check, ExternalLink, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Phone, Mail, Check, ExternalLink, Loader2, CheckCircle2, XCircle, AlertCircle, Clock as ClockIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatTime } from '@/components/appointments/utils';
@@ -26,9 +26,13 @@ interface RescheduleRecord {
   lead_name: string;
   lead_phone: string | null;
   lead_email: string | null;
+  ghl_sync_status?: string | null;
+  ghl_sync_error?: string | null;
+  ghl_synced_at?: string | null;
   appointment?: {
     ghl_id: string | null;
-  };
+    ghl_appointment_id: string | null;
+  } | null;
 }
 
 const ReschedulesManager = () => {
@@ -74,7 +78,7 @@ const ReschedulesManager = () => {
       .from('appointment_reschedules')
       .select(`
         *,
-        appointment:all_appointments(ghl_id)
+        appointment:all_appointments(ghl_id, ghl_appointment_id)
       `)
       .order('requested_at', { ascending: false });
     
@@ -120,6 +124,89 @@ const ReschedulesManager = () => {
     try {
       const { data: userData } = await supabase.auth.getUser();
 
+      // Find the reschedule record
+      const reschedule = reschedules.find(r => r.id === rescheduleId);
+      if (!reschedule) throw new Error('Reschedule not found');
+
+      // Try to sync with GHL if we have the required data
+      if (reschedule.appointment?.ghl_appointment_id && reschedule.new_date && reschedule.new_time) {
+        // Fetch project data for timezone and location ID
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('timezone, ghl_location_id')
+          .eq('project_name', reschedule.project_name)
+          .single();
+
+        if (projectData?.ghl_location_id) {
+          try {
+            const { data: ghlResponse, error: ghlError } = await supabase.functions.invoke(
+              'update-ghl-appointment',
+              {
+                body: {
+                  ghl_appointment_id: reschedule.appointment.ghl_appointment_id,
+                  ghl_location_id: projectData.ghl_location_id,
+                  new_date: reschedule.new_date,
+                  new_time: reschedule.new_time,
+                  timezone: projectData.timezone || 'America/Chicago',
+                },
+              }
+            );
+
+            if (ghlError) throw ghlError;
+
+            // Update sync status on success
+            await supabase
+              .from('appointment_reschedules')
+              .update({
+                ghl_sync_status: 'success',
+                ghl_synced_at: new Date().toISOString(),
+              })
+              .eq('id', rescheduleId);
+
+            toast({
+              title: 'Success',
+              description: 'Appointment updated in GoHighLevel and marked as processed',
+            });
+          } catch (ghlError: any) {
+            console.error('GHL sync error:', ghlError);
+            
+            // Log error but still mark as processed
+            await supabase
+              .from('appointment_reschedules')
+              .update({
+                ghl_sync_status: 'failed',
+                ghl_sync_error: ghlError.message || String(ghlError),
+              })
+              .eq('id', rescheduleId);
+
+            toast({
+              title: 'Partial Success',
+              description: 'Marked as processed, but GoHighLevel update failed. See status below.',
+              variant: 'destructive',
+            });
+          }
+        } else {
+          // No location ID - mark as skipped
+          await supabase
+            .from('appointment_reschedules')
+            .update({
+              ghl_sync_status: 'skipped',
+              ghl_sync_error: 'Missing GHL location ID',
+            })
+            .eq('id', rescheduleId);
+        }
+      } else {
+        // No GHL appointment ID or time - mark as skipped
+        await supabase
+          .from('appointment_reschedules')
+          .update({
+            ghl_sync_status: 'skipped',
+            ghl_sync_error: 'Missing GHL appointment ID or appointment time',
+          })
+          .eq('id', rescheduleId);
+      }
+
+      // Always mark as processed regardless of GHL sync status
       const { error } = await supabase
         .from('appointment_reschedules')
         .update({
@@ -131,10 +218,13 @@ const ReschedulesManager = () => {
 
       if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: 'Reschedule marked as processed',
-      });
+      // Show success if we haven't shown a toast yet
+      if (!reschedule.appointment?.ghl_appointment_id) {
+        toast({
+          title: 'Success',
+          description: 'Reschedule marked as processed',
+        });
+      }
       
       fetchReschedules();
     } catch (error) {
@@ -337,6 +427,33 @@ const ReschedulesManager = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* GHL Sync Status */}
+                  {reschedule.ghl_sync_status && reschedule.ghl_sync_status !== 'pending' && (
+                    <div className="mt-4">
+                      {reschedule.ghl_sync_status === 'success' && (
+                        <Badge variant="default" className="bg-green-600">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Synced to GHL
+                        </Badge>
+                      )}
+                      {reschedule.ghl_sync_status === 'failed' && (
+                        <Badge variant="destructive">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          GHL Sync Failed
+                        </Badge>
+                      )}
+                      {reschedule.ghl_sync_status === 'skipped' && (
+                        <Badge variant="secondary">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Not Synced
+                        </Badge>
+                      )}
+                      {reschedule.ghl_sync_error && (
+                        <p className="text-xs text-muted-foreground mt-1">{reschedule.ghl_sync_error}</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Notes */}
                   {reschedule.notes && (

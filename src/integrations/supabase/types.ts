@@ -448,6 +448,9 @@ export type Database = {
         Row: {
           appointment_id: string
           created_at: string | null
+          ghl_sync_error: string | null
+          ghl_sync_status: string | null
+          ghl_synced_at: string | null
           id: string
           lead_email: string | null
           lead_name: string
@@ -468,6 +471,9 @@ export type Database = {
         Insert: {
           appointment_id: string
           created_at?: string | null
+          ghl_sync_error?: string | null
+          ghl_sync_status?: string | null
+          ghl_synced_at?: string | null
           id?: string
           lead_email?: string | null
           lead_name: string
@@ -488,6 +494,9 @@ export type Database = {
         Update: {
           appointment_id?: string
           created_at?: string | null
+          ghl_sync_error?: string | null
+          ghl_sync_status?: string | null
+          ghl_synced_at?: string | null
           id?: string
           lead_email?: string | null
           lead_name?: string
@@ -2162,6 +2171,7 @@ export type Database = {
           id: string
           project_name: string
           selected_form_types: string[] | null
+          timezone: string | null
           updated_at: string
         }
         Insert: {
@@ -2179,6 +2189,7 @@ export type Database = {
           id?: string
           project_name: string
           selected_form_types?: string[] | null
+          timezone?: string | null
           updated_at?: string
         }
         Update: {
@@ -2196,6 +2207,7 @@ export type Database = {
           id?: string
           project_name?: string
           selected_form_types?: string[] | null
+          timezone?: string | null
           updated_at?: string
         }
         Relationships: []
