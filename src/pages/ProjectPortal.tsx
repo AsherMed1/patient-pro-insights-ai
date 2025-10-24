@@ -13,7 +13,6 @@ import AllAppointmentsManager from '@/components/AllAppointmentsManager';
 import { ProjectDetailedDashboard } from '@/components/projects/ProjectDetailedDashboard';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
-import TeamMessageBubble from '@/components/TeamMessageBubble';
 import DateRangeFilter from '@/components/projects/DateRangeFilter';
 import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 import ProjectChat from '@/components/ProjectChat';
@@ -244,10 +243,9 @@ const ProjectPortal = () => {
 
         {/* Tabbed Interface */}
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            <TabsTrigger value="chat">Chat</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -269,14 +267,10 @@ const ProjectPortal = () => {
               <AllAppointmentsManager projectFilter={project.project_name} onDataChanged={fetchAppointmentStats} />
             </div>
           </TabsContent>
-
-          <TabsContent value="chat">
-            <ProjectChat projectName={project.project_name} />
-          </TabsContent>
         </Tabs>
 
-        {/* Keep floating message bubble for quick access */}
-        <TeamMessageBubble projectName={project.project_name} />
+        {/* Floating chat widget for quick access */}
+        <ProjectChat projectName={project.project_name} />
       </div>
     </div>
   );
