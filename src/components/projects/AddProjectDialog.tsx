@@ -14,6 +14,7 @@ interface ProjectFormData {
   appointment_webhook_url?: string;
   ghl_location_id?: string;
   timezone?: string;
+  ghl_api_key?: string;
 }
 
 interface AddProjectDialogProps {
@@ -44,9 +45,12 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
 
     setSyncingTimezone(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sync-ghl-location-timezone', {
-        body: { ghl_location_id: ghlLocationId },
-      });
+    const { data, error } = await supabase.functions.invoke('sync-ghl-location-timezone', {
+      body: { 
+        ghl_location_id: ghlLocationId,
+        ghl_api_key: form.getValues('ghl_api_key')
+      },
+    });
 
       if (error) throw error;
 
@@ -177,6 +181,27 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="ghl_api_key"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>GoHighLevel API Key</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="password" 
+                      placeholder="Enter GHL API key for this location" 
+                      {...field} 
+                    />
+                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    API key for this location. Required for automatic appointment updates and timezone sync.
+                  </p>
+                </FormItem>
+              )}
+            />
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel

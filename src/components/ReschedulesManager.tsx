@@ -133,7 +133,7 @@ const ReschedulesManager = () => {
         // Fetch project data for timezone and location ID
         const { data: projectData } = await supabase
           .from('projects')
-          .select('timezone, ghl_location_id')
+          .select('timezone, ghl_location_id, ghl_api_key')
           .eq('project_name', reschedule.project_name)
           .single();
 
@@ -148,6 +148,7 @@ const ReschedulesManager = () => {
                   new_date: reschedule.new_date,
                   new_time: reschedule.new_time,
                   timezone: projectData.timezone || 'America/Chicago',
+                  ghl_api_key: projectData.ghl_api_key,
                 },
               }
             );

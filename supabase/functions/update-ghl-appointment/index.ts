@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone } = await req.json();
+    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone, ghl_api_key } = await req.json();
 
     // Validate required fields
     if (!ghl_appointment_id || !new_date || !new_time) {
@@ -24,9 +24,10 @@ serve(async (req) => {
       );
     }
 
-    const ghlApiKey = Deno.env.get('GHL_LOCATION_API_KEY');
-    if (!ghlApiKey) {
-      console.error('GHL_LOCATION_API_KEY not configured');
+    // Use project-specific API key if provided, otherwise fall back to global key
+    const apiKey = ghl_api_key || Deno.env.get('GHL_LOCATION_API_KEY');
+    if (!apiKey) {
+      console.error('No GHL API key available (neither project-specific nor global)');
       return new Response(
         JSON.stringify({ error: 'GHL API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -93,7 +94,7 @@ serve(async (req) => {
       {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${ghlApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Version': '2021-07-28',
           'Content-Type': 'application/json',
           'Accept': 'application/json',

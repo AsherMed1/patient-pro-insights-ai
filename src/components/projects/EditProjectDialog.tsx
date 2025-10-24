@@ -17,6 +17,7 @@ interface Project {
   appointment_webhook_url?: string | null;
   ghl_location_id?: string | null;
   timezone?: string | null;
+  ghl_api_key?: string | null;
 }
 
 interface ProjectFormData {
@@ -24,6 +25,7 @@ interface ProjectFormData {
   appointment_webhook_url?: string;
   ghl_location_id?: string;
   timezone?: string;
+  ghl_api_key?: string;
 }
 
 interface EditProjectDialogProps {
@@ -49,6 +51,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
       form.setValue('appointment_webhook_url', project.appointment_webhook_url || '');
       form.setValue('ghl_location_id', project.ghl_location_id || '');
       form.setValue('timezone', project.timezone || 'America/Chicago');
+      form.setValue('ghl_api_key', project.ghl_api_key || '');
     }
   }, [project, form]);
 
@@ -65,9 +68,12 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
 
     setSyncingTimezone(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sync-ghl-location-timezone', {
-        body: { ghl_location_id: ghlLocationId },
-      });
+    const { data, error } = await supabase.functions.invoke('sync-ghl-location-timezone', {
+      body: { 
+        ghl_location_id: ghlLocationId,
+        ghl_api_key: form.getValues('ghl_api_key')
+      },
+    });
 
       if (error) throw error;
 
@@ -195,6 +201,27 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="ghl_api_key"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>GoHighLevel API Key</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="password" 
+                      placeholder={project?.ghl_api_key ? "••••••••••••" : "Enter GHL API key"}
+                      {...field} 
+                    />
+                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    API key for this location. Leave blank to keep existing key. Required for automatic updates.
+                  </p>
+                </FormItem>
+              )}
+            />
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel

@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_location_id } = await req.json();
+    const { ghl_location_id, ghl_api_key } = await req.json();
 
     if (!ghl_location_id) {
       return new Response(
@@ -20,9 +20,10 @@ serve(async (req) => {
       );
     }
 
-    const ghlApiKey = Deno.env.get('GHL_LOCATION_API_KEY');
-    if (!ghlApiKey) {
-      console.error('GHL_LOCATION_API_KEY not configured');
+    // Use project-specific API key if provided, otherwise fall back to global key
+    const apiKey = ghl_api_key || Deno.env.get('GHL_LOCATION_API_KEY');
+    if (!apiKey) {
+      console.error('No GHL API key available (neither project-specific nor global)');
       return new Response(
         JSON.stringify({ error: 'GHL API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -36,7 +37,7 @@ serve(async (req) => {
       `https://services.leadconnectorhq.com/locations/${ghl_location_id}`,
       {
         headers: {
-          'Authorization': `Bearer ${ghlApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Version': '2021-07-28',
           'Accept': 'application/json',
         },
