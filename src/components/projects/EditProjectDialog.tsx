@@ -207,7 +207,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
               name="ghl_api_key"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>GoHighLevel API Key</FormLabel>
+                  <FormLabel>Location Token</FormLabel>
                   <FormControl>
                     <Input 
                       type="password" 
