@@ -38,7 +38,7 @@ serve(async (req) => {
       {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
-          'Version': '2021-07-28',
+          'Version': '2021-04-15',
           'Accept': 'application/json',
         },
       }

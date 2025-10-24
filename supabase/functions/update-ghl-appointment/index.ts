@@ -95,7 +95,7 @@ serve(async (req) => {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
-          'Version': '2021-07-28',
+          'Version': '2021-04-15',
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
