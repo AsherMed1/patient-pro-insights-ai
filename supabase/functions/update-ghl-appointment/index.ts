@@ -88,7 +88,49 @@ serve(async (req) => {
       timezone: tz
     });
 
-    // Call GoHighLevel API to update appointment
+    // First, fetch the existing appointment to get the assignedUserId
+    const getResponse = await fetch(
+      `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Version': '2021-04-15',
+          'Accept': 'application/json',
+        },
+      }
+    );
+
+    if (!getResponse.ok) {
+      const errorText = await getResponse.text();
+      console.error('Failed to fetch existing appointment:', getResponse.status, errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to fetch existing appointment from GoHighLevel',
+          details: errorText,
+          status: getResponse.status,
+        }),
+        { status: getResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const existingAppointment = await getResponse.json();
+    const assignedUserId = existingAppointment.assignedUserId;
+
+    if (!assignedUserId) {
+      console.error('No assignedUserId found in existing appointment:', existingAppointment);
+      return new Response(
+        JSON.stringify({ 
+          error: 'No assigned user found for this appointment',
+          details: 'The appointment must have an assigned team member to be rescheduled'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Found assignedUserId:', assignedUserId);
+
+    // Now update the appointment with the new times and the existing assignedUserId
     const ghlResponse = await fetch(
       `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
       {
@@ -103,6 +145,7 @@ serve(async (req) => {
           startTime,
           endTime,
           appointmentStatus: 'confirmed',
+          assignedUserId,
           toNotify: true,
           ignoreDateRange: true,
           ignoreFreeSlotValidation: true,
