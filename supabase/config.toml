@@ -1,32 +1,41 @@
 
 project_id = "bhabbokbhnqioykjimix"
 
+# ============================================================================
+# PUBLIC API FUNCTIONS (External Integration Endpoints)
+# These functions are called by external systems (GHL, webhooks, etc.)
+# verify_jwt = false is required for external access
+# SECURITY: These functions should implement their own authentication
+# (API keys, webhook signatures, etc.)
+# ============================================================================
+
 [functions.appointment-status-webhook]
 verify_jwt = false
+# Webhook from GoHighLevel - should verify webhook signature
 
 [functions.new-lead-api]
 verify_jwt = false
+# External API for lead creation - should require API key
 
 [functions.all-calls-api]
 verify_jwt = false
-
-[functions.speed-to-lead-calculator]
-verify_jwt = false
+# External API for call logging - should require API key
 
 [functions.all-appointments-api]
 verify_jwt = false
+# External API for appointment creation - should require API key
 
 [functions.update-appointment-status]
 verify_jwt = false
+# External API for appointment updates - should require API key
 
 [functions.update-lead-api]
 verify_jwt = false
+# External API for lead updates - should require API key
 
-[functions.debug-user-deletion]
+[functions.speed-to-lead-calculator]
 verify_jwt = false
-
-[functions.debug-password]
-verify_jwt = false
+# Analytics function - consider adding authentication
 
 [functions.format-intake-ai]
 verify_jwt = false
