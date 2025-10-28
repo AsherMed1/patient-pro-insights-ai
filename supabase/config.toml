@@ -60,3 +60,6 @@ verify_jwt = false
 
 [functions.backfill-insurance-cards]
 verify_jwt = false
+
+[functions.diagnose-ghl-api]
+verify_jwt = false
