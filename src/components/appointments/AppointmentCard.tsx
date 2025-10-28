@@ -156,8 +156,17 @@ const AppointmentCard = ({
       try {
         const associatedLead = await findAssociatedLead(appointment);
         setHasLeadInsurance(hasInsuranceInfoUtil(associatedLead));
-        console.log('Lead data check:', { 
-          leadRecord: associatedLead, 
+        console.log(`[${appointment.lead_name}] Lead Association Check:`, { 
+          appointmentId: appointment.id,
+          appointmentGhlId: appointment.ghl_id,
+          appointmentPhone: appointment.lead_phone_number,
+          appointmentEmail: appointment.lead_email,
+          leadRecord: associatedLead,
+          insurance_id_link: associatedLead?.insurance_id_link,
+          insurance_provider: associatedLead?.insurance_provider,
+          insurance_plan: associatedLead?.insurance_plan,
+          insurance_id: associatedLead?.insurance_id,
+          group_number: associatedLead?.group_number,
           hasInsurance: hasInsuranceInfoUtil(associatedLead),
           hasDOB: !!associatedLead?.dob,
           matchStrategy: associatedLead?.match_strategy 
@@ -285,6 +294,19 @@ const AppointmentCard = ({
       
       // If no appointment insurance, try to find associated lead
       const associatedLead = await findAssociatedLead(appointment);
+      
+      console.log(`[${appointment.lead_name}] View Insurance - Associated Lead Found:`, {
+        found: !!associatedLead,
+        leadId: associatedLead?.lead_id,
+        contact_id: associatedLead?.contact_id,
+        insurance_id_link: associatedLead?.insurance_id_link,
+        insurance_provider: associatedLead?.insurance_provider,
+        insurance_plan: associatedLead?.insurance_plan,
+        insurance_id: associatedLead?.insurance_id,
+        group_number: associatedLead?.group_number,
+        matchStrategy: associatedLead?.match_strategy,
+        hasInsuranceInfo: hasInsuranceInfoUtil(associatedLead)
+      });
 
       if (associatedLead) {
         // Convert LeadAssociation to NewLead format
@@ -307,6 +329,11 @@ const AppointmentCard = ({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
+        
+        console.log(`[${appointment.lead_name}] Setting insurance modal data:`, {
+          insurance_id_link: leadRecord.insurance_id_link,
+          hasAnyInsurance: !!(leadRecord.insurance_provider || leadRecord.insurance_plan || leadRecord.insurance_id || leadRecord.group_number || leadRecord.insurance_id_link)
+        });
         
         setLeadInsuranceData(leadRecord);
         setShowInsurance(true);
