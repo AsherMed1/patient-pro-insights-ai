@@ -169,12 +169,8 @@ const AllAppointmentsManager = ({
       // Sort by newest first on the "New" tab
       if (activeTab === 'new') {
         appointmentsQuery = appointmentsQuery.order('date_appointment_created', { ascending: false });
-      }
-      // For project-specific views, sort by appointment date (soonest first), then by created date
-      else if (activeProjectFilter) {
-        appointmentsQuery = appointmentsQuery.order('date_of_appointment', { ascending: true, nullsFirst: false })
-                                           .order('date_appointment_created', { ascending: false });
       } else {
+        // Apply user-selected sorting for ALL views (including project-specific)
         if (sortBy === 'name_asc' || sortBy === 'name_desc') {
           appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
         } else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
