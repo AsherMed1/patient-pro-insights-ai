@@ -77,7 +77,8 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
   const hasInsuranceInfo = lead.insurance_provider || 
                           lead.insurance_plan || 
                           lead.insurance_id || 
-                          lead.group_number;
+                          lead.group_number ||
+                          lead.insurance_id_link;
 
   const getPainSeverityColor = (scale?: number) => {
     if (!scale) return 'text-gray-500';
