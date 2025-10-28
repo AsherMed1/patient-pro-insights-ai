@@ -9,6 +9,7 @@ import AppointmentsCsvImport from './AppointmentsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
+import { statusOptions } from './appointments/utils';
 
 
 interface DateRange {
@@ -40,20 +41,10 @@ const AllAppointmentsManager = ({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
-  const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [statusOptionsList] = useState<string[]>(statusOptions.sort());
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
-
-  // Fetch status options once on mount
-  useEffect(() => {
-    const fetchStatuses = async () => {
-      const { getStatusOptions } = await import('./appointments/utils');
-      const statuses = await getStatusOptions();
-      setStatusOptions(statuses);
-    };
-    fetchStatuses();
-  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -959,7 +950,7 @@ const AllAppointmentsManager = ({
               setCurrentPage(1);
             }}
             projectFilter={projectFilter}
-            statusOptions={statusOptions}
+            statusOptions={statusOptionsList}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}
             onUpdateDate={updateAppointmentDate}
