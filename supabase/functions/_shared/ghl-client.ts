@@ -84,7 +84,7 @@ export function extractInsuranceCardUrl(contact: GHLContact): string | null {
   // First, try exact matches with known field keys
   for (const fieldKey of INSURANCE_CARD_FIELD_KEYS) {
     const field = contact.customFields.find(
-      f => f.key.toLowerCase() === fieldKey.toLowerCase()
+      f => f.key && f.key.toLowerCase() === fieldKey.toLowerCase()
     );
     
     if (field && field.field_value) {
@@ -101,6 +101,7 @@ export function extractInsuranceCardUrl(contact: GHLContact): string | null {
 
   // If no exact match, look for any field containing "insurance" and "card" with a URL value
   const insuranceField = contact.customFields.find(f => {
+    if (!f.key) return false;
     const key = f.key.toLowerCase();
     const hasInsurance = key.includes('insurance');
     const hasCard = key.includes('card') || key.includes('photo') || key.includes('image');
