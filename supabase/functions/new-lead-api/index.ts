@@ -249,7 +249,24 @@ serve(async (req) => {
       try {
         console.log('Fetching insurance card URL from GHL for contact:', leadData.contact_id);
         
-        const ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+        // Try to get project-specific GHL API key first
+        let ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+        
+        if (leadData.project_name) {
+          const { data: project } = await supabase
+            .from('projects')
+            .select('ghl_api_key')
+            .eq('project_name', leadData.project_name)
+            .single();
+          
+          if (project?.ghl_api_key) {
+            console.log('Using project-specific GHL API key for:', leadData.project_name);
+            ghlApiKey = project.ghl_api_key;
+          } else {
+            console.log('Using global GHL API key');
+          }
+        }
+        
         if (ghlApiKey) {
           const insuranceCardUrl = await fetchInsuranceCardUrl(leadData.contact_id, ghlApiKey);
           
