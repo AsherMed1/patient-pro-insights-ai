@@ -336,7 +336,8 @@ const AppointmentCard = ({
                                 appointment.detected_insurance_provider ||
                                 appointment.parsed_insurance_info?.plan ||
                                 appointment.parsed_insurance_info?.id ||
-                                appointment.parsed_insurance_info?.group_number;
+                                appointment.parsed_insurance_info?.group_number ||
+                                appointment.insurance_id_link;
     
     // Also check if we found lead insurance data
     return appointmentInsurance || hasLeadInsurance;

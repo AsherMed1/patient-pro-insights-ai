@@ -135,5 +135,6 @@ export function hasInsuranceInfo(lead: LeadAssociation | null): boolean {
   return !!(lead.insurance_provider || 
            lead.insurance_plan || 
            lead.insurance_id || 
-           lead.group_number);
+           lead.group_number ||
+           lead.insurance_id_link);
 }

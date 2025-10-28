@@ -88,12 +88,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                                 appointment.detected_insurance_provider ||
                                 appointment.parsed_insurance_info?.plan ||
                                 appointment.parsed_insurance_info?.id ||
-                                appointment.parsed_insurance_info?.group_number;
+                                appointment.parsed_insurance_info?.group_number ||
+                                appointment.insurance_id_link;
     
     const leadInsurance = leadDetails?.insurance_provider ||
                          leadDetails?.insurance_plan ||
                          leadDetails?.insurance_id ||
-                         leadDetails?.group_number;
+                         leadDetails?.group_number ||
+                         leadDetails?.insurance_id_link;
     
     return appointmentInsurance || leadInsurance;
   };
