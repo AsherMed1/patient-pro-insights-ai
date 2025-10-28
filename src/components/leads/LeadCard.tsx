@@ -28,6 +28,7 @@ interface NewLead {
   insurance_id?: string;
   insurance_plan?: string;
   group_number?: string;
+  insurance_id_link?: string;
   address?: string;
   notes?: string;
   card_image?: string;
@@ -249,6 +250,7 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
           insurance_provider: lead.insurance_provider,
           insurance_plan: lead.insurance_plan,
           insurance_id: lead.insurance_id,
+          insurance_id_link: lead.insurance_id_link,
           group_number: lead.group_number
         }}
         patientName={getDisplayName(lead)}
