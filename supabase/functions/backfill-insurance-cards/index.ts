@@ -20,27 +20,45 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+    const body = await req.json().catch(() => ({}));
+    const batchSize = body.batch_size || 50;
+    const projectFilter = body.projectName || body.project_name || null;
+
+    console.log(`Starting insurance card backfill (batch size: ${batchSize})`);
+    if (projectFilter) {
+      console.log(`Filtering by project: ${projectFilter}`);
+    }
+
+    // Determine which API key to use
+    let ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+    
+    // If filtering by project, try to get project-specific API key
+    if (projectFilter) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('ghl_api_key')
+        .eq('project_name', projectFilter)
+        .single();
+      
+      if (project?.ghl_api_key) {
+        console.log('Using project-specific GHL API key');
+        ghlApiKey = project.ghl_api_key;
+      } else {
+        console.log('Using global GHL API key');
+      }
+    }
+    
     if (!ghlApiKey) {
       return new Response(
         JSON.stringify({ 
           error: 'GHL API key not configured',
-          message: 'GOHIGHLEVEL_API_KEY environment variable is required'
+          message: 'No GHL API key found (neither project-specific nor global)'
         }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const batchSize = body.batch_size || 50;
-    const projectFilter = body.project_name || null;
-
-    console.log(`Starting insurance card backfill (batch size: ${batchSize})`);
-    if (projectFilter) {
-      console.log(`Filtering by project: ${projectFilter}`);
     }
 
     let totalProcessed = 0;
