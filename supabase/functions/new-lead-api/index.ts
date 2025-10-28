@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { fetchInsuranceCardUrl } from '../_shared/ghl-client.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -240,6 +241,40 @@ serve(async (req) => {
       } catch (formatError) {
         console.error('Error during auto-formatting:', formatError);
         // Don't fail the lead creation if formatting fails
+      }
+    }
+
+    // Fetch insurance card URL from GoHighLevel if we have a contact_id but no insurance_id_link
+    if (data && data[0] && leadData.contact_id && !leadData.insurance_id_link) {
+      try {
+        console.log('Fetching insurance card URL from GHL for contact:', leadData.contact_id);
+        
+        const ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+        if (ghlApiKey) {
+          const insuranceCardUrl = await fetchInsuranceCardUrl(leadData.contact_id, ghlApiKey);
+          
+          if (insuranceCardUrl) {
+            console.log('Found insurance card URL, updating lead:', data[0].id);
+            
+            const { error: updateError } = await supabase
+              .from('new_leads')
+              .update({ insurance_id_link: insuranceCardUrl })
+              .eq('id', data[0].id);
+            
+            if (updateError) {
+              console.error('Failed to update insurance card URL:', updateError);
+            } else {
+              console.log('Successfully updated insurance card URL');
+              // Update the response data
+              data[0].insurance_id_link = insuranceCardUrl;
+            }
+          }
+        } else {
+          console.log('GHL API key not configured, skipping insurance card fetch');
+        }
+      } catch (ghlError) {
+        console.error('Error fetching insurance card from GHL:', ghlError);
+        // Don't fail the lead creation if GHL fetch fails
       }
     }
 

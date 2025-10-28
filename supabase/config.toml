@@ -57,3 +57,6 @@ verify_jwt = false
 
 [functions.receive-team-message]
 verify_jwt = false
+
+[functions.backfill-insurance-cards]
+verify_jwt = false
