@@ -287,11 +287,11 @@ const Index = () => {
 
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />
-            <InsuranceQueueTrigger />
             <CallCenterDashboard projectId="ALL" />
           </TabsContent>
 
           <TabsContent value="appointments" className="space-y-6">
+            <InsuranceQueueTrigger />
             <AllAppointmentsManager />
           </TabsContent>
 
