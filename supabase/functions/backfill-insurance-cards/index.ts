@@ -23,49 +23,165 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const batchSize = body.batch_size || 50;
     const projectFilter = body.projectName || body.project_name || null;
+    const processQueue = body.process_queue !== false; // Default to true
 
     console.log(`Starting insurance card backfill (batch size: ${batchSize})`);
     if (projectFilter) {
       console.log(`Filtering by project: ${projectFilter}`);
     }
 
-    // Determine which API key to use
-    let ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
-    
-    // If filtering by project, try to get project-specific API key
-    if (projectFilter) {
-      const { data: project } = await supabase
-        .from('projects')
-        .select('ghl_api_key')
-        .eq('project_name', projectFilter)
-        .single();
-      
-      if (project?.ghl_api_key) {
-        console.log('Using project-specific GHL API key');
-        ghlApiKey = project.ghl_api_key;
-      } else {
-        console.log('Using global GHL API key');
-      }
-    }
-    
-    if (!ghlApiKey) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'GHL API key not configured',
-          message: 'No GHL API key found (neither project-specific nor global)'
-        }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
     let totalProcessed = 0;
     let totalUpdated = 0;
     let totalFailed = 0;
+    let queueProcessed = 0;
 
-    // Process appointments
+    // FIRST: Process the insurance_fetch_queue if enabled
+    if (processQueue) {
+      console.log('Processing insurance fetch queue...');
+      
+      let queueQuery = supabase
+        .from('insurance_fetch_queue')
+        .select('id, appointment_id, ghl_id, project_name, retry_count')
+        .eq('status', 'pending')
+        .lt('retry_count', 3)
+        .order('created_at', { ascending: true })
+        .limit(batchSize);
+
+      if (projectFilter) {
+        queueQuery = queueQuery.eq('project_name', projectFilter);
+      }
+
+      const { data: queueItems, error: queueError } = await queueQuery;
+
+      if (queueError) {
+        console.error('Error fetching queue items:', queueError);
+      } else if (queueItems && queueItems.length > 0) {
+        console.log(`Found ${queueItems.length} items in queue to process`);
+
+        for (const queueItem of queueItems) {
+          try {
+            // Get project-specific API key if available
+            let ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+            const { data: project } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', queueItem.project_name)
+              .single();
+            
+            if (project?.ghl_api_key) {
+              ghlApiKey = project.ghl_api_key;
+            }
+
+            if (!ghlApiKey) {
+              throw new Error('No GHL API key available');
+            }
+
+            console.log(`Processing queue item ${queueItem.id} for appointment ${queueItem.appointment_id}`);
+            
+            const insuranceCardUrl = await fetchInsuranceCardUrl(queueItem.ghl_id, ghlApiKey);
+            
+            if (insuranceCardUrl) {
+              // Update appointment with insurance card
+              const { error: updateError } = await supabase
+                .from('all_appointments')
+                .update({ insurance_id_link: insuranceCardUrl })
+                .eq('id', queueItem.appointment_id);
+              
+              if (updateError) {
+                throw new Error(`Failed to update appointment: ${updateError.message}`);
+              }
+
+              // Mark queue item as completed
+              await supabase
+                .from('insurance_fetch_queue')
+                .update({ 
+                  status: 'completed', 
+                  processed_at: new Date().toISOString() 
+                })
+                .eq('id', queueItem.id);
+
+              console.log(`✓ Queue item ${queueItem.id} completed successfully`);
+              queueProcessed++;
+              totalUpdated++;
+            } else {
+              // No insurance card found - mark as completed anyway
+              await supabase
+                .from('insurance_fetch_queue')
+                .update({ 
+                  status: 'completed', 
+                  processed_at: new Date().toISOString(),
+                  last_error: 'No insurance card found in GHL'
+                })
+                .eq('id', queueItem.id);
+
+              console.log(`Queue item ${queueItem.id} - no insurance card found`);
+            }
+
+            totalProcessed++;
+            
+            // Rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+          } catch (error) {
+            console.error(`Error processing queue item ${queueItem.id}:`, error);
+            
+            // Update queue item with error and increment retry count
+            await supabase
+              .from('insurance_fetch_queue')
+              .update({ 
+                status: queueItem.retry_count >= 2 ? 'failed' : 'pending',
+                retry_count: queueItem.retry_count + 1,
+                last_error: error.message
+              })
+              .eq('id', queueItem.id);
+
+            totalFailed++;
+          }
+        }
+
+        console.log(`Queue processing complete: ${queueProcessed} items processed`);
+      } else {
+        console.log('No items in queue to process');
+      }
+    }
+
+    // SECOND: Process appointments in batch mode (optional)
+    const processBatch = body.process_batch === true;
+    
+    if (processBatch) {
+      // Determine which API key to use
+      let ghlApiKey = Deno.env.get('GOHIGHLEVEL_API_KEY');
+      
+      // If filtering by project, try to get project-specific API key
+      if (projectFilter) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('ghl_api_key')
+          .eq('project_name', projectFilter)
+          .single();
+        
+        if (project?.ghl_api_key) {
+          console.log('Using project-specific GHL API key');
+          ghlApiKey = project.ghl_api_key;
+        } else {
+          console.log('Using global GHL API key');
+        }
+      }
+      
+      if (!ghlApiKey) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'GHL API key not configured',
+            message: 'No GHL API key found (neither project-specific nor global)'
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
+      // Process appointments
     console.log('Processing appointments...');
     let appointmentsQuery = supabase
       .from('all_appointments')
@@ -174,20 +290,22 @@ serve(async (req) => {
         }
       }
     }
+    } // End of processBatch
 
     console.log('Backfill completed');
-    console.log(`Processed: ${totalProcessed}, Updated: ${totalUpdated}, Failed: ${totalFailed}`);
+    console.log(`Queue processed: ${queueProcessed}, Total processed: ${totalProcessed}, Updated: ${totalUpdated}, Failed: ${totalFailed}`);
 
     return new Response(
       JSON.stringify({ 
         success: true,
         message: 'Insurance card backfill completed',
         stats: {
+          queue_processed: queueProcessed,
           total_processed: totalProcessed,
           total_updated: totalUpdated,
           total_failed: totalFailed,
-          appointments_found: appointments?.length || 0,
-          leads_found: leads?.length || 0
+          appointments_found: processBatch ? (appointments?.length || 0) : 0,
+          leads_found: processBatch ? (leads?.length || 0) : 0
         }
       }),
       { 

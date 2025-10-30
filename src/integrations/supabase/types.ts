@@ -1638,6 +1638,50 @@ export type Database = {
         }
         Relationships: []
       }
+      insurance_fetch_queue: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          ghl_id: string
+          id: string
+          last_error: string | null
+          processed_at: string | null
+          project_name: string
+          retry_count: number
+          status: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          ghl_id: string
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          project_name: string
+          retry_count?: number
+          status?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          ghl_id?: string
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          project_name?: string
+          retry_count?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurance_fetch_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_transcripts: {
         Row: {
           attendees: string[] | null
@@ -2733,6 +2777,7 @@ export type Database = {
           contact_person: string | null
           created_at: string
           created_by: string | null
+          date_optimized: string | null
           date_updated: string | null
           deadline: string
           deal_value: number | null
@@ -2767,6 +2812,7 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           created_by?: string | null
+          date_optimized?: string | null
           date_updated?: string | null
           deadline: string
           deal_value?: number | null
@@ -2801,6 +2847,7 @@ export type Database = {
           contact_person?: string | null
           created_at?: string
           created_by?: string | null
+          date_optimized?: string | null
           date_updated?: string | null
           deadline?: string
           deal_value?: number | null
@@ -3114,6 +3161,14 @@ export type Database = {
           user_id_param?: string
         }
         Returns: string
+      }
+      process_insurance_fetch_queue: {
+        Args: { batch_size?: number }
+        Returns: {
+          error_count: number
+          processed_count: number
+          success_count: number
+        }[]
       }
       refresh_performance_views: { Args: never; Returns: undefined }
       sync_lead_data_to_appointments: {
