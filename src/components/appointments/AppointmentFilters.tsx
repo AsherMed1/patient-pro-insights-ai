@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,6 +57,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
 }) => {
   const [projects, setProjects] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   useEffect(() => {
     fetchProjects();
     fetchStatusOptions();
@@ -233,92 +235,117 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             </div>
           </div>
           
-          {/* Quick Filters */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Quick Filters:</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setQuickDateRange('today')} className="quick-filter-btn">
-                <Clock className="h-3 w-3 mr-1" />
-                Today
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setQuickDateRange('week')} className="quick-filter-btn">
-                <CalendarRange className="h-3 w-3 mr-1" />
-                This Week
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setQuickDateRange('month')} className="quick-filter-btn">
-                <CalendarIcon className="h-3 w-3 mr-1" />
-                This Month
-              </Button>
-            </div>
-          </div>
+          {/* Advanced Filters - Collapsible */}
+          <div className="border-t border-border pt-4">
+            <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-between hover:bg-accent"
+                >
+                  <div className="flex items-center gap-2">
+                    <CalendarRange className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Advanced Date Filters</span>
+                  </div>
+                  <ChevronDown 
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                      advancedFiltersOpen && "rotate-180"
+                    )} 
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="space-y-4 pt-4">
+                {/* Quick Filters */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">Quick Filters:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setQuickDateRange('today')} className="quick-filter-btn">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Today
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setQuickDateRange('week')} className="quick-filter-btn">
+                      <CalendarRange className="h-3 w-3 mr-1" />
+                      This Week
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setQuickDateRange('month')} className="quick-filter-btn">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      This Month
+                    </Button>
+                  </div>
+                </div>
 
-          {/* Custom Date Range */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Custom Date Range:</span>
-            </div>
-            
-            <div className="flex flex-wrap gap-3 items-center">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dateRange.from} onSelect={date => onDateRangeChange({
-                  ...dateRange,
-                  from: date
-                })} initialFocus className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
+                {/* Custom Date Range */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">Custom Date Range:</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3 items-center">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={dateRange.from} onSelect={date => onDateRangeChange({
+                        ...dateRange,
+                        from: date
+                      })} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dateRange.to} onSelect={date => onDateRangeChange({
-                  ...dateRange,
-                  to: date
-                })} initialFocus className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={dateRange.to} onSelect={date => onDateRangeChange({
+                        ...dateRange,
+                        to: date
+                      })} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
 
-              <Button variant="outline" onClick={onClearFilters} className="text-sm">
-                Clear All
-              </Button>
-            </div>
+                    <Button variant="outline" onClick={onClearFilters} className="text-sm">
+                      Clear All
+                    </Button>
+                  </div>
 
-            {/* Current Filter Display */}
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Showing:</span>
-              <span className="font-medium">{getDateRangeText()}</span>
-              {!isProjectSpecificView && projectFilter !== 'ALL' && <>
-                  <span>•</span>
-                  <span>Project: "{projectFilter}"</span>
-                </>}
-              {statusFilter !== 'ALL' && <>
-                  <span>•</span>
-                  <span>Status: "{statusFilter}"</span>
-                </>}
-              {procedureOrderFilter !== 'ALL' && <>
-                  <span>•</span>
-                  <span>Procedure: "{procedureOrderFilter === 'true' ? 'Ordered' : procedureOrderFilter === 'false' ? 'No Procedure' : 'Not Set'}"</span>
-                </>}
-              {searchTerm && <>
-                  <span>•</span>
-                  <span>Search ({searchType === 'name' ? 'Name' : searchType === 'phone' ? 'Phone' : 'DOB'}): "{searchTerm}"</span>
-                </>}
-            </div>
+                  {/* Current Filter Display */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Showing:</span>
+                    <span className="font-medium">{getDateRangeText()}</span>
+                    {!isProjectSpecificView && projectFilter !== 'ALL' && <>
+                        <span>•</span>
+                        <span>Project: "{projectFilter}"</span>
+                      </>}
+                    {statusFilter !== 'ALL' && <>
+                        <span>•</span>
+                        <span>Status: "{statusFilter}"</span>
+                      </>}
+                    {procedureOrderFilter !== 'ALL' && <>
+                        <span>•</span>
+                        <span>Procedure: "{procedureOrderFilter === 'true' ? 'Ordered' : procedureOrderFilter === 'false' ? 'No Procedure' : 'Not Set'}"</span>
+                      </>}
+                    {searchTerm && <>
+                        <span>•</span>
+                        <span>Search ({searchType === 'name' ? 'Name' : searchType === 'phone' ? 'Phone' : 'DOB'}): "{searchTerm}"</span>
+                      </>}
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </div>
       </div>
