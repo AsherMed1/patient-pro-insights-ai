@@ -352,29 +352,31 @@ const UserManagement = () => {
     try {
       setLoading(true);
 
-      // Delete from project_user_access first (foreign key constraints)
-      await supabase
-        .from('project_user_access')
-        .delete()
-        .eq('user_id', deletingUser.id);
+      // Call edge function to delete user (requires service role permissions)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
-      // Delete from user_roles
-      await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', deletingUser.id);
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
 
-      // Delete from profiles
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', deletingUser.id);
+      const supabaseUrl = 'https://bhabbokbhnqioykjimix.supabase.co';
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/delete-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId: deletingUser.id }),
+        }
+      );
 
-      // Delete from auth.users using admin client
-      const { error: authError } = await supabase.auth.admin.deleteUser(deletingUser.id);
-      if (authError) {
-        console.error('Error deleting auth user:', authError);
-        // Continue anyway as the user might already be deleted from auth
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user');
       }
 
       toast({
