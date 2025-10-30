@@ -143,8 +143,8 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         
         <div className="space-y-6">
           {/* Search Bar and Project Filter */}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center space-x-3">
+          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto">
+            <div className="flex items-center space-x-2">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Select value={searchType} onValueChange={onSearchTypeChange}>
                 <SelectTrigger className="w-[120px]">
@@ -164,17 +164,17 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 } 
                 value={searchTerm} 
                 onChange={e => onSearchChange(e.target.value)} 
-                className="max-w-sm" 
+                className="w-[240px]" 
               />
             </div>
             
             
             {/* Project Filter - Only show if not in project-specific view */}
             {!isProjectSpecificView && (
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 <Select value={projectFilter} onValueChange={onProjectFilterChange}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="All Projects" />
                   </SelectTrigger>
                   <SelectContent>
@@ -187,10 +187,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               </div>
             )}
             
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
               <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
@@ -202,10 +202,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               </Select>
             </div>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Procedures" />
                 </SelectTrigger>
                 <SelectContent>
@@ -217,10 +217,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               </Select>
             </div>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
               <Select value={sortBy} onValueChange={onSortChange}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
