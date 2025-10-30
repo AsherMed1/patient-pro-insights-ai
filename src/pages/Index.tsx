@@ -18,6 +18,7 @@ import CallTeamTab from "@/components/callteam/CallTeamTab";
 import UserManagement from "@/components/UserManagement";
 import TeamMessagesManager from "@/components/TeamMessagesManager";
 import ReschedulesManager from "@/components/ReschedulesManager";
+import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -286,6 +287,7 @@ const Index = () => {
 
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />
+            <InsuranceQueueTrigger />
             <CallCenterDashboard projectId="ALL" />
           </TabsContent>
 
