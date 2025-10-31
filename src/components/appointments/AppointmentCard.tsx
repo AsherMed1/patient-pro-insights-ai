@@ -10,6 +10,7 @@ import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/useRole";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
@@ -89,6 +90,7 @@ const AppointmentCard = ({
   onUpdatePhone,
   onUpdateCalendarLocation
 }: AppointmentCardProps) => {
+  const { hasManagementAccess } = useRole();
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
@@ -846,51 +848,53 @@ const AppointmentCard = ({
                   No appointment date/time set
                 </span>
               )}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    aria-label="Edit appointment date and time"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="z-50 w-auto p-0 bg-background border shadow-md" align="start">
-                  <div className="flex flex-col gap-2">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => {
-                        setSelectedDate(date);
-                        onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                      }}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                    <div className="px-3 pb-3">
-                      <label className="text-sm font-medium mb-1 block">Time</label>
-                      <Input
-                        type="time"
-                        value={timeValue}
-                        onChange={(e) => setTimeValue(e.target.value)}
-                        onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            onUpdateTime(appointment.id, timeValue || null);
-                          }
-                          if (e.key === 'Escape') {
-                            setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
-                          }
+              {hasManagementAccess() && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label="Edit appointment date and time"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="z-50 w-auto p-0 bg-background border shadow-md" align="start">
+                    <div className="flex flex-col gap-2">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          setSelectedDate(date);
+                          onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
                         }}
-                        className="h-9"
-                        placeholder="Select time"
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
                       />
+                      <div className="px-3 pb-3">
+                        <label className="text-sm font-medium mb-1 block">Time</label>
+                        <Input
+                          type="time"
+                          value={timeValue}
+                          onChange={(e) => setTimeValue(e.target.value)}
+                          onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              onUpdateTime(appointment.id, timeValue || null);
+                            }
+                            if (e.key === 'Escape') {
+                              setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
+                            }
+                          }}
+                          className="h-9"
+                          placeholder="Select time"
+                        />
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
           </div>
