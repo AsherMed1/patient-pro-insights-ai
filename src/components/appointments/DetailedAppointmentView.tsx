@@ -169,9 +169,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
           }
           
           .print-content {
-            position: absolute;
-            left: 0;
-            top: 0;
+            position: static;
             width: 100%;
             max-width: 100%;
             padding: 20px;
