@@ -122,18 +122,18 @@ export const getAppointmentStatus = (appointment: AllAppointment) => {
   if (!isAppointmentInPast(appointment.date_of_appointment)) {
     return {
       text: 'New',
-      variant: 'outline' as const
+      variant: 'secondary' as const
     };
   }
   if (appointment.status?.toLowerCase() === 'showed') {
     return {
       text: 'Showed',
-      variant: 'default' as const
+      variant: 'showed' as const
     };
   } else {
     return {
       text: 'No Show',
-      variant: 'destructive' as const
+      variant: 'noshow' as const
     };
   }
 };
