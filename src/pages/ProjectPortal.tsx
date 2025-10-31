@@ -40,7 +40,7 @@ interface DateRange {
 const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
   const { user, signOut } = useAuth();
-  const { role, loading: roleLoading, hasProjectAccess, accessibleProjects } = useRole();
+  const { role, loading: roleLoading, hasProjectAccess, accessibleProjects, hasManagementAccess } = useRole();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AppointmentStats>({
@@ -252,14 +252,16 @@ const ProjectPortal = () => {
             {/* Enhanced Stats Cards with medical context */}
             <ProjectStatsCards stats={stats} />
 
-            {/* Detailed Analytics - Better positioned */}
-            <div className="text-center py-4">
-              <ProjectDetailedDashboard project={project} dateRange={dateRange}>
-                <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
-                  📊 View detailed analytics dashboard
-                </Button>
-              </ProjectDetailedDashboard>
-            </div>
+            {/* Detailed Analytics - Better positioned (admin/agent only) */}
+            {hasManagementAccess() && (
+              <div className="text-center py-4">
+                <ProjectDetailedDashboard project={project} dateRange={dateRange}>
+                  <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
+                    📊 View detailed analytics dashboard
+                  </Button>
+                </ProjectDetailedDashboard>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="appointments">
