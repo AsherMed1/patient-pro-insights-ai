@@ -178,10 +178,40 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
               <Heart className="h-4 w-4 text-amber-600" />
               <span className="font-medium text-sm text-amber-900">Medical Information</span>
             </div>
+            {formatValue(parsedPathologyInfo.primary_complaint) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Primary Complaint:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.primary_complaint}</span>
+              </div>
+            )}
             {formatValue(parsedPathologyInfo.symptoms) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Symptoms:</span>{' '}
                 <span className="font-medium">{parsedPathologyInfo.symptoms}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.affected_area) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Affected Area:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.affected_area}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.pain_level) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Pain Level:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.pain_level}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.duration) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Duration:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.duration}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.previous_treatments) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Previous Treatments:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
               </div>
             )}
             {formatValue(parsedPathologyInfo.diagnosis) && (
