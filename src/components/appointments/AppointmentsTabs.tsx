@@ -79,18 +79,6 @@ const AppointmentsTabs = ({
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
         <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1 gap-1' : 'grid-cols-5'} bg-muted/50 p-1 rounded-lg`}>
           <TabsTrigger 
-            value="all" 
-            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
-          >
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-purple-500" />
-              <span>All</span>
-              <Badge variant="secondary" className="ml-auto">
-                {displayCounts.all}
-              </Badge>
-            </div>
-          </TabsTrigger>
-          <TabsTrigger 
             value="new" 
             className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
@@ -135,6 +123,18 @@ const AppointmentsTabs = ({
               <span>Completed</span>
               <Badge variant="secondary" className="ml-auto">
                 {displayCounts.past}
+              </Badge>
+            </div>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="all" 
+            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-purple-500" />
+              <span>All</span>
+              <Badge variant="secondary" className="ml-auto">
+                {displayCounts.all}
               </Badge>
             </div>
           </TabsTrigger>
