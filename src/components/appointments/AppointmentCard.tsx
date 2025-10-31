@@ -834,7 +834,7 @@ const AppointmentCard = ({
             <div className="flex items-center space-x-2">
               <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
               {appointment.date_of_appointment || appointment.requested_time ? (
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 font-bold">
                   {appointment.date_of_appointment
                     ? (<>
                         Appointment: {formatDate(appointment.date_of_appointment)}

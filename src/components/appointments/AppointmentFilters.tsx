@@ -325,7 +325,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                   {/* Current Filter Display */}
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>Showing:</span>
-                    <span className="font-medium">{getDateRangeText()}</span>
+                    <span className="font-bold">{getDateRangeText()}</span>
                     {!isProjectSpecificView && projectFilter !== 'ALL' && <>
                         <span>•</span>
                         <span>Project: "{projectFilter}"</span>
