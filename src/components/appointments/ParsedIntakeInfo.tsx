@@ -101,12 +101,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                 <span className="font-medium">{parsedContactInfo.dob}</span>
               </div>
             )}
-            {formatValue(parsedContactInfo.phone) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Phone:</span>{' '}
-                <span className="font-medium">{parsedContactInfo.phone}</span>
-              </div>
-            )}
             {formatValue(parsedContactInfo.email) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Email:</span>{' '}
