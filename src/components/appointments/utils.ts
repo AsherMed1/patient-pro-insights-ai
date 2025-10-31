@@ -142,19 +142,25 @@ export const getStatusVariant = (status: string) => {
   switch (status?.toLowerCase()) {
     case 'showed':
     case 'won':
-      return 'default' as const;
+      return 'showed' as const;
     case 'no show':
+    case 'noshow':
+      return 'noshow' as const;
     case 'cancelled':
-      return 'destructive' as const;
+    case 'canceled':
+      return 'cancelled' as const;
     case 'confirmed':
-    case 'scheduled':
-    case 'welcome call':
-    case 'new':
-      return 'secondary' as const;
-    case 'pending':
+      return 'confirmed' as const;
     case 'rescheduled':
+      return 'rescheduled' as const;
     case 'oon':
-      return 'outline' as const;
+      return 'oon' as const;
+    case 'welcome call':
+      return 'welcomeCall' as const;
+    case 'scheduled':
+    case 'new':
+    case 'pending':
+      return 'secondary' as const;
     default:
       return 'outline' as const;
   }
