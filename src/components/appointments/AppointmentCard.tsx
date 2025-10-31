@@ -261,9 +261,13 @@ const AppointmentCard = ({
       const hasAppointmentInsurance = appointment.detected_insurance_provider || 
                                       appointment.detected_insurance_plan || 
                                       appointment.detected_insurance_id ||
+                                      appointment.parsed_insurance_info?.insurance_provider ||
                                       appointment.parsed_insurance_info?.provider ||
+                                      appointment.parsed_insurance_info?.insurance_plan ||
                                       appointment.parsed_insurance_info?.plan ||
+                                      appointment.parsed_insurance_info?.insurance_id_number ||
                                       appointment.parsed_insurance_info?.id ||
+                                      appointment.parsed_insurance_info?.insurance_group_number ||
                                       appointment.parsed_insurance_info?.group_number;
       
       if (hasAppointmentInsurance) {
@@ -275,11 +279,11 @@ const AppointmentCard = ({
           email: appointment.lead_email,
           lead_name: appointment.lead_name,
           project_name: appointment.project_name,
-          insurance_provider: appointment.detected_insurance_provider || appointment.parsed_insurance_info?.provider,
-          insurance_plan: appointment.detected_insurance_plan || appointment.parsed_insurance_info?.plan,
-          insurance_id: appointment.detected_insurance_id || appointment.parsed_insurance_info?.id,
+          insurance_provider: appointment.detected_insurance_provider || appointment.parsed_insurance_info?.insurance_provider || appointment.parsed_insurance_info?.provider,
+          insurance_plan: appointment.detected_insurance_plan || appointment.parsed_insurance_info?.insurance_plan || appointment.parsed_insurance_info?.plan,
+          insurance_id: appointment.detected_insurance_id || appointment.parsed_insurance_info?.insurance_id_number || appointment.parsed_insurance_info?.id,
           insurance_id_link: appointment.insurance_id_link,
-          group_number: appointment.parsed_insurance_info?.group_number,
+          group_number: appointment.parsed_insurance_info?.insurance_group_number || appointment.parsed_insurance_info?.group_number,
           patient_intake_notes: appointment.patient_intake_notes,
           // Default values for other required fields
           date: new Date().toISOString().split('T')[0],
@@ -361,12 +365,17 @@ const AppointmentCard = ({
   // Check if there's insurance info available (from appointment parsed data or lead data)
   const hasInsuranceInfo = () => {
     // Check appointment's parsed insurance info first
-    const appointmentInsurance = appointment.parsed_insurance_info?.provider || 
-                                appointment.detected_insurance_provider ||
-                                appointment.parsed_insurance_info?.plan ||
-                                appointment.parsed_insurance_info?.id ||
-                                appointment.parsed_insurance_info?.group_number ||
-                                appointment.insurance_id_link;
+    const appointmentInsurance = 
+      appointment.parsed_insurance_info?.insurance_provider ||
+      appointment.parsed_insurance_info?.provider || 
+      appointment.detected_insurance_provider ||
+      appointment.parsed_insurance_info?.insurance_plan ||
+      appointment.parsed_insurance_info?.plan ||
+      appointment.parsed_insurance_info?.insurance_id_number ||
+      appointment.parsed_insurance_info?.id ||
+      appointment.parsed_insurance_info?.insurance_group_number ||
+      appointment.parsed_insurance_info?.group_number ||
+      appointment.insurance_id_link;
     
     // Also check if we found lead insurance data
     return appointmentInsurance || hasLeadInsurance;
@@ -385,11 +394,11 @@ const AppointmentCard = ({
     
     // Fallback to appointment parsed data
     return {
-      insurance_provider: appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider,
-      insurance_plan: appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
-      insurance_id: appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
+      insurance_provider: appointment.parsed_insurance_info?.insurance_provider || appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider,
+      insurance_plan: appointment.parsed_insurance_info?.insurance_plan || appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
+      insurance_id: appointment.parsed_insurance_info?.insurance_id_number || appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
       insurance_id_link: appointment.insurance_id_link,
-      group_number: appointment.parsed_insurance_info?.group_number
+      group_number: appointment.parsed_insurance_info?.insurance_group_number || appointment.parsed_insurance_info?.group_number
     };
   };
 
@@ -1062,7 +1071,7 @@ const AppointmentCard = ({
           onClose={() => setShowInsurance(false)}
           insuranceInfo={getInsuranceData()}
           patientName={appointment.lead_name}
-          patientPhone={appointment.lead_phone_number}
+          patientDob={dobDisplay || undefined}
         />
       )}
       

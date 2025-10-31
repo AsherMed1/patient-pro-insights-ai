@@ -2,7 +2,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, FileText, User, Phone, ExternalLink } from 'lucide-react';
+import { Shield, FileText, User, Calendar, ExternalLink } from 'lucide-react';
 
 interface InsuranceInfo {
   insurance_provider?: string;
@@ -17,7 +17,7 @@ interface InsuranceViewModalProps {
   onClose: () => void;
   insuranceInfo: InsuranceInfo;
   patientName?: string;
-  patientPhone?: string;
+  patientDob?: string | null;
 }
 
 const InsuranceViewModal = ({ 
@@ -25,7 +25,7 @@ const InsuranceViewModal = ({
   onClose, 
   insuranceInfo, 
   patientName, 
-  patientPhone 
+  patientDob 
 }: InsuranceViewModalProps) => {
   const hasInsuranceInfo = insuranceInfo.insurance_provider || 
                           insuranceInfo.insurance_plan || 
@@ -44,7 +44,7 @@ const InsuranceViewModal = ({
         
         <div className="space-y-4">
           {/* Patient Info */}
-          {(patientName || patientPhone) && (
+          {(patientName || patientDob) && (
             <div className="bg-gray-50 p-3 rounded-lg">
               <div className="text-sm font-medium text-gray-700 mb-2">Patient Information</div>
               {patientName && (
@@ -53,10 +53,10 @@ const InsuranceViewModal = ({
                   <span>{patientName}</span>
                 </div>
               )}
-              {patientPhone && (
+              {patientDob && (
                 <div className="flex items-center space-x-2 text-sm mt-1">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <span>{patientPhone}</span>
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <span>{patientDob}</span>
                 </div>
               )}
             </div>

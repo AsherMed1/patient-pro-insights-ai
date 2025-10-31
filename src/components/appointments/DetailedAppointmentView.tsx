@@ -386,7 +386,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
         onClose={() => setShowInsuranceModal(false)}
         insuranceInfo={getInsuranceData()}
         patientName={appointment.lead_name}
-        patientPhone={appointment.lead_phone_number || leadDetails?.phone_number}
+        patientDob={appointment.dob || (appointment as any).parsed_contact_info?.dob || (appointment as any).parsed_demographics?.dob || undefined}
       />
     </>
   );

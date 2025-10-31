@@ -255,7 +255,7 @@ const LeadCard = ({ lead, onViewCalls, onViewFullDetails }: LeadCardProps) => {
           group_number: lead.group_number
         }}
         patientName={getDisplayName(lead)}
-        patientPhone={lead.phone_number}
+        patientDob={lead.dob}
       />
     </>
   );
