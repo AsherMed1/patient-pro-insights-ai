@@ -21,6 +21,20 @@ const AllAppointmentsManager = ({
   projectFilter,
   onDataChanged
 }: AllAppointmentsManagerProps) => {
+  // Check if it's a new day and clear filters if needed
+  const checkAndClearDailyFilters = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const lastClearDate = localStorage.getItem('lastFilterClearDate');
+    
+    if (lastClearDate !== today) {
+      // Clear all filter data
+      localStorage.removeItem('appointmentFilters');
+      localStorage.setItem('lastFilterClearDate', today);
+      return true; // Filters were cleared
+    }
+    return false; // Filters weren't cleared
+  };
+
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
@@ -44,6 +58,14 @@ const AllAppointmentsManager = ({
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
+
+  // Clear filters on mount if it's a new day
+  useEffect(() => {
+    const wasCleared = checkAndClearDailyFilters();
+    if (wasCleared) {
+      console.log('Filters cleared for new day');
+    }
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);

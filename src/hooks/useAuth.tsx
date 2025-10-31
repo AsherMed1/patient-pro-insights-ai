@@ -88,6 +88,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    // Clear all filter-related data from localStorage
+    const filterKeys = ['appointmentFilters', 'lastFilterClearDate', 'pinnedProjects'];
+    filterKeys.forEach(key => localStorage.removeItem(key));
+    
     await supabase.auth.signOut();
     toast({
       title: "Signed out",
