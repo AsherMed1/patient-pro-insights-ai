@@ -160,61 +160,47 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
     <>
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          
-          .print-content, .print-content * {
-            visibility: visible;
+          /* Hide everything except the dialog content we want to print */
+          body > *:not(.print-dialog) { display: none !important; }
+
+          /* Reset dialog content to normal document flow for printing */
+          .print-dialog {
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            width: auto !important;
+            max-width: 100% !important;
+            box-shadow: none !important;
+            border: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            background: transparent !important;
           }
           
           .print-content {
-            position: static;
             width: 100%;
             max-width: 100%;
             padding: 20px;
           }
           
-          .no-print {
-            display: none !important;
-          }
+          .no-print { display: none !important; }
           
-          .print-page-break {
-            page-break-before: always;
-          }
+          .print-page-break { page-break-before: always; }
           
-          .print-card {
-            break-inside: avoid;
-            margin-bottom: 20px;
-          }
+          .print-card { break-inside: avoid; margin-bottom: 20px; }
           
-          h1, h2, h3, h4 {
-            color: #000 !important;
-          }
+          h1, h2, h3, h4, p, span, div { color: #000 !important; }
           
-          .print-header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-          }
+          .print-header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
           
-          .print-section {
-            margin-bottom: 25px;
-          }
+          .print-section { margin-bottom: 25px; }
           
-          .print-section-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 5px;
-          }
+          .print-section-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
         }
       `}</style>
       
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="print-dialog max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center space-x-2">
