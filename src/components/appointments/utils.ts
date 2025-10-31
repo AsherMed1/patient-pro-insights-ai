@@ -77,26 +77,29 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
-  const completedStatuses = ['cancelled', 'no show', 'noshow', 'showed', 'won', 'oon'];
+  const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'won', 'oon'];
   
   return appointments.filter(appointment => {
     const normalizedStatus = appointment.status?.trim().toLowerCase();
     const isInPast = isAppointmentInPast(appointment.date_of_appointment);
     const isInFuture = isAppointmentInFuture(appointment.date_of_appointment);
     
+    // Always move cancelled appointments to completed stage
+    const isCompleted = appointment.status && completedStatuses.includes(normalizedStatus);
+    
     switch (filterType) {
       case 'new':
-        // New: All new appointments (status is null, empty, "new", or "confirmed")
-        return !appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || normalizedStatus === 'confirmed';
+        // New: All new appointments (status is null, empty, "new", or "confirmed") - BUT NOT cancelled
+        return !isCompleted && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || normalizedStatus === 'confirmed');
       case 'needs-review':
-        // Needs Review: Past appointment + not updated (no status set or still "new")
-        return isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
+        // Needs Review: Past appointment + not updated (no status set or still "new") - BUT NOT cancelled
+        return !isCompleted && isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
       case 'future':
-        // Upcoming: Welcome Call OR Internal Process Complete (but not confirmed)
-        return (normalizedStatus === 'welcome call' || appointment.internal_process_complete === true) && normalizedStatus !== 'confirmed';
+        // Upcoming: Welcome Call OR Internal Process Complete (but not confirmed) - BUT NOT cancelled
+        return !isCompleted && (normalizedStatus === 'welcome call' || appointment.internal_process_complete === true) && normalizedStatus !== 'confirmed';
       case 'past':
-        // Completed: Final status (Showed / No-show / Canceled)
-        return appointment.status && completedStatuses.includes(normalizedStatus);
+        // Completed: Final status (Showed / No-show / Cancelled)
+        return isCompleted;
       default:
         return true;
     }
