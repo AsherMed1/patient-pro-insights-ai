@@ -135,13 +135,35 @@ const AppointmentCard = ({
   const getStatusTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
     const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
-    if (isStatusUpdated) {
-      return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
-    } else {
+
+    const normalized = appointment.status?.toLowerCase().trim();
+    if (!normalized) {
+      // Not updated yet
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     }
-  };
 
+    switch (normalized) {
+      case 'showed':
+      case 'won':
+        return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
+      case 'no show':
+      case 'noshow':
+        return `${baseClass} bg-yellow-50 border-yellow-200 hover:bg-yellow-100`;
+      case 'cancelled':
+      case 'canceled':
+        return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
+      case 'rescheduled':
+        return `${baseClass} bg-purple-50 border-purple-200 hover:bg-purple-100`;
+      case 'oon':
+        return `${baseClass} bg-orange-50 border-orange-200 hover:bg-orange-100`;
+      case 'confirmed':
+        return `${baseClass} bg-blue-50 border-blue-200 hover:bg-blue-100`;
+      case 'welcome call':
+        return `${baseClass} bg-gray-100 border-gray-300 hover:bg-gray-100`;
+      default:
+        return baseClass;
+    }
+  };
   const getProcedureTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
     const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
