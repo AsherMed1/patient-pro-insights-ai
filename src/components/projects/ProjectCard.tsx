@@ -6,6 +6,7 @@ import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, Power, Powe
 import { Link } from 'react-router-dom';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
+import { useRole } from '@/hooks/useRole';
 
 interface Project {
   id: string;
@@ -38,6 +39,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onDelete,
   onToggleActive
 }) => {
+  const { isAdmin } = useRole();
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -105,10 +107,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               >
                 <Edit className="h-3 w-3" />
               </Button>
-              <DeleteProjectDialog
-                project={project}
-                onDelete={onDelete}
-              />
+              {isAdmin() && (
+                <DeleteProjectDialog
+                  project={project}
+                  onDelete={onDelete}
+                />
+              )}
             </div>
           </div>
         </div>

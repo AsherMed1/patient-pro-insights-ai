@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { useRole } from '@/hooks/useRole';
 
 interface Agent {
   id: string;
@@ -24,6 +25,7 @@ interface AgentManagerProps {
 }
 
 const AgentManager = ({ viewOnly = false }: AgentManagerProps) => {
+  const { isAdmin } = useRole();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -266,13 +268,15 @@ const AgentManager = ({ viewOnly = false }: AgentManagerProps) => {
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(agent.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {isAdmin() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(agent.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

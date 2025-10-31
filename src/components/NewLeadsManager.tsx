@@ -14,6 +14,7 @@ import LeadCard from './leads/LeadCard';
 import LeadsCsvImport from './LeadsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { useLeads } from '@/hooks/useLeads';
+import { useRole } from '@/hooks/useRole';
 interface NewLeadsManagerProps {
   viewOnly?: boolean;
   projectFilter?: string;
@@ -22,6 +23,7 @@ const NewLeadsManager = ({
   viewOnly = false,
   projectFilter
 }: NewLeadsManagerProps) => {
+  const { isAdmin } = useRole();
   const [showImport, setShowImport] = useState(false);
   const {
     leads,
@@ -99,7 +101,7 @@ const NewLeadsManager = ({
   };
   return <div className="space-y-6">
       {/* Import Section */}
-      {!viewOnly && !showImport && <Card>
+      {isAdmin() && !viewOnly && !showImport && <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>

@@ -11,6 +11,7 @@ import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
+import { useRole } from '@/hooks/useRole';
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -55,6 +56,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onSortChange,
   isProjectSpecificView = false
 }) => {
+  const { isAdmin } = useRole();
   const [projects, setProjects] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
@@ -121,7 +123,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   };
   return <div className="portal-spacing">
       {/* Admin Actions - Import CSV */}
-      {!showImport && <div className="portal-section">
+      {isAdmin() && !showImport && <div className="portal-section">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-foreground">Data Management</h3>

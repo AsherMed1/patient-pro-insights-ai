@@ -90,7 +90,7 @@ const AppointmentCard = ({
   onUpdatePhone,
   onUpdateCalendarLocation
 }: AppointmentCardProps) => {
-  const { hasManagementAccess } = useRole();
+  const { hasManagementAccess, isAdmin } = useRole();
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
@@ -607,7 +607,7 @@ const AppointmentCard = ({
                   <span className="text-blue-600 sm:hidden">Insurance</span>
                 </Button>
               )}
-              {onDelete && (
+              {isAdmin() && onDelete && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button 
