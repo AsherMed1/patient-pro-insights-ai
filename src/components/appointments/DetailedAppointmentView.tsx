@@ -15,7 +15,8 @@ import {
   FileText, 
   Shield,
   MapPin,
-  Hash
+  Hash,
+  Printer
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
@@ -151,20 +152,100 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
     return null;
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <>
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-content, .print-content * {
+            visibility: visible;
+          }
+          
+          .print-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            max-width: 100%;
+            padding: 20px;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+          
+          .print-page-break {
+            page-break-before: always;
+          }
+          
+          .print-card {
+            break-inside: avoid;
+            margin-bottom: 20px;
+          }
+          
+          h1, h2, h3, h4 {
+            color: #000 !important;
+          }
+          
+          .print-header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+          }
+          
+          .print-section {
+            margin-bottom: 25px;
+          }
+          
+          .print-section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+          }
+        }
+      `}</style>
+      
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <FileText className="h-5 w-5" />
-              <span>Appointment Details - {appointment.lead_name}</span>
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center space-x-2">
+                <FileText className="h-5 w-5" />
+                <span>Appointment Details - {appointment.lead_name}</span>
+              </DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrint}
+                className="no-print flex items-center gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                Print / PDF
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="space-y-6 print-content">
+            {/* Print Header */}
+            <div className="print-header hidden print:block">
+              <h1 className="text-2xl font-bold">Patient Information</h1>
+              <p className="text-sm text-muted-foreground">
+                {appointment.project_name} - Generated on {new Date().toLocaleDateString()}
+              </p>
+            </div>
+
             {/* Appointment Overview */}
-            <Card>
+            <Card className="print-card">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
@@ -305,23 +386,52 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                 </TooltipProvider>
 
                 {hasInsuranceInfo() && (
-                  <div className="pt-2">
-                    <Button
-                      onClick={() => setShowInsuranceModal(true)}
-                      variant="outline"
-                      className="bg-blue-50 hover:bg-blue-100 border-blue-200"
-                    >
-                      <Shield className="h-4 w-4 mr-2 text-blue-600" />
-                      <span className="text-blue-600">View Insurance Information</span>
-                    </Button>
-                  </div>
+                  <>
+                    <div className="pt-2 no-print">
+                      <Button
+                        onClick={() => setShowInsuranceModal(true)}
+                        variant="outline"
+                        className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                      >
+                        <Shield className="h-4 w-4 mr-2 text-blue-600" />
+                        <span className="text-blue-600">View Insurance Information</span>
+                      </Button>
+                    </div>
+                    
+                    {/* Insurance info for print */}
+                    <div className="hidden print:block print-section mt-4">
+                      <div className="print-section-title">Insurance Information</div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {getInsuranceData().insurance_provider && (
+                          <div>
+                            <span className="font-medium">Provider:</span> {getInsuranceData().insurance_provider}
+                          </div>
+                        )}
+                        {getInsuranceData().insurance_plan && (
+                          <div>
+                            <span className="font-medium">Plan:</span> {getInsuranceData().insurance_plan}
+                          </div>
+                        )}
+                        {getInsuranceData().insurance_id && (
+                          <div>
+                            <span className="font-medium">ID:</span> {getInsuranceData().insurance_id}
+                          </div>
+                        )}
+                        {getInsuranceData().group_number && (
+                          <div>
+                            <span className="font-medium">Group:</span> {getInsuranceData().group_number}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
 
             {/* Patient Intake Notes */}
             {(appointment.patient_intake_notes || leadDetails?.patient_intake_notes) && (
-              <Card>
+              <Card className="print-card">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <FileText className="h-4 w-4" />
@@ -364,7 +474,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
             )}
 
             {/* Internal Notes */}
-            <Card>
+            <Card className="print-card">
               <CardHeader>
                 <CardTitle>Internal Notes</CardTitle>
               </CardHeader>
