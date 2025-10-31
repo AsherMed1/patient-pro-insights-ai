@@ -41,7 +41,6 @@ const AllAppointmentsManager = ({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
-  const [statusOptionsList] = useState<string[]>(statusOptions.sort());
   const { toast } = useToast();
   
   const APPOINTMENTS_PER_PAGE = 50;
@@ -946,7 +945,7 @@ const AllAppointmentsManager = ({
               setCurrentPage(1);
             }}
             projectFilter={projectFilter}
-            statusOptions={statusOptionsList}
+            statusOptions={statusOptions.sort()}
             onUpdateStatus={updateAppointmentStatus}
             onUpdateProcedure={updateProcedureOrdered}
             onUpdateDate={updateAppointmentDate}
