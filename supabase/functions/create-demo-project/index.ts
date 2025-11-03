@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
         const lead = demoLeads[i]
         demoAppointments.push({
           project_name: 'PPM - Test Account',
+          date_appointment_created: new Date(Date.now() + ((i + 5) * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
           lead_name: lead.lead_name,
           lead_phone_number: lead.phone_number,
           lead_email: lead.email,
@@ -97,6 +98,8 @@ Deno.serve(async (req) => {
           detected_insurance_plan: lead.insurance_plan,
           patient_intake_notes: 'Upcoming appointment for vascular consultation.',
           procedure_ordered: false,
+          was_ever_confirmed: i % 3 !== 0,
+          internal_process_complete: false,
           ghl_appointment_id: `demo_appt_${String(i + 1).padStart(3, '0')}`
         })
       }
@@ -117,6 +120,7 @@ Deno.serve(async (req) => {
           const lead = demoLeads[apptIndex % demoLeads.length]
           demoAppointments.push({
             project_name: 'PPM - Test Account',
+            date_appointment_created: new Date(Date.now() - ((apptIndex - 9) * 2 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
             lead_name: lead.lead_name,
             lead_phone_number: lead.phone_number,
             lead_email: lead.email,
@@ -128,6 +132,8 @@ Deno.serve(async (req) => {
             detected_insurance_plan: lead.insurance_plan,
             patient_intake_notes: `Demo appointment - ${statusGroup.status}`,
             procedure_ordered: statusGroup.procedure,
+            was_ever_confirmed: statusGroup.status === 'Showed' || statusGroup.status === 'Won',
+            internal_process_complete: statusGroup.procedure,
             ghl_appointment_id: `demo_appt_${String(apptIndex + 1).padStart(3, '0')}`
           })
           apptIndex++
