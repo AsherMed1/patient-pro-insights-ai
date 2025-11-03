@@ -42,6 +42,9 @@ const UserManagement = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('date-desc');
   const [newUser, setNewUser] = useState({
     email: '',
     password: '',
@@ -552,14 +555,51 @@ const UserManagement = () => {
               </Dialog>
               </div>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search users by name, email, or role..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search users by name, email, or role..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="project_user">Project User</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={projectFilter} onValueChange={setProjectFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by project" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.project_name}>
+                      {project.project_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date-desc">Newest First</SelectItem>
+                  <SelectItem value="date-asc">Oldest First</SelectItem>
+                  <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -578,13 +618,49 @@ const UserManagement = () => {
             <TableBody>
               {users
                 .filter(user => {
-                  if (!searchTerm) return true;
-                  const search = searchTerm.toLowerCase();
-                  return (
-                    user.email.toLowerCase().includes(search) ||
-                    user.full_name.toLowerCase().includes(search) ||
-                    user.role?.toLowerCase().includes(search)
-                  );
+                  // Search filter
+                  if (searchTerm) {
+                    const search = searchTerm.toLowerCase();
+                    const matchesSearch = 
+                      user.email.toLowerCase().includes(search) ||
+                      user.full_name.toLowerCase().includes(search) ||
+                      user.role?.toLowerCase().includes(search);
+                    if (!matchesSearch) return false;
+                  }
+                  
+                  // Role filter
+                  if (roleFilter !== 'all' && user.role !== roleFilter) {
+                    return false;
+                  }
+                  
+                  // Project filter
+                  if (projectFilter !== 'all') {
+                    if (user.role === 'project_user') {
+                      if (!user.assignedProjects?.includes(projectFilter)) {
+                        return false;
+                      }
+                    } else {
+                      // Non-project users have access to all projects
+                      // Only show them if "All Projects" is selected
+                      return false;
+                    }
+                  }
+                  
+                  return true;
+                })
+                .sort((a, b) => {
+                  switch (sortBy) {
+                    case 'date-desc':
+                      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                    case 'date-asc':
+                      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                    case 'name-asc':
+                      return a.full_name.localeCompare(b.full_name);
+                    case 'name-desc':
+                      return b.full_name.localeCompare(a.full_name);
+                    default:
+                      return 0;
+                  }
                 })
                 .map((user) => (
                 <TableRow key={user.id}>
