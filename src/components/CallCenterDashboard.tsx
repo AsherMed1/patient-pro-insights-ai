@@ -64,6 +64,10 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
       if (projectId && projectId !== 'project-1' && projectId !== 'ALL') {
         callsQuery = callsQuery.eq('project_name', projectId);
         appointmentsQuery = appointmentsQuery.eq('project_name', projectId);
+      } else if (projectId === 'ALL') {
+        // Exclude demo project from aggregate view
+        callsQuery = callsQuery.neq('project_name', 'PPM - Test Account');
+        appointmentsQuery = appointmentsQuery.neq('project_name', 'PPM - Test Account');
       }
 
       // Apply date filters if set

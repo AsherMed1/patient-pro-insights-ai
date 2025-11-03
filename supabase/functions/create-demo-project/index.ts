@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
       const { error: leadsError } = await supabaseClient
         .from('new_leads')
-        .upsert(demoLeads, { onConflict: 'phone_number', ignoreDuplicates: true })
+        .insert(demoLeads)
 
       if (leadsError) console.error('Leads error:', leadsError)
 
@@ -87,9 +87,8 @@ Deno.serve(async (req) => {
         demoAppointments.push({
           project_name: 'PPM - Test Account',
           lead_name: lead.lead_name,
-          phone_number: lead.phone_number,
-          first_name: lead.first_name,
-          last_name: lead.last_name,
+          lead_phone_number: lead.phone_number,
+          lead_email: lead.email,
           date_of_appointment: new Date(Date.now() + ((i + 5) * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
           time_of_appointment: `${9 + (i % 8)}:${i % 2 === 0 ? '00' : '30'}`,
           status: i % 3 === 0 ? null : 'Confirmed',
@@ -119,9 +118,8 @@ Deno.serve(async (req) => {
           demoAppointments.push({
             project_name: 'PPM - Test Account',
             lead_name: lead.lead_name,
-            phone_number: lead.phone_number,
-            first_name: lead.first_name,
-            last_name: lead.last_name,
+            lead_phone_number: lead.phone_number,
+            lead_email: lead.email,
             date_of_appointment: new Date(Date.now() - ((apptIndex - 9) * 2 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
             time_of_appointment: `${9 + (apptIndex % 8)}:${apptIndex % 2 === 0 ? '00' : '30'}`,
             status: statusGroup.status,
@@ -138,7 +136,7 @@ Deno.serve(async (req) => {
 
       const { error: appointmentsError } = await supabaseClient
         .from('all_appointments')
-        .upsert(demoAppointments, { onConflict: 'ghl_appointment_id', ignoreDuplicates: true })
+        .insert(demoAppointments)
 
       if (appointmentsError) console.error('Appointments error:', appointmentsError)
 
@@ -156,7 +154,7 @@ Deno.serve(async (req) => {
         demoCalls.push({
           project_name: 'PPM - Test Account',
           lead_name: lead.lead_name,
-          phone_number: lead.phone_number,
+          lead_phone_number: lead.phone_number,
           agent: agents[i % agents.length],
           date: callDate.toISOString().split('T')[0],
           call_datetime: callDateTime.toISOString(),
@@ -171,7 +169,7 @@ Deno.serve(async (req) => {
 
       const { error: callsError } = await supabaseClient
         .from('all_calls')
-        .upsert(demoCalls, { onConflict: 'ghl_id', ignoreDuplicates: true })
+        .insert(demoCalls)
 
       if (callsError) console.error('Calls error:', callsError)
 
@@ -194,7 +192,7 @@ Deno.serve(async (req) => {
 
       const { error: adSpendError } = await supabaseClient
         .from('facebook_ad_spend')
-        .upsert(adSpend, { onConflict: 'project_name,date,campaign_name', ignoreDuplicates: true })
+        .insert(adSpend)
 
       if (adSpendError) console.error('Ad spend error:', adSpendError)
 

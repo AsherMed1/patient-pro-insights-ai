@@ -37,12 +37,12 @@ export const useMasterDatabase = () => {
     try {
       setLoading(true);
       
-      // Get counts from all tables
+      // Get counts from all tables, excluding demo project
       const [projectsResult, activeProjectsResult, disabledProjectsResult, appointmentsResult, agentsResult] = await Promise.all([
-        supabase.from('projects').select('id', { count: 'exact', head: true }),
-        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', true),
-        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', false),
-        supabase.from('all_appointments').select('id', { count: 'exact', head: true }),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).neq('project_name', 'PPM - Test Account'),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', true).neq('project_name', 'PPM - Test Account'),
+        supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', false).neq('project_name', 'PPM - Test Account'),
+        supabase.from('all_appointments').select('id', { count: 'exact', head: true }).neq('project_name', 'PPM - Test Account'),
         supabase.from('agents').select('id', { count: 'exact', head: true })
       ]);
       

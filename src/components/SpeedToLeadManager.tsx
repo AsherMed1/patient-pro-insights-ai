@@ -54,7 +54,8 @@ const SpeedToLeadManager = ({ viewOnly = false }: SpeedToLeadManagerProps) => {
         .select('*')
         .not('date_time_of_first_call', 'is', null)
         .not('speed_to_lead_time_min', 'is', null)
-        .gte('speed_to_lead_time_min', 0);
+        .gte('speed_to_lead_time_min', 0)
+        .neq('project_name', 'PPM - Test Account');
 
       // Apply date filters if set
       if (dateRange.from) {

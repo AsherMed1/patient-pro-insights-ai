@@ -119,21 +119,23 @@ const AgentPerformanceDashboard = () => {
 
       if (agentsError) throw agentsError;
 
-      // Get call data for the date range
+      // Get call data for the date range, excluding demo project
       const { data: calls, error: callsError } = await supabase
         .from('all_calls')
         .select('*')
         .gte('date', fromDate)
-        .lte('date', toDate);
+        .lte('date', toDate)
+        .neq('project_name', 'PPM - Test Account');
 
       if (callsError) throw callsError;
 
-      // Get appointment data for the date range
+      // Get appointment data for the date range, excluding demo project
       const { data: appointments, error: appointmentsError } = await supabase
         .from('all_appointments')
         .select('*')
         .gte('date_appointment_created', fromDate)
-        .lte('date_appointment_created', toDate);
+        .lte('date_appointment_created', toDate)
+        .neq('project_name', 'PPM - Test Account');
 
       if (appointmentsError) throw appointmentsError;
 
