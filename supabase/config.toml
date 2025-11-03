@@ -9,6 +9,10 @@ project_id = "bhabbokbhnqioykjimix"
 # (API keys, webhook signatures, etc.)
 # ============================================================================
 
+[functions.create-demo-project]
+verify_jwt = false
+# Edge function to create/delete demo project data for training and demos
+
 [functions.appointment-status-webhook]
 verify_jwt = false
 # Webhook from GoHighLevel - should verify webhook signature
