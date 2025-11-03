@@ -67,3 +67,7 @@ verify_jwt = false
 
 [functions.diagnose-ghl-api]
 verify_jwt = false
+
+[functions.admin-reset-password]
+verify_jwt = true
+# Admin-only function to reset user passwords

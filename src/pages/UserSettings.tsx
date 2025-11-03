@@ -9,9 +9,12 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Lock, Shield, FileText } from 'lucide-react';
+import { ArrowLeft, User, Lock, Shield, FileText, Copy, AlertCircle } from 'lucide-react';
 import { AuditLogDashboard } from '@/components/audit/AuditLogDashboard';
 import { useRole } from '@/hooks/useRole';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface UserProfile {
   id: string;
@@ -38,6 +41,16 @@ const UserSettings = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Admin password reset state
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [customPassword, setCustomPassword] = useState('');
+  const [confirmCustomPassword, setConfirmCustomPassword] = useState('');
+  const [showCustomPasswordDialog, setShowCustomPasswordDialog] = useState(false);
+  const [showResultDialog, setShowResultDialog] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -66,6 +79,32 @@ const UserSettings = () => {
 
     fetchProfile();
   }, [user]);
+
+  // Fetch all users for admin password reset
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (role !== 'admin') return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .order('email');
+
+        if (error) {
+          console.error('Error fetching users:', error);
+        } else {
+          setUsers(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+
+    if (role === 'admin') {
+      fetchUsers();
+    }
+  }, [role]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +212,99 @@ const UserSettings = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleResetPassword = async (useCustomPassword: boolean) => {
+    if (!selectedUserId) {
+      toast({
+        title: "No User Selected",
+        description: "Please select a user to reset their password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedUserId === user?.id) {
+      toast({
+        title: "Cannot Reset Own Password",
+        description: "Use the regular password change form above to change your own password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (useCustomPassword) {
+      if (customPassword.length < 6) {
+        toast({
+          title: "Password Too Short",
+          description: "Password must be at least 6 characters long",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (customPassword !== confirmCustomPassword) {
+        toast({
+          title: "Passwords Don't Match",
+          description: "Please make sure both passwords match",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: {
+          userId: selectedUserId,
+          newPassword: useCustomPassword ? customPassword : undefined
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast({
+          title: "Password Reset Failed",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Password Reset Successful",
+        description: data.message,
+      });
+
+      if (data.generatedPassword) {
+        setGeneratedPassword(data.generatedPassword);
+        setShowResultDialog(true);
+      }
+
+      // Reset form
+      setSelectedUserId('');
+      setCustomPassword('');
+      setConfirmCustomPassword('');
+      setShowCustomPasswordDialog(false);
+    } catch (error: any) {
+      toast({
+        title: "Password Reset Failed",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: "Password copied to clipboard",
+    });
   };
 
   if (loading) {
@@ -310,6 +442,70 @@ const UserSettings = () => {
                 </CardContent>
               </form>
             </Card>
+
+            {role === 'admin' && (
+              <>
+                <Separator className="my-6" />
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Admin: Reset User Passwords
+                    </CardTitle>
+                    <CardDescription>
+                      Reset passwords for other users (admin only)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Use this tool to reset passwords for other users. All actions are logged in the audit log.
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="userSelect">Select User</Label>
+                      <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                        <SelectTrigger id="userSelect">
+                          <SelectValue placeholder="Choose a user to reset password" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.full_name || u.email} ({u.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowCustomPasswordDialog(true)}
+                        disabled={!selectedUserId || resetLoading}
+                      >
+                        Set Custom Password
+                      </Button>
+                      <Button
+                        onClick={() => handleResetPassword(false)}
+                        disabled={!selectedUserId || resetLoading}
+                      >
+                        {resetLoading ? 'Resetting...' : 'Generate & Reset Password'}
+                      </Button>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">
+                      Generate & Reset will create a secure random password and display it to you.
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="sessions">
@@ -360,6 +556,91 @@ const UserSettings = () => {
             </TabsContent>
           )}
         </Tabs>
+
+        {/* Custom Password Dialog */}
+        <Dialog open={showCustomPasswordDialog} onOpenChange={setShowCustomPasswordDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Set Custom Password</DialogTitle>
+              <DialogDescription>
+                Enter a custom password for the selected user
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="customPassword">New Password</Label>
+                <Input
+                  id="customPassword"
+                  type="password"
+                  value={customPassword}
+                  onChange={(e) => setCustomPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  minLength={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmCustomPassword">Confirm Password</Label>
+                <Input
+                  id="confirmCustomPassword"
+                  type="password"
+                  value={confirmCustomPassword}
+                  onChange={(e) => setConfirmCustomPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  minLength={6}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCustomPasswordDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => handleResetPassword(true)} disabled={resetLoading}>
+                {resetLoading ? 'Resetting...' : 'Reset Password'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Result Dialog with Generated Password */}
+        <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Password Reset Successful</DialogTitle>
+              <DialogDescription>
+                The user's password has been reset. Share this password securely.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  This password will only be shown once. Make sure to copy it before closing this dialog.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="p-4 bg-muted rounded-md">
+                <div className="flex items-center justify-between gap-2">
+                  <code className="text-lg font-mono">{generatedPassword}</code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => copyToClipboard(generatedPassword)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => {
+                setShowResultDialog(false);
+                setGeneratedPassword('');
+              }}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
