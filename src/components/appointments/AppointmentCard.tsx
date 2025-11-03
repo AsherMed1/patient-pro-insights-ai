@@ -276,92 +276,58 @@ const AppointmentCard = ({
   };
 
   const handleViewInsurance = async () => {
+    setLoadingLeadData(true);
+    
     try {
-      setLoadingLeadData(true);
-      
-      // First check if we have insurance info from the appointment itself
-      const hasAppointmentInsurance = appointment.detected_insurance_provider || 
-                                      appointment.detected_insurance_plan || 
-                                      appointment.detected_insurance_id ||
-                                      appointment.parsed_insurance_info?.insurance_provider ||
-                                      appointment.parsed_insurance_info?.provider ||
-                                      appointment.parsed_insurance_info?.insurance_plan ||
-                                      appointment.parsed_insurance_info?.plan ||
-                                      appointment.parsed_insurance_info?.insurance_id_number ||
-                                      appointment.parsed_insurance_info?.id ||
-                                      appointment.parsed_insurance_info?.insurance_group_number ||
-                                      appointment.parsed_insurance_info?.group_number;
-      
-      if (hasAppointmentInsurance) {
-        // Use the appointment's insurance data directly
-        const leadRecord: NewLead = {
-          id: appointment.id,
-          contact_id: appointment.ghl_id,
-          phone_number: appointment.lead_phone_number,
-          email: appointment.lead_email,
-          lead_name: appointment.lead_name,
-          project_name: appointment.project_name,
-          insurance_provider: appointment.detected_insurance_provider || appointment.parsed_insurance_info?.insurance_provider || appointment.parsed_insurance_info?.provider,
-          insurance_plan: appointment.detected_insurance_plan || appointment.parsed_insurance_info?.insurance_plan || appointment.parsed_insurance_info?.plan,
-          insurance_id: appointment.detected_insurance_id || appointment.parsed_insurance_info?.insurance_id_number || appointment.parsed_insurance_info?.id,
-          insurance_id_link: appointment.insurance_id_link,
-          group_number: appointment.parsed_insurance_info?.insurance_group_number || appointment.parsed_insurance_info?.group_number,
-          patient_intake_notes: appointment.patient_intake_notes,
-          // Default values for other required fields
-          date: new Date().toISOString().split('T')[0],
-          times_called: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        setLeadInsuranceData(leadRecord);
-        setShowInsurance(true);
-        setLoadingLeadData(false);
-        return;
-      }
-      
-      // If no appointment insurance, try to find associated lead
+      // ALWAYS fetch associated lead first to get complete data
       const associatedLead = await findAssociatedLead(appointment);
       
-      console.log(`[${appointment.lead_name}] View Insurance - Associated Lead Found:`, {
-        found: !!associatedLead,
-        leadId: associatedLead?.lead_id,
-        contact_id: associatedLead?.contact_id,
-        insurance_id_link: associatedLead?.insurance_id_link,
-        insurance_provider: associatedLead?.insurance_provider,
-        insurance_plan: associatedLead?.insurance_plan,
-        insurance_id: associatedLead?.insurance_id,
-        group_number: associatedLead?.group_number,
+      // Merge appointment insurance data with lead data (lead takes priority)
+      const mergedInsuranceData = {
+        insurance_provider: associatedLead?.insurance_provider || 
+                           appointment.parsed_insurance_info?.insurance_provider || 
+                           appointment.parsed_insurance_info?.provider || 
+                           appointment.detected_insurance_provider,
+        insurance_plan: associatedLead?.insurance_plan || 
+                       appointment.parsed_insurance_info?.insurance_plan || 
+                       appointment.parsed_insurance_info?.plan || 
+                       appointment.detected_insurance_plan,
+        insurance_id: associatedLead?.insurance_id || 
+                     appointment.parsed_insurance_info?.insurance_id_number || 
+                     appointment.parsed_insurance_info?.id || 
+                     appointment.detected_insurance_id,
+        group_number: associatedLead?.group_number || 
+                     appointment.parsed_insurance_info?.insurance_group_number || 
+                     appointment.parsed_insurance_info?.group_number,
+        insurance_id_link: associatedLead?.insurance_id_link || 
+                          appointment.insurance_id_link
+      };
+      
+      // Check if any insurance data exists
+      const hasAnyInsurance = Object.values(mergedInsuranceData).some(val => !!val);
+      
+      console.log(`[${appointment.lead_name}] View Insurance - Merged Data:`, {
+        associatedLeadFound: !!associatedLead,
         matchStrategy: associatedLead?.match_strategy,
-        hasInsuranceInfo: hasInsuranceInfoUtil(associatedLead)
+        mergedData: mergedInsuranceData,
+        hasAnyInsurance
       });
-
-      if (associatedLead) {
-        // Convert LeadAssociation to NewLead format
+      
+      if (hasAnyInsurance) {
         const leadRecord: NewLead = {
-          id: associatedLead.lead_id,
-          contact_id: associatedLead.contact_id,
-          phone_number: associatedLead.phone_number,
-          email: associatedLead.email,
-          lead_name: associatedLead.lead_name,
-          project_name: associatedLead.project_name,
-          insurance_provider: associatedLead.insurance_provider,
-          insurance_plan: associatedLead.insurance_plan,
-          insurance_id: associatedLead.insurance_id,
-          insurance_id_link: associatedLead.insurance_id_link,
-          group_number: associatedLead.group_number,
-          patient_intake_notes: associatedLead.patient_intake_notes,
-          // Default values for other required fields
+          id: associatedLead?.lead_id || appointment.id,
+          lead_name: appointment.lead_name,
+          project_name: appointment.project_name,
+          contact_id: associatedLead?.contact_id || appointment.ghl_id,
+          phone_number: associatedLead?.phone_number || appointment.lead_phone_number,
+          email: associatedLead?.email || appointment.lead_email,
+          ...mergedInsuranceData,
+          patient_intake_notes: associatedLead?.patient_intake_notes || appointment.patient_intake_notes,
           date: new Date().toISOString().split('T')[0],
           times_called: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        
-        console.log(`[${appointment.lead_name}] Setting insurance modal data:`, {
-          insurance_id_link: leadRecord.insurance_id_link,
-          hasAnyInsurance: !!(leadRecord.insurance_provider || leadRecord.insurance_plan || leadRecord.insurance_id || leadRecord.group_number || leadRecord.insurance_id_link)
-        });
         
         setLeadInsuranceData(leadRecord);
         setShowInsurance(true);
@@ -373,10 +339,10 @@ const AppointmentCard = ({
         });
       }
     } catch (error) {
-      console.error('Error fetching insurance details:', error);
+      console.error('Error loading insurance data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch insurance details",
+        description: "Failed to load insurance information",
         variant: "destructive"
       });
     } finally {
@@ -404,23 +370,25 @@ const AppointmentCard = ({
   };
 
   const getInsuranceData = () => {
-    if (leadInsuranceData) {
-      return {
-        insurance_provider: leadInsuranceData.insurance_provider,
-        insurance_plan: leadInsuranceData.insurance_plan,
-        insurance_id: leadInsuranceData.insurance_id,
-        insurance_id_link: leadInsuranceData.insurance_id_link,
-        group_number: leadInsuranceData.group_number
-      };
-    }
-    
-    // Fallback to appointment parsed data
+    // Always merge lead and appointment data, prioritizing lead data
     return {
-      insurance_provider: appointment.parsed_insurance_info?.insurance_provider || appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider,
-      insurance_plan: appointment.parsed_insurance_info?.insurance_plan || appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
-      insurance_id: appointment.parsed_insurance_info?.insurance_id_number || appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
-      insurance_id_link: appointment.insurance_id_link,
-      group_number: appointment.parsed_insurance_info?.insurance_group_number || appointment.parsed_insurance_info?.group_number
+      insurance_provider: leadInsuranceData?.insurance_provider || 
+                         appointment.parsed_insurance_info?.insurance_provider || 
+                         appointment.parsed_insurance_info?.provider || 
+                         appointment.detected_insurance_provider,
+      insurance_plan: leadInsuranceData?.insurance_plan || 
+                     appointment.parsed_insurance_info?.insurance_plan || 
+                     appointment.parsed_insurance_info?.plan || 
+                     appointment.detected_insurance_plan,
+      insurance_id: leadInsuranceData?.insurance_id || 
+                   appointment.parsed_insurance_info?.insurance_id_number || 
+                   appointment.parsed_insurance_info?.id || 
+                   appointment.detected_insurance_id,
+      insurance_id_link: leadInsuranceData?.insurance_id_link || 
+                        appointment.insurance_id_link,
+      group_number: leadInsuranceData?.group_number || 
+                   appointment.parsed_insurance_info?.insurance_group_number || 
+                   appointment.parsed_insurance_info?.group_number
     };
   };
 

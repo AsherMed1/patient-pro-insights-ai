@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
 import { useRole } from '@/hooks/useRole';
+import { InsuranceSyncTrigger } from '@/components/InsuranceSyncTrigger';
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -127,12 +128,15 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-foreground">Data Management</h3>
-              <p className="text-sm text-muted-foreground">Import historical appointment data</p>
+              <p className="text-sm text-muted-foreground">Import historical appointment data and sync insurance info from leads</p>
             </div>
-            <Button onClick={onShowImport} variant="outline" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Import CSV
-            </Button>
+            <div className="flex gap-2">
+              <InsuranceSyncTrigger />
+              <Button onClick={onShowImport} variant="outline" className="flex items-center gap-2">
+                <Upload className="h-4 w-4" />
+                Import CSV
+              </Button>
+            </div>
           </div>
         </div>}
 
