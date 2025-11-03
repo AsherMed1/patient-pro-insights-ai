@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
-import { Plus, Edit, Trash2, RefreshCw, Mail } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Mail, Search } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
 import { useSendWelcomeEmail } from '@/hooks/useWelcomeEmail';
 
@@ -41,6 +41,7 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [newUser, setNewUser] = useState({
     email: '',
     password: '',
@@ -457,9 +458,10 @@ const UserManagement = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>User Management ({users.length} users)</CardTitle>
-            <div className="space-x-2">
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <CardTitle>User Management ({users.length} users)</CardTitle>
+              <div className="space-x-2">
               <Button 
                 onClick={() => fetchUsers(true)} 
                 variant="outline"
@@ -548,6 +550,16 @@ const UserManagement = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users by name, email, or role..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
         </CardHeader>
@@ -564,7 +576,17 @@ const UserManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {users
+                .filter(user => {
+                  if (!searchTerm) return true;
+                  const search = searchTerm.toLowerCase();
+                  return (
+                    user.email.toLowerCase().includes(search) ||
+                    user.full_name.toLowerCase().includes(search) ||
+                    user.role?.toLowerCase().includes(search)
+                  );
+                })
+                .map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.full_name}</TableCell>
