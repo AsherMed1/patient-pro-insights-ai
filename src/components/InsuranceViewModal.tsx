@@ -119,6 +119,37 @@ const InsuranceViewModal = ({
               <Badge variant="outline" className="text-xs border-orange-300 text-orange-700">Group</Badge>
             </div>
           </div>
+
+          {/* Insurance Card Photo */}
+          {insuranceInfo.insurance_id_link && (
+            <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+              <div className="flex items-center space-x-2 mb-3">
+                <FileText className="h-4 w-4 text-gray-600" />
+                <div className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                  Insurance Card Photo
+                </div>
+              </div>
+              <div className="space-y-2">
+                <img 
+                  src={insuranceInfo.insurance_id_link} 
+                  alt="Insurance Card"
+                  className="w-full rounded-lg border border-gray-300 shadow-sm"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open(insuranceInfo.insurance_id_link, '_blank')}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Open Full Size
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
