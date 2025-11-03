@@ -63,65 +63,62 @@ const InsuranceViewModal = ({
           )}
 
           {/* Insurance Details */}
-          {hasInsuranceInfo ? (
-            <div className="space-y-3">
-              {insuranceInfo.insurance_provider && (
-                <div className="flex items-start justify-between p-3 bg-blue-50 rounded-lg">
-                  <div className="space-y-1">
-                    <div className="text-xs font-medium text-blue-700 uppercase tracking-wide">Insurance Provider</div>
-                    <div className="text-sm font-medium text-blue-900">{insuranceInfo.insurance_provider}</div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">Primary</Badge>
+          <div className="space-y-3">
+            {/* Insurance Provider */}
+            <div className="flex items-start justify-between p-3 bg-blue-50 rounded-lg">
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-blue-700 uppercase tracking-wide">Insurance Provider</div>
+                <div className={`text-sm font-medium ${insuranceInfo.insurance_provider ? 'text-blue-900' : 'text-gray-400 italic'}`}>
+                  {insuranceInfo.insurance_provider || 'Not provided'}
                 </div>
-              )}
-
-              {insuranceInfo.insurance_plan && (
-                <div className="flex items-start justify-between p-3 bg-green-50 rounded-lg">
-                  <div className="space-y-1">
-                    <div className="text-xs font-medium text-green-700 uppercase tracking-wide">Insurance Plan</div>
-                    <div className="text-sm font-medium text-green-900">{insuranceInfo.insurance_plan}</div>
-                  </div>
-                  <FileText className="h-4 w-4 text-green-600" />
-                </div>
-              )}
-
-              {insuranceInfo.insurance_id && (
-                <div className="flex items-start justify-between p-3 bg-purple-50 rounded-lg">
-                  <div className="space-y-1 flex-1">
-                    <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Insurance ID</div>
-                    <div className="text-sm font-medium text-purple-900 font-mono">{insuranceInfo.insurance_id}</div>
-                    {insuranceInfo.insurance_id_link && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2 h-7 px-2 text-xs"
-                        onClick={() => window.open(insuranceInfo.insurance_id_link, '_blank')}
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        View Insurance Details
-                      </Button>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">ID</Badge>
-                </div>
-              )}
-
-              {insuranceInfo.group_number && (
-                <div className="flex items-start justify-between p-3 bg-orange-50 rounded-lg">
-                  <div className="space-y-1">
-                    <div className="text-xs font-medium text-orange-700 uppercase tracking-wide">Group Number</div>
-                    <div className="text-sm font-medium text-orange-900 font-mono">{insuranceInfo.group_number}</div>
-                  </div>
-                  <Badge variant="outline" className="text-xs border-orange-300 text-orange-700">Group</Badge>
-                </div>
-              )}
+              </div>
+              <Badge variant="secondary" className="text-xs">Primary</Badge>
             </div>
-          ) : (
-            <div className="text-center py-6">
-              <Shield className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <div className="text-sm text-gray-500">No insurance information available</div>
+
+            {/* Insurance Plan */}
+            <div className="flex items-start justify-between p-3 bg-green-50 rounded-lg">
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-green-700 uppercase tracking-wide">Insurance Plan</div>
+                <div className={`text-sm font-medium ${insuranceInfo.insurance_plan ? 'text-green-900' : 'text-gray-400 italic'}`}>
+                  {insuranceInfo.insurance_plan || 'Not provided'}
+                </div>
+              </div>
+              <FileText className="h-4 w-4 text-green-600" />
             </div>
-          )}
+
+            {/* Insurance ID */}
+            <div className="flex items-start justify-between p-3 bg-purple-50 rounded-lg">
+              <div className="space-y-1 flex-1">
+                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Insurance ID</div>
+                <div className={`text-sm font-medium font-mono ${insuranceInfo.insurance_id ? 'text-purple-900' : 'text-gray-400 italic'}`}>
+                  {insuranceInfo.insurance_id || 'Not provided'}
+                </div>
+                {insuranceInfo.insurance_id_link && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 h-7 px-2 text-xs"
+                    onClick={() => window.open(insuranceInfo.insurance_id_link, '_blank')}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    View Insurance Details
+                  </Button>
+                )}
+              </div>
+              <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">ID</Badge>
+            </div>
+
+            {/* Group Number */}
+            <div className="flex items-start justify-between p-3 bg-orange-50 rounded-lg">
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-orange-700 uppercase tracking-wide">Group Number</div>
+                <div className={`text-sm font-medium font-mono ${insuranceInfo.group_number ? 'text-orange-900' : 'text-gray-400 italic'}`}>
+                  {insuranceInfo.group_number || 'Not provided'}
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs border-orange-300 text-orange-700">Group</Badge>
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
