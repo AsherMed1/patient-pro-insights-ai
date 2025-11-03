@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
@@ -573,17 +575,31 @@ const UserManagement = () => {
                   </TableCell>
                   <TableCell>
                     {user.role === 'project_user' ? (
-                      <div className="space-y-1">
-                        {user.assignedProjects && user.assignedProjects.length > 0 ? (
-                          user.assignedProjects.map((project, index) => (
-                            <Badge key={index} variant="outline" className="mr-1">
-                              {project}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm text-muted-foreground">No projects assigned</span>
-                        )}
-                      </div>
+                      user.assignedProjects && user.assignedProjects.length > 0 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8">
+                              {user.assignedProjects.length} project{user.assignedProjects.length !== 1 ? 's' : ''}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80">
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-sm">Assigned Projects</h4>
+                              <ScrollArea className="h-[200px]">
+                                <div className="space-y-1">
+                                  {user.assignedProjects.map((project, index) => (
+                                    <div key={index} className="text-sm py-1 px-2 rounded bg-muted">
+                                      {project}
+                                    </div>
+                                  ))}
+                                </div>
+                              </ScrollArea>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No projects assigned</span>
+                      )
                     ) : (
                       <span className="text-sm text-muted-foreground">All projects</span>
                     )}
