@@ -405,7 +405,13 @@ const AllAppointmentsManager = ({
         const futureQuery = getBaseQuery()
           .not('date_of_appointment', 'is', null)
           .gte('date_of_appointment', todayString)
-          .not('status', 'ilike', 'confirmed');
+          .not('status', 'ilike', 'confirmed')
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'no show')
+          .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'showed')
+          .not('status', 'ilike', 'won')
+          .not('status', 'ilike', 'oon');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
