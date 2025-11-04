@@ -235,15 +235,6 @@ const ProjectPortal = () => {
         {/* Project Header with enhanced typography */}
         <ProjectHeader projectName={project.project_name} />
 
-        {/* Date Range Filter - Only show on Overview tab */}
-        {activeTab === "overview" && (
-          <DateRangeFilter 
-            dateRange={dateRange} 
-            onDateRangeChange={setDateRange}
-            className="mb-6"
-          />
-        )}
-
         {/* Tabbed Interface */}
         <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -252,6 +243,13 @@ const ProjectPortal = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {/* Date Range Filter */}
+            <DateRangeFilter 
+              dateRange={dateRange} 
+              onDateRangeChange={setDateRange}
+              className="mb-6"
+            />
+
             {/* Enhanced Stats Cards with medical context */}
             <ProjectStatsCards stats={stats} />
 
