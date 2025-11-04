@@ -264,11 +264,21 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
               variant="default"
               size="sm"
               className="w-full"
-              onClick={() => window.open(item.project_emr_link!, '_blank')}
+              onClick={() => {
+                console.log('Opening EMR link:', item.project_emr_link);
+                window.open(item.project_emr_link!, '_blank');
+              }}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
               Open {item.project_emr_system || 'EMR'} System
             </Button>
+          </div>
+        )}
+        {isPending && !item.project_emr_link && (
+          <div className="pt-3 border-t">
+            <p className="text-xs text-muted-foreground text-center">
+              💡 Tip: Configure EMR link in Projects Manager for quick access
+            </p>
           </div>
         )}
 
