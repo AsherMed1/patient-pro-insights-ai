@@ -158,19 +158,26 @@ const ProjectsManager = () => {
   const handleEditProject = async (data: ProjectFormData) => {
     if (!editingProject) return;
 
+    console.log('EditProject - Received data:', data);
+    console.log('EditProject - EMR Link:', data.emr_link);
+
     try {
+      const updateData = {
+        project_name: data.project_name,
+        appointment_webhook_url: data.appointment_webhook_url || null,
+        ghl_location_id: data.ghl_location_id || null,
+        timezone: data.timezone || 'America/Chicago',
+        ghl_api_key: data.ghl_api_key || null,
+        emr_system_name: data.emr_system_name || null,
+        emr_link: data.emr_link || null,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('EditProject - Update payload:', updateData);
+      
       const { error } = await supabase
         .from('projects')
-        .update({
-          project_name: data.project_name,
-          appointment_webhook_url: data.appointment_webhook_url || null,
-          ghl_location_id: data.ghl_location_id || null,
-          timezone: data.timezone || 'America/Chicago',
-          ghl_api_key: data.ghl_api_key || null,
-          emr_system_name: data.emr_system_name || null,
-          emr_link: data.emr_link || null,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', editingProject.id);
 
       if (error) throw error;

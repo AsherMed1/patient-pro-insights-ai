@@ -103,6 +103,8 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
   };
 
   const handleSubmit = async (data: ProjectFormData) => {
+    console.log('Form data being submitted:', data);
+    console.log('EMR Link value:', data.emr_link);
     await onSubmit(data);
     form.reset();
   };
