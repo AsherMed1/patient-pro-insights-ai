@@ -19,6 +19,7 @@ interface Project {
   timezone?: string | null;
   ghl_api_key?: string | null;
   emr_system_name?: string | null;
+  emr_link?: string | null;
 }
 
 interface ProjectStats {
@@ -36,6 +37,7 @@ interface ProjectFormData {
   timezone?: string;
   ghl_api_key?: string;
   emr_system_name?: string;
+  emr_link?: string;
 }
 
 const ProjectsManager = () => {
@@ -131,6 +133,7 @@ const ProjectsManager = () => {
           timezone: data.timezone || 'America/Chicago',
           ghl_api_key: data.ghl_api_key || null,
           emr_system_name: data.emr_system_name || null,
+          emr_link: data.emr_link || null,
         });
 
       if (error) throw error;
@@ -165,6 +168,7 @@ const ProjectsManager = () => {
           timezone: data.timezone || 'America/Chicago',
           ghl_api_key: data.ghl_api_key || null,
           emr_system_name: data.emr_system_name || null,
+          emr_link: data.emr_link || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingProject.id);

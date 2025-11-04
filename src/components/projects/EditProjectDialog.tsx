@@ -19,6 +19,7 @@ interface Project {
   timezone?: string | null;
   ghl_api_key?: string | null;
   emr_system_name?: string | null;
+  emr_link?: string | null;
 }
 
 interface ProjectFormData {
@@ -28,6 +29,7 @@ interface ProjectFormData {
   timezone?: string;
   ghl_api_key?: string;
   emr_system_name?: string;
+  emr_link?: string;
 }
 
 interface EditProjectDialogProps {
@@ -55,6 +57,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
       form.setValue('timezone', project.timezone || 'America/Chicago');
       form.setValue('ghl_api_key', project.ghl_api_key || '');
       form.setValue('emr_system_name', project.emr_system_name || '');
+      form.setValue('emr_link', project.emr_link || '');
     }
   }, [project, form]);
 
@@ -240,6 +243,27 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                   </FormControl>
                   <p className="text-sm text-muted-foreground">
                     The EMR system used for this project. This will be displayed in the EMR processing queue.
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="emr_link"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>EMR System Link (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="url"
+                      placeholder="https://your-emr-system.com/login"
+                      {...field} 
+                      value={field.value || ''}
+                    />
+                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    Direct link to your EMR system. This will appear as a button in the EMR queue for quick access.
                   </p>
                 </FormItem>
               )}

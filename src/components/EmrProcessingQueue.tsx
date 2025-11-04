@@ -257,6 +257,21 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
           </div>
         </div>
 
+        {/* EMR Quick Access - Only show for pending items */}
+        {isPending && item.project_emr_link && (
+          <div className="pt-3 border-t">
+            <Button
+              variant="default"
+              size="sm"
+              className="w-full"
+              onClick={() => window.open(item.project_emr_link!, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open {item.project_emr_system || 'EMR'} System
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="text-sm text-muted-foreground">
             {isPending ? (

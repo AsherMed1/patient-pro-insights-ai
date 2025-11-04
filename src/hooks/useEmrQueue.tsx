@@ -27,6 +27,7 @@ export interface EmrQueueItem {
   processed_by_name: string | null;
   // Joined project data
   project_emr_system: string | null;
+  project_emr_link: string | null;
 }
 
 export const useEmrQueue = (projectFilter?: string) => {
@@ -99,23 +100,26 @@ export const useEmrQueue = (projectFilter?: string) => {
       const { data: completed, error: completedError } = await completedQuery;
       if (completedError) throw completedError;
 
-      // Fetch project EMR systems for all items
+      // Fetch project EMR systems and links for all items
       const allProjectNames = [...new Set([
         ...(pending || []).map(p => p.project_name),
         ...(completed || []).map(c => c.project_name),
       ])];
 
-      let projectEmrSystems: Record<string, string | null> = {};
+      let projectEmrSystems: Record<string, { emr_system_name: string | null; emr_link: string | null }> = {};
       if (allProjectNames.length > 0) {
         const { data: projects } = await supabase
           .from('projects')
-          .select('project_name, emr_system_name')
+          .select('project_name, emr_system_name, emr_link')
           .in('project_name', allProjectNames);
         
         projectEmrSystems = (projects || []).reduce((acc, p) => {
-          acc[p.project_name] = p.emr_system_name || null;
+          acc[p.project_name] = {
+            emr_system_name: p.emr_system_name || null,
+            emr_link: p.emr_link || null,
+          };
           return acc;
-        }, {} as Record<string, string | null>);
+        }, {} as Record<string, { emr_system_name: string | null; emr_link: string | null }>);
       }
 
       // Get user names for processed_by
@@ -151,7 +155,8 @@ export const useEmrQueue = (projectFilter?: string) => {
         detected_insurance_id: item.all_appointments.detected_insurance_id,
         insurance_id_link: item.all_appointments.insurance_id_link,
         processed_by_name: item.processed_by ? userNames[item.processed_by] || null : null,
-        project_emr_system: projectEmrSystems[item.project_name] || null,
+        project_emr_system: projectEmrSystems[item.project_name]?.emr_system_name || null,
+        project_emr_link: projectEmrSystems[item.project_name]?.emr_link || null,
       }));
 
       const transformedCompleted = (completed || []).map(item => ({
@@ -167,7 +172,8 @@ export const useEmrQueue = (projectFilter?: string) => {
         detected_insurance_id: item.all_appointments.detected_insurance_id,
         insurance_id_link: item.all_appointments.insurance_id_link,
         processed_by_name: item.processed_by ? userNames[item.processed_by] || null : null,
-        project_emr_system: projectEmrSystems[item.project_name] || null,
+        project_emr_system: projectEmrSystems[item.project_name]?.emr_system_name || null,
+        project_emr_link: projectEmrSystems[item.project_name]?.emr_link || null,
       }));
 
       setPendingItems(transformedPending);

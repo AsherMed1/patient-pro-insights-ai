@@ -2273,6 +2273,7 @@ export type Database = {
           custom_insurance_list: Json | null
           custom_logo_url: string | null
           emr_integration_url: string | null
+          emr_link: string | null
           emr_requires_manual_entry: boolean | null
           emr_system_name: string | null
           ghl_api_key: string | null
@@ -2294,6 +2295,7 @@ export type Database = {
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
           emr_integration_url?: string | null
+          emr_link?: string | null
           emr_requires_manual_entry?: boolean | null
           emr_system_name?: string | null
           ghl_api_key?: string | null
@@ -2315,6 +2317,7 @@ export type Database = {
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
           emr_integration_url?: string | null
+          emr_link?: string | null
           emr_requires_manual_entry?: boolean | null
           emr_system_name?: string | null
           ghl_api_key?: string | null
