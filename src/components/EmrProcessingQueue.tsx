@@ -24,8 +24,6 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'project'>('newest');
   const [selectedItem, setSelectedItem] = useState<EmrQueueItem | null>(null);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
-  const [emrSystem, setEmrSystem] = useState('');
-  const [emrReferenceId, setEmrReferenceId] = useState('');
   const [processingNotes, setProcessingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [checkedInsurance, setCheckedInsurance] = useState(false);
@@ -100,39 +98,33 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
   const handleMarkComplete = () => {
     if (!selectedItem) return;
     setCompletionModalOpen(true);
-    // Reset checklist when opening modal
+    setProcessingNotes('');
     setCheckedInsurance(false);
     setCheckedAvailability(false);
     setCheckedEmrAccuracy(false);
   };
 
   const handleSubmitCompletion = async () => {
-    if (!selectedItem || !emrSystem || !emrReferenceId) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please fill in EMR system and reference ID',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!selectedItem) return;
 
     setSubmitting(true);
     try {
       await markComplete(
         selectedItem.id,
         selectedItem.appointment_id,
-        emrSystem,
-        emrReferenceId,
         processingNotes
       );
       setCompletionModalOpen(false);
       setSelectedItem(null);
-      setEmrSystem('');
-      setEmrReferenceId('');
       setProcessingNotes('');
       setCheckedInsurance(false);
       setCheckedAvailability(false);
       setCheckedEmrAccuracy(false);
+      
+      toast({
+        title: 'Success',
+        description: 'Appointment marked as complete in EMR'
+      });
     } catch (error) {
       // Error handled in hook
     } finally {
@@ -148,8 +140,13 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
             <CardTitle className="text-xl">{item.lead_name}</CardTitle>
             <CardDescription className="mt-1">
               <Badge className="mr-2">{item.project_name}</Badge>
+              {item.project_emr_system && (
+                <Badge variant="secondary" className="ml-2">
+                  EMR: {item.project_emr_system}
+                </Badge>
+              )}
               {item.date_of_appointment && (
-                <span className="text-sm">
+                <span className="text-sm ml-2">
                   Appt: {format(new Date(item.date_of_appointment), 'MMM d, yyyy h:mm a')}
                 </span>
               )}
@@ -286,14 +283,11 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
             </Button>
           ) : (
             <div className="text-sm space-y-1">
-              {item.emr_system_name && (
-                <p><strong>EMR:</strong> {item.emr_system_name}</p>
-              )}
-              {item.emr_reference_id && (
-                <p><strong>Ref ID:</strong> {item.emr_reference_id}</p>
+              {item.project_emr_system && (
+                <p><strong>EMR System:</strong> {item.project_emr_system}</p>
               )}
               {item.notes && (
-                <p className="text-muted-foreground">{item.notes}</p>
+                <p className="text-muted-foreground"><strong>Notes:</strong> {item.notes}</p>
               )}
             </div>
           )}
@@ -417,34 +411,14 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
       <Dialog open={completionModalOpen} onOpenChange={setCompletionModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark EMR Complete</DialogTitle>
+            <DialogTitle>Mark Complete in EMR</DialogTitle>
             <DialogDescription>
-              Enter the EMR details for {selectedItem?.lead_name}
+              Confirm processing for {selectedItem?.lead_name}'s appointment
             </DialogDescription>
           </DialogHeader>
 
           {selectedItem && (
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="emr-system">EMR System *</Label>
-                <Input
-                  id="emr-system"
-                  placeholder="e.g., Athena, Epic, NextGen"
-                  value={emrSystem}
-                  onChange={(e) => setEmrSystem(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="emr-ref">EMR Reference ID *</Label>
-                <Input
-                  id="emr-ref"
-                  placeholder="Patient or appointment ID from EMR"
-                  value={emrReferenceId}
-                  onChange={(e) => setEmrReferenceId(e.target.value)}
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="notes">Processing Notes (Optional)</Label>
                 <Textarea

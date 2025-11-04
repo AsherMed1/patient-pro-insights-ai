@@ -18,6 +18,7 @@ interface Project {
   ghl_location_id?: string | null;
   timezone?: string | null;
   ghl_api_key?: string | null;
+  emr_system_name?: string | null;
 }
 
 interface ProjectFormData {
@@ -26,6 +27,7 @@ interface ProjectFormData {
   ghl_location_id?: string;
   timezone?: string;
   ghl_api_key?: string;
+  emr_system_name?: string;
 }
 
 interface EditProjectDialogProps {
@@ -52,6 +54,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
       form.setValue('ghl_location_id', project.ghl_location_id || '');
       form.setValue('timezone', project.timezone || 'America/Chicago');
       form.setValue('ghl_api_key', project.ghl_api_key || '');
+      form.setValue('emr_system_name', project.emr_system_name || '');
     }
   }, [project, form]);
 
@@ -217,6 +220,26 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                   </FormControl>
                   <p className="text-sm text-muted-foreground">
                     API key for this location. Leave blank to keep existing key. Required for automatic updates.
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="emr_system_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>EMR System Name (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g., Epic, Athena, NextGen, AdvancedMD"
+                      {...field} 
+                      value={field.value || ''}
+                    />
+                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    The EMR system used for this project. This will be displayed in the EMR processing queue.
                   </p>
                 </FormItem>
               )}

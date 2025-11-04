@@ -15,6 +15,7 @@ interface ProjectFormData {
   ghl_location_id?: string;
   timezone?: string;
   ghl_api_key?: string;
+  emr_system_name?: string;
 }
 
 interface AddProjectDialogProps {
@@ -197,6 +198,25 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
                   </FormControl>
                   <p className="text-sm text-muted-foreground">
                     API key for this location. Required for automatic appointment updates and timezone sync.
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="emr_system_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>EMR System Name (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g., Epic, Athena, NextGen, AdvancedMD"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    The EMR system used for this project. This will be displayed in the EMR processing queue.
                   </p>
                 </FormItem>
               )}
