@@ -13,6 +13,7 @@ import NewLeadsManager from "@/components/NewLeadsManager";
 import SpeedToLeadManager from "@/components/SpeedToLeadManager";
 import AgentManager from "@/components/AgentManager";
 import ProjectsManager from "@/components/ProjectsManager";
+import { EmrProcessingQueue } from "@/components/EmrProcessingQueue";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import CallTeamTab from "@/components/callteam/CallTeamTab";
 import UserManagement from "@/components/UserManagement";
@@ -225,9 +226,10 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-11' : 'grid-cols-5 lg:grid-cols-10'}`}>
+          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-12' : 'grid-cols-5 lg:grid-cols-11'}`}>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
+            <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
@@ -255,6 +257,10 @@ const Index = () => {
           <TabsContent value="appointments" className="space-y-6">
             <InsuranceQueueTrigger />
             <AllAppointmentsManager />
+          </TabsContent>
+
+          <TabsContent value="emr-queue" className="space-y-6">
+            <EmrProcessingQueue />
           </TabsContent>
 
           <TabsContent value="calls" className="space-y-6">

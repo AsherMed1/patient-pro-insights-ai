@@ -1097,6 +1097,59 @@ export type Database = {
         }
         Relationships: []
       }
+      emr_processing_queue: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          emr_reference_id: string | null
+          emr_system_name: string | null
+          id: string
+          notes: string | null
+          processed_at: string | null
+          processed_by: string | null
+          project_name: string
+          queued_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          emr_reference_id?: string | null
+          emr_system_name?: string | null
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          project_name: string
+          queued_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          emr_reference_id?: string | null
+          emr_system_name?: string | null
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          project_name?: string
+          queued_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emr_processing_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           annual_amount: number | null
@@ -2219,6 +2272,9 @@ export type Database = {
           custom_facility_info: Json | null
           custom_insurance_list: Json | null
           custom_logo_url: string | null
+          emr_integration_url: string | null
+          emr_requires_manual_entry: boolean | null
+          emr_system_name: string | null
           ghl_api_key: string | null
           ghl_location_id: string | null
           id: string
@@ -2237,6 +2293,9 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
+          emr_integration_url?: string | null
+          emr_requires_manual_entry?: boolean | null
+          emr_system_name?: string | null
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           id?: string
@@ -2255,6 +2314,9 @@ export type Database = {
           custom_facility_info?: Json | null
           custom_insurance_list?: Json | null
           custom_logo_url?: string | null
+          emr_integration_url?: string | null
+          emr_requires_manual_entry?: boolean | null
+          emr_system_name?: string | null
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           id?: string

@@ -680,6 +680,14 @@ const AppointmentCard = ({
                   )}
                 </>
               )}
+              {/* EMR Status Badge */}
+              {appointment.status?.toLowerCase() === 'confirmed' && (
+                appointment.internal_process_complete ? (
+                  <Badge variant="showed" className="ml-2">✅ EMR Complete</Badge>
+                ) : (
+                  <Badge variant="oon" className="ml-2">⏱️ Pending EMR</Badge>
+                )
+              )}
               {dobDisplay ? (
                 <Badge variant="secondary" className="ml-2 flex items-center">
                   <CalendarIcon className="h-3 w-3 mr-1" />
