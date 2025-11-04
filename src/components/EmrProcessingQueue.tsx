@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, CheckCircle2, Clock, Copy, ExternalLink, Loader2, Search } from 'lucide-react';
 import { useEmrQueue, EmrQueueItem } from '@/hooks/useEmrQueue';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -27,6 +28,9 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
   const [emrReferenceId, setEmrReferenceId] = useState('');
   const [processingNotes, setProcessingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [checkedInsurance, setCheckedInsurance] = useState(false);
+  const [checkedAvailability, setCheckedAvailability] = useState(false);
+  const [checkedEmrAccuracy, setCheckedEmrAccuracy] = useState(false);
   const { toast } = useToast();
 
   const copyToClipboard = (text: string, label: string) => {
@@ -67,6 +71,10 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
   const handleMarkComplete = () => {
     if (!selectedItem) return;
     setCompletionModalOpen(true);
+    // Reset checklist when opening modal
+    setCheckedInsurance(false);
+    setCheckedAvailability(false);
+    setCheckedEmrAccuracy(false);
   };
 
   const handleSubmitCompletion = async () => {
@@ -93,6 +101,9 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
       setEmrSystem('');
       setEmrReferenceId('');
       setProcessingNotes('');
+      setCheckedInsurance(false);
+      setCheckedAvailability(false);
+      setCheckedEmrAccuracy(false);
     } catch (error) {
       // Error handled in hook
     } finally {
@@ -381,6 +392,52 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
                   rows={3}
                 />
               </div>
+
+              {/* Required Checklist */}
+              <div className="space-y-3 pt-4 border-t">
+                <Label className="text-base font-semibold">Required Confirmations</Label>
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="check-insurance"
+                      checked={checkedInsurance}
+                      onCheckedChange={(checked) => setCheckedInsurance(checked === true)}
+                    />
+                    <label
+                      htmlFor="check-insurance"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      I checked and confirmed insurance
+                    </label>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="check-availability"
+                      checked={checkedAvailability}
+                      onCheckedChange={(checked) => setCheckedAvailability(checked === true)}
+                    />
+                    <label
+                      htmlFor="check-availability"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      I checked and confirmed availability
+                    </label>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="check-emr-accuracy"
+                      checked={checkedEmrAccuracy}
+                      onCheckedChange={(checked) => setCheckedEmrAccuracy(checked === true)}
+                    />
+                    <label
+                      htmlFor="check-emr-accuracy"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      I added the appointment to the EMR and ensured accuracy
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -388,7 +445,10 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
             <Button variant="outline" onClick={() => setCompletionModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmitCompletion} disabled={submitting}>
+            <Button 
+              onClick={handleSubmitCompletion} 
+              disabled={submitting || !checkedInsurance || !checkedAvailability || !checkedEmrAccuracy}
+            >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Mark Complete
             </Button>
