@@ -31,6 +31,8 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
   const [checkedInsurance, setCheckedInsurance] = useState(false);
   const [checkedAvailability, setCheckedAvailability] = useState(false);
   const [checkedEmrAccuracy, setCheckedEmrAccuracy] = useState(false);
+  const [insuranceDetailsItem, setInsuranceDetailsItem] = useState<EmrQueueItem | null>(null);
+  const [insuranceDetailsOpen, setInsuranceDetailsOpen] = useState(false);
   const { toast } = useToast();
 
   const copyToClipboard = (text: string, label: string) => {
@@ -60,41 +62,9 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
     }
   };
 
-  const downloadInsuranceDetails = (item: EmrQueueItem) => {
-    const details = `
-PATIENT INSURANCE DETAILS
-========================
-
-Patient Name: ${item.lead_name}
-Date of Birth: ${item.dob ? format(new Date(item.dob), 'MM/dd/yyyy') : 'N/A'}
-Phone: ${item.lead_phone_number || 'N/A'}
-Email: ${item.lead_email || 'N/A'}
-
-INSURANCE INFORMATION
-=====================
-Provider: ${item.detected_insurance_provider || 'N/A'}
-Plan: ${item.detected_insurance_plan || 'N/A'}
-Insurance ID: ${item.detected_insurance_id || 'N/A'}
-
-APPOINTMENT INFORMATION
-=======================
-Project: ${item.project_name}
-Appointment Date: ${item.date_of_appointment ? format(new Date(item.date_of_appointment), 'MMM d, yyyy h:mm a') : 'N/A'}
-Queued: ${format(new Date(item.queued_at), 'MMM d, yyyy h:mm a')}
-
-Insurance Card Image: ${item.insurance_id_link || 'Not available'}
-    `.trim();
-
-    const blob = new Blob([details], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `insurance-details-${item.lead_name.replace(/\s+/g, '-')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: 'Insurance details exported' });
+  const viewInsuranceDetails = (item: EmrQueueItem) => {
+    setInsuranceDetailsItem(item);
+    setInsuranceDetailsOpen(true);
   };
 
   const getUrgencyBadge = (queuedAt: string) => {
@@ -280,8 +250,8 @@ Insurance Card Image: ${item.insurance_id_link || 'Not available'}
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => downloadInsuranceDetails(item)}
-                  title="Download all insurance details"
+                  onClick={() => viewInsuranceDetails(item)}
+                  title="View insurance details"
                 >
                   <FileText className="h-4 w-4" />
                 </Button>
@@ -545,6 +515,106 @@ Insurance Card Image: ${item.insurance_id_link || 'Not available'}
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Mark Complete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insurance Details Modal */}
+      <Dialog open={insuranceDetailsOpen} onOpenChange={setInsuranceDetailsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Insurance Details</DialogTitle>
+            <DialogDescription>
+              Complete insurance information for {insuranceDetailsItem?.lead_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {insuranceDetailsItem && (
+            <div className="space-y-6 py-4">
+              {/* Patient Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Patient Information</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Name</p>
+                    <p className="font-medium">{insuranceDetailsItem.lead_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Date of Birth</p>
+                    <p className="font-medium">
+                      {insuranceDetailsItem.dob ? format(new Date(insuranceDetailsItem.dob), 'MM/dd/yyyy') : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Phone</p>
+                    <p className="font-medium font-mono">{insuranceDetailsItem.lead_phone_number || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Email</p>
+                    <p className="font-medium truncate">{insuranceDetailsItem.lead_email || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Insurance Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Insurance Information</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Provider</p>
+                    <p className="font-medium">{insuranceDetailsItem.detected_insurance_provider || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Plan</p>
+                    <p className="font-medium">{insuranceDetailsItem.detected_insurance_plan || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Insurance ID</p>
+                    <p className="font-medium font-mono">{insuranceDetailsItem.detected_insurance_id || 'N/A'}</p>
+                  </div>
+                  {insuranceDetailsItem.insurance_id_link && (
+                    <div className="col-span-2">
+                      <p className="text-muted-foreground mb-2">Insurance Card Image</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(insuranceDetailsItem.insurance_id_link!, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Card
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Appointment Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Appointment Information</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Project</p>
+                    <p className="font-medium">{insuranceDetailsItem.project_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Appointment Date</p>
+                    <p className="font-medium">
+                      {insuranceDetailsItem.date_of_appointment 
+                        ? format(new Date(insuranceDetailsItem.date_of_appointment), 'MMM d, yyyy h:mm a')
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Queued</p>
+                    <p className="font-medium">{format(new Date(insuranceDetailsItem.queued_at), 'MMM d, yyyy h:mm a')}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setInsuranceDetailsOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
