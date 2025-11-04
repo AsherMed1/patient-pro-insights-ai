@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertCircle, CheckCircle2, Clock, Copy, ExternalLink, Loader2, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Copy, Download, ExternalLink, FileText, Loader2, Search } from 'lucide-react';
 import { useEmrQueue, EmrQueueItem } from '@/hooks/useEmrQueue';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,65 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied', description: `${label} copied to clipboard` });
+  };
+
+  const downloadInsuranceImage = async (imageUrl: string, patientName: string) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `insurance-card-${patientName.replace(/\s+/g, '-')}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Downloaded', description: 'Insurance card image downloaded' });
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to download insurance image',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const downloadInsuranceDetails = (item: EmrQueueItem) => {
+    const details = `
+PATIENT INSURANCE DETAILS
+========================
+
+Patient Name: ${item.lead_name}
+Date of Birth: ${item.dob ? format(new Date(item.dob), 'MM/dd/yyyy') : 'N/A'}
+Phone: ${item.lead_phone_number || 'N/A'}
+Email: ${item.lead_email || 'N/A'}
+
+INSURANCE INFORMATION
+=====================
+Provider: ${item.detected_insurance_provider || 'N/A'}
+Plan: ${item.detected_insurance_plan || 'N/A'}
+Insurance ID: ${item.detected_insurance_id || 'N/A'}
+
+APPOINTMENT INFORMATION
+=======================
+Project: ${item.project_name}
+Appointment Date: ${item.date_of_appointment ? format(new Date(item.date_of_appointment), 'MMM d, yyyy h:mm a') : 'N/A'}
+Queued: ${format(new Date(item.queued_at), 'MMM d, yyyy h:mm a')}
+
+Insurance Card Image: ${item.insurance_id_link || 'Not available'}
+    `.trim();
+
+    const blob = new Blob([details], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `insurance-details-${item.lead_name.replace(/\s+/g, '-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    toast({ title: 'Downloaded', description: 'Insurance details exported' });
   };
 
   const getUrgencyBadge = (queuedAt: string) => {
@@ -176,24 +235,58 @@ export const EmrProcessingQueue = ({ projectFilter }: EmrProcessingQueueProps) =
               )}
             </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Insurance</p>
-            <p>{item.detected_insurance_provider || 'N/A'}</p>
-            {item.detected_insurance_plan && (
-              <p className="text-xs text-muted-foreground">{item.detected_insurance_plan}</p>
-            )}
-            {item.detected_insurance_id && (
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs font-mono">{item.detected_insurance_id}</p>
+          <div className="md:col-span-2">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-1">Insurance Information</p>
+                <p className="font-medium">{item.detected_insurance_provider || 'N/A'}</p>
+                {item.detected_insurance_plan && (
+                  <p className="text-xs text-muted-foreground">{item.detected_insurance_plan}</p>
+                )}
+                {item.detected_insurance_id && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs font-mono">{item.detected_insurance_id}</p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(item.detected_insurance_id!, 'Insurance ID')}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 ml-4">
+                {item.insurance_id_link && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(item.insurance_id_link!, '_blank')}
+                      title="View insurance card"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadInsuranceImage(item.insurance_id_link!, item.lead_name)}
+                      title="Download insurance card"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard(item.detected_insurance_id!, 'Insurance ID')}
+                  variant="outline"
+                  onClick={() => downloadInsuranceDetails(item)}
+                  title="Download all insurance details"
                 >
-                  <Copy className="h-3 w-3" />
+                  <FileText className="h-4 w-4" />
                 </Button>
               </div>
-            )}
+            </div>
           </div>
         </div>
 

@@ -22,6 +22,7 @@ export interface EmrQueueItem {
   detected_insurance_provider: string | null;
   detected_insurance_plan: string | null;
   detected_insurance_id: string | null;
+  insurance_id_link: string | null;
   // Joined profile data for processed_by
   processed_by_name: string | null;
 }
@@ -54,7 +55,8 @@ export const useEmrQueue = (projectFilter?: string) => {
             date_of_appointment,
             detected_insurance_provider,
             detected_insurance_plan,
-            detected_insurance_id
+            detected_insurance_id,
+            insurance_id_link
           )
         `)
         .eq('status', 'pending')
@@ -80,7 +82,8 @@ export const useEmrQueue = (projectFilter?: string) => {
             date_of_appointment,
             detected_insurance_provider,
             detected_insurance_plan,
-            detected_insurance_id
+            detected_insurance_id,
+            insurance_id_link
           )
         `)
         .eq('status', 'completed')
@@ -125,6 +128,7 @@ export const useEmrQueue = (projectFilter?: string) => {
         detected_insurance_provider: item.all_appointments.detected_insurance_provider,
         detected_insurance_plan: item.all_appointments.detected_insurance_plan,
         detected_insurance_id: item.all_appointments.detected_insurance_id,
+        insurance_id_link: item.all_appointments.insurance_id_link,
         processed_by_name: item.processed_by ? userNames[item.processed_by] || null : null,
       }));
 
@@ -139,6 +143,7 @@ export const useEmrQueue = (projectFilter?: string) => {
         detected_insurance_provider: item.all_appointments.detected_insurance_provider,
         detected_insurance_plan: item.all_appointments.detected_insurance_plan,
         detected_insurance_id: item.all_appointments.detected_insurance_id,
+        insurance_id_link: item.all_appointments.insurance_id_link,
         processed_by_name: item.processed_by ? userNames[item.processed_by] || null : null,
       }));
 
