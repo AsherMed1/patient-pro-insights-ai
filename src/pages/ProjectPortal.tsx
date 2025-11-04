@@ -53,6 +53,7 @@ const ProjectPortal = () => {
     from: undefined, 
     to: undefined 
   });
+  const [activeTab, setActiveTab] = useState("overview");
   const { toast } = useToast();
 
   // Check if user has access to this specific project (after role data loads)
@@ -234,15 +235,17 @@ const ProjectPortal = () => {
         {/* Project Header with enhanced typography */}
         <ProjectHeader projectName={project.project_name} />
 
-        {/* Date Range Filter */}
-        <DateRangeFilter 
-          dateRange={dateRange} 
-          onDateRangeChange={setDateRange}
-          className="mb-6"
-        />
+        {/* Date Range Filter - Only show on Overview tab */}
+        {activeTab === "overview" && (
+          <DateRangeFilter 
+            dateRange={dateRange} 
+            onDateRangeChange={setDateRange}
+            className="mb-6"
+          />
+        )}
 
         {/* Tabbed Interface */}
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
