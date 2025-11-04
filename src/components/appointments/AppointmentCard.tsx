@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -126,6 +126,7 @@ const AppointmentCard = ({
   const [rescheduleTime, setRescheduleTime] = useState<string>('');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
+  const [retryingGhlSync, setRetryingGhlSync] = useState(false);
   
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
@@ -401,7 +402,7 @@ const AppointmentCard = ({
     }
   };
 
-  // Handle reschedule submission
+  // Handle reschedule submission - call GHL directly
   const handleRescheduleSubmit = async () => {
     if (!rescheduleDate) {
       toast({
@@ -415,34 +416,108 @@ const AppointmentCard = ({
     setSubmittingReschedule(true);
     
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
+      const newTime = rescheduleTime || appointment.requested_time || '09:00';
       
-      // Create reschedule record
-      const { error: rescheduleError } = await supabase
-        .from('appointment_reschedules')
-        .insert({
-          appointment_id: appointment.id,
-          original_date: appointment.date_of_appointment,
-          original_time: appointment.requested_time,
-          new_date: formatDateFns(rescheduleDate, 'yyyy-MM-dd'),
-          new_time: rescheduleTime || null,
-          notes: rescheduleNotes || null,
-          requested_by: userData?.user?.id,
-          project_name: appointment.project_name,
-          lead_name: appointment.lead_name,
-          lead_phone: appointment.lead_phone_number,
-          lead_email: appointment.lead_email
+      // Update local appointment first
+      const { error: updateError } = await supabase
+        .from('all_appointments')
+        .update({
+          date_of_appointment: newDate,
+          requested_time: newTime,
+          status: 'Rescheduled',
+          last_ghl_sync_status: 'pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointment.id);
+      
+      if (updateError) throw updateError;
+      
+      // Try to sync with GHL if we have the required data
+      if (appointment.ghl_appointment_id) {
+        try {
+          // Fetch project data for timezone and location ID
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select('timezone, ghl_location_id, ghl_api_key')
+            .eq('project_name', appointment.project_name)
+            .single();
+          
+          if (projectError) throw projectError;
+          
+          if (!projectData?.ghl_location_id) {
+            throw new Error('GHL location ID not configured for this project');
+          }
+          
+          // Call GHL update function
+          const { error: ghlError } = await supabase.functions.invoke(
+            'update-ghl-appointment',
+            {
+              body: {
+                ghl_appointment_id: appointment.ghl_appointment_id,
+                ghl_location_id: projectData.ghl_location_id,
+                new_date: newDate,
+                new_time: newTime,
+                timezone: projectData.timezone || 'America/Chicago',
+                ghl_api_key: projectData.ghl_api_key,
+              },
+            }
+          );
+          
+          if (ghlError) throw ghlError;
+          
+          // Update sync status on success
+          await supabase
+            .from('all_appointments')
+            .update({
+              last_ghl_sync_status: 'success',
+              last_ghl_sync_at: new Date().toISOString(),
+              last_ghl_sync_error: null,
+            })
+            .eq('id', appointment.id);
+          
+          toast({
+            title: "Success",
+            description: "Appointment rescheduled in GoHighLevel successfully"
+          });
+          
+        } catch (ghlError: any) {
+          console.error('GHL sync error:', ghlError);
+          
+          // Log error but appointment was still updated locally
+          await supabase
+            .from('all_appointments')
+            .update({
+              last_ghl_sync_status: 'failed',
+              last_ghl_sync_at: new Date().toISOString(),
+              last_ghl_sync_error: ghlError.message || String(ghlError),
+            })
+            .eq('id', appointment.id);
+          
+          toast({
+            title: "Partial Success",
+            description: "Appointment updated locally but GHL sync failed. You can retry from the appointment card.",
+            variant: "destructive"
+          });
+        }
+      } else {
+        // No GHL appointment ID
+        await supabase
+          .from('all_appointments')
+          .update({
+            last_ghl_sync_status: null,
+            last_ghl_sync_error: 'No GHL appointment ID',
+          })
+          .eq('id', appointment.id);
+        
+        toast({
+          title: "Success",
+          description: "Appointment rescheduled locally (not linked to GoHighLevel)"
         });
+      }
       
-      if (rescheduleError) throw rescheduleError;
-      
-      // Update appointment status to "Rescheduled"
-      await onUpdateStatus(appointment.id, 'Rescheduled');
-      
-      toast({
-        title: "Success",
-        description: "Reschedule request submitted successfully"
-      });
+      // Trigger parent update
+      onUpdateStatus(appointment.id, 'Rescheduled');
       
       // Reset and close dialog
       setShowRescheduleDialog(false);
@@ -454,11 +529,101 @@ const AppointmentCard = ({
       console.error('Error submitting reschedule:', error);
       toast({
         title: "Error",
-        description: "Failed to submit reschedule request",
+        description: "Failed to reschedule appointment",
         variant: "destructive"
       });
     } finally {
       setSubmittingReschedule(false);
+    }
+  };
+
+  // Retry GHL sync for failed appointments
+  const handleRetryGhlSync = async () => {
+    if (!appointment.ghl_appointment_id || !appointment.date_of_appointment) {
+      toast({
+        title: "Cannot Retry",
+        description: "Missing GHL appointment ID or date",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setRetryingGhlSync(true);
+    
+    try {
+      const newTime = appointment.requested_time || '09:00';
+      
+      // Fetch project data for timezone and location ID
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('timezone, ghl_location_id, ghl_api_key')
+        .eq('project_name', appointment.project_name)
+        .single();
+      
+      if (projectError) throw projectError;
+      
+      if (!projectData?.ghl_location_id) {
+        throw new Error('GHL location ID not configured for this project');
+      }
+      
+      // Update status to pending
+      await supabase
+        .from('all_appointments')
+        .update({ last_ghl_sync_status: 'pending' })
+        .eq('id', appointment.id);
+      
+      // Call GHL update function
+      const { error: ghlError } = await supabase.functions.invoke(
+        'update-ghl-appointment',
+        {
+          body: {
+            ghl_appointment_id: appointment.ghl_appointment_id,
+            ghl_location_id: projectData.ghl_location_id,
+            new_date: appointment.date_of_appointment,
+            new_time: newTime,
+            timezone: projectData.timezone || 'America/Chicago',
+            ghl_api_key: projectData.ghl_api_key,
+          },
+        }
+      );
+      
+      if (ghlError) throw ghlError;
+      
+      // Update sync status on success
+      await supabase
+        .from('all_appointments')
+        .update({
+          last_ghl_sync_status: 'success',
+          last_ghl_sync_at: new Date().toISOString(),
+          last_ghl_sync_error: null,
+        })
+        .eq('id', appointment.id);
+      
+      toast({
+        title: "Success",
+        description: "Appointment synced to GoHighLevel successfully"
+      });
+      
+    } catch (error: any) {
+      console.error('GHL retry error:', error);
+      
+      // Update with error
+      await supabase
+        .from('all_appointments')
+        .update({
+          last_ghl_sync_status: 'failed',
+          last_ghl_sync_at: new Date().toISOString(),
+          last_ghl_sync_error: error.message || String(error),
+        })
+        .eq('id', appointment.id);
+      
+      toast({
+        title: "Sync Failed",
+        description: error.message || 'Failed to sync with GoHighLevel',
+        variant: "destructive"
+      });
+    } finally {
+      setRetryingGhlSync(false);
     }
   };
 
@@ -915,6 +1080,63 @@ const AppointmentCard = ({
             <Badge variant="outline">
               Agent: {appointment.agent}
             </Badge>
+          )}
+          
+          {/* GHL Sync Status Badge */}
+          {appointment.ghl_appointment_id && appointment.last_ghl_sync_status && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1">
+                    {appointment.last_ghl_sync_status === 'success' && (
+                      <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        GHL Synced
+                      </Badge>
+                    )}
+                    {appointment.last_ghl_sync_status === 'failed' && (
+                      <>
+                        <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          GHL Sync Failed
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={handleRetryGhlSync}
+                          disabled={retryingGhlSync}
+                          aria-label="Retry GHL sync"
+                        >
+                          {retryingGhlSync ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </>
+                    )}
+                    {appointment.last_ghl_sync_status === 'pending' && (
+                      <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
+                        <Clock className="h-3 w-3 mr-1" />
+                        GHL Syncing...
+                      </Badge>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {appointment.last_ghl_sync_status === 'success' && (
+                    <p>Last synced: {appointment.last_ghl_sync_at ? new Date(appointment.last_ghl_sync_at).toLocaleString() : 'Unknown'}</p>
+                  )}
+                  {appointment.last_ghl_sync_status === 'failed' && (
+                    <p>Error: {appointment.last_ghl_sync_error || 'Unknown error'}</p>
+                  )}
+                  {appointment.last_ghl_sync_status === 'pending' && (
+                    <p>Sync in progress...</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
         

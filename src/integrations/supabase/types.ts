@@ -228,6 +228,9 @@ export type Database = {
           insurance_id_link: string | null
           internal_process_complete: boolean
           is_viewed: boolean | null
+          last_ghl_sync_at: string | null
+          last_ghl_sync_error: string | null
+          last_ghl_sync_status: string | null
           lead_email: string | null
           lead_name: string
           lead_phone_number: string | null
@@ -267,6 +270,9 @@ export type Database = {
           insurance_id_link?: string | null
           internal_process_complete?: boolean
           is_viewed?: boolean | null
+          last_ghl_sync_at?: string | null
+          last_ghl_sync_error?: string | null
+          last_ghl_sync_status?: string | null
           lead_email?: string | null
           lead_name: string
           lead_phone_number?: string | null
@@ -306,6 +312,9 @@ export type Database = {
           insurance_id_link?: string | null
           internal_process_complete?: boolean
           is_viewed?: boolean | null
+          last_ghl_sync_at?: string | null
+          last_ghl_sync_error?: string | null
+          last_ghl_sync_status?: string | null
           lead_email?: string | null
           lead_name?: string
           lead_phone_number?: string | null
