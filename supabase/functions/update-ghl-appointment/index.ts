@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { formatInTimeZone, fromZonedTime } from "npm:date-fns-tz@3.2.0";
+import { addMinutes } from "npm:date-fns@3.6.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,48 +39,16 @@ serve(async (req) => {
     // Parse the new date and time to create ISO 8601 timestamps
     const tz = timezone || 'America/Chicago';
     
-    // Combine date and time into a proper datetime string
-    const startDateTime = new Date(`${new_date}T${new_time}`);
+    // Properly parse the input as Central Time (or specified timezone)
+    // This converts "2025-12-01T17:00" in Central Time to a UTC Date object
+    const startDateTimeInTz = fromZonedTime(`${new_date}T${new_time}`, tz);
     
     // Add 30 minutes for end time (default appointment duration)
-    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000);
+    const endDateTimeInTz = addMinutes(startDateTimeInTz, 30);
 
-    // Get timezone offset in minutes
-    const getTimezoneOffset = (tz: string): string => {
-      // Map common US timezones to offsets
-      const tzMap: { [key: string]: string } = {
-        'America/New_York': '-05:00',
-        'America/Chicago': '-06:00',
-        'America/Denver': '-07:00',
-        'America/Phoenix': '-07:00',
-        'America/Los_Angeles': '-08:00',
-        'America/Anchorage': '-09:00',
-        'America/Honolulu': '-10:00',
-        'US/Eastern': '-05:00',
-        'US/Central': '-06:00',
-        'US/Mountain': '-07:00',
-        'US/Pacific': '-08:00',
-      };
-      
-      return tzMap[tz] || '-06:00'; // Default to Central Time
-    };
-
-    const tzOffset = getTimezoneOffset(tz);
-
-    // Format as ISO 8601 with timezone
-    const formatISO = (date: Date, offset: string): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const seconds = String(date.getSeconds()).padStart(2, '0');
-      
-      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offset}`;
-    };
-
-    const startTime = formatISO(startDateTime, tzOffset);
-    const endTime = formatISO(endDateTime, tzOffset);
+    // Format as ISO 8601 with the timezone offset (this properly handles DST)
+    const startTime = formatInTimeZone(startDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+    const endTime = formatInTimeZone(endDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
 
     console.log('Updating GHL appointment:', {
       ghl_appointment_id,
