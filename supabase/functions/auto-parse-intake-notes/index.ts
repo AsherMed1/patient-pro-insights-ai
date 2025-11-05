@@ -160,8 +160,8 @@ Parse the following patient intake notes and return a JSON object with these exa
     "gender": "string or null"
   },
   "pathology_info": {
-    "procedure_type": "string or null (e.g., GAE, TKR)",
-    "primary_complaint": "string or null",
+    "procedure_type": "string or null - The pathology type (e.g., GAE, TKR, etc.). This is NOT the patient complaint.",
+    "primary_complaint": "string or null - The patient's chief complaint (e.g., 'knee pain', 'hip pain'), NOT the pathology type.",
     "symptoms": "string or null",
     "pain_level": "string or null",
     "affected_area": "string or null",
