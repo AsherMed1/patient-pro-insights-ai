@@ -77,7 +77,7 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
-  const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'won', 'oon'];
+  const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon'];
   
   return appointments.filter(appointment => {
     const normalizedStatus = appointment.status?.trim().toLowerCase();
@@ -141,7 +141,6 @@ export const getAppointmentStatus = (appointment: AllAppointment) => {
 export const getStatusVariant = (status: string) => {
   switch (status?.toLowerCase()) {
     case 'showed':
-    case 'won':
       return 'showed' as const;
     case 'no show':
     case 'noshow':
@@ -226,4 +225,4 @@ export const getBaseStatusOptions = async () => {
 };
 
 // Default status options - only these statuses are allowed
-export const statusOptions = ['New', 'Pending', 'Confirmed', 'Scheduled', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'Won', 'OON'];
+export const statusOptions = ['New', 'Pending', 'Confirmed', 'Scheduled', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'OON'];
