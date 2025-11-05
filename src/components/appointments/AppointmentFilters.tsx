@@ -122,7 +122,11 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             // Extract location: text after "at " 
             const locationMatch = item.calendar_name.match(/at\s+(.+)$/);
             if (locationMatch && locationMatch[1]) {
-              locations.add(locationMatch[1].trim());
+              const location = locationMatch[1].trim();
+              // Exclude Somerset, KY from location options
+              if (!location.toLowerCase().includes('somerset')) {
+                locations.add(location);
+              }
             }
             
             // Extract service: text between quotes or after "your " and before " Consultation"
