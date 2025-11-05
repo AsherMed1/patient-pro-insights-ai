@@ -195,7 +195,7 @@ const ProjectPortal = () => {
         break;
       case 'showed':
         setAppointmentFilters({
-          statusFilter: 'showed',
+          statusFilter: 'Showed', // Capital S to match status options
           procedureFilter: 'ALL',
           tab: 'all' // Use 'all' tab to avoid conflicts with tab-specific filtering
         });
