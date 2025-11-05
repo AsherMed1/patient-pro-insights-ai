@@ -127,6 +127,7 @@ const AppointmentCard = ({
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [retryingGhlSync, setRetryingGhlSync] = useState(false);
+  const [projectTimezone, setProjectTimezone] = useState<string>('America/Chicago');
   
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
@@ -393,9 +394,45 @@ const AppointmentCard = ({
     };
   };
 
+  // Helper function to format timezone names
+  const formatTimezoneName = (tz: string): string => {
+    const timezoneMap: { [key: string]: string } = {
+      'America/New_York': 'Eastern Time',
+      'America/Chicago': 'Central Time',
+      'America/Denver': 'Mountain Time',
+      'America/Phoenix': 'Mountain Time (no DST)',
+      'America/Los_Angeles': 'Pacific Time',
+      'America/Louisville': 'Eastern Time',
+      'America/Detroit': 'Eastern Time',
+      'America/Indiana/Indianapolis': 'Eastern Time',
+      'America/Kentucky/Louisville': 'Eastern Time',
+      'US/Eastern': 'Eastern Time',
+      'US/Central': 'Central Time',
+      'US/Mountain': 'Mountain Time',
+      'US/Pacific': 'Pacific Time',
+    };
+    
+    return timezoneMap[tz] || tz;
+  };
+
   // Handle status change - intercept "Rescheduled" to show dialog
-  const handleStatusChange = (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string) => {
     if (newStatus.toLowerCase() === 'rescheduled') {
+      // Fetch project timezone before showing dialog
+      try {
+        const { data: projectData, error } = await supabase
+          .from('projects')
+          .select('timezone')
+          .eq('project_name', appointment.project_name)
+          .single();
+        
+        if (!error && projectData?.timezone) {
+          setProjectTimezone(projectData.timezone);
+        }
+      } catch (error) {
+        console.error('Error fetching project timezone:', error);
+      }
+      
       setShowRescheduleDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
@@ -1349,11 +1386,14 @@ const AppointmentCard = ({
             {/* New Time Picker */}
             <div>
               <Label>New Appointment Time (Optional)</Label>
+              <p className="text-xs text-muted-foreground mb-1 mt-1">
+                Time is in <span className="font-semibold">{formatTimezoneName(projectTimezone)}</span> ({projectTimezone})
+              </p>
               <Input
                 type="time"
                 value={rescheduleTime}
                 onChange={(e) => setRescheduleTime(e.target.value)}
-                className="w-full mt-1"
+                className="w-full"
               />
             </div>
             
