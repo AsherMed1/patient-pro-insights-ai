@@ -170,109 +170,186 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       {/* Medical Information Section */}
       {parsedPathologyInfo && (
         <Card className="bg-amber-50 border-amber-200">
-          <CardContent className="pt-4 space-y-2">
+          <CardContent className="pt-4 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <Heart className="h-4 w-4 text-amber-600" />
               <span className="font-medium text-sm text-amber-900">Medical Information</span>
             </div>
-            {formatValue(parsedPathologyInfo.procedure_type) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Pathology:</span>{' '}
-                <Badge variant="outline" className="ml-2">{parsedPathologyInfo.procedure_type}</Badge>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.duration) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Duration:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.duration}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.oa_tkr_diagnosed) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">OA or TKR Diagnosed:</span>{' '}
-                <Badge variant={parsedPathologyInfo.oa_tkr_diagnosed === 'YES' ? "default" : "secondary"}>
-                  {parsedPathologyInfo.oa_tkr_diagnosed}
-                </Badge>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.age_range) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Age Range:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.age_range}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.trauma_related_onset) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Trauma-related Onset:</span>{' '}
-                <Badge variant={parsedPathologyInfo.trauma_related_onset === 'YES' ? "destructive" : "secondary"}>
-                  {parsedPathologyInfo.trauma_related_onset}
-                </Badge>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.pain_level) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Pain Level:</span>{' '}
-                <Badge variant={parseInt(parsedPathologyInfo.pain_level) >= 7 ? "destructive" : "secondary"}>
-                  {parsedPathologyInfo.pain_level}/10
-                </Badge>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.symptoms) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Symptoms:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.symptoms}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.previous_treatments) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Treatments Tried:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.imaging_done) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Imaging Done:</span>{' '}
-                <Badge variant={parsedPathologyInfo.imaging_done === 'YES' ? "default" : "secondary"}>
-                  {parsedPathologyInfo.imaging_done}
-                </Badge>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.imaging_type) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Imaging Type:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.imaging_type}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.other_notes) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Other:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.other_notes}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.primary_complaint) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Primary Complaint:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.primary_complaint}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.affected_area) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Affected Area:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.affected_area}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.diagnosis) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Diagnosis:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.diagnosis}</span>
-              </div>
-            )}
-            {formatValue(parsedPathologyInfo.treatment) && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Treatment:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.treatment}</span>
-              </div>
-            )}
+            
+            {/* Single-line pipe-separated format */}
+            <div className="text-sm leading-relaxed bg-amber-100/50 p-2 rounded border border-amber-200">
+              {formatValue(parsedPathologyInfo.procedure_type) && (
+                <>
+                  <span className="text-muted-foreground">Pathology:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.procedure_type}</span>
+                  {' - '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.duration) && (
+                <>
+                  <span className="text-muted-foreground">Duration:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.duration}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.oa_tkr_diagnosed) && (
+                <>
+                  <span className="text-muted-foreground">OA or TKR Diagnosed:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.oa_tkr_diagnosed}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.age_range) && (
+                <>
+                  <span className="text-muted-foreground">Age Range:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.age_range}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.trauma_related_onset) && (
+                <>
+                  <span className="text-muted-foreground">Trauma-related Onset:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.trauma_related_onset}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.pain_level) && (
+                <>
+                  <span className="text-muted-foreground">Pain Level:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.pain_level}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.symptoms) && (
+                <>
+                  <span className="text-muted-foreground">Symptoms:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.symptoms}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.previous_treatments) && (
+                <>
+                  <span className="text-muted-foreground">Treatments Tried:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.imaging_done) && (
+                <>
+                  <span className="text-muted-foreground">Imaging Done:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.imaging_done}</span>
+                  {' | '}
+                </>
+              )}
+              {formatValue(parsedPathologyInfo.other_notes) && (
+                <>
+                  <span className="text-muted-foreground">Other:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.other_notes}</span>
+                </>
+              )}
+            </div>
+
+            {/* Vertical detailed format */}
+            <div className="space-y-2 pt-2 border-t border-amber-200">
+              {formatValue(parsedPathologyInfo.procedure_type) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Pathology:</span>{' '}
+                  <Badge variant="outline" className="ml-2">{parsedPathologyInfo.procedure_type}</Badge>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.duration) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Duration:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.duration}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.oa_tkr_diagnosed) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">OA or TKR Diagnosed:</span>{' '}
+                  <Badge variant={parsedPathologyInfo.oa_tkr_diagnosed === 'YES' ? "default" : "secondary"}>
+                    {parsedPathologyInfo.oa_tkr_diagnosed}
+                  </Badge>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.age_range) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Age Range:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.age_range}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.trauma_related_onset) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Trauma-related Onset:</span>{' '}
+                  <Badge variant={parsedPathologyInfo.trauma_related_onset === 'YES' ? "destructive" : "secondary"}>
+                    {parsedPathologyInfo.trauma_related_onset}
+                  </Badge>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.pain_level) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Pain Level:</span>{' '}
+                  <Badge variant={parseInt(parsedPathologyInfo.pain_level) >= 7 ? "destructive" : "secondary"}>
+                    {parsedPathologyInfo.pain_level}/10
+                  </Badge>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.symptoms) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Symptoms:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.symptoms}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.previous_treatments) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Treatments Tried:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.imaging_done) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Imaging Done:</span>{' '}
+                  <Badge variant={parsedPathologyInfo.imaging_done === 'YES' ? "default" : "secondary"}>
+                    {parsedPathologyInfo.imaging_done}
+                  </Badge>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.imaging_type) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Imaging Type:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.imaging_type}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.other_notes) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Other:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.other_notes}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.primary_complaint) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Primary Complaint:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.primary_complaint}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.affected_area) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Affected Area:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.affected_area}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.diagnosis) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Diagnosis:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.diagnosis}</span>
+                </div>
+              )}
+              {formatValue(parsedPathologyInfo.treatment) && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Treatment:</span>{' '}
+                  <span className="font-medium">{parsedPathologyInfo.treatment}</span>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
