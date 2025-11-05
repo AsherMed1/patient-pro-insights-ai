@@ -57,6 +57,7 @@ const ProjectPortal = () => {
   const [appointmentFilters, setAppointmentFilters] = useState<{
     statusFilter?: string;
     procedureFilter?: string;
+    tab?: string;
   }>({});
   const { toast } = useToast();
 
@@ -188,19 +189,22 @@ const ProjectPortal = () => {
       case 'all':
         setAppointmentFilters({
           statusFilter: 'ALL',
-          procedureFilter: 'ALL'
+          procedureFilter: 'ALL',
+          tab: 'all'
         });
         break;
       case 'showed':
         setAppointmentFilters({
           statusFilter: 'showed',
-          procedureFilter: 'ALL'
+          procedureFilter: 'ALL',
+          tab: 'all' // Use 'all' tab to avoid conflicts with tab-specific filtering
         });
         break;
       case 'procedures':
         setAppointmentFilters({
           statusFilter: 'ALL',
-          procedureFilter: 'true'
+          procedureFilter: 'true',
+          tab: 'all'
         });
         break;
     }
@@ -303,6 +307,7 @@ const ProjectPortal = () => {
                 onDataChanged={fetchAppointmentStats}
                 initialStatusFilter={appointmentFilters.statusFilter}
                 initialProcedureFilter={appointmentFilters.procedureFilter}
+                initialTab={appointmentFilters.tab}
               />
             </div>
           </TabsContent>

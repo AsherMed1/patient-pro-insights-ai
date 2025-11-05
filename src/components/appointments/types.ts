@@ -45,4 +45,5 @@ export interface AllAppointmentsManagerProps {
   onDataChanged?: () => void;
   initialStatusFilter?: string;
   initialProcedureFilter?: string;
+  initialTab?: string;
 }

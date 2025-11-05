@@ -21,7 +21,8 @@ const AllAppointmentsManager = ({
   projectFilter,
   onDataChanged,
   initialStatusFilter,
-  initialProcedureFilter
+  initialProcedureFilter,
+  initialTab
 }: AllAppointmentsManagerProps) => {
   // Check if it's a new day and clear filters if needed
   const checkAndClearDailyFilters = () => {
@@ -39,7 +40,7 @@ const AllAppointmentsManager = ({
 
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("new");
+  const [activeTab, setActiveTab] = useState(initialTab || "new");
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -68,6 +69,19 @@ const AllAppointmentsManager = ({
       console.log('Filters cleared for new day');
     }
   }, []);
+
+  // Update filters when initial props change (from stats card clicks)
+  useEffect(() => {
+    if (initialStatusFilter) {
+      setStatusFilter(initialStatusFilter);
+    }
+    if (initialProcedureFilter) {
+      setProcedureOrderFilter(initialProcedureFilter);
+    }
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialStatusFilter, initialProcedureFilter, initialTab]);
 
   useEffect(() => {
     setCurrentPage(1);
