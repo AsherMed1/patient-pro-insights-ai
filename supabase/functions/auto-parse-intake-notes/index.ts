@@ -160,16 +160,28 @@ Parse the following patient intake notes and return a JSON object with these exa
     "gender": "string or null"
   },
   "pathology_info": {
+    "procedure_type": "string or null (e.g., GAE, TKR)",
     "primary_complaint": "string or null",
     "symptoms": "string or null",
     "pain_level": "string or null",
     "affected_area": "string or null",
     "duration": "string or null",
-    "previous_treatments": "string or null"
+    "previous_treatments": "string or null",
+    "oa_tkr_diagnosed": "string or null (YES/NO)",
+    "age_range": "string or null",
+    "trauma_related_onset": "string or null (YES/NO)",
+    "imaging_done": "string or null (YES/NO)",
+    "imaging_type": "string or null (X-ray, MRI, CT scan, etc.)",
+    "diagnosis": "string or null",
+    "treatment": "string or null",
+    "other_notes": "string or null"
   },
   "medical_info": {
-    "pcp": "string or null",
-    "imaging": "string or null",
+    "pcp_name": "string or null",
+    "pcp_phone": "string or null",
+    "pcp_address": "string or null",
+    "imaging_details": "string or null",
+    "xray_details": "string or null",
     "medications": "string or null",
     "allergies": "string or null"
   }
@@ -230,13 +242,7 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           updateData.parsed_pathology_info = parsedData.pathology_info;
           updateData.parsed_contact_info = parsedData.contact_info;
           updateData.parsed_demographics = parsedData.demographics;
-          
-          if (parsedData.medical_info) {
-            updateData.parsed_contact_info = {
-              ...updateData.parsed_contact_info,
-              medical_info: parsedData.medical_info
-            };
-          }
+          updateData.parsed_medical_info = parsedData.medical_info;
 
           // Sync DOB if normalized successfully
           if (dobIso) {

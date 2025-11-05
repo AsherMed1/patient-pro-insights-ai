@@ -1265,6 +1265,7 @@ const AppointmentCard = ({
           parsedPathologyInfo={appointment.parsed_pathology_info}
           parsedContactInfo={appointment.parsed_contact_info}
           parsedDemographics={appointment.parsed_demographics}
+          parsedMedicalInfo={appointment.parsed_medical_info}
           detectedInsuranceProvider={appointment.detected_insurance_provider}
           detectedInsurancePlan={appointment.detected_insurance_plan}
           detectedInsuranceId={appointment.detected_insurance_id}

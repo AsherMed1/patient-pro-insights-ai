@@ -10,6 +10,7 @@ interface ParsedIntakeInfoProps {
   parsedPathologyInfo?: any;
   parsedContactInfo?: any;
   parsedDemographics?: any;
+  parsedMedicalInfo?: any;
   detectedInsuranceProvider?: string | null;
   detectedInsurancePlan?: string | null;
   detectedInsuranceId?: string | null;
@@ -21,6 +22,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   parsedPathologyInfo,
   parsedContactInfo,
   parsedDemographics,
+  parsedMedicalInfo,
   detectedInsuranceProvider,
   detectedInsurancePlan,
   detectedInsuranceId,
@@ -34,7 +36,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   console.log('ParsedIntakeInfo - parsedPathologyInfo:', parsedPathologyInfo);
   console.log('ParsedIntakeInfo - parsedContactInfo:', parsedContactInfo);
   console.log('ParsedIntakeInfo - parsedDemographics:', parsedDemographics);
-  const hasAnyData = parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics;
+  console.log('ParsedIntakeInfo - parsedMedicalInfo:', parsedMedicalInfo);
+  const hasAnyData = parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo;
   if (!hasAnyData) {
     return null;
   }
@@ -170,8 +173,14 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
           <CardContent className="pt-4 space-y-2">
             <div className="flex items-center gap-2 mb-2">
               <Heart className="h-4 w-4 text-amber-600" />
-              <span className="font-medium text-sm text-amber-900">Medical Information</span>
+              <span className="font-medium text-sm text-amber-900">Pathology Information</span>
             </div>
+            {formatValue(parsedPathologyInfo.procedure_type) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Procedure Type:</span>{' '}
+                <Badge variant="outline" className="ml-2">{parsedPathologyInfo.procedure_type}</Badge>
+              </div>
+            )}
             {formatValue(parsedPathologyInfo.primary_complaint) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Primary Complaint:</span>{' '}
@@ -193,7 +202,9 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             {formatValue(parsedPathologyInfo.pain_level) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Pain Level:</span>{' '}
-                <span className="font-medium">{parsedPathologyInfo.pain_level}</span>
+                <Badge variant={parseInt(parsedPathologyInfo.pain_level) >= 7 ? "destructive" : "secondary"}>
+                  {parsedPathologyInfo.pain_level}/10
+                </Badge>
               </div>
             )}
             {formatValue(parsedPathologyInfo.duration) && (
@@ -202,10 +213,46 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                 <span className="font-medium">{parsedPathologyInfo.duration}</span>
               </div>
             )}
+            {formatValue(parsedPathologyInfo.oa_tkr_diagnosed) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">OA or TKR Diagnosed:</span>{' '}
+                <Badge variant={parsedPathologyInfo.oa_tkr_diagnosed === 'YES' ? "default" : "secondary"}>
+                  {parsedPathologyInfo.oa_tkr_diagnosed}
+                </Badge>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.age_range) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Age Range:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.age_range}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.trauma_related_onset) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Trauma-related Onset:</span>{' '}
+                <Badge variant={parsedPathologyInfo.trauma_related_onset === 'YES' ? "destructive" : "secondary"}>
+                  {parsedPathologyInfo.trauma_related_onset}
+                </Badge>
+              </div>
+            )}
             {formatValue(parsedPathologyInfo.previous_treatments) && (
               <div className="text-sm">
-                <span className="text-muted-foreground">Previous Treatments:</span>{' '}
+                <span className="text-muted-foreground">Treatments Tried:</span>{' '}
                 <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.imaging_done) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Imaging Done:</span>{' '}
+                <Badge variant={parsedPathologyInfo.imaging_done === 'YES' ? "default" : "secondary"}>
+                  {parsedPathologyInfo.imaging_done}
+                </Badge>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.imaging_type) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Imaging Type:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.imaging_type}</span>
               </div>
             )}
             {formatValue(parsedPathologyInfo.diagnosis) && (
@@ -218,6 +265,66 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
               <div className="text-sm">
                 <span className="text-muted-foreground">Treatment:</span>{' '}
                 <span className="font-medium">{parsedPathologyInfo.treatment}</span>
+              </div>
+            )}
+            {formatValue(parsedPathologyInfo.other_notes) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Other:</span>{' '}
+                <span className="font-medium">{parsedPathologyInfo.other_notes}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Medical & PCP Information Section */}
+      {parsedMedicalInfo && (
+        <Card className="bg-teal-50 border-teal-200">
+          <CardContent className="pt-4 space-y-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className="h-4 w-4 text-teal-600" />
+              <span className="font-medium text-sm text-teal-900">Medical & PCP Information</span>
+            </div>
+            {formatValue(parsedMedicalInfo.pcp_name) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">PCP Name:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.pcp_name}</span>
+              </div>
+            )}
+            {formatValue(parsedMedicalInfo.pcp_phone) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">PCP Phone:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.pcp_phone}</span>
+              </div>
+            )}
+            {formatValue(parsedMedicalInfo.pcp_address) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">PCP Address:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.pcp_address}</span>
+              </div>
+            )}
+            {formatValue(parsedMedicalInfo.xray_details) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">X-ray Details:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.xray_details}</span>
+              </div>
+            )}
+            {formatValue(parsedMedicalInfo.imaging_details) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Imaging Details:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
+              </div>
+            )}
+            {formatValue(parsedMedicalInfo.medications) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Medications:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.medications}</span>
+              </div>
+            )}
+            {formatValue(parsedMedicalInfo.allergies) && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Allergies:</span>{' '}
+                <span className="font-medium">{parsedMedicalInfo.allergies}</span>
               </div>
             )}
           </CardContent>

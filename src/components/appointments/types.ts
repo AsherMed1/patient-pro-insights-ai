@@ -30,6 +30,7 @@ export interface AllAppointment {
   parsed_pathology_info?: any;
   parsed_contact_info?: any;
   parsed_demographics?: any;
+  parsed_medical_info?: any;
   parsing_completed_at?: string | null;
   was_ever_confirmed?: boolean;
   internal_process_complete?: boolean;
