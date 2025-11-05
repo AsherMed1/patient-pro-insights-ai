@@ -13,7 +13,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
 import { useRole } from '@/hooks/useRole';
 import { InsuranceSyncTrigger } from '@/components/InsuranceSyncTrigger';
-import { BulkParseIntakeNotes } from '@/components/BulkParseIntakeNotes';
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -139,9 +138,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               </Button>
             </div>
           </div>
-          
-          {/* Bulk Parse Intake Notes */}
-          <BulkParseIntakeNotes />
         </div>}
 
       {/* Search and Filter Panel */}
