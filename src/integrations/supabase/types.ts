@@ -237,6 +237,7 @@ export type Database = {
           parsed_contact_info: Json | null
           parsed_demographics: Json | null
           parsed_insurance_info: Json | null
+          parsed_medical_info: Json | null
           parsed_pathology_info: Json | null
           parsing_completed_at: string | null
           patient_intake_notes: string | null
@@ -279,6 +280,7 @@ export type Database = {
           parsed_contact_info?: Json | null
           parsed_demographics?: Json | null
           parsed_insurance_info?: Json | null
+          parsed_medical_info?: Json | null
           parsed_pathology_info?: Json | null
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
@@ -321,6 +323,7 @@ export type Database = {
           parsed_contact_info?: Json | null
           parsed_demographics?: Json | null
           parsed_insurance_info?: Json | null
+          parsed_medical_info?: Json | null
           parsed_pathology_info?: Json | null
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
