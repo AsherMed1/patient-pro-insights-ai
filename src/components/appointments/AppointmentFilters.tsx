@@ -6,7 +6,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown, ChevronDown, Activity } from 'lucide-react';
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +35,10 @@ interface AppointmentFiltersProps {
   onProcedureOrderFilterChange: (value: string) => void;
   sortBy: 'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc';
   onSortChange: (value: 'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc') => void;
+  locationFilter: string;
+  onLocationFilterChange: (value: string) => void;
+  serviceFilter: string;
+  onServiceFilterChange: (value: string) => void;
   isProjectSpecificView?: boolean; // New prop to indicate we're in a project-specific view
 }
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
@@ -55,15 +59,22 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onProcedureOrderFilterChange,
   sortBy,
   onSortChange,
+  locationFilter,
+  onLocationFilterChange,
+  serviceFilter,
+  onServiceFilterChange,
   isProjectSpecificView = false
 }) => {
   const { isAdmin } = useRole();
   const [projects, setProjects] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   useEffect(() => {
     fetchProjects();
     fetchStatusOptions();
+    fetchLocationAndServiceOptions();
   }, []);
   const fetchProjects = async () => {
     try {
@@ -81,6 +92,41 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   const fetchStatusOptions = async () => {
     const statuses = await getBaseStatusOptions();
     setStatusOptions(statuses);
+  };
+
+  const fetchLocationAndServiceOptions = async () => {
+    try {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('calendar_name')
+        .not('calendar_name', 'is', null);
+      
+      if (data) {
+        const locations = new Set<string>();
+        const services = new Set<string>();
+        
+        data.forEach(item => {
+          if (item.calendar_name) {
+            // Extract location: text after "at " 
+            const locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+            if (locationMatch && locationMatch[1]) {
+              locations.add(locationMatch[1].trim());
+            }
+            
+            // Extract service: text between quotes or after "your " and before " Consultation"
+            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
+            if (serviceMatch && serviceMatch[1]) {
+              services.add(serviceMatch[1].trim());
+            }
+          }
+        });
+        
+        setLocationOptions(Array.from(locations).sort());
+        setServiceOptions(Array.from(services).sort());
+      }
+    } catch (error) {
+      console.error('Error fetching location/service options:', error);
+    }
   };
   const getDateRangeText = () => {
     if (!dateRange.from && !dateRange.to) return 'All dates';
@@ -255,6 +301,40 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="flex items-center space-x-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select value={locationFilter} onValueChange={onLocationFilterChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Locations</SelectItem>
+                  {locationOptions.map(location => (
+                    <SelectItem key={location} value={location}>
+                      {location}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <Select value={serviceFilter} onValueChange={onServiceFilterChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Services" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Services</SelectItem>
+                  {serviceOptions.map(service => (
+                    <SelectItem key={service} value={service}>
+                      {service}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
           {/* Advanced Filters - Collapsible */}
@@ -360,9 +440,17 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                         <span>•</span>
                         <span>Procedure: "{procedureOrderFilter === 'true' ? 'Ordered' : procedureOrderFilter === 'false' ? 'No Procedure' : 'Not Set'}"</span>
                       </>}
-                    {searchTerm && <>
+                     {searchTerm && <>
                         <span>•</span>
                         <span>Search ({searchType === 'name' ? 'Name' : searchType === 'phone' ? 'Phone' : 'DOB'}): "{searchTerm}"</span>
+                      </>}
+                    {locationFilter !== 'ALL' && <>
+                        <span>•</span>
+                        <span>Location: "{locationFilter}"</span>
+                      </>}
+                    {serviceFilter !== 'ALL' && <>
+                        <span>•</span>
+                        <span>Service: "{serviceFilter}"</span>
                       </>}
                   </div>
                 </div>

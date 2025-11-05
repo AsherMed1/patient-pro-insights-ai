@@ -57,6 +57,8 @@ const AllAppointmentsManager = ({
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState(initialProcedureFilter || 'ALL');
+  const [locationFilter, setLocationFilter] = useState('ALL');
+  const [serviceFilter, setServiceFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
   const { toast } = useToast();
   
@@ -87,7 +89,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm, searchType, localProjectFilter, statusFilter, procedureOrderFilter, sortBy]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, searchType, localProjectFilter, statusFilter, procedureOrderFilter, locationFilter, serviceFilter, sortBy]);
 
   useEffect(() => {
     fetchAppointments();
@@ -158,6 +160,16 @@ const AllAppointmentsManager = ({
         } else if (procedureOrderFilter === 'null') {
           countQuery = countQuery.is('procedure_ordered', null);
         }
+      }
+
+      // Apply location filter (extracted from calendar_name)
+      if (locationFilter !== 'ALL') {
+        countQuery = countQuery.ilike('calendar_name', `%at ${locationFilter}%`);
+      }
+
+      // Apply service filter (extracted from calendar_name)
+      if (serviceFilter !== 'ALL') {
+        countQuery = countQuery.ilike('calendar_name', `%your ${serviceFilter} Consultation%`);
       }
       
       // Apply tab-based filtering to count query
@@ -275,6 +287,16 @@ const AllAppointmentsManager = ({
           appointmentsQuery = appointmentsQuery.is('procedure_ordered', null);
         }
       }
+
+      // Apply location filter (extracted from calendar_name)
+      if (locationFilter !== 'ALL') {
+        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%at ${locationFilter}%`);
+      }
+
+      // Apply service filter (extracted from calendar_name)
+      if (serviceFilter !== 'ALL') {
+        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%your ${serviceFilter} Consultation%`);
+      }
       
       
       if (activeTab === 'all') {
@@ -388,6 +410,16 @@ const AllAppointmentsManager = ({
           } else if (procedureOrderFilter === 'null') {
             query = query.is('procedure_ordered', null);
           }
+        }
+
+        // Apply location filter (extracted from calendar_name)
+        if (locationFilter !== 'ALL') {
+          query = query.ilike('calendar_name', `%at ${locationFilter}%`);
+        }
+
+        // Apply service filter (extracted from calendar_name)
+        if (serviceFilter !== 'ALL') {
+          query = query.ilike('calendar_name', `%your ${serviceFilter} Consultation%`);
         }
         
         
@@ -939,6 +971,8 @@ const AllAppointmentsManager = ({
           setLocalProjectFilter('ALL');
           setStatusFilter('ALL');
           setProcedureOrderFilter('ALL');
+          setLocationFilter('ALL');
+          setServiceFilter('ALL');
           setSortBy('date_desc');
         }}
         projectFilter={localProjectFilter}
@@ -947,6 +981,10 @@ const AllAppointmentsManager = ({
         onStatusFilterChange={setStatusFilter}
         procedureOrderFilter={procedureOrderFilter}
         onProcedureOrderFilterChange={setProcedureOrderFilter}
+        locationFilter={locationFilter}
+        onLocationFilterChange={setLocationFilter}
+        serviceFilter={serviceFilter}
+        onServiceFilterChange={setServiceFilter}
         sortBy={sortBy}
         onSortChange={setSortBy}
         showImport={showImport}
