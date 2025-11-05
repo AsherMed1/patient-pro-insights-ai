@@ -975,7 +975,7 @@ const AllAppointmentsManager = ({
           setServiceFilter('ALL');
           setSortBy('date_desc');
         }}
-        projectFilter={localProjectFilter}
+        projectFilter={localProjectFilter !== 'ALL' ? localProjectFilter : (projectFilter || 'ALL')}
         onProjectFilterChange={setLocalProjectFilter}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
