@@ -75,7 +75,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     fetchProjects();
     fetchStatusOptions();
     fetchLocationAndServiceOptions();
-  }, []);
+  }, [projectFilter]);
   const fetchProjects = async () => {
     try {
       const {
@@ -96,10 +96,22 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
 
   const fetchLocationAndServiceOptions = async () => {
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('all_appointments')
         .select('calendar_name')
         .not('calendar_name', 'is', null);
+      
+      // Filter by project if we're in a project-specific view
+      if (projectFilter && projectFilter !== 'ALL') {
+        const normalizedProject = projectFilter.trim();
+        if (normalizedProject !== projectFilter) {
+          query = query.or(`project_name.eq.${projectFilter},project_name.eq.${normalizedProject}`);
+        } else {
+          query = query.eq('project_name', projectFilter);
+        }
+      }
+      
+      const { data } = await query;
       
       if (data) {
         const locations = new Set<string>();
