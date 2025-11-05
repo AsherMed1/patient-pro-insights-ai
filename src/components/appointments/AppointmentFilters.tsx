@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
 import { useRole } from '@/hooks/useRole';
 import { InsuranceSyncTrigger } from '@/components/InsuranceSyncTrigger';
+import { BulkParseIntakeNotes } from '@/components/BulkParseIntakeNotes';
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -124,7 +125,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   };
   return <div className="portal-spacing">
       {/* Admin Actions - Import CSV */}
-      {isAdmin() && !showImport && <div className="portal-section">
+      {isAdmin() && !showImport && <div className="portal-section space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-foreground">Data Management</h3>
@@ -138,6 +139,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               </Button>
             </div>
           </div>
+          
+          {/* Bulk Parse Intake Notes */}
+          <BulkParseIntakeNotes />
         </div>}
 
       {/* Search and Filter Panel */}

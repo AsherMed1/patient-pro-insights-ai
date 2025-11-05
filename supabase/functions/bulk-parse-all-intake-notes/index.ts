@@ -91,16 +91,28 @@ Parse the following patient intake notes and return a JSON object with these exa
     "gender": "string or null"
   },
   "pathology_info": {
-    "primary_complaint": "string or null",
+    "procedure_type": "string or null - The pathology type (e.g., GAE, TKR, etc.). This is NOT the patient complaint.",
+    "primary_complaint": "string or null - The patient's chief complaint (e.g., 'knee pain', 'hip pain'), NOT the pathology type.",
     "symptoms": "string or null",
     "pain_level": "string or null",
     "affected_area": "string or null",
     "duration": "string or null",
-    "previous_treatments": "string or null"
+    "previous_treatments": "string or null",
+    "oa_tkr_diagnosed": "string or null (YES/NO)",
+    "age_range": "string or null",
+    "trauma_related_onset": "string or null (YES/NO)",
+    "imaging_done": "string or null (YES/NO)",
+    "imaging_type": "string or null (X-ray, MRI, CT scan, etc.)",
+    "diagnosis": "string or null",
+    "treatment": "string or null",
+    "other_notes": "string or null"
   },
   "medical_info": {
-    "pcp": "string or null",
-    "imaging": "string or null",
+    "pcp_name": "string or null",
+    "pcp_phone": "string or null",
+    "pcp_address": "string or null",
+    "imaging_details": "string or null",
+    "xray_details": "string or null",
     "medications": "string or null",
     "allergies": "string or null"
   }
@@ -148,20 +160,14 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           }
 
           // Update the database with parsed information
-          const updateData = {
+          const updateData: any = {
             parsed_insurance_info: parsedData.insurance_info,
             parsed_pathology_info: parsedData.pathology_info,
             parsed_contact_info: parsedData.contact_info,
             parsed_demographics: parsedData.demographics,
+            parsed_medical_info: parsedData.medical_info,
             parsing_completed_at: new Date().toISOString()
           };
-
-          if (parsedData.medical_info) {
-            updateData.parsed_contact_info = {
-              ...updateData.parsed_contact_info,
-              medical_info: parsedData.medical_info
-            };
-          }
 
           const { error: updateError } = await supabase
             .from(record.table)
