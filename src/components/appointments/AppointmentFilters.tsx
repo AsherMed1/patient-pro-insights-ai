@@ -123,22 +123,38 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     }
   };
   return <div className="portal-spacing">
-      {/* Admin Actions - Import CSV */}
-      {isAdmin() && !showImport && <div className="portal-section space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Data Management</h3>
-              <p className="text-sm text-muted-foreground">Import historical appointment data and sync insurance info from leads</p>
+      {/* Admin Actions - Import CSV - Collapsible */}
+      {isAdmin() && !showImport && (
+        <Collapsible defaultOpen={false} className="portal-section">
+          <CollapsibleTrigger asChild>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-between hover:bg-accent p-4"
+            >
+              <div className="flex items-center gap-2">
+                <Upload className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Data Management</span>
+              </div>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Data Management</h3>
+                <p className="text-sm text-muted-foreground">Import historical appointment data and sync insurance info from leads</p>
+              </div>
+              <div className="flex gap-2">
+                <InsuranceSyncTrigger />
+                <Button onClick={onShowImport} variant="outline" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Import CSV
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <InsuranceSyncTrigger />
-              <Button onClick={onShowImport} variant="outline" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Import CSV
-              </Button>
-            </div>
-          </div>
-        </div>}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* Search and Filter Panel */}
       <div className="portal-section">
