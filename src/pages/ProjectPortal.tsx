@@ -53,7 +53,7 @@ const ProjectPortal = () => {
     from: undefined, 
     to: undefined 
   });
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("appointments");
   const [appointmentFilters, setAppointmentFilters] = useState<{
     statusFilter?: string;
     procedureFilter?: string;
@@ -271,10 +271,10 @@ const ProjectPortal = () => {
         <ProjectHeader projectName={project.project_name} />
 
         {/* Tabbed Interface */}
-        <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs defaultValue="appointments" value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
