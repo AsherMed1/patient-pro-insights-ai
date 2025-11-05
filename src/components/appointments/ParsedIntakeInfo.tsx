@@ -167,17 +167,17 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         </Card>
       )}
 
-      {/* Pathology Information Section */}
+      {/* Medical Information Section */}
       {parsedPathologyInfo && (
         <Card className="bg-amber-50 border-amber-200">
           <CardContent className="pt-4 space-y-2">
             <div className="flex items-center gap-2 mb-2">
               <Heart className="h-4 w-4 text-amber-600" />
-              <span className="font-medium text-sm text-amber-900">Pathology Information</span>
+              <span className="font-medium text-sm text-amber-900">Medical Information</span>
             </div>
             {formatValue(parsedPathologyInfo.procedure_type) && (
               <div className="text-sm">
-                <span className="text-muted-foreground">Procedure Type:</span>{' '}
+                <span className="text-muted-foreground">Pathology:</span>{' '}
                 <Badge variant="outline" className="ml-2">{parsedPathologyInfo.procedure_type}</Badge>
               </div>
             )}
