@@ -54,6 +54,10 @@ const ProjectPortal = () => {
     to: undefined 
   });
   const [activeTab, setActiveTab] = useState("overview");
+  const [appointmentFilters, setAppointmentFilters] = useState<{
+    statusFilter?: string;
+    procedureFilter?: string;
+  }>({});
   const { toast } = useToast();
 
   // Check if user has access to this specific project (after role data loads)
@@ -175,6 +179,33 @@ const ProjectPortal = () => {
     }
   };
 
+  const handleStatsCardClick = (filter: 'all' | 'showed' | 'procedures') => {
+    // Switch to appointments tab with smooth animation
+    setActiveTab('appointments');
+    
+    // Set appropriate filters based on which card was clicked
+    switch (filter) {
+      case 'all':
+        setAppointmentFilters({
+          statusFilter: 'ALL',
+          procedureFilter: 'ALL'
+        });
+        break;
+      case 'showed':
+        setAppointmentFilters({
+          statusFilter: 'showed',
+          procedureFilter: 'ALL'
+        });
+        break;
+      case 'procedures':
+        setAppointmentFilters({
+          statusFilter: 'ALL',
+          procedureFilter: 'true'
+        });
+        break;
+    }
+  };
+
   // Show loading while role data or project data is loading
   if (loading || roleLoading) {
     return (
@@ -251,7 +282,7 @@ const ProjectPortal = () => {
             />
 
             {/* Enhanced Stats Cards with medical context */}
-            <ProjectStatsCards stats={stats} />
+            <ProjectStatsCards stats={stats} onCardClick={handleStatsCardClick} />
 
             {/* Detailed Analytics - Better positioned (admin/agent only) */}
             {hasManagementAccess() && (
@@ -267,7 +298,12 @@ const ProjectPortal = () => {
 
           <TabsContent value="appointments">
             <div className="portal-section">
-              <AllAppointmentsManager projectFilter={project.project_name} onDataChanged={fetchAppointmentStats} />
+              <AllAppointmentsManager 
+                projectFilter={project.project_name} 
+                onDataChanged={fetchAppointmentStats}
+                initialStatusFilter={appointmentFilters.statusFilter}
+                initialProcedureFilter={appointmentFilters.procedureFilter}
+              />
             </div>
           </TabsContent>
         </Tabs>

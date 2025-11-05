@@ -43,4 +43,6 @@ export interface AllAppointment {
 export interface AllAppointmentsManagerProps {
   projectFilter?: string;
   onDataChanged?: () => void;
+  initialStatusFilter?: string;
+  initialProcedureFilter?: string;
 }

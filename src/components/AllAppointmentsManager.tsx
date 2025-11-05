@@ -19,7 +19,9 @@ interface DateRange {
 
 const AllAppointmentsManager = ({
   projectFilter,
-  onDataChanged
+  onDataChanged,
+  initialStatusFilter,
+  initialProcedureFilter
 }: AllAppointmentsManagerProps) => {
   // Check if it's a new day and clear filters if needed
   const checkAndClearDailyFilters = () => {
@@ -52,8 +54,8 @@ const AllAppointmentsManager = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [searchType, setSearchType] = useState<'name' | 'phone' | 'dob'>('name');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [procedureOrderFilter, setProcedureOrderFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
+  const [procedureOrderFilter, setProcedureOrderFilter] = useState(initialProcedureFilter || 'ALL');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
   const { toast } = useToast();
   

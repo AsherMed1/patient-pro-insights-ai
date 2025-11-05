@@ -13,9 +13,10 @@ interface AppointmentStats {
 
 interface ProjectStatsCardsProps {
   stats: AppointmentStats;
+  onCardClick?: (filter: 'all' | 'showed' | 'procedures') => void;
 }
 
-export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats }) => {
+export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onCardClick }) => {
   const showRate = stats.totalAppointments > 0 ? (stats.totalShowed / stats.totalAppointments) * 100 : 0;
   const procedureRate = stats.totalShowed > 0 ? (stats.totalProceduresOrdered / stats.totalShowed) * 100 : 0;
 
@@ -24,7 +25,10 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats }) =
       <h2 className="text-xl font-semibold text-foreground mb-4">Practice Overview</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Appointments */}
-        <Card className="stats-card stats-card-medical">
+        <Card 
+          className="stats-card stats-card-medical cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+          onClick={() => onCardClick?.('all')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -42,7 +46,10 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats }) =
         </Card>
 
         {/* Patient Show Rate */}
-        <Card className="stats-card stats-card-positive">
+        <Card 
+          className="stats-card stats-card-positive cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+          onClick={() => onCardClick?.('showed')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -60,7 +67,10 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats }) =
         </Card>
 
         {/* Procedures Ordered */}
-        <Card className="stats-card stats-card-procedure">
+        <Card 
+          className="stats-card stats-card-procedure cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+          onClick={() => onCardClick?.('procedures')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
