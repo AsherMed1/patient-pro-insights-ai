@@ -119,8 +119,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         
         data.forEach(item => {
           if (item.calendar_name) {
-            // Extract location: text after "at " 
-            const locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+            // Extract location: try hyphen pattern first (Texas Vascular), then "at" pattern (Fayette Surgical)
+            let locationMatch = item.calendar_name.match(/ - (.+)$/);
+            if (!locationMatch) {
+              locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+            }
+            
             if (locationMatch && locationMatch[1]) {
               const location = locationMatch[1].trim();
               // Exclude Somerset, KY from location options
