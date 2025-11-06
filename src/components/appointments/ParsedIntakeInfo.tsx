@@ -179,7 +179,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
               <CardContent className="pt-4 space-y-2">
                 <div className="flex items-center gap-2 mb-2">
                   <Heart className="h-4 w-4 text-amber-600" />
-                  <span className="font-medium text-sm text-amber-900">Medical Information TEST</span>
+                  <span className="font-medium text-sm text-amber-900">Medical Information</span>
                 </div>
 
                 {formatValue(parsedPathologyInfo.procedure_type) && (
