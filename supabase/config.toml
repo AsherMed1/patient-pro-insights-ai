@@ -9,10 +9,6 @@ project_id = "bhabbokbhnqioykjimix"
 # (API keys, webhook signatures, etc.)
 # ============================================================================
 
-[functions.get-ghl-leads-count]
-verify_jwt = false
-# Edge function to fetch real-time lead counts from GoHighLevel
-
 [functions.create-demo-project]
 verify_jwt = false
 # Edge function to create/delete demo project data for training and demos

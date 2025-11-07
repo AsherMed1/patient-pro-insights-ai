@@ -19,11 +19,9 @@ interface Project {
 interface ProjectStats {
   project_name: string;
   leads_count: number;
-  ghl_leads_count: number | null;
   calls_count: number;
   appointments_count: number;
   last_activity: string | null;
-  ghl_fetched_at?: string | null;
 }
 
 interface ProjectCardProps {
@@ -121,21 +119,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-blue-50 p-2 rounded relative">
+          <div className="bg-blue-50 p-2 rounded">
             <div className="text-lg font-semibold text-blue-600">
-              {stats?.ghl_leads_count !== null && stats?.ghl_leads_count !== undefined 
-                ? stats.ghl_leads_count 
-                : stats?.leads_count || 0}
+              {stats?.leads_count || 0}
             </div>
-            <div className="text-xs text-blue-600">
-              {stats?.ghl_leads_count !== null && stats?.ghl_leads_count !== undefined ? 'GHL Leads' : 'DB Leads'}
-            </div>
-            {stats?.ghl_leads_count !== null && stats?.ghl_leads_count !== undefined && 
-             stats.ghl_leads_count !== stats.leads_count && (
-              <div className="text-[10px] text-gray-500 mt-0.5">
-                DB: {stats.leads_count}
-              </div>
-            )}
+            <div className="text-xs text-blue-600">Leads</div>
           </div>
           <div className="bg-green-50 p-2 rounded">
             <div className="text-lg font-semibold text-green-600">
