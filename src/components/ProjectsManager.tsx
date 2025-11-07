@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, RefreshCw } from 'lucide-react';
 import { ProjectCard } from './projects/ProjectCard';
 import { AddProjectDialog } from './projects/AddProjectDialog';
 import { EditProjectDialog } from './projects/EditProjectDialog';
@@ -25,9 +27,11 @@ interface Project {
 interface ProjectStats {
   project_name: string;
   leads_count: number;
+  ghl_leads_count: number | null;
   calls_count: number;
   appointments_count: number;
   last_activity: string | null;
+  ghl_fetched_at?: string | null;
 }
 
 interface ProjectFormData {
@@ -40,10 +44,14 @@ interface ProjectFormData {
   emr_link?: string;
 }
 
+type DateRange = '24h' | 'today' | 'yesterday' | '7d' | '30d';
+
 const ProjectsManager = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectStats, setProjectStats] = useState<ProjectStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchingGHL, setFetchingGHL] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>('24h');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -52,6 +60,106 @@ const ProjectsManager = () => {
   useEffect(() => {
     fetchProjectsAndStats();
   }, []);
+
+  useEffect(() => {
+    if (projects.length > 0) {
+      fetchGHLCounts();
+    }
+  }, [dateRange, projects.length]);
+
+  const getDateRangeParams = (): { start_date: string; end_date: string } => {
+    const now = new Date();
+    const endDate = now.toISOString();
+    let startDate: Date;
+
+    switch (dateRange) {
+      case '24h':
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case 'today':
+        startDate = new Date(now.setHours(0, 0, 0, 0));
+        break;
+      case 'yesterday':
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        startDate = yesterday;
+        break;
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    return {
+      start_date: startDate.toISOString(),
+      end_date: endDate
+    };
+  };
+
+  const fetchGHLCounts = async () => {
+    if (projects.length === 0) return;
+    
+    setFetchingGHL(true);
+    const dateParams = getDateRangeParams();
+
+    try {
+      const ghlCountsPromises = projects.map(async (project) => {
+        try {
+          const { data, error } = await supabase.functions.invoke('get-ghl-leads-count', {
+            body: {
+              project_name: project.project_name,
+              start_date: dateParams.start_date,
+              end_date: dateParams.end_date
+            }
+          });
+
+          if (error) {
+            console.error(`Error fetching GHL count for ${project.project_name}:`, error);
+            return { project_name: project.project_name, ghl_count: null, db_count: null };
+          }
+
+          return {
+            project_name: project.project_name,
+            ghl_count: data.ghl_count,
+            db_count: data.db_count,
+            fetched_at: data.fetched_at
+          };
+        } catch (err) {
+          console.error(`Exception fetching GHL count for ${project.project_name}:`, err);
+          return { project_name: project.project_name, ghl_count: null, db_count: null };
+        }
+      });
+
+      const ghlCounts = await Promise.all(ghlCountsPromises);
+
+      // Update stats with GHL counts
+      setProjectStats(prevStats => 
+        prevStats.map(stat => {
+          const ghlData = ghlCounts.find(gc => gc.project_name === stat.project_name);
+          return {
+            ...stat,
+            ghl_leads_count: ghlData?.ghl_count ?? null,
+            ghl_fetched_at: ghlData?.fetched_at ?? null
+          };
+        })
+      );
+
+    } catch (error) {
+      console.error('Error fetching GHL counts:', error);
+      toast({
+        title: "Warning",
+        description: "Could not fetch real-time lead counts from GoHighLevel",
+        variant: "destructive",
+      });
+    } finally {
+      setFetchingGHL(false);
+    }
+  };
 
   const fetchProjectsAndStats = async () => {
     try {
@@ -102,9 +210,11 @@ const ProjectsManager = () => {
         return {
           project_name: project.project_name,
           leads_count: leadsResult.count || 0,
+          ghl_leads_count: null,
           calls_count: callsResult.count || 0,
           appointments_count: appointmentsResult.count || 0,
-          last_activity: lastActivity
+          last_activity: lastActivity,
+          ghl_fetched_at: null
         };
       });
 
@@ -272,7 +382,7 @@ const ProjectsManager = () => {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex-1">
             <CardTitle className="flex items-center space-x-2">
               <FolderOpen className="h-5 w-5" />
               <span>Active Projects</span>
@@ -286,14 +396,37 @@ const ProjectsManager = () => {
               </div>
             </CardTitle>
             <CardDescription>
-              Overview of all projects and their activity status
+              Real-time lead counts from GoHighLevel
             </CardDescription>
           </div>
-          <AddProjectDialog
-            open={isAddDialogOpen}
-            onOpenChange={setIsAddDialogOpen}
-            onSubmit={handleAddProject}
-          />
+          <div className="flex items-center gap-2">
+            <Select value={dateRange} onValueChange={(value: DateRange) => setDateRange(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24h">Last 24 Hours</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="yesterday">Yesterday</SelectItem>
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchGHLCounts}
+              disabled={fetchingGHL}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${fetchingGHL ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <AddProjectDialog
+              open={isAddDialogOpen}
+              onOpenChange={setIsAddDialogOpen}
+              onSubmit={handleAddProject}
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
