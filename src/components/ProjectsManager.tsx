@@ -65,7 +65,7 @@ const ProjectsManager = () => {
     if (projects.length > 0) {
       fetchGHLCounts();
     }
-  }, [dateRange, projects.length]);
+  }, [dateRange, projects]);
 
   const getDateRangeParams = (): { start_date: string; end_date: string } => {
     const now = new Date();
@@ -77,14 +77,19 @@ const ProjectsManager = () => {
         startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         break;
       case 'today':
-        startDate = new Date(now.setHours(0, 0, 0, 0));
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0);
         break;
       case 'yesterday':
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
         yesterday.setHours(0, 0, 0, 0);
-        startDate = yesterday;
-        break;
+        const yesterdayEnd = new Date(yesterday);
+        yesterdayEnd.setHours(23, 59, 59, 999);
+        return {
+          start_date: yesterday.toISOString(),
+          end_date: yesterdayEnd.toISOString()
+        };
       case '7d':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
