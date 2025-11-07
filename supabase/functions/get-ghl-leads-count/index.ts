@@ -38,19 +38,40 @@ Deno.serve(async (req) => {
 
     console.log('Fetching GHL leads count for:', { project_name, start_date, end_date });
 
-    // Fetch project configuration
+    // Fetch project configuration - try both active and inactive projects
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('ghl_location_id, ghl_api_key')
+      .select('ghl_location_id, ghl_api_key, project_name, active')
       .eq('project_name', project_name)
-      .eq('active', true)
       .single();
 
     if (projectError || !project) {
-      console.error('Project not found:', projectError);
+      console.error('Project lookup failed:', { project_name, error: projectError });
+      
+      // Fallback: Get database count only
+      let dbQuery = supabase
+        .from('new_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_name', project_name);
+
+      if (start_date) {
+        dbQuery = dbQuery.gte('date', start_date);
+      }
+      if (end_date) {
+        dbQuery = dbQuery.lte('date', end_date);
+      }
+
+      const { count: dbCount } = await dbQuery;
+
       return new Response(
-        JSON.stringify({ error: 'Project not found or inactive' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Project not found in database',
+          ghl_count: null,
+          db_count: dbCount || 0,
+          project_name,
+          source: 'db_only'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -66,29 +87,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build GHL search filters
+    // Build GHL search filters - GHL expects Unix timestamps in milliseconds
     const filters: any[] = [];
     
     if (start_date && end_date) {
+      const startTimestamp = new Date(start_date).getTime();
+      const endTimestamp = new Date(end_date).getTime();
+      
       filters.push({
         field: 'dateAdded',
         operator: 'between',
         value: {
-          start: start_date,
-          end: end_date
+          start: startTimestamp,
+          end: endTimestamp
         }
       });
     } else if (start_date) {
       filters.push({
         field: 'dateAdded',
         operator: 'gte',
-        value: start_date
+        value: new Date(start_date).getTime()
       });
     } else if (end_date) {
       filters.push({
         field: 'dateAdded',
         operator: 'lte',
-        value: end_date
+        value: new Date(end_date).getTime()
       });
     }
 
