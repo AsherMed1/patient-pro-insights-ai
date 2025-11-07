@@ -226,7 +226,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${hasManagementAccess() ? 'grid-cols-5 lg:grid-cols-12' : 'grid-cols-5 lg:grid-cols-11'}`}>
+          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
