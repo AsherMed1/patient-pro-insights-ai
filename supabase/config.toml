@@ -68,6 +68,10 @@ verify_jwt = false
 [functions.diagnose-ghl-api]
 verify_jwt = false
 
+[functions.populate-ppm-demo]
+verify_jwt = false
+# One-time function to populate PPM Test Account with demo data
+
 [functions.admin-reset-password]
 verify_jwt = true
 # Admin-only function to reset user passwords
