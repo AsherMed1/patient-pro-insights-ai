@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, Power, PowerOff } from 'lucide-react';
+import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, Power, PowerOff, Database } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
 import { useRole } from '@/hooks/useRole';
+import { useToast } from '@/hooks/use-toast';
+import { populatePPMTestAccountData } from '@/utils/populatePPMTestData';
 
 interface Project {
   id: string;
@@ -40,6 +42,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onToggleActive
 }) => {
   const { isAdmin } = useRole();
+  const { toast } = useToast();
+  const [isPopulating, setIsPopulating] = useState(false);
+  
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -62,6 +67,38 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   };
 
   const activityStatus = getActivityStatus(stats?.last_activity || null);
+
+  const handlePopulateDemoData = async () => {
+    setIsPopulating(true);
+    toast({
+      title: "Populating Demo Data",
+      description: "Adding comprehensive patient profiles to all 45 appointments...",
+    });
+
+    try {
+      const result = await populatePPMTestAccountData();
+      
+      if (result.success) {
+        toast({
+          title: "Demo Data Populated!",
+          description: result.message,
+        });
+      } else {
+        throw new Error(result.error?.message || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Error populating demo data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to populate demo data. Check console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPopulating(false);
+    }
+  };
+
+  const isPPMTestAccount = project.project_name === 'PPM - Test Account';
 
   return (
     <Card className={`border-l-4 ${
@@ -176,6 +213,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               View Detailed Stats
             </Button>
           </ProjectDetailedDashboard>
+
+          {isPPMTestAccount && isAdmin() && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full bg-purple-100 hover:bg-purple-200 text-purple-700"
+              onClick={handlePopulateDemoData}
+              disabled={isPopulating}
+            >
+              <Database className="h-4 w-4 mr-2" />
+              {isPopulating ? 'Populating...' : 'Populate Demo Data'}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
