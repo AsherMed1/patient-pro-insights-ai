@@ -1,5 +1,8 @@
-
 project_id = "bhabbokbhnqioykjimix"
+
+[functions.create-bulk-project-users]
+verify_jwt = false
+# Temporarily public for initial setup - will be secured after execution
 
 # ============================================================================
 # PUBLIC API FUNCTIONS (External Integration Endpoints)
