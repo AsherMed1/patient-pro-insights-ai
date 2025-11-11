@@ -316,7 +316,7 @@ const patientProfiles = [
 ];
 
 const generateInsuranceCardUrl = (provider: string, memberId: string) => {
-  return `https://images.unsplash.com/photo-1554224311-beee4ead6ac2?w=800&q=80&fit=crop&crop=center`;
+  return `https://www.tdi.texas.gov/artwork/compliance/ambetter.png`;
 };
 
 const generateIntakeNotes = (profile: typeof patientProfiles[0]) => {
