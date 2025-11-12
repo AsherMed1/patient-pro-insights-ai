@@ -3,6 +3,7 @@ import { useRole, UserRole } from '@/hooks/useRole';
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ export const AuthGuard = ({
   const { role, loading: roleLoading, hasRole, hasProjectAccess, accessibleProjects } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Extended wait for role loading to prevent race conditions
@@ -31,6 +33,17 @@ export const AuthGuard = ({
       navigate(fallbackPath, { 
         state: { from: location.pathname } 
       });
+      return;
+    }
+
+    // Check if user must change password (but not if already on settings page)
+    if (user.user_metadata?.must_change_password && location.pathname !== '/settings') {
+      toast({
+        title: "Password Change Required",
+        description: "Please change your password to continue",
+        variant: "destructive",
+      });
+      navigate('/settings?forcePasswordChange=true', { replace: true });
       return;
     }
 
