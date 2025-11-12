@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { ArrowLeft, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -261,10 +261,18 @@ const ProjectPortal = () => {
             />
           </div>
           
-          <Button variant="outline" onClick={signOut} className="hover:bg-accent">
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/settings">
+              <Button variant="outline" className="hover:bg-accent">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </Link>
+            <Button variant="outline" onClick={signOut} className="hover:bg-accent">
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
 
         {/* Project Header with enhanced typography */}
