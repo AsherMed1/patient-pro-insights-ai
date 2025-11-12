@@ -7,49 +7,117 @@ interface UpdatePayload {
 }
 
 const updates: UpdatePayload[] = [
+  // Group 1: confirmed → Welcome Call (20 appointments)
   {
-    appointmentId: "ba0398fa-4203-4377-9032-0e758fab0c20",
-    updates: {
-      date_of_appointment: "2025-11-05",
-      requested_time: "20:30:00"
-    },
-    description: "Joseph Schanne - Date/Time fix"
+    appointmentId: "e4c85403-ab59-4ad1-af61-d99497f79819",
+    updates: { status: "Welcome Call" },
+    description: "Annie R Kelly - Status fix"
   },
+  {
+    appointmentId: "dfff684a-05eb-4146-af20-a981548e1f5a",
+    updates: { status: "Welcome Call" },
+    description: "Bonnie Cooper - Status fix"
+  },
+  {
+    appointmentId: "7ece0c0b-00c1-4736-94fd-37a0fbef62cb",
+    updates: { status: "Welcome Call" },
+    description: "Darrell Glover - Status fix"
+  },
+  {
+    appointmentId: "d0345dbc-75f7-472b-9901-6d1316618afa",
+    updates: { status: "Welcome Call" },
+    description: "David O'Donnell - Status fix"
+  },
+  {
+    appointmentId: "83bd30f2-3cf6-4fc0-b95c-eaed10bff14b",
+    updates: { status: "Welcome Call" },
+    description: "Deborah Fambo - Status fix"
+  },
+  {
+    appointmentId: "16d4e448-d2e1-4e97-9056-530ce353ddfd",
+    updates: { status: "Welcome Call" },
+    description: "Gregory Taylor - Status fix"
+  },
+  {
+    appointmentId: "642563c6-1b1c-4f4b-a9a0-d43972e1afd3",
+    updates: { status: "Welcome Call" },
+    description: "James W Peppard - Status fix"
+  },
+  {
+    appointmentId: "c8e69341-2bf9-446f-8c74-ce660edbe7f2",
+    updates: { status: "Welcome Call" },
+    description: "Jennifer Mckie - Status fix"
+  },
+  {
+    appointmentId: "b72e86f3-f097-4811-8f8a-461de7671d81",
+    updates: { status: "Welcome Call" },
+    description: "Jennifer Turner - Status fix"
+  },
+  {
+    appointmentId: "188ede19-e436-45d3-9899-6f26c958f190",
+    updates: { status: "Welcome Call" },
+    description: "Joseph Mortellaroo - Status fix"
+  },
+  {
+    appointmentId: "7664930c-1709-4273-bd46-527d6190d925",
+    updates: { status: "Welcome Call" },
+    description: "Katherine Davis - Status fix"
+  },
+  {
+    appointmentId: "5aef7c4d-d808-4856-b5a6-b0c38fa6a773",
+    updates: { status: "Welcome Call" },
+    description: "Kathy Grimes - Status fix"
+  },
+  {
+    appointmentId: "4faeb4ed-ee11-4b42-9f27-af47eb4e779e",
+    updates: { status: "Welcome Call" },
+    description: "Kristel Bentkowski - Status fix"
+  },
+  {
+    appointmentId: "e484e187-e12f-4326-9d20-fd2cd6f2946d",
+    updates: { status: "Welcome Call" },
+    description: "Mark Johnson - Status fix"
+  },
+  {
+    appointmentId: "677d04b3-9322-4249-bc01-0af3fcaafed0",
+    updates: { status: "Welcome Call" },
+    description: "Mary Roberts - Status fix"
+  },
+  {
+    appointmentId: "89edf90e-ea7c-4d8d-b3a4-ea47c292dbfd",
+    updates: { status: "Welcome Call" },
+    description: "Michael G Bielski - Status fix"
+  },
+  {
+    appointmentId: "df4e280c-f971-4d2b-a1f0-836ff1480c15",
+    updates: { status: "Welcome Call" },
+    description: "Michaeline White - Status fix"
+  },
+  {
+    appointmentId: "43ec83f2-ae8c-4074-82df-2d2caf17e965",
+    updates: { status: "Welcome Call" },
+    description: "Nary Phonetheva - Status fix"
+  },
+  {
+    appointmentId: "4b46b36f-3467-49c6-ab82-42a00b3c4f11",
+    updates: { status: "Welcome Call" },
+    description: "Peter Cassidy - Status fix"
+  },
+  {
+    appointmentId: "75e9b12f-967f-4417-8eff-88d937db8e56",
+    updates: { status: "Welcome Call" },
+    description: "Scott Hastreiter - Status fix"
+  },
+  // Group 2: Welcome Call → Rescheduled (2 appointments)
   {
     appointmentId: "2bf17a8a-7e67-499c-b520-b83841a5b0bf",
-    updates: {
-      date_of_appointment: "2025-11-04",
-      requested_time: "08:00:00"
-    },
-    description: "Nadine John - Date/Time fix"
+    updates: { status: "Rescheduled" },
+    description: "Nadine John - Status fix"
   },
   {
-    appointmentId: "9c2ef9e8-6c5f-4668-b326-76fef69400db",
-    updates: {
-      status: "Welcome Call"
-    },
-    description: "Marie Nasr - Status fix"
-  },
-  {
-    appointmentId: "19ea9ca6-3c19-4232-9fb8-001894b8a8a8",
-    updates: {
-      status: "Welcome Call"
-    },
-    description: "Jack Raymond - Status fix"
-  },
-  {
-    appointmentId: "70661ada-01f9-42fa-a247-f0b677339106",
-    updates: {
-      status: "Chart Created"
-    },
-    description: "Gary Parker - Status fix"
-  },
-  {
-    appointmentId: "4856ae9b-7a5a-4226-b28f-40007485fff0",
-    updates: {
-      procedure_ordered: true
-    },
-    description: "Roxane Amborski - Procedure ordered fix"
+    appointmentId: "3c363ae6-1fab-4558-b366-e59e65a3f412",
+    updates: { status: "Rescheduled" },
+    description: "Ralph STODDARD - Status fix"
   }
 ];
 
