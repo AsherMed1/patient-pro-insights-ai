@@ -231,6 +231,8 @@ export type Database = {
           last_ghl_sync_at: string | null
           last_ghl_sync_error: string | null
           last_ghl_sync_status: string | null
+          last_sync_source: string | null
+          last_sync_timestamp: string | null
           lead_email: string | null
           lead_name: string
           lead_phone_number: string | null
@@ -274,6 +276,8 @@ export type Database = {
           last_ghl_sync_at?: string | null
           last_ghl_sync_error?: string | null
           last_ghl_sync_status?: string | null
+          last_sync_source?: string | null
+          last_sync_timestamp?: string | null
           lead_email?: string | null
           lead_name: string
           lead_phone_number?: string | null
@@ -317,6 +321,8 @@ export type Database = {
           last_ghl_sync_at?: string | null
           last_ghl_sync_error?: string | null
           last_ghl_sync_status?: string | null
+          last_sync_source?: string | null
+          last_sync_timestamp?: string | null
           lead_email?: string | null
           lead_name?: string
           lead_phone_number?: string | null

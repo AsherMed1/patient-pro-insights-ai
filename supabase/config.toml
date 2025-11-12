@@ -83,6 +83,10 @@ verify_jwt = false
 verify_jwt = false
 # One-time function to populate PPM Test Account with demo data
 
+[functions.sync-from-sheet]
+verify_jwt = false
+# Google Sheets webhook for automatic sync from CSV to database
+
 [functions.admin-reset-password]
 verify_jwt = true
 # Admin-only function to reset user passwords
