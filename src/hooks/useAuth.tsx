@@ -2,6 +2,7 @@ import { useEffect, useState, createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthContextType {
   user: User | null;
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -27,6 +29,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Check if user must change password on sign in
+        if (event === 'SIGNED_IN' && session?.user?.user_metadata?.must_change_password) {
+          toast({
+            title: "Password Change Required",
+            description: "Please change your password to continue",
+            variant: "destructive",
+          });
+          navigate('/settings?forcePasswordChange=true');
+        }
       }
     );
 

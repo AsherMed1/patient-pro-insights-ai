@@ -143,7 +143,8 @@ serve(async (req) => {
       email,
       password: generatedPassword,
       user_metadata: {
-        full_name: fullName
+        full_name: fullName,
+        must_change_password: true
       },
       email_confirm: true
     });

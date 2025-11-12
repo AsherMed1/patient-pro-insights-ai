@@ -168,7 +168,10 @@ const UserSettings = () => {
     setPasswordLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
-        password: newPassword
+        password: newPassword,
+        data: {
+          must_change_password: false
+        }
       });
 
       if (error) {
@@ -185,6 +188,13 @@ const UserSettings = () => {
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+        
+        // Remove query parameter if present
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('forcePasswordChange')) {
+          url.searchParams.delete('forcePasswordChange');
+          window.history.replaceState({}, '', url);
+        }
       }
     } catch (error) {
       toast({
