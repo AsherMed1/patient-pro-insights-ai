@@ -234,8 +234,9 @@ const UserManagement = () => {
 
       if (data?.success) {
         // Send welcome email in the background (don't block on it)
-        if (data.user?.id && data.generatedPassword) {
-          sendWelcomeEmail(data.user.id, newUser.email, newUser.fullName, data.generatedPassword)
+        if (data.user?.id) {
+          const passwordToSend = data.generatedPassword || newUser.password;
+          sendWelcomeEmail(data.user.id, newUser.email, newUser.fullName, passwordToSend)
             .then(() => {
               console.log('Welcome email sent successfully');
             })

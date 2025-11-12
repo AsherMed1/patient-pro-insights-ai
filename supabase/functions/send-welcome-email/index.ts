@@ -95,7 +95,7 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
               
               <!-- CTA Button -->
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${SUPABASE_URL.replace('//', '//patientproclients.com')}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                <a href="https://patientproclients.com/" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
                   Get Started Now
                 </a>
               </div>
