@@ -1,5 +1,9 @@
 project_id = "bhabbokbhnqioykjimix"
 
+[functions.sync-buffalo-appointment-statuses]
+verify_jwt = false
+# One-time function to sync Buffalo Vascular Care appointment statuses from CSV
+
 [functions.create-bulk-project-users]
 verify_jwt = false
 # Temporarily public for initial setup - will be secured after execution
