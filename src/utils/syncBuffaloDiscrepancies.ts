@@ -125,34 +125,29 @@ export async function syncBuffaloDiscrepancies() {
   console.log("🔄 Starting Buffalo Vascular Care discrepancy sync...");
   console.log(`📝 Processing ${updates.length} appointments\n`);
 
-  const results = [];
-
-  for (const update of updates) {
-    try {
+  const results = await Promise.allSettled(
+    updates.map(async (update) => {
       console.log(`⏳ ${update.description}...`);
       
-      const { data, error } = await supabase.functions.invoke('update-appointment-fields', {
-        body: {
-          appointmentId: update.appointmentId,
-          updates: update.updates
-        }
-      });
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .update(update.updates)
+        .eq('id', update.appointmentId)
+        .select()
+        .single();
 
       if (error) {
         console.error(`❌ Failed: ${update.description}`, error);
-        results.push({ ...update, success: false, error });
-      } else {
-        console.log(`✅ Success: ${update.description}`);
-        results.push({ ...update, success: true, data });
+        throw error;
       }
-    } catch (err) {
-      console.error(`❌ Error: ${update.description}`, err);
-      results.push({ ...update, success: false, error: err });
-    }
-  }
+      
+      console.log(`✅ Success: ${update.description}`);
+      return { ...update, data };
+    })
+  );
 
-  const successCount = results.filter(r => r.success).length;
-  const failCount = results.filter(r => !r.success).length;
+  const successCount = results.filter(r => r.status === 'fulfilled').length;
+  const failCount = results.filter(r => r.status === 'rejected').length;
 
   console.log("\n📊 Sync Summary:");
   console.log(`✅ Successful: ${successCount}`);
