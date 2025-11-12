@@ -10,6 +10,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Configurable sender email - use custom domain when verified
+const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "PatientPro Insights <onboarding@resend.dev>";
+// Optional: allow specific test email in sandbox mode
+const RESEND_ALLOWED_TEST_EMAIL = Deno.env.get("RESEND_ALLOWED_TEST_EMAIL") || "";
+
 interface WelcomeEmailRequest {
   userId: string;
   email: string;
@@ -168,6 +173,23 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Sandbox mode guard: check if using resend.dev and recipient is not allowed
+    const isResendSandbox = FROM_EMAIL.includes("resend.dev");
+    if (isResendSandbox && RESEND_ALLOWED_TEST_EMAIL && email !== RESEND_ALLOWED_TEST_EMAIL) {
+      console.warn(`Sandbox mode: Cannot send to ${email}. Only ${RESEND_ALLOWED_TEST_EMAIL} is allowed.`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Resend is in sandbox mode. To send emails to all users, verify your domain at https://resend.com/domains and set the RESEND_FROM_EMAIL secret (e.g., 'PatientPro Insights <insights@patientpromarketing.com>'). Currently, emails can only be sent to: ${RESEND_ALLOWED_TEST_EMAIL}`,
+          sandboxMode: true
+        }),
+        { 
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400 
+        }
+      );
+    }
+
     // Send welcome email using Resend
     const emailHtml = generateWelcomeEmail(fullName || email, email, password);
 
@@ -178,7 +200,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "PatientPro Insights <onboarding@resend.dev>",
+        from: FROM_EMAIL,
         to: [email],
         subject: "Welcome to PatientPro Insights - Let's Get Started!",
         html: emailHtml,
