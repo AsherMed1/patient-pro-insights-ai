@@ -142,6 +142,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { userId, email, fullName, password }: WelcomeEmailRequest = await req.json();
 
     console.log(`Processing welcome email for user: ${email}`);
+    console.log(`Password provided: ${password ? 'YES (length: ' + password.length + ')' : 'NO'}`);
 
     // Initialize Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
