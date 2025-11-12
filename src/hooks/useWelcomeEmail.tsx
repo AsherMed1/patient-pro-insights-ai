@@ -29,6 +29,15 @@ export const useSendWelcomeEmail = () => {
         throw new Error(data.error || "Sandbox mode restriction");
       }
 
+      // Check if response indicates domain verification error
+      if (data && !data.success && data.domainVerificationError) {
+        toast.error("Sender Domain Not Verified", {
+          description: data.error || "The sender email domain is not verified in Resend. Please verify your domain or update RESEND_FROM_EMAIL.",
+          duration: 10000,
+        });
+        throw new Error(data.error || "Domain verification error");
+      }
+
       console.log("Welcome email response:", data);
       return data;
     } catch (error: any) {
@@ -37,10 +46,12 @@ export const useSendWelcomeEmail = () => {
       // Provide user-friendly error message
       if (error?.message?.includes("sandbox")) {
         // Already handled above with toast
-      } else if (error?.message?.includes("domain")) {
-        toast.error("Email domain not verified. Contact administrator.");
+      } else if (error?.message?.includes("domain") || error?.message?.includes("verified")) {
+        // Already handled above with toast for domain verification
       } else {
-        toast.error("Failed to send welcome email. Please try again.");
+        toast.error("Failed to send welcome email", {
+          description: "Please check your email configuration or contact support.",
+        });
       }
       
       throw error;

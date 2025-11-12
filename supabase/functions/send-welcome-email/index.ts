@@ -190,6 +190,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Log sender configuration for debugging
+    const fromDomain = FROM_EMAIL.match(/@([^>]+)/)?.[1] || 'unknown';
+    console.log(`Sending email with FROM_EMAIL: ${FROM_EMAIL}`);
+    console.log(`Extracted sender domain: ${fromDomain}`);
+    console.log(`Recipient: ${email}`);
+
     // Send welcome email using Resend
     const emailHtml = generateWelcomeEmail(fullName || email, email, password);
 
@@ -210,6 +216,25 @@ const handler = async (req: Request): Promise<Response> => {
     if (!emailResponse.ok) {
       const errorData = await emailResponse.json();
       console.error("Resend API error:", errorData);
+      console.error("Error status:", emailResponse.status);
+      
+      // Handle domain verification errors specifically
+      if (errorData.statusCode === 403 && errorData.message?.includes("domain is not verified")) {
+        console.error(`Domain verification failed for: ${fromDomain}`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Sender domain '${fromDomain}' is not verified in Resend. Please verify your domain at https://resend.com/domains or update RESEND_FROM_EMAIL to use a verified domain.`,
+            domainVerificationError: true,
+            details: { from: FROM_EMAIL, domain: fromDomain }
+          }),
+          { 
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 400 
+          }
+        );
+      }
+      
       throw new Error(`Failed to send email: ${JSON.stringify(errorData)}`);
     }
 
