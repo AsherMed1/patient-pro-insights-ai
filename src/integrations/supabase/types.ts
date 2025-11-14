@@ -715,6 +715,72 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_onboarding: {
+        Row: {
+          activated_at: string | null
+          additional_notes: string | null
+          clinic_address: string
+          clinic_name: string
+          clinic_phone: string
+          contact_person_email: string
+          contact_person_name: string
+          contact_person_phone: string
+          created_at: string | null
+          id: string
+          notified_at: string | null
+          services: string[]
+          slack_notification_sent: boolean | null
+          status: string | null
+          temporary_password: string | null
+          tentative_launch_date: string
+          updated_at: string | null
+          user_id: string | null
+          welcome_email_sent: boolean | null
+        }
+        Insert: {
+          activated_at?: string | null
+          additional_notes?: string | null
+          clinic_address: string
+          clinic_name: string
+          clinic_phone: string
+          contact_person_email: string
+          contact_person_name: string
+          contact_person_phone: string
+          created_at?: string | null
+          id?: string
+          notified_at?: string | null
+          services: string[]
+          slack_notification_sent?: boolean | null
+          status?: string | null
+          temporary_password?: string | null
+          tentative_launch_date: string
+          updated_at?: string | null
+          user_id?: string | null
+          welcome_email_sent?: boolean | null
+        }
+        Update: {
+          activated_at?: string | null
+          additional_notes?: string | null
+          clinic_address?: string
+          clinic_name?: string
+          clinic_phone?: string
+          contact_person_email?: string
+          contact_person_name?: string
+          contact_person_phone?: string
+          created_at?: string | null
+          id?: string
+          notified_at?: string | null
+          services?: string[]
+          slack_notification_sent?: boolean | null
+          status?: string | null
+          temporary_password?: string | null
+          tentative_launch_date?: string
+          updated_at?: string | null
+          user_id?: string | null
+          welcome_email_sent?: boolean | null
+        }
+        Relationships: []
+      }
       core_objectives: {
         Row: {
           created_at: string
