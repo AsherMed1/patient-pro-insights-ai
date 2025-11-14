@@ -89,14 +89,14 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     
     switch (filterType) {
       case 'new':
-        // New: All new appointments (status is null, empty, "new", or "confirmed") - BUT NOT cancelled
-        return !isCompleted && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || normalizedStatus === 'confirmed');
+        // New: Appointments where internal_process_complete is NOT true (false or null) - BUT NOT cancelled
+        return !isCompleted && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
       case 'needs-review':
         // Needs Review: Past appointment + not updated (no status set or still "new") - BUT NOT cancelled
         return !isCompleted && isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
       case 'future':
-        // Upcoming: Welcome Call OR Scheduled OR Internal Process Complete (but not confirmed) - BUT NOT cancelled
-        return !isCompleted && (normalizedStatus === 'welcome call' || normalizedStatus === 'scheduled' || appointment.internal_process_complete === true) && normalizedStatus !== 'confirmed';
+        // Future: appointment in the future + internal_process_complete is TRUE (two-point trigger) - BUT NOT cancelled
+        return !isCompleted && isInFuture && appointment.internal_process_complete === true;
       case 'past':
         // Completed: Final status (Showed / No-show / Cancelled)
         return isCompleted;

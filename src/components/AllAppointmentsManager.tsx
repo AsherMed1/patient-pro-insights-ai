@@ -180,8 +180,8 @@ const AllAppointmentsManager = ({
       if (activeTab === 'all') {
         // All: No additional status filtering
       } else if (activeTab === 'new') {
-        // New: Appointments with 'new' status or null/empty status
-        countQuery = countQuery.or('status.is.null,status.eq.,status.ilike.new,status.ilike.confirmed');
+        // New: Appointments where internal_process_complete is NOT true (false or null)
+        countQuery = countQuery.or('internal_process_complete.is.null,internal_process_complete.eq.false');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         countQuery = countQuery
@@ -194,11 +194,11 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon');
       } else if (activeTab === 'future') {
-        // Upcoming: Future appointments (appointment date is today or later) that are NOT completed
+        // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         countQuery = countQuery
+          .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
           .gte('date_of_appointment', todayString)
-          .not('status', 'ilike', 'confirmed')
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
@@ -302,8 +302,8 @@ const AllAppointmentsManager = ({
       if (activeTab === 'all') {
         // All: No additional status filtering
       } else if (activeTab === 'new') {
-        // New: Appointments with 'new' status or null/empty status
-        appointmentsQuery = appointmentsQuery.or('status.is.null,status.eq.,status.ilike.new,status.ilike.confirmed');
+        // New: Appointments where internal_process_complete is NOT true (false or null)
+        appointmentsQuery = appointmentsQuery.or('internal_process_complete.is.null,internal_process_complete.eq.false');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Past appointments (appointment date has passed) that don't have completed status
         appointmentsQuery = appointmentsQuery
@@ -316,11 +316,11 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon');
       } else if (activeTab === 'future') {
-        // Upcoming: Future appointments (appointment date is today or later) that are NOT completed
+        // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         appointmentsQuery = appointmentsQuery
+          .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
           .gte('date_of_appointment', todayString)
-          .not('status', 'ilike', 'confirmed')
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
