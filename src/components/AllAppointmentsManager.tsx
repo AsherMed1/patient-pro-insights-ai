@@ -167,9 +167,9 @@ const AllAppointmentsManager = ({
         countQuery = countQuery.ilike('calendar_name', `%at ${locationFilter}%`);
       }
 
-      // Apply service filter (extracted from calendar_name)
+      // Apply service filter (extracted from calendar_name) - more flexible matching
       if (serviceFilter !== 'ALL') {
-        countQuery = countQuery.ilike('calendar_name', `%your ${serviceFilter} Consultation%`);
+        countQuery = countQuery.or(`calendar_name.ilike.%your ${serviceFilter} Consultation%,calendar_name.ilike.%your "${serviceFilter}" Consultation%,calendar_name.ilike.%your '${serviceFilter}' Consultation%`);
       }
       
       // Apply tab-based filtering to count query
@@ -417,10 +417,10 @@ const AllAppointmentsManager = ({
           query = query.ilike('calendar_name', `%at ${locationFilter}%`);
         }
 
-        // Apply service filter (extracted from calendar_name)
-        if (serviceFilter !== 'ALL') {
-          query = query.ilike('calendar_name', `%your ${serviceFilter} Consultation%`);
-        }
+      // Apply service filter (extracted from calendar_name) - more flexible matching
+      if (serviceFilter !== 'ALL') {
+        query = query.or(`calendar_name.ilike.%your ${serviceFilter} Consultation%,calendar_name.ilike.%your "${serviceFilter}" Consultation%,calendar_name.ilike.%your '${serviceFilter}' Consultation%`);
+      }
         
         
         return query;
