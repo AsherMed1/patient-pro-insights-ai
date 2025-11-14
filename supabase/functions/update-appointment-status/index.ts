@@ -36,22 +36,43 @@ serve(async (req) => {
 
     // Get the raw body text first for debugging
     const bodyText = await req.text()
-    console.log('Raw request body:', bodyText)
-    console.log('Content-Type header:', req.headers.get('content-type'))
+    const requestId = crypto.randomUUID()
+    const timestamp = new Date().toISOString()
+    
+    console.log(`[${requestId}] ${timestamp} - Request received`)
+    console.log(`[${requestId}] Raw request body:`, bodyText)
+    console.log(`[${requestId}] Content-Type header:`, req.headers.get('content-type'))
+    console.log(`[${requestId}] User-Agent:`, req.headers.get('user-agent'))
+    console.log(`[${requestId}] Origin:`, req.headers.get('origin'))
 
     // Try to parse JSON with better error handling
     let body
     try {
       body = JSON.parse(bodyText)
+      console.log(`[${requestId}] JSON parsed successfully`)
     } catch (parseError) {
-      console.error('JSON Parse Error:', parseError)
-      console.error('Body that failed to parse:', bodyText)
+      const errorDetails = parseError instanceof Error ? parseError.message : 'Unknown parse error'
+      console.error(`[${requestId}] JSON Parse Error:`, errorDetails)
+      console.error(`[${requestId}] Body that failed to parse:`, bodyText)
+      
+      // Try to identify common JSON errors
+      let parseHint = ''
+      if (bodyText.includes('"ghl_appointment_id"') && !bodyText.includes('"ghl_appointment_id":')) {
+        parseHint = 'Missing colon after "ghl_appointment_id"'
+      } else if (bodyText.match(/"\w+"\s*"[\w-]+"/)) {
+        parseHint = 'Missing comma between fields'
+      } else if (bodyText.match(/,\s*[}\]]/)) {
+        parseHint = 'Trailing comma detected'
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Invalid JSON format', 
           message: 'Request body must be valid JSON',
-          details: parseError.message,
-          receivedBody: bodyText.substring(0, 500) // First 500 chars for debugging
+          details: errorDetails,
+          hint: parseHint || 'Check for missing commas, colons, or quotes',
+          receivedBody: bodyText.substring(0, 500), // First 500 chars for debugging
+          requestId: requestId
         }),
         { 
           status: 400, 
@@ -60,10 +81,11 @@ serve(async (req) => {
       )
     }
 
-    console.log('Parsed appointment update data:', body)
+    console.log(`[${requestId}] Parsed appointment update data:`, JSON.stringify(body, null, 2))
 
     // Validate required fields - need either id or combination of identifiers
     if (!body.id && !body.ghl_appointment_id && !body.ghl_id && !body.lead_phone_number && !body.lead_name) {
+      console.error(`[${requestId}] Missing required identifier`)
       return new Response(
         JSON.stringify({ 
           error: 'Missing required identifier', 
@@ -78,7 +100,8 @@ serve(async (req) => {
             lead_name: 'John Doe',
             // OR
             id: 'uuid-of-appointment'
-          }
+          },
+          requestId: requestId
         }),
         { 
           status: 400, 
@@ -136,32 +159,65 @@ serve(async (req) => {
 
     // Build the query based on available identifier - Priority order: ghl_appointment_id, ghl_id, lead_phone_number, then others
     let updateQuery = supabase.from('all_appointments').update(updateData)
+    
+    let identifierType = ''
+    let identifierValue = ''
 
     if (body.ghl_appointment_id) {
       updateQuery = updateQuery.eq('appointment_id', body.ghl_appointment_id)
+      identifierType = 'appointment_id'
+      identifierValue = body.ghl_appointment_id
     } else if (body.ghl_id) {
       updateQuery = updateQuery.eq('ghl_id', body.ghl_id)
+      identifierType = 'ghl_id'
+      identifierValue = body.ghl_id
     } else if (body.lead_phone_number) {
       updateQuery = updateQuery.eq('lead_phone_number', body.lead_phone_number)
+      identifierType = 'lead_phone_number'
+      identifierValue = body.lead_phone_number
     } else if (body.id) {
       updateQuery = updateQuery.eq('id', body.id)
+      identifierType = 'id'
+      identifierValue = body.id
     } else if (body.lead_name) {
       updateQuery = updateQuery.eq('lead_name', body.lead_name)
+      identifierType = 'lead_name'
+      identifierValue = body.lead_name
       // Optionally filter by project_name if provided for more precision
       if (body.project_name) {
         updateQuery = updateQuery.eq('project_name', body.project_name)
+        identifierType = 'lead_name+project_name'
+        identifierValue = `${body.lead_name}@${body.project_name}`
       }
     }
+    
+    console.log(`[${requestId}] Executing update with identifier: ${identifierType}=${identifierValue}`)
+    console.log(`[${requestId}] Update data:`, JSON.stringify(updateData, null, 2))
 
     // Execute the update query
     const { data, error } = await updateQuery.select()
+    
+    console.log(`[${requestId}] Update query completed. Error:`, error, 'Data count:', data?.length || 0)
 
     if (error) {
-      console.error('Database error:', error)
+      console.error(`[${requestId}] Database error updating appointment:`, error)
+      console.error(`[${requestId}] Error details:`, JSON.stringify(error, null, 2))
+      
+      // Check if it's a column filter error
+      if (error.message?.includes('invalid column for filter')) {
+        console.error(`[${requestId}] INVALID COLUMN FILTER ERROR DETECTED`)
+        console.error(`[${requestId}] Identifier used: ${identifierType}=${identifierValue}`)
+        console.error(`[${requestId}] Update fields:`, Object.keys(updateData))
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Database error', 
-          details: error.message 
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          requestId: requestId
         }),
         { 
           status: 500, 
@@ -171,10 +227,13 @@ serve(async (req) => {
     }
 
     if (!data || data.length === 0) {
+      console.warn(`[${requestId}] Appointment not found with ${identifierType}=${identifierValue}`)
       return new Response(
         JSON.stringify({ 
           error: 'Appointment not found', 
-          message: 'No appointment found with the provided identifier'
+          message: 'No appointment found with the provided identifier',
+          searched_with: { [identifierType]: identifierValue },
+          requestId: requestId
         }),
         { 
           status: 404, 
@@ -183,14 +242,15 @@ serve(async (req) => {
       )
     }
 
-    console.log('Successfully updated appointment:', data[0])
+    console.log(`[${requestId}] Successfully updated appointment:`, data[0].id, data[0].lead_name)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'Appointment status updated successfully',
         data: data[0],
-        updated_fields: Object.keys(updateData).filter(key => key !== 'updated_at')
+        updated_fields: Object.keys(updateData).filter(key => key !== 'updated_at'),
+        requestId: requestId
       }),
       { 
         status: 200, 
@@ -199,11 +259,18 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('API error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    
+    console.error('Unexpected error in update-appointment-status:', errorMessage)
+    console.error('Error stack:', errorStack)
+    console.error('Error details:', JSON.stringify(error, null, 2))
+    
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
-        message: error.message 
+        message: errorMessage,
+        type: error instanceof Error ? error.constructor.name : typeof error
       }),
       { 
         status: 500, 
