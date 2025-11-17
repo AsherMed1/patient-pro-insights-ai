@@ -13,6 +13,7 @@ import { statusOptions } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
 import { updateTyroneBillingsIntake } from '@/utils/updateTyroneBillingsIntake';
+import { updateBrigitteWilliamsIntake } from '@/utils/updateBrigitteWilliamsIntake';
 
 
 interface DateRange {
@@ -104,6 +105,17 @@ const AllAppointmentsManager = ({
       updateTyroneBillingsIntake().then(() => {
         localStorage.setItem('tyroneBillingsIntakeUpdated', 'true');
         console.log('Tyrone Billings intake notes updated');
+      });
+    }
+  }, []);
+
+  // One-time update for Brigitte Williams
+  useEffect(() => {
+    const hasRun = localStorage.getItem('brigitteWilliamsIntakeUpdated');
+    if (!hasRun) {
+      updateBrigitteWilliamsIntake().then(() => {
+        localStorage.setItem('brigitteWilliamsIntakeUpdated', 'true');
+        console.log('Brigitte Williams intake notes updated');
       });
     }
   }, []);
