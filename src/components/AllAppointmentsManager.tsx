@@ -11,6 +11,7 @@ import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
 import { statusOptions } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
+import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
 
 
 interface DateRange {
@@ -80,6 +81,17 @@ const AllAppointmentsManager = ({
       updateStarHigginsIntake().then(() => {
         localStorage.setItem('starHigginsIntakeUpdated', 'true');
         console.log('Star Higgins intake notes updated');
+      });
+    }
+  }, []);
+
+  // One-time update for Debra Duncan
+  useEffect(() => {
+    const hasRun = localStorage.getItem('debraDuncanIntakeUpdated');
+    if (!hasRun) {
+      updateDebraDuncanIntake().then(() => {
+        localStorage.setItem('debraDuncanIntakeUpdated', 'true');
+        console.log('Debra Duncan intake notes updated');
       });
     }
   }, []);
