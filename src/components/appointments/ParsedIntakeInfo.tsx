@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { User, Heart, Phone, Shield, ExternalLink, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { format, parse } from "date-fns";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
@@ -47,6 +48,17 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     return String(value);
   };
 
+  const formatDOB = (dob: any) => {
+    if (!dob || dob === "null" || dob === "") return null;
+    try {
+      // Parse YYYY-MM-DD format and convert to MM/DD/YYYY
+      const date = parse(String(dob), "yyyy-MM-dd", new Date());
+      return format(date, "MM/dd/yyyy");
+    } catch {
+      return String(dob);
+    }
+  };
+
   return (
     <div className={`space-y-4 mt-4 ${className}`}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -74,10 +86,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedDemographics.age}</span>
                   </div>
                 )}
-                {formatValue(parsedDemographics.dob) && (
+                {formatDOB(parsedDemographics.dob) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Date of Birth:</span>{" "}
-                    <span className="font-medium">{parsedDemographics.dob}</span>
+                    <span className="font-medium">{formatDOB(parsedDemographics.dob)}</span>
                   </div>
                 )}
                 {formatValue(parsedDemographics.gender) && (
