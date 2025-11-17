@@ -32,6 +32,7 @@ interface DetailedAppointmentViewProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: AllAppointment;
+  onDataRefresh?: () => void;
 }
 
 interface LeadDetails {
@@ -49,7 +50,7 @@ interface LeadDetails {
   address?: string;
 }
 
-const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppointmentViewProps) => {
+const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }: DetailedAppointmentViewProps) => {
   const [leadDetails, setLeadDetails] = useState<LeadDetails | null>(null);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -109,8 +110,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
           toast.success("Contact ID updated in database");
         }
 
-        // Refresh appointment data to show updated notes
-        window.location.reload();
+        // Close modal and refresh data
+        onClose();
+        onDataRefresh?.();
       }
     } catch (error) {
       console.error('Error fetching GHL data:', error);

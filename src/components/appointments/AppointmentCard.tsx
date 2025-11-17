@@ -1427,6 +1427,7 @@ const AppointmentCard = ({
         isOpen={showDetailedView}
         onClose={() => setShowDetailedView(false)}
         appointment={appointment}
+        onDataRefresh={() => window.location.reload()}
       />
 
       {/* Reschedule Dialog */}
