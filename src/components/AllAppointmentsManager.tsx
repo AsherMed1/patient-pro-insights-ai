@@ -10,6 +10,7 @@ import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
 import { statusOptions } from './appointments/utils';
+import { addStarHigginsAppointment } from '@/utils/addStarHigginsAppointment';
 
 
 interface DateRange {
@@ -946,6 +947,25 @@ const AllAppointmentsManager = ({
     }
   };
 
+  const handleAddMissingAppointment = async () => {
+    try {
+      await addStarHigginsAppointment();
+      toast({
+        title: "Success",
+        description: "Star Shamaine Higgins appointment added successfully"
+      });
+      fetchAppointments(); // Refresh the list
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error adding missing appointment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add missing appointment",
+        variant: "destructive"
+      });
+    }
+  };
+
 
   const totalPages = Math.ceil(totalCount / APPOINTMENTS_PER_PAGE);
   const startRecord = (currentPage - 1) * APPOINTMENTS_PER_PAGE + 1;
@@ -1011,13 +1031,26 @@ const AllAppointmentsManager = ({
       {/* Appointments List */}
       <Card className="w-full">
         <CardHeader className="pb-3 md:pb-6">
-          <CardTitle className="text-lg md:text-xl">
-            {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Showing {totalCount > 0 ? startRecord : 0}-{endRecord} of {totalCount} appointment{totalCount !== 1 ? 's' : ''} (Times in Central Time Zone)
-            {projectFilter && ` for ${projectFilter}`}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg md:text-xl">
+                {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Showing {totalCount > 0 ? startRecord : 0}-{endRecord} of {totalCount} appointment{totalCount !== 1 ? 's' : ''} (Times in Central Time Zone)
+                {projectFilter && ` for ${projectFilter}`}
+              </CardDescription>
+            </div>
+            {projectFilter === 'Premier Vascular' && (
+              <Button 
+                onClick={handleAddMissingAppointment}
+                variant="outline"
+                size="sm"
+              >
+                Add Missing Appointment
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0">
           {/* Top Pagination */}
