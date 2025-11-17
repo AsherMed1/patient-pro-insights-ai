@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
     // Get GHL API key for this project
     const { data: projectData, error: projectError } = await supabase
-      .from('ghl_subaccounts')
+      .from('projects')
       .select('ghl_api_key')
       .eq('project_name', appointment.project_name)
       .single();
