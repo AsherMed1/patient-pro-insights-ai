@@ -16,7 +16,8 @@ import {
   Shield,
   MapPin,
   Hash,
-  Printer
+  Printer,
+  Download
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
@@ -24,6 +25,8 @@ import AppointmentNotes from './AppointmentNotes';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/utils/appointmentLeadMatcher";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface DetailedAppointmentViewProps {
   isOpen: boolean;
@@ -50,6 +53,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
   const [leadDetails, setLeadDetails] = useState<LeadDetails | null>(null);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
+  const [ghlCustomFields, setGhlCustomFields] = useState<any[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -81,6 +86,38 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
       console.error('Error loading lead details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFetchGHLData = async () => {
+    if (!appointment.ghl_appointment_id) {
+      toast.error("No GHL appointment ID found");
+      return;
+    }
+
+    setIsFetchingGHLData(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-ghl-contact-data', {
+        body: { appointmentId: appointment.id }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setGhlCustomFields(data.customFields);
+        toast.success(`Fetched ${data.customFields.length} custom fields from GHL`);
+        
+        if (data.contactIdWasUpdated) {
+          toast.success("Contact ID updated in database");
+        }
+
+        console.log('GHL Contact Data:', data);
+      }
+    } catch (error) {
+      console.error('Error fetching GHL data:', error);
+      toast.error("Failed to fetch GHL contact data");
+    } finally {
+      setIsFetchingGHLData(false);
     }
   };
 
@@ -207,15 +244,29 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                 <FileText className="h-5 w-5" />
                 <span>Appointment Details - {appointment.lead_name}</span>
               </DialogTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrint}
-                className="no-print flex items-center gap-2"
-              >
-                <Printer className="h-4 w-4" />
-                Print / PDF
-              </Button>
+              <div className="flex gap-2 no-print">
+                {appointment.ghl_appointment_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFetchGHLData}
+                    disabled={isFetchingGHLData}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    {isFetchingGHLData ? "Fetching..." : "Fetch GHL Data"}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrint}
+                  className="flex items-center gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print / PDF
+                </Button>
+              </div>
             </div>
           </DialogHeader>
 
@@ -454,6 +505,30 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                       />
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* GHL Custom Fields Section */}
+            {ghlCustomFields.length > 0 && (
+              <Card className="print-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Download className="h-4 w-4" />
+                    <span>GHL Custom Fields</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {ghlCustomFields.map((field, index) => (
+                      <div key={index} className="flex flex-col gap-1 p-3 bg-muted/50 rounded-lg">
+                        <span className="text-sm font-medium text-muted-foreground">{field.key}</span>
+                        <span className="text-sm">
+                          {Array.isArray(field.value) ? field.value.join(', ') : field.value || 'No value'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             )}
