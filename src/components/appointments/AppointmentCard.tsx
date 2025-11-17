@@ -456,7 +456,32 @@ const AppointmentCard = ({
       const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
       const newTime = rescheduleTime || appointment.requested_time || '09:00';
       
-      // Update local appointment first
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Create reschedule record for tracking
+      const { data: rescheduleRecord, error: rescheduleError } = await supabase
+        .from('appointment_reschedules')
+        .insert({
+          appointment_id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          lead_phone: appointment.lead_phone_number,
+          lead_email: appointment.lead_email,
+          original_date: appointment.date_of_appointment,
+          original_time: appointment.requested_time,
+          new_date: newDate,
+          new_time: newTime,
+          notes: rescheduleNotes || null,
+          requested_by: user?.id,
+          ghl_sync_status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (rescheduleError) throw rescheduleError;
+      
+      // Update local appointment
       const { error: updateError } = await supabase
         .from('all_appointments')
         .update({
@@ -513,6 +538,18 @@ const AppointmentCard = ({
             })
             .eq('id', appointment.id);
           
+          // Update reschedule record
+          await supabase
+            .from('appointment_reschedules')
+            .update({
+              ghl_sync_status: 'success',
+              ghl_synced_at: new Date().toISOString(),
+              processed: true,
+              processed_by: user?.id,
+              processed_at: new Date().toISOString()
+            })
+            .eq('id', rescheduleRecord.id);
+          
           toast({
             title: "Success",
             description: "Appointment rescheduled in GoHighLevel successfully"
@@ -531,6 +568,16 @@ const AppointmentCard = ({
             })
             .eq('id', appointment.id);
           
+          // Update reschedule record with error
+          await supabase
+            .from('appointment_reschedules')
+            .update({
+              ghl_sync_status: 'failed',
+              ghl_sync_error: ghlError.message || String(ghlError),
+              ghl_synced_at: new Date().toISOString()
+            })
+            .eq('id', rescheduleRecord.id);
+          
           toast({
             title: "Partial Success",
             description: "Appointment updated locally but GHL sync failed. You can retry from the appointment card.",
@@ -538,7 +585,7 @@ const AppointmentCard = ({
           });
         }
       } else {
-        // No GHL appointment ID
+        // No GHL appointment ID - mark reschedule as processed locally only
         await supabase
           .from('all_appointments')
           .update({
@@ -546,6 +593,18 @@ const AppointmentCard = ({
             last_ghl_sync_error: 'No GHL appointment ID',
           })
           .eq('id', appointment.id);
+        
+        // Update reschedule record
+        await supabase
+          .from('appointment_reschedules')
+          .update({
+            ghl_sync_status: 'skipped',
+            ghl_sync_error: 'No GHL appointment ID',
+            processed: true,
+            processed_by: user?.id,
+            processed_at: new Date().toISOString()
+          })
+          .eq('id', rescheduleRecord.id);
         
         toast({
           title: "Success",
@@ -636,6 +695,23 @@ const AppointmentCard = ({
         })
         .eq('id', appointment.id);
       
+      // Update any related reschedule records
+      if (appointment.status?.toLowerCase() === 'rescheduled') {
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase
+          .from('appointment_reschedules')
+          .update({
+            ghl_sync_status: 'success',
+            ghl_synced_at: new Date().toISOString(),
+            ghl_sync_error: null,
+            processed: true,
+            processed_by: user?.id,
+            processed_at: new Date().toISOString()
+          })
+          .eq('appointment_id', appointment.id)
+          .eq('processed', false);
+      }
+      
       toast({
         title: "Success",
         description: "Appointment synced to GoHighLevel successfully"
@@ -653,6 +729,19 @@ const AppointmentCard = ({
           last_ghl_sync_error: error.message || String(error),
         })
         .eq('id', appointment.id);
+      
+      // Update any related reschedule records with error
+      if (appointment.status?.toLowerCase() === 'rescheduled') {
+        await supabase
+          .from('appointment_reschedules')
+          .update({
+            ghl_sync_status: 'failed',
+            ghl_sync_error: error.message || String(error),
+            ghl_synced_at: new Date().toISOString()
+          })
+          .eq('appointment_id', appointment.id)
+          .eq('processed', false);
+      }
       
       toast({
         title: "Sync Failed",
