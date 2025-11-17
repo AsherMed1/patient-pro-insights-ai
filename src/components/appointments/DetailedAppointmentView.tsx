@@ -524,7 +524,11 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                       <div key={index} className="flex flex-col gap-1 p-3 bg-muted/50 rounded-lg">
                         <span className="text-sm font-medium text-muted-foreground">{field.key}</span>
                         <span className="text-sm">
-                          {Array.isArray(field.value) ? field.value.join(', ') : field.value || 'No value'}
+                          {Array.isArray(field.value)
+                            ? field.value.join(', ')
+                            : typeof field.value === 'object' && field.value !== null
+                              ? JSON.stringify(field.value)
+                              : (field.value ?? 'No value')}
                         </span>
                       </div>
                     ))}
