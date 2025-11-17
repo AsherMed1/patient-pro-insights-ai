@@ -158,9 +158,92 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully fetched ${customFields.length} custom fields for ${contact.firstName} ${contact.lastName}`);
 
+    // Format custom fields into structured text for patient intake notes
+    const formatCustomFieldsToText = (fields: any[]): string => {
+      const sections: Record<string, string[]> = {
+        'Contact Information': [],
+        'Insurance Information': [],
+        'Pathology Information': [],
+        'Medical Information': [],
+        'Conversation Notes': []
+      };
+
+      fields.forEach(field => {
+        const key = field.key.toLowerCase();
+        const value = Array.isArray(field.value) 
+          ? field.value.join(', ') 
+          : typeof field.value === 'object' && field.value !== null
+            ? JSON.stringify(field.value)
+            : (field.value || 'Not provided');
+
+        const formattedLine = `${field.key}: ${value}`;
+
+        // Categorize fields
+        if (key.includes('insurance') || key.includes('member') || key.includes('group') || key.includes('policy')) {
+          sections['Insurance Information'].push(formattedLine);
+        } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration')) {
+          sections['Pathology Information'].push(formattedLine);
+        } else if (key.includes('medication') || key.includes('allerg') || key.includes('medical') || key.includes('pcp') || key.includes('doctor')) {
+          sections['Medical Information'].push(formattedLine);
+        } else if (key.includes('note') || key.includes('comment') || key.includes('conversation') || key.includes('discussion')) {
+          sections['Conversation Notes'].push(formattedLine);
+        } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name')) {
+          sections['Contact Information'].push(formattedLine);
+        } else {
+          // Default to conversation notes for uncategorized fields
+          sections['Conversation Notes'].push(formattedLine);
+        }
+      });
+
+      // Build formatted text
+      let formattedText = '=== GHL Contact Data ===\n\n';
+      
+      Object.entries(sections).forEach(([section, lines]) => {
+        if (lines.length > 0) {
+          formattedText += `${section}:\n`;
+          lines.forEach(line => {
+            formattedText += `  ${line}\n`;
+          });
+          formattedText += '\n';
+        }
+      });
+
+      return formattedText;
+    };
+
+    const formattedNotes = formatCustomFieldsToText(customFields);
+
+    // Get current patient intake notes
+    const currentNotes = appointment.patient_intake_notes || '';
+    
+    // Append or set the formatted GHL data to patient_intake_notes
+    const updatedNotes = currentNotes 
+      ? `${currentNotes}\n\n${formattedNotes}`
+      : formattedNotes;
+
+    // Update the appointment with the formatted notes
+    const { error: updateError } = await supabase
+      .from('all_appointments')
+      .update({ 
+        patient_intake_notes: updatedNotes,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId);
+
+    if (updateError) {
+      console.error('Failed to update patient intake notes:', updateError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to update patient intake notes' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
+    console.log('✅ Successfully updated patient intake notes with GHL data');
+
     return new Response(
       JSON.stringify({
         success: true,
+        message: 'GHL contact data added to patient intake notes',
         contact: {
           id: contact.id,
           firstName: contact.firstName,
@@ -168,7 +251,7 @@ Deno.serve(async (req) => {
           email: contact.email,
           phone: contact.phone,
         },
-        customFields,
+        fieldsCount: customFields.length,
         insuranceCardUrl,
         contactIdWasUpdated: !appointment.ghl_id && !!contactId,
       }),
