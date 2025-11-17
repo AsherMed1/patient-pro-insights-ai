@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { statusOptions } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
+import { updateTyroneBillingsIntake } from '@/utils/updateTyroneBillingsIntake';
 
 
 interface DateRange {
@@ -92,6 +93,17 @@ const AllAppointmentsManager = ({
       updateDebraDuncanIntake().then(() => {
         localStorage.setItem('debraDuncanIntakeUpdated', 'true');
         console.log('Debra Duncan intake notes updated');
+      });
+    }
+  }, []);
+
+  // One-time update for Tyrone Billings
+  useEffect(() => {
+    const hasRun = localStorage.getItem('tyroneBillingsIntakeUpdated');
+    if (!hasRun) {
+      updateTyroneBillingsIntake().then(() => {
+        localStorage.setItem('tyroneBillingsIntakeUpdated', 'true');
+        console.log('Tyrone Billings intake notes updated');
       });
     }
   }, []);
