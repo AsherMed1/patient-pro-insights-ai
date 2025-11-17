@@ -8,6 +8,10 @@ verify_jwt = false
 verify_jwt = false
 # One-time utility to update specific appointment fields
 
+[functions.fix-completed-appointments]
+verify_jwt = false
+# One-time fix to set internal_process_complete for completed appointments
+
 [functions.create-bulk-project-users]
 verify_jwt = false
 # Temporarily public for initial setup - will be secured after execution
