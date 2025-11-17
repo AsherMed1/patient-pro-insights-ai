@@ -197,8 +197,7 @@ Deno.serve(async (req) => {
         'Contact Information': [],
         'Insurance Information': [],
         'Pathology Information': [],
-        'Medical Information': [],
-        'Conversation Notes': []
+        'Medical Information': []
       };
 
       fields.forEach(field => {
@@ -217,21 +216,17 @@ Deno.serve(async (req) => {
 
         const formattedLine = `${field.key}: ${value}`;
 
-        // Categorize fields
+        // Categorize fields - skip conversation notes and workflow fields
         if (key.includes('insurance') || key.includes('member') || key.includes('group') || key.includes('policy')) {
           sections['Insurance Information'].push(formattedLine);
-        } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration')) {
+        } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || key.includes('treat')) {
           sections['Pathology Information'].push(formattedLine);
         } else if (key.includes('medication') || key.includes('allerg') || key.includes('medical') || key.includes('pcp') || key.includes('doctor')) {
           sections['Medical Information'].push(formattedLine);
-        } else if (key.includes('note') || key.includes('comment') || key.includes('conversation') || key.includes('discussion')) {
-          sections['Conversation Notes'].push(formattedLine);
-        } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name')) {
+        } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name') || key.includes('dob') || key.includes('date of birth')) {
           sections['Contact Information'].push(formattedLine);
-        } else {
-          // Default to conversation notes for uncategorized fields
-          sections['Conversation Notes'].push(formattedLine);
         }
+        // Skip all other fields (conversation notes, tracking data, workflow fields, etc.)
       });
 
       // Build formatted text
