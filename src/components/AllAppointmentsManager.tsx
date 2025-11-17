@@ -580,8 +580,7 @@ const AllAppointmentsManager = ({
         description: "Appointment status updated successfully"
       });
       
-      // Refresh data to reflect tab movement (e.g., OON -> Completed)
-      fetchAppointments();
+      // Update tab counts only (local state already updated optimistically)
       fetchTabCounts();
       onDataChanged?.();
     } catch (error) {
