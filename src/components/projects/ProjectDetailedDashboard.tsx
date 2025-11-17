@@ -333,6 +333,31 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     }
   }, [open]);
 
+  // One-time cleanup of duplicate appointments for Premier Vascular
+  useEffect(() => {
+    const runCleanup = async () => {
+      if (project.project_name === 'Premier Vascular') {
+        const hasRun = sessionStorage.getItem('cleanup_duplicates_run');
+        if (!hasRun) {
+          console.log('🧹 Running duplicate appointment cleanup...');
+          const { cleanupDuplicateAppointments } = await import('@/utils/cleanupDuplicateAppointments');
+          const result = await cleanupDuplicateAppointments();
+          
+          if (result.success) {
+            sessionStorage.setItem('cleanup_duplicates_run', 'true');
+            toast({
+              title: "Database Cleanup Complete",
+              description: `Removed ${result.deletedDuplicates + result.deletedInvalid} invalid appointments. Total count: ${result.totalCount}`,
+            });
+          } else {
+            console.error('Cleanup failed:', result.error);
+          }
+        }
+      }
+    };
+    runCleanup();
+  }, [project.project_name]);
+
   const getDateRangeText = () => {
     if (!dateRange?.from && !dateRange?.to) return "All Time";
     if (dateRange.from && dateRange.to) {
