@@ -62,11 +62,11 @@ Deno.serve(async (req) => {
 
     const ghlApiKey = projectData.ghl_api_key;
     let contactId = appointment.ghl_id;
+    let locationId: string | null = null;
 
-    // If no contact ID, fetch it from the GHL appointment
-    if (!contactId && appointment.ghl_appointment_id) {
-      console.log('No contact ID found, fetching from GHL appointment...');
-      
+    // If we have a GHL appointment id, fetch it to derive the true contactId and locationId
+    if (appointment.ghl_appointment_id) {
+      console.log('Fetching GHL appointment to derive contact and location...');
       const apptResponse = await fetch(
         `${GHL_BASE_URL}/calendars/events/appointments/${appointment.ghl_appointment_id}`,
         {
@@ -79,29 +79,32 @@ Deno.serve(async (req) => {
         }
       );
 
-  if (!apptResponse.ok) {
-    const errorText = await apptResponse.text();
-    console.error('Failed to fetch GHL appointment:', errorText);
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch GHL appointment details' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    );
-  }
+      if (!apptResponse.ok) {
+        const errorText = await apptResponse.text();
+        console.error('Failed to fetch GHL appointment:', errorText);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch GHL appointment details' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
+      }
 
-  const apptData = await apptResponse.json();
-  console.log('GHL Appointment Response:', JSON.stringify(apptData, null, 2));
-  
-  // Try different possible field names for contact ID
-  contactId = apptData.contactId || apptData.contact_id || apptData.contact?.id;
+      const apptData = await apptResponse.json();
+      console.log('GHL Appointment Response:', JSON.stringify(apptData, null, 2));
 
-      if (contactId) {
-        // Update the database with the contact ID
-        await supabase
-          .from('all_appointments')
-          .update({ ghl_id: contactId })
-          .eq('id', appointmentId);
-        
-        console.log(`Updated appointment with contact ID: ${contactId}`);
+      const appt = apptData.appointment ?? apptData;
+      const extractedContactId = appt?.contactId || appt?.contact_id || appt?.contact?.id || null;
+      locationId = appt?.locationId || appt?.location_id || appt?.location?.id || null;
+
+      if (extractedContactId) {
+        // Update DB if different or missing
+        if (appointment.ghl_id !== extractedContactId) {
+          await supabase
+            .from('all_appointments')
+            .update({ ghl_id: extractedContactId })
+            .eq('id', appointmentId);
+          console.log(`Updated appointment with contact ID from appt: ${extractedContactId}`);
+        }
+        contactId = extractedContactId;
       }
     }
 
@@ -112,9 +115,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch contact details with custom fields
+    // Fetch contact details with custom fields (include LocationId header when available)
     console.log(`Fetching contact details for: ${contactId}`);
-    const contact = await fetchGHLContact(contactId, ghlApiKey);
+    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}` , {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': GHL_API_VERSION,
+        'Content-Type': 'application/json',
+        ...(locationId ? { 'LocationId': locationId } : {}),
+      },
+    });
+
+    if (!contactRes.ok) {
+      const errorText = await contactRes.text();
+      console.error('GHL API error fetching contact:', errorText);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch contact from GHL' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
+    const contactData = await contactRes.json();
+    const contact = (contactData.contact ?? contactData);
 
     if (!contact) {
       return new Response(
@@ -127,10 +150,10 @@ Deno.serve(async (req) => {
     const insuranceCardUrl = extractInsuranceCardUrl(contact);
 
     // Format custom fields for easy display
-    const customFields = contact.customFields?.map(field => ({
+    const customFields = contact.customFields?.map((field: any) => ({
       id: field.id,
       key: field.key,
-      value: field.field_value,
+      value: field.field_value ?? field.value,
     })) || [];
 
     console.log(`Successfully fetched ${customFields.length} custom fields for ${contact.firstName} ${contact.lastName}`);
