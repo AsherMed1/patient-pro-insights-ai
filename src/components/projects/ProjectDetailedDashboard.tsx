@@ -333,36 +333,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     }
   }, [open]);
 
-  // One-time reconciliation of missing appointments for Premier Vascular
-  useEffect(() => {
-    const runReconciliation = async () => {
-      if (project.project_name === 'Premier Vascular') {
-        const hasRun = sessionStorage.getItem('reconciliation_run');
-        if (!hasRun) {
-          console.log('🔍 Running appointment reconciliation...');
-          const { reconcilePremierVascularAppointments } = await import('@/utils/reconcilePremierVascularAppointments');
-          const result = await reconcilePremierVascularAppointments();
-          
-          if (result.success) {
-            sessionStorage.setItem('reconciliation_run', 'true');
-            if (result.added > 0) {
-              toast({
-                title: "Missing Appointments Added",
-                description: `Added ${result.added} missing appointments. Total count: ${result.finalCount}`,
-              });
-              // Refresh data after adding appointments
-              setTimeout(() => window.location.reload(), 2000);
-            } else {
-              console.log('✅ All appointments already in sync');
-            }
-          } else {
-            console.error('Reconciliation failed:', result.error);
-          }
-        }
-      }
-    };
-    runReconciliation();
-  }, [project.project_name, toast]);
+  // Auto-reconciliation removed - use manual CSV sync via Google Sheets webhook instead
 
   const getDateRangeText = () => {
     if (!dateRange?.from && !dateRange?.to) return "All Time";
