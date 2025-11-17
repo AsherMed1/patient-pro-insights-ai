@@ -10,6 +10,7 @@ import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
 import { statusOptions } from './appointments/utils';
+import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 
 
 interface DateRange {
@@ -69,6 +70,17 @@ const AllAppointmentsManager = ({
     const wasCleared = checkAndClearDailyFilters();
     if (wasCleared) {
       console.log('Filters cleared for new day');
+    }
+  }, []);
+
+  // One-time update for Star Shamaine Higgins
+  useEffect(() => {
+    const hasRun = localStorage.getItem('starHigginsIntakeUpdated');
+    if (!hasRun) {
+      updateStarHigginsIntake().then(() => {
+        localStorage.setItem('starHigginsIntakeUpdated', 'true');
+        console.log('Star Higgins intake notes updated');
+      });
     }
   }, []);
 
