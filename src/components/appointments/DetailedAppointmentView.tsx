@@ -54,7 +54,6 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
-  const [ghlCustomFields, setGhlCustomFields] = useState<any[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -104,14 +103,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
       if (error) throw error;
 
       if (data.success) {
-        setGhlCustomFields(data.customFields);
-        toast.success(`Fetched ${data.customFields.length} custom fields from GHL`);
+        toast.success(`Added ${data.fieldsCount} GHL fields to Patient Intake Notes`);
         
         if (data.contactIdWasUpdated) {
           toast.success("Contact ID updated in database");
         }
 
-        console.log('GHL Contact Data:', data);
+        // Refresh appointment data to show updated notes
+        window.location.reload();
       }
     } catch (error) {
       console.error('Error fetching GHL data:', error);
@@ -505,34 +504,6 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
                       />
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* GHL Custom Fields Section */}
-            {ghlCustomFields.length > 0 && (
-              <Card className="print-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Download className="h-4 w-4" />
-                    <span>GHL Custom Fields</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {ghlCustomFields.map((field, index) => (
-                      <div key={index} className="flex flex-col gap-1 p-3 bg-muted/50 rounded-lg">
-                        <span className="text-sm font-medium text-muted-foreground">{field.key}</span>
-                        <span className="text-sm">
-                          {Array.isArray(field.value)
-                            ? field.value.join(', ')
-                            : typeof field.value === 'object' && field.value !== null
-                              ? JSON.stringify(field.value)
-                              : (field.value ?? 'No value')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
                 </CardContent>
               </Card>
             )}
