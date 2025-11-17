@@ -45,10 +45,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get GHL API key for this project
+    // First, we need to get the custom field definitions to map IDs to keys
     const { data: projectData, error: projectError } = await supabase
       .from('projects')
-      .select('ghl_api_key')
+      .select('ghl_api_key, ghl_location_id')
       .eq('project_name', appointment.project_name)
       .single();
 
@@ -61,6 +61,14 @@ Deno.serve(async (req) => {
     }
 
     const ghlApiKey = projectData.ghl_api_key;
+    const ghlLocationId = projectData.ghl_location_id;
+    
+    if (!ghlLocationId) {
+      return new Response(
+        JSON.stringify({ error: 'GHL location ID not configured for this project' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
     let contactId = appointment.ghl_id;
     let locationId: string | null = null;
 
@@ -115,9 +123,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch contact details with custom fields (include LocationId header when available)
+    // First, fetch custom field definitions to map IDs to names
+    console.log(`Fetching custom field definitions for location: ${ghlLocationId}`);
+    const customFieldDefsRes = await fetch(`${GHL_BASE_URL}/locations/${ghlLocationId}/customFields`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': GHL_API_VERSION,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const customFieldDefs: Record<string, string> = {};
+    if (customFieldDefsRes.ok) {
+      const defsData = await customFieldDefsRes.json();
+      const defs = defsData.customFields || [];
+      defs.forEach((def: any) => {
+        if (def.id && def.name) {
+          customFieldDefs[def.id] = def.name;
+        }
+      });
+      console.log(`Loaded ${Object.keys(customFieldDefs).length} custom field definitions`);
+    }
+
+    // Fetch contact details with custom fields
     console.log(`Fetching contact details for: ${contactId}`);
-    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}` , {
+    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${ghlApiKey}`,
@@ -149,12 +180,14 @@ Deno.serve(async (req) => {
     // Extract insurance card URL if available
     const insuranceCardUrl = extractInsuranceCardUrl(contact);
 
-    // Format custom fields for easy display
-    const customFields = contact.customFields?.map((field: any) => ({
+    // Format custom fields, mapping IDs to names
+    const rawCustomFields = contact.customFields || [];
+    
+    const customFields = rawCustomFields.map((field: any) => ({
       id: field.id,
-      key: field.key,
+      key: customFieldDefs[field.id] || field.key || `Unknown Field (${field.id})`,
       value: field.field_value ?? field.value,
-    })) || [];
+    })).filter(f => f.value); // Only include fields with values
 
     console.log(`Successfully fetched ${customFields.length} custom fields for ${contact.firstName} ${contact.lastName}`);
 
@@ -169,6 +202,12 @@ Deno.serve(async (req) => {
       };
 
       fields.forEach(field => {
+        // Skip fields without a key
+        if (!field.key) {
+          console.log('Skipping field without key:', JSON.stringify(field));
+          return;
+        }
+        
         const key = field.key.toLowerCase();
         const value = Array.isArray(field.value) 
           ? field.value.join(', ') 
