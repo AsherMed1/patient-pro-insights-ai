@@ -3138,6 +3138,12 @@ export type Database = {
           verification_result: boolean
         }[]
       }
+      fix_completed_appointments: {
+        Args: never
+        Returns: {
+          updated_count: number
+        }[]
+      }
       get_account_manager_kpis: {
         Args: {
           p_client_name?: string
