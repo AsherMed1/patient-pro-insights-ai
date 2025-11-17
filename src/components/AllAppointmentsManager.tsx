@@ -14,6 +14,7 @@ import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
 import { updateTyroneBillingsIntake } from '@/utils/updateTyroneBillingsIntake';
 import { updateBrigitteWilliamsIntake } from '@/utils/updateBrigitteWilliamsIntake';
+import { updateAlisaGainousIntake } from '@/utils/updateAlisaGainousIntake';
 
 
 interface DateRange {
@@ -116,6 +117,17 @@ const AllAppointmentsManager = ({
       updateBrigitteWilliamsIntake().then(() => {
         localStorage.setItem('brigitteWilliamsIntakeUpdated', 'true');
         console.log('Brigitte Williams intake notes updated');
+      });
+    }
+  }, []);
+
+  // One-time update for Alisa Gainous
+  useEffect(() => {
+    const hasRun = localStorage.getItem('alisaGainousIntakeUpdated');
+    if (!hasRun) {
+      updateAlisaGainousIntake().then(() => {
+        localStorage.setItem('alisaGainousIntakeUpdated', 'true');
+        console.log('Alisa Gainous intake notes updated');
       });
     }
   }, []);
