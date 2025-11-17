@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export async function addStarHigginsAppointment() {
+// One-time script to add missing Star Shamaine Higgins appointment
+async function insertMissingAppointment() {
   const { data, error } = await supabase
     .from('all_appointments')
     .insert({
@@ -19,10 +20,12 @@ export async function addStarHigginsAppointment() {
     .single();
 
   if (error) {
-    console.error('Error adding appointment:', error);
-    throw error;
+    console.error('❌ Error adding appointment:', error);
+    return;
   }
 
   console.log('✅ Successfully added Star Shamaine Higgins appointment:', data);
-  return data;
 }
+
+// Execute the insert
+insertMissingAppointment();

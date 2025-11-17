@@ -16,6 +16,9 @@ import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
 import NotFound from "./pages/NotFound";
 
+// One-time script to add missing appointment
+import './utils/insertMissingPremierVascularAppointment';
+
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
   const { projectName } = useParams<{ projectName: string }>();
