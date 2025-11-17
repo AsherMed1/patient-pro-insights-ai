@@ -246,18 +246,6 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }
                 <span>Appointment Details - {appointment.lead_name}</span>
               </DialogTitle>
               <div className="flex gap-2 no-print">
-                {appointment.ghl_appointment_id && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleFetchGHLData}
-                    disabled={isFetchingGHLData}
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    {isFetchingGHLData ? "Fetching..." : "Fetch GHL Data"}
-                  </Button>
-                )}
                 <Button
                   variant="outline"
                   size="sm"
