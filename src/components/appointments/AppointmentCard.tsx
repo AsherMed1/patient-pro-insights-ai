@@ -704,6 +704,7 @@ const AppointmentCard = ({
               ) : (
                 <>
                   <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
+                  <span className="text-xs text-muted-foreground ml-2">ID: {appointment.id.substring(0, 8)}</span>
                   {onUpdateName && (
                     <Button
                       variant="ghost"
