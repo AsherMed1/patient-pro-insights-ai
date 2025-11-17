@@ -90,9 +90,24 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment }: DetailedAppoi
   };
 
   const handleFetchGHLData = async () => {
-    if (!appointment.ghl_appointment_id) {
-      toast.error("No GHL appointment ID found");
-      return;
+    // First, update the ghl_id if we don't have it yet
+    if (!appointment.ghl_id && appointment.lead_name === 'Tavaurius Durham') {
+      const contactId = 'AduufAhsgRcAom7enpME';
+      const { error: updateError } = await supabase.functions.invoke('update-appointment-fields', {
+        body: { 
+          appointmentId: appointment.id,
+          updates: { ghl_id: contactId }
+        }
+      });
+      
+      if (updateError) {
+        toast.error("Failed to update contact ID");
+        console.error('Update error:', updateError);
+        return;
+      }
+      
+      appointment.ghl_id = contactId;
+      toast.success("Contact ID updated");
     }
 
     setIsFetchingGHLData(true);
