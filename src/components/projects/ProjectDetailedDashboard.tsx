@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, TrendingUp, Phone, Users, Target, DollarSign, CheckCircle, XCircle, Clock, ChevronDown } from 'lucide-react';
+import { Calendar, TrendingUp, Phone, Users, Target, DollarSign, CheckCircle, XCircle, Clock, ChevronDown, MapPin, Stethoscope } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -55,6 +56,10 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [internalDateRange, setInternalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [locationFilter, setLocationFilter] = useState<string>('ALL');
+  const [serviceFilter, setServiceFilter] = useState<string>('ALL');
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState({
     marketing: false,
     appointment: false,
@@ -86,6 +91,56 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
   const clearDateRange = () => {
     setInternalDateRange({ from: undefined, to: undefined });
+  };
+
+  const clearAllFilters = () => {
+    setInternalDateRange({ from: undefined, to: undefined });
+    setLocationFilter('ALL');
+    setServiceFilter('ALL');
+  };
+
+  const fetchLocationAndServiceOptions = async () => {
+    try {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('calendar_name')
+        .not('calendar_name', 'is', null)
+        .eq('project_name', project.project_name);
+      
+      if (data) {
+        const locations = new Set<string>();
+        const services = new Set<string>();
+        
+        data.forEach(item => {
+          if (item.calendar_name) {
+            // Extract location: try hyphen pattern first, then "at" pattern
+            let locationMatch = item.calendar_name.match(/ - (.+)$/);
+            if (!locationMatch) {
+              locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+            }
+            
+            if (locationMatch && locationMatch[1]) {
+              const location = locationMatch[1].trim();
+              // Exclude Somerset, KY from location options
+              if (!location.toLowerCase().includes('somerset')) {
+                locations.add(location);
+              }
+            }
+            
+            // Extract service
+            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
+            if (serviceMatch && serviceMatch[1]) {
+              services.add(serviceMatch[1].trim());
+            }
+          }
+        });
+        
+        setLocationOptions(Array.from(locations).sort());
+        setServiceOptions(Array.from(services).sort());
+      }
+    } catch (error) {
+      console.error('Error fetching location/service options:', error);
+    }
   };
 
   const fetchDetailedStats = async () => {
@@ -124,6 +179,16 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         leadsQuery = leadsQuery.lte('date', toDate);
         appointmentsQuery = appointmentsQuery.lte('date_appointment_created', toDate);
         callsQuery = callsQuery.lte('date', toDate);
+      }
+
+      // Apply location filter
+      if (locationFilter && locationFilter !== 'ALL') {
+        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${locationFilter}%`);
+      }
+
+      // Apply service filter
+      if (serviceFilter && serviceFilter !== 'ALL') {
+        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
       }
 
       // Execute queries
@@ -260,7 +325,13 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     if (open) {
       fetchDetailedStats();
     }
-  }, [dateRange, open]);
+  }, [dateRange, locationFilter, serviceFilter, open]);
+
+  useEffect(() => {
+    if (open) {
+      fetchLocationAndServiceOptions();
+    }
+  }, [open]);
 
   const getDateRangeText = () => {
     if (!dateRange?.from && !dateRange?.to) return "All Time";
@@ -327,41 +398,91 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         </DialogHeader>
 
         {/* Date Range Filters */}
-        <div className="flex flex-wrap items-center gap-2 py-3 border-b">
-          <span className="text-sm font-medium text-muted-foreground">Date Range:</span>
-          <Button
-            variant={internalDateRange.from && !internalDateRange.to ? "default" : "outline"}
-            size="sm"
-            onClick={() => setQuickDateRange('today')}
-          >
-            Today
-          </Button>
-          <Button
-            variant={internalDateRange.from && Math.floor((new Date().getTime() - internalDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) === 6 ? "default" : "outline"}
-            size="sm"
-            onClick={() => setQuickDateRange(7)}
-          >
-            Week
-          </Button>
-          <Button
-            variant={internalDateRange.from && Math.floor((new Date().getTime() - internalDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) === 29 ? "default" : "outline"}
-            size="sm"
-            onClick={() => setQuickDateRange(30)}
-          >
-            Monthly
-          </Button>
-          {(internalDateRange.from || internalDateRange.to) && (
+        <div className="space-y-3 py-3 border-b">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Date Range:</span>
             <Button
-              variant="ghost"
+              variant={internalDateRange.from && !internalDateRange.to ? "default" : "outline"}
               size="sm"
-              onClick={clearDateRange}
+              onClick={() => setQuickDateRange('today')}
             >
-              Clear
+              Today
             </Button>
-          )}
-          <span className="text-sm text-muted-foreground ml-auto">
-            {getDateRangeText()}
-          </span>
+            <Button
+              variant={internalDateRange.from && Math.floor((new Date().getTime() - internalDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) === 6 ? "default" : "outline"}
+              size="sm"
+              onClick={() => setQuickDateRange(7)}
+            >
+              Week
+            </Button>
+            <Button
+              variant={internalDateRange.from && Math.floor((new Date().getTime() - internalDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) === 29 ? "default" : "outline"}
+              size="sm"
+              onClick={() => setQuickDateRange(30)}
+            >
+              Monthly
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setQuickDateRange(90)}
+            >
+              Last 90 Days
+            </Button>
+            {(internalDateRange.from || internalDateRange.to || locationFilter !== 'ALL' || serviceFilter !== 'ALL') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+              >
+                Clear All
+              </Button>
+            )}
+            <span className="text-sm text-muted-foreground ml-auto">
+              {getDateRangeText()}
+            </span>
+          </div>
+
+          {/* Location and Service Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Locations</SelectItem>
+                  {locationOptions.map(location => (
+                    <SelectItem key={location} value={location}>{location}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Stethoscope className="h-4 w-4 text-muted-foreground" />
+              <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Services" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Services</SelectItem>
+                  {serviceOptions.map(service => (
+                    <SelectItem key={service} value={service}>{service}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(locationFilter !== 'ALL' || serviceFilter !== 'ALL') && (
+              <Badge variant="secondary" className="py-1">
+                {locationFilter !== 'ALL' && locationFilter}
+                {locationFilter !== 'ALL' && serviceFilter !== 'ALL' && ' • '}
+                {serviceFilter !== 'ALL' && serviceFilter}
+              </Badge>
+            )}
+          </div>
         </div>
         
         {loading ? (
