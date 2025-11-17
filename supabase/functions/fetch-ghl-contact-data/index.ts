@@ -79,17 +79,20 @@ Deno.serve(async (req) => {
         }
       );
 
-      if (!apptResponse.ok) {
-        const errorText = await apptResponse.text();
-        console.error('Failed to fetch GHL appointment:', errorText);
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch GHL appointment details' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
-      }
+  if (!apptResponse.ok) {
+    const errorText = await apptResponse.text();
+    console.error('Failed to fetch GHL appointment:', errorText);
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch GHL appointment details' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
 
-      const apptData = await apptResponse.json();
-      contactId = apptData.contactId;
+  const apptData = await apptResponse.json();
+  console.log('GHL Appointment Response:', JSON.stringify(apptData, null, 2));
+  
+  // Try different possible field names for contact ID
+  contactId = apptData.contactId || apptData.contact_id || apptData.contact?.id;
 
       if (contactId) {
         // Update the database with the contact ID
