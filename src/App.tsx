@@ -16,8 +16,8 @@ import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
 import NotFound from "./pages/NotFound";
 
-// One-time script to add missing appointment
-import './utils/insertMissingPremierVascularAppointment';
+// One-time script to delete November 17 duplicates
+import './utils/deleteNovember17Duplicates';
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
