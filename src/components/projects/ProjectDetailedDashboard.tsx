@@ -333,30 +333,36 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     }
   }, [open]);
 
-  // One-time cleanup of duplicate appointments for Premier Vascular
+  // One-time reconciliation of missing appointments for Premier Vascular
   useEffect(() => {
-    const runCleanup = async () => {
+    const runReconciliation = async () => {
       if (project.project_name === 'Premier Vascular') {
-        const hasRun = sessionStorage.getItem('cleanup_duplicates_run');
+        const hasRun = sessionStorage.getItem('reconciliation_run');
         if (!hasRun) {
-          console.log('🧹 Running duplicate appointment cleanup...');
-          const { cleanupDuplicateAppointments } = await import('@/utils/cleanupDuplicateAppointments');
-          const result = await cleanupDuplicateAppointments();
+          console.log('🔍 Running appointment reconciliation...');
+          const { reconcilePremierVascularAppointments } = await import('@/utils/reconcilePremierVascularAppointments');
+          const result = await reconcilePremierVascularAppointments();
           
           if (result.success) {
-            sessionStorage.setItem('cleanup_duplicates_run', 'true');
-            toast({
-              title: "Database Cleanup Complete",
-              description: `Removed ${result.deletedDuplicates + result.deletedInvalid} invalid appointments. Total count: ${result.totalCount}`,
-            });
+            sessionStorage.setItem('reconciliation_run', 'true');
+            if (result.added > 0) {
+              toast({
+                title: "Missing Appointments Added",
+                description: `Added ${result.added} missing appointments. Total count: ${result.finalCount}`,
+              });
+              // Refresh data after adding appointments
+              setTimeout(() => window.location.reload(), 2000);
+            } else {
+              console.log('✅ All appointments already in sync');
+            }
           } else {
-            console.error('Cleanup failed:', result.error);
+            console.error('Reconciliation failed:', result.error);
           }
         }
       }
     };
-    runCleanup();
-  }, [project.project_name]);
+    runReconciliation();
+  }, [project.project_name, toast]);
 
   const getDateRangeText = () => {
     if (!dateRange?.from && !dateRange?.to) return "All Time";
