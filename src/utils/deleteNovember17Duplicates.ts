@@ -75,4 +75,5 @@ export async function deleteNovember17Duplicates() {
 }
 
 // Execute the cleanup immediately (one-time script)
-deleteNovember17Duplicates();
+// DISABLED: This was auto-deleting new appointments
+// Call manually if needed: deleteNovember17Duplicates();
