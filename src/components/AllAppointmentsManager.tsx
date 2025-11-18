@@ -518,9 +518,9 @@ const AllAppointmentsManager = ({
       // All: No additional filtering
       const allQuery = getBaseQuery();
 
-      // New: Appointments with 'new' status or null/empty status
+      // New: Appointments where internal_process_complete is NOT true (false or null)
       const newQuery = getBaseQuery()
-        .or('status.is.null,status.eq.,status.ilike.new,status.ilike.confirmed');
+        .or('internal_process_complete.is.null,internal_process_complete.eq.false');
       
       // Needs Review: Past appointments (appointment date has passed) that don't have completed status
       const needsReviewQuery = getBaseQuery()
@@ -533,11 +533,11 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'won')
         .not('status', 'ilike', 'oon');
       
-      // Upcoming: Future appointments (appointment date is today or later)
+      // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         const futureQuery = getBaseQuery()
+          .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
           .gte('date_of_appointment', todayString)
-          .not('status', 'ilike', 'confirmed')
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
