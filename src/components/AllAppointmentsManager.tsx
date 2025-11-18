@@ -16,6 +16,7 @@ import { updateTyroneBillingsIntake } from '@/utils/updateTyroneBillingsIntake';
 import { updateBrigitteWilliamsIntake } from '@/utils/updateBrigitteWilliamsIntake';
 import { updateAlisaGainousIntake } from '@/utils/updateAlisaGainousIntake';
 import { updateHollyParkerIntake } from '@/utils/updateHollyParkerIntake';
+import { updateEricCareyIntake } from '@/utils/updateEricCareyIntake';
 
 
 interface DateRange {
@@ -140,6 +141,17 @@ const AllAppointmentsManager = ({
       updateHollyParkerIntake().then(() => {
         localStorage.setItem('hollyParkerIntakeUpdated', 'true');
         console.log('Holly Parker intake notes updated');
+      });
+    }
+  }, []);
+
+  // One-time update for Eric Carey
+  useEffect(() => {
+    const hasRun = localStorage.getItem('ericCareyIntakeUpdated');
+    if (!hasRun) {
+      updateEricCareyIntake().then(() => {
+        localStorage.setItem('ericCareyIntakeUpdated', 'true');
+        console.log('Eric Carey intake notes updated');
       });
     }
   }, []);
