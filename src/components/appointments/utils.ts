@@ -92,8 +92,8 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         // New: Appointments where internal_process_complete is NOT true (false or null) - BUT NOT cancelled
         return !isCompleted && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
       case 'needs-review':
-        // Needs Review: Past appointment + not updated (no status set or still "new") - BUT NOT cancelled
-        return !isCompleted && isInPast && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
+        // Needs Review: Past appointment OR NULL date + not updated (no status set or still "new") - BUT NOT cancelled
+        return !isCompleted && (isInPast || !appointment.date_of_appointment) && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
       case 'future':
         // Future: appointment in the future + internal_process_complete is TRUE (two-point trigger) - BUT NOT cancelled
         return !isCompleted && isInFuture && appointment.internal_process_complete === true;

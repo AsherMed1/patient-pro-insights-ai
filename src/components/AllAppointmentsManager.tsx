@@ -522,10 +522,9 @@ const AllAppointmentsManager = ({
       const newQuery = getBaseQuery()
         .or('internal_process_complete.is.null,internal_process_complete.eq.false');
       
-      // Needs Review: Past appointments (appointment date has passed) that don't have completed status
+      // Needs Review: Past appointments (appointment date has passed) OR NULL date appointments that don't have completed status
       const needsReviewQuery = getBaseQuery()
-        .not('date_of_appointment', 'is', null)
-        .lt('date_of_appointment', todayString)
+        .or(`date_of_appointment.is.null,date_of_appointment.lt.${todayString}`)
         .not('status', 'ilike', 'cancelled')
         .not('status', 'ilike', 'no show')
         .not('status', 'ilike', 'noshow')
