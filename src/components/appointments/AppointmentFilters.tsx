@@ -241,7 +241,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 <SelectContent>
                   <SelectItem value="name">Name</SelectItem>
                   <SelectItem value="phone">Phone</SelectItem>
-                  {isAdmin() && <SelectItem value="dob">DOB</SelectItem>}
                 </SelectContent>
               </Select>
               <Input 
