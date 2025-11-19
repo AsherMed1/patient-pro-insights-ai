@@ -18,8 +18,14 @@ import NotFound from "./pages/NotFound";
 
 // One-time script to cleanup duplicate appointments
 import './utils/cleanupDuplicateAppointments';
-import { cleanupDuplicateAppointments } from './utils/cleanupDuplicateAppointments';
-import { updateTeresaGriffinIntake } from './utils/updateTeresaGriffinIntake';
+import { cleanupDuplicateAppointments } from "./utils/cleanupDuplicateAppointments";
+import { updateTeresaGriffinIntake } from "./utils/updateTeresaGriffinIntake";
+import { fixPremierVascularCorruptedData } from "./utils/fixPremierVascularCorruptedData";
+import { cleanupDuplicateLeads } from "./utils/cleanupDuplicateLeads";
+import { insertCassandraEvans } from "./utils/insertCassandraEvans";
+import { insertChristopherHill } from "./utils/insertChristopherHill";
+import { insertRhondaKettles } from "./utils/insertRhondaKettles";
+import { insertDorothyLowe } from "./utils/insertDorothyLowe";
 import { updateLuisDeLeonIntake } from './utils/updateLuisDeLeonIntake';
 import { updateAnthonyCameraAppointment } from './utils/insertAnthonyCamera';
 import { updateShawnBurnettIntake } from './utils/updateShawnBurnettIntake';
@@ -64,7 +70,6 @@ import { updateVanessaTwymanDanielsIntake } from './utils/updateVanessaTwymanDan
 import { updateDennisWadeIntake } from './utils/updateDennisWadeIntake';
 import { updateGlenissCarswellIntake } from './utils/updateGlenissCarswell Intake';
 import { updateMaryRaineyIntake } from './utils/updateMaryRaineyIntake';
-import { fixPremierVascularCorruptedData } from './utils/fixPremierVascularCorruptedData';
 
 // Execute cleanup on app load
 cleanupDuplicateAppointments();
@@ -160,6 +165,13 @@ updateGlenissCarswellIntake();
 updateMaryRaineyIntake();
 // Fix all corrupted Premier Vascular appointment data
 fixPremierVascularCorruptedData();
+
+// Clean up duplicate leads and insert missing appointments
+cleanupDuplicateLeads();
+insertCassandraEvans();
+insertChristopherHill();
+insertRhondaKettles();
+insertDorothyLowe();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {

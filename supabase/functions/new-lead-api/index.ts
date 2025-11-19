@@ -175,14 +175,66 @@ serve(async (req) => {
       return formattedNotes || null;
     };
 
-    // Prepare the lead data with all possible fields
+    // Check for existing lead to prevent duplicates
+    const contactId = body.contact_id || body.ghl_id;
+    let existingLead = null;
+
+    if (contactId) {
+      const { data } = await supabase
+        .from('new_leads')
+        .select('id')
+        .eq('contact_id', contactId)
+        .eq('project_name', project_name)
+        .maybeSingle();
+      
+      existingLead = data;
+    }
+
+    if (!existingLead && body.phone_number) {
+      const { data } = await supabase
+        .from('new_leads')
+        .select('id')
+        .eq('phone_number', body.phone_number)
+        .eq('project_name', project_name)
+        .maybeSingle();
+      
+      existingLead = data;
+    }
+
+    if (!existingLead) {
+      const { data } = await supabase
+        .from('new_leads')
+        .select('id')
+        .eq('lead_name', lead_name)
+        .eq('project_name', project_name)
+        .maybeSingle();
+      
+      existingLead = data;
+    }
+
+    if (existingLead) {
+      console.log('Duplicate lead detected, skipping insert:', lead_name)
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Lead already exists, skipping duplicate',
+          lead_id: existingLead.id
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Format lead data
     const leadData = {
       lead_name,
       project_name,
       date: dateObj.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
       times_called: parseInt(times_called) || 0,
       // Optional fields
-      contact_id: body.contact_id || null,
+      contact_id: contactId,
       appt_date: body.appt_date ? new Date(body.appt_date).toISOString().split('T')[0] : null,
       first_name: body.first_name || null,
       last_name: body.last_name || null,

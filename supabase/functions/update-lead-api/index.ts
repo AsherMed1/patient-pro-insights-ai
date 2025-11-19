@@ -215,67 +215,201 @@ Deno.serve(async (req) => {
     // Strategy 1: Try by ID first (highest priority)
     if (id) {
       console.log('Attempting to find lead by ID:', id);
-      const result = await supabase.from('new_leads').update({
-        ...updateFields,
-        updated_at: new Date().toISOString()
-      }).eq('id', id).select().maybeSingle();
       
-      data = result.data;
-      error = result.error;
-      identificationMethod = 'id';
+      // First check for duplicates
+      const { data: checkData, error: checkError } = await supabase
+        .from('new_leads')
+        .select('id, created_at')
+        .eq('id', id);
+      
+      if (checkError) {
+        error = checkError;
+        identificationMethod = 'id';
+      } else if (checkData && checkData.length > 1) {
+        console.warn(`⚠️ Multiple leads found with id ${id}. Updating oldest record.`);
+        // Sort by created_at and use oldest
+        const oldest = checkData.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )[0];
+        
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('id', oldest.id).select().single();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'id';
+      } else {
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('id', id).select().maybeSingle();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'id';
+      }
     }
     
     // Strategy 2: Try by contact_id (or ghl_id) if ID didn't work
     if (!data && !error && effectiveContactId) {
       console.log('Attempting to find lead by contact_id:', effectiveContactId);
-      const result = await supabase.from('new_leads').update({
-        ...updateFields,
-        updated_at: new Date().toISOString()
-      }).eq('contact_id', effectiveContactId).select().maybeSingle();
       
-      data = result.data;
-      error = result.error;
-      identificationMethod = 'contact_id';
+      // First check for duplicates
+      const { data: checkData, error: checkError } = await supabase
+        .from('new_leads')
+        .select('id, created_at')
+        .eq('contact_id', effectiveContactId);
+      
+      if (checkError) {
+        error = checkError;
+        identificationMethod = 'contact_id';
+      } else if (checkData && checkData.length > 1) {
+        console.warn(`⚠️ Multiple leads found with contact_id ${effectiveContactId}. Updating oldest record.`);
+        // Sort by created_at and use oldest
+        const oldest = checkData.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )[0];
+        
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('id', oldest.id).select().single();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'contact_id';
+      } else {
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('contact_id', effectiveContactId).select().maybeSingle();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'contact_id';
+      }
       
       // Strategy 3: If contact_id fails and we have phone_number, try phone fallback
       if (!data && !error && updateFields.phone_number) {
         console.log('Contact ID not found, attempting fallback by phone number:', updateFields.phone_number);
-        const phoneResult = await supabase.from('new_leads').update({
-          ...updateFields,
-          contact_id: effectiveContactId, // Set the contact_id while we're at it
-          updated_at: new Date().toISOString()
-        }).eq('phone_number', updateFields.phone_number).select().maybeSingle();
         
-        data = phoneResult.data;
-        error = phoneResult.error;
-        identificationMethod = 'phone_number_fallback';
+        // Check for duplicates
+        const { data: checkData, error: checkError } = await supabase
+          .from('new_leads')
+          .select('id, created_at')
+          .eq('phone_number', updateFields.phone_number);
+        
+        if (checkError) {
+          error = checkError;
+          identificationMethod = 'phone_number_fallback';
+        } else if (checkData && checkData.length > 1) {
+          console.warn(`⚠️ Multiple leads found with phone ${updateFields.phone_number}. Updating oldest record.`);
+          const oldest = checkData.sort((a, b) => 
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          )[0];
+          
+          const phoneResult = await supabase.from('new_leads').update({
+            ...updateFields,
+            contact_id: effectiveContactId,
+            updated_at: new Date().toISOString()
+          }).eq('id', oldest.id).select().single();
+          
+          data = phoneResult.data;
+          error = phoneResult.error;
+          identificationMethod = 'phone_number_fallback';
+        } else {
+          const phoneResult = await supabase.from('new_leads').update({
+            ...updateFields,
+            contact_id: effectiveContactId,
+            updated_at: new Date().toISOString()
+          }).eq('phone_number', updateFields.phone_number).select().maybeSingle();
+          
+          data = phoneResult.data;
+          error = phoneResult.error;
+          identificationMethod = 'phone_number_fallback';
+        }
       }
     }
     
     // Strategy 3a: Try by phone_number if previous strategies didn't work
     if (!data && !error && phone_number) {
       console.log('Attempting to find lead by phone number:', phone_number);
-      const result = await supabase.from('new_leads').update({
-        ...updateFields,
-        updated_at: new Date().toISOString()
-      }).eq('phone_number', phone_number).select().maybeSingle();
       
-      data = result.data;
-      error = result.error;
-      identificationMethod = 'phone_number';
+      // Check for duplicates
+      const { data: checkData, error: checkError } = await supabase
+        .from('new_leads')
+        .select('id, created_at')
+        .eq('phone_number', phone_number);
+      
+      if (checkError) {
+        error = checkError;
+        identificationMethod = 'phone_number';
+      } else if (checkData && checkData.length > 1) {
+        console.warn(`⚠️ Multiple leads found with phone ${phone_number}. Updating oldest record.`);
+        const oldest = checkData.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )[0];
+        
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('id', oldest.id).select().single();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'phone_number';
+      } else {
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('phone_number', phone_number).select().maybeSingle();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'phone_number';
+      }
     }
     
     // Strategy 4: Try by lead_name + project_name if nothing else worked
     if (!data && !error && lead_name && project_name) {
       console.log('Attempting to find lead by name and project:', lead_name, project_name);
-      const result = await supabase.from('new_leads').update({
-        ...updateFields,
-        updated_at: new Date().toISOString()
-      }).eq('lead_name', lead_name).eq('project_name', project_name).select().maybeSingle();
       
-      data = result.data;
-      error = result.error;
-      identificationMethod = 'name_and_project';
+      // Check for duplicates
+      const { data: checkData, error: checkError } = await supabase
+        .from('new_leads')
+        .select('id, created_at')
+        .eq('lead_name', lead_name)
+        .eq('project_name', project_name);
+      
+      if (checkError) {
+        error = checkError;
+        identificationMethod = 'name_and_project';
+      } else if (checkData && checkData.length > 1) {
+        console.warn(`⚠️ Multiple leads found for ${lead_name} in ${project_name}. Updating oldest record.`);
+        const oldest = checkData.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )[0];
+        
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('id', oldest.id).select().single();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'name_and_project';
+      } else {
+        const result = await supabase.from('new_leads').update({
+          ...updateFields,
+          updated_at: new Date().toISOString()
+        }).eq('lead_name', lead_name).eq('project_name', project_name).select().maybeSingle();
+        
+        data = result.data;
+        error = result.error;
+        identificationMethod = 'name_and_project';
+      }
     }
 
     if (error) {
