@@ -19,18 +19,35 @@ async function insertAnthonyCameraAppointment() {
     detected_insurance_provider: 'Blue Cross Blue Shield',
     detected_insurance_plan: 'Blue Cross',
     detected_insurance_id: 'R5E819585156',
-    patient_intake_notes: 'Contact: Name: Anthony Camera, Phone: +19147142451, Patient ID: nPsAgJM0SFkclV9NgbUR /n Insurance: Plan: Blue cross blue shield, Alt Selection: Blue Cross, ID: R5E819585156, Group: PK2804',
+    patient_intake_notes: 'Contact: Name: Anthony Camera, Phone: (914) 714-2451, Email: antjcamera@gmail.com, DOB: Apr 1st 1962, Address: 1690 Briarcliff Rd, Macon Georgia 31211, Patient ID: nPsAgJM0SFkclV9NgbUR. /n Insurance: Plan: Blue cross blue shield, Group #: PK2804, Alt Selection: Blue Cross. /n Pathology: GAE - Duration: Over 1 year, OA or TKR Diagnosed: YES, Age Range: 56 and above, Trauma-related Onset: NO, Pain Level: 4, Symptoms: Dull Ache, Treatments Tried: Knee replacement, Other (please specify below), Medications/pain pills, Clean up type surgery, Imaging Done: YES.',
     parsed_contact_info: {
       name: 'Anthony Camera',
-      phone: '+19147142451',
+      phone: '(914) 714-2451',
+      email: 'antjcamera@gmail.com',
+      address: '1690 Briarcliff Rd, Macon Georgia 31211',
       patient_id: 'nPsAgJM0SFkclV9NgbUR'
+    },
+    parsed_demographics: {
+      dob: '1962-04-01',
+      age: 63,
+      gender: 'Male'
     },
     parsed_insurance_info: {
       provider: 'Blue Cross Blue Shield',
       plan: 'Blue Cross',
-      insurance_id: 'R5E819585156',
       group_number: 'PK2804',
       alternate_selection: 'Blue Cross'
+    },
+    parsed_pathology_info: {
+      procedure: 'GAE',
+      duration: 'Over 1 year',
+      oa_tkr_diagnosed: 'YES',
+      age_range: '56 and above',
+      trauma_related_onset: 'NO',
+      pain_level: 4,
+      symptoms: 'Dull Ache',
+      treatments_tried: 'Knee replacement, Other (please specify below), Medications/pain pills, Clean up type surgery',
+      imaging_done: 'YES'
     }
   };
 
