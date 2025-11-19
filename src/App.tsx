@@ -41,6 +41,7 @@ import { updatePauletteSeabrooksIntake } from './utils/updatePauletteSeabrooksIn
 import { updateWillieJohnsonIntake } from './utils/updateWillieJohnsonIntake';
 import { updateJohnRuffinIntake } from './utils/updateJohnRuffinIntake';
 import { updateMelbaMitchellIntake } from './utils/updateMelbaMitchellIntake';
+import { updateBrendaMaddoxIntake } from './utils/updateBrendaMaddoxIntake';
 
 // Execute cleanup on app load
 cleanupDuplicateAppointments();
@@ -88,6 +89,8 @@ updateWillieJohnsonIntake();
 updateJohnRuffinIntake();
 // Update Melba Mitchell appointment with complete intake data
 updateMelbaMitchellIntake();
+// Update Brenda Maddox appointment with complete intake data
+updateBrendaMaddoxIntake();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
