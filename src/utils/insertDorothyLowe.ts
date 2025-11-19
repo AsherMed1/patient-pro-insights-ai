@@ -27,27 +27,27 @@ export const insertDorothyLowe = async () => {
 **Insurance:** Plan: [Insurance to be verified] | Alt Selection: Other | Notes: Patient requires insurance verification. Scheduled for GAE consultation.
 
 **Pathology (GAE):** Duration: [To be determined during consultation] | OA or TKR Diagnosed: [To be confirmed] | Age Range: 56 to 65 | Trauma-related Onset: NO | Pain Level: [To be assessed] | Symptoms: [To be documented] | Treatments Tried: [To be discussed]`,
-    parsed_contact_info: {
+    parsed_contact_info: JSON.stringify({
       name: 'Dorothy Beatrice Lowe',
       phone: '(478) 345-6789',
       email: 'dorothy.lowe@email.com',
       dob: 'April 28, 1965',
       address: '[Address to be confirmed]',
       patient_id: 'pL0mK9nJ8hG7fE6dC5bA4'
-    },
-    parsed_demographics: {
+    }) as any,
+    parsed_demographics: JSON.stringify({
       age: 59,
       gender: 'Female',
       dob: '04/28/1965'
-    },
-    parsed_insurance_info: {
+    }) as any,
+    parsed_insurance_info: JSON.stringify({
       provider: '[Insurance to be verified]',
       plan: 'Other',
       member_id: null,
       group_number: null,
       notes: 'Insurance verification pending'
-    },
-    parsed_pathology_info: {
+    }) as any,
+    parsed_pathology_info: JSON.stringify({
       primary_complaint: 'Vascular condition - GAE consultation',
       affected_area: '[To be determined]',
       duration: '[To be determined during consultation]',
@@ -55,13 +55,13 @@ export const insertDorothyLowe = async () => {
       symptoms: ['[To be documented during consultation]'],
       previous_treatments: ['[To be discussed]'],
       notes: 'Age Range: 56 to 65 | Additional details to be collected during consultation'
-    },
-    parsed_medical_info: {
+    }) as any,
+    parsed_medical_info: JSON.stringify({
       allergies: null,
       current_medications: null,
       primary_care_physician: null,
       imaging_reports: null
-    },
+    }) as any,
     insurance_id_link: 'https://www.tdi.texas.gov/artwork/compliance/ambetter.png'
   };
 
