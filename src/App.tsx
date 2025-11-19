@@ -64,6 +64,7 @@ import { updateVanessaTwymanDanielsIntake } from './utils/updateVanessaTwymanDan
 import { updateDennisWadeIntake } from './utils/updateDennisWadeIntake';
 import { updateGlenissCarswellIntake } from './utils/updateGlenissCarswell Intake';
 import { updateMaryRaineyIntake } from './utils/updateMaryRaineyIntake';
+import { fixPremierVascularCorruptedData } from './utils/fixPremierVascularCorruptedData';
 
 // Execute cleanup on app load
 cleanupDuplicateAppointments();
@@ -157,6 +158,8 @@ updateDennisWadeIntake();
 updateGlenissCarswellIntake();
 // Update Mary Rainey appointment with complete intake data
 updateMaryRaineyIntake();
+// Fix all corrupted Premier Vascular appointment data
+fixPremierVascularCorruptedData();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {

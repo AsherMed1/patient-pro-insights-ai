@@ -141,12 +141,40 @@ const AppointmentsCsvImport = ({ defaultProject }: AppointmentsCsvImportProps) =
     if (!dateStr) return null;
     
     try {
-      // Handle various date formats
+      // First, try to parse as M/D/YYYY format (explicit handling)
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split(/[\s\/]+/);
+        if (parts.length >= 3) {
+          const month = parseInt(parts[0], 10);
+          const day = parseInt(parts[1], 10);
+          const year = parseInt(parts[2], 10);
+          
+          // Validate components
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year > 1900) {
+            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            
+            // Validate the constructed date
+            const testDate = new Date(isoDate);
+            if (!isNaN(testDate.getTime())) {
+              console.log(`✅ Parsed date: ${dateStr} -> ${isoDate}`);
+              return isoDate;
+            }
+          }
+          console.warn(`⚠️ Invalid date components: ${month}/${day}/${year}`);
+          return null;
+        }
+      }
+      
+      // Fallback to standard Date parsing for other formats
       const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return null;
+      if (isNaN(date.getTime())) {
+        console.warn(`⚠️ Could not parse date: ${dateStr}`);
+        return null;
+      }
       
       return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
-    } catch {
+    } catch (error) {
+      console.error('Error parsing date:', dateStr, error);
       return null;
     }
   };
