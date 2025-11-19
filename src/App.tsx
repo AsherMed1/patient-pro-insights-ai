@@ -20,8 +20,13 @@ import NotFound from "./pages/NotFound";
 import './utils/deleteWillodeneBrownDuplicate';
 import { deleteWillodeneBrownDuplicate } from './utils/deleteWillodeneBrownDuplicate';
 
-// Execute duplicate deletion on app load
+// One-time script to recreate missing Premier Vascular appointments
+import './utils/recreateMissingPremierAppointments';
+import { recreateMissingPremierAppointments } from './utils/recreateMissingPremierAppointments';
+
+// Execute one-time scripts on app load
 deleteWillodeneBrownDuplicate();
+recreateMissingPremierAppointments();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
