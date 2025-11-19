@@ -19,9 +19,12 @@ import NotFound from "./pages/NotFound";
 // One-time script to cleanup duplicate appointments
 import './utils/cleanupDuplicateAppointments';
 import { cleanupDuplicateAppointments } from './utils/cleanupDuplicateAppointments';
+import { updateTeresaGriffinIntake } from './utils/updateTeresaGriffinIntake';
 
 // Execute cleanup on app load
 cleanupDuplicateAppointments();
+// Create Teresa Griffin appointment
+updateTeresaGriffinIntake();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
