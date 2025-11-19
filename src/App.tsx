@@ -21,6 +21,7 @@ import './utils/cleanupDuplicateAppointments';
 import { cleanupDuplicateAppointments } from './utils/cleanupDuplicateAppointments';
 import { updateTeresaGriffinIntake } from './utils/updateTeresaGriffinIntake';
 import { updateLuisDeLeonIntake } from './utils/updateLuisDeLeonIntake';
+import { insertAnthonyCameraAppointment } from './utils/insertAnthonyCamera';
 
 // Execute cleanup on app load
 cleanupDuplicateAppointments();
@@ -28,6 +29,8 @@ cleanupDuplicateAppointments();
 updateTeresaGriffinIntake();
 // Parse Luis De Leon appointment
 updateLuisDeLeonIntake();
+// Insert Anthony Camera appointment
+insertAnthonyCameraAppointment();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
