@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// One-time script to add Anthony Camera appointment from new_leads to all_appointments
-async function insertAnthonyCameraAppointment() {
-  console.log('🔄 Inserting Anthony Camera appointment...');
+// One-time script to update Anthony Camera appointment with complete patient data
+async function updateAnthonyCameraAppointment() {
+  console.log('🔄 Updating Anthony Camera appointment...');
   
   const appointmentData = {
     project_name: 'Premier Vascular',
@@ -25,48 +25,50 @@ async function insertAnthonyCameraAppointment() {
       phone: '(914) 714-2451',
       email: 'antjcamera@gmail.com',
       address: '1690 Briarcliff Rd, Macon Georgia 31211',
+      dob: '1962-04-01',
       patient_id: 'nPsAgJM0SFkclV9NgbUR'
     },
     parsed_demographics: {
-      dob: '1962-04-01',
       age: 63,
       gender: 'Male'
     },
     parsed_insurance_info: {
-      provider: 'Blue Cross Blue Shield',
-      plan: 'Blue Cross',
-      group_number: 'PK2804',
-      alternate_selection: 'Blue Cross'
+      insurance_provider: 'Blue Cross Blue Shield',
+      insurance_plan: 'Blue Cross',
+      insurance_id_number: 'R5E819585156',
+      insurance_group_number: 'PK2804'
     },
     parsed_pathology_info: {
-      procedure: 'GAE',
+      procedure_type: 'GAE',
       duration: 'Over 1 year',
       oa_tkr_diagnosed: 'YES',
       age_range: '56 and above',
       trauma_related_onset: 'NO',
       pain_level: 4,
       symptoms: 'Dull Ache',
-      treatments_tried: 'Knee replacement, Other (please specify below), Medications/pain pills, Clean up type surgery',
+      previous_treatments: 'Knee replacement, Other (please specify below), Medications/pain pills, Clean up type surgery',
       imaging_done: 'YES'
     }
   };
 
   const { data, error } = await supabase
     .from('all_appointments')
-    .insert(appointmentData)
+    .update(appointmentData)
+    .eq('lead_name', 'Anthony Camera')
+    .eq('project_name', 'Premier Vascular')
     .select()
     .single();
 
   if (error) {
-    console.error('❌ Error inserting Anthony Camera appointment:', error);
+    console.error('❌ Error updating Anthony Camera appointment:', error);
     return { success: false, error };
   }
 
-  console.log('✅ Successfully inserted Anthony Camera appointment:', data);
+  console.log('✅ Successfully updated Anthony Camera appointment:', data);
   return { success: true, data };
 }
 
-// Execute the insert
-insertAnthonyCameraAppointment();
+// Execute the update
+updateAnthonyCameraAppointment();
 
-export { insertAnthonyCameraAppointment };
+export { updateAnthonyCameraAppointment };
