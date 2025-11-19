@@ -104,29 +104,33 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check for records that need parsing
+    // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
-      .limit(5); // Process in batches
+      .order("created_at", { ascending: false })
+      .limit(25); // Increased batch size for better throughput
 
     if (apptError) {
-      console.error("Error fetching appointments:", apptError);
+      console.error("[AUTO-PARSE] Error fetching appointments:", apptError);
+      console.error("[AUTO-PARSE] Appointment fetch error details:", JSON.stringify(apptError));
     }
 
     const { data: leadsNeedingParsing, error: leadError } = await supabase
       .from("new_leads")
-      .select("id, patient_intake_notes, lead_name, project_name")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
-      .limit(5); // Process in batches
+      .order("created_at", { ascending: false })
+      .limit(25); // Increased batch size for better throughput
 
     if (leadError) {
-      console.error("Error fetching leads:", leadError);
+      console.error("[AUTO-PARSE] Error fetching leads:", leadError);
+      console.error("[AUTO-PARSE] Lead fetch error details:", JSON.stringify(leadError));
     }
 
     const allRecordsToProcess = [
@@ -134,13 +138,16 @@ serve(async (req) => {
       ...(leadsNeedingParsing || []).map((r) => ({ ...r, table: "new_leads" })),
     ];
 
-    console.log(`Found ${allRecordsToProcess.length} records needing parsing`);
+    console.log(`[AUTO-PARSE] Found ${allRecordsToProcess.length} records needing parsing (${appointmentsNeedingParsing?.length || 0} appointments, ${leadsNeedingParsing?.length || 0} leads)`);
 
     let processed = 0;
     let errors = 0;
+    const errorDetails: any[] = [];
 
     for (const record of allRecordsToProcess) {
+      const recordIdentifier = `${record.table}:${record.id}:${record.lead_name}:${record.project_name}`;
       try {
+        console.log(`[AUTO-PARSE] Processing ${recordIdentifier}`);
         const systemPrompt = `You are a medical intake data parser. Your task is to extract and categorize information from patient intake notes into specific sections.
 
 Parse the following patient intake notes and return a JSON object with these exact fields:
@@ -212,13 +219,16 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
         });
 
         if (!response.ok) {
-          throw new Error(`OpenAI API error: ${response.status}`);
+          const errorText = await response.text();
+          console.error(`[AUTO-PARSE] OpenAI API error for ${recordIdentifier}:`, response.status, errorText);
+          throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
         }
 
         const aiResponse = await response.json();
         const parsedContent = aiResponse.choices[0]?.message?.content;
 
         if (!parsedContent) {
+          console.error(`[AUTO-PARSE] No content returned for ${recordIdentifier}`);
           throw new Error("No content returned from AI");
         }
 
@@ -227,8 +237,8 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
         try {
           parsedData = JSON.parse(parsedContent);
         } catch (parseError) {
-          console.error("Failed to parse AI response:", parsedContent);
-          throw new Error("Invalid JSON returned from AI");
+          console.error(`[AUTO-PARSE] Failed to parse AI response for ${recordIdentifier}:`, parsedContent);
+          throw new Error(`Invalid JSON returned from AI: ${parseError.message}`);
         }
 
         // Normalize DOB to proper format
@@ -286,20 +296,35 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
         const { error: updateError } = await supabase.from(record.table).update(updateData).eq("id", record.id);
 
         if (updateError) {
-          console.error(`Failed to update ${record.table} ${record.id}:`, updateError);
+          console.error(`[AUTO-PARSE] Failed to update ${recordIdentifier}:`, updateError);
+          console.error(`[AUTO-PARSE] Update error details:`, JSON.stringify(updateError));
+          errorDetails.push({
+            record: recordIdentifier,
+            errorType: 'database_update',
+            error: updateError.message || String(updateError),
+            timestamp: new Date().toISOString()
+          });
           errors++;
         } else {
-          console.log(`Successfully parsed and updated ${record.table} ${record.id} for ${record.lead_name}`);
+          console.log(`[AUTO-PARSE] ✓ Successfully parsed and updated ${recordIdentifier}`);
           processed++;
         }
 
-        // Add small delay to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Removed delay for better throughput
       } catch (error) {
-        console.error(`Error processing ${record.table} ${record.id}:`, error);
+        console.error(`[AUTO-PARSE] Error processing ${recordIdentifier}:`, error);
+        console.error(`[AUTO-PARSE] Full error details:`, error.message, error.stack);
+        errorDetails.push({
+          record: recordIdentifier,
+          errorType: error.name || 'unknown',
+          error: error.message || String(error),
+          timestamp: new Date().toISOString()
+        });
         errors++;
       }
     }
+
+    console.log(`[AUTO-PARSE] Batch complete: ${processed} processed, ${errors} errors`);
 
     return new Response(
       JSON.stringify({
@@ -307,17 +332,21 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
         processed,
         errors,
         total: allRecordsToProcess.length,
+        errorDetails: errors > 0 ? errorDetails : undefined,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (error) {
-    console.error("Auto-parse function error:", error);
+    console.error("[AUTO-PARSE] Critical function error:", error);
+    console.error("[AUTO-PARSE] Error stack:", error.stack);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: error.message || String(error),
+        errorType: error.name || 'unknown',
+        timestamp: new Date().toISOString()
       }),
       {
         status: 500,
