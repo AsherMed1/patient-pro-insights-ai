@@ -20,11 +20,14 @@ import NotFound from "./pages/NotFound";
 import './utils/cleanupDuplicateAppointments';
 import { cleanupDuplicateAppointments } from './utils/cleanupDuplicateAppointments';
 import { updateTeresaGriffinIntake } from './utils/updateTeresaGriffinIntake';
+import { updateLuisDeLeonIntake } from './utils/updateLuisDeLeonIntake';
 
 // Execute cleanup on app load
 cleanupDuplicateAppointments();
 // Create Teresa Griffin appointment
 updateTeresaGriffinIntake();
+// Parse Luis De Leon appointment
+updateLuisDeLeonIntake();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
