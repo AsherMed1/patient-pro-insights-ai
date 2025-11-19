@@ -16,7 +16,7 @@ interface AppointmentsTabsProps {
   projectFilter?: string;
   statusOptions: string[];
   onUpdateStatus: (appointmentId: string, status: string) => void;
-  onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean | null) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;

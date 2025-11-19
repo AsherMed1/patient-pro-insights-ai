@@ -47,3 +47,20 @@ export interface AllAppointmentsManagerProps {
   initialProcedureFilter?: string;
   initialTab?: string;
 }
+
+export interface AppointmentCardProps {
+  appointment: AllAppointment;
+  projectFilter?: string;
+  statusOptions: string[];
+  onUpdateStatus: (appointmentId: string, status: string) => void;
+  onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean | null) => void;
+  onUpdateDate: (appointmentId: string, date: string | null) => void;
+  onUpdateTime: (appointmentId: string, time: string | null) => void;
+  onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
+  onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
+  onDelete?: (appointmentId: string) => void;
+  onUpdateName?: (appointmentId: string, name: string) => void;
+  onUpdateEmail?: (appointmentId: string, email: string) => void;
+  onUpdatePhone?: (appointmentId: string, phone: string) => void;
+  onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
+}
