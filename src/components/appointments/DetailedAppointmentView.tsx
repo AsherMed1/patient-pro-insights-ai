@@ -234,6 +234,11 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }
           .print-section { margin-bottom: 25px; }
           
           .print-section-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+          
+          /* Force Patient Pro Insights to be visible when printing */
+          [data-state="closed"] > [data-state="closed"] { display: block !important; height: auto !important; }
+          button[role="button"][data-state="closed"] { display: none !important; }
+          .print-card [data-radix-collapsible-content] { display: block !important; height: auto !important; }
         }
       `}</style>
       
