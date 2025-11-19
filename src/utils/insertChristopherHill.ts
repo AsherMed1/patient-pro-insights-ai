@@ -27,27 +27,27 @@ export const insertChristopherHill = async () => {
 **Insurance:** Plan: Aetna Medicare | Alt Selection: Medicare | Notes: Patient has been experiencing knee pain for about 4 years. The pain significantly impacts his daily activities and mobility. He is interested in exploring GAE treatment as an alternative to traditional knee replacement surgery. Patient has Medicare coverage through Aetna.
 
 **Pathology (GAE):** Duration: Over 3 years (approximately 4 years) | OA or TKR Diagnosed: YES | Age Range: 46 to 55 | Trauma-related Onset: NO | Pain Level: 7 | Symptoms: Chronic pain, Reduced mobility, Joint stiffness | Treatments Tried: Pain management medications, Physical therapy`,
-    parsed_contact_info: {
+    parsed_contact_info: JSON.stringify({
       name: 'Christopher R Hill',
       phone: '(478) 453-5076',
       email: 'chris.hill12185@gmail.com',
       dob: 'March 22, 1971',
       address: '116 Sunset Dr, Milledgeville Georgia 31061',
       patient_id: 'kMqgTy3RCCu5wamhAK8p'
-    },
-    parsed_demographics: {
+    }) as any,
+    parsed_demographics: JSON.stringify({
       age: 53,
       gender: 'Male',
       dob: '03/22/1971'
-    },
-    parsed_insurance_info: {
+    }) as any,
+    parsed_insurance_info: JSON.stringify({
       provider: 'Aetna Medicare',
       plan: 'Medicare',
       member_id: null,
       group_number: null,
       notes: 'Medicare coverage through Aetna'
-    },
-    parsed_pathology_info: {
+    }) as any,
+    parsed_pathology_info: JSON.stringify({
       primary_complaint: 'Chronic knee pain - GAE treatment consideration',
       affected_area: 'Knees',
       duration: 'Over 3 years (approximately 4 years)',
@@ -55,13 +55,13 @@ export const insertChristopherHill = async () => {
       symptoms: ['Chronic pain', 'Reduced mobility', 'Joint stiffness'],
       previous_treatments: ['Pain management medications', 'Physical therapy'],
       notes: 'OA or TKR Diagnosed: YES | Age Range: 46 to 55 | Trauma-related Onset: NO | Patient seeking alternative to traditional knee replacement'
-    },
-    parsed_medical_info: {
+    }) as any,
+    parsed_medical_info: JSON.stringify({
       allergies: null,
       current_medications: 'Pain management medications',
       primary_care_physician: null,
       imaging_reports: null
-    },
+    }) as any,
     insurance_id_link: 'https://www.tdi.texas.gov/artwork/compliance/ambetter.png'
   };
 

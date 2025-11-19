@@ -27,27 +27,27 @@ export const insertCassandraEvans = async () => {
 **Insurance:** Plan: Ambetter | Alt Selection: Other | Notes: Patient has been dealing with her knee pain for almost a year and a half. She can't sit for too long, because when she tries to stand up her knees hurt a lot. She has to sleep with a pillow under her knee, so she can sleep without pain. She looks forward to get the GAE treatment. Patient is aware that we have to call the insurance in order to verify her benefits and coverage
 
 **Pathology (GAE):** Duration: Over 1 year | OA or TKR Diagnosed: YES | Age Range: 36 to 45 | Trauma-related Onset: NO | Pain Level: 8 | Symptoms: Sharp Pain, Instability or weakness, Stiffness | Treatments Tried: Medications/pain pills`,
-    parsed_contact_info: {
+    parsed_contact_info: JSON.stringify({
       name: 'Cassandra Evans',
       phone: '(478) 234-3357',
       email: 'cassandraevans410@yahoo.com',
       dob: 'May 16, 1983',
       address: '2261 Leo Ct, Milledgeville Georgia 31061',
       patient_id: 'bC52pHANd2dD50NXXjWW'
-    },
-    parsed_demographics: {
+    }) as any,
+    parsed_demographics: JSON.stringify({
       age: 41,
       gender: 'Female',
       dob: '05/16/1983'
-    },
-    parsed_insurance_info: {
+    }) as any,
+    parsed_insurance_info: JSON.stringify({
       provider: 'Ambetter',
       plan: 'Other',
       member_id: null,
       group_number: null,
       notes: 'Patient is aware that we have to call the insurance in order to verify her benefits and coverage'
-    },
-    parsed_pathology_info: {
+    }) as any,
+    parsed_pathology_info: JSON.stringify({
       primary_complaint: 'Knee pain - GAE treatment',
       affected_area: 'Both knees',
       duration: 'Over 1 year (approximately 1.5 years)',
@@ -55,13 +55,13 @@ export const insertCassandraEvans = async () => {
       symptoms: ['Sharp Pain', 'Instability or weakness', 'Stiffness', 'Difficulty standing after sitting', 'Sleep disturbance'],
       previous_treatments: ['Medications/pain pills', 'Sleeping with pillow under knee'],
       notes: 'OA or TKR Diagnosed: YES | Age Range: 36 to 45 | Trauma-related Onset: NO'
-    },
-    parsed_medical_info: {
+    }) as any,
+    parsed_medical_info: JSON.stringify({
       allergies: null,
       current_medications: 'Pain pills',
       primary_care_physician: null,
       imaging_reports: null
-    },
+    }) as any,
     insurance_id_link: 'https://www.tdi.texas.gov/artwork/compliance/ambetter.png'
   };
 
