@@ -29,7 +29,8 @@ export const updateDeborahEnsleyIntake = async () => {
     parsed_insurance_info: {
       provider: 'Medicare Advantage',
       plan: 'Medicare Advantage',
-      group_number: '12472'
+      group_number: '12472',
+      notes: 'The pain has been ongoing since the 90s, had surgery in 2004 on the right knee. Both knees are hurting since the pain started on the right knee and then leaning on the left knee causes degradation. This has caused her troubles across the years in her regular life like work. Has had shots on her knee, physical therapy, adding cold. There is swelling present on both knees, sometimes the pain keeps her from sleeping.'
     },
     parsed_pathology_info: {
       procedure: 'GAE',
@@ -44,7 +45,13 @@ export const updateDeborahEnsleyIntake = async () => {
       notes: 'The pain has been ongoing since the 90s, had surgery in 2004 on the right knee. Both knees are hurting since the pain started on the right knee and then leaning on the left knee causes degradation. This has caused her troubles across the years in her regular life like work. Has had shots on her knee, physical therapy, adding cold. There is swelling present on both knees, sometimes the pain keeps her from sleeping.'
     },
     parsed_medical_info: {
-      notes: 'Previous knee surgery in 2004 on right knee. Chronic bilateral knee pain since the 1990s. Treatments include injections, physical therapy, cold therapy, and orthoscopic procedures.'
+      surgical_history: 'Right knee surgery in 2004',
+      chronic_conditions: 'Bilateral knee pain since 1990s',
+      treatments_tried: 'Injections to knee, Physical therapy, Cold therapy, Orthoscopic surgery',
+      imaging_status: 'Completed',
+      pain_management: 'Previous injections, physical therapy, and cold therapy with limited relief',
+      functional_impact: 'Pain affects work and daily activities, causes sleep disruption',
+      notes: 'Patient has extensive history of bilateral knee pain dating back to the 1990s. Had right knee surgery in 2004. Pain started in right knee and spread to left knee due to compensatory mechanics. Has tried multiple conservative treatments including injections, physical therapy, and cold therapy. Swelling present in both knees. Pain severity sometimes prevents sleep. Condition has significantly impacted her ability to work and perform daily activities over many years.'
     },
     updated_at: new Date().toISOString()
   };
