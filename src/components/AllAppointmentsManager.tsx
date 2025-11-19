@@ -676,7 +676,7 @@ const AllAppointmentsManager = ({
     }
   };
 
-  const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean) => {
+  const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean | null) => {
     try {
       const { error } = await supabase
         .from('all_appointments')

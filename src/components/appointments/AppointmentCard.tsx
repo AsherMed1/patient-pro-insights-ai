@@ -1301,13 +1301,20 @@ const AppointmentCard = ({
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Procedure</label>
             <Select 
-              value={appointment.procedure_ordered === null ? '' : appointment.procedure_ordered.toString()} 
-              onValueChange={(value) => onUpdateProcedure(appointment.id, value === 'true')}
+              value={appointment.procedure_ordered === null ? 'null' : appointment.procedure_ordered.toString()} 
+              onValueChange={(value) => {
+                if (value === 'null') {
+                  onUpdateProcedure(appointment.id, null);
+                } else {
+                  onUpdateProcedure(appointment.id, value === 'true');
+                }
+              }}
             >
               <SelectTrigger className={getProcedureTriggerClass()}>
                 <SelectValue placeholder="Select procedure status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="null">Not Set</SelectItem>
                 <SelectItem value="true">Procedure Ordered</SelectItem>
                 <SelectItem value="false">No Procedure</SelectItem>
               </SelectContent>
