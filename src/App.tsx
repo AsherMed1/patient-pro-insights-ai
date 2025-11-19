@@ -16,17 +16,12 @@ import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
 import NotFound from "./pages/NotFound";
 
-// One-time script to delete Willodene Brown duplicate
-import './utils/deleteWillodeneBrownDuplicate';
-import { deleteWillodeneBrownDuplicate } from './utils/deleteWillodeneBrownDuplicate';
+// One-time script to cleanup duplicate appointments
+import './utils/cleanupDuplicateAppointments';
+import { cleanupDuplicateAppointments } from './utils/cleanupDuplicateAppointments';
 
-// One-time script to recreate missing Premier Vascular appointments
-import './utils/recreateMissingPremierAppointments';
-import { recreateMissingPremierAppointments } from './utils/recreateMissingPremierAppointments';
-
-// Execute one-time scripts on app load
-deleteWillodeneBrownDuplicate();
-recreateMissingPremierAppointments();
+// Execute cleanup on app load
+cleanupDuplicateAppointments();
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
