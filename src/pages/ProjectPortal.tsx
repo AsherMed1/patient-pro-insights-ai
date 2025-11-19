@@ -94,6 +94,13 @@ const ProjectPortal = () => {
     }
   }, [projectName, dateRange]);
 
+  // Reset appointment filters when navigating away from appointments tab
+  useEffect(() => {
+    if (activeTab !== 'appointments') {
+      setAppointmentFilters({});
+    }
+  }, [activeTab]);
+
   const fetchProject = async () => {
     try {
       setLoading(true);
