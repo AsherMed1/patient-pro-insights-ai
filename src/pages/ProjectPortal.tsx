@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Settings } from 'lucide-react';
+import { ArrowLeft, LogOut, Settings, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +59,7 @@ const ProjectPortal = () => {
     procedureFilter?: string;
     tab?: string;
   }>({});
+  const [isReparsing, setIsReparsing] = useState(false);
   const { toast } = useToast();
 
   // Check if user has access to this specific project (after role data loads)
@@ -217,6 +218,33 @@ const ProjectPortal = () => {
     }
   };
 
+  const handleReparse = async () => {
+    if (!project) return;
+    
+    setIsReparsing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('trigger-reparse', {
+        body: { project_name: project.project_name }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Re-parsing Initiated",
+        description: `Queued ${data.appointments + data.leads} records for re-parsing. Patient Pro Insights will update within 5-10 minutes.`,
+      });
+    } catch (error) {
+      console.error('Error triggering re-parse:', error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger re-parsing. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReparsing(false);
+    }
+  };
+
   // Show loading while role data or project data is loading
   if (loading || roleLoading) {
     return (
@@ -299,6 +327,21 @@ const ProjectPortal = () => {
               onDateRangeChange={setDateRange}
               className="mb-6"
             />
+
+            {/* Admin: Re-parse Button */}
+            {role === 'admin' && (
+              <div className="flex justify-end mb-4">
+                <Button 
+                  onClick={handleReparse} 
+                  disabled={isReparsing}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isReparsing ? 'animate-spin' : ''}`} />
+                  {isReparsing ? 'Re-parsing...' : 'Re-parse All Records'}
+                </Button>
+              </div>
+            )}
 
             {/* Enhanced Stats Cards with medical context */}
             <ProjectStatsCards stats={stats} onCardClick={handleStatsCardClick} />
