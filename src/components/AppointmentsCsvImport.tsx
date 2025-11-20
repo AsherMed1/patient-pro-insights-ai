@@ -54,9 +54,10 @@ const AppointmentsCsvImport = ({ defaultProject }: AppointmentsCsvImportProps) =
       'calendar_name',
       'requested_time',
       'stage_booked',
-        'agent',
+      'agent',
       'agent_number',
       'ghl_id',
+      'ghl_appointment_id',
       'confirmed_number',
       'status',
       'procedure_ordered'
@@ -138,45 +139,37 @@ const AppointmentsCsvImport = ({ defaultProject }: AppointmentsCsvImportProps) =
   };
 
   const parseDateString = (dateStr: string): string | null => {
-    if (!dateStr) return null;
+    if (!dateStr || dateStr.trim() === '') return null;
     
-    try {
-      // First, try to parse as M/D/YYYY format (explicit handling)
-      if (dateStr.includes('/')) {
-        const parts = dateStr.split(/[\s\/]+/);
-        if (parts.length >= 3) {
-          const month = parseInt(parts[0], 10);
-          const day = parseInt(parts[1], 10);
-          const year = parseInt(parts[2], 10);
-          
-          // Validate components
-          if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year > 1900) {
-            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            
-            // Validate the constructed date
-            const testDate = new Date(isoDate);
-            if (!isNaN(testDate.getTime())) {
-              console.log(`✅ Parsed date: ${dateStr} -> ${isoDate}`);
-              return isoDate;
-            }
-          }
-          console.warn(`⚠️ Invalid date components: ${month}/${day}/${year}`);
-          return null;
-        }
-      }
-      
-      // Fallback to standard Date parsing for other formats
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) {
-        console.warn(`⚠️ Could not parse date: ${dateStr}`);
-        return null;
-      }
-      
-      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
-    } catch (error) {
-      console.error('Error parsing date:', dateStr, error);
-      return null;
+    dateStr = dateStr.trim();
+    
+    // Handle M/D/YYYY or MM/DD/YYYY format (e.g., "11/17/2025" or "1/5/2025")
+    // CRITICAL: Always interpret as Month/Day/Year for US date format
+    const mdyPattern = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    const mdyMatch = dateStr.match(mdyPattern);
+    if (mdyMatch) {
+      const month = mdyMatch[1].padStart(2, '0');
+      const day = mdyMatch[2].padStart(2, '0');
+      const year = mdyMatch[3];
+      return `${year}-${month}-${day}`;
     }
+    
+    // Handle YYYY-MM-DD format
+    const isoPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+    if (isoPattern.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Handle MM-DD-YYYY format
+    const dashPattern = /^(\d{2})-(\d{2})-(\d{4})$/;
+    const dashMatch = dateStr.match(dashPattern);
+    if (dashMatch) {
+      return `${dashMatch[3]}-${dashMatch[1]}-${dashMatch[2]}`;
+    }
+    
+    // If no pattern matched, return null
+    console.warn(`Could not parse date: ${dateStr}`);
+    return null;
   };
 
   const validateAndTransformRow = (row: any): any => {
@@ -205,7 +198,8 @@ const AppointmentsCsvImport = ({ defaultProject }: AppointmentsCsvImportProps) =
         stage_booked: row.stage_booked || null,
         agent: row.agent || null,
         agent_number: row.agent_number || null,
-        ghl_id: row.ghl_id || null,
+        ghl_id: row.ghl_id || row.contact_id || null,
+        ghl_appointment_id: row.ghl_appointment_id || null,
         confirmed_number: row.confirmed_number || null,
         status: row.status || null,
         procedure_ordered: row.procedure_ordered === 'true' || row.procedure_ordered === '1' ? true : row.procedure_ordered === 'false' || row.procedure_ordered === '0' ? false : null,
@@ -243,7 +237,8 @@ const AppointmentsCsvImport = ({ defaultProject }: AppointmentsCsvImportProps) =
         stage_booked: null,
         agent: null,
         agent_number: null,
-        ghl_id: null,
+        ghl_id: row['Contact ID'] || row['contact_id'] || null,
+        ghl_appointment_id: row['Appointment ID'] || row['appointment_id'] || null,
         confirmed_number: null,
         status: row['Status'] || null,
         procedure_ordered: row['Procedure Ordered'] === 'TRUE' || row['Procedure Ordered'] === 'true' || row['Procedure Ordered'] === '1',
