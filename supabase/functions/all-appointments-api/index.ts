@@ -266,6 +266,27 @@ serve(async (req) => {
       )
     }
 
+    // Trigger auto-parsing immediately for new/updated appointments
+    if (data && data[0] && appointmentData.patient_intake_notes) {
+      try {
+        console.log('Triggering immediate auto-parse for appointment:', data[0].id);
+        
+        // Call auto-parse function in background (don't await - let it run async)
+        supabase.functions.invoke('auto-parse-intake-notes', {
+          body: { trigger: 'immediate', appointment_id: data[0].id }
+        }).then(({ data: parseData, error: parseError }) => {
+          if (parseError) {
+            console.error('Auto-parse trigger failed:', parseError);
+          } else {
+            console.log('Auto-parse triggered successfully:', parseData);
+          }
+        });
+      } catch (parseError) {
+        console.error('Error triggering auto-parse:', parseError);
+        // Don't fail the appointment creation if auto-parse fails
+      }
+    }
+
     // Fetch insurance card URL from GoHighLevel if we have a ghl_id but no insurance_id_link
     if (data && data[0] && appointmentData.ghl_id && !appointmentData.insurance_id_link) {
       try {
