@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +15,7 @@ import ApiDocs from "./pages/ApiDocs";
 import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
 import NotFound from "./pages/NotFound";
+import { addBrendaMaddoxAppointment } from "./utils/addBrendaMaddoxAppointment";
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
@@ -28,13 +29,18 @@ const ProjectPortalWithAuth = () => {
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+const App = () => {
+  useEffect(() => {
+    addBrendaMaddoxAppointment();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin-signup" element={<AdminSignup />} />
@@ -62,6 +68,7 @@ const App = () => (
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
