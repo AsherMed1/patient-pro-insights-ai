@@ -130,10 +130,11 @@ serve(async (req) => {
       calendar_name: webhookData.calendar_name,
       ghl_id: webhookData.ghl_id,
       ghl_appointment_id: webhookData.ghl_appointment_id,
+      ghl_location_id: webhookData.ghl_location_id,
       status: webhookData.status,
       patient_intake_notes: webhookData.patient_intake_notes,
       dob: webhookData.dob,
-      was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed' ? true : undefined,
+      was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed',
     }
 
     // Upsert appointment
