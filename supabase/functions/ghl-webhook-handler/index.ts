@@ -164,9 +164,21 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
 
-    // Trigger auto-parsing in background
-    if (appointmentRecord && appointmentData.patient_intake_notes) {
-      triggerAutoParse(supabase, appointmentRecord.id, requestId)
+    // Enrich confirmed appointments with full GHL contact data
+    if (appointmentRecord && webhookData.status?.toLowerCase() === 'confirmed' && webhookData.ghl_id) {
+      console.log(`[${requestId}] Appointment is confirmed, enriching with full GHL contact data`)
+      enrichConfirmedAppointment(
+        supabase,
+        appointmentRecord.id,
+        webhookData.ghl_id,
+        webhookData.project_name,
+        requestId
+      )
+    } else {
+      // Trigger auto-parsing for non-confirmed appointments if they have intake notes
+      if (appointmentRecord && appointmentData.patient_intake_notes) {
+        triggerAutoParse(supabase, appointmentRecord.id, requestId)
+      }
     }
 
     // Fetch insurance card in background
@@ -566,5 +578,173 @@ async function fetchAndUpdateInsuranceCard(
     }
   } catch (error) {
     console.error(`[${requestId}] Insurance card fetch failed:`, error)
+  }
+}
+
+// Enrich confirmed appointments with full GHL contact data
+async function enrichConfirmedAppointment(
+  supabase: any,
+  appointmentId: string,
+  contactId: string,
+  projectName: string,
+  requestId: string
+) {
+  try {
+    console.log(`[${requestId}] Enriching confirmed appointment with full GHL data`)
+    
+    // Get project's GHL credentials
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('ghl_api_key, ghl_location_id')
+      .eq('project_name', projectName)
+      .single()
+    
+    if (projectError || !project?.ghl_api_key || !project?.ghl_location_id) {
+      console.log(`[${requestId}] Missing GHL credentials for project:`, projectName)
+      return
+    }
+    
+    const ghlApiKey = project.ghl_api_key
+    const ghlLocationId = project.ghl_location_id
+    const GHL_BASE_URL = 'https://services.leadconnectorhq.com'
+    const GHL_API_VERSION = '2021-07-28'
+    
+    // Fetch custom field definitions
+    console.log(`[${requestId}] Fetching custom field definitions`)
+    const customFieldDefsRes = await fetch(`${GHL_BASE_URL}/locations/${ghlLocationId}/customFields`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': GHL_API_VERSION,
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    const customFieldDefs: Record<string, string> = {}
+    if (customFieldDefsRes.ok) {
+      const defsData = await customFieldDefsRes.json()
+      const defs = defsData.customFields || []
+      defs.forEach((def: any) => {
+        if (def.id && def.name) {
+          customFieldDefs[def.id] = def.name
+        }
+      })
+      console.log(`[${requestId}] Loaded ${Object.keys(customFieldDefs).length} custom field definitions`)
+    }
+    
+    // Fetch full contact data
+    console.log(`[${requestId}] Fetching full contact data for: ${contactId}`)
+    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': GHL_API_VERSION,
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!contactRes.ok) {
+      const errorText = await contactRes.text()
+      console.error(`[${requestId}] GHL API error fetching contact:`, errorText)
+      return
+    }
+    
+    const contactData = await contactRes.json()
+    const contact = contactData.contact ?? contactData
+    
+    if (!contact) {
+      console.error(`[${requestId}] No contact data returned from GHL`)
+      return
+    }
+    
+    // Format custom fields into structured patient intake notes
+    const rawCustomFields = contact.customFields || []
+    const customFields = rawCustomFields
+      .map((field: any) => ({
+        id: field.id,
+        key: customFieldDefs[field.id] || field.key || `Unknown Field (${field.id})`,
+        value: field.field_value ?? field.value,
+      }))
+      .filter(f => f.value) // Only include fields with values
+    
+    console.log(`[${requestId}] Processing ${customFields.length} custom fields`)
+    
+    // Categorize and format custom fields
+    const sections: Record<string, string[]> = {
+      'Contact Information': [],
+      'Insurance Information': [],
+      'Pathology Information': [],
+      'Medical Information': []
+    }
+    
+    customFields.forEach(field => {
+      if (!field.key) return
+      
+      const key = field.key.toLowerCase()
+      const value = Array.isArray(field.value) 
+        ? field.value.join(', ') 
+        : typeof field.value === 'object' && field.value !== null
+          ? JSON.stringify(field.value)
+          : (field.value || 'Not provided')
+      
+      const formattedLine = `${field.key}: ${value}`
+      
+      // Categorize fields - skip conversation notes and workflow fields
+      if (key.includes('insurance') || key.includes('member') || key.includes('group') || key.includes('policy')) {
+        sections['Insurance Information'].push(formattedLine)
+      } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || key.includes('treat')) {
+        sections['Pathology Information'].push(formattedLine)
+      } else if (key.includes('medication') || key.includes('allerg') || key.includes('medical') || key.includes('pcp') || key.includes('doctor')) {
+        sections['Medical Information'].push(formattedLine)
+      } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name') || key.includes('dob') || key.includes('date of birth')) {
+        sections['Contact Information'].push(formattedLine)
+      }
+    })
+    
+    // Build formatted text
+    let formattedNotes = '=== GHL Contact Data (Full) ===\n\n'
+    Object.entries(sections).forEach(([section, lines]) => {
+      if (lines.length > 0) {
+        formattedNotes += `${section}:\n`
+        lines.forEach(line => {
+          formattedNotes += `  ${line}\n`
+        })
+        formattedNotes += '\n'
+      }
+    })
+    
+    // Get current patient intake notes
+    const { data: appointment } = await supabase
+      .from('all_appointments')
+      .select('patient_intake_notes')
+      .eq('id', appointmentId)
+      .single()
+    
+    const currentNotes = appointment?.patient_intake_notes || ''
+    const updatedNotes = currentNotes 
+      ? `${currentNotes}\n\n${formattedNotes}`
+      : formattedNotes
+    
+    // Update appointment with enriched notes
+    const { error: updateError } = await supabase
+      .from('all_appointments')
+      .update({ 
+        patient_intake_notes: updatedNotes,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId)
+    
+    if (updateError) {
+      console.error(`[${requestId}] Failed to update appointment with enriched notes:`, updateError)
+      return
+    }
+    
+    console.log(`[${requestId}] ✅ Successfully enriched appointment with ${customFields.length} custom fields`)
+    
+    // Trigger auto-parsing to populate Patient Pro Insights
+    triggerAutoParse(supabase, appointmentId, requestId)
+    
+  } catch (error) {
+    console.error(`[${requestId}] Enrichment failed:`, error)
   }
 }
