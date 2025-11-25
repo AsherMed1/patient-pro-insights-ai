@@ -164,22 +164,20 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
 
-    // Enrich confirmed appointments with full GHL contact data
-    if (appointmentRecord && webhookData.status?.toLowerCase() === 'confirmed' && webhookData.ghl_id) {
-      console.log(`[${requestId}] Appointment is confirmed, enriching with full GHL contact data`)
-      enrichConfirmedAppointment(
-        supabase,
-        appointmentRecord.id,
-        webhookData.ghl_id,
-        webhookData.project_name,
-        requestId
-      )
-    } else {
-      // Trigger auto-parsing for non-confirmed appointments if they have intake notes
-      if (appointmentRecord && appointmentData.patient_intake_notes) {
+      // Enrich all appointments with full GHL contact data (if ghl_id available)
+      if (appointmentRecord && webhookData.ghl_id) {
+        console.log(`[${requestId}] Enriching appointment with full GHL contact data`)
+        enrichAppointmentWithGHLData(
+          supabase,
+          appointmentRecord.id,
+          webhookData.ghl_id,
+          webhookData.project_name,
+          requestId
+        )
+      } else if (appointmentRecord && appointmentData.patient_intake_notes) {
+        // Only trigger basic auto-parsing if no ghl_id (can't fetch from GHL)
         triggerAutoParse(supabase, appointmentRecord.id, requestId)
       }
-    }
 
     // Fetch insurance card in background
     if (appointmentRecord && webhookData.ghl_id && !appointmentData.insurance_id_link) {
@@ -581,8 +579,8 @@ async function fetchAndUpdateInsuranceCard(
   }
 }
 
-// Enrich confirmed appointments with full GHL contact data
-async function enrichConfirmedAppointment(
+// Enrich appointments with full GHL contact data
+async function enrichAppointmentWithGHLData(
   supabase: any,
   appointmentId: string,
   contactId: string,
@@ -590,7 +588,7 @@ async function enrichConfirmedAppointment(
   requestId: string
 ) {
   try {
-    console.log(`[${requestId}] Enriching confirmed appointment with full GHL data`)
+    console.log(`[${requestId}] Enriching appointment with full GHL data`)
     
     // Get project's GHL credentials
     const { data: project, error: projectError } = await supabase
