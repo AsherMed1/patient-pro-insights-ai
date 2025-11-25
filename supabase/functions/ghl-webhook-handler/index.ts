@@ -106,7 +106,7 @@ serve(async (req) => {
     // Auto-create project if it doesn't exist
     await ensureProjectExists(supabase, webhookData.project_name, requestId)
 
-    // Check if appointment already exists
+    // Check if appointment already exists (returns full record for comparison)
     const existingAppointment = await findExistingAppointment(
       supabase, 
       webhookData.ghl_appointment_id, 
@@ -118,23 +118,20 @@ serve(async (req) => {
     const isUpdate = !!existingAppointment
     console.log(`[${requestId}] Operation type: ${isUpdate ? 'UPDATE' : 'CREATE'}`)
 
-    // Prepare appointment data
-    const appointmentData = {
-      date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
-      lead_name: webhookData.lead_name,
-      project_name: webhookData.project_name,
-      date_of_appointment: webhookData.date_of_appointment,
-      requested_time: webhookData.requested_time,
-      lead_email: webhookData.lead_email,
-      lead_phone_number: webhookData.lead_phone_number,
-      calendar_name: webhookData.calendar_name,
-      ghl_id: webhookData.ghl_id,
-      ghl_appointment_id: webhookData.ghl_appointment_id,
-      ghl_location_id: webhookData.ghl_location_id,
-      status: webhookData.status,
-      patient_intake_notes: webhookData.patient_intake_notes,
-      dob: webhookData.dob,
-      was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed',
+    // Get appropriate fields based on operation type (selective updates for existing appointments)
+    const appointmentData = getUpdateableFields(webhookData, existingAppointment)
+
+    console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
+    
+    // Log preserved local fields for transparency
+    if (isUpdate && existingAppointment) {
+      console.log(`[${requestId}] Preserving local fields:`, {
+        procedure_ordered: existingAppointment.procedure_ordered,
+        internal_process_complete: existingAppointment.internal_process_complete,
+        notes: existingAppointment.notes ? '(exists)' : null,
+        ai_summary: existingAppointment.ai_summary ? '(exists)' : null,
+        status: isExplicitStatusChange(webhookData.status) ? `${existingAppointment.status} → ${webhookData.status}` : `${existingAppointment.status} (preserved)`
+      })
     }
 
     // Upsert appointment
@@ -395,6 +392,23 @@ function extractProjectFromCalendar(calendarName: string): string {
   return calendarName
 }
 
+// Check if status represents an explicit change from GHL
+function isExplicitStatusChange(status: string | null | undefined): boolean {
+  if (!status) return false
+  const s = status.toLowerCase().trim()
+  
+  // These are explicit status changes from GHL that should be respected
+  const explicitStatuses = [
+    'cancelled', 'canceled',
+    'no show', 'noshow', 'no-show',
+    'showed', 'attended',
+    'rescheduled',
+    'oon', 'out of network'
+  ]
+  
+  return explicitStatuses.some(es => s.includes(es) || s === es)
+}
+
 // Normalize appointment status
 function normalizeStatus(status: string | null | undefined): string {
   // Always default new appointments to "Confirmed"
@@ -419,6 +433,81 @@ function normalizeStatus(status: string | null | undefined): string {
   
   // Default fallback
   return 'Confirmed'
+}
+
+// Get fields to update based on operation type (CREATE vs UPDATE)
+function getUpdateableFields(
+  webhookData: any, 
+  existingAppointment: any | null
+): Record<string, any> {
+  // For CREATE - use all webhook data
+  if (!existingAppointment) {
+    return {
+      date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
+      lead_name: webhookData.lead_name,
+      project_name: webhookData.project_name,
+      date_of_appointment: webhookData.date_of_appointment,
+      requested_time: webhookData.requested_time,
+      lead_email: webhookData.lead_email,
+      lead_phone_number: webhookData.lead_phone_number,
+      calendar_name: webhookData.calendar_name,
+      ghl_id: webhookData.ghl_id,
+      ghl_appointment_id: webhookData.ghl_appointment_id,
+      ghl_location_id: webhookData.ghl_location_id,
+      status: webhookData.status,
+      patient_intake_notes: webhookData.patient_intake_notes,
+      dob: webhookData.dob,
+      was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed',
+    }
+  }
+  
+  // For UPDATE - selective fields only
+  const updateFields: Record<string, any> = {}
+  
+  // Always accept date/time changes (rescheduling)
+  if (webhookData.date_of_appointment !== undefined) {
+    updateFields.date_of_appointment = webhookData.date_of_appointment
+  }
+  if (webhookData.requested_time !== undefined) {
+    updateFields.requested_time = webhookData.requested_time
+  }
+  
+  // Always accept calendar and location updates
+  if (webhookData.calendar_name) {
+    updateFields.calendar_name = webhookData.calendar_name
+  }
+  if (webhookData.ghl_location_id) {
+    updateFields.ghl_location_id = webhookData.ghl_location_id
+  }
+  
+  // Conditionally update status (only for explicit changes)
+  const incomingStatus = webhookData.status?.toLowerCase()
+  if (isExplicitStatusChange(incomingStatus)) {
+    updateFields.status = webhookData.status
+  }
+  
+  // Merge contact info (only if local is empty)
+  if (!existingAppointment.lead_email && webhookData.lead_email) {
+    updateFields.lead_email = webhookData.lead_email
+  }
+  if (!existingAppointment.lead_phone_number && webhookData.lead_phone_number) {
+    updateFields.lead_phone_number = webhookData.lead_phone_number
+  }
+  if (!existingAppointment.dob && webhookData.dob) {
+    updateFields.dob = webhookData.dob
+  }
+  
+  // Patient intake notes - only enrich, never overwrite
+  if (!existingAppointment.patient_intake_notes && webhookData.patient_intake_notes) {
+    updateFields.patient_intake_notes = webhookData.patient_intake_notes
+  }
+  
+  // was_ever_confirmed - only set to true, never back to false
+  if (webhookData.status?.toLowerCase() === 'confirmed' && !existingAppointment.was_ever_confirmed) {
+    updateFields.was_ever_confirmed = true
+  }
+  
+  return updateFields
 }
 
 // Normalize DOB to YYYY-MM-DD
@@ -491,7 +580,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
   }
 }
 
-// Find existing appointment
+// Find existing appointment (returns full record for field comparison)
 async function findExistingAppointment(
   supabase: any, 
   ghlAppointmentId: string | null, 
@@ -505,7 +594,7 @@ async function findExistingAppointment(
   if (ghlAppointmentId) {
     const { data } = await supabase
       .from('all_appointments')
-      .select('id')
+      .select('*')  // Full record for field comparison
       .eq('ghl_appointment_id', ghlAppointmentId)
       .maybeSingle()
     
@@ -519,7 +608,7 @@ async function findExistingAppointment(
   if (ghlId) {
     const { data } = await supabase
       .from('all_appointments')
-      .select('id')
+      .select('*')  // Full record for field comparison
       .eq('ghl_id', ghlId)
       .eq('lead_name', leadName)
       .maybeSingle()
