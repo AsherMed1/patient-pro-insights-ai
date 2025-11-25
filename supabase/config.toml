@@ -91,6 +91,10 @@ verify_jwt = false
 verify_jwt = false
 # One-time function to insert Rhonda Nelson appointment
 
+[functions.ghl-webhook-handler]
+verify_jwt = false
+# Unified webhook handler for GoHighLevel (receives AppointmentCreate, AppointmentUpdate, ContactCreate, ContactUpdate)
+
 [functions.sync-from-sheet]
 verify_jwt = false
 # Google Sheets webhook for automatic sync from CSV to database
