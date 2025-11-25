@@ -253,13 +253,15 @@ function extractStandardEventFormat(payload: any) {
   // Format patient intake notes from contact custom fields
   const patientIntakeNotes = formatCustomFieldsToNotes(contact.customFields || apt.customFields || [])
   
-  // Extract project name from calendar name
+  // Extract project name - prioritize location name (sub-account) over calendar name
   const calendarName = apt.calendarName || apt.calendar?.name || 'Unknown'
-  const projectName = extractProjectFromCalendar(calendarName)
+  const locationName = payload.location?.name
+  const projectName = locationName || extractProjectFromCalendar(calendarName)
   
   return {
     ghl_appointment_id: apt.id || apt.appointmentId,
     ghl_id: apt.contactId || contact.id,
+    ghl_location_id: payload.location?.id || null,
     status: normalizeStatus(apt.appointmentStatus || apt.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
@@ -303,13 +305,15 @@ function extractWorkflowFormat(payload: any) {
   }
   const patientIntakeNotes = formatCustomFieldsToNotes(customFields)
   
-  // Extract project name from calendar name
+  // Extract project name - prioritize location name (sub-account) over calendar name
   const calendarName = calendar.calendarName || calendar.name || 'Unknown'
-  const projectName = extractProjectFromCalendar(calendarName)
+  const locationName = payload.location?.name
+  const projectName = locationName || extractProjectFromCalendar(calendarName)
   
   return {
     ghl_appointment_id: calendar.appointmentId || payload.appointment_id,
     ghl_id: payload.contact_id || payload.contactId,
+    ghl_location_id: payload.location?.id || null,
     status: normalizeStatus(calendar.status || payload.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
