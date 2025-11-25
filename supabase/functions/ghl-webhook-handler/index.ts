@@ -655,6 +655,24 @@ async function enrichAppointmentWithGHLData(
       return
     }
     
+    // Extract basic contact info from root level (NOT in customFields)
+    const basicContactInfo = {
+      'First Name': contact.firstName,
+      'Last Name': contact.lastName,
+      'Full Name': [contact.firstName, contact.lastName].filter(Boolean).join(' '),
+      'Email': contact.email,
+      'Phone': contact.phone,
+      'Date of Birth': contact.dateOfBirth,
+      'Address': contact.address1,
+      'City': contact.city,
+      'State': contact.state,
+      'Postal Code': contact.postalCode,
+      'Country': contact.country,
+      'Gender': contact.gender,
+    }
+    
+    console.log(`[${requestId}] Extracted root-level contact info:`, Object.keys(basicContactInfo).filter(k => basicContactInfo[k]))
+    
     // Format custom fields into structured patient intake notes
     const rawCustomFields = contact.customFields || []
     const customFields = rawCustomFields
@@ -674,6 +692,13 @@ async function enrichAppointmentWithGHLData(
       'Pathology Information': [],
       'Medical Information': []
     }
+    
+    // Add basic contact info to Contact Information section FIRST
+    Object.entries(basicContactInfo).forEach(([key, value]) => {
+      if (value && value !== 'null' && value !== 'undefined') {
+        sections['Contact Information'].push(`${key}: ${value}`)
+      }
+    })
     
     customFields.forEach(field => {
       if (!field.key) return
@@ -723,11 +748,28 @@ async function enrichAppointmentWithGHLData(
       ? `${currentNotes}\n\n${formattedNotes}`
       : formattedNotes
     
-    // Update appointment with enriched notes
+    // Prepare parsed fields from root-level contact data
+    const parsedContactInfo = {
+      name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
+      email: contact.email || null,
+      phone: contact.phone || null,
+      dob: contact.dateOfBirth || null,
+      address: [contact.address1, contact.city, contact.state, contact.postalCode].filter(Boolean).join(', ') || null
+    }
+    
+    const parsedDemographics = {
+      gender: contact.gender || null,
+      age: null // Could calculate from DOB if needed
+    }
+    
+    // Update appointment with enriched notes AND parsed fields
     const { error: updateError } = await supabase
       .from('all_appointments')
       .update({ 
         patient_intake_notes: updatedNotes,
+        parsed_contact_info: parsedContactInfo,
+        parsed_demographics: parsedDemographics,
+        dob: contact.dateOfBirth || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', appointmentId)
