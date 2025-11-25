@@ -396,16 +396,29 @@ function extractProjectFromCalendar(calendarName: string): string {
 }
 
 // Normalize appointment status
-function normalizeStatus(status: string | null | undefined): string | null {
-  if (!status) return null
+function normalizeStatus(status: string | null | undefined): string {
+  // Always default new appointments to "Confirmed"
+  if (!status) return 'Confirmed'
   const s = status.toLowerCase().trim()
-  // Treat string "null" as booked status
-  if (s === 'null' || s === 'undefined' || s === '') return 'booked'
-  if (s === 'confirmed') return 'confirmed'
-  if (s === 'cancelled' || s === 'canceled') return 'cancelled'
-  if (s.includes('no show') || s === 'noshow') return 'no show'
-  if (s === 'showed' || s === 'attended') return 'showed'
-  return status
+  
+  // New/booked/null appointments → "Confirmed"
+  if (s === 'null' || s === 'undefined' || s === '' || s === 'booked' || s === 'new') return 'Confirmed'
+  
+  // Already confirmed → "Confirmed"
+  if (s === 'confirmed') return 'Confirmed'
+  
+  // Preserve other statuses with proper casing for UI dropdown
+  if (s === 'cancelled' || s === 'canceled') return 'Cancelled'
+  if (s.includes('no show') || s === 'noshow' || s === 'no-show') return 'No Show'
+  if (s === 'showed' || s === 'attended') return 'Showed'
+  if (s === 'rescheduled') return 'Rescheduled'
+  if (s === 'pending') return 'Pending'
+  if (s === 'scheduled') return 'Scheduled'
+  if (s === 'oon' || s === 'out of network') return 'OON'
+  if (s === 'welcome call') return 'Welcome Call'
+  
+  // Default fallback
+  return 'Confirmed'
 }
 
 // Normalize DOB to YYYY-MM-DD
