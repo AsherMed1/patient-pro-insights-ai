@@ -297,13 +297,11 @@ function extractWorkflowFormat(payload: any) {
     }
   }
   
-  // Format patient intake notes from root-level custom fields
-  const customFields = []
-  for (const key in payload) {
-    if (key.startsWith('custom_') || key.includes('field_')) {
-      customFields.push({ key, value: payload[key] })
-    }
-  }
+  // Format patient intake notes from customFields object (NOT root-level custom_ fields)
+  const customFieldsObj = payload.customFields || {}
+  const customFields = Object.entries(customFieldsObj)
+    .filter(([key, value]) => value && value !== 'null' && value !== 'undefined')
+    .map(([key, value]) => ({ key, value }))
   const patientIntakeNotes = formatCustomFieldsToNotes(customFields)
   
   // Extract project name - prioritize location name (sub-account) over calendar name
@@ -391,6 +389,8 @@ function extractProjectFromCalendar(calendarName: string): string {
 function normalizeStatus(status: string | null | undefined): string | null {
   if (!status) return null
   const s = status.toLowerCase().trim()
+  // Treat string "null" as booked status
+  if (s === 'null' || s === 'undefined' || s === '') return 'booked'
   if (s === 'confirmed') return 'confirmed'
   if (s === 'cancelled' || s === 'canceled') return 'cancelled'
   if (s.includes('no show') || s === 'noshow') return 'no show'
@@ -417,6 +417,18 @@ function normalizeDob(dob: any): string | null {
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
       const [m, d, y] = s.split('/').map(Number)
       return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    }
+    
+    // Month DDth YYYY (e.g., "Aug 18th 2022")
+    const monthMatch = s.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(\d{4})$/i)
+    if (monthMatch) {
+      const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+      const monthIndex = months.indexOf(monthMatch[1].toLowerCase().slice(0, 3))
+      if (monthIndex >= 0) {
+        const day = parseInt(monthMatch[2], 10)
+        const year = parseInt(monthMatch[3], 10)
+        return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      }
     }
   }
   
