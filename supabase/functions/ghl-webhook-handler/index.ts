@@ -761,6 +761,31 @@ async function enrichAppointmentWithGHLData(
       ? `${currentNotes}\n\n${formattedNotes}`
       : formattedNotes
     
+    // Helper function to calculate age from DOB
+    const calculateAge = (dobString: string | null): number | null => {
+      if (!dobString) return null
+      
+      try {
+        const dob = new Date(dobString)
+        if (isNaN(dob.getTime())) return null
+        
+        const today = new Date()
+        if (dob > today) return null // Future date
+        
+        let age = today.getFullYear() - dob.getFullYear()
+        const monthDiff = today.getMonth() - dob.getMonth()
+        
+        // Adjust if birthday hasn't occurred yet this year
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+          age--
+        }
+        
+        return age >= 0 ? age : null
+      } catch {
+        return null
+      }
+    }
+    
     // Prepare parsed fields from root-level contact data
     const parsedContactInfo = {
       name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
@@ -771,8 +796,9 @@ async function enrichAppointmentWithGHLData(
     }
     
     const parsedDemographics = {
-      gender: contact.gender || null,
-      age: null // Could calculate from DOB if needed
+      dob: contact.dateOfBirth || null,
+      age: calculateAge(contact.dateOfBirth),
+      gender: contact.gender || null
     }
     
     // Update appointment with enriched notes AND parsed fields
