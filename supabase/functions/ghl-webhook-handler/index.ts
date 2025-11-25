@@ -218,6 +218,53 @@ serve(async (req) => {
   }
 })
 
+// Helper: Extract insurance card URL from custom fields
+function extractInsuranceCardUrl(customFields: any): string | null {
+  const insuranceFieldPatterns = [
+    'upload a copy of your insurance card',
+    'insurance_card',
+    'insurance_photo', 
+    'insurance_image',
+    'insurance_id_card',
+    'front_of_insurance_card',
+    'insurance card',
+    'card front',
+    'insurance front'
+  ]
+  
+  if (!customFields) return null
+  
+  // Handle array of custom fields (standard event format)
+  if (Array.isArray(customFields)) {
+    for (const field of customFields) {
+      const key = (field.key || '').toLowerCase()
+      const value = field.value || field.field_value
+      
+      if (insuranceFieldPatterns.some(pattern => key.includes(pattern))) {
+        if (value && typeof value === 'string' && value.startsWith('http')) {
+          console.log(`Found insurance card URL in field "${field.key}": ${value}`)
+          return value
+        }
+      }
+    }
+  }
+  
+  // Handle object of custom fields (workflow format)
+  if (typeof customFields === 'object' && !Array.isArray(customFields)) {
+    for (const [key, value] of Object.entries(customFields)) {
+      const keyLower = key.toLowerCase()
+      if (insuranceFieldPatterns.some(pattern => keyLower.includes(pattern))) {
+        if (value && typeof value === 'string' && value.startsWith('http')) {
+          console.log(`Found insurance card URL in field "${key}": ${value}`)
+          return value as string
+        }
+      }
+    }
+  }
+  
+  return null
+}
+
 // Extract data from webhook payload (supports both standard event and workflow formats)
 function extractWebhookData(payload: any, requestId: string) {
   console.log(`[${requestId}] Detecting webhook format...`)
@@ -281,7 +328,7 @@ function extractStandardEventFormat(payload: any) {
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
     calendar_name: calendarName,
     project_name: projectName,
-    insurance_id_link: null, // Will be fetched separately
+    insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields),
   }
 }
 
@@ -331,7 +378,7 @@ function extractWorkflowFormat(payload: any) {
     dob: normalizeDob(payload.date_of_birth || payload.dob),
     calendar_name: calendarName,
     project_name: projectName,
-    insurance_id_link: null,
+    insurance_id_link: extractInsuranceCardUrl(payload.customFields || customFieldsObj),
   }
 }
 
