@@ -403,6 +403,7 @@ function isExplicitStatusChange(status: string | null | undefined): boolean {
     'no show', 'noshow', 'no-show',
     'showed', 'attended',
     'rescheduled',
+    'confirmed',
     'oon', 'out of network'
   ]
   
