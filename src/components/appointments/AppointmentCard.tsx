@@ -284,25 +284,25 @@ const AppointmentCard = ({
       // ALWAYS fetch associated lead first to get complete data
       const associatedLead = await findAssociatedLead(appointment);
       
-      // Merge appointment insurance data with lead data (lead takes priority)
+      // Merge appointment insurance data with lead data (APPOINTMENT takes priority)
       const mergedInsuranceData = {
-        insurance_provider: associatedLead?.insurance_provider || 
-                           appointment.parsed_insurance_info?.insurance_provider || 
+        insurance_provider: appointment.parsed_insurance_info?.insurance_provider || 
                            appointment.parsed_insurance_info?.provider || 
-                           appointment.detected_insurance_provider,
-        insurance_plan: associatedLead?.insurance_plan || 
-                       appointment.parsed_insurance_info?.insurance_plan || 
+                           appointment.detected_insurance_provider ||
+                           associatedLead?.insurance_provider,
+        insurance_plan: appointment.parsed_insurance_info?.insurance_plan || 
                        appointment.parsed_insurance_info?.plan || 
-                       appointment.detected_insurance_plan,
-        insurance_id: associatedLead?.insurance_id || 
-                     appointment.parsed_insurance_info?.insurance_id_number || 
+                       appointment.detected_insurance_plan ||
+                       associatedLead?.insurance_plan,
+        insurance_id: appointment.parsed_insurance_info?.insurance_id_number || 
                      appointment.parsed_insurance_info?.id || 
-                     appointment.detected_insurance_id,
-        group_number: associatedLead?.group_number || 
-                     appointment.parsed_insurance_info?.insurance_group_number || 
-                     appointment.parsed_insurance_info?.group_number,
-        insurance_id_link: associatedLead?.insurance_id_link || 
-                          appointment.insurance_id_link
+                     appointment.detected_insurance_id ||
+                     associatedLead?.insurance_id,
+        group_number: appointment.parsed_insurance_info?.insurance_group_number || 
+                     appointment.parsed_insurance_info?.group_number ||
+                     associatedLead?.group_number,
+        insurance_id_link: appointment.insurance_id_link || 
+                          associatedLead?.insurance_id_link
       };
       
       // Check if any insurance data exists
