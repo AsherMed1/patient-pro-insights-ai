@@ -229,7 +229,8 @@ function extractInsuranceCardUrl(customFields: any): string | null {
     'front_of_insurance_card',
     'insurance card',
     'card front',
-    'insurance front'
+    'insurance front',
+    'insurance_id_link'
   ]
   
   if (!customFields) return null
@@ -545,9 +546,21 @@ function getUpdateableFields(
     updateFields.dob = webhookData.dob
   }
   
-  // Patient intake notes - only enrich, never overwrite
-  if (!existingAppointment.patient_intake_notes && webhookData.patient_intake_notes) {
-    updateFields.patient_intake_notes = webhookData.patient_intake_notes
+  // Insurance card link - update if local is empty
+  if (!existingAppointment.insurance_id_link && webhookData.insurance_id_link) {
+    updateFields.insurance_id_link = webhookData.insurance_id_link
+  }
+  
+  // Patient intake notes - enrich existing notes with GHL data
+  if (webhookData.patient_intake_notes) {
+    // If local notes are empty, set them
+    if (!existingAppointment.patient_intake_notes) {
+      updateFields.patient_intake_notes = webhookData.patient_intake_notes
+    } 
+    // If local notes exist but don't have GHL structured data, append it
+    else if (!existingAppointment.patient_intake_notes.includes('**Contact:**')) {
+      updateFields.patient_intake_notes = existingAppointment.patient_intake_notes + '\n\n' + webhookData.patient_intake_notes
+    }
   }
   
   // was_ever_confirmed - only set to true, never back to false
