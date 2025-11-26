@@ -372,25 +372,25 @@ const AppointmentCard = ({
   };
 
   const getInsuranceData = () => {
-    // Always merge lead and appointment data, prioritizing lead data
+    // Merge appointment and lead data, prioritizing APPOINTMENT data (most recent/accurate)
     return {
-      insurance_provider: leadInsuranceData?.insurance_provider || 
-                         appointment.parsed_insurance_info?.insurance_provider || 
+      insurance_provider: appointment.parsed_insurance_info?.insurance_provider || 
                          appointment.parsed_insurance_info?.provider || 
-                         appointment.detected_insurance_provider,
-      insurance_plan: leadInsuranceData?.insurance_plan || 
-                     appointment.parsed_insurance_info?.insurance_plan || 
+                         appointment.detected_insurance_provider ||
+                         leadInsuranceData?.insurance_provider,
+      insurance_plan: appointment.parsed_insurance_info?.insurance_plan || 
                      appointment.parsed_insurance_info?.plan || 
-                     appointment.detected_insurance_plan,
-      insurance_id: leadInsuranceData?.insurance_id || 
-                   appointment.parsed_insurance_info?.insurance_id_number || 
+                     appointment.detected_insurance_plan ||
+                     leadInsuranceData?.insurance_plan,
+      insurance_id: appointment.parsed_insurance_info?.insurance_id_number || 
                    appointment.parsed_insurance_info?.id || 
-                   appointment.detected_insurance_id,
-      insurance_id_link: leadInsuranceData?.insurance_id_link || 
-                        appointment.insurance_id_link,
-      group_number: leadInsuranceData?.group_number || 
-                   appointment.parsed_insurance_info?.insurance_group_number || 
-                   appointment.parsed_insurance_info?.group_number
+                   appointment.detected_insurance_id ||
+                   leadInsuranceData?.insurance_id,
+      insurance_id_link: appointment.insurance_id_link || 
+                        leadInsuranceData?.insurance_id_link,
+      group_number: appointment.parsed_insurance_info?.insurance_group_number || 
+                   appointment.parsed_insurance_info?.group_number ||
+                   leadInsuranceData?.group_number
     };
   };
 
