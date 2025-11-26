@@ -1281,8 +1281,10 @@ const AppointmentCard = ({
             <label className="text-sm font-medium text-gray-700">Status</label>
             <Select 
               value={appointment.status ? 
-                statusOptions.find(option => option.toLowerCase() === appointment.status?.toLowerCase()) || appointment.status
-                : ''} 
+                statusOptions.find(option => 
+                  option.toLowerCase().replace(/\s+/g, '') === appointment.status?.toLowerCase().replace(/\s+/g, '')
+                ) || appointment.status
+                : ''}
               onValueChange={handleStatusChange}
             >
               <SelectTrigger className={getStatusTriggerClass()}>
