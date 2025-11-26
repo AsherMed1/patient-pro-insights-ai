@@ -7,6 +7,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Calculate age from DOB string
+function calculateAgeFromDob(dobString: string | null | undefined): number | null {
+  if (!dobString) return null;
+  
+  try {
+    const dob = new Date(dobString);
+    const today = new Date();
+    
+    // Check if date is valid and not in the future
+    if (isNaN(dob.getTime()) || dob > today) return null;
+    
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    
+    return age >= 0 ? age : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Normalize DOB string to YYYY-MM-DD format or return null
 function normalizeDob(raw: string | null | undefined): string | null {
   if (!raw || typeof raw !== "string") return null;
@@ -167,7 +191,8 @@ Parse the following patient intake notes and return a JSON object with these exa
   },
   "demographics": {
     "age": "string or null",
-    "gender": "string or null"
+    "gender": "string or null",
+    "dob": "string or null"
   },
   "pathology_info": {
     "procedure_type": "string or null - The pathology type (e.g., GAE, TKR, etc.). This is NOT the patient complaint.",
@@ -254,6 +279,23 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           updateData.parsed_insurance_info = parsedData.insurance_info;
           updateData.parsed_pathology_info = parsedData.pathology_info;
           updateData.parsed_contact_info = parsedData.contact_info;
+          
+          // Ensure DOB is in demographics if found in contact_info
+          if (parsedData.contact_info?.dob && !parsedData.demographics?.dob) {
+            parsedData.demographics = {
+              ...parsedData.demographics,
+              dob: parsedData.contact_info.dob
+            };
+          }
+          
+          // Calculate age from DOB if available but age is not set
+          if (parsedData.demographics?.dob && !parsedData.demographics?.age) {
+            const calculatedAge = calculateAgeFromDob(parsedData.demographics.dob);
+            if (calculatedAge !== null) {
+              parsedData.demographics.age = calculatedAge.toString();
+            }
+          }
+          
           updateData.parsed_demographics = parsedData.demographics;
           updateData.parsed_medical_info = parsedData.medical_info;
 
