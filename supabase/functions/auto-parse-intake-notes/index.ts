@@ -7,6 +7,175 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
+const GHL_API_VERSION = '2021-07-28';
+
+// Helper to fetch GHL custom fields
+async function fetchGHLCustomFields(
+  ghlId: string, 
+  ghlApiKey: string, 
+  ghlLocationId: string
+): Promise<any | null> {
+  try {
+    console.log(`[AUTO-PARSE GHL] Fetching custom field definitions for location ${ghlLocationId}`);
+    
+    // Fetch custom field definitions to map IDs to names
+    const defsRes = await fetch(`${GHL_BASE_URL}/locations/${ghlLocationId}/customFields`, {
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': GHL_API_VERSION,
+      },
+    });
+    
+    const customFieldDefs: Record<string, string> = {};
+    if (defsRes.ok) {
+      const defsData = await defsRes.json();
+      (defsData.customFields || []).forEach((def: any) => {
+        if (def.id && def.name) customFieldDefs[def.id] = def.name;
+      });
+      console.log(`[AUTO-PARSE GHL] Found ${Object.keys(customFieldDefs).length} custom field definitions`);
+    }
+
+    console.log(`[AUTO-PARSE GHL] Fetching contact ${ghlId}`);
+    
+    // Fetch contact with custom fields
+    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${ghlId}`, {
+      headers: {
+        'Authorization': `Bearer ${ghlApiKey}`,
+        'Version': GHL_API_VERSION,
+      },
+    });
+
+    if (!contactRes.ok) {
+      console.error(`[AUTO-PARSE GHL] Failed to fetch contact: ${contactRes.status}`);
+      return null;
+    }
+
+    const contactData = await contactRes.json();
+    const contact = contactData.contact ?? contactData;
+    
+    console.log(`[AUTO-PARSE GHL] Successfully fetched contact data with ${contact.customFields?.length || 0} custom fields`);
+    
+    return { contact, customFieldDefs };
+  } catch (error) {
+    console.error('[AUTO-PARSE GHL] Fetch error:', error);
+    return null;
+  }
+}
+
+// Helper to extract structured data from GHL custom fields
+function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>): any {
+  const result = {
+    insurance_info: { 
+      insurance_provider: null as string | null, 
+      insurance_plan: null as string | null, 
+      insurance_id_number: null as string | null, 
+      insurance_group_number: null as string | null 
+    },
+    contact_info: { 
+      name: null as string | null, 
+      email: null as string | null, 
+      phone: null as string | null, 
+      address: null as string | null, 
+      dob: null as string | null 
+    },
+    demographics: { 
+      age: null as string | null, 
+      gender: null as string | null, 
+      dob: null as string | null 
+    },
+    pathology_info: { 
+      primary_complaint: null as string | null, 
+      symptoms: null as string | null, 
+      pain_level: null as string | null, 
+      affected_area: null as string | null 
+    },
+    medical_info: { 
+      medications: null as string | null, 
+      allergies: null as string | null, 
+      pcp_name: null as string | null 
+    },
+    insurance_card_url: null as string | null
+  };
+
+  // Extract root-level contact data
+  if (contact.firstName || contact.lastName) {
+    result.contact_info.name = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+  }
+  result.contact_info.email = contact.email || null;
+  result.contact_info.phone = contact.phone || null;
+  result.demographics.gender = contact.gender || null;
+
+  // Build address from components
+  if (contact.address1 || contact.city || contact.state) {
+    const parts = [contact.address1, contact.city, contact.state, contact.postalCode].filter(Boolean);
+    result.contact_info.address = parts.join(', ');
+  }
+
+  // Extract DOB
+  if (contact.dateOfBirth) {
+    result.contact_info.dob = contact.dateOfBirth;
+    result.demographics.dob = contact.dateOfBirth;
+  }
+
+  // Process custom fields
+  const customFields = contact.customFields || [];
+  for (const field of customFields) {
+    const key = (customFieldDefs[field.id] || field.key || '').toLowerCase();
+    const value = Array.isArray(field.field_value) ? field.field_value[0] : field.field_value;
+    if (!value) continue;
+
+    // Insurance fields
+    if (key.includes('insurance') && key.includes('provider')) {
+      result.insurance_info.insurance_provider = value;
+    } else if (key.includes('insurance') && key.includes('plan')) {
+      result.insurance_info.insurance_plan = value;
+    } else if ((key.includes('member') && key.includes('id')) || key.includes('insurance_id')) {
+      result.insurance_info.insurance_id_number = value;
+    } else if (key.includes('group')) {
+      result.insurance_info.insurance_group_number = value;
+    }
+    // Insurance card URL
+    else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
+      if (typeof value === 'string' && value.startsWith('http')) {
+        result.insurance_card_url = value;
+      }
+    }
+    // Pathology fields
+    else if (key.includes('complaint') || key.includes('reason')) {
+      result.pathology_info.primary_complaint = value;
+    } else if (key.includes('symptom')) {
+      result.pathology_info.symptoms = value;
+    } else if (key.includes('pain') && key.includes('level')) {
+      result.pathology_info.pain_level = value;
+    } else if (key.includes('affected') || key.includes('area') || key.includes('location')) {
+      result.pathology_info.affected_area = value;
+    }
+    // Medical fields
+    else if (key.includes('medication')) {
+      result.medical_info.medications = value;
+    } else if (key.includes('allerg')) {
+      result.medical_info.allergies = value;
+    } else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician')) {
+      result.medical_info.pcp_name = value;
+    }
+    // DOB from custom field
+    else if (key.includes('dob') || (key.includes('date') && key.includes('birth'))) {
+      result.contact_info.dob = value;
+      result.demographics.dob = value;
+    }
+  }
+
+  console.log('[AUTO-PARSE GHL] Extracted data from GHL:', {
+    hasInsurance: !!result.insurance_info.insurance_provider,
+    hasContact: !!result.contact_info.name,
+    hasDOB: !!result.demographics.dob,
+    hasInsuranceCard: !!result.insurance_card_url
+  });
+
+  return result;
+}
+
 // Calculate age from DOB string
 function calculateAgeFromDob(dobString: string | null | undefined): number | null {
   if (!dobString) return null;
@@ -131,7 +300,7 @@ serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -172,6 +341,39 @@ serve(async (req) => {
       const recordIdentifier = `${record.table}:${record.id}:${record.lead_name}:${record.project_name}`;
       try {
         console.log(`[AUTO-PARSE] Processing ${recordIdentifier}`);
+        
+        let ghlData: any = null;
+        
+        // If appointment has ghl_id, try to fetch GHL custom fields
+        if (record.table === 'all_appointments' && record.ghl_id) {
+          console.log(`[AUTO-PARSE] Appointment has ghl_id: ${record.ghl_id}, fetching GHL credentials...`);
+          
+          // Get project's GHL credentials
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('ghl_api_key, ghl_location_id')
+            .eq('project_name', record.project_name)
+            .single();
+          
+          if (projectData?.ghl_api_key && projectData?.ghl_location_id) {
+            console.log(`[AUTO-PARSE] Found GHL credentials for ${record.project_name}, fetching custom fields...`);
+            const ghlResult = await fetchGHLCustomFields(
+              record.ghl_id, 
+              projectData.ghl_api_key, 
+              projectData.ghl_location_id
+            );
+            
+            if (ghlResult) {
+              ghlData = extractDataFromGHLFields(ghlResult.contact, ghlResult.customFieldDefs);
+              console.log(`[AUTO-PARSE] ✓ GHL data fetched for ${record.lead_name}`);
+            } else {
+              console.log(`[AUTO-PARSE] ⚠ Failed to fetch GHL data for ${record.lead_name}`);
+            }
+          } else {
+            console.log(`[AUTO-PARSE] ⚠ No GHL credentials found for project ${record.project_name}`);
+          }
+        }
+        
         const systemPrompt = `You are a medical intake data parser. Your task is to extract and categorize information from patient intake notes into specific sections.
 
 Parse the following patient intake notes and return a JSON object with these exact fields:
@@ -266,6 +468,16 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           throw new Error(`Invalid JSON returned from AI: ${parseError.message}`);
         }
 
+        // Merge GHL-fetched data with AI-parsed data (GHL takes priority)
+        if (ghlData) {
+          console.log('[AUTO-PARSE] Merging GHL data with AI-parsed data...');
+          parsedData.insurance_info = { ...parsedData.insurance_info, ...ghlData.insurance_info };
+          parsedData.contact_info = { ...parsedData.contact_info, ...ghlData.contact_info };
+          parsedData.demographics = { ...parsedData.demographics, ...ghlData.demographics };
+          parsedData.pathology_info = { ...parsedData.pathology_info, ...ghlData.pathology_info };
+          parsedData.medical_info = { ...parsedData.medical_info, ...ghlData.medical_info };
+        }
+
         // Normalize DOB to proper format
         const dobIso = normalizeDob(parsedData.contact_info?.dob);
 
@@ -326,6 +538,12 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           }
           if (parsedData.insurance_info?.insurance_id_number) {
             updateData.detected_insurance_id = parsedData.insurance_info.insurance_id_number;
+          }
+          
+          // Update insurance_id_link if GHL provided it
+          if (ghlData?.insurance_card_url) {
+            updateData.insurance_id_link = ghlData.insurance_card_url;
+            console.log(`[AUTO-PARSE] Setting insurance_id_link from GHL: ${ghlData.insurance_card_url}`);
           }
         } else if (record.table === "new_leads") {
           // For leads: DO NOT include parsed_* fields (they don't exist)
