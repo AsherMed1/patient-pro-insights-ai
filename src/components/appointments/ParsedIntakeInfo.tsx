@@ -16,6 +16,7 @@ interface ParsedIntakeInfoProps {
   detectedInsurancePlan?: string | null;
   detectedInsuranceId?: string | null;
   insuranceIdLink?: string | null;
+  dob?: string | null;
   className?: string;
 }
 export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
@@ -28,6 +29,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   detectedInsurancePlan,
   detectedInsuranceId,
   insuranceIdLink,
+  dob,
   className = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,10 +41,25 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   console.log("ParsedIntakeInfo - parsedDemographics:", parsedDemographics);
   console.log("ParsedIntakeInfo - parsedMedicalInfo:", parsedMedicalInfo);
   const hasAnyData =
-    parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo;
+    parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo || dob;
   if (!hasAnyData) {
     return null;
   }
+  
+  const calculateAge = (dobString: string) => {
+    try {
+      const today = new Date();
+      const birthDate = new Date(dobString);
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    } catch {
+      return null;
+    }
+  };
   const formatValue = (value: any) => {
     if (!value || value === "null" || value === "") return null;
     return String(value);
@@ -73,34 +90,40 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-4">
           {/* Demographics Section */}
-          {parsedDemographics && (
-            <Card className="bg-purple-50 border-purple-200">
-              <CardContent className="pt-4 space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <User className="h-4 w-4 text-purple-600" />
-                  <span className="font-medium text-sm text-purple-900">Demographics</span>
-                </div>
-                {formatValue(parsedDemographics.age) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Age:</span>{" "}
-                    <span className="font-medium">{parsedDemographics.age}</span>
+          {(parsedDemographics || dob) && (() => {
+            const displayDOB = parsedDemographics?.dob || dob;
+            const displayAge = parsedDemographics?.age || (displayDOB ? calculateAge(displayDOB)?.toString() : null);
+            const displayGender = parsedDemographics?.gender;
+            
+            return (
+              <Card className="bg-purple-50 border-purple-200">
+                <CardContent className="pt-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <User className="h-4 w-4 text-purple-600" />
+                    <span className="font-medium text-sm text-purple-900">Demographics</span>
                   </div>
-                )}
-                {formatDOB(parsedDemographics.dob) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Date of Birth:</span>{" "}
-                    <span className="font-medium">{formatDOB(parsedDemographics.dob)}</span>
-                  </div>
-                )}
-                {formatValue(parsedDemographics.gender) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Gender:</span>{" "}
-                    <span className="font-medium">{parsedDemographics.gender}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                  {formatValue(displayAge) && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Age:</span>{" "}
+                      <span className="font-medium">{displayAge}</span>
+                    </div>
+                  )}
+                  {formatDOB(displayDOB) && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Date of Birth:</span>{" "}
+                      <span className="font-medium">{formatDOB(displayDOB)}</span>
+                    </div>
+                  )}
+                  {formatValue(displayGender) && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Gender:</span>{" "}
+                      <span className="font-medium">{displayGender}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Contact Information Section */}
           {parsedContactInfo && (

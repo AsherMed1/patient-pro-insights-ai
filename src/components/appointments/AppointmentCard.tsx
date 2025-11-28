@@ -1369,6 +1369,7 @@ const AppointmentCard = ({
           detectedInsurancePlan={appointment.detected_insurance_plan}
           detectedInsuranceId={appointment.detected_insurance_id}
           insuranceIdLink={appointment.insurance_id_link}
+          dob={appointment.dob}
         />
         
         {/* Patient Intake Notes */}
