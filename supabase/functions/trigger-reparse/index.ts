@@ -15,27 +15,34 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { project_name } = await req.json();
+    const { project_name, appointment_id } = await req.json();
 
-    if (!project_name) {
+    if (!project_name && !appointment_id) {
       return new Response(
-        JSON.stringify({ error: 'project_name is required' }),
+        JSON.stringify({ error: 'project_name or appointment_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[TRIGGER-REPARSE] Starting re-parse for project: ${project_name}`);
+    console.log(`[TRIGGER-REPARSE] Starting re-parse for ${appointment_id ? `appointment: ${appointment_id}` : `project: ${project_name}`}`);
 
-    // Reset parsing_completed_at for appointments parsed before 2025-11-20
-    const { data: appointmentsData, error: appointmentsError } = await supabase
+    // Reset parsing_completed_at for appointments
+    let appointmentsQuery = supabase
       .from('all_appointments')
       .update({ 
         parsing_completed_at: null,
         updated_at: new Date().toISOString()
-      })
-      .eq('project_name', project_name)
-      .lt('parsing_completed_at', '2025-11-20T00:00:00Z')
-      .select('id');
+      });
+
+    if (appointment_id) {
+      appointmentsQuery = appointmentsQuery.eq('id', appointment_id);
+    } else {
+      appointmentsQuery = appointmentsQuery
+        .eq('project_name', project_name)
+        .lt('parsing_completed_at', '2025-11-20T00:00:00Z');
+    }
+
+    const { data: appointmentsData, error: appointmentsError } = await appointmentsQuery.select('id');
 
     if (appointmentsError) {
       console.error('[TRIGGER-REPARSE] Error updating appointments:', appointmentsError);
@@ -45,16 +52,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Reset parsing_completed_at for leads parsed before 2025-11-20
-    const { data: leadsData, error: leadsError } = await supabase
-      .from('new_leads')
-      .update({ 
-        parsing_completed_at: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('project_name', project_name)
-      .lt('parsing_completed_at', '2025-11-20T00:00:00Z')
-      .select('id');
+    // Reset parsing_completed_at for leads (only if project_name provided)
+    let leadsData = null;
+    let leadsError = null;
+    
+    if (!appointment_id && project_name) {
+      const result = await supabase
+        .from('new_leads')
+        .update({ 
+          parsing_completed_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('project_name', project_name)
+        .lt('parsing_completed_at', '2025-11-20T00:00:00Z')
+        .select('id');
+      
+      leadsData = result.data;
+      leadsError = result.error;
+    }
 
     if (leadsError) {
       console.error('[TRIGGER-REPARSE] Error updating leads:', leadsError);
