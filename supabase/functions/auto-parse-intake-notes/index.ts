@@ -131,7 +131,7 @@ serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -275,33 +275,46 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
         };
 
         if (record.table === "all_appointments") {
-          // For appointments: include parsed_* JSON fields
-          updateData.parsed_insurance_info = parsedData.insurance_info;
-          updateData.parsed_pathology_info = parsedData.pathology_info;
-          updateData.parsed_contact_info = parsedData.contact_info;
+          // Get existing data for merging
+          const existingDob = record.dob;
+          const existingParsedDemo = record.parsed_demographics || {};
+          const existingParsedContact = record.parsed_contact_info || {};
           
-          // Ensure DOB is in demographics if found in contact_info
-          if (parsedData.contact_info?.dob && !parsedData.demographics?.dob) {
-            parsedData.demographics = {
-              ...parsedData.demographics,
-              dob: parsedData.contact_info.dob
-            };
-          }
+          // Determine final DOB (prefer existing DB column, then AI-parsed)
+          const finalDob = existingDob || dobIso || parsedData.contact_info?.dob || parsedData.demographics?.dob;
           
-          // Calculate age from DOB if available but age is not set
-          if (parsedData.demographics?.dob && !parsedData.demographics?.age) {
-            const calculatedAge = calculateAgeFromDob(parsedData.demographics.dob);
+          // Calculate age from final DOB if age not in parsed data
+          let finalAge = parsedData.demographics?.age;
+          if (!finalAge && finalDob) {
+            const calculatedAge = calculateAgeFromDob(finalDob);
             if (calculatedAge !== null) {
-              parsedData.demographics.age = calculatedAge.toString();
+              finalAge = calculatedAge.toString();
             }
           }
           
-          updateData.parsed_demographics = parsedData.demographics;
+          // Merge demographics: preserve existing, add AI-parsed, ensure DOB and age
+          updateData.parsed_demographics = {
+            ...existingParsedDemo,
+            ...parsedData.demographics,
+            dob: finalDob,
+            age: finalAge || existingParsedDemo.age
+          };
+          
+          // Merge contact info: preserve existing, add AI-parsed
+          updateData.parsed_contact_info = {
+            ...existingParsedContact,
+            ...parsedData.contact_info,
+            dob: finalDob // Also ensure DOB in contact_info
+          };
+          
+          // For appointments: include parsed_* JSON fields
+          updateData.parsed_insurance_info = parsedData.insurance_info;
+          updateData.parsed_pathology_info = parsedData.pathology_info;
           updateData.parsed_medical_info = parsedData.medical_info;
 
-          // Sync DOB if normalized successfully
-          if (dobIso) {
-            updateData.dob = dobIso;
+          // Sync DOB to main column if we have one
+          if (finalDob) {
+            updateData.dob = finalDob;
           }
 
           // Sync insurance info to main columns
