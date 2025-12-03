@@ -212,6 +212,20 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
   return result;
 }
 
+// Helper to merge objects, only overwriting values if overlay value is NOT null/undefined
+function mergeWithNonNull(base: any, overlay: any): any {
+  if (!overlay) return base || {};
+  if (!base) return overlay;
+  
+  const result = { ...base };
+  for (const key in overlay) {
+    if (overlay[key] !== null && overlay[key] !== undefined && overlay[key] !== '') {
+      result[key] = overlay[key];
+    }
+  }
+  return result;
+}
+
 // Calculate age from DOB string
 function calculateAgeFromDob(dobString: string | null | undefined): number | null {
   if (!dobString) return null;
@@ -514,14 +528,14 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           throw new Error(`Invalid JSON returned from AI: ${parseError.message}`);
         }
 
-        // Merge GHL-fetched data with AI-parsed data (GHL takes priority)
+        // Merge GHL-fetched data with AI-parsed data (GHL takes priority, but only non-null values)
         if (ghlData) {
-          console.log('[AUTO-PARSE] Merging GHL data with AI-parsed data...');
-          parsedData.insurance_info = { ...parsedData.insurance_info, ...ghlData.insurance_info };
-          parsedData.contact_info = { ...parsedData.contact_info, ...ghlData.contact_info };
-          parsedData.demographics = { ...parsedData.demographics, ...ghlData.demographics };
-          parsedData.pathology_info = { ...parsedData.pathology_info, ...ghlData.pathology_info };
-          parsedData.medical_info = { ...parsedData.medical_info, ...ghlData.medical_info };
+          console.log('[AUTO-PARSE] Merging GHL data with AI-parsed data (non-null only)...');
+          parsedData.insurance_info = mergeWithNonNull(parsedData.insurance_info, ghlData.insurance_info);
+          parsedData.contact_info = mergeWithNonNull(parsedData.contact_info, ghlData.contact_info);
+          parsedData.demographics = mergeWithNonNull(parsedData.demographics, ghlData.demographics);
+          parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info, ghlData.pathology_info);
+          parsedData.medical_info = mergeWithNonNull(parsedData.medical_info, ghlData.medical_info);
         }
 
         // Normalize DOB to proper format
