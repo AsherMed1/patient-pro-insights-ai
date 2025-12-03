@@ -32,7 +32,16 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   dob,
   className = "",
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  // Auto-expand when insurance data exists
+  const hasInsuranceData = !!(
+    parsedInsuranceInfo?.insurance_provider || 
+    parsedInsuranceInfo?.plan_name ||
+    detectedInsuranceProvider || 
+    detectedInsurancePlan || 
+    detectedInsuranceId ||
+    insuranceIdLink
+  );
+  const [isOpen, setIsOpen] = useState(hasInsuranceData);
 
   // Debug logging
   console.log("ParsedIntakeInfo - parsedInsuranceInfo:", parsedInsuranceInfo);
