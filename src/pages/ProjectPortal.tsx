@@ -17,8 +17,8 @@ import DateRangeFilter from '@/components/projects/DateRangeFilter';
 import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 import ProjectChat from '@/components/ProjectChat';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-// Temporary: Trigger Test 123 re-parsing with GHL custom fields
-import '@/utils/triggerTest123Reparse';
+// Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
+import '@/utils/retriggerVividVascularParsing';
 
 interface Project {
   id: string;

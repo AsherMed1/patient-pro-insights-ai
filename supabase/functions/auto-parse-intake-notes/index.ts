@@ -10,17 +10,49 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
-// Helper to fetch GHL custom fields
+// Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
-  ghlId: string, 
+  ghlId: string,
+  ghlAppointmentId: string | null,
   ghlApiKey: string, 
   ghlLocationId: string
 ): Promise<any | null> {
   try {
-    console.log(`[AUTO-PARSE GHL] Fetching custom field definitions for location ${ghlLocationId}`);
+    let contactId = ghlId;
+    let locationId = ghlLocationId;
+    
+    // If we have an appointment ID, fetch it first to get the TRUE contact ID
+    if (ghlAppointmentId) {
+      console.log(`[AUTO-PARSE GHL] Fetching appointment ${ghlAppointmentId} to verify contact ID...`);
+      const apptRes = await fetch(`${GHL_BASE_URL}/calendars/events/appointments/${ghlAppointmentId}`, {
+        headers: {
+          'Authorization': `Bearer ${ghlApiKey}`,
+          'Version': GHL_API_VERSION,
+        },
+      });
+      
+      if (apptRes.ok) {
+        const apptData = await apptRes.json();
+        const appt = apptData.appointment ?? apptData;
+        const extractedContactId = appt?.contactId || appt?.contact_id || appt?.contact?.id;
+        const extractedLocationId = appt?.locationId || appt?.location_id || appt?.location?.id;
+        
+        if (extractedContactId) {
+          console.log(`[AUTO-PARSE GHL] Found contact ID from appointment: ${extractedContactId} (was: ${contactId})`);
+          contactId = extractedContactId;
+        }
+        if (extractedLocationId) {
+          locationId = extractedLocationId;
+        }
+      } else {
+        console.log(`[AUTO-PARSE GHL] Failed to fetch appointment: ${apptRes.status}`);
+      }
+    }
+    
+    console.log(`[AUTO-PARSE GHL] Fetching custom field definitions for location ${locationId}`);
     
     // Fetch custom field definitions to map IDs to names
-    const defsRes = await fetch(`${GHL_BASE_URL}/locations/${ghlLocationId}/customFields`, {
+    const defsRes = await fetch(`${GHL_BASE_URL}/locations/${locationId}/customFields`, {
       headers: {
         'Authorization': `Bearer ${ghlApiKey}`,
         'Version': GHL_API_VERSION,
@@ -36,18 +68,21 @@ async function fetchGHLCustomFields(
       console.log(`[AUTO-PARSE GHL] Found ${Object.keys(customFieldDefs).length} custom field definitions`);
     }
 
-    console.log(`[AUTO-PARSE GHL] Fetching contact ${ghlId}`);
+    console.log(`[AUTO-PARSE GHL] Fetching contact ${contactId} with LocationId header`);
     
-    // Fetch contact with custom fields
-    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${ghlId}`, {
+    // Fetch contact WITH LocationId header (required by GHL API)
+    const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}`, {
       headers: {
         'Authorization': `Bearer ${ghlApiKey}`,
         'Version': GHL_API_VERSION,
+        'LocationId': locationId,
       },
     });
 
     if (!contactRes.ok) {
       console.error(`[AUTO-PARSE GHL] Failed to fetch contact: ${contactRes.status}`);
+      const errorText = await contactRes.text();
+      console.error(`[AUTO-PARSE GHL] Contact fetch error details: ${errorText}`);
       return null;
     }
 
@@ -56,7 +91,8 @@ async function fetchGHLCustomFields(
     
     console.log(`[AUTO-PARSE GHL] Successfully fetched contact data with ${contact.customFields?.length || 0} custom fields`);
     
-    return { contact, customFieldDefs };
+    // Return both contact data and the resolved contactId (for DB update if different)
+    return { contact, customFieldDefs, resolvedContactId: contactId };
   } catch (error) {
     console.error('[AUTO-PARSE GHL] Fetch error:', error);
     return null;
@@ -300,7 +336,7 @@ serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id, ghl_appointment_id")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -358,7 +394,8 @@ serve(async (req) => {
           if (projectData?.ghl_api_key && projectData?.ghl_location_id) {
             console.log(`[AUTO-PARSE] Found GHL credentials for ${record.project_name}, fetching custom fields...`);
             const ghlResult = await fetchGHLCustomFields(
-              record.ghl_id, 
+              record.ghl_id,
+              record.ghl_appointment_id || null,
               projectData.ghl_api_key, 
               projectData.ghl_location_id
             );
@@ -366,6 +403,15 @@ serve(async (req) => {
             if (ghlResult) {
               ghlData = extractDataFromGHLFields(ghlResult.contact, ghlResult.customFieldDefs);
               console.log(`[AUTO-PARSE] ✓ GHL data fetched for ${record.lead_name}`);
+              
+              // Update ghl_id in DB if it was corrected from appointment lookup
+              if (ghlResult.resolvedContactId && ghlResult.resolvedContactId !== record.ghl_id) {
+                await supabase
+                  .from('all_appointments')
+                  .update({ ghl_id: ghlResult.resolvedContactId })
+                  .eq('id', record.id);
+                console.log(`[AUTO-PARSE] Updated ghl_id from ${record.ghl_id} to ${ghlResult.resolvedContactId}`);
+              }
             } else {
               console.log(`[AUTO-PARSE] ⚠ Failed to fetch GHL data for ${record.lead_name}`);
             }
