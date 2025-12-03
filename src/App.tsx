@@ -15,7 +15,7 @@ import ApiDocs from "./pages/ApiDocs";
 import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
 import NotFound from "./pages/NotFound";
-import { clearVividVascular } from "./utils/clearVividVascular";
+import { retriggerCathTestParsing } from "./utils/retriggerCathTestParsing";
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
@@ -31,7 +31,7 @@ const queryClient = new QueryClient();
 
 const App = () => {
   useEffect(() => {
-    clearVividVascular();
+    retriggerCathTestParsing();
   }, []);
 
   return (
