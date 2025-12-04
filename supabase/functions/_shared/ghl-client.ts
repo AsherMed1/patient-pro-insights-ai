@@ -72,6 +72,45 @@ export async function fetchGHLContact(
 }
 
 /**
+ * Extract URL from JSON format or plain string
+ * Handles GHL file upload format: {"uuid": {"url": "https://...", ...}}
+ */
+function extractUrlFromValue(value: any): string | null {
+  if (!value) return null;
+  
+  // If it's already a URL string
+  if (typeof value === 'string' && value.startsWith('http')) {
+    return value;
+  }
+  
+  // If it's a JSON string, try to parse and extract URL
+  if (typeof value === 'string' && value.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(value);
+      // GHL format: {"uuid": {"url": "https://...", ...}}
+      for (const key in parsed) {
+        if (parsed[key]?.url && typeof parsed[key].url === 'string') {
+          return parsed[key].url;
+        }
+      }
+    } catch (e) {
+      // Not valid JSON, ignore
+    }
+  }
+  
+  // If it's already an object with nested url
+  if (typeof value === 'object' && value !== null) {
+    for (const key in value) {
+      if (value[key]?.url && typeof value[key].url === 'string') {
+        return value[key].url;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Extract insurance card URL from contact's custom fields
  * Checks multiple possible field names
  */
@@ -92,9 +131,10 @@ export function extractInsuranceCardUrl(contact: GHLContact): string | null {
         ? field.field_value[0] 
         : field.field_value;
       
-      if (value && typeof value === 'string' && value.startsWith('http')) {
-        console.log(`Found insurance card URL in field "${field.key}": ${value}`);
-        return value;
+      const extractedUrl = extractUrlFromValue(value);
+      if (extractedUrl) {
+        console.log(`Found insurance card URL in field "${field.key}": ${extractedUrl}`);
+        return extractedUrl;
       }
     }
   }
@@ -104,19 +144,22 @@ export function extractInsuranceCardUrl(contact: GHLContact): string | null {
     if (!f.key) return false;
     const key = f.key.toLowerCase();
     const hasInsurance = key.includes('insurance');
-    const hasCard = key.includes('card') || key.includes('photo') || key.includes('image');
+    const hasCard = key.includes('card') || key.includes('photo') || key.includes('image') || key.includes('upload');
     const value = Array.isArray(f.field_value) ? f.field_value[0] : f.field_value;
-    const isUrl = value && typeof value === 'string' && value.startsWith('http');
+    const url = extractUrlFromValue(value);
     
-    return hasInsurance && hasCard && isUrl;
+    return hasInsurance && hasCard && url;
   });
 
   if (insuranceField) {
     const value = Array.isArray(insuranceField.field_value) 
       ? insuranceField.field_value[0] 
       : insuranceField.field_value;
-    console.log(`Found insurance card URL in field "${insuranceField.key}": ${value}`);
-    return value as string;
+    const extractedUrl = extractUrlFromValue(value);
+    if (extractedUrl) {
+      console.log(`Found insurance card URL in field "${insuranceField.key}": ${extractedUrl}`);
+      return extractedUrl;
+    }
   }
 
   console.log('No insurance card URL found in custom fields');

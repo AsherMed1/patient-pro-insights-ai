@@ -99,6 +99,42 @@ async function fetchGHLCustomFields(
   }
 }
 
+// Helper: Extract URL from JSON format or plain string (GHL file upload format)
+function extractUrlFromJsonOrString(value: any): string | null {
+  if (!value) return null;
+  
+  // If it's already a URL string
+  if (typeof value === 'string' && value.startsWith('http')) {
+    return value;
+  }
+  
+  // If it's a JSON string, try to parse and extract URL
+  if (typeof value === 'string' && value.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(value);
+      // GHL format: {"uuid": {"url": "https://...", ...}}
+      for (const key in parsed) {
+        if (parsed[key]?.url && typeof parsed[key].url === 'string') {
+          return parsed[key].url;
+        }
+      }
+    } catch (e) {
+      // Not valid JSON, ignore
+    }
+  }
+  
+  // If it's already an object with nested url
+  if (typeof value === 'object' && value !== null) {
+    for (const key in value) {
+      if (value[key]?.url && typeof value[key].url === 'string') {
+        return value[key].url;
+      }
+    }
+  }
+  
+  return null;
+}
+
 // Helper to extract structured data from GHL custom fields
 function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>): any {
   const result = {
@@ -173,8 +209,11 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     }
     // Insurance card URL
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
-      if (typeof value === 'string' && value.startsWith('http')) {
-        result.insurance_card_url = value;
+      console.log(`[AUTO-PARSE GHL] Found potential insurance card field "${key}":`, typeof value, value?.substring?.(0, 100) || value);
+      const extractedUrl = extractUrlFromJsonOrString(value);
+      console.log(`[AUTO-PARSE GHL] Extracted URL:`, extractedUrl);
+      if (extractedUrl) {
+        result.insurance_card_url = extractedUrl;
       }
     }
     // Pathology fields

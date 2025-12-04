@@ -1,34 +1,25 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export const retriggerCathTestParsing = async () => {
-  console.log('[RETRIGGER] Resetting parsing for Cath Test in Vivid Vascular...');
+  console.log('[RETRIGGER] Setting insurance_id_link for Luis De Leon...');
   
-  // Reset parsing_completed_at for Cath Test appointment
-  const { data: resetData, error: resetError } = await supabase
+  // Directly update the insurance_id_link with the URL from intake notes
+  const { data, error } = await supabase
     .from('all_appointments')
-    .update({ parsing_completed_at: null })
-    .eq('project_name', 'Vivid Vascular')
-    .ilike('lead_name', '%Cath%Test%')
-    .select('id, lead_name');
+    .update({ 
+      insurance_id_link: 'https://services.leadconnectorhq.com/documents/download/7HJ1drfTAosPrFiGtdHl'
+    })
+    .eq('project_name', 'Richmond Vascular Center')
+    .ilike('lead_name', '%Luis%De%Leon%')
+    .select('id, lead_name, insurance_id_link');
   
-  if (resetError) {
-    console.error('[RETRIGGER] Failed to reset:', resetError);
-    return { success: false, error: resetError };
+  if (error) {
+    console.error('[RETRIGGER] Failed:', error);
+    return { success: false, error };
   }
   
-  console.log(`[RETRIGGER] Reset ${resetData?.length || 0} appointments:`, resetData);
-  
-  // Invoke the auto-parser
-  console.log('[RETRIGGER] Invoking auto-parser...');
-  const { data: parseResult, error: parseError } = await supabase.functions.invoke('auto-parse-intake-notes');
-  
-  if (parseError) {
-    console.error('[RETRIGGER] Parser error:', parseError);
-    return { success: false, error: parseError };
-  }
-  
-  console.log('[RETRIGGER] Parser result:', parseResult);
-  return { success: true, parseResult };
+  console.log('[RETRIGGER] Updated:', data);
+  return { success: true, data };
 };
 
 // Auto-run
