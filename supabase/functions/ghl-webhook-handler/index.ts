@@ -218,6 +218,42 @@ serve(async (req) => {
   }
 })
 
+// Helper: Extract URL from JSON format or plain string
+function extractUrlFromValue(value: any): string | null {
+  if (!value) return null;
+  
+  // If it's already a URL string
+  if (typeof value === 'string' && value.startsWith('http')) {
+    return value;
+  }
+  
+  // If it's a JSON string, try to parse and extract URL
+  if (typeof value === 'string' && value.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(value);
+      // GHL format: {"uuid": {"url": "https://...", ...}}
+      for (const key in parsed) {
+        if (parsed[key]?.url && typeof parsed[key].url === 'string') {
+          return parsed[key].url;
+        }
+      }
+    } catch (e) {
+      // Not valid JSON, ignore
+    }
+  }
+  
+  // If it's already an object with nested url
+  if (typeof value === 'object' && value !== null) {
+    for (const key in value) {
+      if (value[key]?.url && typeof value[key].url === 'string') {
+        return value[key].url;
+      }
+    }
+  }
+  
+  return null;
+}
+
 // Helper: Extract insurance card URL from custom fields
 function extractInsuranceCardUrl(customFields: any): string | null {
   const insuranceFieldPatterns = [
@@ -242,9 +278,10 @@ function extractInsuranceCardUrl(customFields: any): string | null {
       const value = field.value || field.field_value
       
       if (insuranceFieldPatterns.some(pattern => key.includes(pattern))) {
-        if (value && typeof value === 'string' && value.startsWith('http')) {
-          console.log(`Found insurance card URL in field "${field.key}": ${value}`)
-          return value
+        const extractedUrl = extractUrlFromValue(value);
+        if (extractedUrl) {
+          console.log(`Found insurance card URL in field "${field.key}": ${extractedUrl}`)
+          return extractedUrl
         }
       }
     }
@@ -255,9 +292,10 @@ function extractInsuranceCardUrl(customFields: any): string | null {
     for (const [key, value] of Object.entries(customFields)) {
       const keyLower = key.toLowerCase()
       if (insuranceFieldPatterns.some(pattern => keyLower.includes(pattern))) {
-        if (value && typeof value === 'string' && value.startsWith('http')) {
-          console.log(`Found insurance card URL in field "${key}": ${value}`)
-          return value as string
+        const extractedUrl = extractUrlFromValue(value);
+        if (extractedUrl) {
+          console.log(`Found insurance card URL in field "${key}": ${extractedUrl}`)
+          return extractedUrl
         }
       }
     }
