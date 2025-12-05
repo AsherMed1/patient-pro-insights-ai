@@ -1100,7 +1100,7 @@ const AppointmentCard = ({
                             <span className="truncate">{appointment.calendar_name || 'Select location'}</span>
                           )}
                         </SelectTrigger>
-                        <SelectContent className="bg-background z-50">
+                        <SelectContent className="bg-background z-50" align="start">
                           {calendars.length > 0 ? (
                             calendars.map((calendar) => (
                               <SelectItem 
