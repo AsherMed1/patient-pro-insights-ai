@@ -13,14 +13,27 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone, ghl_api_key } = await req.json();
+    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone, ghl_api_key, calendar_id } = await req.json();
 
-    // Validate required fields
-    if (!ghl_appointment_id || !new_date || !new_time) {
+    // For calendar transfer, only appointment_id and calendar_id are required
+    const isCalendarTransfer = calendar_id && !new_date && !new_time;
+    
+    // Validate required fields based on operation type
+    if (!ghl_appointment_id) {
       return new Response(
         JSON.stringify({ 
-          error: 'Missing required fields',
-          required: ['ghl_appointment_id', 'new_date', 'new_time']
+          error: 'Missing required field: ghl_appointment_id'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!isCalendarTransfer && (!new_date || !new_time)) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Missing required fields for reschedule',
+          required: ['ghl_appointment_id', 'new_date', 'new_time'],
+          hint: 'For calendar transfer only, provide ghl_appointment_id and calendar_id'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -36,29 +49,16 @@ serve(async (req) => {
       );
     }
 
-    // Parse the new date and time to create ISO 8601 timestamps
-    const tz = timezone || 'America/Chicago';
-    
-    // Properly parse the input as Central Time (or specified timezone)
-    // This converts "2025-12-01T17:00" in Central Time to a UTC Date object
-    const startDateTimeInTz = fromZonedTime(`${new_date}T${new_time}`, tz);
-    
-    // Add 30 minutes for end time (default appointment duration)
-    const endDateTimeInTz = addMinutes(startDateTimeInTz, 30);
-
-    // Format as ISO 8601 with the timezone offset (this properly handles DST)
-    const startTime = formatInTimeZone(startDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-    const endTime = formatInTimeZone(endDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-
     console.log('Updating GHL appointment:', {
       ghl_appointment_id,
       ghl_location_id,
-      startTime,
-      endTime,
-      timezone: tz
+      calendar_id,
+      isCalendarTransfer,
+      new_date,
+      new_time
     });
 
-    // First, fetch the existing appointment to get the assignedUserId
+    // First, fetch the existing appointment to get current data
     const getResponse = await fetch(
       `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
       {
@@ -86,21 +86,58 @@ serve(async (req) => {
 
     const existingAppointment = await getResponse.json();
     const assignedUserId = existingAppointment.appointment?.assignedUserId;
+    const existingCalendarId = existingAppointment.appointment?.calendarId;
+    const existingStartTime = existingAppointment.appointment?.startTime;
+    const existingEndTime = existingAppointment.appointment?.endTime;
 
     if (!assignedUserId) {
       console.error('No assignedUserId found in existing appointment:', existingAppointment);
       return new Response(
         JSON.stringify({ 
           error: 'No assigned user found for this appointment',
-          details: 'The appointment must have an assigned team member to be rescheduled'
+          details: 'The appointment must have an assigned team member to be updated'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Found assignedUserId:', assignedUserId);
+    console.log('Found existing appointment data:', { assignedUserId, existingCalendarId, existingStartTime });
 
-    // Now update the appointment with the new times and the existing assignedUserId
+    // Build the update payload
+    let updatePayload: any = {
+      assignedUserId,
+      toNotify: true,
+      ignoreDateRange: true,
+      ignoreFreeSlotValidation: true,
+    };
+
+    // If calendar transfer, include new calendarId
+    if (calendar_id) {
+      updatePayload.calendarId = calendar_id;
+      console.log('Including calendar transfer to:', calendar_id);
+    }
+
+    // If rescheduling (new date/time provided)
+    if (new_date && new_time) {
+      const tz = timezone || 'America/Chicago';
+      const startDateTimeInTz = fromZonedTime(`${new_date}T${new_time}`, tz);
+      const endDateTimeInTz = addMinutes(startDateTimeInTz, 30);
+      const startTime = formatInTimeZone(startDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+      const endTime = formatInTimeZone(endDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+      
+      updatePayload.startTime = startTime;
+      updatePayload.endTime = endTime;
+      updatePayload.appointmentStatus = 'confirmed';
+      
+      console.log('Including reschedule to:', { startTime, endTime });
+    } else if (isCalendarTransfer) {
+      // For calendar-only transfer, keep existing times
+      updatePayload.startTime = existingStartTime;
+      updatePayload.endTime = existingEndTime;
+      updatePayload.appointmentStatus = 'confirmed';
+    }
+
+    // Update the appointment
     const ghlResponse = await fetch(
       `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
       {
@@ -111,15 +148,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          startTime,
-          endTime,
-          appointmentStatus: 'confirmed',
-          assignedUserId,
-          toNotify: true,
-          ignoreDateRange: true,
-          ignoreFreeSlotValidation: true,
-        }),
+        body: JSON.stringify(updatePayload),
       }
     );
 
@@ -132,7 +161,7 @@ serve(async (req) => {
           details: errorText,
           status: ghlResponse.status,
           ghl_appointment_id,
-          attempted_times: { startTime, endTime }
+          attempted_update: updatePayload
         }),
         { status: ghlResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -145,7 +174,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         appointment_id: ghl_appointment_id,
-        updated_times: { startTime, endTime },
+        calendar_transferred: !!calendar_id,
+        rescheduled: !!(new_date && new_time),
         ghl_response: result
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

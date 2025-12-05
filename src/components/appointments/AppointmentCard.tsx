@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle, MapPin } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format as formatDateFns } from "date-fns";
+import { useGhlCalendars } from "@/hooks/useGhlCalendars";
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -119,6 +120,12 @@ const AppointmentCard = ({
   const [editingPhone, setEditingPhone] = useState(appointment.lead_phone_number || '');
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState(appointment.calendar_name || '');
+  
+  // GHL calendar dropdown states
+  const { calendars, loading: loadingCalendars, fetchCalendars, transferToCalendar } = useGhlCalendars();
+  const [projectGhlCredentials, setProjectGhlCredentials] = useState<{ ghl_location_id: string | null; ghl_api_key: string | null }>({ ghl_location_id: null, ghl_api_key: null });
+  const [calendarDropdownOpen, setCalendarDropdownOpen] = useState(false);
+  const [transferringCalendar, setTransferringCalendar] = useState(false);
   
   // Reschedule dialog states
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
@@ -216,6 +223,101 @@ const AppointmentCard = ({
 
     checkLeadData();
   }, [appointment]);
+
+  // Fetch project GHL credentials for calendar dropdown
+  useEffect(() => {
+    const fetchProjectCredentials = async () => {
+      if (!appointment.project_name) return;
+      
+      const { data } = await supabase
+        .from('projects')
+        .select('ghl_location_id, ghl_api_key')
+        .eq('project_name', appointment.project_name)
+        .single();
+      
+      if (data) {
+        setProjectGhlCredentials({
+          ghl_location_id: data.ghl_location_id,
+          ghl_api_key: data.ghl_api_key
+        });
+      }
+    };
+    
+    fetchProjectCredentials();
+  }, [appointment.project_name]);
+
+  // Fetch calendars when dropdown opens
+  useEffect(() => {
+    if (calendarDropdownOpen && projectGhlCredentials.ghl_location_id && calendars.length === 0) {
+      fetchCalendars(projectGhlCredentials.ghl_location_id, projectGhlCredentials.ghl_api_key || undefined);
+    }
+  }, [calendarDropdownOpen, projectGhlCredentials, calendars.length, fetchCalendars]);
+
+  // Handle calendar selection and GHL sync
+  const handleCalendarChange = async (calendarId: string) => {
+    const selectedCalendar = calendars.find(c => c.id === calendarId);
+    if (!selectedCalendar) return;
+    
+    const newCalendarName = selectedCalendar.name;
+    setTransferringCalendar(true);
+    
+    try {
+      // Update local database first
+      const { error: dbError } = await supabase
+        .from('all_appointments')
+        .update({ 
+          calendar_name: newCalendarName,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointment.id);
+      
+      if (dbError) throw dbError;
+      
+      // Sync to GHL if appointment has ghl_appointment_id
+      if (appointment.ghl_appointment_id && projectGhlCredentials.ghl_api_key) {
+        try {
+          await transferToCalendar(
+            appointment.ghl_appointment_id,
+            calendarId,
+            projectGhlCredentials.ghl_api_key
+          );
+          
+          toast({
+            title: "Calendar Updated",
+            description: `Appointment moved to ${newCalendarName} and synced to GoHighLevel`,
+          });
+        } catch (ghlError: any) {
+          console.error('GHL sync failed:', ghlError);
+          toast({
+            title: "Partially Updated",
+            description: `Calendar updated locally but GHL sync failed: ${ghlError.message}`,
+            variant: "destructive"
+          });
+        }
+      } else {
+        toast({
+          title: "Calendar Updated",
+          description: `Appointment moved to ${newCalendarName}`,
+        });
+      }
+      
+      // Call the parent callback to update local state
+      if (onUpdateCalendarLocation) {
+        onUpdateCalendarLocation(appointment.id, newCalendarName);
+      }
+      
+    } catch (error: any) {
+      console.error('Error updating calendar:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update calendar location",
+        variant: "destructive"
+      });
+    } finally {
+      setTransferringCalendar(false);
+      setCalendarDropdownOpen(false);
+    }
+  };
 
   // Sync local date/time state when appointment prop changes
   useEffect(() => {
@@ -946,59 +1048,63 @@ const AppointmentCard = ({
             </Tooltip>
           </TooltipProvider>
           
-          {/* Calendar Name */}
-          {(appointment.calendar_name || isEditingLocation) && (
+          {/* Calendar Name / Location Dropdown */}
+          {(appointment.calendar_name || projectGhlCredentials.ghl_location_id) && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center space-x-2">
-                    <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    {isEditingLocation && onUpdateCalendarLocation ? (
-                      <Input
-                        value={editingLocation}
-                        onChange={(e) => setEditingLocation(e.target.value)}
-                        onBlur={() => {
-                          setIsEditingLocation(false);
-                          if (editingLocation !== appointment.calendar_name) {
-                            onUpdateCalendarLocation(appointment.id, editingLocation);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            setIsEditingLocation(false);
-                            if (editingLocation !== appointment.calendar_name) {
-                              onUpdateCalendarLocation(appointment.id, editingLocation);
-                            }
-                          }
-                          if (e.key === 'Escape') {
-                            setIsEditingLocation(false);
-                            setEditingLocation(appointment.calendar_name || '');
-                          }
-                        }}
-                        className="text-sm flex-1"
-                        autoFocus
-                        placeholder="Enter location"
-                      />
+                    <MapPin className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    {projectGhlCredentials.ghl_location_id && onUpdateCalendarLocation ? (
+                      <Select
+                        open={calendarDropdownOpen}
+                        onOpenChange={setCalendarDropdownOpen}
+                        value=""
+                        onValueChange={handleCalendarChange}
+                      >
+                        <SelectTrigger className="h-8 text-sm w-auto min-w-[200px] max-w-[350px]">
+                          {transferringCalendar || loadingCalendars ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span>{transferringCalendar ? 'Transferring...' : 'Loading...'}</span>
+                            </div>
+                          ) : (
+                            <span className="truncate">{appointment.calendar_name || 'Select location'}</span>
+                          )}
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          {calendars.length > 0 ? (
+                            calendars.map((calendar) => (
+                              <SelectItem 
+                                key={calendar.id} 
+                                value={calendar.id}
+                                className={cn(
+                                  "cursor-pointer",
+                                  calendar.name === appointment.calendar_name && "bg-accent"
+                                )}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {calendar.name === appointment.calendar_name && (
+                                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                  )}
+                                  <span>{calendar.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                              {loadingCalendars ? 'Loading calendars...' : 'No calendars available'}
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
                     ) : (
-                      <>
-                        <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
-                        {onUpdateCalendarLocation && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setIsEditingLocation(true)}
-                            aria-label="Edit location"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </>
+                      <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
                     )}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Location</p>
+                  <p>Location / Calendar {projectGhlCredentials.ghl_location_id ? '(Click to change)' : ''}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
