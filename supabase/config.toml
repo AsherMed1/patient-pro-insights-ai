@@ -99,6 +99,14 @@ verify_jwt = false
 verify_jwt = false
 # Google Sheets webhook for automatic sync from CSV to database
 
+[functions.get-ghl-calendars]
+verify_jwt = false
+# Fetch active calendars from GoHighLevel for location dropdown
+
+[functions.update-ghl-appointment]
+verify_jwt = false
+# Update GHL appointment (reschedule or transfer to different calendar)
+
 [functions.admin-reset-password]
 verify_jwt = true
 # Admin-only function to reset user passwords
