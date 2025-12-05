@@ -11,7 +11,7 @@ interface UseGhlCalendarsReturn {
   loading: boolean;
   error: string | null;
   fetchCalendars: (ghlLocationId: string, ghlApiKey?: string) => Promise<void>;
-  transferToCalendar: (ghlAppointmentId: string, calendarId: string, ghlApiKey?: string) => Promise<boolean>;
+  transferToCalendar: (ghlAppointmentId: string, calendarId: string, ghlApiKey?: string, newTitle?: string) => Promise<boolean>;
 }
 
 export function useGhlCalendars(): UseGhlCalendarsReturn {
@@ -55,14 +55,16 @@ export function useGhlCalendars(): UseGhlCalendarsReturn {
   const transferToCalendar = useCallback(async (
     ghlAppointmentId: string, 
     calendarId: string,
-    ghlApiKey?: string
+    ghlApiKey?: string,
+    newTitle?: string
   ): Promise<boolean> => {
     try {
       const { data, error: fnError } = await supabase.functions.invoke('update-ghl-appointment', {
         body: { 
           ghl_appointment_id: ghlAppointmentId,
           calendar_id: calendarId,
-          ghl_api_key: ghlApiKey
+          ghl_api_key: ghlApiKey,
+          title: newTitle
         }
       });
 

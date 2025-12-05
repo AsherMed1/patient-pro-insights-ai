@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone, ghl_api_key, calendar_id } = await req.json();
+    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone, ghl_api_key, calendar_id, title } = await req.json();
 
     // For calendar transfer, only appointment_id and calendar_id are required
     const isCalendarTransfer = calendar_id && !new_date && !new_time;
@@ -115,6 +115,12 @@ serve(async (req) => {
     if (calendar_id) {
       updatePayload.calendarId = calendar_id;
       console.log('Including calendar transfer to:', calendar_id);
+    }
+
+    // If title update is provided
+    if (title) {
+      updatePayload.title = title;
+      console.log('Updating appointment title to:', title);
     }
 
     // If rescheduling (new date/time provided)
