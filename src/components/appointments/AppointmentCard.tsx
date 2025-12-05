@@ -253,12 +253,39 @@ const AppointmentCard = ({
     }
   }, [calendarDropdownOpen, projectGhlCredentials, calendars.length, fetchCalendars]);
 
+  // Extract location from calendar name (e.g., "Request your PAE Consultation at Miami, FL" -> "Miami, FL")
+  const extractLocationFromCalendarName = (calendarName: string): string => {
+    // Try "at Location" format first
+    const atMatch = calendarName.match(/at\s+(.+)$/i);
+    if (atMatch) return atMatch[1].trim();
+    
+    // Try "- Location" format
+    const dashMatch = calendarName.match(/-\s*([^-]+)$/);
+    if (dashMatch) return dashMatch[1].trim();
+    
+    return calendarName;
+  };
+
+  // Build appointment title from lead name and calendar name
+  const buildAppointmentTitle = (calendarName: string): string => {
+    const location = extractLocationFromCalendarName(calendarName);
+    // Extract procedure type from calendar name (e.g., "PAE", "GAE", "UFE")
+    const procedureMatch = calendarName.match(/\b(PAE|GAE|UFE|Consultation)\b/i);
+    const procedure = procedureMatch ? procedureMatch[1].toUpperCase() : '';
+    
+    if (procedure && procedure !== 'CONSULTATION') {
+      return `${appointment.lead_name} ${procedure} Consultation at ${location}`;
+    }
+    return `${appointment.lead_name} Consultation at ${location}`;
+  };
+
   // Handle calendar selection and GHL sync
   const handleCalendarChange = async (calendarId: string) => {
     const selectedCalendar = calendars.find(c => c.id === calendarId);
     if (!selectedCalendar) return;
     
     const newCalendarName = selectedCalendar.name;
+    const newTitle = buildAppointmentTitle(newCalendarName);
     setTransferringCalendar(true);
     
     try {
@@ -279,7 +306,8 @@ const AppointmentCard = ({
           await transferToCalendar(
             appointment.ghl_appointment_id,
             calendarId,
-            projectGhlCredentials.ghl_api_key
+            projectGhlCredentials.ghl_api_key,
+            newTitle
           );
           
           toast({
