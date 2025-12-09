@@ -1504,6 +1504,8 @@ const AppointmentCard = ({
           detectedInsuranceId={appointment.detected_insurance_id}
           insuranceIdLink={appointment.insurance_id_link}
           dob={appointment.dob}
+          appointmentId={appointment.id}
+          onUpdate={() => window.location.reload()}
         />
         
         {/* Patient Intake Notes */}
