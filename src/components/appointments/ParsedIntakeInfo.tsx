@@ -2,9 +2,12 @@ import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User, Heart, Phone, Shield, ExternalLink, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { User, Heart, Phone, Shield, ExternalLink, ChevronDown, Pencil, X, Check, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parse } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
@@ -18,7 +21,10 @@ interface ParsedIntakeInfoProps {
   insuranceIdLink?: string | null;
   dob?: string | null;
   className?: string;
+  appointmentId?: string;
+  onUpdate?: () => void;
 }
+
 export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   parsedInsuranceInfo,
   parsedPathologyInfo,
@@ -31,7 +37,11 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   insuranceIdLink,
   dob,
   className = "",
+  appointmentId,
+  onUpdate,
 }) => {
+  const { toast } = useToast();
+  
   // Auto-expand when insurance data exists
   const hasInsuranceData = !!(
     parsedInsuranceInfo?.insurance_provider || 
@@ -42,13 +52,15 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     insuranceIdLink
   );
   const [isOpen, setIsOpen] = useState(hasInsuranceData);
+  
+  // Insurance edit state
+  const [isEditingInsurance, setIsEditingInsurance] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editProvider, setEditProvider] = useState("");
+  const [editPlan, setEditPlan] = useState("");
+  const [editMemberId, setEditMemberId] = useState("");
+  const [editGroupNumber, setEditGroupNumber] = useState("");
 
-  // Debug logging
-  console.log("ParsedIntakeInfo - parsedInsuranceInfo:", parsedInsuranceInfo);
-  console.log("ParsedIntakeInfo - parsedPathologyInfo:", parsedPathologyInfo);
-  console.log("ParsedIntakeInfo - parsedContactInfo:", parsedContactInfo);
-  console.log("ParsedIntakeInfo - parsedDemographics:", parsedDemographics);
-  console.log("ParsedIntakeInfo - parsedMedicalInfo:", parsedMedicalInfo);
   const hasAnyData =
     parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo || dob;
   if (!hasAnyData) {
@@ -69,6 +81,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       return null;
     }
   };
+
   const formatValue = (value: any) => {
     if (!value || value === "null" || value === "") return null;
     return String(value);
@@ -82,6 +95,74 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       return format(date, "MM/dd/yyyy");
     } catch {
       return String(dob);
+    }
+  };
+
+  const handleStartEditInsurance = () => {
+    // Initialize edit fields with current values
+    setEditProvider(formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider || "");
+    setEditPlan(formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan || "");
+    setEditMemberId(formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId || "");
+    setEditGroupNumber(formatValue(parsedInsuranceInfo?.insurance_group_number) || "");
+    setIsEditingInsurance(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingInsurance(false);
+  };
+
+  const handleSaveInsurance = async () => {
+    if (!appointmentId) {
+      toast({
+        title: "Error",
+        description: "Cannot save: appointment ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Prepare updated parsed_insurance_info
+      const updatedInsuranceInfo = {
+        ...(parsedInsuranceInfo || {}),
+        insurance_provider: editProvider || null,
+        insurance_plan: editPlan || null,
+        plan_name: editPlan || null, // Keep compatibility
+        insurance_id_number: editMemberId || null,
+        insurance_group_number: editGroupNumber || null,
+      };
+
+      const { data, error } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates: {
+            parsed_insurance_info: updatedInsuranceInfo,
+            detected_insurance_provider: editProvider || null,
+            detected_insurance_plan: editPlan || null,
+            detected_insurance_id: editMemberId || null,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Insurance information updated",
+      });
+
+      setIsEditingInsurance(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error saving insurance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save insurance information",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -168,41 +249,122 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
           {(parsedInsuranceInfo || detectedInsuranceProvider || detectedInsurancePlan || detectedInsuranceId) && (
             <Card className="bg-green-50 border-green-200">
               <CardContent className="pt-4 space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Shield className="h-4 w-4 text-green-600" />
-                  <span className="font-medium text-sm text-green-900">Insurance Information</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-sm text-green-900">Insurance Information</span>
+                  </div>
+                  {appointmentId && !isEditingInsurance && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEditInsurance();
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {isEditingInsurance && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                        onClick={handleSaveInsurance}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={handleCancelEdit}
+                        disabled={isSaving}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {(formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Provider:</span>{" "}
-                    <span className="font-medium">
-                      {formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider}
-                    </span>
+
+                {isEditingInsurance ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Provider</label>
+                      <Input
+                        value={editProvider}
+                        onChange={(e) => setEditProvider(e.target.value)}
+                        placeholder="Insurance provider"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Plan</label>
+                      <Input
+                        value={editPlan}
+                        onChange={(e) => setEditPlan(e.target.value)}
+                        placeholder="Insurance plan"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Member ID</label>
+                      <Input
+                        value={editMemberId}
+                        onChange={(e) => setEditMemberId(e.target.value)}
+                        placeholder="Member ID"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Group Number</label>
+                      <Input
+                        value={editGroupNumber}
+                        onChange={(e) => setEditGroupNumber(e.target.value)}
+                        placeholder="Group number"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    {(formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Provider:</span>{" "}
+                        <span className="font-medium">
+                          {formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider}
+                        </span>
+                      </div>
+                    )}
+                    {(formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Plan:</span>{" "}
+                        <span className="font-medium">
+                          {formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan}
+                        </span>
+                      </div>
+                    )}
+                    {(formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Member ID:</span>{" "}
+                        <span className="font-medium">
+                          {formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId}
+                        </span>
+                      </div>
+                    )}
+                    {formatValue(parsedInsuranceInfo?.insurance_group_number) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Group Number:</span>{" "}
+                        <span className="font-medium">{parsedInsuranceInfo.insurance_group_number}</span>
+                      </div>
+                    )}
+                  </>
                 )}
-                {(formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Plan:</span>{" "}
-                    <span className="font-medium">
-                      {formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan}
-                    </span>
-                  </div>
-                )}
-                {(formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Member ID:</span>{" "}
-                    <span className="font-medium">
-                      {formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId}
-                    </span>
-                  </div>
-                )}
-                {formatValue(parsedInsuranceInfo?.insurance_group_number) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Group Number:</span>{" "}
-                    <span className="font-medium">{parsedInsuranceInfo.insurance_group_number}</span>
-                  </div>
-                )}
-                {insuranceIdLink && (
+                {insuranceIdLink && !isEditingInsurance && (
                   <Button
                     variant="outline"
                     size="sm"
