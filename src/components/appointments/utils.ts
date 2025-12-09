@@ -8,6 +8,23 @@ export const formatDate = (dateString: string | null) => {
   return formatDateInCentralTime(dateString);
 };
 
+export const formatDateTime = (dateTimeString: string | null) => {
+  if (!dateTimeString) return 'Not set';
+  try {
+    const date = new Date(dateTimeString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return 'Invalid date';
+  }
+};
+
 export const formatTime = (timeString: string | null) => {
   if (!timeString) return 'Not set';
   // Convert 24-hour format to 12-hour format with AM/PM
