@@ -216,8 +216,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         result.insurance_card_url = extractedUrl;
       }
     }
-    // Pathology fields
-    else if (key.includes('complaint') || key.includes('reason')) {
+    // Pathology fields - expanded for Vivid Vascular PAE/UFE/GAE patterns
+    else if (key.includes('complaint') || key.includes('reason') || key.includes('concern')) {
       result.pathology_info.primary_complaint = value;
     } else if (key.includes('symptom')) {
       result.pathology_info.symptoms = value;
@@ -225,6 +225,32 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.pathology_info.pain_level = value;
     } else if (key.includes('affected') || key.includes('area') || key.includes('location')) {
       result.pathology_info.affected_area = value;
+    }
+    // Procedure/treatment preference fields (Vivid Vascular patterns)
+    else if (key.includes('prefer') || key.includes('non-surgical') || key.includes('nonsurgical') || 
+             key.includes('treatment') || key.includes('procedure') || key.includes('surgical')) {
+      // Extract procedure type from key if present
+      const procedureMatch = key.match(/\b(pae|ufe|gae)\b/i);
+      if (procedureMatch) {
+        result.pathology_info.primary_complaint = `${procedureMatch[1].toUpperCase()} Consultation`;
+      }
+      // Store treatment preference as symptom/notes
+      if (result.pathology_info.symptoms) {
+        result.pathology_info.symptoms += ` | ${value}`;
+      } else {
+        result.pathology_info.symptoms = value;
+      }
+    }
+    // PAE/UFE/GAE specific fields
+    else if (key.includes('pae') || key.includes('prostate')) {
+      result.pathology_info.primary_complaint = 'PAE Consultation';
+      result.pathology_info.affected_area = 'Prostate';
+    } else if (key.includes('ufe') || key.includes('fibroid') || key.includes('uterine')) {
+      result.pathology_info.primary_complaint = 'UFE Consultation';
+      result.pathology_info.affected_area = 'Uterus';
+    } else if (key.includes('gae') || key.includes('gastric') || key.includes('artery') && key.includes('embolization')) {
+      result.pathology_info.primary_complaint = 'GAE Consultation';
+      result.pathology_info.affected_area = 'Gastric';
     }
     // Medical fields
     else if (key.includes('medication')) {
@@ -238,6 +264,12 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     else if (key.includes('dob') || (key.includes('date') && key.includes('birth'))) {
       result.contact_info.dob = value;
       result.demographics.dob = value;
+    }
+    // Catch-all for uncategorized procedure-related fields
+    else if (key.includes('consultation') || key.includes('appointment') || key.includes('service')) {
+      if (!result.pathology_info.primary_complaint) {
+        result.pathology_info.primary_complaint = value;
+      }
     }
   }
 
