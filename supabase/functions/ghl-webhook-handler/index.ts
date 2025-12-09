@@ -438,10 +438,18 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
     const value = field.value
     if (!value) continue
     
-    // Categorize fields
+    // Categorize fields - enhanced for Vivid Vascular PAE/UFE/GAE patterns
     if (key.includes('insurance') || key.includes('plan') || key.includes('group') || key.includes('member')) {
       sections.insurance.push(`${field.key}: ${value}`)
-    } else if (key.includes('pain') || key.includes('symptom') || key.includes('duration') || key.includes('treatment')) {
+    } else if (
+      key.includes('pain') || key.includes('symptom') || key.includes('duration') || 
+      key.includes('treatment') || key.includes('prefer') || key.includes('surgical') ||
+      key.includes('non-surgical') || key.includes('nonsurgical') || key.includes('procedure') ||
+      key.includes('pae') || key.includes('ufe') || key.includes('gae') ||
+      key.includes('prostate') || key.includes('fibroid') || key.includes('uterine') ||
+      key.includes('gastric') || key.includes('embolization') || key.includes('consultation') ||
+      key.includes('concern') || key.includes('complaint') || key.includes('reason')
+    ) {
       sections.pathology.push(`${field.key}: ${value}`)
     } else if (key.includes('medication') || key.includes('allergy') || key.includes('pcp') || key.includes('doctor')) {
       sections.medical.push(`${field.key}: ${value}`)
@@ -914,9 +922,19 @@ async function enrichAppointmentWithGHLData(
       const formattedLine = `${field.key}: ${value}`
       
       // Categorize fields - skip conversation notes and workflow fields
+      // Enhanced for Vivid Vascular PAE/UFE/GAE procedure patterns
       if (key.includes('insurance') || key.includes('member') || key.includes('group') || key.includes('policy')) {
         sections['Insurance Information'].push(formattedLine)
-      } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || key.includes('treat')) {
+      } else if (
+        key.includes('pain') || key.includes('symptom') || key.includes('condition') || 
+        key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || 
+        key.includes('treat') || key.includes('prefer') || key.includes('surgical') ||
+        key.includes('non-surgical') || key.includes('nonsurgical') || key.includes('procedure') ||
+        key.includes('pae') || key.includes('ufe') || key.includes('gae') ||
+        key.includes('prostate') || key.includes('fibroid') || key.includes('uterine') ||
+        key.includes('gastric') || key.includes('embolization') || key.includes('consultation') ||
+        key.includes('concern') || key.includes('complaint') || key.includes('reason')
+      ) {
         sections['Pathology Information'].push(formattedLine)
       } else if (key.includes('medication') || key.includes('allerg') || key.includes('medical') || key.includes('pcp') || key.includes('doctor')) {
         sections['Medical Information'].push(formattedLine)
