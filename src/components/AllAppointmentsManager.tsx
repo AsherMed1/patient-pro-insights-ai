@@ -305,19 +305,19 @@ const AllAppointmentsManager = ({
         .from('all_appointments')
         .select('*');
 
-      // Sort by newest first on the "New" tab
+      // Sort by newest first on the "New" tab using full timestamp
       if (activeTab === 'new') {
-        appointmentsQuery = appointmentsQuery.order('date_appointment_created', { ascending: false });
+        appointmentsQuery = appointmentsQuery.order('created_at', { ascending: false });
       } else {
         // Apply user-selected sorting for ALL views (including project-specific)
         if (sortBy === 'name_asc' || sortBy === 'name_desc') {
           appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
         } else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
-          appointmentsQuery = appointmentsQuery.order('date_appointment_created', { ascending: sortBy === 'date_asc', nullsFirst: false });
+          appointmentsQuery = appointmentsQuery.order('created_at', { ascending: sortBy === 'date_asc', nullsFirst: false });
         } else {
           appointmentsQuery = appointmentsQuery.order(
             sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
-            sortBy === 'project' ? 'project_name' : 'date_appointment_created', 
+            sortBy === 'project' ? 'project_name' : 'created_at', 
             { ascending: sortBy === 'project' ? true : false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
           );
         }

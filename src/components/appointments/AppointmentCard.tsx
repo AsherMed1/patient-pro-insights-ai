@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle, MapPin } from 'lucide-react';
 import { AllAppointment } from './types';
-import { formatDate, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
+import { formatDate, formatDateTime, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/useRole";
@@ -1260,7 +1260,7 @@ const AppointmentCard = ({
             <div className="flex items-center space-x-2">
               <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="text-sm text-gray-600">
-                Created: {formatDate(appointment.date_appointment_created)}
+                Created: {formatDateTime(appointment.created_at)}
               </span>
             </div>
             
