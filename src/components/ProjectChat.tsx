@@ -281,6 +281,7 @@ export default function ProjectChat({ projectName }: ProjectChatProps) {
                             key={message.id}
                             message={message}
                             projectName={projectName}
+                            currentUserEmail={user?.email}
                           />
                         ))}
                       </div>

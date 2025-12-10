@@ -12,12 +12,14 @@ import { useNavigate } from "react-router-dom";
 interface ModernMessageBubbleProps {
   message: Message;
   projectName?: string;
+  currentUserEmail?: string;
 }
 
-export function ModernMessageBubble({ message, projectName }: ModernMessageBubbleProps) {
+export function ModernMessageBubble({ message, projectName, currentUserEmail }: ModernMessageBubbleProps) {
   const navigate = useNavigate();
   const [showPatientModal, setShowPatientModal] = useState(false);
-  const isOutbound = message.direction === "outbound";
+  // Place current user's messages on the right, others on the left
+  const isCurrentUser = currentUserEmail && message.sender_email === currentUserEmail;
   const senderName = message.sender_name || "Team Member";
   const patientRef = message.patient_reference;
 
@@ -52,14 +54,14 @@ export function ModernMessageBubble({ message, projectName }: ModernMessageBubbl
       <div
         className={cn(
           "flex gap-3 mb-4 animate-fade-in",
-          isOutbound ? "flex-row-reverse" : "flex-row"
+          isCurrentUser ? "flex-row-reverse" : "flex-row"
         )}
       >
         <Avatar className="h-8 w-8 flex-shrink-0">
           <AvatarFallback
             className={cn(
               "text-xs",
-              isOutbound
+              isCurrentUser
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground"
             )}
@@ -68,14 +70,14 @@ export function ModernMessageBubble({ message, projectName }: ModernMessageBubbl
           </AvatarFallback>
         </Avatar>
 
-        <div className={cn("flex flex-col gap-1 max-w-[70%]", isOutbound && "items-end")}>
+        <div className={cn("flex flex-col gap-1 max-w-[70%]", isCurrentUser && "items-end")}>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="font-medium">{senderName}</span>
             <span>•</span>
             <span>
               {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
             </span>
-            {!message.read_at && !isOutbound && (
+            {!message.read_at && !isCurrentUser && (
               <Badge variant="default" className="h-5 px-1.5 text-[10px]">
                 New
               </Badge>
@@ -85,7 +87,7 @@ export function ModernMessageBubble({ message, projectName }: ModernMessageBubbl
           <div
             className={cn(
               "rounded-2xl px-4 py-2.5 shadow-sm",
-              isOutbound
+              isCurrentUser
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-foreground"
             )}
@@ -100,7 +102,7 @@ export function ModernMessageBubble({ message, projectName }: ModernMessageBubbl
                   onClick={handlePatientClick}
                   className={cn(
                     "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
-                    isOutbound
+                    isCurrentUser
                       ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
                       : "bg-primary/10 hover:bg-primary/20 text-primary"
                   )}
@@ -113,7 +115,7 @@ export function ModernMessageBubble({ message, projectName }: ModernMessageBubbl
                     onClick={handleViewInPortal}
                     className={cn(
                       "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors",
-                      isOutbound
+                      isCurrentUser
                         ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
                         : "bg-primary/10 hover:bg-primary/20 text-primary"
                     )}
