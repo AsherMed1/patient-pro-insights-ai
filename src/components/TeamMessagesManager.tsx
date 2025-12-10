@@ -147,8 +147,8 @@ export default function TeamMessagesManager() {
       const payload: any = {
         project_name: selectedProject,
         message: message,
-        sender_info: {
-          name: 'Team Member',
+          sender_info: {
+            name: 'Insights Support',
           source: 'dashboard',
           timestamp: new Date().toISOString(),
         },
