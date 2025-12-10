@@ -20,7 +20,7 @@ export function ModernMessageBubble({ message, projectName, currentUserEmail }: 
   const [showPatientModal, setShowPatientModal] = useState(false);
   // Place current user's messages on the right, others on the left
   const isCurrentUser = currentUserEmail && message.sender_email === currentUserEmail;
-  const senderName = message.sender_name || "Team Member";
+  const senderName = message.sender_name || "Insights Support";
   const patientRef = message.patient_reference;
 
   const getInitials = (name: string) => {
