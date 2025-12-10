@@ -35,7 +35,14 @@ export default function TeamMessagesManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserEmail(data.user?.email || null);
+    });
+  }, []);
 
   useEffect(() => {
     fetchProjects();
@@ -402,6 +409,7 @@ export default function TeamMessagesManager() {
                           key={message.id}
                           message={message}
                           projectName={selectedProject}
+                          currentUserEmail={currentUserEmail || undefined}
                         />
                       ))}
                     </div>
