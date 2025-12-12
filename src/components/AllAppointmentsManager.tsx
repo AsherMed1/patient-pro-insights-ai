@@ -496,9 +496,9 @@ const AllAppointmentsManager = ({
           }
         }
 
-        // Apply location filter (extracted from calendar_name)
+        // Apply location filter (extracted from calendar_name) - handle variable whitespace
         if (locationFilter !== 'ALL') {
-          query = query.ilike('calendar_name', `%at ${locationFilter}%`);
+          query = query.or(`calendar_name.ilike.%at ${locationFilter}%,calendar_name.ilike.%at  ${locationFilter}%`);
         }
 
       // Apply service filter (extracted from calendar_name) - more flexible matching

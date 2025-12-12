@@ -694,6 +694,159 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_performance_facts: {
+        Row: {
+          ad_spend: number | null
+          campaign_type: string | null
+          cancelled: number | null
+          canonical_key: string
+          client_name: string
+          clinic_location: string | null
+          cpl: number | null
+          created_at: string | null
+          duplicate_confidence: number | null
+          duplicate_count: number | null
+          field_history: Json | null
+          id: string
+          leads: number | null
+          no_shows: number | null
+          oon: number | null
+          procedure: string
+          procedures_ordered: number | null
+          recapture_rate: number | null
+          reporting_month: number
+          reporting_period_end: string | null
+          reporting_period_start: string | null
+          reporting_year: number
+          rescheduled: number | null
+          scheduled: number | null
+          seen: number | null
+          show_rate: number | null
+          source_file_name: string
+          source_file_type: string
+          source_record_id: string | null
+          sources: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          ad_spend?: number | null
+          campaign_type?: string | null
+          cancelled?: number | null
+          canonical_key: string
+          client_name: string
+          clinic_location?: string | null
+          cpl?: number | null
+          created_at?: string | null
+          duplicate_confidence?: number | null
+          duplicate_count?: number | null
+          field_history?: Json | null
+          id?: string
+          leads?: number | null
+          no_shows?: number | null
+          oon?: number | null
+          procedure: string
+          procedures_ordered?: number | null
+          recapture_rate?: number | null
+          reporting_month: number
+          reporting_period_end?: string | null
+          reporting_period_start?: string | null
+          reporting_year: number
+          rescheduled?: number | null
+          scheduled?: number | null
+          seen?: number | null
+          show_rate?: number | null
+          source_file_name: string
+          source_file_type: string
+          source_record_id?: string | null
+          sources?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          ad_spend?: number | null
+          campaign_type?: string | null
+          cancelled?: number | null
+          canonical_key?: string
+          client_name?: string
+          clinic_location?: string | null
+          cpl?: number | null
+          created_at?: string | null
+          duplicate_confidence?: number | null
+          duplicate_count?: number | null
+          field_history?: Json | null
+          id?: string
+          leads?: number | null
+          no_shows?: number | null
+          oon?: number | null
+          procedure?: string
+          procedures_ordered?: number | null
+          recapture_rate?: number | null
+          reporting_month?: number
+          reporting_period_end?: string | null
+          reporting_period_start?: string | null
+          reporting_year?: number
+          rescheduled?: number | null
+          scheduled?: number | null
+          seen?: number | null
+          show_rate?: number | null
+          source_file_name?: string
+          source_file_type?: string
+          source_record_id?: string | null
+          sources?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      campaign_upload_batches: {
+        Row: {
+          completed_at: string | null
+          conflicts_flagged: number | null
+          created_at: string | null
+          error_message: string | null
+          exact_duplicates_skipped: number | null
+          file_name: string
+          file_type: string
+          id: string
+          inserted_rows: number | null
+          near_duplicates_merged: number | null
+          reporting_year: number
+          status: string | null
+          uploaded_by: string | null
+          validation_warnings: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          conflicts_flagged?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          exact_duplicates_skipped?: number | null
+          file_name: string
+          file_type: string
+          id?: string
+          inserted_rows?: number | null
+          near_duplicates_merged?: number | null
+          reporting_year: number
+          status?: string | null
+          uploaded_by?: string | null
+          validation_warnings?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          conflicts_flagged?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          exact_duplicates_skipped?: number | null
+          file_name?: string
+          file_type?: string
+          id?: string
+          inserted_rows?: number | null
+          near_duplicates_merged?: number | null
+          reporting_year?: number
+          status?: string | null
+          uploaded_by?: string | null
+          validation_warnings?: Json | null
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           client_id: string
@@ -1138,6 +1291,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      data_conflicts: {
+        Row: {
+          canonical_key: string
+          conflicting_fields: Json
+          created_at: string | null
+          existing_record_id: string | null
+          id: string
+          new_record_data: Json
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          source_files: string[]
+          status: string | null
+        }
+        Insert: {
+          canonical_key: string
+          conflicting_fields: Json
+          created_at?: string | null
+          existing_record_id?: string | null
+          id?: string
+          new_record_data: Json
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_files: string[]
+          status?: string | null
+        }
+        Update: {
+          canonical_key?: string
+          conflicting_fields?: Json
+          created_at?: string | null
+          existing_record_id?: string | null
+          id?: string
+          new_record_data?: Json
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_files?: string[]
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_conflicts_existing_record_id_fkey"
+            columns: ["existing_record_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_performance_facts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_retention_policies: {
         Row: {
@@ -2143,6 +2346,30 @@ export type Database = {
           role_title?: string
           updated_at?: string | null
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      procedure_mappings: {
+        Row: {
+          created_at: string | null
+          id: string
+          normalized_name: string
+          raw_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          normalized_name: string
+          raw_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          normalized_name?: string
+          raw_name?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
