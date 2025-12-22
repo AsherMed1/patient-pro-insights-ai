@@ -135,6 +135,51 @@ function extractUrlFromJsonOrString(value: any): string | null {
   return null;
 }
 
+// Helper: Extract insurance card URL from patient_intake_notes text
+function extractInsuranceUrlFromText(text: string | null): string | null {
+  if (!text || typeof text !== 'string') return null;
+  
+  // Pattern 1: GHL document download URLs (most common format)
+  const ghlDocPattern = /https:\/\/services\.leadconnectorhq\.com\/documents\/download\/[a-zA-Z0-9_-]+/g;
+  const ghlMatches = text.match(ghlDocPattern);
+  if (ghlMatches && ghlMatches.length > 0) {
+    console.log(`[AUTO-PARSE] Found GHL document URL in intake notes: ${ghlMatches[0]}`);
+    return ghlMatches[0];
+  }
+  
+  // Pattern 2: GHL storage/media URLs
+  const ghlStoragePattern = /https:\/\/storage\.leadconnectorhq\.com\/[^\s<>"']+/g;
+  const ghlStorageMatches = text.match(ghlStoragePattern);
+  if (ghlStorageMatches && ghlStorageMatches.length > 0) {
+    console.log(`[AUTO-PARSE] Found GHL storage URL in intake notes: ${ghlStorageMatches[0]}`);
+    return ghlStorageMatches[0];
+  }
+  
+  // Pattern 3: Look for URLs near insurance-related text (within 200 chars of keyword)
+  const insuranceKeywords = ['insurance card', 'insurance id', 'insurance_card', 'card photo', 'card image', 'id card'];
+  const lowerText = text.toLowerCase();
+  
+  for (const keyword of insuranceKeywords) {
+    const keywordIndex = lowerText.indexOf(keyword);
+    if (keywordIndex !== -1) {
+      // Extract a window of text around the keyword
+      const startIdx = Math.max(0, keywordIndex - 50);
+      const endIdx = Math.min(text.length, keywordIndex + 200);
+      const window = text.substring(startIdx, endIdx);
+      
+      // Look for any URL in this window
+      const urlPattern = /https?:\/\/[^\s<>"']+/g;
+      const urlMatches = window.match(urlPattern);
+      if (urlMatches && urlMatches.length > 0) {
+        console.log(`[AUTO-PARSE] Found URL near "${keyword}" in intake notes: ${urlMatches[0]}`);
+        return urlMatches[0];
+      }
+    }
+  }
+  
+  return null;
+}
+
 // Helper to extract structured data from GHL custom fields
 function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>): any {
   const result = {
@@ -671,10 +716,19 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
             updateData.detected_insurance_id = parsedData.insurance_info.insurance_id_number;
           }
           
-          // Update insurance_id_link if GHL provided it
+          // Update insurance_id_link with fallback chain:
+          // 1. GHL custom field URL (highest priority)
+          // 2. Extract from patient_intake_notes text (fallback)
           if (ghlData?.insurance_card_url) {
             updateData.insurance_id_link = ghlData.insurance_card_url;
             console.log(`[AUTO-PARSE] Setting insurance_id_link from GHL: ${ghlData.insurance_card_url}`);
+          } else {
+            // Fallback: extract from intake notes text
+            const extractedUrl = extractInsuranceUrlFromText(record.patient_intake_notes);
+            if (extractedUrl) {
+              updateData.insurance_id_link = extractedUrl;
+              console.log(`[AUTO-PARSE] Setting insurance_id_link from intake notes: ${extractedUrl}`);
+            }
           }
         } else if (record.table === "new_leads") {
           // For leads: DO NOT include parsed_* fields (they don't exist)
