@@ -110,3 +110,7 @@ verify_jwt = false
 [functions.admin-reset-password]
 verify_jwt = true
 # Admin-only function to reset user passwords
+
+[functions.support-ai-chat]
+verify_jwt = false
+# AI-powered support chat using Lovable AI Gateway
