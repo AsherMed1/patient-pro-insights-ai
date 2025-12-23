@@ -118,6 +118,33 @@ serve(async (req) => {
     const isUpdate = !!existingAppointment
     console.log(`[${requestId}] Operation type: ${isUpdate ? 'UPDATE' : 'CREATE'}`)
 
+    // Skip creating NEW appointments with terminal statuses (cancelled, showed, no-show)
+    // If appointment already exists, allow status updates as normal
+    const terminalStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'no-show', 'showed', 'attended']
+    const incomingStatusLower = webhookData.status?.toLowerCase().trim() || ''
+    const isTerminalStatus = terminalStatuses.some(ts => incomingStatusLower.includes(ts))
+
+    if (!isUpdate && isTerminalStatus) {
+      console.log(`[${requestId}] ⏭️ Skipping new appointment with terminal status: "${webhookData.status}"`)
+      console.log(`[${requestId}] Lead: ${webhookData.lead_name}, Project: ${webhookData.project_name}`)
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          operation: 'skipped',
+          reason: 'Terminal status appointment not in system',
+          status: webhookData.status,
+          lead_name: webhookData.lead_name,
+          message: `Appointment skipped - status "${webhookData.status}" for new appointment not added to system`,
+          requestId
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     // Get appropriate fields based on operation type (selective updates for existing appointments)
     const appointmentData = getUpdateableFields(webhookData, existingAppointment)
 
