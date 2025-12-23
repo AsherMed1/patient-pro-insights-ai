@@ -219,7 +219,14 @@ const AllAppointmentsManager = ({
         if (searchType === 'name') {
           countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
-          countQuery = countQuery.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
+          // Normalize phone: strip non-digits and handle US country code
+          const normalizedPhone = searchTerm.trim().replace(/\D/g, '');
+          const phoneDigits = normalizedPhone.length === 11 && normalizedPhone.startsWith('1')
+            ? normalizedPhone.slice(1)
+            : normalizedPhone;
+          // Search using the last 10 digits to match any format
+          const searchPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
+          countQuery = countQuery.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
          } else if (searchType === 'dob') {
            countQuery = countQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
          }
@@ -345,7 +352,14 @@ const AllAppointmentsManager = ({
         if (searchType === 'name') {
           appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
         } else if (searchType === 'phone') {
-          appointmentsQuery = appointmentsQuery.ilike('lead_phone_number', `%${searchTerm.trim()}%`);
+          // Normalize phone: strip non-digits and handle US country code
+          const normalizedPhone = searchTerm.trim().replace(/\D/g, '');
+          const phoneDigits = normalizedPhone.length === 11 && normalizedPhone.startsWith('1')
+            ? normalizedPhone.slice(1)
+            : normalizedPhone;
+          // Search using the last 10 digits to match any format
+          const searchPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
+          appointmentsQuery = appointmentsQuery.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
          } else if (searchType === 'dob') {
            appointmentsQuery = appointmentsQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
          }
