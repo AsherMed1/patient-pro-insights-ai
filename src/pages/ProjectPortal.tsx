@@ -15,7 +15,7 @@ import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import DateRangeFilter from '@/components/projects/DateRangeFilter';
 import { ProjectSwitcher } from '@/components/ProjectSwitcher';
-import ProjectChat from '@/components/ProjectChat';
+import { SupportWidget } from '@/components/support-widget/SupportWidget';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
 import '@/utils/retriggerVividVascularParsing';
@@ -374,7 +374,7 @@ const ProjectPortal = () => {
         </Tabs>
 
         {/* Floating chat widget for quick access */}
-        <ProjectChat projectName={project.project_name} />
+        <SupportWidget projectName={project.project_name} />
       </div>
     </div>
   );

@@ -1930,6 +1930,99 @@ export type Database = {
           },
         ]
       }
+      help_articles: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          helpful_count: number | null
+          id: string
+          is_published: boolean | null
+          not_helpful_count: number | null
+          order_index: number | null
+          project_name: string | null
+          title: string
+          updated_at: string
+          views: number | null
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          not_helpful_count?: number | null
+          order_index?: number | null
+          project_name?: string | null
+          title: string
+          updated_at?: string
+          views?: number | null
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          not_helpful_count?: number | null
+          order_index?: number | null
+          project_name?: string | null
+          title?: string
+          updated_at?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
+      help_videos: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          duration: string | null
+          id: string
+          is_published: boolean | null
+          order_index: number | null
+          project_name: string | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          video_url: string
+          views: number | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          duration?: string | null
+          id?: string
+          is_published?: boolean | null
+          order_index?: number | null
+          project_name?: string | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          video_url: string
+          views?: number | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          duration?: string | null
+          id?: string
+          is_published?: boolean | null
+          order_index?: number | null
+          project_name?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
       hipaa_audit_log: {
         Row: {
           access_justification: string | null
@@ -3093,6 +3186,154 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      support_conversations: {
+        Row: {
+          ai_summary: string | null
+          assigned_agent: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          project_name: string
+          resolved_at: string | null
+          started_at: string
+          status: string
+          type: string
+          updated_at: string
+          user_email: string | null
+          user_name: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          assigned_agent?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          project_name: string
+          resolved_at?: string | null
+          started_at?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_email?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          assigned_agent?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          project_name?: string
+          resolved_at?: string | null
+          started_at?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_email?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          assigned_agent: string | null
+          category: string | null
+          conversation_id: string | null
+          created_at: string
+          created_by_email: string
+          created_by_name: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          priority: string
+          project_name: string
+          resolved_at: string | null
+          status: string
+          subject: string
+          ticket_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_agent?: string | null
+          category?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          created_by_email: string
+          created_by_name?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          priority?: string
+          project_name: string
+          resolved_at?: string | null
+          status?: string
+          subject: string
+          ticket_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_agent?: string | null
+          category?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          created_by_email?: string
+          created_by_name?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          priority?: string
+          project_name?: string
+          resolved_at?: string | null
+          status?: string
+          subject?: string
+          ticket_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_templates: {
         Row: {
