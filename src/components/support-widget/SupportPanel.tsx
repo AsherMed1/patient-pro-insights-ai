@@ -44,37 +44,6 @@ export const SupportPanel: React.FC<SupportPanelProps> = ({
     setActiveTab('help');
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return (
-          <HomeView 
-            onStartChat={handleStartChat}
-            onRequestLiveAgent={handleRequestLiveAgent}
-            onOpenTickets={handleOpenTickets}
-            onOpenHelp={handleOpenHelp}
-            projectName={projectName}
-          />
-        );
-      case 'chat':
-        return (
-          <ChatView 
-            projectName={projectName}
-            conversationId={conversationId}
-            onConversationChange={setConversationId}
-            startWithLiveAgent={startWithLiveAgent}
-            onLiveAgentModeStarted={() => setStartWithLiveAgent(false)}
-          />
-        );
-      case 'tickets':
-        return <TicketsView projectName={projectName} />;
-      case 'help':
-        return <HelpView projectName={projectName} />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div
       className={cn(
@@ -105,9 +74,32 @@ export const SupportPanel: React.FC<SupportPanelProps> = ({
         </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {renderContent()}
+      {/* Content - All views rendered, visibility controlled via CSS */}
+      <div className="flex-1 overflow-hidden relative">
+        <div className={cn("absolute inset-0 overflow-auto", activeTab !== 'home' && 'hidden')}>
+          <HomeView 
+            onStartChat={handleStartChat}
+            onRequestLiveAgent={handleRequestLiveAgent}
+            onOpenTickets={handleOpenTickets}
+            onOpenHelp={handleOpenHelp}
+            projectName={projectName}
+          />
+        </div>
+        <div className={cn("absolute inset-0", activeTab !== 'chat' && 'hidden')}>
+          <ChatView 
+            projectName={projectName}
+            conversationId={conversationId}
+            onConversationChange={setConversationId}
+            startWithLiveAgent={startWithLiveAgent}
+            onLiveAgentModeStarted={() => setStartWithLiveAgent(false)}
+          />
+        </div>
+        <div className={cn("absolute inset-0 overflow-auto", activeTab !== 'tickets' && 'hidden')}>
+          <TicketsView projectName={projectName} />
+        </div>
+        <div className={cn("absolute inset-0 overflow-auto", activeTab !== 'help' && 'hidden')}>
+          <HelpView projectName={projectName} />
+        </div>
       </div>
 
       {/* Tab Navigation */}
