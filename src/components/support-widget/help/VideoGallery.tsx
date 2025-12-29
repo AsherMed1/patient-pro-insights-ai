@@ -23,6 +23,10 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({ searchQuery, project
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
 
+  const isEmbedUrl = (url: string) => {
+    return url.includes('youtube.com') || url.includes('vimeo.com') || url.includes('loom.com');
+  };
+
   useEffect(() => {
     const fetchVideos = async () => {
       setIsLoading(true);
@@ -152,12 +156,21 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({ searchQuery, project
             </button>
           </div>
           <div className="flex-1 bg-black">
-            <iframe
-              src={selectedVideo.video_url}
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+            {isEmbedUrl(selectedVideo.video_url) ? (
+              <iframe
+                src={selectedVideo.video_url}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <video
+                src={selectedVideo.video_url}
+                className="w-full h-full"
+                controls
+                autoPlay
+              />
+            )}
           </div>
           {selectedVideo.description && (
             <div className="p-3 border-t border-border">

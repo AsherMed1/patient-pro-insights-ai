@@ -19,6 +19,7 @@ import CallTeamTab from "@/components/callteam/CallTeamTab";
 import UserManagement from "@/components/UserManagement";
 import TeamMessagesManager from "@/components/TeamMessagesManager";
 import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
+import HelpVideoManager from "@/components/HelpVideoManager";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -247,6 +248,9 @@ const Index = () => {
             {hasManagementAccess() && (
               <TabsTrigger value="users">Users</TabsTrigger>
             )}
+            {hasManagementAccess() && (
+              <TabsTrigger value="help-videos">Help Videos</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -294,6 +298,12 @@ const Index = () => {
           {hasManagementAccess() && (
             <TabsContent value="users" className="space-y-6">
               <UserManagement />
+            </TabsContent>
+          )}
+
+          {hasManagementAccess() && (
+            <TabsContent value="help-videos" className="space-y-6">
+              <HelpVideoManager />
             </TabsContent>
           )}
         </Tabs>
