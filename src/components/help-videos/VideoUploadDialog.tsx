@@ -397,12 +397,12 @@ export const VideoUploadDialog: React.FC<VideoUploadDialogProps> = ({
           {/* Project Filter */}
           <div className="space-y-2">
             <Label htmlFor="project">Restrict to Project (optional)</Label>
-            <Select value={projectName} onValueChange={setProjectName}>
+            <Select value={projectName || "__all__"} onValueChange={(val) => setProjectName(val === "__all__" ? "" : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="All projects (no restriction)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All projects</SelectItem>
+                <SelectItem value="__all__">All projects</SelectItem>
                 {projects.map((proj) => (
                   <SelectItem key={proj} value={proj}>{proj}</SelectItem>
                 ))}
