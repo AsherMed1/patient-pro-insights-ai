@@ -22,6 +22,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       description: 'Get instant answers from our AI assistant',
       onClick: onStartChat,
       gradient: 'from-violet-500 to-purple-600',
+      comingSoon: false,
     },
     {
       icon: <MessageCircle className="h-6 w-6" />,
@@ -29,6 +30,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       description: 'Talk to our support team',
       onClick: onStartChat,
       gradient: 'from-blue-500 to-cyan-600',
+      comingSoon: false,
     },
     {
       icon: <Ticket className="h-6 w-6" />,
@@ -36,6 +38,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       description: 'Create a support request',
       onClick: onOpenTickets,
       gradient: 'from-orange-500 to-amber-600',
+      comingSoon: true,
     },
     {
       icon: <HelpCircle className="h-6 w-6" />,
@@ -43,6 +46,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       description: 'Browse FAQs & tutorials',
       onClick: onOpenHelp,
       gradient: 'from-emerald-500 to-teal-600',
+      comingSoon: true,
     },
   ];
 
@@ -63,18 +67,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {quickActions.map((action, index) => (
           <button
             key={index}
-            onClick={action.onClick}
+            onClick={action.comingSoon ? undefined : action.onClick}
+            disabled={action.comingSoon}
             className={cn(
               "relative flex flex-col items-center p-4 rounded-xl",
               "bg-card border border-border",
-              "hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
-              "transition-all duration-200 text-left group"
+              "transition-all duration-200 text-left group",
+              action.comingSoon 
+                ? "opacity-50 cursor-not-allowed" 
+                : "hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5"
             )}
           >
+            {action.comingSoon && (
+              <span className="absolute top-1 right-1 px-1.5 py-0.5 text-[9px] font-semibold bg-muted text-muted-foreground rounded-full">
+                Coming Soon
+              </span>
+            )}
             <div className={cn(
               "w-12 h-12 rounded-full flex items-center justify-center mb-2",
               "bg-gradient-to-br text-white",
-              action.gradient
+              action.gradient,
+              action.comingSoon && "grayscale"
             )}>
               {action.icon}
             </div>
