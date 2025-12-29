@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface HomeViewProps {
   onStartChat: () => void;
+  onRequestLiveAgent: () => void;
   onOpenTickets: () => void;
   onOpenHelp: () => void;
   projectName: string;
@@ -11,6 +12,7 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onStartChat,
+  onRequestLiveAgent,
   onOpenTickets,
   onOpenHelp,
   projectName
@@ -28,7 +30,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       icon: <MessageCircle className="h-6 w-6" />,
       title: 'Live Support',
       description: 'Talk to our support team',
-      onClick: onStartChat,
+      onClick: onRequestLiveAgent,
       gradient: 'from-blue-500 to-cyan-600',
       comingSoon: false,
     },
