@@ -46,7 +46,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       description: 'Browse FAQs & tutorials',
       onClick: onOpenHelp,
       gradient: 'from-emerald-500 to-teal-600',
-      comingSoon: true,
+      comingSoon: false,
     },
   ];
 

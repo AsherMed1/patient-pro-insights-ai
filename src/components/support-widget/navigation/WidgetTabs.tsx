@@ -11,7 +11,7 @@ interface WidgetTabsProps {
 const tabs: { id: WidgetTab; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
   { id: 'home', label: 'Home', icon: <Home className="h-5 w-5" /> },
   { id: 'chat', label: 'Chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'help', label: 'Help', icon: <HelpCircle className="h-5 w-5" />, disabled: true },
+  { id: 'help', label: 'Help', icon: <HelpCircle className="h-5 w-5" /> },
   { id: 'tickets', label: 'Tickets', icon: <Ticket className="h-5 w-5" />, disabled: true },
 ];
 
