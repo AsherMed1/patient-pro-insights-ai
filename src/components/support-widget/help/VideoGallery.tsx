@@ -88,50 +88,43 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({ searchQuery, project
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               {category}
             </h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {categoryVideos.map((video) => (
                 <button
                   key={video.id}
                   onClick={() => setSelectedVideo(video)}
-                  className="group relative rounded-lg overflow-hidden bg-muted aspect-video hover:ring-2 hover:ring-primary transition-all"
+                  className="group text-left"
                 >
-                  {video.thumbnail_url ? (
-                    <img 
-                      src={video.thumbnail_url} 
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
-                      <Play className="h-8 w-8 text-primary" />
+                  <div className="relative rounded-lg overflow-hidden bg-muted aspect-video hover:ring-2 hover:ring-primary transition-all">
+                    {video.thumbnail_url ? (
+                      <img 
+                        src={video.thumbnail_url} 
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
+                        <Play className="h-8 w-8 text-primary" />
+                      </div>
+                    )}
+                    
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
+                        <Play className="h-5 w-5 text-primary ml-0.5" />
+                      </div>
                     </div>
-                  )}
-                  
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
-                      <Play className="h-5 w-5 text-primary ml-0.5" />
-                    </div>
-                  </div>
 
-                  {/* Duration */}
-                  {video.duration && (
-                    <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/70 text-white text-[10px] rounded flex items-center gap-1">
-                      <Clock className="h-2.5 w-2.5" />
-                      {video.duration}
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="mt-2 space-y-1">
-              {categoryVideos.map((video) => (
-                <button
-                  key={video.id + '-title'}
-                  onClick={() => setSelectedVideo(video)}
-                  className="w-full text-left"
-                >
-                  <p className="text-xs font-medium text-foreground hover:text-primary transition-colors line-clamp-1">
+                    {/* Duration */}
+                    {video.duration && (
+                      <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/70 text-white text-[10px] rounded flex items-center gap-1">
+                        <Clock className="h-2.5 w-2.5" />
+                        {video.duration}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="mt-1.5 text-xs font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
                     {video.title}
                   </p>
                 </button>
