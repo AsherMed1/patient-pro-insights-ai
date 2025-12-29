@@ -16,12 +16,16 @@ interface ChatViewProps {
   projectName: string;
   conversationId: string | null;
   onConversationChange: (id: string | null) => void;
+  startWithLiveAgent?: boolean;
+  onLiveAgentModeStarted?: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
   projectName,
   conversationId,
-  onConversationChange
+  onConversationChange,
+  startWithLiveAgent = false,
+  onLiveAgentModeStarted
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -41,9 +45,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
     scrollToBottom();
   }, [messages]);
 
-  // Add welcome message on mount
+  // Add welcome message on mount OR trigger live agent mode immediately
   useEffect(() => {
-    if (messages.length === 0) {
+    if (startWithLiveAgent) {
+      // Skip AI welcome, go straight to live agent mode
+      setIsLiveAgentMode(true);
+      setIsWaitingForAgent(true);
+      
+      setMessages([{
+        id: 'waiting-agent',
+        role: 'system',
+        content: "You've requested to speak with a live agent. Our team has been notified and will join the conversation shortly. Average wait time is under 5 minutes.",
+        timestamp: new Date()
+      }]);
+      
+      // Trigger the live agent request
+      triggerLiveAgentRequest();
+      
+      // Reset the flag so it doesn't re-trigger
+      onLiveAgentModeStarted?.();
+    } else if (messages.length === 0) {
+      // Normal AI welcome
       setMessages([{
         id: 'welcome',
         role: 'assistant',
@@ -51,7 +73,47 @@ export const ChatView: React.FC<ChatViewProps> = ({
         timestamp: new Date()
       }]);
     }
-  }, []);
+  }, [startWithLiveAgent]);
+
+  // Function to trigger live agent request (used by both button and startWithLiveAgent)
+  const triggerLiveAgentRequest = async () => {
+    try {
+      // Create conversation first
+      const { data, error } = await supabase
+        .from('support_conversations')
+        .insert({
+          project_name: projectName,
+          type: 'live',
+          status: 'waiting_agent',
+          user_email: user?.email,
+          user_name: user?.email?.split('@')[0]
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating conversation:', error);
+        return;
+      }
+
+      onConversationChange(data.id);
+
+      // Send Slack notification
+      await supabase.functions.invoke('notify-slack-support', {
+        body: {
+          conversationId: data.id,
+          projectName,
+          userEmail: user?.email,
+          userName: user?.email?.split('@')[0],
+          lastMessage: 'User requested live support directly'
+        }
+      });
+
+      console.log('[ChatView] Slack notification sent for direct live agent request');
+    } catch (error) {
+      console.error('[ChatView] Error triggering live agent request:', error);
+    }
+  };
 
   // Subscribe to real-time agent messages
   useEffect(() => {

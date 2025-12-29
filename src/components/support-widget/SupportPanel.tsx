@@ -24,8 +24,15 @@ export const SupportPanel: React.FC<SupportPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<WidgetTab>('home');
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [startWithLiveAgent, setStartWithLiveAgent] = useState(false);
 
   const handleStartChat = () => {
+    setStartWithLiveAgent(false);
+    setActiveTab('chat');
+  };
+
+  const handleRequestLiveAgent = () => {
+    setStartWithLiveAgent(true);
     setActiveTab('chat');
   };
 
@@ -43,6 +50,7 @@ export const SupportPanel: React.FC<SupportPanelProps> = ({
         return (
           <HomeView 
             onStartChat={handleStartChat}
+            onRequestLiveAgent={handleRequestLiveAgent}
             onOpenTickets={handleOpenTickets}
             onOpenHelp={handleOpenHelp}
             projectName={projectName}
@@ -54,6 +62,8 @@ export const SupportPanel: React.FC<SupportPanelProps> = ({
             projectName={projectName}
             conversationId={conversationId}
             onConversationChange={setConversationId}
+            startWithLiveAgent={startWithLiveAgent}
+            onLiveAgentModeStarted={() => setStartWithLiveAgent(false)}
           />
         );
       case 'tickets':
