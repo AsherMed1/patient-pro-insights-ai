@@ -27,8 +27,8 @@ serve(async (req) => {
       throw new Error('SLACK_WEBHOOK_URL not configured');
     }
 
-    // Get the portal URL from environment or use default
-    const PORTAL_BASE_URL = Deno.env.get('PORTAL_BASE_URL') || 'https://bhabbokbhnqioykjimix.lovable.app';
+  // Get the portal URL from environment or use default
+  const PORTAL_BASE_URL = Deno.env.get('PORTAL_BASE_URL') || 'https://patientproclients.com';
     const portalLink = `${PORTAL_BASE_URL}/?tab=support-queue`;
 
     // Format Slack message with blocks for rich formatting
