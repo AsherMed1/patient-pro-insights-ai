@@ -27,6 +27,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
+  const [isLiveAgentMode, setIsLiveAgentMode] = useState(false);
+  const [agentConnected, setAgentConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -66,6 +68,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
         const newMsg = payload.new as any;
         // Only add agent messages (user's own and AI messages are already handled locally)
         if (newMsg.role === 'agent' || newMsg.role === 'system') {
+          // First agent message - show connection notification
+          if (newMsg.role === 'agent' && !agentConnected) {
+            setAgentConnected(true);
+            setIsLiveAgentMode(true);
+            setIsWaitingForAgent(false);
+            
+            // Add system notification before the agent message
+            const connectionNotice: Message = {
+              id: 'agent-connected-' + Date.now(),
+              role: 'system',
+              content: "You're now connected with a live support agent. They will assist you from here.",
+              timestamp: new Date()
+            };
+            setMessages(prev => {
+              if (prev.some(m => m.id.startsWith('agent-connected-'))) return prev;
+              return [...prev, connectionNotice];
+            });
+          }
+          
           setMessages(prev => {
             // Avoid duplicates
             if (prev.some(m => m.id === newMsg.id)) return prev;
@@ -142,29 +163,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const convId = await createConversation();
       await saveMessage(convId, 'user', userMessage.content);
 
-      // Call AI endpoint
-      const { data, error } = await supabase.functions.invoke('support-ai-chat', {
-        body: {
-          messages: messages.filter(m => m.id !== 'welcome').concat(userMessage).map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-          conversationId: convId,
-          projectName
-        }
-      });
+      // Only call AI if NOT in live agent mode
+      if (!isLiveAgentMode) {
+        const { data, error } = await supabase.functions.invoke('support-ai-chat', {
+          body: {
+            messages: messages.filter(m => m.id !== 'welcome').concat(userMessage).map(m => ({
+              role: m.role,
+              content: m.content
+            })),
+            conversationId: convId,
+            projectName
+          }
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const aiMessage: Message = {
-        id: Date.now().toString() + '-ai',
-        role: 'assistant',
-        content: data.response,
-        timestamp: new Date()
-      };
+        const aiMessage: Message = {
+          id: Date.now().toString() + '-ai',
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date()
+        };
 
-      setMessages(prev => [...prev, aiMessage]);
-      await saveMessage(convId, 'assistant', data.response);
+        setMessages(prev => [...prev, aiMessage]);
+        await saveMessage(convId, 'assistant', data.response);
+      }
+      // If in live agent mode, message is saved and agent will see it via real-time
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -180,6 +204,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const handleRequestAgent = async () => {
     setIsWaitingForAgent(true);
+    setIsLiveAgentMode(true); // Disable AI immediately when user requests agent
     
     const systemMessage: Message = {
       id: Date.now().toString() + '-system',
@@ -309,8 +334,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Request Agent Button */}
-      {!isWaitingForAgent && messages.length > 2 && (
+      {/* Live Agent Mode Indicator */}
+      {isLiveAgentMode && (
+        <div className="mx-4 mb-2 py-2 px-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-xs text-green-700 font-medium">Chatting with live support</span>
+        </div>
+      )}
+
+      {/* Request Agent Button - hidden when in live agent mode or waiting */}
+      {!isWaitingForAgent && !isLiveAgentMode && messages.length > 2 && (
         <div className="px-4 pb-2">
           <button
             onClick={handleRequestAgent}
