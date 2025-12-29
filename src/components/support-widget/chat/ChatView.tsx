@@ -51,6 +51,45 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   }, []);
 
+  // Subscribe to real-time agent messages
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const channel = supabase
+      .channel(`user-support-messages-${conversationId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'support_messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const newMsg = payload.new as any;
+        // Only add agent messages (user's own and AI messages are already handled locally)
+        if (newMsg.role === 'agent' || newMsg.role === 'system') {
+          setMessages(prev => {
+            // Avoid duplicates
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            return [...prev, {
+              id: newMsg.id,
+              role: newMsg.role,
+              content: newMsg.content,
+              timestamp: new Date(newMsg.created_at)
+            }];
+          });
+          
+          // Reset waiting state when agent responds
+          if (newMsg.role === 'agent') {
+            setIsWaitingForAgent(false);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId]);
+
   const createConversation = async () => {
     if (conversationId) return conversationId;
 
@@ -213,12 +252,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 ? "bg-primary text-primary-foreground" 
                 : message.role === 'system'
                 ? "bg-amber-500 text-white"
+                : message.role === 'agent'
+                ? "bg-green-500 text-white"
                 : "bg-gradient-to-br from-violet-500 to-purple-600 text-white"
             )}>
               {message.role === 'user' ? (
                 <User className="h-4 w-4" />
               ) : message.role === 'system' ? (
                 <AlertCircle className="h-4 w-4" />
+              ) : message.role === 'agent' ? (
+                <User className="h-4 w-4" />
               ) : (
                 <Bot className="h-4 w-4" />
               )}
@@ -231,6 +274,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 ? "bg-primary text-primary-foreground rounded-br-md"
                 : message.role === 'system'
                 ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-md"
+                : message.role === 'agent'
+                ? "bg-green-50 text-green-900 border border-green-200 rounded-bl-md"
                 : "bg-muted text-foreground rounded-bl-md"
             )}>
               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
