@@ -84,7 +84,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         .from('support_conversations')
         .insert({
           project_name: projectName,
-          type: 'live',
+          type: 'live_agent',
           status: 'waiting_agent',
           user_email: user?.email,
           user_name: user?.email?.split('@')[0]
@@ -300,14 +300,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
       // Create conversation if needed
       const convId = conversationId || await createConversation();
 
-      // Update conversation status
+      // Update conversation status and type
       await supabase
         .from('support_conversations')
-        .update({ status: 'waiting_agent' })
+        .update({ status: 'waiting_agent', type: 'live_agent' })
         .eq('id', convId);
 
       // Send Slack notification
-      await supabase.functions.invoke('notify-slack-support', {
+      const { error: slackError } = await supabase.functions.invoke('notify-slack-support', {
         body: {
           conversationId: convId,
           projectName,
@@ -317,16 +317,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
       });
 
-      console.log('[ChatView] Slack notification sent for agent request');
+      if (slackError) {
+        console.error('[ChatView] Slack notification error:', slackError);
+        toast({
+          title: 'Warning',
+          description: 'Agent requested but team notification failed. Please wait or try again.',
+          variant: 'destructive'
+        });
+      } else {
+        console.log('[ChatView] Slack notification sent for agent request');
+        toast({
+          title: 'Agent Requested',
+          description: 'A support agent will join your chat shortly.'
+        });
+      }
     } catch (error) {
       console.error('[ChatView] Error requesting agent:', error);
-      // Don't show error to user - the system message was still shown
+      toast({
+        title: 'Error',
+        description: 'Failed to request agent. Please try again.',
+        variant: 'destructive'
+      });
     }
-
-    toast({
-      title: 'Agent Requested',
-      description: 'A support agent will join your chat shortly.'
-    });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
