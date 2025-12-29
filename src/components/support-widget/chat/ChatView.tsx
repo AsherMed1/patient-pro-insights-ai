@@ -77,6 +77,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // Function to trigger live agent request (used by both button and startWithLiveAgent)
   const triggerLiveAgentRequest = async () => {
+    console.log('[ChatView] triggerLiveAgentRequest called');
     try {
       // Create conversation first
       const { data, error } = await supabase
@@ -92,14 +93,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
         .single();
 
       if (error) {
-        console.error('Error creating conversation:', error);
+        console.error('[ChatView] Error creating conversation:', error);
+        toast({
+          title: "Error",
+          description: "Failed to start live support. Please try again.",
+          variant: "destructive"
+        });
         return;
       }
 
+      console.log('[ChatView] Conversation created:', data.id);
       onConversationChange(data.id);
 
       // Send Slack notification
-      await supabase.functions.invoke('notify-slack-support', {
+      const { data: slackData, error: slackError } = await supabase.functions.invoke('notify-slack-support', {
         body: {
           conversationId: data.id,
           projectName,
@@ -109,9 +116,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
       });
 
-      console.log('[ChatView] Slack notification sent for direct live agent request');
+      if (slackError) {
+        console.error('[ChatView] Slack notification error:', slackError);
+      } else {
+        console.log('[ChatView] Slack notification sent successfully:', slackData);
+      }
     } catch (error) {
       console.error('[ChatView] Error triggering live agent request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to request live support. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
