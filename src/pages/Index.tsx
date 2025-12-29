@@ -18,6 +18,7 @@ import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import CallTeamTab from "@/components/callteam/CallTeamTab";
 import UserManagement from "@/components/UserManagement";
 import TeamMessagesManager from "@/components/TeamMessagesManager";
+import SupportQueueManager from "@/components/SupportQueueManager";
 import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
 import HelpVideoManager from "@/components/HelpVideoManager";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
@@ -27,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const { user, signOut } = useAuth();
   const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
@@ -71,6 +73,34 @@ const Index = () => {
         schema: 'public',
         table: 'project_messages',
       }, fetchUnreadCount)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Fetch support queue waiting count
+  useEffect(() => {
+    const fetchSupportWaitingCount = async () => {
+      const { count } = await supabase
+        .from('support_conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'waiting_agent');
+      
+      setSupportWaitingCount(count || 0);
+    };
+
+    fetchSupportWaitingCount();
+    
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('support-queue-count')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'support_conversations',
+      }, fetchSupportWaitingCount)
       .subscribe();
 
     return () => {
@@ -246,6 +276,16 @@ const Index = () => {
               )}
             </TabsTrigger>
             {hasManagementAccess() && (
+              <TabsTrigger value="support-queue">
+                Support Queue
+                {supportWaitingCount > 0 && (
+                  <Badge variant="destructive" className="ml-2 animate-pulse">
+                    {supportWaitingCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
+            {hasManagementAccess() && (
               <TabsTrigger value="users">Users</TabsTrigger>
             )}
             {hasManagementAccess() && (
@@ -294,6 +334,12 @@ const Index = () => {
           <TabsContent value="messages" className="space-y-6">
             <TeamMessagesManager />
           </TabsContent>
+
+          {hasManagementAccess() && (
+            <TabsContent value="support-queue" className="space-y-6">
+              <SupportQueueManager />
+            </TabsContent>
+          )}
 
           {hasManagementAccess() && (
             <TabsContent value="users" className="space-y-6">

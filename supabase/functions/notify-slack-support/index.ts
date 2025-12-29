@@ -27,6 +27,10 @@ serve(async (req) => {
       throw new Error('SLACK_WEBHOOK_URL not configured');
     }
 
+    // Get the portal URL from environment or use default
+    const PORTAL_BASE_URL = Deno.env.get('PORTAL_BASE_URL') || 'https://bhabbokbhnqioykjimix.lovable.app';
+    const portalLink = `${PORTAL_BASE_URL}/?tab=support-queue`;
+
     // Format Slack message with blocks for rich formatting
     const slackPayload = {
       blocks: [
@@ -51,6 +55,21 @@ serve(async (req) => {
             type: "mrkdwn",
             text: `*Last Message:*\n>${lastMessage || 'No message context'}`
           }
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "📋 Open Support Queue",
+                emoji: true
+              },
+              url: portalLink,
+              style: "primary"
+            }
+          ]
         },
         {
           type: "context",
