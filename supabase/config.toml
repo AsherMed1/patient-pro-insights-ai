@@ -114,3 +114,7 @@ verify_jwt = true
 [functions.support-ai-chat]
 verify_jwt = false
 # AI-powered support chat using Lovable AI Gateway
+
+[functions.notify-slack-support]
+verify_jwt = false
+# Send Slack notification when user requests live agent support

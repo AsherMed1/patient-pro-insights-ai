@@ -151,11 +151,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
     
     setMessages(prev => [...prev, systemMessage]);
 
-    if (conversationId) {
+    // Get the last user message for context
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+
+    try {
+      // Create conversation if needed
+      const convId = conversationId || await createConversation();
+
+      // Update conversation status
       await supabase
         .from('support_conversations')
         .update({ status: 'waiting_agent' })
-        .eq('id', conversationId);
+        .eq('id', convId);
+
+      // Send Slack notification
+      await supabase.functions.invoke('notify-slack-support', {
+        body: {
+          conversationId: convId,
+          projectName,
+          userEmail: user?.email,
+          userName: user?.email?.split('@')[0],
+          lastMessage: lastUserMessage?.content
+        }
+      });
+
+      console.log('[ChatView] Slack notification sent for agent request');
+    } catch (error) {
+      console.error('[ChatView] Error requesting agent:', error);
+      // Don't show error to user - the system message was still shown
     }
 
     toast({
