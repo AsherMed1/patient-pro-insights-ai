@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 // Configurable sender email - use custom domain when verified
-const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "PatientPro Insights <onboarding@resend.dev>";
+const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "Patient Pro Client Portal <onboarding@resend.dev>";
 // Optional: allow specific test email in sandbox mode
 const RESEND_ALLOWED_TEST_EMAIL = Deno.env.get("RESEND_ALLOWED_TEST_EMAIL") || "";
 
@@ -31,7 +31,7 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to PatientPro Insights</title>
+  <title>Welcome to Patient Pro Client Portal</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -41,8 +41,8 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
           
           <!-- Header -->
           <tr>
-            <td style="padding: 40px 40px 30px 40px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px 8px 0 0;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Welcome to PatientPro Insights</h1>
+            <td style="padding: 40px 40px 30px 40px; text-align: center; background: linear-gradient(135deg, #1A9DFC 0%, #0D7DD9 100%); border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Welcome to Patient Pro Client Portal</h1>
             </td>
           </tr>
           
@@ -54,7 +54,7 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
               </p>
               
               <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 24px;">
-                Thank you for joining <strong>PatientPro Insights</strong>! We're excited to have you on board.
+                Thank you for joining <strong>Patient Pro Client Portal</strong>! We're excited to have you on board.
               </p>
               
               <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 24px;">
@@ -62,7 +62,7 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
               </p>
               
               <!-- Feature Highlights -->
-              <div style="margin: 30px 0; padding: 24px; background-color: #f9fafb; border-radius: 6px; border-left: 4px solid #667eea;">
+              <div style="margin: 30px 0; padding: 24px; background-color: #f9fafb; border-radius: 6px; border-left: 4px solid #1A9DFC;">
                 <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px; font-weight: 600;">What you can do:</h2>
                 <ul style="margin: 0; padding: 0 0 0 20px; color: #4b5563; font-size: 15px; line-height: 24px;">
                   <li style="margin-bottom: 8px;">Track and manage patient appointments</li>
@@ -95,7 +95,7 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
               
               <!-- CTA Button -->
               <div style="text-align: center; margin: 30px 0;">
-                <a href="https://patientproclients.com/" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                <a href="https://patientproclients.com/" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #1A9DFC 0%, #0D7DD9 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
                   Get Started Now
                 </a>
               </div>
@@ -115,7 +115,7 @@ const generateWelcomeEmail = (fullName: string, email: string, password?: string
           <tr>
             <td style="padding: 30px 40px; text-align: center; background-color: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
               <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 18px;">
-                © ${new Date().getFullYear()} PatientPro Insights. All rights reserved.
+                © ${new Date().getFullYear()} Patient Pro Client Portal. All rights reserved.
               </p>
               <p style="margin: 8px 0 0 0; color: #9ca3af; font-size: 12px; line-height: 16px;">
                 This is an automated message. Please do not reply to this email.
@@ -209,7 +209,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: FROM_EMAIL,
         to: [email],
-        subject: "Welcome to PatientPro Insights - Let's Get Started!",
+        subject: "Welcome to Patient Pro Client Portal - Let's Get Started!",
         html: emailHtml,
       }),
     });
