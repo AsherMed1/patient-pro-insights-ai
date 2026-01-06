@@ -85,31 +85,52 @@ serve(async (req) => {
     }
 
     const existingAppointment = await getResponse.json();
-    const assignedUserId = existingAppointment.appointment?.assignedUserId;
+    let assignedUserId = existingAppointment.appointment?.assignedUserId;
     const existingCalendarId = existingAppointment.appointment?.calendarId;
     const existingStartTime = existingAppointment.appointment?.startTime;
     const existingEndTime = existingAppointment.appointment?.endTime;
 
-    if (!assignedUserId) {
-      console.error('No assignedUserId found in existing appointment:', existingAppointment);
-      return new Response(
-        JSON.stringify({ 
-          error: 'No assigned user found for this appointment',
-          details: 'The appointment must have an assigned team member to be updated'
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // If no assignedUserId, try to fetch from calendar's team members as fallback
+    if (!assignedUserId && existingCalendarId) {
+      console.warn('No assignedUserId found, attempting to fetch from calendar:', existingCalendarId);
+      try {
+        const calendarResponse = await fetch(
+          `https://services.leadconnectorhq.com/calendars/${existingCalendarId}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Version': '2021-04-15',
+              'Accept': 'application/json',
+            },
+          }
+        );
+        if (calendarResponse.ok) {
+          const calendarData = await calendarResponse.json();
+          const teamMembers = calendarData?.calendar?.teamMembers || [];
+          if (teamMembers.length > 0) {
+            assignedUserId = teamMembers[0].userId;
+            console.log('Found fallback assignedUserId from calendar:', assignedUserId);
+          }
+        }
+      } catch (calendarError) {
+        console.warn('Failed to fetch calendar for fallback user:', calendarError);
+      }
     }
 
     console.log('Found existing appointment data:', { assignedUserId, existingCalendarId, existingStartTime });
 
-    // Build the update payload
+    // Build the update payload - only include assignedUserId if we have one
     let updatePayload: any = {
-      assignedUserId,
       toNotify: true,
       ignoreDateRange: true,
       ignoreFreeSlotValidation: true,
     };
+
+    // Only include assignedUserId if available
+    if (assignedUserId) {
+      updatePayload.assignedUserId = assignedUserId;
+    }
 
     // If calendar transfer, include new calendarId
     if (calendar_id) {
