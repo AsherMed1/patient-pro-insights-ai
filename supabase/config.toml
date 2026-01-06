@@ -118,3 +118,7 @@ verify_jwt = false
 [functions.notify-slack-support]
 verify_jwt = false
 # Send Slack notification when user requests live agent support
+
+[functions.admin-dedupe-appointments]
+verify_jwt = false
+# Admin function to clean up duplicate appointments using service role
