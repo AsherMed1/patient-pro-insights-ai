@@ -738,18 +738,32 @@ async function findExistingAppointment(
     }
   }
   
-  // Try by GHL contact ID + name
+  // Try by GHL contact ID + name (use limit(1) + order to handle duplicates)
   if (ghlId) {
-    const { data } = await supabase
+    const { data: records } = await supabase
       .from('all_appointments')
-      .select('*')  // Full record for field comparison
+      .select('*')
       .eq('ghl_id', ghlId)
       .eq('lead_name', leadName)
-      .maybeSingle()
+      .order('created_at', { ascending: true })
+      .limit(1)
     
-    if (data) {
-      console.log(`[${requestId}] Found by ghl_id + name: ${data.id}`)
-      return data
+    if (records && records.length > 0) {
+      console.log(`[${requestId}] Found by ghl_id + name: ${records[0].id}`)
+      return records[0]
+    }
+    
+    // Fallback: try ghl_id only (in case name changed)
+    const { data: byContactOnly } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('ghl_id', ghlId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+    
+    if (byContactOnly && byContactOnly.length > 0) {
+      console.log(`[${requestId}] Found by ghl_id only: ${byContactOnly[0].id}`)
+      return byContactOnly[0]
     }
   }
   
