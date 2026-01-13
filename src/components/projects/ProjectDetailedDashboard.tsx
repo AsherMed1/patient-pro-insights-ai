@@ -121,10 +121,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
             
             if (locationMatch && locationMatch[1]) {
               const location = locationMatch[1].trim();
-              // Exclude Somerset, KY from location options
-              if (!location.toLowerCase().includes('somerset')) {
-                locations.add(location);
-              }
+              locations.add(location);
             }
             
             // Extract service
