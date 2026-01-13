@@ -255,12 +255,12 @@ const AllAppointmentsManager = ({
 
       // Apply location filter (extracted from calendar_name)
       if (locationFilter !== 'ALL') {
-        countQuery = countQuery.ilike('calendar_name', `%at ${locationFilter}%`);
+        countQuery = countQuery.ilike('calendar_name', `%${locationFilter}%`);
       }
 
-      // Apply service filter (extracted from calendar_name) - more flexible matching
+      // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
-        countQuery = countQuery.or(`calendar_name.ilike.%your ${serviceFilter} Consultation%,calendar_name.ilike.%your "${serviceFilter}" Consultation%,calendar_name.ilike.%your '${serviceFilter}' Consultation%`);
+        countQuery = countQuery.ilike('calendar_name', `%${serviceFilter}%`);
       }
       
       // Apply tab-based filtering to count query
@@ -388,12 +388,12 @@ const AllAppointmentsManager = ({
 
       // Apply location filter (extracted from calendar_name)
       if (locationFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%at ${locationFilter}%`);
+        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${locationFilter}%`);
       }
 
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%your ${serviceFilter} Consultation%`);
+        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
       }
       
       
@@ -517,15 +517,15 @@ const AllAppointmentsManager = ({
           }
         }
 
-        // Apply location filter (extracted from calendar_name) - handle variable whitespace
+        // Apply location filter (extracted from calendar_name)
         if (locationFilter !== 'ALL') {
-          query = query.or(`calendar_name.ilike.%at ${locationFilter}%,calendar_name.ilike.%at  ${locationFilter}%`);
+          query = query.ilike('calendar_name', `%${locationFilter}%`);
         }
 
-      // Apply service filter (extracted from calendar_name) - more flexible matching
-      if (serviceFilter !== 'ALL') {
-        query = query.or(`calendar_name.ilike.%your ${serviceFilter} Consultation%,calendar_name.ilike.%your "${serviceFilter}" Consultation%,calendar_name.ilike.%your '${serviceFilter}' Consultation%`);
-      }
+        // Apply service filter (extracted from calendar_name)
+        if (serviceFilter !== 'ALL') {
+          query = query.ilike('calendar_name', `%${serviceFilter}%`);
+        }
         
         
         return query;
