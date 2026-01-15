@@ -45,6 +45,7 @@ const ProjectPortal = () => {
   const { role, loading: roleLoading, hasProjectAccess, accessibleProjects, hasManagementAccess } = useRole();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [canViewOverview, setCanViewOverview] = useState(true);
   const [stats, setStats] = useState<AppointmentStats>({
     totalAppointments: 0,
     totalShowed: 0,
@@ -63,6 +64,37 @@ const ProjectPortal = () => {
   }>({});
   const [isReparsing, setIsReparsing] = useState(false);
   const { toast } = useToast();
+
+  // Fetch overview permission for project users
+  useEffect(() => {
+    const fetchOverviewPermission = async () => {
+      if (!user || !project || role !== 'project_user') {
+        // Admins and agents always see overview
+        setCanViewOverview(true);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('project_user_access')
+          .select('can_view_overview')
+          .eq('user_id', user.id)
+          .eq('project_id', project.id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching overview permission:', error);
+          return;
+        }
+
+        setCanViewOverview(data?.can_view_overview ?? true);
+      } catch (error) {
+        console.error('Error fetching overview permission:', error);
+      }
+    };
+
+    fetchOverviewPermission();
+  }, [user, project, role]);
 
   // Check if user has access to this specific project (after role data loads)
   useEffect(() => {
@@ -317,48 +349,52 @@ const ProjectPortal = () => {
 
         {/* Tabbed Interface */}
         <Tabs defaultValue="appointments" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className={`grid w-full ${canViewOverview ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
+            {canViewOverview && (
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+            )}
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-6">
-            {/* Date Range Filter */}
-            <DateRangeFilter 
-              dateRange={dateRange} 
-              onDateRangeChange={setDateRange}
-              className="mb-6"
-            />
+          {canViewOverview && (
+            <TabsContent value="overview" className="space-y-6">
+              {/* Date Range Filter */}
+              <DateRangeFilter 
+                dateRange={dateRange} 
+                onDateRangeChange={setDateRange}
+                className="mb-6"
+              />
 
-            {/* Admin: Re-parse Button */}
-            {role === 'admin' && (
-              <div className="flex justify-end mb-4">
-                <Button 
-                  onClick={handleReparse} 
-                  disabled={isReparsing}
-                  variant="outline"
-                  size="sm"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isReparsing ? 'animate-spin' : ''}`} />
-                  {isReparsing ? 'Re-parsing...' : 'Re-parse All Records'}
-                </Button>
-              </div>
-            )}
-
-            {/* Enhanced Stats Cards with medical context */}
-            <ProjectStatsCards stats={stats} onCardClick={handleStatsCardClick} />
-
-            {/* Detailed Analytics - Better positioned (admin/agent only) */}
-            {hasManagementAccess() && (
-              <div className="text-center py-4">
-                <ProjectDetailedDashboard project={project} dateRange={dateRange}>
-                  <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
-                    📊 View detailed analytics dashboard
+              {/* Admin: Re-parse Button */}
+              {role === 'admin' && (
+                <div className="flex justify-end mb-4">
+                  <Button 
+                    onClick={handleReparse} 
+                    disabled={isReparsing}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isReparsing ? 'animate-spin' : ''}`} />
+                    {isReparsing ? 'Re-parsing...' : 'Re-parse All Records'}
                   </Button>
-                </ProjectDetailedDashboard>
-              </div>
-            )}
-          </TabsContent>
+                </div>
+              )}
+
+              {/* Enhanced Stats Cards with medical context */}
+              <ProjectStatsCards stats={stats} onCardClick={handleStatsCardClick} />
+
+              {/* Detailed Analytics - Better positioned (admin/agent only) */}
+              {hasManagementAccess() && (
+                <div className="text-center py-4">
+                  <ProjectDetailedDashboard project={project} dateRange={dateRange}>
+                    <Button variant="link" className="text-primary hover:text-primary/80 text-sm underline-offset-4">
+                      📊 View detailed analytics dashboard
+                    </Button>
+                  </ProjectDetailedDashboard>
+                </div>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="appointments">
             <div className="portal-section">

@@ -2626,6 +2626,7 @@ export type Database = {
       }
       project_user_access: {
         Row: {
+          can_view_overview: boolean | null
           created_at: string
           granted_at: string
           granted_by: string | null
@@ -2635,6 +2636,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          can_view_overview?: boolean | null
           created_at?: string
           granted_at?: string
           granted_by?: string | null
@@ -2644,6 +2646,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          can_view_overview?: boolean | null
           created_at?: string
           granted_at?: string
           granted_by?: string | null
