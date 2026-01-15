@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Loader2 } from 'lucide-react';
@@ -14,6 +14,7 @@ interface Project {
 
 interface ProjectAccess {
   project_id: string;
+  can_view_overview: boolean;
 }
 
 interface ProjectUserManagerProps {
@@ -25,6 +26,7 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
   const [isOpen, setIsOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [userProjectAccess, setUserProjectAccess] = useState<Set<string>>(new Set());
+  const [overviewPermissions, setOverviewPermissions] = useState<Map<string, boolean>>(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -41,16 +43,23 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
 
       if (projectsError) throw projectsError;
 
-      // Fetch user's current project access
+      // Fetch user's current project access with overview permissions
       const { data: accessData, error: accessError } = await supabase
         .from('project_user_access')
-        .select('project_id')
+        .select('project_id, can_view_overview')
         .eq('user_id', userId);
 
       if (accessError) throw accessError;
 
       setProjects(projectsData || []);
       setUserProjectAccess(new Set(accessData?.map(access => access.project_id) || []));
+      
+      // Set overview permissions
+      const permissionsMap = new Map<string, boolean>();
+      accessData?.forEach(access => {
+        permissionsMap.set(access.project_id, access.can_view_overview ?? true);
+      });
+      setOverviewPermissions(permissionsMap);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -73,10 +82,22 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
     const newAccess = new Set(userProjectAccess);
     if (checked) {
       newAccess.add(projectId);
+      // Default to showing overview for new access
+      if (!overviewPermissions.has(projectId)) {
+        const newPermissions = new Map(overviewPermissions);
+        newPermissions.set(projectId, true);
+        setOverviewPermissions(newPermissions);
+      }
     } else {
       newAccess.delete(projectId);
     }
     setUserProjectAccess(newAccess);
+  };
+
+  const handleOverviewToggle = (projectId: string, checked: boolean) => {
+    const newPermissions = new Map(overviewPermissions);
+    newPermissions.set(projectId, checked);
+    setOverviewPermissions(newPermissions);
   };
 
   const saveChanges = async () => {
@@ -108,18 +129,34 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
         if (removeError) throw removeError;
       }
 
-      // Add access
+      // Add access with overview permissions
       if (toAdd.length > 0) {
         const { error: addError } = await supabase
           .from('project_user_access')
           .insert(
             toAdd.map(projectId => ({
               user_id: userId,
-              project_id: projectId
+              project_id: projectId,
+              can_view_overview: overviewPermissions.get(projectId) ?? true
             }))
           );
 
         if (addError) throw addError;
+      }
+
+      // Update overview permissions for existing access
+      for (const projectId of Array.from(newProjectIds)) {
+        if (currentProjectIds.has(projectId)) {
+          const { error: updateError } = await supabase
+            .from('project_user_access')
+            .update({ can_view_overview: overviewPermissions.get(projectId) ?? true })
+            .eq('user_id', userId)
+            .eq('project_id', projectId);
+
+          if (updateError) {
+            console.error('Error updating overview permission:', updateError);
+          }
+        }
       }
 
       toast({
@@ -170,20 +207,35 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
           <div className="space-y-4">
             <div className="space-y-3">
               {projects.map((project) => (
-                <div key={project.id} className="flex items-center space-x-3">
-                  <Checkbox
-                    id={project.id}
-                    checked={userProjectAccess.has(project.id)}
-                    onCheckedChange={(checked) => 
-                      handleProjectToggle(project.id, checked as boolean)
-                    }
-                  />
-                  <label 
-                    htmlFor={project.id} 
-                    className="text-sm font-medium cursor-pointer flex-1"
-                  >
-                    {project.project_name}
-                  </label>
+                <div key={project.id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id={project.id}
+                      checked={userProjectAccess.has(project.id)}
+                      onCheckedChange={(checked) => 
+                        handleProjectToggle(project.id, checked as boolean)
+                      }
+                    />
+                    <label 
+                      htmlFor={project.id} 
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {project.project_name}
+                    </label>
+                  </div>
+                  
+                  {/* Only show toggle if user has access to this project */}
+                  {userProjectAccess.has(project.id) && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-muted-foreground">Overview</span>
+                      <Switch
+                        checked={overviewPermissions.get(project.id) ?? true}
+                        onCheckedChange={(checked) => 
+                          handleOverviewToggle(project.id, checked)
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
