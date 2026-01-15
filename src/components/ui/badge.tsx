@@ -22,6 +22,7 @@ const badgeVariants = cva(
         oon: "border-transparent bg-orange-100 text-orange-800 hover:bg-orange-100/80",
         confirmed: "border-transparent bg-blue-100 text-blue-700 hover:bg-blue-100/80",
         welcomeCall: "border-transparent bg-gray-200 text-gray-800 hover:bg-gray-200/80",
+        doNotCall: "border-transparent bg-red-900 text-red-100 hover:bg-red-900/80",
       },
     },
     defaultVariants: {
