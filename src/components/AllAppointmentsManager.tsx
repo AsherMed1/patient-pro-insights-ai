@@ -650,6 +650,17 @@ const AllAppointmentsManager = ({
             note_text: systemNote,
             created_by: 'System'
           });
+
+        // Add "DO NOT CALL" note when that status is selected
+        if (status === 'Do Not Call') {
+          await supabase
+            .from('appointment_notes')
+            .insert({
+              appointment_id: appointmentId,
+              note_text: 'DO NOT CALL',
+              created_by: 'System'
+            });
+        }
         
         // Trigger webhook for status change
         try {

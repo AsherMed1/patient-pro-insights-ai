@@ -173,6 +173,8 @@ export const getStatusVariant = (status: string) => {
       return 'oon' as const;
     case 'welcome call':
       return 'welcomeCall' as const;
+    case 'do not call':
+      return 'doNotCall' as const;
     case 'scheduled':
     case 'new':
     case 'pending':
@@ -242,4 +244,4 @@ export const getBaseStatusOptions = async () => {
 };
 
 // Default status options - only these statuses are allowed
-export const statusOptions = ['New', 'Pending', 'Confirmed', 'Scheduled', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'OON'];
+export const statusOptions = ['New', 'Pending', 'Confirmed', 'Scheduled', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'OON', 'Do Not Call'];
