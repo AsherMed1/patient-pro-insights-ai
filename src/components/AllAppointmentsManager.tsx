@@ -651,7 +651,7 @@ const AllAppointmentsManager = ({
             created_by: 'System'
           });
 
-        // Add "DO NOT CALL" note when that status is selected
+        // Add "DO NOT CALL" note and enable DND in GHL when that status is selected
         if (status === 'Do Not Call') {
           await supabase
             .from('appointment_notes')
@@ -660,6 +660,43 @@ const AllAppointmentsManager = ({
               note_text: 'DO NOT CALL',
               created_by: 'System'
             });
+
+          // Enable DND in GoHighLevel for all channels
+          try {
+            // Get the appointment's ghl_id and project to retrieve API key
+            const { data: appointmentData } = await supabase
+              .from('all_appointments')
+              .select('ghl_id, project_name')
+              .eq('id', appointmentId)
+              .single();
+
+            if (appointmentData?.ghl_id && appointmentData?.project_name) {
+              // Get the GHL API key from the project
+              const { data: projectData } = await supabase
+                .from('projects')
+                .select('ghl_api_key')
+                .eq('project_name', appointmentData.project_name)
+                .single();
+
+              if (projectData?.ghl_api_key) {
+                await supabase.functions.invoke('update-ghl-contact-dnd', {
+                  body: {
+                    ghl_contact_id: appointmentData.ghl_id,
+                    ghl_api_key: projectData.ghl_api_key,
+                    enable_dnd: true
+                  }
+                });
+                console.log('✅ DND enabled in GoHighLevel for contact:', appointmentData.ghl_id);
+              } else {
+                console.warn('⚠️ No GHL API key configured for project:', appointmentData.project_name);
+              }
+            } else {
+              console.warn('⚠️ No GHL contact ID found for appointment:', appointmentId);
+            }
+          } catch (dndError) {
+            console.error('⚠️ Failed to enable DND in GoHighLevel (non-critical):', dndError);
+            // Don't throw - DND failure shouldn't block the status update
+          }
         }
         
         // Trigger webhook for status change
