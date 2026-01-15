@@ -122,3 +122,7 @@ verify_jwt = false
 [functions.admin-dedupe-appointments]
 verify_jwt = false
 # Admin function to clean up duplicate appointments using service role
+
+[functions.update-ghl-contact-dnd]
+verify_jwt = false
+# Update GoHighLevel contact DND settings for all channels
