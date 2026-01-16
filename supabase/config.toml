@@ -126,3 +126,7 @@ verify_jwt = false
 [functions.update-ghl-contact-dnd]
 verify_jwt = false
 # Update GoHighLevel contact DND settings for all channels
+
+[functions.reparse-specific-appointments]
+verify_jwt = false
+# Admin function to re-trigger parsing for specific appointments
