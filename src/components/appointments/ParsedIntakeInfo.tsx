@@ -476,6 +476,17 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.affected_area}</span>
                   </div>
                 )}
+                {formatValue(parsedPathologyInfo.affected_knee) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Affected Knee:</span>{" "}
+                    <Badge 
+                      variant="outline" 
+                      className="ml-2 bg-amber-100 text-amber-800 border-amber-300"
+                    >
+                      {parsedPathologyInfo.affected_knee}
+                    </Badge>
+                  </div>
+                )}
                 {formatValue(parsedPathologyInfo.diagnosis) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Diagnosis:</span>{" "}
