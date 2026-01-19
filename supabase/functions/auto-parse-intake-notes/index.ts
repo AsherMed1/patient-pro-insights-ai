@@ -187,7 +187,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       insurance_provider: null as string | null, 
       insurance_plan: null as string | null, 
       insurance_id_number: null as string | null, 
-      insurance_group_number: null as string | null 
+      insurance_group_number: null as string | null,
+      insurance_notes: null as string | null 
     },
     contact_info: { 
       name: null as string | null, 
@@ -250,8 +251,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.insurance_info.insurance_plan = value;
     } else if ((key.includes('member') && key.includes('id')) || key.includes('insurance_id')) {
       result.insurance_info.insurance_id_number = value;
-    } else if (key.includes('group')) {
+    } else if (key.includes('group') || key.includes('grp')) {
       result.insurance_info.insurance_group_number = value;
+    } else if (key.includes('insurance') && key.includes('note')) {
+      result.insurance_info.insurance_notes = value;
     }
     // Insurance card URL
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
@@ -579,9 +582,10 @@ Parse the following patient intake notes and return a JSON object with these exa
 {
   "insurance_info": {
     "insurance_provider": "string or null",
-    "insurance_plan": "string or null", 
+    "insurance_plan": "string or null",
     "insurance_id_number": "string or null",
-    "insurance_group_number": "string or null"
+    "insurance_group_number": "string or null",
+    "insurance_notes": "string or null - Any additional insurance notes, secondary insurance info, VA coverage, Medicaid/Medicare notes, or other insurance-related comments documented by the caller"
   },
   "contact_info": {
     "name": "string or null",
