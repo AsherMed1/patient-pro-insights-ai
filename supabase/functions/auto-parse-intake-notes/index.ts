@@ -205,7 +205,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       primary_complaint: null as string | null, 
       symptoms: null as string | null, 
       pain_level: null as string | null, 
-      affected_area: null as string | null 
+      affected_area: null as string | null,
+      affected_knee: null as string | null 
     },
     medical_info: { 
       medications: null as string | null, 
@@ -270,6 +271,28 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.pathology_info.pain_level = value;
     } else if (key.includes('affected') || key.includes('area') || key.includes('location')) {
       result.pathology_info.affected_area = value;
+      // Check for knee side in the value
+      const lowerValue = value.toLowerCase();
+      if (lowerValue.includes('knee')) {
+        if (lowerValue.includes('both') || lowerValue.includes('bilateral')) {
+          result.pathology_info.affected_knee = 'Both';
+        } else if (lowerValue.includes('left')) {
+          result.pathology_info.affected_knee = 'Left';
+        } else if (lowerValue.includes('right')) {
+          result.pathology_info.affected_knee = 'Right';
+        }
+      }
+    }
+    // Specific knee side field
+    else if (key.includes('knee') && (key.includes('which') || key.includes('affected') || key.includes('side'))) {
+      const lowerValue = value.toLowerCase();
+      if (lowerValue.includes('both') || lowerValue.includes('bilateral')) {
+        result.pathology_info.affected_knee = 'Both';
+      } else if (lowerValue.includes('left')) {
+        result.pathology_info.affected_knee = 'Left';
+      } else if (lowerValue.includes('right')) {
+        result.pathology_info.affected_knee = 'Right';
+      }
     }
     // Procedure/treatment preference fields (Vivid Vascular patterns)
     else if (key.includes('prefer') || key.includes('non-surgical') || key.includes('nonsurgical') || 
@@ -578,6 +601,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "symptoms": "string or null",
     "pain_level": "string or null",
     "affected_area": "string or null",
+    "affected_knee": "string or null - Which knee is affected: 'Left', 'Right', or 'Both'. Extract from any mention of specific knee side, bilateral, or left/right knee references.",
     "duration": "string or null",
     "previous_treatments": "string or null",
     "oa_tkr_diagnosed": "string or null (YES/NO)",
