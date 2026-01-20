@@ -61,6 +61,13 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editMemberId, setEditMemberId] = useState("");
   const [editGroupNumber, setEditGroupNumber] = useState("");
 
+  // PCP edit state
+  const [isEditingPCP, setIsEditingPCP] = useState(false);
+  const [isSavingPCP, setIsSavingPCP] = useState(false);
+  const [editPCPName, setEditPCPName] = useState("");
+  const [editPCPPhone, setEditPCPPhone] = useState("");
+  const [editPCPAddress, setEditPCPAddress] = useState("");
+
   const hasAnyData =
     parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo || dob;
   if (!hasAnyData) {
@@ -163,6 +170,65 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // PCP edit handlers
+  const handleStartEditPCP = () => {
+    setEditPCPName(formatValue(parsedMedicalInfo?.pcp_name) || "");
+    setEditPCPPhone(formatValue(parsedMedicalInfo?.pcp_phone) || "");
+    setEditPCPAddress(formatValue(parsedMedicalInfo?.pcp_address) || "");
+    setIsEditingPCP(true);
+  };
+
+  const handleCancelEditPCP = () => {
+    setIsEditingPCP(false);
+  };
+
+  const handleSavePCP = async () => {
+    if (!appointmentId) {
+      toast({
+        title: "Error",
+        description: "Cannot save: appointment ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingPCP(true);
+    try {
+      const updatedMedicalInfo = {
+        ...(parsedMedicalInfo || {}),
+        pcp_name: editPCPName || null,
+        pcp_phone: editPCPPhone || null,
+        pcp_address: editPCPAddress || null,
+      };
+
+      const { error } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates: { parsed_medical_info: updatedMedicalInfo }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "PCP information updated",
+      });
+
+      setIsEditingPCP(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error saving PCP:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save PCP information",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPCP(false);
     }
   };
 
@@ -512,54 +578,126 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
           )}
 
           {/* Medical & PCP Information Section */}
-          {parsedMedicalInfo && (
+          {(parsedMedicalInfo || appointmentId) && (
             <Card className="bg-teal-50 border-teal-200">
               <CardContent className="pt-4 space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Heart className="h-4 w-4 text-teal-600" />
-                  <span className="font-medium text-sm text-teal-900">Medical & PCP Information</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-4 w-4 text-teal-600" />
+                    <span className="font-medium text-sm text-teal-900">Medical & PCP Information</span>
+                  </div>
+                  {appointmentId && !isEditingPCP && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-teal-600 hover:text-teal-700 hover:bg-teal-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEditPCP();
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {isEditingPCP && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-teal-600 hover:text-teal-700 hover:bg-teal-100"
+                        onClick={handleSavePCP}
+                        disabled={isSavingPCP}
+                      >
+                        {isSavingPCP ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={handleCancelEditPCP}
+                        disabled={isSavingPCP}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {formatValue(parsedMedicalInfo.pcp_name) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">PCP Name:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.pcp_name}</span>
+
+                {isEditingPCP ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">PCP Name</label>
+                      <Input
+                        value={editPCPName}
+                        onChange={(e) => setEditPCPName(e.target.value)}
+                        placeholder="Primary Care Physician name"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">PCP Phone</label>
+                      <Input
+                        value={editPCPPhone}
+                        onChange={(e) => setEditPCPPhone(e.target.value)}
+                        placeholder="Phone number"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">PCP Address</label>
+                      <Input
+                        value={editPCPAddress}
+                        onChange={(e) => setEditPCPAddress(e.target.value)}
+                        placeholder="Address"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
                   </div>
-                )}
-                {formatValue(parsedMedicalInfo.pcp_phone) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">PCP Phone:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.pcp_phone}</span>
-                  </div>
-                )}
-                {formatValue(parsedMedicalInfo.pcp_address) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">PCP Address:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.pcp_address}</span>
-                  </div>
-                )}
-                {formatValue(parsedMedicalInfo.xray_details) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">X-ray Details:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.xray_details}</span>
-                  </div>
-                )}
-                {formatValue(parsedMedicalInfo.imaging_details) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Imaging Details:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
-                  </div>
-                )}
-                {formatValue(parsedMedicalInfo.medications) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Medications:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.medications}</span>
-                  </div>
-                )}
-                {formatValue(parsedMedicalInfo.allergies) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Allergies:</span>{" "}
-                    <span className="font-medium">{parsedMedicalInfo.allergies}</span>
-                  </div>
+                ) : (
+                  <>
+                    {formatValue(parsedMedicalInfo?.pcp_name) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">PCP Name:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.pcp_name}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.pcp_phone) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">PCP Phone:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.pcp_phone}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.pcp_address) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">PCP Address:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.pcp_address}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.xray_details) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">X-ray Details:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.xray_details}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.imaging_details) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Imaging Details:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.medications) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Medications:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.medications}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.allergies) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Allergies:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.allergies}</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
