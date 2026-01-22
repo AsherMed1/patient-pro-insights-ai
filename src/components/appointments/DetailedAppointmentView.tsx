@@ -500,10 +500,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }
                         detectedInsurancePlan={appointment.detected_insurance_plan}
                         detectedInsuranceId={appointment.detected_insurance_id}
                         insuranceIdLink={appointment.insurance_id_link}
+                        insuranceBackLink={appointment.insurance_back_link}
                         dob={appointment.dob}
                         appointmentId={appointment.id}
                         onUpdate={onDataRefresh}
                         projectName={appointment.project_name}
+                        patientName={appointment.lead_name}
                       />
                     </div>
                   )}
