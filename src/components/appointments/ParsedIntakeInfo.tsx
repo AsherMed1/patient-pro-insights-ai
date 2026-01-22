@@ -3,7 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { User, Heart, Phone, Shield, ExternalLink, ChevronDown, Pencil, X, Check, Loader2 } from "lucide-react";
+import { User, Heart, Phone, Shield, ExternalLink, ChevronDown, Pencil, X, Check, Loader2, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +60,9 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     insuranceIdLink
   );
   const [isOpen, setIsOpen] = useState(hasInsuranceData);
+  
+  // Insurance upload collapsible state
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   
   // Insurance edit state
   const [isEditingInsurance, setIsEditingInsurance] = useState(false);
@@ -465,17 +469,37 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   </Button>
                 )}
                 
-                {/* Insurance Card Upload */}
+                {/* Insurance Card Upload - Collapsible */}
                 {appointmentId && !isEditingInsurance && (
                   <div className="mt-4 pt-4 border-t border-green-200">
-                    <InsuranceCardUpload
-                      appointmentId={appointmentId}
-                      currentFrontUrl={insuranceIdLink}
-                      currentBackUrl={insuranceBackLink}
-                      onUploadComplete={() => onUpdate?.()}
-                      patientName={patientName || "Patient"}
-                      projectName={projectName}
-                    />
+                    <Collapsible open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-green-100/50 transition-colors -mx-3">
+                          <div className="flex items-center gap-2">
+                            <Upload className="h-4 w-4 text-green-600" />
+                            <span className="font-medium text-sm text-green-800">
+                              Upload Insurance Card
+                            </span>
+                          </div>
+                          <ChevronDown 
+                            className={cn(
+                              "h-4 w-4 text-green-600 transition-transform",
+                              isUploadOpen && "rotate-180"
+                            )} 
+                          />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-3">
+                        <InsuranceCardUpload
+                          appointmentId={appointmentId}
+                          currentFrontUrl={insuranceIdLink}
+                          currentBackUrl={insuranceBackLink}
+                          onUploadComplete={() => onUpdate?.()}
+                          patientName={patientName || "Patient"}
+                          projectName={projectName}
+                        />
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
                 )}
               </CardContent>
