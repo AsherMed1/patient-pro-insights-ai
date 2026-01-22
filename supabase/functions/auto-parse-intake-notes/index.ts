@@ -180,6 +180,37 @@ function extractInsuranceUrlFromText(text: string | null): string | null {
   return null;
 }
 
+// Helper to extract urologist info from raw intake notes text
+function extractUrologistFromText(text: string | null): { name: string | null, phone: string | null } {
+  if (!text) return { name: null, phone: null };
+  
+  // Pattern: "Urologist's Name and Phone Number: dr pen 6272893382"
+  const patterns = [
+    /Urologist['']?s?\s+Name\s+and\s+Phone\s+Number:\s*(.+?)(?:\n|$)/i,
+    /Urologist['']?s?\s+Name.*?:\s*(.+?)(?:\n|$)/i,
+    /Urologist:\s*(.+?)(?:\n|$)/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const value = match[1].trim();
+      // Extract phone (10+ digit number)
+      const phoneMatch = value.match(/(\d{10,})/);
+      if (phoneMatch) {
+        const phone = phoneMatch[1];
+        const name = value.replace(phone, '').trim();
+        console.log(`[AUTO-PARSE] Extracted urologist from text: name="${name}", phone="${phone}"`);
+        return { name: name || value, phone };
+      }
+      console.log(`[AUTO-PARSE] Extracted urologist name from text (no phone): "${value}"`);
+      return { name: value, phone: null };
+    }
+  }
+  
+  return { name: null, phone: null };
+}
+
 // Helper to extract structured data from GHL custom fields
 function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>): any {
   const result = {
@@ -212,7 +243,9 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     medical_info: { 
       medications: null as string | null, 
       allergies: null as string | null, 
-      pcp_name: null as string | null 
+      pcp_name: null as string | null,
+      urologist_name: null as string | null,
+      urologist_phone: null as string | null
     },
     insurance_card_url: null as string | null
   };
@@ -330,6 +363,20 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.medical_info.allergies = value;
     } else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician')) {
       result.medical_info.pcp_name = value;
+    }
+    // Urologist fields
+    else if (key.includes('urologist')) {
+      // Try to extract name and phone from value like "dr pen 6272893382"
+      const value_str = String(value);
+      const phoneMatch = value_str.match(/(\d{10,})/);
+      if (phoneMatch) {
+        const phone = phoneMatch[1];
+        const name = value_str.replace(phone, '').trim();
+        result.medical_info.urologist_name = name || value_str;
+        result.medical_info.urologist_phone = phone;
+      } else {
+        result.medical_info.urologist_name = value_str;
+      }
     }
     // DOB from custom field
     else if (key.includes('dob') || (key.includes('date') && key.includes('birth'))) {
@@ -621,6 +668,8 @@ Parse the following patient intake notes and return a JSON object with these exa
     "pcp_name": "string or null",
     "pcp_phone": "string or null",
     "pcp_address": "string or null",
+    "urologist_name": "string or null - The urologist's name if mentioned",
+    "urologist_phone": "string or null - The urologist's phone number if mentioned",
     "imaging_details": "string or null",
     "xray_details": "string or null",
     "medications": "string or null",
@@ -680,6 +729,18 @@ IMPORTANT: Return ONLY the JSON object, no other text. If information is not fou
           parsedData.demographics = mergeWithNonNull(parsedData.demographics, ghlData.demographics);
           parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info, ghlData.pathology_info);
           parsedData.medical_info = mergeWithNonNull(parsedData.medical_info, ghlData.medical_info);
+        }
+
+        // Extract urologist info from raw intake notes (fallback if not found in GHL or AI)
+        const urologistFromText = extractUrologistFromText(record.patient_intake_notes);
+        if (!parsedData.medical_info) {
+          parsedData.medical_info = {};
+        }
+        if (urologistFromText.name && !parsedData.medical_info.urologist_name) {
+          parsedData.medical_info.urologist_name = urologistFromText.name;
+        }
+        if (urologistFromText.phone && !parsedData.medical_info.urologist_phone) {
+          parsedData.medical_info.urologist_phone = urologistFromText.phone;
         }
 
         // Normalize DOB to proper format
