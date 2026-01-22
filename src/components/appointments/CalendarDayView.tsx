@@ -5,7 +5,8 @@ import { format, parse, isValid } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { User, Clock, MapPin } from 'lucide-react';
+import { Clock } from 'lucide-react';
+import { getEventTypeFromCalendar, getStatusInfo } from './calendarUtils';
 
 interface CalendarDayViewProps {
   date: Date;
@@ -18,14 +19,13 @@ const TIME_SLOTS = Array.from({ length: 13 }, (_, i) => {
   const hour = i + 7;
   return {
     hour,
-    label: format(new Date().setHours(hour, 0, 0, 0), 'h:mm a')
+    label: format(new Date().setHours(hour, 0, 0, 0), 'h a')
   };
 });
 
 function parseAppointmentTime(timeString: string | null): number | null {
   if (!timeString) return null;
   
-  // Try parsing various time formats
   const formats = ['HH:mm', 'h:mm a', 'h:mm:ss a', 'HH:mm:ss'];
   
   for (const formatStr of formats) {
@@ -39,7 +39,6 @@ function parseAppointmentTime(timeString: string | null): number | null {
     }
   }
   
-  // Fallback: try to extract hour from string like "9:00 AM"
   const match = timeString.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)?/i);
   if (match) {
     let hour = parseInt(match[1], 10);
@@ -49,25 +48,6 @@ function parseAppointmentTime(timeString: string | null): number | null {
   }
   
   return null;
-}
-
-function getStatusColor(status: string | null): string {
-  const normalizedStatus = (status ?? '').toLowerCase().trim();
-  
-  switch (normalizedStatus) {
-    case 'showed':
-      return 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300';
-    case 'confirmed':
-      return 'bg-green-100 border-green-300 text-green-800 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300';
-    case 'cancelled':
-    case 'no show':
-    case 'noshow':
-      return 'bg-red-100 border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300';
-    case 'rescheduled':
-      return 'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300';
-    default:
-      return 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300';
-  }
 }
 
 export function CalendarDayView({
@@ -94,9 +74,9 @@ export function CalendarDayView({
   });
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-card">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
+      <div className="px-4 py-3 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">
           {format(date, 'EEEE, MMMM d, yyyy')}
         </h2>
@@ -106,7 +86,7 @@ export function CalendarDayView({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-1">
+        <div className="p-4">
           {/* Time slots */}
           {TIME_SLOTS.map(({ hour, label }) => {
             const slotAppointments = appointmentsByHour[hour] || [];
@@ -115,49 +95,58 @@ export function CalendarDayView({
               <div 
                 key={hour} 
                 className={cn(
-                  "flex min-h-[60px] border-b border-border/50",
-                  slotAppointments.length > 0 && "bg-accent/20"
+                  "flex min-h-[64px] border-b border-border/50",
+                  slotAppointments.length > 0 && "bg-accent/10"
                 )}
               >
                 {/* Time label */}
-                <div className="w-20 flex-shrink-0 py-2 pr-3 text-right">
+                <div className="w-16 flex-shrink-0 py-2 pr-3 text-right">
                   <span className="text-xs font-medium text-muted-foreground">
                     {label}
                   </span>
                 </div>
                 
                 {/* Appointments */}
-                <div className="flex-1 py-1 space-y-1">
-                  {slotAppointments.map(apt => (
-                    <div
-                      key={apt.id}
-                      onClick={() => onAppointmentClick(apt)}
-                      className={cn(
-                        "px-3 py-2 rounded-md border cursor-pointer transition-all hover:shadow-md",
-                        getStatusColor(apt.status)
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <User className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span className="font-medium text-sm truncate">
-                            {apt.lead_name || 'Unknown'}
-                          </span>
-                        </div>
-                        {apt.status && (
-                          <Badge variant="outline" className="text-[10px] flex-shrink-0">
-                            {apt.status}
+                <div className="flex-1 py-1 space-y-1 border-l border-border/50 pl-3">
+                  {slotAppointments.map(apt => {
+                    const eventType = getEventTypeFromCalendar(apt.calendar_name);
+                    const statusInfo = getStatusInfo(apt.status);
+                    
+                    return (
+                      <div
+                        key={apt.id}
+                        onClick={() => onAppointmentClick(apt)}
+                        className={cn(
+                          "px-3 py-2 rounded-lg border-l-4 cursor-pointer transition-all hover:shadow-md",
+                          "bg-card border border-border",
+                          eventType.borderColor
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={cn(
+                              "text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                              eventType.bgColor,
+                              eventType.textColor
+                            )}>
+                              {eventType.shortName}
+                            </span>
+                            <span className="font-medium text-sm text-foreground truncate">
+                              {apt.lead_name || 'Unknown'}
+                            </span>
+                          </div>
+                          <Badge variant={statusInfo.variant} className="text-[10px] flex-shrink-0">
+                            {statusInfo.label}
                           </Badge>
+                        </div>
+                        {apt.calendar_name && (
+                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                            {apt.calendar_name}
+                          </div>
                         )}
                       </div>
-                      {apt.calendar_name && (
-                        <div className="flex items-center gap-1.5 mt-1 text-xs opacity-75">
-                          <MapPin className="h-3 w-3" />
-                          <span className="truncate">{apt.calendar_name}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -165,34 +154,46 @@ export function CalendarDayView({
 
           {/* Unscheduled appointments */}
           {unscheduledAppointments.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+            <div className="mt-6 pt-4 border-t border-border">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 No Specific Time ({unscheduledAppointments.length})
               </h3>
-              <div className="space-y-1">
-                {unscheduledAppointments.map(apt => (
-                  <div
-                    key={apt.id}
-                    onClick={() => onAppointmentClick(apt)}
-                    className={cn(
-                      "px-3 py-2 rounded-md border cursor-pointer transition-all hover:shadow-md",
-                      getStatusColor(apt.status)
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <User className="h-3.5 w-3.5" />
-                        <span className="font-medium text-sm">{apt.lead_name || 'Unknown'}</span>
-                      </div>
-                      {apt.status && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {apt.status}
-                        </Badge>
+              <div className="space-y-2">
+                {unscheduledAppointments.map(apt => {
+                  const eventType = getEventTypeFromCalendar(apt.calendar_name);
+                  const statusInfo = getStatusInfo(apt.status);
+                  
+                  return (
+                    <div
+                      key={apt.id}
+                      onClick={() => onAppointmentClick(apt)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg border-l-4 cursor-pointer transition-all hover:shadow-md",
+                        "bg-card border border-border",
+                        eventType.borderColor
                       )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                            eventType.bgColor,
+                            eventType.textColor
+                          )}>
+                            {eventType.shortName}
+                          </span>
+                          <span className="font-medium text-sm text-foreground">
+                            {apt.lead_name || 'Unknown'}
+                          </span>
+                        </div>
+                        <Badge variant={statusInfo.variant} className="text-[10px]">
+                          {statusInfo.label}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
