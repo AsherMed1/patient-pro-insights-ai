@@ -23,6 +23,7 @@ interface ParsedIntakeInfoProps {
   className?: string;
   appointmentId?: string;
   onUpdate?: () => void;
+  projectName?: string;
 }
 
 export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
@@ -39,6 +40,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   className = "",
   appointmentId,
   onUpdate,
+  projectName,
 }) => {
   const { toast } = useToast();
   
@@ -67,6 +69,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPCPName, setEditPCPName] = useState("");
   const [editPCPPhone, setEditPCPPhone] = useState("");
   const [editPCPAddress, setEditPCPAddress] = useState("");
+  const [editUrologistName, setEditUrologistName] = useState("");
+  const [editUrologistPhone, setEditUrologistPhone] = useState("");
+
+  const isArterialInterventional = projectName === "Arterial Interventional Centers";
 
   const hasAnyData =
     parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo || dob;
@@ -178,6 +184,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     setEditPCPName(formatValue(parsedMedicalInfo?.pcp_name) || "");
     setEditPCPPhone(formatValue(parsedMedicalInfo?.pcp_phone) || "");
     setEditPCPAddress(formatValue(parsedMedicalInfo?.pcp_address) || "");
+    setEditUrologistName(formatValue(parsedMedicalInfo?.urologist_name) || "");
+    setEditUrologistPhone(formatValue(parsedMedicalInfo?.urologist_phone) || "");
     setIsEditingPCP(true);
   };
 
@@ -202,6 +210,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         pcp_name: editPCPName || null,
         pcp_phone: editPCPPhone || null,
         pcp_address: editPCPAddress || null,
+        urologist_name: editUrologistName || null,
+        urologist_phone: editUrologistPhone || null,
       };
 
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
@@ -652,6 +662,28 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         className="h-8 text-sm bg-background"
                       />
                     </div>
+                    {isArterialInterventional && (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Urologist Name</label>
+                          <Input
+                            value={editUrologistName}
+                            onChange={(e) => setEditUrologistName(e.target.value)}
+                            placeholder="Urologist name"
+                            className="h-8 text-sm bg-background"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Urologist Phone</label>
+                          <Input
+                            value={editUrologistPhone}
+                            onChange={(e) => setEditUrologistPhone(e.target.value)}
+                            placeholder="Phone number"
+                            className="h-8 text-sm bg-background"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -671,6 +703,18 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       <div className="text-sm">
                         <span className="text-muted-foreground">PCP Address:</span>{" "}
                         <span className="font-medium">{parsedMedicalInfo.pcp_address}</span>
+                      </div>
+                    )}
+                    {isArterialInterventional && formatValue(parsedMedicalInfo?.urologist_name) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Urologist Name:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.urologist_name}</span>
+                      </div>
+                    )}
+                    {isArterialInterventional && formatValue(parsedMedicalInfo?.urologist_phone) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Urologist Phone:</span>{" "}
+                        <span className="font-medium">{parsedMedicalInfo.urologist_phone}</span>
                       </div>
                     )}
                     {formatValue(parsedMedicalInfo?.xray_details) && (

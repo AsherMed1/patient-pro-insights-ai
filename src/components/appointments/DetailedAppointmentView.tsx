@@ -503,6 +503,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }
                         dob={appointment.dob}
                         appointmentId={appointment.id}
                         onUpdate={onDataRefresh}
+                        projectName={appointment.project_name}
                       />
                     </div>
                   )}

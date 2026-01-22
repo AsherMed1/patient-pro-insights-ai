@@ -1506,6 +1506,7 @@ const AppointmentCard = ({
           dob={appointment.dob}
           appointmentId={appointment.id}
           onUpdate={() => window.location.reload()}
+          projectName={appointment.project_name}
         />
         
         {/* Patient Intake Notes */}
