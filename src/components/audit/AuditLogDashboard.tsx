@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import PaginationControls from '@/components/shared/PaginationControls';
 import { AuditLogDetailDrawer } from './AuditLogDetailDrawer';
+import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole';
 
 interface AuditLog {
   id: string;
@@ -32,6 +34,8 @@ const ITEMS_PER_PAGE = 50;
 
 export const AuditLogDashboard = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { role, accessibleProjects } = useRole();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,21 +43,51 @@ export const AuditLogDashboard = () => {
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [realtimeEnabled, setRealtimeEnabled] = useState(false);
 
   const fetchLogs = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('audit_logs')
         .select('*')
         .order('timestamp', { ascending: false })
         .limit(1000);
 
+      // For non-admin users, only fetch their own logs
+      if (role !== 'admin') {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      setLogs(data || []);
+      
+      let logsData = data || [];
+      
+      // Additional client-side filtering for project access
+      // Filter logs to only show those from accessible projects or user's own actions
+      if (role !== 'admin' && accessibleProjects.length > 0) {
+        logsData = logsData.filter(log => {
+          // Always show user's own logs
+          if (log.user_id === user.id) return true;
+          
+          // Check if log metadata contains a project they have access to
+          const metadata = log.metadata as Record<string, unknown> | null;
+          const logProject = metadata?.project_name;
+          if (typeof logProject === 'string' && accessibleProjects.includes(logProject)) return true;
+          
+          return false;
+        });
+      }
+      
+      setLogs(logsData);
     } catch (error: any) {
       toast({
         title: 'Error fetching audit logs',
@@ -66,12 +100,14 @@ export const AuditLogDashboard = () => {
   };
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (user) {
+      fetchLogs();
+    }
+  }, [user, role, accessibleProjects]);
 
   // Real-time subscriptions
   useEffect(() => {
-    if (!realtimeEnabled) return;
+    if (!realtimeEnabled || !user) return;
 
     const channel = supabase
       .channel('audit-logs-changes')
@@ -83,7 +119,19 @@ export const AuditLogDashboard = () => {
           table: 'audit_logs'
         },
         (payload) => {
-          setLogs(prev => [payload.new as AuditLog, ...prev]);
+          const newLog = payload.new as AuditLog;
+          
+          // For non-admins, only add if it's their own log or related to their projects
+          if (role !== 'admin') {
+            const isOwnLog = newLog.user_id === user.id;
+            const metadata = newLog.metadata as Record<string, unknown> | null;
+            const logProject = metadata?.project_name;
+            const hasProjectAccess = typeof logProject === 'string' && accessibleProjects.includes(logProject);
+            
+            if (!isOwnLog && !hasProjectAccess) return;
+          }
+          
+          setLogs(prev => [newLog, ...prev]);
           toast({
             title: 'New audit log',
             description: `${payload.new.action} on ${payload.new.entity}`,
@@ -95,7 +143,19 @@ export const AuditLogDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [realtimeEnabled]);
+  }, [realtimeEnabled, user, role, accessibleProjects]);
+
+  // Extract unique projects from metadata for filter dropdown
+  const uniqueProjects = Array.from(
+    new Set(
+      logs
+        .map(log => {
+          const metadata = log.metadata as Record<string, unknown> | null;
+          return metadata?.project_name;
+        })
+        .filter((p): p is string => typeof p === 'string' && p.length > 0)
+    )
+  ).sort();
 
   // Apply filters
   useEffect(() => {
@@ -127,9 +187,17 @@ export const AuditLogDashboard = () => {
       filtered = filtered.filter(log => log.source === sourceFilter);
     }
 
+    // Project filter
+    if (projectFilter !== 'all') {
+      filtered = filtered.filter(log => {
+        const metadata = log.metadata as Record<string, unknown> | null;
+        return metadata?.project_name === projectFilter;
+      });
+    }
+
     setFilteredLogs(filtered);
     setCurrentPage(1);
-  }, [logs, searchQuery, entityFilter, actionFilter, sourceFilter]);
+  }, [logs, searchQuery, entityFilter, actionFilter, sourceFilter, projectFilter]);
 
   const uniqueEntities = Array.from(new Set(logs.map(log => log.entity))).sort();
   const uniqueActions = Array.from(new Set(logs.map(log => log.action))).sort();
@@ -142,19 +210,21 @@ export const AuditLogDashboard = () => {
   );
 
   const exportToCSV = () => {
-    const headers = ['Timestamp', 'User', 'Entity', 'Action', 'Description', 'Source'];
+    const headers = ['Timestamp', 'User', 'Entity', 'Action', 'Description', 'Source', 'Project'];
     const csvContent = [
       headers.join(','),
-      ...filteredLogs.map(log =>
-        [
+      ...filteredLogs.map(log => {
+        const metadata = log.metadata as Record<string, unknown> | null;
+        return [
           format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss'),
           log.user_name || 'System',
           log.entity,
           log.action,
           `"${log.description.replace(/"/g, '""')}"`,
-          log.source
-        ].join(',')
-      )
+          log.source,
+          (metadata?.project_name as string) || ''
+        ].join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -183,6 +253,7 @@ export const AuditLogDashboard = () => {
       case 'update': return 'bg-blue-500';
       case 'delete': return 'bg-red-500';
       case 'trigger': return 'bg-purple-500';
+      case 'portal_update': return 'bg-cyan-500';
       default: return 'bg-gray-500';
     }
   };
@@ -192,6 +263,7 @@ export const AuditLogDashboard = () => {
       case 'manual': return 'bg-blue-500';
       case 'automation': return 'bg-purple-500';
       case 'api': return 'bg-orange-500';
+      case 'portal': return 'bg-cyan-500';
       default: return 'bg-gray-500';
     }
   };
@@ -203,7 +275,7 @@ export const AuditLogDashboard = () => {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Audit Logs
+              {role === 'admin' ? 'Audit Logs' : 'My Activity Logs'}
             </CardTitle>
             <div className="flex gap-2">
               <Button
@@ -230,7 +302,7 @@ export const AuditLogDashboard = () => {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
             <div className="md:col-span-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -242,6 +314,17 @@ export const AuditLogDashboard = () => {
                 />
               </div>
             </div>
+            <Select value={projectFilter} onValueChange={setProjectFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {uniqueProjects.map(project => (
+                  <SelectItem key={project} value={project}>{project}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={entityFilter} onValueChange={setEntityFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Entity" />
