@@ -35,6 +35,7 @@ export interface AllAppointment {
   was_ever_confirmed?: boolean;
   internal_process_complete?: boolean;
   insurance_id_link?: string;
+  insurance_back_link?: string | null;
   last_ghl_sync_status?: string | null;
   last_ghl_sync_at?: string | null;
   last_ghl_sync_error?: string | null;

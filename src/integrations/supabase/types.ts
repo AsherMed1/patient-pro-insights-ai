@@ -225,6 +225,7 @@ export type Database = {
           ghl_id: string | null
           ghl_location_id: string | null
           id: string
+          insurance_back_link: string | null
           insurance_detection_confidence: number | null
           insurance_id_link: string | null
           internal_process_complete: boolean
@@ -271,6 +272,7 @@ export type Database = {
           ghl_id?: string | null
           ghl_location_id?: string | null
           id?: string
+          insurance_back_link?: string | null
           insurance_detection_confidence?: number | null
           insurance_id_link?: string | null
           internal_process_complete?: boolean
@@ -317,6 +319,7 @@ export type Database = {
           ghl_id?: string | null
           ghl_location_id?: string | null
           id?: string
+          insurance_back_link?: string | null
           insurance_detection_confidence?: number | null
           insurance_id_link?: string | null
           internal_process_complete?: boolean

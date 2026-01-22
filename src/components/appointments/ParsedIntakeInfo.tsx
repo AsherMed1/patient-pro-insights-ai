@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { format, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { InsuranceCardUpload } from "./InsuranceCardUpload";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
@@ -19,11 +20,13 @@ interface ParsedIntakeInfoProps {
   detectedInsurancePlan?: string | null;
   detectedInsuranceId?: string | null;
   insuranceIdLink?: string | null;
+  insuranceBackLink?: string | null;
   dob?: string | null;
   className?: string;
   appointmentId?: string;
   onUpdate?: () => void;
   projectName?: string;
+  patientName?: string;
 }
 
 export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
@@ -36,11 +39,13 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   detectedInsurancePlan,
   detectedInsuranceId,
   insuranceIdLink,
+  insuranceBackLink,
   dob,
   className = "",
   appointmentId,
   onUpdate,
   projectName,
+  patientName,
 }) => {
   const { toast } = useToast();
   
@@ -448,16 +453,30 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     )}
                   </>
                 )}
-                {insuranceIdLink && !isEditingInsurance && (
+                {(insuranceIdLink || insuranceBackLink) && !isEditingInsurance && (
                   <Button
                     variant="outline"
                     size="sm"
                     className="w-full mt-2"
-                    onClick={() => window.open(insuranceIdLink, "_blank")}
+                    onClick={() => window.open(insuranceIdLink || insuranceBackLink || "", "_blank")}
                   >
                     <ExternalLink className="h-3 w-3 mr-2" />
                     View Insurance Card
                   </Button>
+                )}
+                
+                {/* Insurance Card Upload */}
+                {appointmentId && !isEditingInsurance && (
+                  <div className="mt-4 pt-4 border-t border-green-200">
+                    <InsuranceCardUpload
+                      appointmentId={appointmentId}
+                      currentFrontUrl={insuranceIdLink}
+                      currentBackUrl={insuranceBackLink}
+                      onUploadComplete={() => onUpdate?.()}
+                      patientName={patientName || "Patient"}
+                      projectName={projectName}
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>

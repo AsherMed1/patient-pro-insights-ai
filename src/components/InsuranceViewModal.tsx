@@ -9,6 +9,7 @@ interface InsuranceInfo {
   insurance_plan?: string;
   insurance_id?: string;
   insurance_id_link?: string;
+  insurance_back_link?: string;
   group_number?: string;
 }
 
@@ -120,33 +121,62 @@ const InsuranceViewModal = ({
             </div>
           </div>
 
-          {/* Insurance Card Photo */}
-          {insuranceInfo.insurance_id_link && (
+          {/* Insurance Card Photos */}
+          {(insuranceInfo.insurance_id_link || insuranceInfo.insurance_back_link) && (
             <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
               <div className="flex items-center space-x-2 mb-3">
                 <FileText className="h-4 w-4 text-gray-600" />
                 <div className="text-xs font-medium text-gray-700 uppercase tracking-wide">
-                  Insurance Card Photo
+                  Insurance Card Photos
                 </div>
               </div>
-              <div className="space-y-2">
-                <img 
-                  src={insuranceInfo.insurance_id_link} 
-                  alt="Insurance Card"
-                  className="w-full rounded-lg border border-gray-300 shadow-sm"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => window.open(insuranceInfo.insurance_id_link, '_blank')}
-                >
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  Open Full Size
-                </Button>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Front of Card */}
+                {insuranceInfo.insurance_id_link && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-center text-muted-foreground font-medium">Front</div>
+                    <img 
+                      src={insuranceInfo.insurance_id_link} 
+                      alt="Insurance Card Front"
+                      className="w-full rounded-lg border border-gray-300 shadow-sm"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs"
+                      onClick={() => window.open(insuranceInfo.insurance_id_link, '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Full Size
+                    </Button>
+                  </div>
+                )}
+                {/* Back of Card */}
+                {insuranceInfo.insurance_back_link && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-center text-muted-foreground font-medium">Back</div>
+                    <img 
+                      src={insuranceInfo.insurance_back_link} 
+                      alt="Insurance Card Back"
+                      className="w-full rounded-lg border border-gray-300 shadow-sm"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs"
+                      onClick={() => window.open(insuranceInfo.insurance_back_link, '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Full Size
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}
