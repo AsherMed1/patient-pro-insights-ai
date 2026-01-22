@@ -705,16 +705,16 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         <span className="font-medium">{parsedMedicalInfo.pcp_address}</span>
                       </div>
                     )}
-                    {isArterialInterventional && formatValue(parsedMedicalInfo?.urologist_name) && (
+                    {isArterialInterventional && (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Urologist Name:</span>{" "}
-                        <span className="font-medium">{parsedMedicalInfo.urologist_name}</span>
+                        <span className="font-medium">{formatValue(parsedMedicalInfo?.urologist_name) || "—"}</span>
                       </div>
                     )}
-                    {isArterialInterventional && formatValue(parsedMedicalInfo?.urologist_phone) && (
+                    {isArterialInterventional && (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Urologist Phone:</span>{" "}
-                        <span className="font-medium">{parsedMedicalInfo.urologist_phone}</span>
+                        <span className="font-medium">{formatValue(parsedMedicalInfo?.urologist_phone) || "—"}</span>
                       </div>
                     )}
                     {formatValue(parsedMedicalInfo?.xray_details) && (
