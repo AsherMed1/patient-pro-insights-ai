@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Settings, RefreshCw } from 'lucide-react';
+import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -17,10 +17,10 @@ import DateRangeFilter from '@/components/projects/DateRangeFilter';
 import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 import { SupportWidget } from '@/components/support-widget/SupportWidget';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CalendarSidePanel } from '@/components/appointments/CalendarSidePanel';
 import { CalendarDetailView } from '@/components/appointments/CalendarDetailView';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { AllAppointment } from '@/components/appointments/types';
+import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
 import '@/utils/retriggerVividVascularParsing';
 
@@ -72,9 +72,29 @@ const ProjectPortal = () => {
   // Calendar state
   const [calendarViewMode, setCalendarViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
-  const [isCalendarCollapsed, setIsCalendarCollapsed] = useState(false);
   const [showCalendarView, setShowCalendarView] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<AllAppointment | null>(null);
+
+  // Calendar navigation helpers
+  const goToPrevious = () => {
+    setSelectedCalendarDate(prev => {
+      if (calendarViewMode === 'day') return subDays(prev, 1);
+      if (calendarViewMode === 'week') return subWeeks(prev, 1);
+      return subMonths(prev, 1);
+    });
+  };
+
+  const goToNext = () => {
+    setSelectedCalendarDate(prev => {
+      if (calendarViewMode === 'day') return addDays(prev, 1);
+      if (calendarViewMode === 'week') return addWeeks(prev, 1);
+      return addMonths(prev, 1);
+    });
+  };
+
+  const goToToday = () => {
+    setSelectedCalendarDate(new Date());
+  };
 
   // Fetch overview permission for project users
   useEffect(() => {
@@ -408,70 +428,106 @@ const ProjectPortal = () => {
           )}
 
           <TabsContent value="appointments">
-            <div className="flex gap-4">
-              {/* Calendar Side Panel - hidden on mobile */}
-              <div className="hidden lg:block flex-shrink-0">
-                <CalendarSidePanel
-                  projectName={project.project_name}
-                  selectedDate={selectedCalendarDate}
-                  onDateSelect={(date) => {
-                    if (date) {
+            {/* View Toggle Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant={!showCalendarView ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowCalendarView(false)}
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  List View
+                </Button>
+                <Button 
+                  variant={showCalendarView ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowCalendarView(true)}
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Calendar View
+                </Button>
+              </div>
+              
+              {/* Calendar Controls - only shown when calendar is active */}
+              {showCalendarView && (
+                <div className="flex items-center gap-4">
+                  {/* Date Navigation */}
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={goToPrevious}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={goToToday}>
+                      Today
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={goToNext}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {/* Current Date Display */}
+                  <span className="text-sm font-medium text-foreground min-w-[140px] text-center">
+                    {format(selectedCalendarDate, calendarViewMode === 'month' ? 'MMMM yyyy' : 'MMM d, yyyy')}
+                  </span>
+                  
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className={`rounded-none ${calendarViewMode === 'day' ? 'bg-muted' : ''}`}
+                      onClick={() => setCalendarViewMode('day')}
+                    >
+                      Day
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className={`rounded-none border-x border-border ${calendarViewMode === 'week' ? 'bg-muted' : ''}`}
+                      onClick={() => setCalendarViewMode('week')}
+                    >
+                      Week
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className={`rounded-none ${calendarViewMode === 'month' ? 'bg-muted' : ''}`}
+                      onClick={() => setCalendarViewMode('month')}
+                    >
+                      Month
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Content Area - Full Width */}
+            {showCalendarView ? (
+              <div className="portal-section h-[calc(100vh-320px)] flex flex-col">
+                <div className="flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
+                  <CalendarDetailView
+                    projectName={project.project_name}
+                    selectedDate={selectedCalendarDate}
+                    viewMode={calendarViewMode}
+                    onAppointmentClick={(apt) => setSelectedAppointment(apt)}
+                    onDateSelect={(date) => {
                       setSelectedCalendarDate(date);
-                      setShowCalendarView(true);
-                    }
-                  }}
-                  viewMode={calendarViewMode}
-                  onViewModeChange={setCalendarViewMode}
-                  isCollapsed={isCalendarCollapsed}
-                  onToggleCollapse={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
+                      setCalendarViewMode('day');
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="portal-section">
+                <AllAppointmentsManager 
+                  projectFilter={project.project_name} 
+                  onDataChanged={fetchAppointmentStats}
+                  initialStatusFilter={appointmentFilters.statusFilter}
+                  initialProcedureFilter={appointmentFilters.procedureFilter}
+                  initialTab={appointmentFilters.tab}
                 />
               </div>
-
-              {/* Main Content */}
-              <div className="flex-1 min-w-0">
-                {showCalendarView ? (
-                  <div className="portal-section h-[calc(100vh-280px)] flex flex-col">
-                    {/* Calendar View Header */}
-                    <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
-                      <h3 className="text-lg font-semibold text-foreground">
-                        Calendar View
-                      </h3>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setShowCalendarView(false)}
-                      >
-                        Back to List View
-                      </Button>
-                    </div>
-                    
-                    {/* Calendar Detail View */}
-                    <div className="flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
-                      <CalendarDetailView
-                        projectName={project.project_name}
-                        selectedDate={selectedCalendarDate}
-                        viewMode={calendarViewMode}
-                        onAppointmentClick={(apt) => setSelectedAppointment(apt)}
-                        onDateSelect={(date) => {
-                          setSelectedCalendarDate(date);
-                          setCalendarViewMode('day');
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="portal-section">
-                    <AllAppointmentsManager 
-                      projectFilter={project.project_name} 
-                      onDataChanged={fetchAppointmentStats}
-                      initialStatusFilter={appointmentFilters.statusFilter}
-                      initialProcedureFilter={appointmentFilters.procedureFilter}
-                      initialTab={appointmentFilters.tab}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Appointment Detail Modal */}
             {selectedAppointment && (
