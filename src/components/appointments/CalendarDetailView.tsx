@@ -3,6 +3,7 @@ import { AllAppointment } from './types';
 import { CalendarDayView } from './CalendarDayView';
 import { CalendarWeekView } from './CalendarWeekView';
 import { CalendarMonthView } from './CalendarMonthView';
+import { UpcomingEventsPanel } from './UpcomingEventsPanel';
 import { useCalendarAppointments } from '@/hooks/useCalendarAppointments';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -30,46 +31,62 @@ export function CalendarDetailView({
 
   if (loading) {
     return (
-      <div className="space-y-4 p-4">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid gap-2">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+      <div className="flex h-full">
+        <div className="flex-1 space-y-4 p-4">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        </div>
+        <div className="hidden lg:block w-72 border-l border-border p-4 space-y-3">
+          <Skeleton className="h-5 w-32" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
       </div>
     );
   }
 
-  switch (viewMode) {
-    case 'day':
-      return (
-        <CalendarDayView
-          date={selectedDate}
-          appointmentsByDate={appointmentsByDate}
+  return (
+    <div className="flex h-full">
+      {/* Main Calendar View */}
+      <div className="flex-1 min-w-0">
+        {viewMode === 'day' && (
+          <CalendarDayView
+            date={selectedDate}
+            appointmentsByDate={appointmentsByDate}
+            onAppointmentClick={onAppointmentClick}
+          />
+        )}
+        {viewMode === 'week' && (
+          <CalendarWeekView
+            selectedDate={selectedDate}
+            appointmentsByDate={appointmentsByDate}
+            onAppointmentClick={onAppointmentClick}
+            onDateSelect={onDateSelect}
+          />
+        )}
+        {viewMode === 'month' && (
+          <CalendarMonthView
+            month={selectedDate}
+            appointmentsByDate={appointmentsByDate}
+            onAppointmentClick={onAppointmentClick}
+            onDateSelect={onDateSelect}
+            selectedDate={selectedDate}
+          />
+        )}
+      </div>
+      
+      {/* Upcoming Events Sidebar - hidden on mobile */}
+      <div className="hidden lg:block w-72 border-l border-border">
+        <UpcomingEventsPanel 
+          projectName={projectName}
           onAppointmentClick={onAppointmentClick}
         />
-      );
-    case 'week':
-      return (
-        <CalendarWeekView
-          selectedDate={selectedDate}
-          appointmentsByDate={appointmentsByDate}
-          onAppointmentClick={onAppointmentClick}
-          onDateSelect={onDateSelect}
-        />
-      );
-    case 'month':
-      return (
-        <CalendarMonthView
-          month={selectedDate}
-          appointmentsByDate={appointmentsByDate}
-          onAppointmentClick={onAppointmentClick}
-          onDateSelect={onDateSelect}
-          selectedDate={selectedDate}
-        />
-      );
-    default:
-      return null;
-  }
+      </div>
+    </div>
+  );
 }

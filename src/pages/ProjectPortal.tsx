@@ -20,6 +20,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CalendarDetailView } from '@/components/appointments/CalendarDetailView';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { AllAppointment } from '@/components/appointments/types';
+import { EventTypeLegend } from '@/components/appointments/EventTypeLegend';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
 import '@/utils/retriggerVividVascularParsing';
@@ -429,74 +430,87 @@ const ProjectPortal = () => {
 
           <TabsContent value="appointments">
             {/* View Toggle Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant={!showCalendarView ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowCalendarView(false)}
-                >
-                  <List className="h-4 w-4 mr-2" />
-                  List View
-                </Button>
-                <Button 
-                  variant={showCalendarView ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowCalendarView(true)}
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Calendar View
-                </Button>
+            <div className="space-y-4 mb-4">
+              {/* Top Row: View toggle + Calendar controls */}
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                {/* View Toggle - Pill style */}
+                <div className="flex items-center bg-muted rounded-full p-1">
+                  <Button 
+                    variant={!showCalendarView ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-full px-4"
+                    onClick={() => setShowCalendarView(false)}
+                  >
+                    <List className="h-4 w-4 mr-2" />
+                    List
+                  </Button>
+                  <Button 
+                    variant={showCalendarView ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-full px-4"
+                    onClick={() => setShowCalendarView(true)}
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Calendar
+                  </Button>
+                </div>
+                
+                {/* Calendar Controls - only shown when calendar is active */}
+                {showCalendarView && (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* View Mode Toggle - Pill style */}
+                    <div className="flex items-center bg-muted rounded-full p-1">
+                      <Button 
+                        variant={calendarViewMode === 'day' ? "default" : "ghost"}
+                        size="sm"
+                        className="rounded-full px-3 h-7 text-xs"
+                        onClick={() => setCalendarViewMode('day')}
+                      >
+                        Day
+                      </Button>
+                      <Button 
+                        variant={calendarViewMode === 'week' ? "default" : "ghost"}
+                        size="sm"
+                        className="rounded-full px-3 h-7 text-xs"
+                        onClick={() => setCalendarViewMode('week')}
+                      >
+                        Week
+                      </Button>
+                      <Button 
+                        variant={calendarViewMode === 'month' ? "default" : "ghost"}
+                        size="sm"
+                        className="rounded-full px-3 h-7 text-xs"
+                        onClick={() => setCalendarViewMode('month')}
+                      >
+                        Month
+                      </Button>
+                    </div>
+
+                    {/* Date Navigation */}
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToPrevious}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 px-3" onClick={goToToday}>
+                        Today
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToNext}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    {/* Current Date Display */}
+                    <span className="text-lg font-semibold text-foreground">
+                      {format(selectedCalendarDate, calendarViewMode === 'month' ? 'MMMM yyyy' : 'MMMM d, yyyy')}
+                    </span>
+                  </div>
+                )}
               </div>
-              
-              {/* Calendar Controls - only shown when calendar is active */}
+
+              {/* Event Type Legend - only shown for calendar view */}
               {showCalendarView && (
-                <div className="flex items-center gap-4">
-                  {/* Date Navigation */}
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" onClick={goToPrevious}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={goToToday}>
-                      Today
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={goToNext}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  {/* Current Date Display */}
-                  <span className="text-sm font-medium text-foreground min-w-[140px] text-center">
-                    {format(selectedCalendarDate, calendarViewMode === 'month' ? 'MMMM yyyy' : 'MMM d, yyyy')}
-                  </span>
-                  
-                  {/* View Mode Toggle */}
-                  <div className="flex items-center border border-border rounded-lg overflow-hidden">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className={`rounded-none ${calendarViewMode === 'day' ? 'bg-muted' : ''}`}
-                      onClick={() => setCalendarViewMode('day')}
-                    >
-                      Day
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className={`rounded-none border-x border-border ${calendarViewMode === 'week' ? 'bg-muted' : ''}`}
-                      onClick={() => setCalendarViewMode('week')}
-                    >
-                      Week
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className={`rounded-none ${calendarViewMode === 'month' ? 'bg-muted' : ''}`}
-                      onClick={() => setCalendarViewMode('month')}
-                    >
-                      Month
-                    </Button>
-                  </div>
+                <div className="px-1">
+                  <EventTypeLegend />
                 </div>
               )}
             </div>
