@@ -510,7 +510,7 @@ const ProjectPortal = () => {
               {/* Event Type Legend - only shown for calendar view */}
               {showCalendarView && (
                 <div className="px-1">
-                  <EventTypeLegend />
+                  <EventTypeLegend projectName={project.project_name} />
                 </div>
               )}
             </div>
