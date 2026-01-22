@@ -9,6 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { format, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserAttribution } from "@/hooks/useUserAttribution";
 import { InsuranceCardUpload } from "./InsuranceCardUpload";
 
 interface ParsedIntakeInfoProps {
@@ -49,6 +50,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   patientName,
 }) => {
   const { toast } = useToast();
+  const { userId, userName } = useUserAttribution();
   
   // Auto-expand when insurance data exists
   const hasInsuranceData = !!(
@@ -163,7 +165,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             detected_insurance_provider: editProvider || null,
             detected_insurance_plan: editPlan || null,
             detected_insurance_id: editMemberId || null,
-          }
+          },
+          userId,
+          userName,
+          changeSource: 'portal'
         }
       });
 
@@ -226,7 +231,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
         body: {
           appointmentId,
-          updates: { parsed_medical_info: updatedMedicalInfo }
+          updates: { parsed_medical_info: updatedMedicalInfo },
+          userId,
+          userName,
+          changeSource: 'portal'
         }
       });
 

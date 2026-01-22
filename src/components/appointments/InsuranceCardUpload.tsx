@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Upload, X, Image, Loader2, Check, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserAttribution } from "@/hooks/useUserAttribution";
 import { cn } from "@/lib/utils";
 
 interface InsuranceCardUploadProps {
@@ -137,6 +138,7 @@ export const InsuranceCardUpload = ({
   projectName,
 }: InsuranceCardUploadProps) => {
   const { toast } = useToast();
+  const { userId, userName } = useUserAttribution();
   const [frontUrl, setFrontUrl] = useState<string | null>(currentFrontUrl || null);
   const [backUrl, setBackUrl] = useState<string | null>(currentBackUrl || null);
   const [isUploadingFront, setIsUploadingFront] = useState(false);
@@ -231,6 +233,9 @@ export const InsuranceCardUpload = ({
             insurance_id_link: front,
             insurance_back_link: back,
           },
+          userId,
+          userName,
+          changeSource: 'portal'
         },
       });
 
