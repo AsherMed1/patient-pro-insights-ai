@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
@@ -433,21 +434,31 @@ const ProjectPortal = () => {
             <div className="space-y-4 mb-4">
               {/* Top Row: View toggle + Calendar controls */}
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                {/* View Toggle - Pill style */}
-                <div className="flex items-center bg-muted rounded-full p-1">
+                {/* View Toggle - Modern Pill style */}
+                <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
                   <Button 
-                    variant={!showCalendarView ? "default" : "ghost"}
+                    variant="ghost"
                     size="sm"
-                    className="rounded-full px-4"
+                    className={cn(
+                      "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                      !showCalendarView 
+                        ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
+                        : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
+                    )}
                     onClick={() => setShowCalendarView(false)}
                   >
                     <List className="h-4 w-4 mr-2" />
                     List
                   </Button>
                   <Button 
-                    variant={showCalendarView ? "default" : "ghost"}
+                    variant="ghost"
                     size="sm"
-                    className="rounded-full px-4"
+                    className={cn(
+                      "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                      showCalendarView 
+                        ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
+                        : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
+                    )}
                     onClick={() => setShowCalendarView(true)}
                   >
                     <Calendar className="h-4 w-4 mr-2" />
@@ -458,28 +469,43 @@ const ProjectPortal = () => {
                 {/* Calendar Controls - only shown when calendar is active */}
                 {showCalendarView && (
                   <div className="flex items-center gap-3 flex-wrap">
-                    {/* View Mode Toggle - Pill style */}
-                    <div className="flex items-center bg-muted rounded-full p-1">
+                    {/* View Mode Toggle - Modern Pill style */}
+                    <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
                       <Button 
-                        variant={calendarViewMode === 'day' ? "default" : "ghost"}
+                        variant="ghost"
                         size="sm"
-                        className="rounded-full px-3 h-7 text-xs"
+                        className={cn(
+                          "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                          calendarViewMode === 'day' 
+                            ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
+                            : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
+                        )}
                         onClick={() => setCalendarViewMode('day')}
                       >
                         Day
                       </Button>
                       <Button 
-                        variant={calendarViewMode === 'week' ? "default" : "ghost"}
+                        variant="ghost"
                         size="sm"
-                        className="rounded-full px-3 h-7 text-xs"
+                        className={cn(
+                          "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                          calendarViewMode === 'week' 
+                            ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
+                            : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
+                        )}
                         onClick={() => setCalendarViewMode('week')}
                       >
                         Week
                       </Button>
                       <Button 
-                        variant={calendarViewMode === 'month' ? "default" : "ghost"}
+                        variant="ghost"
                         size="sm"
-                        className="rounded-full px-3 h-7 text-xs"
+                        className={cn(
+                          "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                          calendarViewMode === 'month' 
+                            ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
+                            : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
+                        )}
                         onClick={() => setCalendarViewMode('month')}
                       >
                         Month
