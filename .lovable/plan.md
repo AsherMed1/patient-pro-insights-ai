@@ -1,328 +1,312 @@
 
 
-## Plan: Reserved Time Blocks to Prevent Overbooking
+## Enhanced Reserve Time Block Dialog
 
 ### Overview
 
-Create a feature allowing clinics to reserve specific dates/times directly in the Portal. When a slot is reserved, it automatically creates a confirmed "Reserved" appointment in the GHL calendar, preventing callers from booking that time slot.
+Update the `ReserveTimeBlockDialog` component to allow:
+1. **Start + End time pickers** instead of duration dropdown
+2. **Multiple time ranges** per reservation, similar to the reference screenshot
 
 ---
 
-### Part 1: Database Changes
+### Part 1: Update Time Selection UI
 
-**Add a new appointment type indicator to distinguish reserved blocks from patient appointments**
+**Replace the current "Start Time + Duration" approach with "Start Time + End Time" selectors**
 
-No new table required. Instead, we'll use the existing `all_appointments` table with a special marker:
+Current:
+```
+Start Time: [9:00 AM ▼]
+Duration:   [1 hour ▼]
+```
 
-- `lead_name`: Set to "RESERVED" or "Reserved - [Reason]"
-- `status`: Set to "Confirmed" (blocks the time in GHL)
-- Add a new column `is_reserved_block` (boolean) to explicitly identify reserved slots
-
-```sql
-ALTER TABLE all_appointments 
-ADD COLUMN is_reserved_block BOOLEAN DEFAULT false;
-
-COMMENT ON COLUMN all_appointments.is_reserved_block IS 
-  'True if this appointment is a reserved time block, not a patient appointment';
+New:
+```
+When are you available?
+[08:00 AM] (clock) To [05:00 PM] (clock)  [trash]
+[06:00 PM] (clock) To [07:00 PM] (clock)  [+] [trash]
 ```
 
 ---
 
-### Part 2: Create Edge Function for GHL Appointment Creation
+### Part 2: State Management Changes
 
-**New file:** `supabase/functions/create-ghl-appointment/index.ts`
-
-This edge function will:
-1. Create a confirmed appointment in GHL via the API
-2. Return the GHL appointment ID for local record creation
+**Replace single time/duration with array of time ranges:**
 
 ```typescript
-// Key API call structure (GHL Calendars API)
-const response = await fetch(
-  'https://services.leadconnectorhq.com/calendars/events/appointments',
-  {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Version': '2021-04-15',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      calendarId: calendarId,
-      locationId: ghl_location_id,
-      title: 'Reserved - [Reason]',
-      startTime: '2026-01-31T15:00:00-06:00',
-      endTime: '2026-01-31T15:30:00-06:00',
-      appointmentStatus: 'confirmed',
-      toNotify: false,
-      // No contactId = blocks time without patient
-    })
-  }
-);
-```
+// Current state
+const [selectedTime, setSelectedTime] = useState<string>('09:00');
+const [duration, setDuration] = useState<string>('60');
 
-**Required Parameters:**
-| Parameter | Source | Description |
-|-----------|--------|-------------|
-| `calendarId` | User selection | Which GHL calendar to block |
-| `locationId` | Project settings | `projects.ghl_location_id` |
-| `apiKey` | Project settings | `projects.ghl_api_key` |
-| `startTime` | User input | ISO 8601 datetime with timezone |
-| `endTime` | Calculated | startTime + duration |
-| `title` | User input | "Reserved - [Reason]" |
-| `timezone` | Project settings | `projects.timezone` |
+// New state structure
+interface TimeRange {
+  id: string;
+  startTime: string;  // "09:00"
+  endTime: string;    // "17:00"
+}
+
+const [timeRanges, setTimeRanges] = useState<TimeRange[]>([
+  { id: '1', startTime: '09:00', endTime: '17:00' }
+]);
+```
 
 ---
 
-### Part 3: Create "Reserve Time Block" Dialog Component
+### Part 3: Add/Remove Time Range Functions
 
-**New file:** `src/components/appointments/ReserveTimeBlockDialog.tsx`
+**Add functions to manage multiple time ranges:**
 
-A dialog component that allows clinics to create reserved time blocks:
+```typescript
+const addTimeRange = () => {
+  setTimeRanges([
+    ...timeRanges,
+    { 
+      id: Date.now().toString(), 
+      startTime: '09:00', 
+      endTime: '17:00' 
+    }
+  ]);
+};
+
+const removeTimeRange = (id: string) => {
+  if (timeRanges.length > 1) {
+    setTimeRanges(timeRanges.filter(range => range.id !== id));
+  }
+};
+
+const updateTimeRange = (id: string, field: 'startTime' | 'endTime', value: string) => {
+  setTimeRanges(timeRanges.map(range => 
+    range.id === id ? { ...range, [field]: value } : range
+  ));
+};
+```
+
+---
+
+### Part 4: Updated UI Layout
+
+**New time range section with add/remove buttons:**
 
 ```text
 +--------------------------------------------------+
 |  Reserve Time Block                          [X] |
 +--------------------------------------------------+
 |                                                  |
-|  Date:        [January 31, 2026    ] [Calendar]  |
+|  Date:        [January 27, 2026    ] [Calendar]  |
 |                                                  |
-|  Start Time:  [3:00 PM  ▼]                       |
-|                                                  |
-|  Duration:    [30 min ▼] [1 hour] [2 hours]      |
+|  ┌────────────────────────────────────────────┐  |
+|  │ When are you available?                    │  |
+|  │                                            │  |
+|  │ [08:00 AM ▼] To [05:00 PM ▼]         [🗑️]  │  |
+|  │                                            │  |
+|  │ [06:00 PM ▼] To [07:00 PM ▼]     [+] [🗑️]  │  |
+|  └────────────────────────────────────────────┘  |
 |                                                  |
 |  Calendar:    [PAE Consult ▼]                    |
 |                                                  |
 |  Reason:      [___________________________]      |
-|               (e.g., Staff meeting, Lunch)       |
 |                                                  |
-|  [Cancel]                    [Reserve Time]      |
+|  [Cancel]                            [Submit]    |
 +--------------------------------------------------+
 ```
 
-**Features:**
-- Date picker with time slot selection
-- Duration presets (30 min, 1 hour, 2 hours, custom)
-- Calendar dropdown (fetches from GHL)
-- Optional reason field
-- Preview of blocked slot before confirming
+**Key UI elements:**
+- Each row has Start Time dropdown, "To" label, End Time dropdown
+- Trash icon to remove a time range (disabled if only one range)
+- Plus icon on the last row to add a new time range
+- Visual grouping with border/card styling
 
 ---
 
-### Part 4: Add "Reserve Time" Button to Calendar Views
+### Part 5: Enhanced Time Slot Options
 
-**Modify:** `src/components/appointments/CalendarDayView.tsx`
-
-Add a "+" button or "Reserve Time" action to empty time slots:
-
-```tsx
-// In the time slot rendering
-{slotAppointments.length === 0 && (
-  <button
-    onClick={() => onReserveTimeSlot(hour, date)}
-    className="text-xs text-muted-foreground hover:text-primary hover:bg-accent/50 
-               px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-  >
-    + Reserve
-  </button>
-)}
-```
-
-**Modify:** `src/pages/ProjectPortal.tsx`
-
-Add a floating "Reserve Time" button in the calendar view header:
-
-```tsx
-{showCalendarView && (
-  <Button 
-    variant="outline" 
-    size="sm"
-    onClick={() => setShowReserveDialog(true)}
-  >
-    <Plus className="h-4 w-4 mr-2" />
-    Reserve Time
-  </Button>
-)}
-```
-
----
-
-### Part 5: Calendar Display for Reserved Blocks
-
-**Modify:** `src/components/appointments/calendarUtils.ts`
-
-Add a new event type for reserved blocks:
+**Add 30-minute intervals for more granular selection:**
 
 ```typescript
-export function getEventTypeFromCalendar(calendarName: string | null, isReserved?: boolean): EventTypeInfo {
-  if (isReserved) {
-    return {
-      shortName: 'RSV',
-      fullName: 'Reserved',
-      bgColor: 'bg-gray-100',
-      textColor: 'text-gray-700',
-      borderColor: 'border-l-gray-500',
-    };
+// Current: only hourly slots
+const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => ({ ... }));
+
+// Enhanced: 30-minute intervals
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const minute = (i % 2) * 30;
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return {
+    value: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+    label: `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
+  };
+});
+```
+
+---
+
+### Part 6: Submit Handler Updates
+
+**Create multiple GHL appointments - one per time range:**
+
+```typescript
+const handleSubmit = async () => {
+  // Validate all time ranges
+  for (const range of timeRanges) {
+    if (range.startTime >= range.endTime) {
+      toast({
+        title: 'Invalid Time Range',
+        description: 'End time must be after start time',
+        variant: 'destructive',
+      });
+      return;
+    }
   }
-  // ... existing logic
-}
-```
 
-**Visual Treatment:**
-- Gray styling (distinct from patient appointments)
-- Hatched/striped pattern to indicate blocked time
-- Shows reason if provided
-- Clear "Reserved" badge
+  setIsSubmitting(true);
 
----
+  try {
+    const createdAppointments = [];
 
-### Part 6: Manage/Delete Reserved Blocks
+    // Create appointment for each time range
+    for (const range of timeRanges) {
+      const [startHours, startMinutes] = range.startTime.split(':').map(Number);
+      const [endHours, endMinutes] = range.endTime.split(':').map(Number);
+      
+      const startDateTime = setMinutes(setHours(selectedDate, startHours), startMinutes);
+      const endDateTime = setMinutes(setHours(selectedDate, endHours), endMinutes);
 
-**Add capability to:**
-1. View reserved block details (who created it, when)
-2. Delete reserved blocks (removes from GHL too)
-3. Edit reserved blocks (change time/duration)
+      // Call GHL API for each range
+      const { data: ghlResult } = await supabase.functions.invoke('create-ghl-appointment', {
+        body: {
+          project_name: projectName,
+          calendar_id: selectedCalendarId,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          title: reason ? `Reserved - ${reason}` : 'Reserved',
+          reason,
+        },
+      });
 
-```typescript
-// Delete reserved block flow:
-// 1. Call GHL API to delete appointment
-// 2. Delete local record from all_appointments
-// 3. Refresh calendar view
+      // Create local record for each range
+      await supabase.from('all_appointments').insert({
+        project_name: projectName,
+        lead_name: reason ? `Reserved - ${reason}` : 'Reserved',
+        date_of_appointment: format(selectedDate, 'yyyy-MM-dd'),
+        requested_time: format(startDateTime, 'HH:mm'),
+        calendar_name: selectedCalendar?.name,
+        status: 'Confirmed',
+        is_reserved_block: true,
+        ghl_appointment_id: ghlResult?.ghl_appointment_id,
+        // ... other fields
+      });
 
-const deleteReservedBlock = async (appointmentId: string, ghlAppointmentId: string) => {
-  // Delete from GHL
-  await supabase.functions.invoke('delete-ghl-appointment', {
-    body: { ghl_appointment_id: ghlAppointmentId }
-  });
-  
-  // Delete local record
-  await supabase.from('all_appointments').delete().eq('id', appointmentId);
+      createdAppointments.push({ range, ghlResult });
+    }
+
+    toast({
+      title: 'Time Blocks Reserved',
+      description: `Created ${createdAppointments.length} reservation(s) for ${format(selectedDate, 'PPP')}`,
+    });
+
+    onOpenChange(false);
+    onSuccess?.();
+
+  } catch (error) {
+    // Error handling
+  } finally {
+    setIsSubmitting(false);
+  }
 };
 ```
 
 ---
 
-### Part 7: Edge Function for Deleting GHL Appointments
+### Part 7: Validation Enhancements
 
-**New file:** `supabase/functions/delete-ghl-appointment/index.ts`
+**Add validation for time range logic:**
 
 ```typescript
-// DELETE request to GHL API
-const response = await fetch(
-  `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
-  {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Version': '2021-04-15',
+const validateTimeRanges = (): boolean => {
+  for (const range of timeRanges) {
+    // Check end time is after start time
+    if (range.startTime >= range.endTime) {
+      return false;
     }
   }
-);
+  
+  // Optionally check for overlapping ranges
+  for (let i = 0; i < timeRanges.length; i++) {
+    for (let j = i + 1; j < timeRanges.length; j++) {
+      if (rangesOverlap(timeRanges[i], timeRanges[j])) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+};
 ```
 
 ---
 
-### Part 8: User Attribution for Reserved Blocks
+### File Changes Summary
 
-Track who created/modified reserved blocks:
+| File | Changes |
+|------|---------|
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Major update: Replace duration with end time, add multiple time ranges support, update UI and submit logic |
 
-```typescript
-// When creating reserved block, store user info
-await supabase.from('all_appointments').insert({
-  project_name: projectName,
-  lead_name: `Reserved - ${reason || 'Blocked'}`,
-  date_of_appointment: selectedDate,
-  requested_time: selectedTime,
-  calendar_name: selectedCalendar.name,
-  status: 'Confirmed',
-  is_reserved_block: true,
-  ghl_appointment_id: ghlResponse.appointmentId,
-  patient_intake_notes: `Time block reserved by ${userName} on ${new Date().toLocaleDateString()}\nReason: ${reason}`,
-});
+---
 
-// Also create internal note for audit trail
-await supabase.from('appointment_notes').insert({
-  appointment_id: newAppointment.id,
-  note_text: `Reserved time block created by ${userName}. Reason: ${reason}`,
-  created_by: userId,
-});
+### UI Component Details
+
+**TimeRangeRow sub-component for cleaner code:**
+
+```tsx
+function TimeRangeRow({ 
+  range, 
+  isLast, 
+  canDelete,
+  onUpdate, 
+  onAdd, 
+  onRemove 
+}: TimeRangeRowProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {/* Start Time */}
+      <Select value={range.startTime} onValueChange={(v) => onUpdate(range.id, 'startTime', v)}>
+        <SelectTrigger className="w-[130px]">
+          <Clock className="mr-2 h-4 w-4" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{/* TIME_SLOTS */}</SelectContent>
+      </Select>
+
+      <span className="text-muted-foreground">To</span>
+
+      {/* End Time */}
+      <Select value={range.endTime} onValueChange={(v) => onUpdate(range.id, 'endTime', v)}>
+        <SelectTrigger className="w-[130px]">
+          <Clock className="mr-2 h-4 w-4" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{/* TIME_SLOTS */}</SelectContent>
+      </Select>
+
+      {/* Add button (only on last row) */}
+      {isLast && (
+        <Button variant="ghost" size="icon" onClick={onAdd}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      )}
+
+      {/* Delete button */}
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={() => onRemove(range.id)}
+        disabled={!canDelete}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 ```
-
----
-
-### Implementation Flow Diagram
-
-```text
-User clicks "Reserve Time" on calendar
-            │
-            ▼
-┌─────────────────────────────┐
-│  ReserveTimeBlockDialog     │
-│  - Select date/time         │
-│  - Choose calendar          │
-│  - Enter reason (optional)  │
-└─────────────────────────────┘
-            │
-            ▼ [User clicks "Reserve"]
-            │
-┌─────────────────────────────┐
-│  create-ghl-appointment     │
-│  Edge Function              │
-│  - Creates blocked time     │
-│  - Returns GHL appointment  │
-│    ID                       │
-└─────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────┐
-│  Insert local record        │
-│  all_appointments table     │
-│  - is_reserved_block: true  │
-│  - lead_name: "Reserved"    │
-│  - status: "Confirmed"      │
-└─────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────┐
-│  Calendar displays          │
-│  reserved block in gray     │
-│  GHL prevents double        │
-│  booking for that slot      │
-└─────────────────────────────┘
-```
-
----
-
-### File Summary
-
-| File | Action | Description |
-|------|--------|-------------|
-| `supabase/migrations/xxx.sql` | Create | Add `is_reserved_block` column |
-| `supabase/functions/create-ghl-appointment/index.ts` | Create | Edge function to create GHL appointments |
-| `supabase/functions/delete-ghl-appointment/index.ts` | Create | Edge function to delete GHL appointments |
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Create | Dialog for reserving time blocks |
-| `src/components/appointments/CalendarDayView.tsx` | Update | Add "Reserve" button to empty slots |
-| `src/components/appointments/CalendarWeekView.tsx` | Update | Add "Reserve" button to empty slots |
-| `src/components/appointments/calendarUtils.ts` | Update | Add "Reserved" event type styling |
-| `src/pages/ProjectPortal.tsx` | Update | Add "Reserve Time" button and dialog state |
-| `src/hooks/useCalendarAppointments.tsx` | Update | Filter handling for reserved blocks |
-
----
-
-### Security Considerations
-
-1. **Role-based access**: Only admin/agent users can create reserved blocks
-2. **Project scoping**: Reserved blocks are tied to specific projects
-3. **GHL API key security**: Keys stored in project settings, accessed via edge functions
-4. **Audit logging**: All reserved block operations logged for accountability
-
----
-
-### Benefits
-
-1. **Prevents overbooking** - Confirmed appointments in GHL block the time slot
-2. **Visible in portal** - Staff can see reserved times in the calendar view
-3. **Bidirectional sync** - Reservation in Portal creates real GHL appointment
-4. **Audit trail** - Track who reserved what and when
-5. **Easy management** - Edit or delete reserved blocks as needed
 
