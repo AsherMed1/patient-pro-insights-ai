@@ -13,6 +13,7 @@ interface CalendarDetailViewProps {
   viewMode: 'day' | 'week' | 'month';
   onAppointmentClick: (appointment: AllAppointment) => void;
   onDateSelect: (date: Date) => void;
+  onReserveTimeSlot?: (hour: number, date: Date) => void;
 }
 
 export function CalendarDetailView({
@@ -20,7 +21,8 @@ export function CalendarDetailView({
   selectedDate,
   viewMode,
   onAppointmentClick,
-  onDateSelect
+  onDateSelect,
+  onReserveTimeSlot
 }: CalendarDetailViewProps) {
   const { appointmentsByDate, loading } = useCalendarAppointments({
     projectName,
@@ -59,6 +61,7 @@ export function CalendarDetailView({
             date={selectedDate}
             appointmentsByDate={appointmentsByDate}
             onAppointmentClick={onAppointmentClick}
+            onReserveTimeSlot={onReserveTimeSlot}
           />
         )}
         {viewMode === 'week' && (

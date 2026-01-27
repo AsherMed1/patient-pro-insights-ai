@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,7 @@ import { CalendarDetailView } from '@/components/appointments/CalendarDetailView
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { AllAppointment } from '@/components/appointments/types';
 import { EventTypeLegend } from '@/components/appointments/EventTypeLegend';
+import { ReserveTimeBlockDialog } from '@/components/appointments/ReserveTimeBlockDialog';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
 import '@/utils/retriggerVividVascularParsing';
@@ -76,6 +77,12 @@ const ProjectPortal = () => {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
   const [showCalendarView, setShowCalendarView] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<AllAppointment | null>(null);
+  
+  // Reserve time block state
+  const [showReserveDialog, setShowReserveDialog] = useState(false);
+  const [reserveInitialDate, setReserveInitialDate] = useState<Date | undefined>();
+  const [reserveInitialHour, setReserveInitialHour] = useState<number | undefined>();
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   // Calendar navigation helpers
   const goToPrevious = () => {
@@ -529,6 +536,21 @@ const ProjectPortal = () => {
                     <span className="text-lg font-semibold text-foreground">
                       {format(selectedCalendarDate, calendarViewMode === 'month' ? 'MMMM yyyy' : 'MMMM d, yyyy')}
                     </span>
+                    
+                    {/* Reserve Time Button */}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="h-8 px-3 bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
+                      onClick={() => {
+                        setReserveInitialDate(selectedCalendarDate);
+                        setReserveInitialHour(undefined);
+                        setShowReserveDialog(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Reserve Time
+                    </Button>
                   </div>
                 )}
               </div>
@@ -554,6 +576,11 @@ const ProjectPortal = () => {
                       setSelectedCalendarDate(date);
                       setCalendarViewMode('day');
                     }}
+                    onReserveTimeSlot={(hour, date) => {
+                      setReserveInitialDate(date);
+                      setReserveInitialHour(hour);
+                      setShowReserveDialog(true);
+                    }}
                   />
                 </div>
               </div>
@@ -577,6 +604,18 @@ const ProjectPortal = () => {
                 onClose={() => setSelectedAppointment(null)}
               />
             )}
+            
+            {/* Reserve Time Block Dialog */}
+            <ReserveTimeBlockDialog
+              open={showReserveDialog}
+              onOpenChange={setShowReserveDialog}
+              projectName={project.project_name}
+              initialDate={reserveInitialDate}
+              initialHour={reserveInitialHour}
+              userName={user?.user_metadata?.full_name || user?.email || 'Portal User'}
+              userId={user?.id}
+              onSuccess={() => setCalendarRefreshKey(prev => prev + 1)}
+            />
           </TabsContent>
         </Tabs>
 
