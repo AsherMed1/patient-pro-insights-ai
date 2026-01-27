@@ -229,6 +229,7 @@ export type Database = {
           insurance_detection_confidence: number | null
           insurance_id_link: string | null
           internal_process_complete: boolean
+          is_reserved_block: boolean | null
           is_viewed: boolean | null
           last_ghl_sync_at: string | null
           last_ghl_sync_error: string | null
@@ -276,6 +277,7 @@ export type Database = {
           insurance_detection_confidence?: number | null
           insurance_id_link?: string | null
           internal_process_complete?: boolean
+          is_reserved_block?: boolean | null
           is_viewed?: boolean | null
           last_ghl_sync_at?: string | null
           last_ghl_sync_error?: string | null
@@ -323,6 +325,7 @@ export type Database = {
           insurance_detection_confidence?: number | null
           insurance_id_link?: string | null
           internal_process_complete?: boolean
+          is_reserved_block?: boolean | null
           is_viewed?: boolean | null
           last_ghl_sync_at?: string | null
           last_ghl_sync_error?: string | null

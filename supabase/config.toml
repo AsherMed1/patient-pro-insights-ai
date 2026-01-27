@@ -130,3 +130,11 @@ verify_jwt = false
 [functions.reparse-specific-appointments]
 verify_jwt = false
 # Admin function to re-trigger parsing for specific appointments
+
+[functions.create-ghl-appointment]
+verify_jwt = false
+# Create appointments in GoHighLevel (for reserved time blocks)
+
+[functions.delete-ghl-appointment]
+verify_jwt = false
+# Delete appointments from GoHighLevel (for removing reserved time blocks)

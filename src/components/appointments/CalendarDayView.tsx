@@ -5,13 +5,14 @@ import { format, parse, isValid } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Clock } from 'lucide-react';
-import { getEventTypeFromCalendar, getStatusInfo } from './calendarUtils';
+import { Clock, Plus, Lock } from 'lucide-react';
+import { getEventTypeFromCalendar, getStatusInfo, RESERVED_EVENT_TYPE } from './calendarUtils';
 
 interface CalendarDayViewProps {
   date: Date;
   appointmentsByDate: Record<string, DayAppointmentData>;
   onAppointmentClick: (appointment: AllAppointment) => void;
+  onReserveTimeSlot?: (hour: number, date: Date) => void;
 }
 
 // Generate time slots from 7 AM to 7 PM
@@ -53,7 +54,8 @@ function parseAppointmentTime(timeString: string | null): number | null {
 export function CalendarDayView({
   date,
   appointmentsByDate,
-  onAppointmentClick
+  onAppointmentClick,
+  onReserveTimeSlot
 }: CalendarDayViewProps) {
   const dateKey = format(date, 'yyyy-MM-dd');
   const dayData = appointmentsByDate[dateKey];
@@ -95,7 +97,7 @@ export function CalendarDayView({
               <div 
                 key={hour} 
                 className={cn(
-                  "flex min-h-[64px] border-b border-border/50",
+                  "flex min-h-[64px] border-b border-border/50 group",
                   slotAppointments.length > 0 && "bg-accent/10"
                 )}
               >
@@ -107,9 +109,19 @@ export function CalendarDayView({
                 </div>
                 
                 {/* Appointments */}
-                <div className="flex-1 py-1 space-y-1 border-l border-border/50 pl-3">
+                <div className="flex-1 py-1 space-y-1 border-l border-border/50 pl-3 relative">
+                  {slotAppointments.length === 0 && onReserveTimeSlot && (
+                    <button
+                      onClick={() => onReserveTimeSlot(hour, date)}
+                      className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground hover:text-primary hover:bg-accent/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Reserve
+                    </button>
+                  )}
                   {slotAppointments.map(apt => {
-                    const eventType = getEventTypeFromCalendar(apt.calendar_name);
+                    const isReserved = apt.is_reserved_block === true;
+                    const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved);
                     const statusInfo = getStatusInfo(apt.status);
                     
                     return (
@@ -119,11 +131,13 @@ export function CalendarDayView({
                         className={cn(
                           "px-3 py-2 rounded-lg border-l-4 cursor-pointer transition-all hover:shadow-md",
                           "bg-card border border-border",
-                          eventType.borderColor
+                          eventType.borderColor,
+                          isReserved && "bg-slate-50 dark:bg-slate-800/30 border-dashed"
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
+                            {isReserved && <Lock className="h-3 w-3 text-slate-500 flex-shrink-0" />}
                             <span className={cn(
                               "text-[10px] font-semibold px-1.5 py-0.5 rounded",
                               eventType.bgColor,
@@ -131,7 +145,10 @@ export function CalendarDayView({
                             )}>
                               {eventType.shortName}
                             </span>
-                            <span className="font-medium text-sm text-foreground truncate">
+                            <span className={cn(
+                              "font-medium text-sm truncate",
+                              isReserved ? "text-slate-600 dark:text-slate-400" : "text-foreground"
+                            )}>
                               {apt.lead_name || 'Unknown'}
                             </span>
                           </div>
@@ -161,7 +178,8 @@ export function CalendarDayView({
               </h3>
               <div className="space-y-2">
                 {unscheduledAppointments.map(apt => {
-                  const eventType = getEventTypeFromCalendar(apt.calendar_name);
+                  const isReserved = apt.is_reserved_block === true;
+                  const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved);
                   const statusInfo = getStatusInfo(apt.status);
                   
                   return (
@@ -171,11 +189,13 @@ export function CalendarDayView({
                       className={cn(
                         "px-3 py-2 rounded-lg border-l-4 cursor-pointer transition-all hover:shadow-md",
                         "bg-card border border-border",
-                        eventType.borderColor
+                        eventType.borderColor,
+                        isReserved && "bg-slate-50 dark:bg-slate-800/30 border-dashed"
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
+                          {isReserved && <Lock className="h-3 w-3 text-slate-500" />}
                           <span className={cn(
                             "text-[10px] font-semibold px-1.5 py-0.5 rounded",
                             eventType.bgColor,
@@ -183,7 +203,10 @@ export function CalendarDayView({
                           )}>
                             {eventType.shortName}
                           </span>
-                          <span className="font-medium text-sm text-foreground">
+                          <span className={cn(
+                            "font-medium text-sm",
+                            isReserved ? "text-slate-600 dark:text-slate-400" : "text-foreground"
+                          )}>
                             {apt.lead_name || 'Unknown'}
                           </span>
                         </div>

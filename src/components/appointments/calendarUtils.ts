@@ -7,6 +7,16 @@ export interface EventTypeInfo {
   dotColor: string;
 }
 
+// Reserved block styling
+export const RESERVED_EVENT_TYPE: EventTypeInfo = {
+  type: 'Reserved',
+  shortName: 'RSV',
+  borderColor: 'border-l-slate-500',
+  bgColor: 'bg-slate-100 dark:bg-slate-800/50',
+  textColor: 'text-slate-600 dark:text-slate-400',
+  dotColor: 'bg-slate-500'
+};
+
 // Define event type color scheme based on procedure types
 export const EVENT_TYPES: EventTypeInfo[] = [
   { 
@@ -75,8 +85,13 @@ export const EVENT_TYPES: EventTypeInfo[] = [
   },
 ];
 
-// Extract event type from calendar name
-export function getEventTypeFromCalendar(calendarName: string | null): EventTypeInfo {
+// Extract event type from calendar name (with reserved block check)
+export function getEventTypeFromCalendar(calendarName: string | null, isReservedBlock?: boolean): EventTypeInfo {
+  // Return reserved styling if this is a reserved block
+  if (isReservedBlock) {
+    return RESERVED_EVENT_TYPE;
+  }
+
   if (!calendarName) {
     return EVENT_TYPES[EVENT_TYPES.length - 1]; // Return "Other"
   }
