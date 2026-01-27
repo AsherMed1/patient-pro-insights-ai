@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
-import { Plus, Edit, Trash2, RefreshCw, Mail, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Mail, Search, Loader2 } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
 import { useSendWelcomeEmail } from '@/hooks/useWelcomeEmail';
 
@@ -36,6 +36,7 @@ const UserManagement = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -214,7 +215,7 @@ const UserManagement = () => {
       return;
     }
 
-    setLoading(true);
+    setCreating(true);
     try {
       // Call the secure edge function to create user
       const { data, error } = await supabase.functions.invoke('create-user-with-role', {
@@ -284,7 +285,7 @@ const UserManagement = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
   };
 
@@ -548,8 +549,9 @@ const UserManagement = () => {
                         </Select>
                       </div>
                     )}
-                    <Button onClick={createUser} className="w-full">
-                      Create User
+                    <Button onClick={createUser} className="w-full" disabled={creating}>
+                      {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {creating ? 'Creating...' : 'Create User'}
                     </Button>
                   </div>
                 </DialogContent>
