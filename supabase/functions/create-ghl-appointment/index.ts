@@ -15,6 +15,63 @@ interface CreateBlockSlotRequest {
   reason?: string;
 }
 
+function isSlotUnavailableError(details: unknown): boolean {
+  if (!details || typeof details !== 'object') return false;
+  const msg = (details as { message?: unknown }).message;
+  return typeof msg === 'string' && msg.toLowerCase().includes('slot you have selected is no longer available');
+}
+
+function parseOffsetSuffix(iso: string): string | null {
+  // Matches "+HH:MM" or "-HH:MM" at end of string
+  const m = iso.match(/([+-]\d\d:\d\d)$/);
+  return m?.[1] ?? (iso.endsWith('Z') ? 'Z' : null);
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+function formatWithOffset(dateUtc: Date, offsetSuffix: string): string {
+  if (offsetSuffix === 'Z') return dateUtc.toISOString();
+
+  const m = offsetSuffix.match(/^([+-])(\d\d):(\d\d)$/);
+  if (!m) return dateUtc.toISOString();
+  const sign = m[1] === '-' ? -1 : 1;
+  const hours = Number(m[2]);
+  const mins = Number(m[3]);
+  const offsetMinutes = sign * (hours * 60 + mins);
+
+  // Convert UTC ms -> "local" ms for the provided fixed offset
+  const localMs = dateUtc.getTime() + offsetMinutes * 60_000;
+  const d = new Date(localMs);
+
+  const yyyy = d.getUTCFullYear();
+  const MM = pad2(d.getUTCMonth() + 1);
+  const dd = pad2(d.getUTCDate());
+  const HH = pad2(d.getUTCHours());
+  const mm = pad2(d.getUTCMinutes());
+  const ss = pad2(d.getUTCSeconds());
+
+  return `${yyyy}-${MM}-${dd}T${HH}:${mm}:${ss}${offsetSuffix}`;
+}
+
+function getMinutes(value: unknown, unit: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  const u = typeof unit === 'string' ? unit.toLowerCase() : '';
+  if (u === 'mins' || u === 'min' || u === 'minutes' || u === '') return Math.round(value);
+  if (u === 'hours' || u === 'hour') return Math.round(value * 60);
+  return null;
+}
+
+async function ghlJson(res: Response) {
+  // GHL sometimes returns empty body on errors
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -118,8 +175,9 @@ serve(async (req) => {
     console.log('[CREATE-GHL-BLOCK-SLOT] Block-slots failed, using placeholder appointment approach...');
     console.log('[CREATE-GHL-BLOCK-SLOT] Block-slots error:', ghlData);
 
-    // Step 1: Get the calendar details to find team members
+    // Step 1: Get the calendar details to find team members + slot size
     let assignedUserId: string | null = null;
+    let calendarData: any = null;
     
     try {
       console.log('[CREATE-GHL-BLOCK-SLOT] Fetching calendar details to get team members...');
@@ -135,7 +193,7 @@ serve(async (req) => {
         }
       );
 
-      const calendarData = await calendarResponse.json();
+      calendarData = await ghlJson(calendarResponse);
       console.log('[CREATE-GHL-BLOCK-SLOT] Calendar data:', JSON.stringify(calendarData, null, 2));
 
       // Get team members from calendar - check various possible field names
@@ -164,7 +222,7 @@ serve(async (req) => {
           }
         );
 
-        const usersData = await usersResponse.json();
+         const usersData = await ghlJson(usersResponse);
         console.log('[CREATE-GHL-BLOCK-SLOT] Location users:', JSON.stringify(usersData, null, 2));
 
         if (usersData.users && usersData.users.length > 0) {
@@ -189,7 +247,7 @@ serve(async (req) => {
       }
     );
 
-    const searchData = await searchResponse.json();
+     const searchData = await ghlJson(searchResponse);
     let placeholderContactId: string | null = null;
 
     if (searchData.contacts && searchData.contacts.length > 0) {
@@ -217,7 +275,7 @@ serve(async (req) => {
         }
       );
 
-      const createContactData = await createContactResponse.json();
+       const createContactData = await ghlJson(createContactResponse);
       
       if (!createContactResponse.ok) {
         console.error('[CREATE-GHL-BLOCK-SLOT] Failed to create placeholder contact:', createContactData);
@@ -245,66 +303,146 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Create appointment with placeholder contact AND assignedUserId
-    const appointmentPayload: Record<string, unknown> = {
-      calendarId: calendar_id,
-      locationId: project.ghl_location_id,
-      contactId: placeholderContactId,
-      title: title || 'Reserved',
-      startTime: start_time,
-      endTime: end_time,
-      appointmentStatus: 'confirmed',
-      toNotify: false,
-      ignoreDateRange: true,
-      ignoreAvailability: true,
-    };
+     // Step 3: For round-robin calendars, GHL often rejects long multi-hour appointments.
+     // Instead, block the range by creating appointments in the calendar's slot size.
+     // (If the calendar has only one team member, this fully blocks the calendar.)
+     const offsetSuffix = parseOffsetSuffix(start_time) || parseOffsetSuffix(end_time) || 'Z';
+     const startDate = new Date(start_time);
+     const endDate = new Date(end_time);
 
-    // Add assignedUserId if we found one - this is REQUIRED for round-robin calendars
-    if (assignedUserId) {
-      appointmentPayload.assignedUserId = assignedUserId;
-    }
+     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate >= endDate) {
+       return new Response(
+         JSON.stringify({
+           success: false,
+           error: 'Invalid time range',
+           details: { start_time, end_time },
+         }),
+         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+       );
+     }
 
-    console.log('[CREATE-GHL-BLOCK-SLOT] Creating appointment with payload:', appointmentPayload);
-
-    ghlResponse = await fetch(
-      'https://services.leadconnectorhq.com/calendars/events/appointments',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${project.ghl_api_key}`,
-          'Version': '2021-04-15',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(appointmentPayload),
-      }
-    );
-
-    ghlData = await ghlResponse.json();
-
-    if (!ghlResponse.ok) {
-      console.error('[CREATE-GHL-BLOCK-SLOT] GHL API error:', ghlData);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Failed to create GHL block slot',
-          details: ghlData 
-        }),
-        { status: ghlResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      // Pull slot sizes from the earlier calendar response when available
+      // (When missing, fallback to 30-min blocks)
+      const calendarSlotIntervalMin = getMinutes(
+        calendarData?.calendar?.slotInterval ?? calendarData?.slotInterval,
+        calendarData?.calendar?.slotIntervalUnit ?? calendarData?.slotIntervalUnit,
       );
-    }
 
-    console.log('[CREATE-GHL-BLOCK-SLOT] Placeholder appointment created successfully:', ghlData);
+      const calendarSlotDurationMin = getMinutes(
+        calendarData?.calendar?.slotDuration ?? calendarData?.slotDuration,
+        calendarData?.calendar?.slotDurationUnit ?? calendarData?.slotDurationUnit,
+      );
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        ghl_appointment_id: ghlData.id || ghlData.appointmentId,
-        all_block_ids: [ghlData.id || ghlData.appointmentId],
-        team_members_blocked: 1,
-        ghl_data: ghlData
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+     const intervalMin = calendarSlotIntervalMin || 30;
+     const durationMin = calendarSlotDurationMin || intervalMin;
+
+     const intervalMs = intervalMin * 60_000;
+     const durationMs = durationMin * 60_000;
+
+     const createOne = async (slotStart: Date, slotEnd: Date) => {
+       const appointmentPayload: Record<string, unknown> = {
+         calendarId: calendar_id,
+         locationId: project.ghl_location_id,
+         contactId: placeholderContactId,
+         title: title || 'Reserved',
+         startTime: formatWithOffset(slotStart, offsetSuffix),
+         endTime: formatWithOffset(slotEnd, offsetSuffix),
+         appointmentStatus: 'confirmed',
+         toNotify: false,
+         ignoreDateRange: true,
+         ignoreAvailability: true,
+       };
+       if (assignedUserId) appointmentPayload.assignedUserId = assignedUserId;
+
+       const res = await fetch(
+         'https://services.leadconnectorhq.com/calendars/events/appointments',
+         {
+           method: 'POST',
+           headers: {
+             'Authorization': `Bearer ${project.ghl_api_key}`,
+             'Version': '2021-04-15',
+             'Content-Type': 'application/json',
+           },
+           body: JSON.stringify(appointmentPayload),
+         },
+       );
+       const data = await ghlJson(res);
+       return { ok: res.ok, status: res.status, data };
+     };
+
+     console.log('[CREATE-GHL-BLOCK-SLOT] Blocking in slot increments:', { intervalMin, durationMin });
+
+     const allIds: string[] = [];
+     let skipped = 0;
+     let created = 0;
+
+     // Safety cap to avoid runaway loops
+     const maxSlots = 300;
+     let slotCount = 0;
+
+     for (let t = startDate.getTime(); t + durationMs <= endDate.getTime(); t += intervalMs) {
+       slotCount += 1;
+       if (slotCount > maxSlots) break;
+
+       const slotStart = new Date(t);
+       const slotEnd = new Date(t + durationMs);
+
+       const r = await createOne(slotStart, slotEnd);
+       if (r.ok) {
+         const id = (r.data as any)?.id || (r.data as any)?.appointmentId;
+         if (id) allIds.push(id);
+         created += 1;
+         continue;
+       }
+
+       if (isSlotUnavailableError(r.data)) {
+         skipped += 1;
+         continue;
+       }
+
+       console.error('[CREATE-GHL-BLOCK-SLOT] GHL API error:', r.data);
+       return new Response(
+         JSON.stringify({
+           success: false,
+           error: 'Failed to create GHL block slot',
+           details: r.data,
+         }),
+         { status: r.status || 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+       );
+     }
+
+     if (created === 0) {
+       // Important: if GHL has no available slots (e.g. closed day/weekend or fully booked),
+       // there's nothing to block in GHL. Return success so the portal can still record the
+       // local "Reserved" block without hard-failing the UX.
+       return new Response(
+         JSON.stringify({
+           success: true,
+           ghl_appointment_id: null,
+           all_block_ids: [],
+           team_members_blocked: 0,
+           segments_created: 0,
+           segments_skipped: skipped,
+           ghl_synced: false,
+           message: 'No available slots to reserve in that range (calendar may be closed or fully booked).',
+         }),
+         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+       );
+     }
+
+     console.log('[CREATE-GHL-BLOCK-SLOT] Reserved blocks created:', { created, skipped });
+
+     return new Response(
+       JSON.stringify({
+         success: true,
+         ghl_appointment_id: allIds[0] || null,
+         all_block_ids: allIds,
+         team_members_blocked: 1,
+         segments_created: created,
+         segments_skipped: skipped,
+       }),
+       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+     );
 
   } catch (error) {
     console.error('[CREATE-GHL-BLOCK-SLOT] Error:', error);
