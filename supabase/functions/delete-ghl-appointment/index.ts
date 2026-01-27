@@ -9,6 +9,7 @@ const corsHeaders = {
 interface DeleteAppointmentRequest {
   project_name: string;
   ghl_appointment_id: string;
+  is_block_slot?: boolean;
 }
 
 serve(async (req) => {
@@ -23,11 +24,12 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: DeleteAppointmentRequest = await req.json();
-    const { project_name, ghl_appointment_id } = body;
+    const { project_name, ghl_appointment_id, is_block_slot } = body;
 
     console.log('[DELETE-GHL-APPOINTMENT] Request received:', {
       project_name,
-      ghl_appointment_id
+      ghl_appointment_id,
+      is_block_slot
     });
 
     // Validate required fields
@@ -64,42 +66,63 @@ serve(async (req) => {
       );
     }
 
-    // Delete appointment from GHL
-    console.log('[DELETE-GHL-APPOINTMENT] Deleting GHL appointment:', ghl_appointment_id);
+    // Try block-slot endpoint first, then fall back to appointments endpoint
+    // Block slots created via /block-slots must be deleted via /block-slots/{id}
+    const endpoints = [
+      `https://services.leadconnectorhq.com/calendars/events/block-slots/${ghl_appointment_id}`,
+      `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`
+    ];
 
-    const ghlResponse = await fetch(
-      `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
-      {
+    // If explicitly a block slot, only try the block-slots endpoint
+    const endpointsToTry = is_block_slot ? [endpoints[0]] : endpoints;
+
+    console.log('[DELETE-GHL-APPOINTMENT] Attempting to delete:', ghl_appointment_id);
+
+    let lastError: string | null = null;
+    let success = false;
+
+    for (const endpoint of endpointsToTry) {
+      console.log('[DELETE-GHL-APPOINTMENT] Trying endpoint:', endpoint);
+      
+      const ghlResponse = await fetch(endpoint, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${project.ghl_api_key}`,
           'Version': '2021-04-15',
         },
-      }
-    );
+      });
 
-    // GHL returns 200 or 204 on success, or the appointment might already be deleted
-    if (ghlResponse.ok || ghlResponse.status === 204 || ghlResponse.status === 404) {
-      console.log('[DELETE-GHL-APPOINTMENT] GHL appointment deleted successfully');
+      // GHL returns 200 or 204 on success, or 404 if already deleted
+      if (ghlResponse.ok || ghlResponse.status === 204 || ghlResponse.status === 404) {
+        console.log('[DELETE-GHL-APPOINTMENT] Successfully deleted via:', endpoint);
+        success = true;
+        break;
+      }
+
+      const responseText = await ghlResponse.text();
+      console.log('[DELETE-GHL-APPOINTMENT] Endpoint failed:', endpoint, 'Status:', ghlResponse.status, 'Response:', responseText);
+      lastError = responseText;
+    }
+
+    if (success) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'GHL appointment deleted'
+          message: 'GHL appointment/block deleted'
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const ghlData = await ghlResponse.text();
-    console.error('[DELETE-GHL-APPOINTMENT] GHL API error:', ghlData);
+    console.error('[DELETE-GHL-APPOINTMENT] All endpoints failed. Last error:', lastError);
     
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: 'Failed to delete GHL appointment',
-        details: ghlData 
+        error: 'Failed to delete GHL appointment/block',
+        details: lastError 
       }),
-      { status: ghlResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
