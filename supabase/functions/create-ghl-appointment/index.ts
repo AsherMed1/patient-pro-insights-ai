@@ -170,6 +170,8 @@ serve(async (req) => {
             endTime: end_time,
             appointmentStatus: 'confirmed',
             toNotify: false,
+            ignoreDateRange: true,
+            ignoreAvailability: true,
           };
 
           console.log('[CREATE-GHL-BLOCK-SLOT] Creating appointment on calendar:', appointmentPayload);
@@ -310,6 +312,8 @@ serve(async (req) => {
       endTime: end_time,
       appointmentStatus: 'confirmed',
       toNotify: false,
+      ignoreDateRange: true,
+      ignoreAvailability: true,
     };
 
     console.log('[CREATE-GHL-BLOCK-SLOT] Creating appointment with placeholder contact:', appointmentPayload);
