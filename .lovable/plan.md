@@ -1,112 +1,148 @@
 
-## Fix Reserved Time Blocks for Round-Robin Calendars
+## Add Delete Button for Reserved Time Blocks
 
-### Problem
+### Overview
 
-When creating a reserved time block on a round-robin calendar with multiple team members, the current implementation only blocks one team member's availability. The GHL API's `/block-slots` endpoint requires an `assignedUserId` for non-event calendars, but the current code only uses the **first** team member from the calendar's `teamMembers` array.
+Reserved time blocks need a delete button so users can remove them from both the local database and GoHighLevel when they're no longer needed. The delete functionality will:
 
-The edge function log confirms this:
-```
-Block slot created successfully: { assignedUserId: "Zp9EC96BkVqrUHHLCVgm", ... }
-```
-
-This blocks just one provider, leaving the other team members' slots still available for booking.
+1. Show a delete button only for reserved blocks (not regular appointments)
+2. Delete the block from GoHighLevel using the existing `delete-ghl-appointment` edge function
+3. Delete the local record from the `all_appointments` table
+4. Refresh the calendar view to reflect the change
 
 ---
 
-### Solution
+### Part 1: Update DetailedAppointmentView Component
 
-Modify the edge function to iterate over **all team members** in a round-robin calendar and create a separate block slot for each one. This ensures the entire time range is unavailable across all providers.
+**File:** `src/components/appointments/DetailedAppointmentView.tsx`
 
----
+Add delete functionality specifically for reserved blocks:
 
-### Part 1: Fetch All Team Members
-
-**File:** `supabase/functions/create-ghl-appointment/index.ts`
-
-Update the calendar details fetch logic to extract all team member IDs:
+1. Add state for delete confirmation and loading
+2. Add a delete handler function that:
+   - Calls the `delete-ghl-appointment` edge function
+   - Deletes the local database record
+   - Shows success/error toast
+   - Closes the modal and triggers refresh
+3. Add a delete button in the dialog header (only visible for reserved blocks)
+4. Add an AlertDialog for delete confirmation
 
 ```typescript
-const calendarDetails = await calendarDetailsResponse.json();
-const teamMembers: string[] = (
-  calendarDetails?.calendar?.teamMembers || []
-).map((tm: any) => tm.userId || tm.id).filter(Boolean);
-```
+// New state variables
+const [isDeleting, setIsDeleting] = useState(false);
 
----
+// New prop for refresh callback
+interface DetailedAppointmentViewProps {
+  // ... existing props
+  onDataRefresh?: () => void;
+  onDeleted?: () => void;  // NEW: Callback after deletion
+}
 
-### Part 2: Loop and Create Block Slots for Each Team Member
-
-Instead of creating a single block slot with one `assignedUserId`, iterate over all team members:
-
-```typescript
-const createdBlocks: string[] = [];
-
-for (const userId of teamMembers) {
-  const blockSlotByUserPayload = {
-    assignedUserId: userId,
-    locationId: project.ghl_location_id,
-    title: title || 'Reserved',
-    startTime: start_time,
-    endTime: end_time,
-  };
-
-  console.log('[CREATE-GHL-BLOCK-SLOT] Creating block for team member:', userId);
-
-  const userBlockResponse = await fetch(
-    'https://services.leadconnectorhq.com/calendars/events/block-slots',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${project.ghl_api_key}`,
-        'Version': '2021-04-15',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(blockSlotByUserPayload),
+// Delete handler
+const handleDeleteReservedBlock = async () => {
+  setIsDeleting(true);
+  try {
+    // Delete from GHL if has appointment ID
+    if (appointment.ghl_appointment_id) {
+      await supabase.functions.invoke('delete-ghl-appointment', {
+        body: {
+          project_name: appointment.project_name,
+          ghl_appointment_id: appointment.ghl_appointment_id
+        }
+      });
     }
-  );
-
-  const userBlockData = await userBlockResponse.json();
-
-  if (userBlockResponse.ok && userBlockData.id) {
-    createdBlocks.push(userBlockData.id);
-  } else {
-    console.warn('[CREATE-GHL-BLOCK-SLOT] Failed to block for user:', userId, userBlockData);
+    
+    // Delete from local database
+    await supabase
+      .from('all_appointments')
+      .delete()
+      .eq('id', appointment.id);
+    
+    toast.success('Reserved time block deleted');
+    onClose();
+    onDeleted?.();
+  } catch (error) {
+    toast.error('Failed to delete time block');
+  } finally {
+    setIsDeleting(false);
   }
-}
+};
+```
+
+UI addition (in dialog header, next to Print button):
+```tsx
+{appointment.is_reserved_block && (
+  <AlertDialog>
+    <AlertDialogTrigger asChild>
+      <Button variant="destructive" size="sm" disabled={isDeleting}>
+        <Trash2 className="h-4 w-4 mr-2" />
+        {isDeleting ? 'Deleting...' : 'Delete Block'}
+      </Button>
+    </AlertDialogTrigger>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete Reserved Time Block?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This will remove the time block from both this portal and GoHighLevel. 
+          The calendar slot will become available for booking again.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={handleDeleteReservedBlock}>
+          Delete
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+)}
 ```
 
 ---
 
-### Part 3: Return Aggregated Result
+### Part 2: Update ProjectPortal to Handle Deletion
 
-Return all created block IDs in the response:
+**File:** `src/pages/ProjectPortal.tsx`
 
-```typescript
-return new Response(
-  JSON.stringify({
-    success: true,
-    ghl_appointment_id: createdBlocks[0], // Primary ID for local DB
-    all_block_ids: createdBlocks,         // All created blocks
-    team_members_blocked: createdBlocks.length,
-    ghl_data: { /* summary */ }
-  }),
-  { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-);
+Pass a deletion callback to trigger calendar refresh:
+
+```tsx
+<DetailedAppointmentView
+  appointment={selectedAppointment}
+  isOpen={!!selectedAppointment}
+  onClose={() => setSelectedAppointment(null)}
+  onDeleted={() => {
+    setSelectedAppointment(null);
+    setCalendarRefreshKey(prev => prev + 1);
+  }}
+/>
+```
+
+Also pass the `key` prop to `CalendarDetailView` to force refresh:
+
+```tsx
+<CalendarDetailView
+  key={calendarRefreshKey}  // ADD THIS
+  projectName={project.project_name}
+  // ... other props
+/>
 ```
 
 ---
 
-### Part 4: Handle Empty Team Members Gracefully
+### Part 3: Add Visual Indicator in Calendar Views
 
-If no team members are found, fall back to the placeholder contact approach (which creates an actual appointment):
+**File:** `src/components/appointments/CalendarDayView.tsx`
 
-```typescript
-if (teamMembers.length === 0) {
-  console.warn('[CREATE-GHL-BLOCK-SLOT] No team members found. Falling back to placeholder contact...');
-  // Existing fallback logic using appointments endpoint
-}
+Add a small delete icon hint on reserved blocks to indicate they can be deleted:
+
+```tsx
+{isReserved && <Lock className="h-3 w-3 text-slate-500 flex-shrink-0" />}
+// The Lock icon already indicates it's a reserved block
+// Clicking opens the detail view where delete is available
 ```
+
+No additional changes needed here - the existing click handler opens DetailedAppointmentView where delete is available.
 
 ---
 
@@ -114,20 +150,26 @@ if (teamMembers.length === 0) {
 
 | File | Change |
 |------|--------|
-| `supabase/functions/create-ghl-appointment/index.ts` | Loop over all team members in round-robin calendars and create individual block slots for each |
+| `src/components/appointments/DetailedAppointmentView.tsx` | Add delete button, confirmation dialog, and delete handler for reserved blocks |
+| `src/pages/ProjectPortal.tsx` | Pass `onDeleted` callback and add refresh key to CalendarDetailView |
 
 ---
 
-### Expected Result
+### User Flow
 
-After this change:
-- When you reserve 9 AM - 5 PM on a round-robin calendar with 3 team members, the system will create **3 block slots** (one per provider)
-- All team members will show as unavailable for that time range in HighLevel
-- The public booking widget will not offer that time slot to anyone
-- The local database will store the primary block ID but know all team members were blocked
+1. User sees a reserved time block in the calendar (indicated by Lock icon and gray styling)
+2. User clicks the block to open the detail view
+3. User sees a red "Delete Block" button (only visible for reserved blocks)
+4. User clicks "Delete Block" and sees a confirmation dialog
+5. User confirms deletion
+6. System deletes from GHL (using existing edge function) and local database
+7. Modal closes and calendar refreshes to show the slot is now available
 
 ---
 
-### Technical Note
+### Technical Notes
 
-The GHL API does not support blocking an entire round-robin calendar with a single call. Each team member must be blocked individually. This is consistent with how HighLevel's UI works when you manually block time on a round-robin calendar.
+- The existing `delete-ghl-appointment` edge function already handles GHL deletion correctly
+- Reserved blocks are identified by `is_reserved_block === true`
+- The delete button only appears for reserved blocks, not regular patient appointments
+- Calendar refresh is triggered via the `calendarRefreshKey` state increment pattern already used for creation
