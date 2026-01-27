@@ -66,15 +66,15 @@ serve(async (req) => {
       );
     }
 
-    // Try block-slot endpoint first, then fall back to appointments endpoint
-    // Block slots created via /block-slots must be deleted via /block-slots/{id}
+    // For reserved blocks created as appointments (placeholder contact approach),
+    // we use the appointments endpoint. Try appointments first, then block-slots as fallback.
     const endpoints = [
-      `https://services.leadconnectorhq.com/calendars/events/block-slots/${ghl_appointment_id}`,
-      `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`
+      `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
+      `https://services.leadconnectorhq.com/calendars/events/block-slots/${ghl_appointment_id}`
     ];
 
-    // If explicitly a block slot, only try the block-slots endpoint
-    const endpointsToTry = is_block_slot ? [endpoints[0]] : endpoints;
+    // If explicitly a block slot, try block-slots first (but still fallback to appointments)
+    const endpointsToTry = is_block_slot ? endpoints.reverse() : endpoints;
 
     console.log('[DELETE-GHL-APPOINTMENT] Attempting to delete:', ghl_appointment_id);
 
