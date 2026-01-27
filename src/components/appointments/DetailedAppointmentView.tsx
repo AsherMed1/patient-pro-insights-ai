@@ -215,7 +215,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
         const { error: ghlError } = await supabase.functions.invoke('delete-ghl-appointment', {
           body: {
             project_name: appointment.project_name,
-            ghl_appointment_id: appointment.ghl_appointment_id
+            ghl_appointment_id: appointment.ghl_appointment_id,
+            is_block_slot: appointment.is_reserved_block === true
           }
         });
         
