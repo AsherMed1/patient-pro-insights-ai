@@ -42,7 +42,7 @@ export const useMasterDatabase = () => {
         supabase.from('projects').select('id', { count: 'exact', head: true }).neq('project_name', 'PPM - Test Account'),
         supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', true).neq('project_name', 'PPM - Test Account'),
         supabase.from('projects').select('id', { count: 'exact', head: true }).eq('active', false).neq('project_name', 'PPM - Test Account'),
-        supabase.from('all_appointments').select('id', { count: 'exact', head: true }).neq('project_name', 'PPM - Test Account'),
+        supabase.from('all_appointments').select('id', { count: 'exact', head: true }).neq('project_name', 'PPM - Test Account').or('is_reserved_block.is.null,is_reserved_block.eq.false'),
         supabase.from('agents').select('id', { count: 'exact', head: true })
       ]);
       

@@ -85,6 +85,7 @@ const ProjectsManager = () => {
             .from('all_appointments')
             .select('date_appointment_created, updated_at', { count: 'exact' })
             .eq('project_name', project.project_name)
+            .or('is_reserved_block.is.null,is_reserved_block.eq.false')
             .order('updated_at', { ascending: false })
             .limit(1)
         ]);

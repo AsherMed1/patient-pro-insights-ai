@@ -225,6 +225,9 @@ const ProjectPortal = () => {
         query = query.eq('project_name', decodedName);
       }
 
+      // Exclude reserved time blocks from stats
+      query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+
       // Apply date filter if range is selected
       if (dateRange.from) {
         query = query.gte('date_appointment_created', dateRange.from.toISOString().split('T')[0]);
