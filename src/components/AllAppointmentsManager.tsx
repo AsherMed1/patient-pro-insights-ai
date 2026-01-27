@@ -188,6 +188,9 @@ const AllAppointmentsManager = ({
         .from('all_appointments')
         .select('*', { count: 'exact', head: true });
 
+      // Exclude reserved time blocks from appointment management
+      countQuery = countQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+      
       // Apply project filter first
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
       
@@ -311,6 +314,9 @@ const AllAppointmentsManager = ({
       let appointmentsQuery = supabase
         .from('all_appointments')
         .select('*');
+
+      // Exclude reserved time blocks from appointment management
+      appointmentsQuery = appointmentsQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
 
       // Sort by newest first on the "New" tab using full timestamp
       if (activeTab === 'new') {
@@ -460,6 +466,9 @@ const AllAppointmentsManager = ({
       // Base query filters (project and date range)
       const getBaseQuery = () => {
         let query = supabase.from('all_appointments').select('*', { count: 'exact', head: true });
+        
+        // Exclude reserved time blocks from appointment management
+        query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
         
         const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
         if (activeProjectFilter) {

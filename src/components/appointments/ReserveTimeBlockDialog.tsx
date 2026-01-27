@@ -298,6 +298,7 @@ export function ReserveTimeBlockDialog({
             calendar_name: selectedCalendar?.name || 'Unknown Calendar',
             status: 'Confirmed',
             is_reserved_block: true,
+            internal_process_complete: true, // Mark complete so it doesn't appear in "New" tab
             ghl_appointment_id: ghlResult.ghl_appointment_id,
             ghl_location_id: ghlLocationId,
             date_appointment_created: format(new Date(), 'yyyy-MM-dd'),
