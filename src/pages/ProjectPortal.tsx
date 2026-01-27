@@ -568,6 +568,7 @@ const ProjectPortal = () => {
               <div className="portal-section h-[calc(100vh-320px)] flex flex-col">
                 <div className="flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
                   <CalendarDetailView
+                    key={calendarRefreshKey}
                     projectName={project.project_name}
                     selectedDate={selectedCalendarDate}
                     viewMode={calendarViewMode}
@@ -602,6 +603,10 @@ const ProjectPortal = () => {
                 appointment={selectedAppointment}
                 isOpen={!!selectedAppointment}
                 onClose={() => setSelectedAppointment(null)}
+                onDeleted={() => {
+                  setSelectedAppointment(null);
+                  setCalendarRefreshKey(prev => prev + 1);
+                }}
               />
             )}
             
