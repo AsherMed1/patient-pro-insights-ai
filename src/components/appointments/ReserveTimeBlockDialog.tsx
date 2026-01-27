@@ -221,6 +221,8 @@ export function ReserveTimeBlockDialog({
   }, [open, initialDate, initialHour]);
 
   const validateTimeRanges = (): boolean => {
+    const tz = projectTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
     for (const range of timeRanges) {
       if (range.startTime >= range.endTime) {
         toast({
@@ -230,19 +232,33 @@ export function ReserveTimeBlockDialog({
         });
         return false;
       }
-      
+
       // Check that block doesn't exceed 10 hours (GHL limitation)
       const [startH, startM] = range.startTime.split(':').map(Number);
       const [endH, endM] = range.endTime.split(':').map(Number);
       const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-      
-      if (durationMinutes > 600) { // 10 hours max
+
+      if (durationMinutes > 600) {
         toast({
           title: 'Time Block Too Long',
           description: 'Reserved blocks cannot exceed 10 hours. Please create multiple shorter blocks instead.',
           variant: 'destructive',
         });
         return false;
+      }
+
+      // Prevent booking a start time that is already in the past (in project TZ)
+      if (selectedDate) {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const startUtc = fromZonedTime(`${dateStr}T${range.startTime}:00`, tz);
+        if (startUtc < new Date()) {
+          toast({
+            title: 'Start Time in the Past',
+            description: 'Please choose a start time that has not already passed.',
+            variant: 'destructive',
+          });
+          return false;
+        }
       }
     }
     return true;
