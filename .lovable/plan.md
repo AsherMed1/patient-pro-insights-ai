@@ -1,175 +1,143 @@
 
-## Add Delete Button for Reserved Time Blocks
+# Plan: Fix Reserved Time Blocks to Show as Blocked Slots (Not Appointments)
 
-### Overview
+## Problem Summary
 
-Reserved time blocks need a delete button so users can remove them from both the local database and GoHighLevel when they're no longer needed. The delete functionality will:
+Two issues need to be addressed:
 
-1. Show a delete button only for reserved blocks (not regular appointments)
-2. Delete the block from GoHighLevel using the existing `delete-ghl-appointment` edge function
-3. Delete the local record from the `all_appointments` table
-4. Refresh the calendar view to reflect the change
+1. **GHL shows reserved blocks as green "Appointments" instead of greyed-out "Blocked Slots"**
+   - The current edge function creates placeholder appointments instead of true block slots
+   - For round-robin calendars, the block-slots API requires `assignedUserId` (not `calendarId`)
+
+2. **Reserved blocks are counted in appointment statistics**
+   - The Project Portal stats query doesn't exclude `is_reserved_block = true` records
+   - This inflates the "Total Appointments" count on dashboard cards
 
 ---
 
-### Part 1: Update DetailedAppointmentView Component
+## Solution Overview
 
-**File:** `src/components/appointments/DetailedAppointmentView.tsx`
+### Part 1: Fix GHL API to Create True Block Slots
 
-Add delete functionality specifically for reserved blocks:
+The `/calendars/events/block-slots` endpoint documentation states:
+> "Either calendarId or assignedUserId can be set, not both."
 
-1. Add state for delete confirmation and loading
-2. Add a delete handler function that:
-   - Calls the `delete-ghl-appointment` edge function
-   - Deletes the local database record
-   - Shows success/error toast
-   - Closes the modal and triggers refresh
-3. Add a delete button in the dialog header (only visible for reserved blocks)
-4. Add an AlertDialog for delete confirmation
+For round-robin calendars, we need to:
+1. First fetch the calendar details to get `teamMembers`
+2. Use `assignedUserId` (from team member) instead of `calendarId` when calling block-slots
+3. Create one block slot per team member to fully block the calendar
 
+### Part 2: Exclude Reserved Blocks from Statistics
+
+Add filter to exclude reserved blocks from appointment counts on the Project Portal.
+
+---
+
+## Technical Changes
+
+### 1. Edge Function: `supabase/functions/create-ghl-appointment/index.ts`
+
+**Current Flow:**
+```text
+1. Try block-slots with calendarId
+2. If fails -> Create placeholder appointment
+```
+
+**New Flow:**
+```text
+1. Fetch calendar details to determine type and team members
+2. For EVENT calendars: Use block-slots with calendarId (existing logic)
+3. For ROUND-ROBIN calendars: 
+   a. Get all team members from calendar
+   b. For each team member, call block-slots with assignedUserId (not calendarId)
+   c. This creates actual blocked slots (greyed out) for each team member
+4. If block-slots fails entirely (API limitation), fall back to local-only record
+   with ghl_synced: false flag
+```
+
+**Key Code Changes:**
+- Remove the placeholder contact creation logic
+- Remove the appointment-based fallback
+- Add logic to iterate over team members and create block slots per user
+- Use `assignedUserId` parameter for round-robin calendars
+- Return success even if GHL sync fails (allow local tracking)
+
+### 2. Frontend Stats Query: `src/pages/ProjectPortal.tsx`
+
+**Function:** `fetchAppointmentStats`
+
+**Change:** Add filter to exclude reserved blocks:
 ```typescript
-// New state variables
-const [isDeleting, setIsDeleting] = useState(false);
-
-// New prop for refresh callback
-interface DetailedAppointmentViewProps {
-  // ... existing props
-  onDataRefresh?: () => void;
-  onDeleted?: () => void;  // NEW: Callback after deletion
-}
-
-// Delete handler
-const handleDeleteReservedBlock = async () => {
-  setIsDeleting(true);
-  try {
-    // Delete from GHL if has appointment ID
-    if (appointment.ghl_appointment_id) {
-      await supabase.functions.invoke('delete-ghl-appointment', {
-        body: {
-          project_name: appointment.project_name,
-          ghl_appointment_id: appointment.ghl_appointment_id
-        }
-      });
-    }
-    
-    // Delete from local database
-    await supabase
-      .from('all_appointments')
-      .delete()
-      .eq('id', appointment.id);
-    
-    toast.success('Reserved time block deleted');
-    onClose();
-    onDeleted?.();
-  } catch (error) {
-    toast.error('Failed to delete time block');
-  } finally {
-    setIsDeleting(false);
-  }
-};
+query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
 ```
 
-UI addition (in dialog header, next to Print button):
-```tsx
-{appointment.is_reserved_block && (
-  <AlertDialog>
-    <AlertDialogTrigger asChild>
-      <Button variant="destructive" size="sm" disabled={isDeleting}>
-        <Trash2 className="h-4 w-4 mr-2" />
-        {isDeleting ? 'Deleting...' : 'Delete Block'}
-      </Button>
-    </AlertDialogTrigger>
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Delete Reserved Time Block?</AlertDialogTitle>
-        <AlertDialogDescription>
-          This will remove the time block from both this portal and GoHighLevel. 
-          The calendar slot will become available for booking again.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>Cancel</AlertDialogCancel>
-        <AlertDialogAction onClick={handleDeleteReservedBlock}>
-          Delete
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
-)}
+This matches the existing pattern used in `AllAppointmentsManager.tsx`.
+
+### 3. Other Stats Locations to Update
+
+Check and update these files if they query appointment counts:
+- `src/components/ProjectsManager.tsx` - Project card stats
+- `src/hooks/useMasterDatabase.tsx` - Master database stats
+
+---
+
+## Implementation Details
+
+### Edge Function Changes
+
+```text
+supabase/functions/create-ghl-appointment/index.ts:
+
+1. Remove placeholder contact creation (lines ~237-304)
+2. Remove appointment-based fallback (lines ~306-445)
+3. Add new logic after block-slots fails:
+
+   For round-robin calendars:
+   - Extract teamMembers from calendar data
+   - For each teamMember:
+     - Call block-slots with:
+       - assignedUserId: teamMember.userId
+       - NO calendarId (mutually exclusive)
+       - locationId, title, startTime, endTime
+   - Track all created block IDs
+   - Return success with list of blocked team members
+
+4. Graceful degradation:
+   - If all block-slots calls fail, return success with ghl_synced: false
+   - Allow local record creation without GHL sync
+   - Log warning for admin review
+```
+
+### Stats Query Changes
+
+```text
+src/pages/ProjectPortal.tsx (fetchAppointmentStats):
+  Add: .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+
+src/components/ProjectsManager.tsx (fetchProjectStats):
+  Add: .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+
+src/hooks/useMasterDatabase.tsx (fetchStats):
+  Add: .or('is_reserved_block.is.null,is_reserved_block.eq.false')
 ```
 
 ---
 
-### Part 2: Update ProjectPortal to Handle Deletion
-
-**File:** `src/pages/ProjectPortal.tsx`
-
-Pass a deletion callback to trigger calendar refresh:
-
-```tsx
-<DetailedAppointmentView
-  appointment={selectedAppointment}
-  isOpen={!!selectedAppointment}
-  onClose={() => setSelectedAppointment(null)}
-  onDeleted={() => {
-    setSelectedAppointment(null);
-    setCalendarRefreshKey(prev => prev + 1);
-  }}
-/>
-```
-
-Also pass the `key` prop to `CalendarDetailView` to force refresh:
-
-```tsx
-<CalendarDetailView
-  key={calendarRefreshKey}  // ADD THIS
-  projectName={project.project_name}
-  // ... other props
-/>
-```
-
----
-
-### Part 3: Add Visual Indicator in Calendar Views
-
-**File:** `src/components/appointments/CalendarDayView.tsx`
-
-Add a small delete icon hint on reserved blocks to indicate they can be deleted:
-
-```tsx
-{isReserved && <Lock className="h-3 w-3 text-slate-500 flex-shrink-0" />}
-// The Lock icon already indicates it's a reserved block
-// Clicking opens the detail view where delete is available
-```
-
-No additional changes needed here - the existing click handler opens DetailedAppointmentView where delete is available.
-
----
-
-### Files Changed
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/DetailedAppointmentView.tsx` | Add delete button, confirmation dialog, and delete handler for reserved blocks |
-| `src/pages/ProjectPortal.tsx` | Pass `onDeleted` callback and add refresh key to CalendarDetailView |
+| `supabase/functions/create-ghl-appointment/index.ts` | Use assignedUserId for block-slots on round-robin calendars, remove appointment fallback |
+| `src/pages/ProjectPortal.tsx` | Filter out is_reserved_block from stats query |
+| `src/components/ProjectsManager.tsx` | Filter out is_reserved_block from stats query |
+| `src/hooks/useMasterDatabase.tsx` | Filter out is_reserved_block from stats query |
 
 ---
 
-### User Flow
+## Expected Outcome
 
-1. User sees a reserved time block in the calendar (indicated by Lock icon and gray styling)
-2. User clicks the block to open the detail view
-3. User sees a red "Delete Block" button (only visible for reserved blocks)
-4. User clicks "Delete Block" and sees a confirmation dialog
-5. User confirms deletion
-6. System deletes from GHL (using existing edge function) and local database
-7. Modal closes and calendar refreshes to show the slot is now available
-
----
-
-### Technical Notes
-
-- The existing `delete-ghl-appointment` edge function already handles GHL deletion correctly
-- Reserved blocks are identified by `is_reserved_block === true`
-- The delete button only appears for reserved blocks, not regular patient appointments
-- Calendar refresh is triggered via the `calendarRefreshKey` state increment pattern already used for creation
+After implementation:
+1. Reserved time blocks will appear as **greyed-out "Blocked Slots"** in GHL (not green appointments)
+2. Reserved blocks will **not inflate** the "Total Appointments" count on dashboard cards
+3. The calendar in the portal will continue showing reserved blocks with distinct styling
+4. If GHL sync fails, local tracking still works (graceful degradation)
