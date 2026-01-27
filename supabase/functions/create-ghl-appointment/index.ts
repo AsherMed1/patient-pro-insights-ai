@@ -71,8 +71,8 @@ serve(async (req) => {
       );
     }
 
-    // Create BLOCK SLOT in GHL (not appointment - block slots don't require a contact)
-    const ghlPayload = {
+    // First, try the block-slots endpoint (works for event calendars)
+    const blockSlotPayload = {
       calendarId: calendar_id,
       locationId: project.ghl_location_id,
       title: title || 'Reserved',
@@ -80,10 +80,9 @@ serve(async (req) => {
       endTime: end_time,
     };
 
-    console.log('[CREATE-GHL-BLOCK-SLOT] Creating GHL block slot:', ghlPayload);
+    console.log('[CREATE-GHL-BLOCK-SLOT] Trying block-slots endpoint:', blockSlotPayload);
 
-    // Use the block-slots endpoint instead of appointments
-    const ghlResponse = await fetch(
+    let ghlResponse = await fetch(
       'https://services.leadconnectorhq.com/calendars/events/block-slots',
       {
         method: 'POST',
@@ -92,11 +91,115 @@ serve(async (req) => {
           'Version': '2021-04-15',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(ghlPayload),
+        body: JSON.stringify(blockSlotPayload),
       }
     );
 
-    const ghlData = await ghlResponse.json();
+    let ghlData = await ghlResponse.json();
+
+    // If block-slots fails because it's not an event calendar, use appointments endpoint with a placeholder contact
+    if (!ghlResponse.ok && ghlData.message?.includes('not an event calendar')) {
+      console.log('[CREATE-GHL-BLOCK-SLOT] Calendar is not event type, finding/creating placeholder contact...');
+
+      // Search for existing placeholder contact
+      const searchResponse = await fetch(
+        `https://services.leadconnectorhq.com/contacts/?locationId=${project.ghl_location_id}&query=Reserved+Time+Block`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${project.ghl_api_key}`,
+            'Version': '2021-07-28',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const searchData = await searchResponse.json();
+      let placeholderContactId: string | null = null;
+
+      if (searchData.contacts && searchData.contacts.length > 0) {
+        // Use existing placeholder contact
+        placeholderContactId = searchData.contacts[0].id;
+        console.log('[CREATE-GHL-BLOCK-SLOT] Found existing placeholder contact:', placeholderContactId);
+      } else {
+        // Create a new placeholder contact for time blocks
+        console.log('[CREATE-GHL-BLOCK-SLOT] Creating new placeholder contact...');
+        const createContactResponse = await fetch(
+          'https://services.leadconnectorhq.com/contacts/',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${project.ghl_api_key}`,
+              'Version': '2021-07-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              locationId: project.ghl_location_id,
+              firstName: 'Reserved',
+              lastName: 'Time Block',
+              email: `reserved-block-${project.ghl_location_id}@placeholder.local`,
+              tags: ['system', 'time-block', 'do-not-contact'],
+            }),
+          }
+        );
+
+        const createContactData = await createContactResponse.json();
+        
+        if (!createContactResponse.ok) {
+          console.error('[CREATE-GHL-BLOCK-SLOT] Failed to create placeholder contact:', createContactData);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Failed to create placeholder contact for time block',
+              details: createContactData 
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        placeholderContactId = createContactData.contact?.id;
+        console.log('[CREATE-GHL-BLOCK-SLOT] Created placeholder contact:', placeholderContactId);
+      }
+
+      if (!placeholderContactId) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Could not find or create placeholder contact' 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Now create appointment with the placeholder contact
+      const appointmentPayload = {
+        calendarId: calendar_id,
+        locationId: project.ghl_location_id,
+        contactId: placeholderContactId,
+        title: title || 'Reserved',
+        startTime: start_time,
+        endTime: end_time,
+        appointmentStatus: 'confirmed',
+        toNotify: false,
+      };
+
+      console.log('[CREATE-GHL-BLOCK-SLOT] Creating appointment with placeholder contact:', appointmentPayload);
+
+      ghlResponse = await fetch(
+        'https://services.leadconnectorhq.com/calendars/events/appointments',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${project.ghl_api_key}`,
+            'Version': '2021-04-15',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(appointmentPayload),
+        }
+      );
+
+      ghlData = await ghlResponse.json();
+    }
 
     if (!ghlResponse.ok) {
       console.error('[CREATE-GHL-BLOCK-SLOT] GHL API error:', ghlData);
@@ -110,13 +213,13 @@ serve(async (req) => {
       );
     }
 
-    console.log('[CREATE-GHL-BLOCK-SLOT] GHL block slot created:', ghlData);
+    console.log('[CREATE-GHL-BLOCK-SLOT] Block slot created successfully:', ghlData);
 
     // Return the GHL block slot ID for local record creation
     return new Response(
       JSON.stringify({
         success: true,
-        ghl_appointment_id: ghlData.id,
+        ghl_appointment_id: ghlData.id || ghlData.appointmentId,
         ghl_data: ghlData
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
