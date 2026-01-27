@@ -1,143 +1,72 @@
 
-# Plan: Fix Reserved Time Blocks to Show as Blocked Slots (Not Appointments)
+# Plan: Fix "Add New User" Button Causing Blank Page
 
-## Problem Summary
+## Problem Analysis
 
-Two issues need to be addressed:
+When clicking the "Add User" button in the UserManagement component, the page appears to go blank. After thorough investigation, I found the root cause:
 
-1. **GHL shows reserved blocks as green "Appointments" instead of greyed-out "Blocked Slots"**
-   - The current edge function creates placeholder appointments instead of true block slots
-   - For round-robin calendars, the block-slots API requires `assignedUserId` (not `calendarId`)
+**The loading state is shared between initial data fetching and user creation operations.**
 
-2. **Reserved blocks are counted in appointment statistics**
-   - The Project Portal stats query doesn't exclude `is_reserved_block = true` records
-   - This inflates the "Total Appointments" count on dashboard cards
+When `createUser()` is called:
+1. It sets `setLoading(true)` at line 217
+2. The component's early return at lines 457-459 triggers:
+   ```tsx
+   if (loading) {
+     return <div>Loading...</div>;
+   }
+   ```
+3. This causes the entire UserManagement component (including the open Dialog) to unmount
+4. The user sees only `<div>Loading...</div>` which appears as a "blank page"
 
----
+## Solution
 
-## Solution Overview
+Separate the loading states to prevent the Dialog from being unmounted during user creation:
 
-### Part 1: Fix GHL API to Create True Block Slots
-
-The `/calendars/events/block-slots` endpoint documentation states:
-> "Either calendarId or assignedUserId can be set, not both."
-
-For round-robin calendars, we need to:
-1. First fetch the calendar details to get `teamMembers`
-2. Use `assignedUserId` (from team member) instead of `calendarId` when calling block-slots
-3. Create one block slot per team member to fully block the calendar
-
-### Part 2: Exclude Reserved Blocks from Statistics
-
-Add filter to exclude reserved blocks from appointment counts on the Project Portal.
-
----
+1. Add a dedicated `creating` state for user creation operations
+2. Keep `loading` only for initial data fetch
+3. The Dialog will stay open while user creation is in progress
+4. Show a loading indicator on the "Create User" button instead
 
 ## Technical Changes
 
-### 1. Edge Function: `supabase/functions/create-ghl-appointment/index.ts`
+### File: `src/components/UserManagement.tsx`
 
-**Current Flow:**
-```text
-1. Try block-slots with calendarId
-2. If fails -> Create placeholder appointment
-```
+#### Change 1: Add separate state for creating users (line ~37)
 
-**New Flow:**
-```text
-1. Fetch calendar details to determine type and team members
-2. For EVENT calendars: Use block-slots with calendarId (existing logic)
-3. For ROUND-ROBIN calendars: 
-   a. Get all team members from calendar
-   b. For each team member, call block-slots with assignedUserId (not calendarId)
-   c. This creates actual blocked slots (greyed out) for each team member
-4. If block-slots fails entirely (API limitation), fall back to local-only record
-   with ghl_synced: false flag
-```
-
-**Key Code Changes:**
-- Remove the placeholder contact creation logic
-- Remove the appointment-based fallback
-- Add logic to iterate over team members and create block slots per user
-- Use `assignedUserId` parameter for round-robin calendars
-- Return success even if GHL sync fails (allow local tracking)
-
-### 2. Frontend Stats Query: `src/pages/ProjectPortal.tsx`
-
-**Function:** `fetchAppointmentStats`
-
-**Change:** Add filter to exclude reserved blocks:
+Add a new state variable:
 ```typescript
-query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+const [creating, setCreating] = useState(false);
 ```
 
-This matches the existing pattern used in `AllAppointmentsManager.tsx`.
+#### Change 2: Update createUser function (lines 198-289)
 
-### 3. Other Stats Locations to Update
+Replace `setLoading(true)` and `setLoading(false)` with `setCreating(true)` and `setCreating(false)`.
 
-Check and update these files if they query appointment counts:
-- `src/components/ProjectsManager.tsx` - Project card stats
-- `src/hooks/useMasterDatabase.tsx` - Master database stats
+#### Change 3: Update Create User button (line 551)
 
----
-
-## Implementation Details
-
-### Edge Function Changes
-
-```text
-supabase/functions/create-ghl-appointment/index.ts:
-
-1. Remove placeholder contact creation (lines ~237-304)
-2. Remove appointment-based fallback (lines ~306-445)
-3. Add new logic after block-slots fails:
-
-   For round-robin calendars:
-   - Extract teamMembers from calendar data
-   - For each teamMember:
-     - Call block-slots with:
-       - assignedUserId: teamMember.userId
-       - NO calendarId (mutually exclusive)
-       - locationId, title, startTime, endTime
-   - Track all created block IDs
-   - Return success with list of blocked team members
-
-4. Graceful degradation:
-   - If all block-slots calls fail, return success with ghl_synced: false
-   - Allow local record creation without GHL sync
-   - Log warning for admin review
+Add a disabled state and loading indicator when `creating` is true:
+```tsx
+<Button onClick={createUser} className="w-full" disabled={creating}>
+  {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  Create User
+</Button>
 ```
 
-### Stats Query Changes
+#### Change 4: Import Loader2 (if not already imported)
 
-```text
-src/pages/ProjectPortal.tsx (fetchAppointmentStats):
-  Add: .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+Ensure `Loader2` is imported from `lucide-react`.
 
-src/components/ProjectsManager.tsx (fetchProjectStats):
-  Add: .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-
-src/hooks/useMasterDatabase.tsx (fetchStats):
-  Add: .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-```
-
----
-
-## Files to Modify
+## Summary of Changes
 
 | File | Change |
 |------|--------|
-| `supabase/functions/create-ghl-appointment/index.ts` | Use assignedUserId for block-slots on round-robin calendars, remove appointment fallback |
-| `src/pages/ProjectPortal.tsx` | Filter out is_reserved_block from stats query |
-| `src/components/ProjectsManager.tsx` | Filter out is_reserved_block from stats query |
-| `src/hooks/useMasterDatabase.tsx` | Filter out is_reserved_block from stats query |
-
----
+| `src/components/UserManagement.tsx` | Add `creating` state, update `createUser()` to use it, show loading on button |
 
 ## Expected Outcome
 
 After implementation:
-1. Reserved time blocks will appear as **greyed-out "Blocked Slots"** in GHL (not green appointments)
-2. Reserved blocks will **not inflate** the "Total Appointments" count on dashboard cards
-3. The calendar in the portal will continue showing reserved blocks with distinct styling
-4. If GHL sync fails, local tracking still works (graceful degradation)
+- Clicking "Add User" opens the dialog normally
+- The dialog stays open during user creation
+- The "Create User" button shows a spinner while processing
+- The dialog closes only after successful creation
+- No more "blank page" issue
