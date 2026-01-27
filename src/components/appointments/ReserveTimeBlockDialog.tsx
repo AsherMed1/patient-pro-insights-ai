@@ -227,6 +227,20 @@ export function ReserveTimeBlockDialog({
         });
         return false;
       }
+      
+      // Check that block doesn't exceed 10 hours (GHL limitation)
+      const [startH, startM] = range.startTime.split(':').map(Number);
+      const [endH, endM] = range.endTime.split(':').map(Number);
+      const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      
+      if (durationMinutes > 600) { // 10 hours max
+        toast({
+          title: 'Time Block Too Long',
+          description: 'Reserved blocks cannot exceed 10 hours. Please create multiple shorter blocks instead.',
+          variant: 'destructive',
+        });
+        return false;
+      }
     }
     return true;
   };
@@ -332,9 +346,16 @@ export function ReserveTimeBlockDialog({
       onSuccess?.();
     } catch (error) {
       console.error('[ReserveTimeBlock] Error:', error);
+      
+      // Provide more helpful error messages for common GHL issues
+      let errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      if (errorMessage.includes('no longer available') || errorMessage.includes('slot')) {
+        errorMessage = 'This time slot conflicts with existing appointments or calendar availability. Try a different time or shorter duration.';
+      }
+      
       toast({
         title: 'Failed to Reserve Time',
-        description: error instanceof Error ? error.message : 'An error occurred',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
