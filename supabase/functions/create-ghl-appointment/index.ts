@@ -97,8 +97,73 @@ serve(async (req) => {
 
     let ghlData = await ghlResponse.json();
 
+    const notEventCalendarMessage = (typeof ghlData?.message === 'string' ? ghlData.message : '')
+      .toLowerCase();
+    const isNotEventCalendar = !ghlResponse.ok && notEventCalendarMessage.includes('not an event calendar');
+
+    // Some GHL calendar types (personal/round_robin/service_booking/etc.) are not "event" calendars.
+    // For these, the block-slots API can be called with assignedUserId instead of calendarId.
+    if (isNotEventCalendar) {
+      console.log('[CREATE-GHL-BLOCK-SLOT] Calendar is not event type. Fetching calendar details to retry with assignedUserId...');
+
+      try {
+        const calendarDetailsResponse = await fetch(
+          `https://services.leadconnectorhq.com/calendars/${calendar_id}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${project.ghl_api_key}`,
+              'Version': '2021-04-15',
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        const calendarDetails = await calendarDetailsResponse.json();
+        const assignedUserId: string | undefined =
+          calendarDetails?.calendar?.teamMembers?.[0]?.userId ||
+          calendarDetails?.calendar?.teamMembers?.[0]?.id;
+
+        console.log('[CREATE-GHL-BLOCK-SLOT] Calendar details fetched:', {
+          calendarType: calendarDetails?.calendar?.calendarType,
+          assignedUserId,
+        });
+
+        if (assignedUserId) {
+          const blockSlotByUserPayload = {
+            assignedUserId,
+            locationId: project.ghl_location_id,
+            title: title || 'Reserved',
+            startTime: start_time,
+            endTime: end_time,
+          };
+
+          console.log('[CREATE-GHL-BLOCK-SLOT] Retrying block-slots with assignedUserId:', blockSlotByUserPayload);
+
+          ghlResponse = await fetch(
+            'https://services.leadconnectorhq.com/calendars/events/block-slots',
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${project.ghl_api_key}`,
+                'Version': '2021-04-15',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(blockSlotByUserPayload),
+            }
+          );
+
+          ghlData = await ghlResponse.json();
+        } else {
+          console.warn('[CREATE-GHL-BLOCK-SLOT] No assignedUserId found on calendar. Falling back...');
+        }
+      } catch (e) {
+        console.error('[CREATE-GHL-BLOCK-SLOT] Failed to fetch calendar details / retry with assignedUserId:', e);
+      }
+    }
+
     // If block-slots fails because it's not an event calendar, use appointments endpoint with a placeholder contact
-    if (!ghlResponse.ok && ghlData.message?.includes('not an event calendar')) {
+    if (!ghlResponse.ok && isNotEventCalendar) {
       console.log('[CREATE-GHL-BLOCK-SLOT] Calendar is not event type, finding/creating placeholder contact...');
 
       // Search for existing placeholder contact

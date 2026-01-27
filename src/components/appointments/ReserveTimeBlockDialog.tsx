@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { format, setHours, setMinutes } from 'date-fns';
+import { format } from 'date-fns';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import {
   Dialog,
   DialogContent,
@@ -144,6 +145,7 @@ export function ReserveTimeBlockDialog({
   const [reason, setReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ghlLocationId, setGhlLocationId] = useState<string | null>(null);
+  const [projectTimezone, setProjectTimezone] = useState<string | null>(null);
 
   // Time range management functions
   const addTimeRange = () => {
@@ -174,9 +176,9 @@ export function ReserveTimeBlockDialog({
     const fetchProjectSettings = async () => {
       if (!projectName || !open) return;
 
-      const { data: project, error } = await supabase
+       const { data: project, error } = await supabase
         .from('projects')
-        .select('ghl_location_id, ghl_api_key')
+         .select('ghl_location_id, ghl_api_key, timezone')
         .eq('project_name', projectName)
         .single();
 
@@ -186,6 +188,7 @@ export function ReserveTimeBlockDialog({
       }
 
       setGhlLocationId(project.ghl_location_id);
+       setProjectTimezone(project.timezone || null);
 
       if (project.ghl_location_id) {
         await fetchCalendars(project.ghl_location_id, project.ghl_api_key);
@@ -268,17 +271,28 @@ export function ReserveTimeBlockDialog({
 
       // Create appointment for each time range
       for (const range of timeRanges) {
-        const [startHours, startMinutes] = range.startTime.split(':').map(Number);
-        const [endHours, endMinutes] = range.endTime.split(':').map(Number);
+        // IMPORTANT: build times in the *project's* timezone (not the user's browser timezone)
+        // so the slot matches what GHL considers available.
+        const tz =
+          projectTimezone ||
+          Intl.DateTimeFormat().resolvedOptions().timeZone ||
+          'UTC';
 
-        const startDateTime = setMinutes(setHours(selectedDate, startHours), startMinutes);
-        const endDateTime = setMinutes(setHours(selectedDate, endHours), endMinutes);
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+        const startUtc = fromZonedTime(`${dateStr}T${range.startTime}:00`, tz);
+        const endUtc = fromZonedTime(`${dateStr}T${range.endTime}:00`, tz);
+
+        // GHL docs show start/end with an explicit offset (e.g. +05:30). Provide that.
+        const startTimeForGhl = formatInTimeZone(startUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+        const endTimeForGhl = formatInTimeZone(endUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
 
         console.log('[ReserveTimeBlock] Creating reservation:', {
           project_name: projectName,
           calendar_id: selectedCalendarId,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
+          timezone: tz,
+          start_time: startTimeForGhl,
+          end_time: endTimeForGhl,
           title,
         });
 
@@ -289,8 +303,8 @@ export function ReserveTimeBlockDialog({
             body: {
               project_name: projectName,
               calendar_id: selectedCalendarId,
-              start_time: startDateTime.toISOString(),
-              end_time: endDateTime.toISOString(),
+              start_time: startTimeForGhl,
+              end_time: endTimeForGhl,
               title,
               reason,
             },
@@ -307,8 +321,8 @@ export function ReserveTimeBlockDialog({
           .insert({
             project_name: projectName,
             lead_name: title,
-            date_of_appointment: format(selectedDate, 'yyyy-MM-dd'),
-            requested_time: format(startDateTime, 'HH:mm'),
+            date_of_appointment: formatInTimeZone(startUtc, tz, 'yyyy-MM-dd'),
+            requested_time: formatInTimeZone(startUtc, tz, 'HH:mm'),
             calendar_name: selectedCalendar?.name || 'Unknown Calendar',
             status: 'Confirmed',
             is_reserved_block: true,
