@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   User, 
   Phone, 
@@ -17,7 +28,7 @@ import {
   MapPin,
   Hash,
   Printer,
-  Download
+  Trash2
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
@@ -33,6 +44,7 @@ interface DetailedAppointmentViewProps {
   onClose: () => void;
   appointment: AllAppointment;
   onDataRefresh?: () => void;
+  onDeleted?: () => void;
 }
 
 interface LeadDetails {
@@ -50,11 +62,12 @@ interface LeadDetails {
   address?: string;
 }
 
-const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }: DetailedAppointmentViewProps) => {
+const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, onDeleted }: DetailedAppointmentViewProps) => {
   const [leadDetails, setLeadDetails] = useState<LeadDetails | null>(null);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -194,6 +207,43 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }
     window.print();
   };
 
+  const handleDeleteReservedBlock = async () => {
+    setIsDeleting(true);
+    try {
+      // Delete from GHL if has appointment ID
+      if (appointment.ghl_appointment_id) {
+        const { error: ghlError } = await supabase.functions.invoke('delete-ghl-appointment', {
+          body: {
+            project_name: appointment.project_name,
+            ghl_appointment_id: appointment.ghl_appointment_id
+          }
+        });
+        
+        if (ghlError) {
+          console.error('Error deleting from GHL:', ghlError);
+          // Continue with local deletion even if GHL fails
+        }
+      }
+      
+      // Delete from local database
+      const { error: dbError } = await supabase
+        .from('all_appointments')
+        .delete()
+        .eq('id', appointment.id);
+      
+      if (dbError) throw dbError;
+      
+      toast.success('Reserved time block deleted');
+      onClose();
+      onDeleted?.();
+    } catch (error) {
+      console.error('Error deleting reserved block:', error);
+      toast.error('Failed to delete time block');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -248,9 +298,39 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh }
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center space-x-2">
                 <FileText className="h-5 w-5" />
-                <span>Appointment Details - {appointment.lead_name}</span>
+                <span>{appointment.is_reserved_block ? 'Reserved Time Block' : 'Appointment Details'} - {appointment.lead_name}</span>
               </DialogTitle>
               <div className="flex gap-2 no-print">
+                {appointment.is_reserved_block && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={isDeleting}
+                        className="flex items-center gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {isDeleting ? 'Deleting...' : 'Delete Block'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Reserved Time Block?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove the time block from both this portal and GoHighLevel. 
+                          The calendar slot will become available for booking again.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteReservedBlock}>
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
