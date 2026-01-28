@@ -20,6 +20,7 @@ export interface AllAppointment {
   updated_at: string;
   status: string | null;
   procedure_ordered: boolean | null;
+  procedure_status?: string | null;
   patient_intake_notes: string | null;
   ai_summary?: string;
   detected_insurance_provider: string | null;
@@ -56,7 +57,7 @@ export interface AppointmentCardProps {
   projectFilter?: string;
   statusOptions: string[];
   onUpdateStatus: (appointmentId: string, status: string) => void;
-  onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean | null) => void;
+  onUpdateProcedure: (appointmentId: string, procedureStatus: string | null) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;

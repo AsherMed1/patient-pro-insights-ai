@@ -33,7 +33,7 @@ interface AppointmentCardProps {
   projectFilter?: string;
   statusOptions: string[];
   onUpdateStatus: (appointmentId: string, status: string) => void;
-  onUpdateProcedure: (appointmentId: string, procedureOrdered: boolean) => void;
+  onUpdateProcedure: (appointmentId: string, procedureStatus: string | null) => void;
   onUpdateDate: (appointmentId: string, date: string | null) => void;
   onUpdateTime: (appointmentId: string, time: string | null) => void;
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
@@ -173,13 +173,32 @@ const AppointmentCard = ({
         return baseClass;
     }
   };
+  // Get procedure status value for the dropdown (supports both old boolean and new text-based status)
+  const getProcedureStatusValue = (appt: AllAppointment): string => {
+    // Check new procedure_status field first
+    const procedureStatus = (appt as any).procedure_status;
+    if (procedureStatus) return procedureStatus;
+    
+    // Fall back to legacy procedure_ordered boolean
+    if (appt.procedure_ordered === null || appt.procedure_ordered === undefined) return 'null';
+    if (appt.procedure_ordered === true) return 'ordered';
+    if (appt.procedure_ordered === false) return 'no_procedure';
+    return 'null';
+  };
+
   const getProcedureTriggerClass = () => {
     if (!projectFilter) return "w-full h-11 md:h-10 text-base md:text-sm";
     const baseClass = "w-full h-11 md:h-10 text-base md:text-sm";
-    if (isProcedureUpdated) {
+    const procedureStatus = getProcedureStatusValue(appointment);
+    
+    if (procedureStatus === 'ordered') {
       return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
-    } else {
+    } else if (procedureStatus === 'not_covered') {
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
+    } else if (procedureStatus === 'no_procedure') {
+      return `${baseClass} bg-gray-50 border-gray-200 hover:bg-gray-100`;
+    } else {
+      return `${baseClass} bg-yellow-50 border-yellow-200 hover:bg-yellow-100`;
     }
   };
 
@@ -1437,13 +1456,9 @@ const AppointmentCard = ({
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Procedure</label>
             <Select 
-              value={appointment.procedure_ordered === null ? 'null' : appointment.procedure_ordered.toString()} 
+              value={getProcedureStatusValue(appointment)} 
               onValueChange={(value) => {
-                if (value === 'null') {
-                  onUpdateProcedure(appointment.id, null);
-                } else {
-                  onUpdateProcedure(appointment.id, value === 'true');
-                }
+                onUpdateProcedure(appointment.id, value === 'null' ? null : value);
               }}
             >
               <SelectTrigger className={getProcedureTriggerClass()}>
@@ -1451,8 +1466,9 @@ const AppointmentCard = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="null">Not Set</SelectItem>
-                <SelectItem value="true">Procedure Ordered</SelectItem>
-                <SelectItem value="false">No Procedure</SelectItem>
+                <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+                <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
               </SelectContent>
             </Select>
           </div>

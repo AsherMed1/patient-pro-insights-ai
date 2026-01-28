@@ -247,6 +247,7 @@ export type Database = {
           parsing_completed_at: string | null
           patient_intake_notes: string | null
           procedure_ordered: boolean | null
+          procedure_status: string | null
           project_name: string
           requested_time: string | null
           stage_booked: string | null
@@ -295,6 +296,7 @@ export type Database = {
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
           procedure_ordered?: boolean | null
+          procedure_status?: string | null
           project_name: string
           requested_time?: string | null
           stage_booked?: string | null
@@ -343,6 +345,7 @@ export type Database = {
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
           procedure_ordered?: boolean | null
+          procedure_status?: string | null
           project_name?: string
           requested_time?: string | null
           stage_booked?: string | null

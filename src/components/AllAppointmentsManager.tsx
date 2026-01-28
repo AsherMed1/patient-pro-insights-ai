@@ -245,14 +245,12 @@ const AllAppointmentsManager = ({
         }
       }
       
-      // Apply procedure order filter
+      // Apply procedure status filter (new text-based column)
       if (procedureOrderFilter !== 'ALL') {
-        if (procedureOrderFilter === 'true') {
-          countQuery = countQuery.eq('procedure_ordered', true);
-        } else if (procedureOrderFilter === 'false') {
-          countQuery = countQuery.eq('procedure_ordered', false);
-        } else if (procedureOrderFilter === 'null') {
-          countQuery = countQuery.is('procedure_ordered', null);
+        if (procedureOrderFilter === 'null') {
+          countQuery = countQuery.is('procedure_status', null);
+        } else {
+          countQuery = countQuery.eq('procedure_status', procedureOrderFilter);
         }
       }
 
@@ -381,14 +379,12 @@ const AllAppointmentsManager = ({
         }
       }
       
-      // Apply procedure order filter
+      // Apply procedure status filter (new text-based column)
       if (procedureOrderFilter !== 'ALL') {
-        if (procedureOrderFilter === 'true') {
-          appointmentsQuery = appointmentsQuery.eq('procedure_ordered', true);
-        } else if (procedureOrderFilter === 'false') {
-          appointmentsQuery = appointmentsQuery.eq('procedure_ordered', false);
-        } else if (procedureOrderFilter === 'null') {
-          appointmentsQuery = appointmentsQuery.is('procedure_ordered', null);
+        if (procedureOrderFilter === 'null') {
+          appointmentsQuery = appointmentsQuery.is('procedure_status', null);
+        } else {
+          appointmentsQuery = appointmentsQuery.eq('procedure_status', procedureOrderFilter);
         }
       }
 
@@ -515,14 +511,12 @@ const AllAppointmentsManager = ({
           }
         }
         
-        // Apply procedure order filter
+        // Apply procedure status filter (new text-based column)
         if (procedureOrderFilter !== 'ALL') {
-          if (procedureOrderFilter === 'true') {
-            query = query.eq('procedure_ordered', true);
-          } else if (procedureOrderFilter === 'false') {
-            query = query.eq('procedure_ordered', false);
-          } else if (procedureOrderFilter === 'null') {
-            query = query.is('procedure_ordered', null);
+          if (procedureOrderFilter === 'null') {
+            query = query.is('procedure_status', null);
+          } else {
+            query = query.eq('procedure_status', procedureOrderFilter);
           }
         }
 
@@ -754,11 +748,17 @@ const AllAppointmentsManager = ({
     }
   };
 
-  const updateProcedureOrdered = async (appointmentId: string, procedureOrdered: boolean | null) => {
+  const updateProcedureOrdered = async (appointmentId: string, procedureStatus: string | null) => {
     try {
+      // Map procedure_status to procedure_ordered for backward compatibility
+      const procedureOrdered = procedureStatus === 'ordered' ? true : 
+                               procedureStatus === 'no_procedure' ? false : 
+                               procedureStatus === 'not_covered' ? false : null;
+      
       const { error } = await supabase
         .from('all_appointments')
         .update({
+          procedure_status: procedureStatus,
           procedure_ordered: procedureOrdered,
           updated_at: new Date().toISOString()
         })
@@ -769,7 +769,7 @@ const AllAppointmentsManager = ({
       // Update local state
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId
-          ? { ...appointment, procedure_ordered: procedureOrdered }
+          ? { ...appointment, procedure_ordered: procedureOrdered, procedure_status: procedureStatus } as AllAppointment
           : appointment
       ));
 
