@@ -1,99 +1,161 @@
 
-# Plan: Display "Had Imaging Before?" Field on Portal
+# Plan: Add "Procedure Not Covered" Option to Clinic Procedure Status
 
 ## Problem Summary
 
-The "Had Imaging Before?" field from GoHighLevel (containing values like "Yes, PiedMont Aug 2025") is not being displayed on the portal's Patient Pro Insights section. The data flow has two gaps:
+The current `procedure_ordered` field is a boolean (`true`/`false`/`null`) that only supports 3 states:
+- `null` → Not Set
+- `true` → Procedure Ordered
+- `false` → No Procedure
 
-1. **GHL extraction gap**: The `extractDataFromGHLFields` function doesn't capture imaging-related custom fields
-2. **Field initialization gap**: The `medical_info` result object doesn't include `imaging_details` or `xray_details` fields
-
-## Current Data Flow
-
-```text
-GHL Custom Field: "Had Imaging Before?" = "Yes, PiedMont Aug 2025"
-        ↓
-extractDataFromGHLFields() ← MISSING pattern for imaging fields
-        ↓
-AI Parser schema includes imaging_details ← But GHL data never populates it
-        ↓
-ParsedIntakeInfo.tsx has display logic ← But data is always null
-```
+You need 4 options:
+1. Not Set
+2. Procedure Ordered
+3. No Procedure Ordered
+4. Procedure Not Covered
 
 ## Solution
 
-### Part 1: Update Edge Function - `supabase/functions/auto-parse-intake-notes/index.ts`
+Add a new text-based `procedure_status` column to support all 4 states, then update all UI components to use it.
 
-**Change 1**: Add `imaging_details` and `xray_details` to the `medical_info` initialization (around line 243-249)
+**New column values:**
+- `null` → "Not Set"
+- `'ordered'` → "Procedure Ordered"
+- `'no_procedure'` → "No Procedure Ordered"
+- `'not_covered'` → "Procedure Not Covered"
 
-```typescript
-medical_info: { 
-  medications: null as string | null, 
-  allergies: null as string | null, 
-  pcp_name: null as string | null,
-  urologist_name: null as string | null,
-  urologist_phone: null as string | null,
-  imaging_details: null as string | null,  // NEW
-  xray_details: null as string | null       // NEW
-},
+---
+
+## Technical Changes
+
+### 1. Database Migration
+
+Create a new migration to add `procedure_status` column:
+
+```sql
+-- Add procedure_status column
+ALTER TABLE all_appointments 
+ADD COLUMN procedure_status TEXT DEFAULT NULL;
+
+-- Migrate existing data from procedure_ordered boolean
+UPDATE all_appointments 
+SET procedure_status = CASE 
+  WHEN procedure_ordered = true THEN 'ordered'
+  WHEN procedure_ordered = false THEN 'no_procedure'
+  ELSE NULL
+END;
 ```
 
-**Change 2**: Add GHL custom field pattern matching for imaging fields (around line 380, after urologist extraction)
+### 2. Update Filter Dropdown - `src/components/appointments/AppointmentFilters.tsx`
+
+Update lines 292-305 to use new procedure_status values:
 
 ```typescript
-// Imaging/X-ray fields
-else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || 
-         key.includes('had imaging') || key.includes('mri') || key.includes('ct scan')) {
-  const lowerKey = key.toLowerCase();
-  if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {
-    result.medical_info.xray_details = value;
+<Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
+  <SelectTrigger className="w-[180px]">
+    <SelectValue placeholder="All Procedures" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="ALL">All Procedures</SelectItem>
+    <SelectItem value="ordered">Procedure Ordered</SelectItem>
+    <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+    <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+    <SelectItem value="null">Not Set</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+### 3. Update Appointment Card Dropdown - `src/components/appointments/AppointmentCard.tsx`
+
+Update the procedure dropdown (lines 1437-1457) to use new values:
+
+```typescript
+<Select 
+  value={appointment.procedure_status || 'null'} 
+  onValueChange={(value) => {
+    onUpdateProcedure(appointment.id, value === 'null' ? null : value);
+  }}
+>
+  <SelectTrigger className={getProcedureTriggerClass()}>
+    <SelectValue placeholder="Select procedure status" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="null">Not Set</SelectItem>
+    <SelectItem value="ordered">Procedure Ordered</SelectItem>
+    <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+    <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+Also update the badge display (lines 1342-1345):
+
+```typescript
+{appointment.procedure_status && (
+  <Badge variant={getProcedureStatusVariant(appointment.procedure_status)}>
+    {getProcedureStatusLabel(appointment.procedure_status)}
+  </Badge>
+)}
+```
+
+Add helper functions:
+```typescript
+const getProcedureStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    'ordered': 'Procedure Ordered',
+    'no_procedure': 'No Procedure Ordered',
+    'not_covered': 'Procedure Not Covered'
+  };
+  return labels[status] || status;
+};
+
+const getProcedureStatusVariant = (status: string) => {
+  const variants: Record<string, string> = {
+    'ordered': 'default',
+    'no_procedure': 'secondary',
+    'not_covered': 'destructive'
+  };
+  return variants[status] || 'outline';
+};
+```
+
+### 4. Update Filtering Logic - `src/components/AllAppointmentsManager.tsx`
+
+Update procedure filter logic (lines 248-256, 384-392, 518-526) to use text matching:
+
+```typescript
+// Apply procedure status filter
+if (procedureOrderFilter !== 'ALL') {
+  if (procedureOrderFilter === 'null') {
+    query = query.is('procedure_status', null);
   } else {
-    result.medical_info.imaging_details = value;
+    query = query.eq('procedure_status', procedureOrderFilter);
   }
 }
 ```
 
-### Part 2: Verify UI Display in ParsedIntakeInfo.tsx
+### 5. Update Type Definitions - `src/integrations/supabase/types.ts`
 
-The UI already has display logic for these fields (lines 771-781 and 777-781):
-- `xray_details` is displayed if present
-- `imaging_details` is displayed if present
+The types will auto-update when you regenerate from Supabase after the migration runs.
 
-However, these are only shown in the "Medical & PCP Information" card. For better visibility, we should also show imaging details in the "Medical Information" card where other pathology data is displayed.
-
-**Change 3**: Add imaging details display to the Medical Information section (around line 594, after `imaging_type`)
-
-```typescript
-{formatValue(parsedPathologyInfo?.imaging_done) && (
-  <div className="text-sm">
-    <span className="text-muted-foreground">Imaging Done:</span>{" "}
-    <Badge variant={parsedPathologyInfo.imaging_done === "YES" ? "default" : "secondary"}>
-      {parsedPathologyInfo.imaging_done}
-    </Badge>
-  </div>
-)}
-{/* NEW: Display imaging details from parsedMedicalInfo */}
-{formatValue(parsedMedicalInfo?.imaging_details) && (
-  <div className="text-sm">
-    <span className="text-muted-foreground">Imaging Details:</span>{" "}
-    <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
-  </div>
-)}
-```
-
-This requires passing `parsedMedicalInfo` to the Medical Information section display logic.
+---
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/auto-parse-intake-notes/index.ts` | Add `imaging_details` and `xray_details` to result object, add GHL field extraction pattern |
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Display imaging details in Medical Information section (alongside "Imaging Done" badge) |
+| Database migration | Add `procedure_status` text column |
+| `src/components/appointments/AppointmentFilters.tsx` | Update filter dropdown options |
+| `src/components/appointments/AppointmentCard.tsx` | Update card dropdown, badge display, and helper functions |
+| `src/components/AllAppointmentsManager.tsx` | Update filtering logic to use text matching |
+| `src/pages/ProjectPortal.tsx` | Update initialProcedureFilter values |
+
+---
 
 ## Expected Outcome
 
 After implementation:
-1. GHL "Had Imaging Before?" field will be extracted during auto-parsing
-2. Value like "Yes, PiedMont Aug 2025" will be stored in `parsed_medical_info.imaging_details`
-3. Portal will display "Imaging Details: Yes, PiedMont Aug 2025" in the Medical Information section
-4. Existing appointments will need re-parsing to populate this field (or manual trigger)
+- Filter dropdown shows: All Procedures, Procedure Ordered, No Procedure Ordered, Procedure Not Covered, Not Set
+- Appointment card dropdown shows the same 4 options
+- Badges display with appropriate colors (green for ordered, gray for no procedure, red for not covered)
+- Existing data is migrated: `true` → 'ordered', `false` → 'no_procedure'
