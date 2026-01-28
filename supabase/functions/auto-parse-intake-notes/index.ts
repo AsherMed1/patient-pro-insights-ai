@@ -245,7 +245,9 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       allergies: null as string | null, 
       pcp_name: null as string | null,
       urologist_name: null as string | null,
-      urologist_phone: null as string | null
+      urologist_phone: null as string | null,
+      imaging_details: null as string | null,
+      xray_details: null as string | null
     },
     insurance_card_url: null as string | null
   };
@@ -377,6 +379,17 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       } else {
         result.medical_info.urologist_name = value_str;
       }
+    }
+    // Imaging/X-ray fields
+    else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || 
+             key.includes('had imaging') || key.includes('mri') || key.includes('ct scan')) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {
+        result.medical_info.xray_details = value;
+      } else {
+        result.medical_info.imaging_details = value;
+      }
+      console.log(`[AUTO-PARSE GHL] Extracted imaging field "${key}": ${value}`);
     }
     // DOB from custom field
     else if (key.includes('dob') || (key.includes('date') && key.includes('birth'))) {
