@@ -1,72 +1,99 @@
 
-# Plan: Fix "Add New User" Button Causing Blank Page
+# Plan: Display "Had Imaging Before?" Field on Portal
 
-## Problem Analysis
+## Problem Summary
 
-When clicking the "Add User" button in the UserManagement component, the page appears to go blank. After thorough investigation, I found the root cause:
+The "Had Imaging Before?" field from GoHighLevel (containing values like "Yes, PiedMont Aug 2025") is not being displayed on the portal's Patient Pro Insights section. The data flow has two gaps:
 
-**The loading state is shared between initial data fetching and user creation operations.**
+1. **GHL extraction gap**: The `extractDataFromGHLFields` function doesn't capture imaging-related custom fields
+2. **Field initialization gap**: The `medical_info` result object doesn't include `imaging_details` or `xray_details` fields
 
-When `createUser()` is called:
-1. It sets `setLoading(true)` at line 217
-2. The component's early return at lines 457-459 triggers:
-   ```tsx
-   if (loading) {
-     return <div>Loading...</div>;
-   }
-   ```
-3. This causes the entire UserManagement component (including the open Dialog) to unmount
-4. The user sees only `<div>Loading...</div>` which appears as a "blank page"
+## Current Data Flow
+
+```text
+GHL Custom Field: "Had Imaging Before?" = "Yes, PiedMont Aug 2025"
+        ↓
+extractDataFromGHLFields() ← MISSING pattern for imaging fields
+        ↓
+AI Parser schema includes imaging_details ← But GHL data never populates it
+        ↓
+ParsedIntakeInfo.tsx has display logic ← But data is always null
+```
 
 ## Solution
 
-Separate the loading states to prevent the Dialog from being unmounted during user creation:
+### Part 1: Update Edge Function - `supabase/functions/auto-parse-intake-notes/index.ts`
 
-1. Add a dedicated `creating` state for user creation operations
-2. Keep `loading` only for initial data fetch
-3. The Dialog will stay open while user creation is in progress
-4. Show a loading indicator on the "Create User" button instead
+**Change 1**: Add `imaging_details` and `xray_details` to the `medical_info` initialization (around line 243-249)
 
-## Technical Changes
-
-### File: `src/components/UserManagement.tsx`
-
-#### Change 1: Add separate state for creating users (line ~37)
-
-Add a new state variable:
 ```typescript
-const [creating, setCreating] = useState(false);
+medical_info: { 
+  medications: null as string | null, 
+  allergies: null as string | null, 
+  pcp_name: null as string | null,
+  urologist_name: null as string | null,
+  urologist_phone: null as string | null,
+  imaging_details: null as string | null,  // NEW
+  xray_details: null as string | null       // NEW
+},
 ```
 
-#### Change 2: Update createUser function (lines 198-289)
+**Change 2**: Add GHL custom field pattern matching for imaging fields (around line 380, after urologist extraction)
 
-Replace `setLoading(true)` and `setLoading(false)` with `setCreating(true)` and `setCreating(false)`.
-
-#### Change 3: Update Create User button (line 551)
-
-Add a disabled state and loading indicator when `creating` is true:
-```tsx
-<Button onClick={createUser} className="w-full" disabled={creating}>
-  {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-  Create User
-</Button>
+```typescript
+// Imaging/X-ray fields
+else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || 
+         key.includes('had imaging') || key.includes('mri') || key.includes('ct scan')) {
+  const lowerKey = key.toLowerCase();
+  if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {
+    result.medical_info.xray_details = value;
+  } else {
+    result.medical_info.imaging_details = value;
+  }
+}
 ```
 
-#### Change 4: Import Loader2 (if not already imported)
+### Part 2: Verify UI Display in ParsedIntakeInfo.tsx
 
-Ensure `Loader2` is imported from `lucide-react`.
+The UI already has display logic for these fields (lines 771-781 and 777-781):
+- `xray_details` is displayed if present
+- `imaging_details` is displayed if present
 
-## Summary of Changes
+However, these are only shown in the "Medical & PCP Information" card. For better visibility, we should also show imaging details in the "Medical Information" card where other pathology data is displayed.
+
+**Change 3**: Add imaging details display to the Medical Information section (around line 594, after `imaging_type`)
+
+```typescript
+{formatValue(parsedPathologyInfo?.imaging_done) && (
+  <div className="text-sm">
+    <span className="text-muted-foreground">Imaging Done:</span>{" "}
+    <Badge variant={parsedPathologyInfo.imaging_done === "YES" ? "default" : "secondary"}>
+      {parsedPathologyInfo.imaging_done}
+    </Badge>
+  </div>
+)}
+{/* NEW: Display imaging details from parsedMedicalInfo */}
+{formatValue(parsedMedicalInfo?.imaging_details) && (
+  <div className="text-sm">
+    <span className="text-muted-foreground">Imaging Details:</span>{" "}
+    <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
+  </div>
+)}
+```
+
+This requires passing `parsedMedicalInfo` to the Medical Information section display logic.
+
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/UserManagement.tsx` | Add `creating` state, update `createUser()` to use it, show loading on button |
+| `supabase/functions/auto-parse-intake-notes/index.ts` | Add `imaging_details` and `xray_details` to result object, add GHL field extraction pattern |
+| `src/components/appointments/ParsedIntakeInfo.tsx` | Display imaging details in Medical Information section (alongside "Imaging Done" badge) |
 
 ## Expected Outcome
 
 After implementation:
-- Clicking "Add User" opens the dialog normally
-- The dialog stays open during user creation
-- The "Create User" button shows a spinner while processing
-- The dialog closes only after successful creation
-- No more "blank page" issue
+1. GHL "Had Imaging Before?" field will be extracted during auto-parsing
+2. Value like "Yes, PiedMont Aug 2025" will be stored in `parsed_medical_info.imaging_details`
+3. Portal will display "Imaging Details: Yes, PiedMont Aug 2025" in the Medical Information section
+4. Existing appointments will need re-parsing to populate this field (or manual trigger)
