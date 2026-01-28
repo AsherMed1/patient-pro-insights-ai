@@ -292,13 +292,14 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             <div className="flex items-center space-x-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="All Procedures" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Procedures</SelectItem>
-                  <SelectItem value="true">Procedure Ordered</SelectItem>
-                  <SelectItem value="false">No Procedure</SelectItem>
+                  <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                  <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+                  <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
                   <SelectItem value="null">Not Set</SelectItem>
                 </SelectContent>
               </Select>
