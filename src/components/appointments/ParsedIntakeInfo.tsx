@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { User, Heart, Phone, Shield, ExternalLink, ChevronDown, Pencil, X, Check, Loader2, Upload } from "lucide-react";
+import { User, Heart, Phone, Shield, ExternalLink, ChevronDown, Pencil, X, Check, Loader2, Upload, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parse } from "date-fns";
@@ -82,6 +82,9 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPCPAddress, setEditPCPAddress] = useState("");
   const [editUrologistName, setEditUrologistName] = useState("");
   const [editUrologistPhone, setEditUrologistPhone] = useState("");
+
+  // Reparse state
+  const [isReparsing, setIsReparsing] = useState(false);
 
   const isArterialInterventional = projectName === "Arterial Interventional Centers";
 
@@ -259,16 +262,73 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     }
   };
 
+  // Handle reparse request
+  const handleReparse = async () => {
+    if (!appointmentId) {
+      toast({
+        title: "Error",
+        description: "Cannot reparse: appointment ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsReparsing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reparse-specific-appointments', {
+        body: { appointment_ids: [appointmentId] }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Data refresh triggered. Please wait a few seconds and refresh the page.",
+      });
+
+      // Wait a moment then call onUpdate if available
+      setTimeout(() => {
+        onUpdate?.();
+      }, 3000);
+    } catch (error) {
+      console.error('Error triggering reparse:', error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger data refresh",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReparsing(false);
+    }
+  };
+
   return (
     <div className={`space-y-4 mt-4 ${className}`}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="w-full">
-          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent transition-colors">
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent transition-colors cursor-pointer">
             <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Heart className="h-4 w-4" />
               Patient Pro Insights
             </h4>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            <div className="flex items-center gap-2">
+              {appointmentId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReparse();
+                  }}
+                  disabled={isReparsing}
+                  title="Refresh parsed data"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isReparsing ? 'animate-spin' : ''}`} />
+                </Button>
+              )}
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </div>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-4">

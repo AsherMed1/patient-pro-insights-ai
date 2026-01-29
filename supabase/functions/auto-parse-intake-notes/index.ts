@@ -452,6 +452,26 @@ function calculateAgeFromDob(dobString: string | null | undefined): number | nul
   }
 }
 
+// Helper: Detect procedure type from calendar name
+function detectProcedureFromCalendar(calendarName: string | null): string | null {
+  if (!calendarName) return null;
+  const name = calendarName.toLowerCase();
+  
+  if (name.includes('ufe') || name.includes('fibroid') || name.includes('uterine')) {
+    return 'UFE';
+  }
+  if (name.includes('pae') || name.includes('prostate')) {
+    return 'PAE';
+  }
+  if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) {
+    return 'GAE';
+  }
+  if (name.includes('pfe') || name.includes('pelvis') || name.includes('pelvic floor')) {
+    return 'PFE';
+  }
+  return null;
+}
+
 // Normalize DOB string to YYYY-MM-DD format or return null
 function normalizeDob(raw: string | null | undefined): string | null {
   if (!raw || typeof raw !== "string") return null;
@@ -552,7 +572,7 @@ serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id, ghl_appointment_id")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -692,7 +712,28 @@ Parse the following patient intake notes and return a JSON object with these exa
 
 IMPORTANT: Return ONLY the JSON object, no other text. If information is not found, use null for that field.`;
 
-        const userPrompt = `Patient Intake Notes:\n\n${record.patient_intake_notes}`;
+        // Detect procedure type from calendar name to help AI prioritize correct pathology
+        let procedureContext = '';
+        if (record.table === 'all_appointments' && record.calendar_name) {
+          const calendarProcedure = detectProcedureFromCalendar(record.calendar_name);
+          if (calendarProcedure) {
+            console.log(`[AUTO-PARSE] Detected ${calendarProcedure} procedure from calendar: ${record.calendar_name}`);
+            procedureContext = `
+IMPORTANT CONTEXT: This patient's current appointment is for a ${calendarProcedure} consultation (calendar: "${record.calendar_name}").
+If the notes contain information for MULTIPLE procedures (e.g., both GAE and UFE data), 
+you MUST extract and prioritize the ${calendarProcedure}-specific pathology data.
+
+${calendarProcedure === 'UFE' ? 'UFE (Uterine Fibroid Embolization) focuses on: pelvic pain, heavy periods, menstrual bleeding issues, urinary symptoms, pain during intercourse, fibroid-related symptoms. Set procedure_type to "UFE".' : ''}
+${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) focuses on: urinary frequency, weak urinary stream, incomplete bladder emptying, nocturia, prostate-related symptoms. Set procedure_type to "PAE".' : ''}
+${calendarProcedure === 'GAE' ? 'GAE (Genicular Artery Embolization) focuses on: knee pain, osteoarthritis, joint stiffness, swelling, joint instability, knee-related symptoms. Set procedure_type to "GAE".' : ''}
+${calendarProcedure === 'PFE' ? 'PFE (Pelvic Floor Embolization) focuses on: pelvic pain, pelvic floor dysfunction symptoms. Set procedure_type to "PFE".' : ''}
+
+IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
+`;
+          }
+        }
+
+        const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${record.patient_intake_notes}`;
 
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
