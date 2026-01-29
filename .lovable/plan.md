@@ -1,83 +1,75 @@
 
+# Plan: Add Slack Notification for Reserved Time Blocks
 
-# Plan: Add Slack Notification for Reserved Time Blocks to #calendar-updates
+## Overview
 
-## Problem Summary
-
-When clinics reserve time blocks (especially full-day blocks), the PPM team has no visibility. This impacts the cheatsheet updates and team awareness of clinic availability changes.
-
-## Solution
-
-Create a new edge function to send notifications to `#calendar-updates` when time blocks are reserved, and call it from the `ReserveTimeBlockDialog` after successful block creation.
+Implement automatic Slack notifications to alert the team when clinics reserve time blocks, using the existing `SLACK_WEBHOOK_URL` secret.
 
 ---
 
 ## Technical Changes
 
-### 1. Add New Secret: `SLACK_CALENDAR_UPDATES_WEBHOOK_URL`
+### 1. Create Edge Function: `supabase/functions/notify-calendar-update/index.ts`
 
-You'll need to create a new Slack webhook specifically for the `#calendar-updates` channel:
-1. Go to https://api.slack.com/apps → Select your Slack app
-2. Navigate to "Incoming Webhooks"
-3. Add a new webhook pointed to `#calendar-updates`
-4. Save the URL as a new Supabase secret
+New edge function that sends rich Slack notifications:
 
-### 2. Create New Edge Function: `supabase/functions/notify-calendar-update/index.ts`
-
-A new edge function that sends rich notifications when reserved time blocks are created:
-
+**Payload Structure:**
 ```typescript
 interface CalendarUpdatePayload {
-  projectName: string;
-  calendarName: string;
-  date: string;           // e.g., "January 30, 2026"
-  timeRanges: string[];   // e.g., ["9:00 AM - 5:00 PM", "6:00 PM - 8:00 PM"]
-  reason?: string;
-  blockedBy: string;      // User who created the block
-  isFullDay: boolean;     // True if blocking 8+ hours
+  projectName: string;      // e.g., "Premier Vascular"
+  calendarName: string;     // e.g., "GAE - Dr. Smith"
+  date: string;             // e.g., "Thursday, January 30th, 2026"
+  timeRanges: string[];     // e.g., ["9:00 AM - 5:00 PM"]
+  reason?: string;          // e.g., "Provider vacation"
+  blockedBy: string;        // e.g., "Jane at Clinic"
+  isFullDay: boolean;       // True if 8+ hours blocked
 }
 ```
 
 **Slack Message Format:**
-```text
-+------------------------------------------+
-| 📅 Calendar Update: Reserved Time Block  |
-+------------------------------------------+
-| Clinic: Premier Vascular                 |
-| Calendar: GAE - Dr. Smith                |
-| Date: January 30, 2026                   |
-| Blocked: 9:00 AM - 5:00 PM (FULL DAY)    |
-| Reason: Provider vacation                |
-| By: Jane at Clinic                       |
-+------------------------------------------+
-| ⚠️ Action: Update cheatsheet             |
-+------------------------------------------+
-```
+- Header: "Calendar Update: Reserved Time Block"
+- Fields: Clinic, Calendar, Date, Blocked By
+- Time ranges with FULL DAY indicator if applicable
+- Reason for the block
+- Action context: "Please update the cheatsheet" for full-day blocks
 
-### 3. Update `ReserveTimeBlockDialog.tsx`
+### 2. Update `ReserveTimeBlockDialog.tsx`
 
-After successful block creation (around line 376), add a call to send the notification:
+After successful block creation (after the toast notification around line 376), add:
 
 ```typescript
-// After successful creation, notify Slack
+// Calculate if this is a full day block (8+ hours)
 const totalMinutesBlocked = timeRanges.reduce((sum, range) => {
   const [startH, startM] = range.startTime.split(':').map(Number);
   const [endH, endM] = range.endTime.split(':').map(Number);
   return sum + ((endH * 60 + endM) - (startH * 60 + startM));
 }, 0);
 
-const isFullDay = totalMinutesBlocked >= 480; // 8 hours = full day
+const isFullDay = totalMinutesBlocked >= 480;
 
-await supabase.functions.invoke('notify-calendar-update', {
+// Helper to format time for display
+const formatTimeDisplay = (time: string) => {
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
+};
+
+// Send Slack notification (fire-and-forget, don't block on failure)
+supabase.functions.invoke('notify-calendar-update', {
   body: {
     projectName,
-    calendarName: selectedCalendar?.name,
+    calendarName: selectedCalendar?.name || 'Unknown Calendar',
     date: format(selectedDate, 'PPPP'),
-    timeRanges: timeRanges.map(r => `${formatTime(r.startTime)} - ${formatTime(r.endTime)}`),
+    timeRanges: createdAppointments.map(({ range }) => 
+      `${formatTimeDisplay(range.startTime)} - ${formatTimeDisplay(range.endTime)}`
+    ),
     reason: reason || 'Not specified',
     blockedBy: userName || 'Portal User',
     isFullDay,
   }
+}).catch(err => {
+  console.error('[ReserveTimeBlock] Failed to send Slack notification:', err);
 });
 ```
 
@@ -87,40 +79,32 @@ await supabase.functions.invoke('notify-calendar-update', {
 
 | File | Action |
 |------|--------|
-| `supabase/functions/notify-calendar-update/index.ts` | **Create** - New edge function for Slack notifications |
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | **Modify** - Add notification call after successful block creation |
-| Supabase Secrets | **Add** - `SLACK_CALENDAR_UPDATES_WEBHOOK_URL` for the #calendar-updates channel |
+| `supabase/functions/notify-calendar-update/index.ts` | **Create** - New edge function |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | **Modify** - Add notification call |
 
 ---
 
-## Notification Triggers
+## No Secret Changes Required
 
-The notification will fire when:
-- Any time block is reserved via the portal
-- Includes all relevant details (clinic, calendar, date, times, reason, who)
-- **Special emphasis** (⚠️ icon + "FULL DAY" tag) when 8+ hours are blocked
+Using the existing `SLACK_WEBHOOK_URL` secret that's already configured.
 
 ---
 
-## Secret Setup Required
+## Expected Behavior
 
-Before implementation, you need to create the Slack webhook:
-
-1. Open https://api.slack.com/apps
-2. Select or create a Slack app for your workspace
-3. Go to "Incoming Webhooks" → Enable
-4. Click "Add New Webhook to Workspace"
-5. Choose `#calendar-updates` channel
-6. Copy the webhook URL
-7. Add it to Supabase secrets as `SLACK_CALENDAR_UPDATES_WEBHOOK_URL`
+When a clinic user reserves a time block:
+1. Block is created in GoHighLevel ✓
+2. Local record is saved ✓  
+3. **NEW:** Slack notification sent to configured channel
+   - Shows clinic name, calendar, date, times
+   - Highlights full-day blocks with warning
+   - Includes reason and who created it
+   - Prompts team to update cheatsheet
 
 ---
 
-## Expected Outcome
+## Error Handling
 
-After implementation:
-- Every reserved time block triggers a Slack notification to `#calendar-updates`
-- Full-day blocks are highlighted for immediate attention
-- Team can update cheatsheet proactively when clinics modify availability
-- Notifications include who blocked and why for context
-
+- Notification failures are logged but don't block the reservation
+- User still sees success toast even if Slack fails
+- Edge function logs errors for debugging
