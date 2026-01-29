@@ -1,165 +1,158 @@
 
-# Plan: Fix Service Type Update Detection for Medical Information
+# Plan: Fix Stale Medical Information Display for Service-Change Patients
 
 ## Problem Summary
 
-Patient Cassandra Evans was originally a GAE patient who later opted for UFE service. While the portal correctly shows "UFE Consultation at Macon, GA" (from the calendar), the Medical Information section still displays the old GAE pathology data (knee pain, OA diagnosis, etc.) instead of UFE-specific information (pelvic pain, menstrual symptoms, fibroids).
+Cassandra Evans switched from GAE to UFE consultation, but the Medical Information section still shows GAE pathology (knee pain) instead of UFE data (pelvic pain, heavy periods). This happens because:
 
-The core issue is that the AI parsing system:
-1. Extracts only ONE procedure type when multiple exist in intake notes
-2. Doesn't prioritize the LATEST procedure data when a patient changes services
-3. Preserves old pathology data even when new service-specific data is available
-
----
-
-## Technical Analysis
-
-### Current State (from database query)
-
-The `patient_intake_notes` field contains BOTH:
-- **GAE data** (lines 27-37): Knee pain, OA diagnosis, 8/10 pain, medications tried
-- **UFE data** (lines 73-80): Pelvic pain frequency, period patterns, heavy bleeding, urinary symptoms
-
-But `parsed_pathology_info` only contains GAE:
-```json
-{
-  "procedure_type": "GAE",
-  "primary_complaint": "knee pain",
-  "pain_level": "8",
-  "symptoms": "Sharp Pain, Instability or weakness, Stiffness"
-  // ...all knee-related data
-}
-```
-
-### Root Causes
-
-1. **Single procedure_type field in AI prompt schema** - The parser returns only one procedure type, picking whichever appears first or most prominently
-
-2. **No "latest service" detection** - When GHL custom fields are updated for a new procedure (UFE), the system appends data but doesn't recognize the SERVICE CHANGE pattern
-
-3. **Calendar name not used for procedure detection** - The appointment's calendar ("Request your UFE Consultation at Macon, GA") indicates UFE, but this isn't used to guide pathology extraction
+1. The GHL custom field extraction ignores the appointment's current procedure type
+2. GHL-extracted pathology (GAE) overwrites AI-extracted pathology (UFE) during merging
+3. Stale pathology data is displayed even when parsing_completed_at is NULL
 
 ---
 
-## Solution
+## Solution (3 Parts)
 
-### Phase 1: Use Calendar Name to Determine Primary Procedure
+### Part 1: Hide Medical Info While Reparse is Pending
 
-Update the `auto-parse-intake-notes` edge function to:
+**File:** `src/components/appointments/ParsedIntakeInfo.tsx`
 
-1. **Pass calendar/location context to the AI prompt** - Include the appointment's calendar name so the AI knows which procedure to prioritize
+When `parsing_completed_at` is NULL or undefined, hide the Medical Information section entirely to prevent showing stale data. Add a "parsing pending" indicator in its place.
 
-2. **Update AI prompt to prefer the active procedure** - When the calendar indicates UFE but notes contain both GAE and UFE data, extract UFE-specific pathology
+**Changes:**
+- Add new prop `parsingCompletedAt?: string | null`
+- When parsing is pending and pathology exists, show message: "Medical data is being refreshed..."
+- Components using ParsedIntakeInfo (AppointmentCard, DetailedAppointmentView) will pass this prop
 
-### Changes to `supabase/functions/auto-parse-intake-notes/index.ts`:
+---
 
-**Step 1: Fetch calendar name from appointment**
+### Part 2: Prefer GHL Structured Fields Over AI (with Procedure Filtering)
 
-Add to the appointment query (around line 555):
-```typescript
-.select("id, patient_intake_notes, lead_name, project_name, created_at, dob, 
-         parsed_demographics, parsed_contact_info, ghl_id, ghl_appointment_id,
-         ghl_calendar_name, date_of_appointment")
+**File:** `supabase/functions/auto-parse-intake-notes/index.ts`
+
+Restructure the data extraction to:
+1. Pass the detected calendar procedure to `extractDataFromGHLFields`
+2. Filter GHL custom fields to only extract pathology for the matching procedure
+3. Skip AI call entirely if GHL has complete structured STEP data for the current procedure
+4. Only use AI as fallback when GHL data is incomplete
+
+**Logic Changes:**
+
+```text
+1. Detect procedure from calendar_name (UFE, PAE, GAE, PFE)
+2. Fetch GHL custom fields
+3. In extractDataFromGHLFields():
+   - Only extract pathology from fields matching the detected procedure
+   - If field key contains "GAE" but procedure is "UFE", skip it
+   - Track which structured fields were found (e.g., "UFE STEP 1", "UFE STEP 2")
+4. If structured STEP fields exist for the procedure:
+   - Use GHL data directly (no AI call)
+   - Build pathology_info from STEP answers
+5. If no structured STEP data:
+   - Call AI with procedure context (existing logic)
+   - Merge AI result with GHL contact/insurance data
 ```
 
-**Step 2: Detect procedure from calendar name**
-
-Add helper function to detect procedure type from calendar:
-```typescript
-function detectProcedureFromCalendar(calendarName: string | null): string | null {
-  if (!calendarName) return null;
-  const name = calendarName.toLowerCase();
-  
-  if (name.includes('ufe') || name.includes('fibroid') || name.includes('uterine')) {
-    return 'UFE';
-  }
-  if (name.includes('pae') || name.includes('prostate')) {
-    return 'PAE';
-  }
-  if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) {
-    return 'GAE';
-  }
-  return null;
-}
-```
-
-**Step 3: Update AI system prompt to include procedure context**
-
-When a procedure is detected from the calendar, add guidance to the system prompt:
-```typescript
-let procedureContext = '';
-const calendarProcedure = detectProcedureFromCalendar(record.ghl_calendar_name);
-if (calendarProcedure) {
-  procedureContext = `
-IMPORTANT: This patient's current appointment is for a ${calendarProcedure} consultation.
-If the notes contain information for multiple procedures (e.g., both GAE and UFE), 
-extract and prioritize the ${calendarProcedure}-specific pathology data.
-
-${calendarProcedure === 'UFE' ? 'UFE (Uterine Fibroid Embolization) symptoms include: pelvic pain, heavy periods, menstrual issues, urinary symptoms, pain during intercourse.' : ''}
-${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) symptoms include: urinary frequency, weak stream, incomplete emptying, nocturia.' : ''}
-${calendarProcedure === 'GAE' ? 'GAE (Genicular Artery Embolization) symptoms include: knee pain, osteoarthritis, stiffness, swelling, joint instability.' : ''}
-`;
-}
-```
-
-**Step 4: Include procedure context in the user prompt**
+**New helper function:**
 
 ```typescript
-const userPrompt = `${procedureContext}
-
-Patient Intake Notes:
-
-${record.patient_intake_notes}`;
+function extractProcedureStepDataFromGHL(
+  contact: any, 
+  customFieldDefs: Record<string, string>,
+  targetProcedure: string | null
+): { hasCompleteStepData: boolean; pathologyInfo: any; ... }
 ```
 
 ---
 
-### Phase 2: Add Manual "Reparse" Button to UI (Optional Enhancement)
+### Part 3: Reset Old Pathology When Calendar Changes
 
-Add a button in the Patient Pro Insights section to manually trigger re-parsing when users notice stale data.
+**File:** `supabase/functions/auto-parse-intake-notes/index.ts`
 
-**File: `src/components/appointments/ParsedIntakeInfo.tsx`**
+Add logic to detect when the current pathology's procedure_type doesn't match the calendar-derived procedure, and clear it before reparsing:
 
-Add a "Refresh Data" button that calls `reparse-specific-appointments` with the current appointment ID.
+```typescript
+// Before processing, check if existing pathology is stale
+if (calendarProcedure && existingPathology?.procedure_type) {
+  if (existingPathology.procedure_type !== calendarProcedure) {
+    console.log(`[AUTO-PARSE] Procedure change detected: ${existingPathology.procedure_type} -> ${calendarProcedure}, clearing stale pathology`);
+    // Don't merge with old pathology
+    skipPathologyMerge = true;
+  }
+}
+```
 
 ---
 
 ## Files to Modify
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `supabase/functions/auto-parse-intake-notes/index.ts` | Modify | Add calendar-based procedure detection and context to AI prompt |
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Modify | Add optional "Reparse" button for manual refresh |
+| File | Changes |
+|------|---------|
+| `supabase/functions/auto-parse-intake-notes/index.ts` | Add procedure filtering to GHL extraction, prefer structured STEP data over AI, clear stale pathology on procedure change |
+| `src/components/appointments/ParsedIntakeInfo.tsx` | Add `parsingCompletedAt` prop, hide Medical Info section when pending |
+| `src/components/appointments/AppointmentCard.tsx` | Pass `parsingCompletedAt` to ParsedIntakeInfo |
+| `src/components/appointments/DetailedAppointmentView.tsx` | Pass `parsingCompletedAt` to ParsedIntakeInfo |
+| `src/components/appointments/types.ts` | Ensure `parsing_completed_at` is in AllAppointment interface (already there) |
 
 ---
 
-## Immediate Fix for Cassandra Evans
+## Technical Details
 
-After deploying the updated edge function:
+### GHL Field Filtering Logic
 
-1. Reset `parsing_completed_at` to NULL for this appointment
-2. Trigger `auto-parse-intake-notes` to re-parse with the new logic
+For Cassandra Evans, GHL fields include both:
+- `GAE STEP 1 | How long have you been experiencing knee pain?`
+- `UFE STEP 1 | How often do you experience pelvic pain?`
 
-This can be done via a simple SQL update or by calling the `reparse-specific-appointments` edge function with her appointment ID: `e8f9c5d6-b3a2-4e8f-9d1a-7c6e5f4a3b2c`
+The current code processes all of them. The fix will check:
+
+```typescript
+// In extractDataFromGHLFields
+const fieldProcedure = detectProcedureFromFieldKey(key);
+if (targetProcedure && fieldProcedure && fieldProcedure !== targetProcedure) {
+  // Skip - this field is for a different procedure
+  continue;
+}
+```
+
+### Structured Step Data Detection
+
+GHL uses "STEP 1" and "STEP 2" naming for procedure-specific intake questions. When these exist for the target procedure, we can extract all pathology without calling OpenAI:
+
+| UFE STEP Field | Maps To |
+|----------------|---------|
+| pelvic pain frequency | symptoms |
+| menstrual cycle | symptoms |
+| period heaviness | symptoms |
+| pain during intercourse | symptoms |
+| urinary symptoms | symptoms |
 
 ---
 
 ## Expected Outcome
 
-After this fix:
-- **Cassandra Evans' Medical Information** will show UFE-specific data:
-  - Pathology: UFE
-  - Primary Complaint: Pelvic pain/cramping, Heavy periods
-  - Symptoms: Heavy bleeding, urinary urgency, pain during intercourse
-  - Duration: Based on UFE intake responses
+After these changes:
 
-- **Future service changes** will automatically use the current calendar context to extract the correct procedure-specific pathology
+1. **Cassandra Evans** will show UFE-specific medical info:
+   - Pathology: UFE
+   - Symptoms: Pelvic pain, heavy periods, urinary urgency
+   
+2. **Patients who change services** will automatically have their medical info updated to match the new procedure
+
+3. **OpenAI rate limits** will have less impact since structured GHL STEP data bypasses AI entirely
+
+4. **No stale data shown** while reparsing is in progress
 
 ---
 
-## Testing
+## Immediate Fix for Cassandra Evans
 
-1. Deploy updated `auto-parse-intake-notes` function
-2. Call `reparse-specific-appointments` with Cassandra Evans' appointment ID
-3. Verify Medical Information section now shows UFE data
-4. Test with other patients who have switched services
+After deployment, reset her parsing and trigger reparse:
+
+```sql
+UPDATE all_appointments 
+SET parsing_completed_at = NULL, parsed_pathology_info = NULL
+WHERE id = 'e8f9c5d6-b3a2-4e8f-9d1a-7c6e5f4a3b2c';
+```
+
+Then trigger the auto-parse function.
