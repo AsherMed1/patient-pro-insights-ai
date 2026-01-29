@@ -568,7 +568,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     </div>
                   )}
 
-                  {/* Parsed Information */}
+                  {/* Parsed Information - Only show when parsing is complete */}
                   {appointment.parsing_completed_at && (
                     <div className="mt-4">
                       <ParsedIntakeInfo 
@@ -587,6 +587,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                         onUpdate={onDataRefresh}
                         projectName={appointment.project_name}
                         patientName={appointment.lead_name}
+                        parsingCompletedAt={appointment.parsing_completed_at}
                       />
                     </div>
                   )}

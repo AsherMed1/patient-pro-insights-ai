@@ -1525,6 +1525,7 @@ const AppointmentCard = ({
           onUpdate={() => window.location.reload()}
           projectName={appointment.project_name}
           patientName={appointment.lead_name}
+          parsingCompletedAt={appointment.parsing_completed_at}
         />
         
         {/* Patient Intake Notes */}

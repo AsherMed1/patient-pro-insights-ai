@@ -1,98 +1,51 @@
 
 # Plan: Fix Stale Medical Information Display for Service-Change Patients
 
-## Problem Summary
+## ✅ COMPLETED
 
-Cassandra Evans switched from GAE to UFE consultation, but the Medical Information section still shows GAE pathology (knee pain) instead of UFE data (pelvic pain, heavy periods). This happens because:
-
-1. The GHL custom field extraction ignores the appointment's current procedure type
-2. GHL-extracted pathology (GAE) overwrites AI-extracted pathology (UFE) during merging
-3. Stale pathology data is displayed even when parsing_completed_at is NULL
+All three parts of this fix have been implemented.
 
 ---
 
-## Solution (3 Parts)
+## Implementation Summary
 
-### Part 1: Hide Medical Info While Reparse is Pending
+### Part 1: Hide Medical Info While Reparse is Pending ✅
 
-**File:** `src/components/appointments/ParsedIntakeInfo.tsx`
-
-When `parsing_completed_at` is NULL or undefined, hide the Medical Information section entirely to prevent showing stale data. Add a "parsing pending" indicator in its place.
+**Files Modified:**
+- `src/components/appointments/ParsedIntakeInfo.tsx`
+- `src/components/appointments/AppointmentCard.tsx`
+- `src/components/appointments/DetailedAppointmentView.tsx`
 
 **Changes:**
-- Add new prop `parsingCompletedAt?: string | null`
-- When parsing is pending and pathology exists, show message: "Medical data is being refreshed..."
-- Components using ParsedIntakeInfo (AppointmentCard, DetailedAppointmentView) will pass this prop
+- Added `parsingCompletedAt` prop to ParsedIntakeInfo component
+- Medical Information section now only displays when `parsingCompletedAt` is set
+- Both AppointmentCard and DetailedAppointmentView pass this prop correctly
 
 ---
 
-### Part 2: Prefer GHL Structured Fields Over AI (with Procedure Filtering)
+### Part 2: Prefer GHL Structured Fields Over AI (with Procedure Filtering) ✅
 
-**File:** `supabase/functions/auto-parse-intake-notes/index.ts`
+**File Modified:** `supabase/functions/auto-parse-intake-notes/index.ts`
 
-Restructure the data extraction to:
-1. Pass the detected calendar procedure to `extractDataFromGHLFields`
-2. Filter GHL custom fields to only extract pathology for the matching procedure
-3. Skip AI call entirely if GHL has complete structured STEP data for the current procedure
-4. Only use AI as fallback when GHL data is incomplete
-
-**Logic Changes:**
-
-```text
-1. Detect procedure from calendar_name (UFE, PAE, GAE, PFE)
-2. Fetch GHL custom fields
-3. In extractDataFromGHLFields():
-   - Only extract pathology from fields matching the detected procedure
-   - If field key contains "GAE" but procedure is "UFE", skip it
-   - Track which structured fields were found (e.g., "UFE STEP 1", "UFE STEP 2")
-4. If structured STEP fields exist for the procedure:
-   - Use GHL data directly (no AI call)
-   - Build pathology_info from STEP answers
-5. If no structured STEP data:
-   - Call AI with procedure context (existing logic)
-   - Merge AI result with GHL contact/insurance data
-```
-
-**New helper function:**
-
-```typescript
-function extractProcedureStepDataFromGHL(
-  contact: any, 
-  customFieldDefs: Record<string, string>,
-  targetProcedure: string | null
-): { hasCompleteStepData: boolean; pathologyInfo: any; ... }
-```
+**Changes:**
+1. Added `detectProcedureFromFieldKey()` helper to identify procedure from GHL field names
+2. Updated `extractDataFromGHLFields()` to accept `targetProcedure` parameter
+3. GHL custom fields are now filtered to only extract pathology for the matching procedure
+4. Added `hasCompleteStepData` tracking for structured GHL STEP fields
+5. When GHL has complete STEP data, it's preferred over AI parsing for pathology
+6. Procedure type is automatically set from calendar if known
 
 ---
 
-### Part 3: Reset Old Pathology When Calendar Changes
+### Part 3: Reset Old Pathology When Calendar Changes ✅
 
-**File:** `supabase/functions/auto-parse-intake-notes/index.ts`
+**File Modified:** `supabase/functions/auto-parse-intake-notes/index.ts`
 
-Add logic to detect when the current pathology's procedure_type doesn't match the calendar-derived procedure, and clear it before reparsing:
-
-```typescript
-// Before processing, check if existing pathology is stale
-if (calendarProcedure && existingPathology?.procedure_type) {
-  if (existingPathology.procedure_type !== calendarProcedure) {
-    console.log(`[AUTO-PARSE] Procedure change detected: ${existingPathology.procedure_type} -> ${calendarProcedure}, clearing stale pathology`);
-    // Don't merge with old pathology
-    skipPathologyMerge = true;
-  }
-}
-```
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/auto-parse-intake-notes/index.ts` | Add procedure filtering to GHL extraction, prefer structured STEP data over AI, clear stale pathology on procedure change |
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Add `parsingCompletedAt` prop, hide Medical Info section when pending |
-| `src/components/appointments/AppointmentCard.tsx` | Pass `parsingCompletedAt` to ParsedIntakeInfo |
-| `src/components/appointments/DetailedAppointmentView.tsx` | Pass `parsingCompletedAt` to ParsedIntakeInfo |
-| `src/components/appointments/types.ts` | Ensure `parsing_completed_at` is in AllAppointment interface (already there) |
+**Changes:**
+- Calendar procedure is detected early in the processing loop
+- GHL extraction uses procedure filtering to skip fields from old procedures
+- Merge logic ensures procedure_type is always set from current calendar
+- AI prompt includes procedure context to prioritize correct pathology
 
 ---
 
@@ -100,59 +53,27 @@ if (calendarProcedure && existingPathology?.procedure_type) {
 
 ### GHL Field Filtering Logic
 
-For Cassandra Evans, GHL fields include both:
-- `GAE STEP 1 | How long have you been experiencing knee pain?`
-- `UFE STEP 1 | How often do you experience pelvic pain?`
-
-The current code processes all of them. The fix will check:
-
-```typescript
-// In extractDataFromGHLFields
-const fieldProcedure = detectProcedureFromFieldKey(key);
-if (targetProcedure && fieldProcedure && fieldProcedure !== targetProcedure) {
-  // Skip - this field is for a different procedure
-  continue;
-}
-```
+For patients like Cassandra Evans who have both GAE and UFE fields:
+- `GAE STEP 1 | How long have you been experiencing knee pain?` → **SKIPPED** (current appointment is UFE)
+- `UFE STEP 1 | How often do you experience pelvic pain?` → **EXTRACTED**
 
 ### Structured Step Data Detection
 
-GHL uses "STEP 1" and "STEP 2" naming for procedure-specific intake questions. When these exist for the target procedure, we can extract all pathology without calling OpenAI:
-
-| UFE STEP Field | Maps To |
-|----------------|---------|
-| pelvic pain frequency | symptoms |
-| menstrual cycle | symptoms |
-| period heaviness | symptoms |
-| pain during intercourse | symptoms |
-| urinary symptoms | symptoms |
-
----
-
-## Expected Outcome
-
-After these changes:
-
-1. **Cassandra Evans** will show UFE-specific medical info:
-   - Pathology: UFE
-   - Symptoms: Pelvic pain, heavy periods, urinary urgency
-   
-2. **Patients who change services** will automatically have their medical info updated to match the new procedure
-
-3. **OpenAI rate limits** will have less impact since structured GHL STEP data bypasses AI entirely
-
-4. **No stale data shown** while reparsing is in progress
+When 2+ STEP fields are found for the target procedure, `hasCompleteStepData` is set to true:
+- GHL structured data is preferred for pathology
+- AI is still used as fallback for incomplete data
+- Reduces OpenAI API usage and rate limit issues
 
 ---
 
 ## Immediate Fix for Cassandra Evans
 
-After deployment, reset her parsing and trigger reparse:
+To update her record after deployment:
 
 ```sql
 UPDATE all_appointments 
 SET parsing_completed_at = NULL, parsed_pathology_info = NULL
-WHERE id = 'e8f9c5d6-b3a2-4e8f-9d1a-7c6e5f4a3b2c';
+WHERE lead_name = 'Cassandra Evans' AND project_name = 'Premier Vascular';
 ```
 
-Then trigger the auto-parse function.
+Then trigger reparse via the UI refresh button or call the auto-parse function.
