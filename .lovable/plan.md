@@ -1,161 +1,126 @@
 
-# Plan: Add "Procedure Not Covered" Option to Clinic Procedure Status
+
+# Plan: Add Slack Notification for Reserved Time Blocks to #calendar-updates
 
 ## Problem Summary
 
-The current `procedure_ordered` field is a boolean (`true`/`false`/`null`) that only supports 3 states:
-- `null` → Not Set
-- `true` → Procedure Ordered
-- `false` → No Procedure
-
-You need 4 options:
-1. Not Set
-2. Procedure Ordered
-3. No Procedure Ordered
-4. Procedure Not Covered
+When clinics reserve time blocks (especially full-day blocks), the PPM team has no visibility. This impacts the cheatsheet updates and team awareness of clinic availability changes.
 
 ## Solution
 
-Add a new text-based `procedure_status` column to support all 4 states, then update all UI components to use it.
-
-**New column values:**
-- `null` → "Not Set"
-- `'ordered'` → "Procedure Ordered"
-- `'no_procedure'` → "No Procedure Ordered"
-- `'not_covered'` → "Procedure Not Covered"
+Create a new edge function to send notifications to `#calendar-updates` when time blocks are reserved, and call it from the `ReserveTimeBlockDialog` after successful block creation.
 
 ---
 
 ## Technical Changes
 
-### 1. Database Migration
+### 1. Add New Secret: `SLACK_CALENDAR_UPDATES_WEBHOOK_URL`
 
-Create a new migration to add `procedure_status` column:
+You'll need to create a new Slack webhook specifically for the `#calendar-updates` channel:
+1. Go to https://api.slack.com/apps → Select your Slack app
+2. Navigate to "Incoming Webhooks"
+3. Add a new webhook pointed to `#calendar-updates`
+4. Save the URL as a new Supabase secret
 
-```sql
--- Add procedure_status column
-ALTER TABLE all_appointments 
-ADD COLUMN procedure_status TEXT DEFAULT NULL;
+### 2. Create New Edge Function: `supabase/functions/notify-calendar-update/index.ts`
 
--- Migrate existing data from procedure_ordered boolean
-UPDATE all_appointments 
-SET procedure_status = CASE 
-  WHEN procedure_ordered = true THEN 'ordered'
-  WHEN procedure_ordered = false THEN 'no_procedure'
-  ELSE NULL
-END;
-```
-
-### 2. Update Filter Dropdown - `src/components/appointments/AppointmentFilters.tsx`
-
-Update lines 292-305 to use new procedure_status values:
+A new edge function that sends rich notifications when reserved time blocks are created:
 
 ```typescript
-<Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
-  <SelectTrigger className="w-[180px]">
-    <SelectValue placeholder="All Procedures" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="ALL">All Procedures</SelectItem>
-    <SelectItem value="ordered">Procedure Ordered</SelectItem>
-    <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
-    <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
-    <SelectItem value="null">Not Set</SelectItem>
-  </SelectContent>
-</Select>
-```
-
-### 3. Update Appointment Card Dropdown - `src/components/appointments/AppointmentCard.tsx`
-
-Update the procedure dropdown (lines 1437-1457) to use new values:
-
-```typescript
-<Select 
-  value={appointment.procedure_status || 'null'} 
-  onValueChange={(value) => {
-    onUpdateProcedure(appointment.id, value === 'null' ? null : value);
-  }}
->
-  <SelectTrigger className={getProcedureTriggerClass()}>
-    <SelectValue placeholder="Select procedure status" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="null">Not Set</SelectItem>
-    <SelectItem value="ordered">Procedure Ordered</SelectItem>
-    <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
-    <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
-  </SelectContent>
-</Select>
-```
-
-Also update the badge display (lines 1342-1345):
-
-```typescript
-{appointment.procedure_status && (
-  <Badge variant={getProcedureStatusVariant(appointment.procedure_status)}>
-    {getProcedureStatusLabel(appointment.procedure_status)}
-  </Badge>
-)}
-```
-
-Add helper functions:
-```typescript
-const getProcedureStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    'ordered': 'Procedure Ordered',
-    'no_procedure': 'No Procedure Ordered',
-    'not_covered': 'Procedure Not Covered'
-  };
-  return labels[status] || status;
-};
-
-const getProcedureStatusVariant = (status: string) => {
-  const variants: Record<string, string> = {
-    'ordered': 'default',
-    'no_procedure': 'secondary',
-    'not_covered': 'destructive'
-  };
-  return variants[status] || 'outline';
-};
-```
-
-### 4. Update Filtering Logic - `src/components/AllAppointmentsManager.tsx`
-
-Update procedure filter logic (lines 248-256, 384-392, 518-526) to use text matching:
-
-```typescript
-// Apply procedure status filter
-if (procedureOrderFilter !== 'ALL') {
-  if (procedureOrderFilter === 'null') {
-    query = query.is('procedure_status', null);
-  } else {
-    query = query.eq('procedure_status', procedureOrderFilter);
-  }
+interface CalendarUpdatePayload {
+  projectName: string;
+  calendarName: string;
+  date: string;           // e.g., "January 30, 2026"
+  timeRanges: string[];   // e.g., ["9:00 AM - 5:00 PM", "6:00 PM - 8:00 PM"]
+  reason?: string;
+  blockedBy: string;      // User who created the block
+  isFullDay: boolean;     // True if blocking 8+ hours
 }
 ```
 
-### 5. Update Type Definitions - `src/integrations/supabase/types.ts`
+**Slack Message Format:**
+```text
++------------------------------------------+
+| 📅 Calendar Update: Reserved Time Block  |
++------------------------------------------+
+| Clinic: Premier Vascular                 |
+| Calendar: GAE - Dr. Smith                |
+| Date: January 30, 2026                   |
+| Blocked: 9:00 AM - 5:00 PM (FULL DAY)    |
+| Reason: Provider vacation                |
+| By: Jane at Clinic                       |
++------------------------------------------+
+| ⚠️ Action: Update cheatsheet             |
++------------------------------------------+
+```
 
-The types will auto-update when you regenerate from Supabase after the migration runs.
+### 3. Update `ReserveTimeBlockDialog.tsx`
+
+After successful block creation (around line 376), add a call to send the notification:
+
+```typescript
+// After successful creation, notify Slack
+const totalMinutesBlocked = timeRanges.reduce((sum, range) => {
+  const [startH, startM] = range.startTime.split(':').map(Number);
+  const [endH, endM] = range.endTime.split(':').map(Number);
+  return sum + ((endH * 60 + endM) - (startH * 60 + startM));
+}, 0);
+
+const isFullDay = totalMinutesBlocked >= 480; // 8 hours = full day
+
+await supabase.functions.invoke('notify-calendar-update', {
+  body: {
+    projectName,
+    calendarName: selectedCalendar?.name,
+    date: format(selectedDate, 'PPPP'),
+    timeRanges: timeRanges.map(r => `${formatTime(r.startTime)} - ${formatTime(r.endTime)}`),
+    reason: reason || 'Not specified',
+    blockedBy: userName || 'Portal User',
+    isFullDay,
+  }
+});
+```
 
 ---
 
-## Files to Modify
+## Files to Create/Modify
 
-| File | Change |
+| File | Action |
 |------|--------|
-| Database migration | Add `procedure_status` text column |
-| `src/components/appointments/AppointmentFilters.tsx` | Update filter dropdown options |
-| `src/components/appointments/AppointmentCard.tsx` | Update card dropdown, badge display, and helper functions |
-| `src/components/AllAppointmentsManager.tsx` | Update filtering logic to use text matching |
-| `src/pages/ProjectPortal.tsx` | Update initialProcedureFilter values |
+| `supabase/functions/notify-calendar-update/index.ts` | **Create** - New edge function for Slack notifications |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | **Modify** - Add notification call after successful block creation |
+| Supabase Secrets | **Add** - `SLACK_CALENDAR_UPDATES_WEBHOOK_URL` for the #calendar-updates channel |
+
+---
+
+## Notification Triggers
+
+The notification will fire when:
+- Any time block is reserved via the portal
+- Includes all relevant details (clinic, calendar, date, times, reason, who)
+- **Special emphasis** (⚠️ icon + "FULL DAY" tag) when 8+ hours are blocked
+
+---
+
+## Secret Setup Required
+
+Before implementation, you need to create the Slack webhook:
+
+1. Open https://api.slack.com/apps
+2. Select or create a Slack app for your workspace
+3. Go to "Incoming Webhooks" → Enable
+4. Click "Add New Webhook to Workspace"
+5. Choose `#calendar-updates` channel
+6. Copy the webhook URL
+7. Add it to Supabase secrets as `SLACK_CALENDAR_UPDATES_WEBHOOK_URL`
 
 ---
 
 ## Expected Outcome
 
 After implementation:
-- Filter dropdown shows: All Procedures, Procedure Ordered, No Procedure Ordered, Procedure Not Covered, Not Set
-- Appointment card dropdown shows the same 4 options
-- Badges display with appropriate colors (green for ordered, gray for no procedure, red for not covered)
-- Existing data is migrated: `true` → 'ordered', `false` → 'no_procedure'
+- Every reserved time block triggers a Slack notification to `#calendar-updates`
+- Full-day blocks are highlighted for immediate attention
+- Team can update cheatsheet proactively when clinics modify availability
+- Notifications include who blocked and why for context
+
