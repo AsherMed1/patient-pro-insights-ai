@@ -35,9 +35,9 @@ serve(async (req) => {
       isFullDay,
     } = payload;
 
-    const webhookUrl = Deno.env.get('SLACK_WEBHOOK_URL');
+    const webhookUrl = Deno.env.get('SLACK_CALENDAR_UPDATES_WEBHOOK_URL');
     if (!webhookUrl) {
-      console.error('[notify-calendar-update] SLACK_WEBHOOK_URL not configured');
+      console.error('[notify-calendar-update] SLACK_CALENDAR_UPDATES_WEBHOOK_URL not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'Slack webhook not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
