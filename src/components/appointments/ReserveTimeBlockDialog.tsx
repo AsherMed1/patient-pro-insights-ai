@@ -372,6 +372,40 @@ export function ReserveTimeBlockDialog({
         description: `Created ${createdAppointments.length} reservation(s) for ${format(selectedDate, 'PPP')}`,
       });
 
+      // Calculate if this is a full day block (8+ hours)
+      const totalMinutesBlocked = timeRanges.reduce((sum, range) => {
+        const [startH, startM] = range.startTime.split(':').map(Number);
+        const [endH, endM] = range.endTime.split(':').map(Number);
+        return sum + ((endH * 60 + endM) - (startH * 60 + startM));
+      }, 0);
+
+      const isFullDay = totalMinutesBlocked >= 480;
+
+      // Helper to format time for display
+      const formatTimeDisplay = (time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        const ampm = h < 12 ? 'AM' : 'PM';
+        const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
+      };
+
+      // Send Slack notification (fire-and-forget, don't block on failure)
+      supabase.functions.invoke('notify-calendar-update', {
+        body: {
+          projectName,
+          calendarName: selectedCalendar?.name || 'Unknown Calendar',
+          date: format(selectedDate, 'PPPP'),
+          timeRanges: createdAppointments.map(({ range }) => 
+            `${formatTimeDisplay(range.startTime)} - ${formatTimeDisplay(range.endTime)}`
+          ),
+          reason: reason || 'Not specified',
+          blockedBy: userName || 'Portal User',
+          isFullDay,
+        }
+      }).catch(err => {
+        console.error('[ReserveTimeBlock] Failed to send Slack notification:', err);
+      });
+
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
