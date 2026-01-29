@@ -211,8 +211,26 @@ function extractUrologistFromText(text: string | null): { name: string | null, p
   return { name: null, phone: null };
 }
 
-// Helper to extract structured data from GHL custom fields
-function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>): any {
+// Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
+function detectProcedureFromFieldKey(key: string): string | null {
+  const upperKey = key.toUpperCase();
+  if (upperKey.includes('GAE') || (upperKey.includes('KNEE') && !upperKey.includes('UFE') && !upperKey.includes('PAE'))) {
+    return 'GAE';
+  }
+  if (upperKey.includes('UFE') || upperKey.includes('FIBROID') || upperKey.includes('UTERINE')) {
+    return 'UFE';
+  }
+  if (upperKey.includes('PAE') || upperKey.includes('PROSTATE')) {
+    return 'PAE';
+  }
+  if (upperKey.includes('PFE') || upperKey.includes('PELVIC FLOOR')) {
+    return 'PFE';
+  }
+  return null;
+}
+
+// Helper to extract structured data from GHL custom fields with procedure filtering
+function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>, targetProcedure: string | null = null): any {
   const result = {
     insurance_info: { 
       insurance_provider: null as string | null, 
@@ -234,6 +252,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       dob: null as string | null 
     },
     pathology_info: { 
+      procedure_type: targetProcedure as string | null, // Set procedure_type from calendar if known
       primary_complaint: null as string | null, 
       symptoms: null as string | null, 
       pain_level: null as string | null, 
@@ -249,7 +268,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       imaging_details: null as string | null,
       xray_details: null as string | null
     },
-    insurance_card_url: null as string | null
+    insurance_card_url: null as string | null,
+    hasCompleteStepData: false as boolean
   };
 
   // Extract root-level contact data
@@ -272,12 +292,43 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     result.demographics.dob = contact.dateOfBirth;
   }
 
-  // Process custom fields
+  // Process custom fields with procedure filtering
   const customFields = contact.customFields || [];
+  let stepFieldCount = 0;
+  
   for (const field of customFields) {
-    const key = (customFieldDefs[field.id] || field.key || '').toLowerCase();
+    const rawKey = customFieldDefs[field.id] || field.key || '';
+    const key = rawKey.toLowerCase();
     const value = Array.isArray(field.field_value) ? field.field_value[0] : field.field_value;
     if (!value) continue;
+
+    // Filter pathology fields by procedure if targetProcedure is set
+    const fieldProcedure = detectProcedureFromFieldKey(rawKey);
+    const isPathologyField = key.includes('step') || key.includes('pain') || key.includes('symptom') || 
+                             key.includes('complaint') || key.includes('pae') || key.includes('ufe') || 
+                             key.includes('gae') || key.includes('knee') || key.includes('prostate') ||
+                             key.includes('fibroid') || key.includes('uterine') || key.includes('pelvic');
+    
+    // Skip pathology fields from different procedures
+    if (targetProcedure && fieldProcedure && fieldProcedure !== targetProcedure && isPathologyField) {
+      console.log(`[AUTO-PARSE GHL] Skipping field "${rawKey}" (procedure ${fieldProcedure}) - current appointment is ${targetProcedure}`);
+      continue;
+    }
+    
+    // Track STEP fields for the target procedure (indicates structured GHL data)
+    if (rawKey.toUpperCase().includes('STEP') && (!fieldProcedure || fieldProcedure === targetProcedure)) {
+      stepFieldCount++;
+      // Extract structured data from STEP fields
+      if (key.includes('pain') || key.includes('frequency') || key.includes('symptom')) {
+        result.pathology_info.symptoms = result.pathology_info.symptoms 
+          ? `${result.pathology_info.symptoms} | ${value}` 
+          : value;
+      }
+      if (key.includes('level') && !result.pathology_info.pain_level) {
+        const painMatch = value.match(/\d+/);
+        if (painMatch) result.pathology_info.pain_level = painMatch[0];
+      }
+    }
 
     // Insurance fields
     if (key.includes('insurance') && key.includes('provider')) {
@@ -403,12 +454,21 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       }
     }
   }
+  
+  // Mark as having complete step data if we found structured STEP fields for the target procedure
+  if (stepFieldCount >= 2) {
+    result.hasCompleteStepData = true;
+    console.log(`[AUTO-PARSE GHL] Found ${stepFieldCount} STEP fields for ${targetProcedure || 'unknown'} procedure - will prefer GHL data over AI`);
+  }
 
   console.log('[AUTO-PARSE GHL] Extracted data from GHL:', {
     hasInsurance: !!result.insurance_info.insurance_provider,
     hasContact: !!result.contact_info.name,
     hasDOB: !!result.demographics.dob,
-    hasInsuranceCard: !!result.insurance_card_url
+    hasInsuranceCard: !!result.insurance_card_url,
+    hasCompleteStepData: result.hasCompleteStepData,
+    targetProcedure,
+    stepFieldCount
   });
 
   return result;
@@ -615,6 +675,15 @@ serve(async (req) => {
         console.log(`[AUTO-PARSE] Processing ${recordIdentifier}`);
         
         let ghlData: any = null;
+        let calendarProcedure: string | null = null;
+        
+        // Detect procedure from calendar name early
+        if (record.table === 'all_appointments' && record.calendar_name) {
+          calendarProcedure = detectProcedureFromCalendar(record.calendar_name);
+          if (calendarProcedure) {
+            console.log(`[AUTO-PARSE] Detected ${calendarProcedure} procedure from calendar: ${record.calendar_name}`);
+          }
+        }
         
         // If appointment has ghl_id, try to fetch GHL custom fields
         if (record.table === 'all_appointments' && record.ghl_id) {
@@ -637,8 +706,9 @@ serve(async (req) => {
             );
             
             if (ghlResult) {
-              ghlData = extractDataFromGHLFields(ghlResult.contact, ghlResult.customFieldDefs);
-              console.log(`[AUTO-PARSE] ✓ GHL data fetched for ${record.lead_name}`);
+              // Pass calendarProcedure to filter GHL fields by current procedure
+              ghlData = extractDataFromGHLFields(ghlResult.contact, ghlResult.customFieldDefs, calendarProcedure);
+              console.log(`[AUTO-PARSE] ✓ GHL data fetched for ${record.lead_name} (procedure filter: ${calendarProcedure || 'none'})`);
               
               // Update ghl_id in DB if it was corrected from appointment lookup
               if (ghlResult.resolvedContactId && ghlResult.resolvedContactId !== record.ghl_id) {
@@ -712,12 +782,9 @@ Parse the following patient intake notes and return a JSON object with these exa
 
 IMPORTANT: Return ONLY the JSON object, no other text. If information is not found, use null for that field.`;
 
-        // Detect procedure type from calendar name to help AI prioritize correct pathology
+        // Build procedure context for AI prompt (use already-detected calendarProcedure)
         let procedureContext = '';
-        if (record.table === 'all_appointments' && record.calendar_name) {
-          const calendarProcedure = detectProcedureFromCalendar(record.calendar_name);
-          if (calendarProcedure) {
-            console.log(`[AUTO-PARSE] Detected ${calendarProcedure} procedure from calendar: ${record.calendar_name}`);
+        if (calendarProcedure) {
             procedureContext = `
 IMPORTANT CONTEXT: This patient's current appointment is for a ${calendarProcedure} consultation (calendar: "${record.calendar_name}").
 If the notes contain information for MULTIPLE procedures (e.g., both GAE and UFE data), 
@@ -730,7 +797,6 @@ ${calendarProcedure === 'PFE' ? 'PFE (Pelvic Floor Embolization) focuses on: pel
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;
-          }
         }
 
         const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${record.patient_intake_notes}`;
@@ -775,14 +841,30 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           throw new Error(`Invalid JSON returned from AI: ${parseError.message}`);
         }
 
-        // Merge GHL-fetched data with AI-parsed data (GHL takes priority, but only non-null values)
+        // Merge GHL-fetched data with AI-parsed data
+        // GHL data has already been filtered by procedure, so it takes priority
         if (ghlData) {
           console.log('[AUTO-PARSE] Merging GHL data with AI-parsed data (non-null only)...');
           parsedData.insurance_info = mergeWithNonNull(parsedData.insurance_info, ghlData.insurance_info);
           parsedData.contact_info = mergeWithNonNull(parsedData.contact_info, ghlData.contact_info);
           parsedData.demographics = mergeWithNonNull(parsedData.demographics, ghlData.demographics);
-          parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info, ghlData.pathology_info);
+          
+          // For pathology: GHL data is already filtered by procedure, so merge with priority
+          // If GHL has complete STEP data, prefer it; otherwise merge AI on top of GHL
+          if (ghlData.hasCompleteStepData) {
+            console.log(`[AUTO-PARSE] Using GHL structured STEP data for ${calendarProcedure} (AI fallback not needed for pathology)`);
+            parsedData.pathology_info = mergeWithNonNull(ghlData.pathology_info, parsedData.pathology_info);
+          } else {
+            // AI parsed data takes priority, GHL fills gaps
+            parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info, ghlData.pathology_info);
+          }
+          
           parsedData.medical_info = mergeWithNonNull(parsedData.medical_info, ghlData.medical_info);
+          
+          // Ensure procedure_type is set from calendar if known
+          if (calendarProcedure && parsedData.pathology_info) {
+            parsedData.pathology_info.procedure_type = calendarProcedure;
+          }
         }
 
         // Extract urologist info from raw intake notes (fallback if not found in GHL or AI)

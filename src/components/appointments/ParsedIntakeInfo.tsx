@@ -29,6 +29,7 @@ interface ParsedIntakeInfoProps {
   onUpdate?: () => void;
   projectName?: string;
   patientName?: string;
+  parsingCompletedAt?: string | null;
 }
 
 export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
@@ -48,6 +49,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   onUpdate,
   projectName,
   patientName,
+  parsingCompletedAt,
 }) => {
   const { toast } = useToast();
   const { userId, userName } = useUserAttribution();
@@ -574,8 +576,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             </Card>
           )}
 
-          {/* Medical Information Section */}
-          {parsedPathologyInfo && (
+          {/* Medical Information Section - Only show when parsing is complete */}
+          {parsedPathologyInfo && parsingCompletedAt && (
             <Card className="bg-amber-50 border-amber-200">
               <CardContent className="pt-4 space-y-2">
                 <div className="flex items-center gap-2 mb-2">
