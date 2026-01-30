@@ -1,79 +1,73 @@
 
-# Plan: Fix Stale Medical Information Display for Service-Change Patients
+# Plan: Fix Internal Notes User Attribution Bug
 
-## ✅ COMPLETED
+## Problem
 
-All three parts of this fix have been implemented.
+When users add internal notes on patient records, the note shows the **project name** (e.g., "Ozark Regional Vein and Artery Center") instead of the **user's name** who created the note.
 
----
+### Root Cause
 
-## Implementation Summary
+In `src/components/appointments/AppointmentNotes.tsx` at line 24:
 
-### Part 1: Hide Medical Info While Reparse is Pending ✅
-
-**Files Modified:**
-- `src/components/appointments/ParsedIntakeInfo.tsx`
-- `src/components/appointments/AppointmentCard.tsx`
-- `src/components/appointments/DetailedAppointmentView.tsx`
-
-**Changes:**
-- Added `parsingCompletedAt` prop to ParsedIntakeInfo component
-- Medical Information section now only displays when `parsingCompletedAt` is set
-- Both AppointmentCard and DetailedAppointmentView pass this prop correctly
-
----
-
-### Part 2: Prefer GHL Structured Fields Over AI (with Procedure Filtering) ✅
-
-**File Modified:** `supabase/functions/auto-parse-intake-notes/index.ts`
-
-**Changes:**
-1. Added `detectProcedureFromFieldKey()` helper to identify procedure from GHL field names
-2. Updated `extractDataFromGHLFields()` to accept `targetProcedure` parameter
-3. GHL custom fields are now filtered to only extract pathology for the matching procedure
-4. Added `hasCompleteStepData` tracking for structured GHL STEP fields
-5. When GHL has complete STEP data, it's preferred over AI parsing for pathology
-6. Procedure type is automatically set from calendar if known
-
----
-
-### Part 3: Reset Old Pathology When Calendar Changes ✅
-
-**File Modified:** `supabase/functions/auto-parse-intake-notes/index.ts`
-
-**Changes:**
-- Calendar procedure is detected early in the processing loop
-- GHL extraction uses procedure filtering to skip fields from old procedures
-- Merge logic ensures procedure_type is always set from current calendar
-- AI prompt includes procedure context to prioritize correct pathology
-
----
-
-## Technical Details
-
-### GHL Field Filtering Logic
-
-For patients like Cassandra Evans who have both GAE and UFE fields:
-- `GAE STEP 1 | How long have you been experiencing knee pain?` → **SKIPPED** (current appointment is UFE)
-- `UFE STEP 1 | How often do you experience pelvic pain?` → **EXTRACTED**
-
-### Structured Step Data Detection
-
-When 2+ STEP fields are found for the target procedure, `hasCompleteStepData` is set to true:
-- GHL structured data is preferred for pathology
-- AI is still used as fallback for incomplete data
-- Reduces OpenAI API usage and rate limit issues
-
----
-
-## Immediate Fix for Cassandra Evans
-
-To update her record after deployment:
-
-```sql
-UPDATE all_appointments 
-SET parsing_completed_at = NULL, parsed_pathology_info = NULL
-WHERE lead_name = 'Cassandra Evans' AND project_name = 'Premier Vascular';
+```typescript
+const success = await addNote(newNote, projectName);  // Bug!
 ```
 
-Then trigger reparse via the UI refresh button or call the auto-parse function.
+The component passes `projectName` to the `addNote` function as the `createdBy` parameter, when it should pass the logged-in user's name.
+
+---
+
+## Solution
+
+Use the existing `useUserAttribution` hook to get the current user's name and pass that to the `addNote` function instead of `projectName`.
+
+### Changes to `src/components/appointments/AppointmentNotes.tsx`:
+
+1. Import `useUserAttribution` hook
+2. Call the hook to get `userName` 
+3. Replace `projectName` with `userName` in the `addNote` call
+4. Optionally disable the "Add Note" button until user attribution is loaded
+
+### Code Changes:
+
+```typescript
+// Add import
+import { useUserAttribution } from '@/hooks/useUserAttribution';
+
+// Inside component
+const { userName, isLoaded: userLoaded } = useUserAttribution();
+
+// Fix the handleAddNote function
+const handleAddNote = async () => {
+  if (!newNote.trim()) return;
+  
+  const success = await addNote(newNote, userName);  // Fixed!
+  if (success) {
+    setNewNote('');
+    setShowAddForm(false);
+  }
+};
+```
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/components/appointments/AppointmentNotes.tsx` | Import `useUserAttribution`, use `userName` instead of `projectName` for note attribution |
+
+---
+
+## Expected Outcome
+
+After this fix:
+- New notes will show the actual user's name (e.g., "John Smith" or their email if no name is set)
+- Existing notes will retain their original `created_by` value (no retroactive change)
+- System-generated notes will continue to show "System" as before
+
+---
+
+## Note
+
+The `projectName` prop can remain on the component for other potential uses, but it will no longer be used for note attribution.
