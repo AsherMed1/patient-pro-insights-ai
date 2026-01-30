@@ -24,11 +24,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { CalendarIcon, Clock, Loader2, Plus, Trash2 } from 'lucide-react';
+import { CalendarIcon, Loader2, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useGhlCalendars } from '@/hooks/useGhlCalendars';
+import { TimeInput } from './TimeInput';
 
 interface ReserveTimeBlockDialogProps {
   open: boolean;
@@ -47,18 +48,6 @@ interface TimeRange {
   endTime: string;
 }
 
-// 10-minute intervals for flexible clinic scheduling (20min, 30min, 40min, 1hr slots)
-const TIME_SLOTS = Array.from({ length: 144 }, (_, i) => {
-  const hour = Math.floor(i / 6);
-  const minute = (i % 6) * 10;
-  const ampm = hour < 12 ? 'AM' : 'PM';
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return {
-    value: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-    label: `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
-  };
-});
-
 interface TimeRangeRowProps {
   range: TimeRange;
   isLast: boolean;
@@ -71,35 +60,19 @@ interface TimeRangeRowProps {
 function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: TimeRangeRowProps) {
   return (
     <div className="flex items-center gap-2">
-      <Select value={range.startTime} onValueChange={(v) => onUpdate(range.id, 'startTime', v)}>
-        <SelectTrigger className="w-[130px]">
-          <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="max-h-[200px]">
-          {TIME_SLOTS.map((slot) => (
-            <SelectItem key={slot.value} value={slot.value}>
-              {slot.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <TimeInput
+        value={range.startTime}
+        onChange={(v) => onUpdate(range.id, 'startTime', v)}
+        placeholder="Start time"
+      />
 
       <span className="text-muted-foreground text-sm">To</span>
 
-      <Select value={range.endTime} onValueChange={(v) => onUpdate(range.id, 'endTime', v)}>
-        <SelectTrigger className="w-[130px]">
-          <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="max-h-[200px]">
-          {TIME_SLOTS.map((slot) => (
-            <SelectItem key={slot.value} value={slot.value}>
-              {slot.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <TimeInput
+        value={range.endTime}
+        onChange={(v) => onUpdate(range.id, 'endTime', v)}
+        placeholder="End time"
+      />
 
       {isLast && (
         <Button variant="ghost" size="icon" onClick={onAdd} className="h-9 w-9">
@@ -222,8 +195,19 @@ export function ReserveTimeBlockDialog({
 
   const validateTimeRanges = (): boolean => {
     const tz = projectTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const timeFormatRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
 
     for (const range of timeRanges) {
+      // Validate time format (HH:mm)
+      if (!timeFormatRegex.test(range.startTime) || !timeFormatRegex.test(range.endTime)) {
+        toast({
+          title: 'Invalid Time Format',
+          description: 'Please enter a valid time (e.g., 9:15 AM or 14:30)',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       if (range.startTime >= range.endTime) {
         toast({
           title: 'Invalid Time Range',
