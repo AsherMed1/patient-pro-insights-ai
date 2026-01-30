@@ -1,139 +1,144 @@
 
+# Plan: Re-parse 111 Ally Vascular Appointments for Insurance Extraction
 
-# Plan: Route "Pending" Status Appointments to "Needs Review" Tab
+## Problem Analysis
 
-## Problem Summary
+111 Ally Vascular appointments have insurance-related data in their `patient_intake_notes` but the structured fields are empty:
+- `detected_insurance_provider` = null
+- `parsed_insurance_info` = empty/null
 
-When an appointment's status is set to "Pending", it remains in the "New" tab because:
-1. The "New" tab filter only checks `internal_process_complete` (false/null)
-2. The "Needs Review" tab filter requires the appointment date to be in the past or null
+**Root Cause**: These records were already parsed (`parsing_completed_at` is set), but the AI extraction may have failed to identify the insurance data from the intake notes format.
 
-**Current behavior**: Pending status + IPC=false → stays in "New" tab
-**Expected behavior**: Pending status → should route to "Needs Review" regardless of date
+**Sample Data Pattern** (from investigation):
+```text
+**Insurance:** insurance_id_link: https://services.leadconnectorhq.com/documents/download/...
+```
 
----
-
-## Solution
-
-Modify the tab filtering logic so that:
-1. **"New" tab** excludes appointments with "Pending" status
-2. **"Needs Review" tab** includes appointments with "Pending" status (in addition to past-date logic)
-
-This ensures "Pending" is treated as a flag meaning "needs administrative attention."
+The notes contain insurance card URLs but no provider names in many cases. Re-parsing with the current AI may extract the `insurance_id_link` URL but the provider/plan extraction requires GHL API enrichment.
 
 ---
 
-## Files to Modify
+## Solution: Targeted Batch Re-parse
 
-| File | Change |
+Create a new edge function that:
+1. Queries the specific 111 appointments with insurance mentions but no extracted data
+2. Resets their `parsing_completed_at` to null
+3. Immediately triggers `auto-parse-intake-notes` to re-process them in batches
+
+This approach leverages the existing parsing infrastructure while targeting only the affected records.
+
+---
+
+## Files to Modify/Create
+
+| File | Action |
 |------|--------|
-| `src/components/AllAppointmentsManager.tsx` | Update database queries for "new" and "needs-review" tabs |
-| `src/components/appointments/utils.ts` | Update `filterAppointments` function for client-side filtering |
+| `supabase/functions/backfill-ally-insurance/index.ts` | Create new edge function |
+| `supabase/config.toml` | Add function configuration |
 
 ---
 
-## Technical Implementation
+## Implementation Details
 
-### 1. `src/components/AllAppointmentsManager.tsx`
+### New Edge Function: `backfill-ally-insurance`
 
-**Location 1**: Lines 274-276 (New tab in `fetchAppointments` count query)
-```typescript
-// Before:
-countQuery = countQuery.or('internal_process_complete.is.null,internal_process_complete.eq.false');
+This function will:
 
-// After:
-countQuery = countQuery
-  .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-  .not('status', 'ilike', 'pending');  // Exclude Pending from New
-```
+1. **Query target appointments**: Find Ally Vascular appointments where:
+   - `patient_intake_notes` contains insurance keywords
+   - `detected_insurance_provider` is null/empty
+   - `parsed_insurance_info` is null or has no provider
 
-**Location 2**: Lines 277-287 (Needs Review in `fetchAppointments` count query)
-```typescript
-// Before:
-countQuery = countQuery
-  .not('date_of_appointment', 'is', null)
-  .lt('date_of_appointment', todayString)
-  // ... other status filters
+2. **Reset parsing flag**: Set `parsing_completed_at = null` for these records
 
-// After - include Pending OR past-date appointments:
-countQuery = countQuery
-  .or(`status.ilike.pending,and(date_of_appointment.lt.${todayString})`)
-  .not('status', 'ilike', 'cancelled')
-  .not('status', 'ilike', 'no show')
-  // ... other terminal status exclusions
-```
+3. **Trigger auto-parse**: Call the existing `auto-parse-intake-notes` function which processes records in batches of 25
 
-**Location 3**: Lines 404-406 (New tab in `fetchAppointments` data query)
-Same change as Location 1.
-
-**Location 4**: Lines 407-417 (Needs Review in `fetchAppointments` data query)
-Same change as Location 2.
-
-**Location 5**: Lines 545-547 (New tab in `fetchTabCounts`)
-```typescript
-const newQuery = getBaseQuery()
-  .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-  .not('status', 'ilike', 'pending');  // Exclude Pending
-```
-
-**Location 6**: Lines 549-557 (Needs Review in `fetchTabCounts`)
-```typescript
-const needsReviewQuery = getBaseQuery()
-  .or(`status.ilike.pending,date_of_appointment.is.null,date_of_appointment.lt.${todayString}`)
-  .not('status', 'ilike', 'cancelled')
-  .not('status', 'ilike', 'no show')
-  .not('status', 'ilike', 'noshow')
-  .not('status', 'ilike', 'showed')
-  .not('status', 'ilike', 'won')
-  .not('status', 'ilike', 'oon');
-```
-
-### 2. `src/components/appointments/utils.ts`
-
-**Location**: Lines 107-113 (`filterAppointments` function)
+4. **Return statistics**: Report how many records were queued and processed
 
 ```typescript
-// Before (line 109-110):
-case 'new':
-  return !isCompleted && (appointment.internal_process_complete === false || ...);
+// Pseudocode for the function
+const targetAppointments = await supabase
+  .from('all_appointments')
+  .select('id')
+  .ilike('project_name', '%Ally Vascular%')
+  .or('detected_insurance_provider.is.null,detected_insurance_provider.eq.')
+  .not('patient_intake_notes', 'is', null)
+  .or('patient_intake_notes.ilike.%insurance%,...other patterns...')
 
-// After:
-case 'new':
-  // New: IPC not complete AND status is not Pending (Pending goes to Needs Review)
-  const isPending = normalizedStatus === 'pending';
-  return !isCompleted && !isPending && (appointment.internal_process_complete === false || ...);
+// Reset parsing_completed_at to null
+await supabase
+  .from('all_appointments')
+  .update({ parsing_completed_at: null })
+  .in('id', targetAppointmentIds)
 
-// Before (line 111-113):
-case 'needs-review':
-  return !isCompleted && (isInPast || !appointment.date_of_appointment) && (...);
-
-// After:
-case 'needs-review':
-  // Needs Review: Pending status OR (past/null date with no final status)
-  const isPendingStatus = normalizedStatus === 'pending';
-  return !isCompleted && (isPendingStatus || isInPast || !appointment.date_of_appointment) && 
-    (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || isPendingStatus);
+// Trigger auto-parse in a loop until all are processed
+while (remainingCount > 0) {
+  await fetch('/functions/v1/auto-parse-intake-notes', ...)
+  // Small delay between batches
+}
 ```
+
+---
+
+## Execution Flow
+
+```text
+1. Call backfill-ally-insurance endpoint
+   │
+   ▼
+2. Query 111 target appointments
+   │
+   ▼
+3. Reset parsing_completed_at = null
+   │
+   ▼
+4. Loop: Call auto-parse-intake-notes (25 records per batch)
+   │
+   ├─► Batch 1: 25 records parsed
+   ├─► Batch 2: 25 records parsed
+   ├─► Batch 3: 25 records parsed
+   ├─► Batch 4: 25 records parsed
+   └─► Batch 5: 11 records parsed
+   │
+   ▼
+5. Return summary: { queued: 111, processed: X, errors: Y }
+```
+
+---
+
+## Technical Notes
+
+### GHL API Enrichment
+The auto-parse function already attempts to fetch GHL custom fields if:
+- The appointment has a `ghl_id`
+- The project has `ghl_api_key` and `ghl_location_id`
+
+For "Ally Vascular  and Pain Centers" (double space), GHL credentials exist. For "Ally Vascular and Pain Centers" (single space), they don't. This means:
+- ~283 appointments in the double-space project will get GHL enrichment
+- ~379 appointments in the single-space project will rely on AI parsing only
+
+### Insurance URL Extraction
+The `extractInsuranceUrlFromText` function in auto-parse already handles extracting insurance card URLs from intake notes. Re-parsing should populate `insurance_id_link` for records with GHL document URLs.
 
 ---
 
 ## Expected Outcome
 
-| Status | Date | IPC | Tab Before | Tab After |
-|--------|------|-----|------------|-----------|
-| Pending | Future | false | New | **Needs Review** |
-| Pending | Past | false | New | **Needs Review** |
-| Pending | null | false | New | **Needs Review** |
-| Confirmed | Future | false | New | New (unchanged) |
-| null/New | Past | false | Needs Review | Needs Review (unchanged) |
+After running the backfill:
+
+| Field | Before | After |
+|-------|--------|-------|
+| `insurance_id_link` | null | Populated from GHL URL in notes |
+| `detected_insurance_provider` | null | Populated if found in GHL or notes |
+| `parsed_insurance_info` | empty | Populated with extracted data |
 
 ---
 
-## Acceptance Criteria Validation
+## Acceptance Criteria
 
-| Criteria | Solution |
-|----------|----------|
-| Setting status to Pending places patient in Needs Review | Pending status triggers Needs Review filter |
-| Tab placement updates immediately | Refetch after status update ensures instant UI update |
-| Not blocked by New tab | New tab explicitly excludes Pending status |
-
+| Criteria | Implementation |
+|----------|----------------|
+| 111 appointments re-queued for parsing | Reset `parsing_completed_at` to null |
+| Insurance URLs extracted from notes | `extractInsuranceUrlFromText` handles this |
+| Batch processing (no timeouts) | 25 records per batch with delays |
+| Progress reporting | Return counts of queued/processed/errors |
