@@ -1,130 +1,25 @@
 
 
-# Plan: Fix Rescheduled Patients IPC Reset Flow
+# Plan: Route "Pending" Status Appointments to "Needs Review" Tab
 
 ## Problem Summary
 
-When a patient appointment is rescheduled, three issues prevent proper re-processing:
+When an appointment's status is set to "Pending", it remains in the "New" tab because:
+1. The "New" tab filter only checks `internal_process_complete` (false/null)
+2. The "Needs Review" tab filter requires the appointment date to be in the past or null
 
-| Issue | Current Behavior | Expected Behavior |
-|-------|------------------|-------------------|
-| **IPC Not Reset** | `internal_process_complete` stays `true` | Should reset to `false` |
-| **Status Not Reset** | Status stays as "Rescheduled" | Should reset to "Confirmed" |
-| **Tab Placement** | Appointment stuck (hidden from New tab) | Should appear in "New" tab |
-
-### Root Cause
-
-In `src/components/appointments/AppointmentCard.tsx` (lines 637-641), the `handleRescheduleSubmit` function updates:
-```typescript
-{
-  date_of_appointment: newDate,
-  requested_time: newTime,
-  status: 'Rescheduled',  // ← Never resets to Confirmed
-  // ← Missing: internal_process_complete: false
-}
-```
+**Current behavior**: Pending status + IPC=false → stays in "New" tab
+**Expected behavior**: Pending status → should route to "Needs Review" regardless of date
 
 ---
 
 ## Solution
 
-### Approach 1: Fix UI Reschedule Logic (Primary)
+Modify the tab filtering logic so that:
+1. **"New" tab** excludes appointments with "Pending" status
+2. **"Needs Review" tab** includes appointments with "Pending" status (in addition to past-date logic)
 
-Update the `handleRescheduleSubmit` function to:
-1. Reset `internal_process_complete` to `false`
-2. Set status to `Confirmed` instead of `Rescheduled`
-
-This ensures the appointment flows back into the "New" pipeline for re-processing.
-
-### Approach 2: Add Database Trigger (Optional Enhancement)
-
-Create a database trigger that automatically resets IPC when `date_of_appointment` changes. This provides a safety net for reschedules from any source (UI, GHL webhook, API).
-
----
-
-## Implementation Details
-
-### File 1: `src/components/appointments/AppointmentCard.tsx`
-
-**Location**: Lines 634-642 (`handleRescheduleSubmit` function)
-
-**Change**: Update the Supabase update call to include IPC reset and Confirmed status:
-
-```typescript
-// Update local appointment
-const { error: updateError } = await supabase
-  .from('all_appointments')
-  .update({
-    date_of_appointment: newDate,
-    requested_time: newTime,
-    status: 'Confirmed',                    // ← Changed from 'Rescheduled'
-    internal_process_complete: false,        // ← Added: Reset IPC
-    last_ghl_sync_status: 'pending',
-    updated_at: new Date().toISOString()
-  })
-  .eq('id', appointment.id);
-```
-
-### File 2: `supabase/functions/ghl-webhook-handler/index.ts`
-
-**Location**: `getUpdateableFields` function (lines 586-644)
-
-**Change**: Add logic to reset IPC when appointment date changes:
-
-```typescript
-// For UPDATE - selective fields only
-const updateFields: Record<string, any> = {}
-
-// Always accept date/time changes (rescheduling)
-if (webhookData.date_of_appointment !== undefined) {
-  updateFields.date_of_appointment = webhookData.date_of_appointment
-  
-  // Reset IPC if date actually changed (reschedule detected)
-  if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
-    updateFields.internal_process_complete = false
-    updateFields.status = 'Confirmed'  // Reset from Rescheduled/other
-  }
-}
-```
-
----
-
-## Database Trigger Enhancement (Optional)
-
-Add a new trigger to auto-reset IPC on date change:
-
-```sql
-CREATE OR REPLACE FUNCTION public.handle_appointment_reschedule()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $function$
-BEGIN
-  -- Detect reschedule: date_of_appointment changed
-  IF TG_OP = 'UPDATE' AND 
-     OLD.date_of_appointment IS DISTINCT FROM NEW.date_of_appointment THEN
-    
-    -- Reset internal process for re-processing
-    NEW.internal_process_complete := false;
-    
-    -- Reset status to Confirmed (unless terminal)
-    IF LOWER(TRIM(COALESCE(NEW.status, ''))) NOT IN 
-       ('cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon') THEN
-      NEW.status := 'Confirmed';
-    END IF;
-    
-    NEW.updated_at := now();
-  END IF;
-  
-  RETURN NEW;
-END;
-$function$;
-
-CREATE TRIGGER trigger_appointment_reschedule
-  BEFORE UPDATE ON public.all_appointments
-  FOR EACH ROW EXECUTE FUNCTION public.handle_appointment_reschedule();
-```
+This ensures "Pending" is treated as a flag meaning "needs administrative attention."
 
 ---
 
@@ -132,29 +27,105 @@ CREATE TRIGGER trigger_appointment_reschedule
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/AppointmentCard.tsx` | Add `internal_process_complete: false` and change status to `Confirmed` in reschedule update |
-| `supabase/functions/ghl-webhook-handler/index.ts` | Reset IPC and status when date changes during webhook updates |
-| New migration (optional) | Database trigger to auto-reset on any date change |
+| `src/components/AllAppointmentsManager.tsx` | Update database queries for "new" and "needs-review" tabs |
+| `src/components/appointments/utils.ts` | Update `filterAppointments` function for client-side filtering |
+
+---
+
+## Technical Implementation
+
+### 1. `src/components/AllAppointmentsManager.tsx`
+
+**Location 1**: Lines 274-276 (New tab in `fetchAppointments` count query)
+```typescript
+// Before:
+countQuery = countQuery.or('internal_process_complete.is.null,internal_process_complete.eq.false');
+
+// After:
+countQuery = countQuery
+  .or('internal_process_complete.is.null,internal_process_complete.eq.false')
+  .not('status', 'ilike', 'pending');  // Exclude Pending from New
+```
+
+**Location 2**: Lines 277-287 (Needs Review in `fetchAppointments` count query)
+```typescript
+// Before:
+countQuery = countQuery
+  .not('date_of_appointment', 'is', null)
+  .lt('date_of_appointment', todayString)
+  // ... other status filters
+
+// After - include Pending OR past-date appointments:
+countQuery = countQuery
+  .or(`status.ilike.pending,and(date_of_appointment.lt.${todayString})`)
+  .not('status', 'ilike', 'cancelled')
+  .not('status', 'ilike', 'no show')
+  // ... other terminal status exclusions
+```
+
+**Location 3**: Lines 404-406 (New tab in `fetchAppointments` data query)
+Same change as Location 1.
+
+**Location 4**: Lines 407-417 (Needs Review in `fetchAppointments` data query)
+Same change as Location 2.
+
+**Location 5**: Lines 545-547 (New tab in `fetchTabCounts`)
+```typescript
+const newQuery = getBaseQuery()
+  .or('internal_process_complete.is.null,internal_process_complete.eq.false')
+  .not('status', 'ilike', 'pending');  // Exclude Pending
+```
+
+**Location 6**: Lines 549-557 (Needs Review in `fetchTabCounts`)
+```typescript
+const needsReviewQuery = getBaseQuery()
+  .or(`status.ilike.pending,date_of_appointment.is.null,date_of_appointment.lt.${todayString}`)
+  .not('status', 'ilike', 'cancelled')
+  .not('status', 'ilike', 'no show')
+  .not('status', 'ilike', 'noshow')
+  .not('status', 'ilike', 'showed')
+  .not('status', 'ilike', 'won')
+  .not('status', 'ilike', 'oon');
+```
+
+### 2. `src/components/appointments/utils.ts`
+
+**Location**: Lines 107-113 (`filterAppointments` function)
+
+```typescript
+// Before (line 109-110):
+case 'new':
+  return !isCompleted && (appointment.internal_process_complete === false || ...);
+
+// After:
+case 'new':
+  // New: IPC not complete AND status is not Pending (Pending goes to Needs Review)
+  const isPending = normalizedStatus === 'pending';
+  return !isCompleted && !isPending && (appointment.internal_process_complete === false || ...);
+
+// Before (line 111-113):
+case 'needs-review':
+  return !isCompleted && (isInPast || !appointment.date_of_appointment) && (...);
+
+// After:
+case 'needs-review':
+  // Needs Review: Pending status OR (past/null date with no final status)
+  const isPendingStatus = normalizedStatus === 'pending';
+  return !isCompleted && (isPendingStatus || isInPast || !appointment.date_of_appointment) && 
+    (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || isPendingStatus);
+```
 
 ---
 
 ## Expected Outcome
 
-After implementation:
-
-| Scenario | Result |
-|----------|--------|
-| User reschedules via UI | Appointment status → "Confirmed", IPC → `false`, appears in "New" tab |
-| GHL sends reschedule webhook | Appointment status → "Confirmed", IPC → `false`, appears in "New" tab |
-| Appointment with terminal status | Not affected (stays as Cancelled/Showed/No Show) |
-
-### Tab Flow After Reschedule:
-```text
-Rescheduled → Confirmed (status reset) + IPC=false → Appears in "New" tab
-                                                    → Staff processes as new appointment
-                                                    → Marks Welcome Call + IPC=true
-                                                    → Moves to "Upcoming" tab
-```
+| Status | Date | IPC | Tab Before | Tab After |
+|--------|------|-----|------------|-----------|
+| Pending | Future | false | New | **Needs Review** |
+| Pending | Past | false | New | **Needs Review** |
+| Pending | null | false | New | **Needs Review** |
+| Confirmed | Future | false | New | New (unchanged) |
+| null/New | Past | false | Needs Review | Needs Review (unchanged) |
 
 ---
 
@@ -162,7 +133,7 @@ Rescheduled → Confirmed (status reset) + IPC=false → Appears in "New" tab
 
 | Criteria | Solution |
 |----------|----------|
-| Reschedule action triggers IPC reset | ✅ `internal_process_complete: false` added to update |
-| Rescheduled appointment doesn't stay "Rescheduled" | ✅ Status changes to "Confirmed" |
-| Rescheduled appointment appears in New tab | ✅ IPC=false makes it visible in New tab filter |
+| Setting status to Pending places patient in Needs Review | Pending status triggers Needs Review filter |
+| Tab placement updates immediately | Refetch after status update ensures instant UI update |
+| Not blocked by New tab | New tab explicitly excludes Pending status |
 
