@@ -29,6 +29,9 @@ export function UpcomingEventsPanel({ projectName, onAppointmentClick }: Upcomin
           .select('*')
           .eq('project_name', projectName)
           .gte('date_of_appointment', today)
+          .not('status', 'ilike', 'cancelled')
+          .not('status', 'ilike', 'canceled')
+          .not('status', 'ilike', 'oon')
           .order('date_of_appointment', { ascending: true })
           .order('requested_time', { ascending: true })
           .limit(10);
