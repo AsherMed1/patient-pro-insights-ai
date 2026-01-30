@@ -47,10 +47,10 @@ interface TimeRange {
   endTime: string;
 }
 
-// 30-minute intervals for more granular selection
-const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const minute = (i % 2) * 30;
+// 10-minute intervals for flexible clinic scheduling (20min, 30min, 40min, 1hr slots)
+const TIME_SLOTS = Array.from({ length: 144 }, (_, i) => {
+  const hour = Math.floor(i / 6);
+  const minute = (i % 6) * 10;
   const ampm = hour < 12 ? 'AM' : 'PM';
   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   return {
