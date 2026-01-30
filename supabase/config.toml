@@ -137,4 +137,8 @@ verify_jwt = false
 
 [functions.delete-ghl-appointment]
 verify_jwt = false
+
+[functions.backfill-ally-insurance]
+verify_jwt = false
+# One-time function to re-parse Ally Vascular appointments for insurance extraction
 # Delete appointments from GoHighLevel (for removing reserved time blocks)
