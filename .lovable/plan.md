@@ -1,14 +1,16 @@
 
 
-# Plan: Change Time Block Intervals from 30 Minutes to 10 Minutes
+# Plan: Add Manual Time Entry with Dropdown Support
 
 ## Problem
 
-The ReserveTimeBlockDialog currently only allows selecting times in 30-minute intervals (e.g., 9:00, 9:30, 10:00). Some clinics have appointment slots of 20, 30, 40, or 60 minutes, requiring more granular time selection.
+Some clinics use 15-minute appointment intervals (e.g., 9:15, 9:45), which are not available in the current 10-minute interval dropdown. Staff need the flexibility to type any time they need.
 
 ## Solution
 
-Update the `TIME_SLOTS` constant to generate options every 10 minutes instead of every 30 minutes.
+Replace the pure `Select` dropdown with a hybrid **Combobox-style input** that allows:
+1. **Quick selection** from a dropdown of common times (keeping 10-minute intervals)
+2. **Manual typing** for any custom time (supporting 15-minute or any other interval)
 
 ---
 
@@ -16,68 +18,149 @@ Update the `TIME_SLOTS` constant to generate options every 10 minutes instead of
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Update TIME_SLOTS array to use 10-minute intervals |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Replace Select with Combobox/Input hybrid |
 
 ---
 
-## Technical Implementation
+## Technical Approach
 
-**Location**: Lines 50-60
+Create a new `TimeInput` component that combines:
+- A text input field where users can type times (e.g., "9:15 AM" or "14:45")
+- A dropdown button that opens a list of preset times for quick selection
+- Automatic parsing and normalization of typed values to `HH:mm` format
 
-**Before** (30-minute intervals, 48 slots):
-```typescript
-const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const minute = (i % 2) * 30;
-  const ampm = hour < 12 ? 'AM' : 'PM';
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return {
-    value: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-    label: `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
-  };
-});
+### Component Design
+
 ```
-
-**After** (10-minute intervals, 144 slots):
-```typescript
-const TIME_SLOTS = Array.from({ length: 144 }, (_, i) => {
-  const hour = Math.floor(i / 6);
-  const minute = (i % 6) * 10;
-  const ampm = hour < 12 ? 'AM' : 'PM';
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return {
-    value: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-    label: `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
-  };
-});
++---------------------------+---+
+| 9:15 AM                   | v |  <- Input field + dropdown trigger
++---------------------------+---+
+| 9:00 AM                       |  <- Dropdown options
+| 9:10 AM                       |
+| 9:20 AM                       |
+| 9:30 AM                       |
+| ...                           |
++-------------------------------+
 ```
 
 ---
 
-## Changes Explained
+## Implementation Details
 
-| Parameter | Before | After | Explanation |
-|-----------|--------|-------|-------------|
-| Array length | 48 | 144 | 24 hours × 6 intervals per hour = 144 |
-| Hour calculation | `i / 2` | `i / 6` | 6 slots per hour instead of 2 |
-| Minute calculation | `(i % 2) * 30` | `(i % 6) * 10` | 0, 10, 20, 30, 40, 50 instead of 0, 30 |
+### 1. Create TimeInput Component (within the file)
+
+```typescript
+interface TimeInputProps {
+  value: string; // HH:mm format
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function TimeInput({ value, onChange, placeholder }: TimeInputProps) {
+  const [inputValue, setInputValue] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Convert HH:mm to display format (e.g., "9:15 AM")
+  const formatForDisplay = (time: string) => { ... };
+  
+  // Parse user input to HH:mm format
+  const parseTimeInput = (input: string): string | null => {
+    // Handle formats: "9:15", "9:15 AM", "09:15", "915", "9 15 am"
+    // Return null if invalid
+  };
+  
+  // On blur, validate and normalize the input
+  const handleBlur = () => {
+    const parsed = parseTimeInput(inputValue);
+    if (parsed) {
+      onChange(parsed);
+    } else {
+      // Reset to current value if invalid
+      setInputValue(formatForDisplay(value));
+    }
+  };
+}
+```
+
+### 2. Time Parsing Logic
+
+Support multiple input formats for user convenience:
+- `9:15` or `09:15` (24-hour implied before noon)
+- `9:15 AM` or `9:15am` or `9:15 a`
+- `9:15 PM` or `9:15pm` or `9:15 p`
+- `915` (interpreted as 9:15)
+- `1430` (interpreted as 14:30 / 2:30 PM)
+
+### 3. Validation Enhancement
+
+Add format validation to `validateTimeRanges()`:
+```typescript
+// Validate time format (HH:mm)
+const timeFormatRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+if (!timeFormatRegex.test(range.startTime) || !timeFormatRegex.test(range.endTime)) {
+  toast({
+    title: 'Invalid Time Format',
+    description: 'Please enter a valid time (e.g., 9:15 AM)',
+    variant: 'destructive',
+  });
+  return false;
+}
+```
 
 ---
 
-## Available Time Options After Change
+## User Experience
 
-The dropdown will now show:
-- 12:00 AM, 12:10 AM, 12:20 AM, 12:30 AM, 12:40 AM, 12:50 AM
-- 1:00 AM, 1:10 AM, 1:20 AM, ... 
-- All the way through 11:50 PM
-
-This enables clinics to reserve blocks matching their exact appointment durations (20min, 30min, 40min, 1hr, etc.).
+| Action | Before | After |
+|--------|--------|-------|
+| Select 9:30 AM | Click dropdown, scroll, click | Click dropdown, scroll, click (same) |
+| Enter 9:15 AM | Not possible | Type "9:15" or "9:15 AM" in input |
+| Enter 2:45 PM | Not possible | Type "2:45 PM" or "14:45" in input |
 
 ---
 
-## No Other Changes Required
+## Updated TimeRangeRow Component
 
-- The validation logic uses actual time strings (`HH:mm`), so it works with any interval
-- The GHL API accepts any valid ISO timestamp, not restricted to 30-minute intervals
-- The database stores times as strings, fully compatible with 10-minute intervals
+```typescript
+function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: TimeRangeRowProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <TimeInput 
+        value={range.startTime} 
+        onChange={(v) => onUpdate(range.id, 'startTime', v)} 
+      />
+
+      <span className="text-muted-foreground text-sm">To</span>
+
+      <TimeInput 
+        value={range.endTime} 
+        onChange={(v) => onUpdate(range.id, 'endTime', v)} 
+      />
+
+      {/* Add/Remove buttons remain the same */}
+    </div>
+  );
+}
+```
+
+---
+
+## Edge Cases Handled
+
+| Input | Interpretation |
+|-------|----------------|
+| `915` | 9:15 AM |
+| `1430` | 2:30 PM |
+| `9:15 pm` | 21:15 |
+| `12:00 AM` | 00:00 |
+| `12:00 PM` | 12:00 |
+| `invalid` | Shows error, reverts to previous value |
+
+---
+
+## Backward Compatibility
+
+- Existing time values in `HH:mm` format continue to work
+- Dropdown still shows 10-minute intervals for quick selection
+- No database or API changes required
 
