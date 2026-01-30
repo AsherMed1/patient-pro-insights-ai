@@ -630,13 +630,14 @@ const AppointmentCard = ({
       
       if (rescheduleError) throw rescheduleError;
       
-      // Update local appointment
+      // Update local appointment - reset IPC and status for re-processing
       const { error: updateError } = await supabase
         .from('all_appointments')
         .update({
           date_of_appointment: newDate,
           requested_time: newTime,
-          status: 'Rescheduled',
+          status: 'Confirmed',                    // Reset to Confirmed for New tab processing
+          internal_process_complete: false,        // Reset IPC so it appears in New tab
           last_ghl_sync_status: 'pending',
           updated_at: new Date().toISOString()
         })
