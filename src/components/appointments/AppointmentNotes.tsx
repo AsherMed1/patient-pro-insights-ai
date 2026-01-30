@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, MessageSquare, Clock, User } from 'lucide-react';
 import { useAppointmentNotes } from '@/hooks/useAppointmentNotes';
+import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { formatDistanceToNow } from 'date-fns';
 
 interface AppointmentNotesProps {
@@ -17,11 +18,12 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName }: AppointmentN
   const [newNote, setNewNote] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const { notes, loading, submitting, addNote } = useAppointmentNotes(appointmentId);
+  const { userName } = useUserAttribution();
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
     
-    const success = await addNote(newNote, projectName);
+    const success = await addNote(newNote, userName);
     if (success) {
       setNewNote('');
       setShowAddForm(false);
