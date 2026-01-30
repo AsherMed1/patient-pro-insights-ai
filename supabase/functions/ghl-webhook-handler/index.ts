@@ -589,6 +589,16 @@ function getUpdateableFields(
   // Always accept date/time changes (rescheduling)
   if (webhookData.date_of_appointment !== undefined) {
     updateFields.date_of_appointment = webhookData.date_of_appointment
+    
+    // Reset IPC and status if date actually changed (reschedule detected)
+    if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
+      updateFields.internal_process_complete = false
+      // Reset status to Confirmed unless it's a terminal status
+      const currentStatus = existingAppointment.status?.toLowerCase()?.trim() || ''
+      if (!['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon'].includes(currentStatus)) {
+        updateFields.status = 'Confirmed'
+      }
+    }
   }
   if (webhookData.requested_time !== undefined) {
     updateFields.requested_time = webhookData.requested_time
