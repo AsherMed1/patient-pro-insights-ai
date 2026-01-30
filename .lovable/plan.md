@@ -1,144 +1,83 @@
 
-# Plan: Re-parse 111 Ally Vascular Appointments for Insurance Extraction
 
-## Problem Analysis
+# Plan: Change Time Block Intervals from 30 Minutes to 10 Minutes
 
-111 Ally Vascular appointments have insurance-related data in their `patient_intake_notes` but the structured fields are empty:
-- `detected_insurance_provider` = null
-- `parsed_insurance_info` = empty/null
+## Problem
 
-**Root Cause**: These records were already parsed (`parsing_completed_at` is set), but the AI extraction may have failed to identify the insurance data from the intake notes format.
+The ReserveTimeBlockDialog currently only allows selecting times in 30-minute intervals (e.g., 9:00, 9:30, 10:00). Some clinics have appointment slots of 20, 30, 40, or 60 minutes, requiring more granular time selection.
 
-**Sample Data Pattern** (from investigation):
-```text
-**Insurance:** insurance_id_link: https://services.leadconnectorhq.com/documents/download/...
-```
+## Solution
 
-The notes contain insurance card URLs but no provider names in many cases. Re-parsing with the current AI may extract the `insurance_id_link` URL but the provider/plan extraction requires GHL API enrichment.
+Update the `TIME_SLOTS` constant to generate options every 10 minutes instead of every 30 minutes.
 
 ---
 
-## Solution: Targeted Batch Re-parse
+## File to Modify
 
-Create a new edge function that:
-1. Queries the specific 111 appointments with insurance mentions but no extracted data
-2. Resets their `parsing_completed_at` to null
-3. Immediately triggers `auto-parse-intake-notes` to re-process them in batches
-
-This approach leverages the existing parsing infrastructure while targeting only the affected records.
-
----
-
-## Files to Modify/Create
-
-| File | Action |
+| File | Change |
 |------|--------|
-| `supabase/functions/backfill-ally-insurance/index.ts` | Create new edge function |
-| `supabase/config.toml` | Add function configuration |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Update TIME_SLOTS array to use 10-minute intervals |
 
 ---
 
-## Implementation Details
+## Technical Implementation
 
-### New Edge Function: `backfill-ally-insurance`
+**Location**: Lines 50-60
 
-This function will:
-
-1. **Query target appointments**: Find Ally Vascular appointments where:
-   - `patient_intake_notes` contains insurance keywords
-   - `detected_insurance_provider` is null/empty
-   - `parsed_insurance_info` is null or has no provider
-
-2. **Reset parsing flag**: Set `parsing_completed_at = null` for these records
-
-3. **Trigger auto-parse**: Call the existing `auto-parse-intake-notes` function which processes records in batches of 25
-
-4. **Return statistics**: Report how many records were queued and processed
-
+**Before** (30-minute intervals, 48 slots):
 ```typescript
-// Pseudocode for the function
-const targetAppointments = await supabase
-  .from('all_appointments')
-  .select('id')
-  .ilike('project_name', '%Ally Vascular%')
-  .or('detected_insurance_provider.is.null,detected_insurance_provider.eq.')
-  .not('patient_intake_notes', 'is', null)
-  .or('patient_intake_notes.ilike.%insurance%,...other patterns...')
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const minute = (i % 2) * 30;
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return {
+    value: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+    label: `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
+  };
+});
+```
 
-// Reset parsing_completed_at to null
-await supabase
-  .from('all_appointments')
-  .update({ parsing_completed_at: null })
-  .in('id', targetAppointmentIds)
-
-// Trigger auto-parse in a loop until all are processed
-while (remainingCount > 0) {
-  await fetch('/functions/v1/auto-parse-intake-notes', ...)
-  // Small delay between batches
-}
+**After** (10-minute intervals, 144 slots):
+```typescript
+const TIME_SLOTS = Array.from({ length: 144 }, (_, i) => {
+  const hour = Math.floor(i / 6);
+  const minute = (i % 6) * 10;
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return {
+    value: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+    label: `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
+  };
+});
 ```
 
 ---
 
-## Execution Flow
+## Changes Explained
 
-```text
-1. Call backfill-ally-insurance endpoint
-   │
-   ▼
-2. Query 111 target appointments
-   │
-   ▼
-3. Reset parsing_completed_at = null
-   │
-   ▼
-4. Loop: Call auto-parse-intake-notes (25 records per batch)
-   │
-   ├─► Batch 1: 25 records parsed
-   ├─► Batch 2: 25 records parsed
-   ├─► Batch 3: 25 records parsed
-   ├─► Batch 4: 25 records parsed
-   └─► Batch 5: 11 records parsed
-   │
-   ▼
-5. Return summary: { queued: 111, processed: X, errors: Y }
-```
+| Parameter | Before | After | Explanation |
+|-----------|--------|-------|-------------|
+| Array length | 48 | 144 | 24 hours × 6 intervals per hour = 144 |
+| Hour calculation | `i / 2` | `i / 6` | 6 slots per hour instead of 2 |
+| Minute calculation | `(i % 2) * 30` | `(i % 6) * 10` | 0, 10, 20, 30, 40, 50 instead of 0, 30 |
 
 ---
 
-## Technical Notes
+## Available Time Options After Change
 
-### GHL API Enrichment
-The auto-parse function already attempts to fetch GHL custom fields if:
-- The appointment has a `ghl_id`
-- The project has `ghl_api_key` and `ghl_location_id`
+The dropdown will now show:
+- 12:00 AM, 12:10 AM, 12:20 AM, 12:30 AM, 12:40 AM, 12:50 AM
+- 1:00 AM, 1:10 AM, 1:20 AM, ... 
+- All the way through 11:50 PM
 
-For "Ally Vascular  and Pain Centers" (double space), GHL credentials exist. For "Ally Vascular and Pain Centers" (single space), they don't. This means:
-- ~283 appointments in the double-space project will get GHL enrichment
-- ~379 appointments in the single-space project will rely on AI parsing only
-
-### Insurance URL Extraction
-The `extractInsuranceUrlFromText` function in auto-parse already handles extracting insurance card URLs from intake notes. Re-parsing should populate `insurance_id_link` for records with GHL document URLs.
+This enables clinics to reserve blocks matching their exact appointment durations (20min, 30min, 40min, 1hr, etc.).
 
 ---
 
-## Expected Outcome
+## No Other Changes Required
 
-After running the backfill:
+- The validation logic uses actual time strings (`HH:mm`), so it works with any interval
+- The GHL API accepts any valid ISO timestamp, not restricted to 30-minute intervals
+- The database stores times as strings, fully compatible with 10-minute intervals
 
-| Field | Before | After |
-|-------|--------|-------|
-| `insurance_id_link` | null | Populated from GHL URL in notes |
-| `detected_insurance_provider` | null | Populated if found in GHL or notes |
-| `parsed_insurance_info` | empty | Populated with extracted data |
-
----
-
-## Acceptance Criteria
-
-| Criteria | Implementation |
-|----------|----------------|
-| 111 appointments re-queued for parsing | Reset `parsing_completed_at` to null |
-| Insurance URLs extracted from notes | `extractInsuranceUrlFromText` handles this |
-| Batch processing (no timeouts) | 25 records per batch with delays |
-| Progress reporting | Return counts of queued/processed/errors |
