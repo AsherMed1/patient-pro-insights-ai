@@ -1,64 +1,36 @@
 
-# Plan: Move Insurance Notes to Medical Information Section
+# Plan: Filter Inactive Appointments from Calendar View
 
-## Current State
+## Problem
 
-The "Insurance Notes" field is currently displayed in the **Insurance Information** section (green card) at lines 520-527:
+The calendar view currently displays **all** appointments including Cancelled and OON (Out of Network) appointments. This creates visual clutter and confusion since these appointments are no longer active or schedulable.
 
-```tsx
-{formatValue(parsedInsuranceInfo?.insurance_notes) && (
-  <div className="text-sm pt-2 border-t border-blue-200 mt-2">
-    <span className="text-muted-foreground">Insurance Notes:</span>{" "}
-    <span className="font-medium text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
-      {parsedInsuranceInfo.insurance_notes}
-    </span>
-  </div>
-)}
-```
-
-This field often contains clinical information (e.g., "Diagnosed with fibroids around 2y ago - Had bleeding for 31 days straight...") that belongs in the Medical section rather than Insurance.
+**Current behavior**: Calendar shows Cancelled and OON appointments mixed with active ones
+**Expected behavior**: Calendar only shows active/schedulable appointments (Confirmed, Welcome Call, Showed, No Show, Rescheduled, etc.)
 
 ---
 
 ## Solution
 
-Move the notes display from the Insurance Information card to the **Medical Information** card (amber-colored section), and rename the label from "Insurance Notes" to "Notes".
+Add status filtering to the calendar data fetch and upcoming events query to exclude Cancelled and OON appointments.
 
-### Changes to `src/components/appointments/ParsedIntakeInfo.tsx`:
+### Statuses to Exclude:
+| Status | Reason |
+|--------|--------|
+| Cancelled | Terminal - appointment was cancelled |
+| Canceled | Alternate spelling |
+| OON | Out of Network - not schedulable |
 
-1. **Remove** the Insurance Notes display from the Insurance Information section (lines 520-527)
-
-2. **Add** a "Notes" field to the Medical Information section (after line 704, before the closing `</CardContent>`)
-
-3. **Update styling** to match the amber/medical theme instead of blue
-
----
-
-## Code Changes
-
-### Remove from Insurance Section (lines 520-527):
-Delete this block entirely from the Insurance Information card.
-
-### Add to Medical Information Section (after line 704):
-```tsx
-{formatValue(parsedInsuranceInfo?.insurance_notes) && (
-  <div className="text-sm pt-2 border-t border-amber-200 mt-2">
-    <span className="text-muted-foreground">Notes:</span>{" "}
-    <span className="font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-      {parsedInsuranceInfo.insurance_notes}
-    </span>
-  </div>
-)}
-```
-
----
-
-## Visual Change
-
-| Before | After |
-|--------|-------|
-| Insurance Information card shows "Insurance Notes" with blue styling | Insurance Information card has no notes field |
-| Medical Information card has no notes | Medical Information card shows "Notes" with amber styling at the bottom |
+### Statuses to Keep:
+- Confirmed
+- Welcome Call
+- Scheduled
+- Pending
+- New
+- Showed (historical reference)
+- No Show (historical reference)
+- Rescheduled
+- Do Not Call
 
 ---
 
@@ -66,12 +38,81 @@ Delete this block entirely from the Insurance Information card.
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Move notes from Insurance section to Medical Information section, rename label to "Notes" |
+| `src/hooks/useCalendarAppointments.tsx` | Add status filter to exclude Cancelled and OON from database query |
+| `src/components/appointments/UpcomingEventsPanel.tsx` | Add status filter to exclude Cancelled and OON from upcoming events query |
+
+---
+
+## Technical Implementation
+
+### 1. `useCalendarAppointments.tsx` (lines 61-66)
+
+Update the Supabase query to exclude inactive statuses:
+
+```typescript
+let query = supabase
+  .from('all_appointments')
+  .select('*')
+  .gte('date_of_appointment', startDate)
+  .lte('date_of_appointment', endDate)
+  .or('is_reserved_block.is.null,is_reserved_block.eq.false')  // Existing reserved block filter
+  .not('status', 'ilike', 'cancelled')
+  .not('status', 'ilike', 'canceled')
+  .not('status', 'ilike', 'oon')
+  .order('date_of_appointment', { ascending: true });
+```
+
+**Note**: Using `ilike` for case-insensitive matching since statuses may have varying capitalization.
+
+### 2. `UpcomingEventsPanel.tsx` (lines 27-34)
+
+Update the upcoming events query to exclude inactive statuses:
+
+```typescript
+const { data, error } = await supabase
+  .from('all_appointments')
+  .select('*')
+  .eq('project_name', projectName)
+  .gte('date_of_appointment', today)
+  .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+  .not('status', 'ilike', 'cancelled')
+  .not('status', 'ilike', 'canceled')
+  .not('status', 'ilike', 'oon')
+  .order('date_of_appointment', { ascending: true })
+  .order('requested_time', { ascending: true })
+  .limit(10);
+```
+
+---
+
+## Consistency with Existing Patterns
+
+This follows the existing filtering pattern used in:
+- `src/components/appointments/utils.ts` line 97: `completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon']`
+- `src/hooks/useMasterDatabase.tsx` line 45: `.or('is_reserved_block.is.null,is_reserved_block.eq.false')`
+
+**Design decision**: We keep "Showed" and "No Show" visible in the calendar for historical context (knowing what happened on past dates), but exclude Cancelled and OON since they represent appointments that won't happen.
 
 ---
 
 ## Expected Outcome
 
-- The clinical notes ("Diagnosed with fibroids...", "Hysterectomy schedule...") will appear in the Medical Information section where they logically belong
-- The label will be simplified to "Notes" for broader applicability
-- The styling will match the amber medical theme
+After implementation:
+- Calendar Day/Week/Month views will only show active appointments
+- Upcoming Events sidebar will only show active appointments
+- Cancelled appointments will not clutter the calendar
+- OON appointments will not appear (as they're not schedulable)
+- Reserved time blocks continue to display correctly with their distinct styling
+- Appointment counts per day will reflect only active appointments
+
+---
+
+## Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| Status is NULL | Appointment shows (new/unprocessed) |
+| Status is empty string | Appointment shows |
+| Status is "CANCELLED" (uppercase) | Filtered out (ilike is case-insensitive) |
+| Reserved blocks | Continue to show with gray styling |
+| Past cancelled appointments | Filtered out (reduces historical clutter) |
