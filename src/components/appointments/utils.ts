@@ -104,13 +104,16 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     // Always move cancelled appointments to completed stage
     const isCompleted = appointment.status && completedStatuses.includes(normalizedStatus);
     
+    // Check if status is Pending (needs special routing)
+    const isPendingStatus = normalizedStatus === 'pending';
+    
     switch (filterType) {
       case 'new':
-        // New: Appointments where internal_process_complete is NOT true (false or null) - BUT NOT cancelled
-        return !isCompleted && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
+        // New: Appointments where internal_process_complete is NOT true (false or null) - BUT NOT cancelled AND NOT Pending
+        return !isCompleted && !isPendingStatus && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
       case 'needs-review':
-        // Needs Review: Past appointment OR NULL date + not updated (no status set or still "new") - BUT NOT cancelled
-        return !isCompleted && (isInPast || !appointment.date_of_appointment) && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new');
+        // Needs Review: Pending status OR (past/null date + not updated) - BUT NOT cancelled
+        return !isCompleted && (isPendingStatus || isInPast || !appointment.date_of_appointment) && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || isPendingStatus);
       case 'future':
         // Future: appointment in the future + internal_process_complete is TRUE (two-point trigger) - BUT NOT cancelled
         return !isCompleted && isInFuture && appointment.internal_process_complete === true;
