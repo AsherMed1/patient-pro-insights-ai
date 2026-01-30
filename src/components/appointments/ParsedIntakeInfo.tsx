@@ -517,14 +517,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         <span className="font-medium">{parsedInsuranceInfo.insurance_group_number}</span>
                       </div>
                     )}
-                    {formatValue(parsedInsuranceInfo?.insurance_notes) && (
-                      <div className="text-sm pt-2 border-t border-blue-200 mt-2">
-                        <span className="text-muted-foreground">Insurance Notes:</span>{" "}
-                        <span className="font-medium text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
-                          {parsedInsuranceInfo.insurance_notes}
-                        </span>
-                      </div>
-                    )}
                   </>
                 )}
                 {(insuranceIdLink || insuranceBackLink) && !isEditingInsurance && (
@@ -700,6 +692,14 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   <div className="text-sm">
                     <span className="text-muted-foreground">Treatment:</span>{" "}
                     <span className="font-medium">{parsedPathologyInfo.treatment}</span>
+                  </div>
+                )}
+                {formatValue(parsedInsuranceInfo?.insurance_notes) && (
+                  <div className="text-sm pt-2 border-t border-amber-200 mt-2">
+                    <span className="text-muted-foreground">Notes:</span>{" "}
+                    <span className="font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                      {parsedInsuranceInfo.insurance_notes}
+                    </span>
                   </div>
                 )}
               </CardContent>
