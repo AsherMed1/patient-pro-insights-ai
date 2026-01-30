@@ -1,53 +1,64 @@
 
-# Plan: Fix Internal Notes User Attribution Bug
+# Plan: Move Insurance Notes to Medical Information Section
 
-## Problem
+## Current State
 
-When users add internal notes on patient records, the note shows the **project name** (e.g., "Ozark Regional Vein and Artery Center") instead of the **user's name** who created the note.
+The "Insurance Notes" field is currently displayed in the **Insurance Information** section (green card) at lines 520-527:
 
-### Root Cause
-
-In `src/components/appointments/AppointmentNotes.tsx` at line 24:
-
-```typescript
-const success = await addNote(newNote, projectName);  // Bug!
+```tsx
+{formatValue(parsedInsuranceInfo?.insurance_notes) && (
+  <div className="text-sm pt-2 border-t border-blue-200 mt-2">
+    <span className="text-muted-foreground">Insurance Notes:</span>{" "}
+    <span className="font-medium text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
+      {parsedInsuranceInfo.insurance_notes}
+    </span>
+  </div>
+)}
 ```
 
-The component passes `projectName` to the `addNote` function as the `createdBy` parameter, when it should pass the logged-in user's name.
+This field often contains clinical information (e.g., "Diagnosed with fibroids around 2y ago - Had bleeding for 31 days straight...") that belongs in the Medical section rather than Insurance.
 
 ---
 
 ## Solution
 
-Use the existing `useUserAttribution` hook to get the current user's name and pass that to the `addNote` function instead of `projectName`.
+Move the notes display from the Insurance Information card to the **Medical Information** card (amber-colored section), and rename the label from "Insurance Notes" to "Notes".
 
-### Changes to `src/components/appointments/AppointmentNotes.tsx`:
+### Changes to `src/components/appointments/ParsedIntakeInfo.tsx`:
 
-1. Import `useUserAttribution` hook
-2. Call the hook to get `userName` 
-3. Replace `projectName` with `userName` in the `addNote` call
-4. Optionally disable the "Add Note" button until user attribution is loaded
+1. **Remove** the Insurance Notes display from the Insurance Information section (lines 520-527)
 
-### Code Changes:
+2. **Add** a "Notes" field to the Medical Information section (after line 704, before the closing `</CardContent>`)
 
-```typescript
-// Add import
-import { useUserAttribution } from '@/hooks/useUserAttribution';
+3. **Update styling** to match the amber/medical theme instead of blue
 
-// Inside component
-const { userName, isLoaded: userLoaded } = useUserAttribution();
+---
 
-// Fix the handleAddNote function
-const handleAddNote = async () => {
-  if (!newNote.trim()) return;
-  
-  const success = await addNote(newNote, userName);  // Fixed!
-  if (success) {
-    setNewNote('');
-    setShowAddForm(false);
-  }
-};
+## Code Changes
+
+### Remove from Insurance Section (lines 520-527):
+Delete this block entirely from the Insurance Information card.
+
+### Add to Medical Information Section (after line 704):
+```tsx
+{formatValue(parsedInsuranceInfo?.insurance_notes) && (
+  <div className="text-sm pt-2 border-t border-amber-200 mt-2">
+    <span className="text-muted-foreground">Notes:</span>{" "}
+    <span className="font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+      {parsedInsuranceInfo.insurance_notes}
+    </span>
+  </div>
+)}
 ```
+
+---
+
+## Visual Change
+
+| Before | After |
+|--------|-------|
+| Insurance Information card shows "Insurance Notes" with blue styling | Insurance Information card has no notes field |
+| Medical Information card has no notes | Medical Information card shows "Notes" with amber styling at the bottom |
 
 ---
 
@@ -55,19 +66,12 @@ const handleAddNote = async () => {
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/AppointmentNotes.tsx` | Import `useUserAttribution`, use `userName` instead of `projectName` for note attribution |
+| `src/components/appointments/ParsedIntakeInfo.tsx` | Move notes from Insurance section to Medical Information section, rename label to "Notes" |
 
 ---
 
 ## Expected Outcome
 
-After this fix:
-- New notes will show the actual user's name (e.g., "John Smith" or their email if no name is set)
-- Existing notes will retain their original `created_by` value (no retroactive change)
-- System-generated notes will continue to show "System" as before
-
----
-
-## Note
-
-The `projectName` prop can remain on the component for other potential uses, but it will no longer be used for note attribution.
+- The clinical notes ("Diagnosed with fibroids...", "Hysterectomy schedule...") will appear in the Medical Information section where they logically belong
+- The label will be simplified to "Notes" for broader applicability
+- The styling will match the amber medical theme
