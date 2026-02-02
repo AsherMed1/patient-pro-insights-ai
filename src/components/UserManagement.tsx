@@ -34,9 +34,12 @@ interface Project {
 const UserManagement = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [resending, setResending] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -174,7 +177,7 @@ const UserManagement = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
       if (showRefreshIndicator) {
         setRefreshing(false);
       }
@@ -304,9 +307,8 @@ const UserManagement = () => {
   const updateUser = async () => {
     if (!editingUser) return;
 
+    setUpdating(true);
     try {
-      setLoading(true);
-
       // Update profile
       const { error: profileError } = await supabase
         .from('profiles')
@@ -345,7 +347,7 @@ const UserManagement = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setUpdating(false);
     }
   };
 
@@ -357,9 +359,8 @@ const UserManagement = () => {
   const deleteUser = async () => {
     if (!deletingUser) return;
 
+    setDeleting(true);
     try {
-      setLoading(true);
-
       // Call edge function to delete user (requires service role permissions)
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
@@ -403,14 +404,13 @@ const UserManagement = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
   const resendWelcomeEmail = async (user: User) => {
+    setResending(true);
     try {
-      setLoading(true);
-
       // Reset the welcome email flag
       const { error: updateError } = await supabase
         .from('profiles')
@@ -438,7 +438,7 @@ const UserManagement = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setResending(false);
     }
   };
 
@@ -455,8 +455,13 @@ const UserManagement = () => {
     }
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading users...</span>
+      </div>
+    );
   }
 
   return (
@@ -779,10 +784,11 @@ const UserManagement = () => {
               </Select>
             </div>
             <div className="flex space-x-2">
-              <Button onClick={updateUser} className="flex-1">
-                Update User
+              <Button onClick={updateUser} className="flex-1" disabled={updating}>
+                {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {updating ? 'Saving...' : 'Update User'}
               </Button>
-              <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1" disabled={updating}>
                 Cancel
               </Button>
             </div>
@@ -802,10 +808,11 @@ const UserManagement = () => {
               This action cannot be undone. This will permanently delete the user account and all associated data.
             </p>
             <div className="flex space-x-2">
-              <Button variant="destructive" onClick={deleteUser} className="flex-1">
-                Delete User
+              <Button variant="destructive" onClick={deleteUser} className="flex-1" disabled={deleting}>
+                {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {deleting ? 'Deleting...' : 'Delete User'}
               </Button>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(false)} className="flex-1">
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)} className="flex-1" disabled={deleting}>
                 Cancel
               </Button>
             </div>
