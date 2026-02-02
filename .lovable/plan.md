@@ -1,166 +1,115 @@
 
 
-# Plan: Add Manual Time Entry with Dropdown Support
+# Plan: Consolidate Ally Vascular Appointments to Correct Project
 
-## Problem
+## Problem Identified
 
-Some clinics use 15-minute appointment intervals (e.g., 9:15, 9:45), which are not available in the current 10-minute interval dropdown. Staff need the flexibility to type any time they need.
+After November 18th, 2025, **307 appointments** have been created under the wrong project name due to a naming discrepancy:
 
-## Solution
+| Project Name | Space Pattern | Status | GHL Credentials | Appointments After Nov 18 |
+|-------------|---------------|--------|-----------------|---------------------------|
+| "Ally Vascular  and Pain Centers" | Double space | **Active** | Has API key | 43 |
+| "Ally Vascular and Pain Centers" | Single space | Inactive | None | **307** |
 
-Replace the pure `Select` dropdown with a hybrid **Combobox-style input** that allows:
-1. **Quick selection** from a dropdown of common times (keeping 10-minute intervals)
-2. **Manual typing** for any custom time (supporting 15-minute or any other interval)
-
----
-
-## File to Modify
-
-| File | Change |
-|------|--------|
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Replace Select with Combobox/Input hybrid |
+The GHL webhook started sending the project name with a single space, causing new appointments to be routed to an inactive duplicate project.
 
 ---
 
-## Technical Approach
+## Solution Options
 
-Create a new `TimeInput` component that combines:
-- A text input field where users can type times (e.g., "9:15 AM" or "14:45")
-- A dropdown button that opens a list of preset times for quick selection
-- Automatic parsing and normalization of typed values to `HH:mm` format
+### Option A: Merge Appointments to the Active Project (Recommended)
+Update all appointments from the single-space project to use the double-space project name, consolidating data under the active project.
 
-### Component Design
+### Option B: Make the Single-Space Project Active
+Since it has the most recent data, activate the single-space project and transfer GHL credentials to it.
 
+---
+
+## Recommended Solution: Option A - Merge Appointments
+
+### Step 1: Update Appointment Project Names
+Migrate all 382 appointments from "Ally Vascular and Pain Centers" to "Ally Vascular  and Pain Centers"
+
+```sql
+UPDATE all_appointments
+SET project_name = 'Ally Vascular  and Pain Centers',
+    updated_at = NOW()
+WHERE project_name = 'Ally Vascular and Pain Centers';
 ```
-+---------------------------+---+
-| 9:15 AM                   | v |  <- Input field + dropdown trigger
-+---------------------------+---+
-| 9:00 AM                       |  <- Dropdown options
-| 9:10 AM                       |
-| 9:20 AM                       |
-| 9:30 AM                       |
-| ...                           |
-+-------------------------------+
+
+### Step 2: Update Leads Project Names (if applicable)
+```sql
+UPDATE new_leads
+SET project_name = 'Ally Vascular  and Pain Centers',
+    updated_at = NOW()
+WHERE project_name = 'Ally Vascular and Pain Centers';
 ```
+
+### Step 3: Delete the Duplicate Project Entry
+```sql
+DELETE FROM projects
+WHERE project_name = 'Ally Vascular and Pain Centers';
+```
+
+### Step 4: Prevent Future Issues
+Update the GHL webhook handler to normalize project names by collapsing multiple spaces into single spaces, then matching to existing projects.
 
 ---
 
 ## Implementation Details
 
-### 1. Create TimeInput Component (within the file)
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `supabase/functions/ghl-webhook-handler/index.ts` | Add project name normalization logic |
+
+### Webhook Handler Update
+
+Add a utility function to normalize project names before matching:
 
 ```typescript
-interface TimeInputProps {
-  value: string; // HH:mm format
-  onChange: (value: string) => void;
-  placeholder?: string;
+function normalizeProjectName(name: string): string {
+  // Collapse multiple spaces into single space
+  return name.replace(/\s+/g, ' ').trim();
 }
 
-function TimeInput({ value, onChange, placeholder }: TimeInputProps) {
-  const [inputValue, setInputValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  
-  // Convert HH:mm to display format (e.g., "9:15 AM")
-  const formatForDisplay = (time: string) => { ... };
-  
-  // Parse user input to HH:mm format
-  const parseTimeInput = (input: string): string | null => {
-    // Handle formats: "9:15", "9:15 AM", "09:15", "915", "9 15 am"
-    // Return null if invalid
-  };
-  
-  // On blur, validate and normalize the input
-  const handleBlur = () => {
-    const parsed = parseTimeInput(inputValue);
-    if (parsed) {
-      onChange(parsed);
-    } else {
-      // Reset to current value if invalid
-      setInputValue(formatForDisplay(value));
-    }
-  };
-}
-```
+// When matching/creating projects:
+const normalizedName = normalizeProjectName(webhookData.location?.name || '');
 
-### 2. Time Parsing Logic
-
-Support multiple input formats for user convenience:
-- `9:15` or `09:15` (24-hour implied before noon)
-- `9:15 AM` or `9:15am` or `9:15 a`
-- `9:15 PM` or `9:15pm` or `9:15 p`
-- `915` (interpreted as 9:15)
-- `1430` (interpreted as 14:30 / 2:30 PM)
-
-### 3. Validation Enhancement
-
-Add format validation to `validateTimeRanges()`:
-```typescript
-// Validate time format (HH:mm)
-const timeFormatRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-if (!timeFormatRegex.test(range.startTime) || !timeFormatRegex.test(range.endTime)) {
-  toast({
-    title: 'Invalid Time Format',
-    description: 'Please enter a valid time (e.g., 9:15 AM)',
-    variant: 'destructive',
-  });
-  return false;
-}
+// Try exact match first, then normalized match
+let { data: project } = await supabase
+  .from('projects')
+  .select('*')
+  .or(`project_name.eq.${webhookName},project_name.ilike.%${normalizedName}%`)
+  .limit(1)
+  .single();
 ```
 
 ---
 
-## User Experience
+## Execution Steps
 
-| Action | Before | After |
-|--------|--------|-------|
-| Select 9:30 AM | Click dropdown, scroll, click | Click dropdown, scroll, click (same) |
-| Enter 9:15 AM | Not possible | Type "9:15" or "9:15 AM" in input |
-| Enter 2:45 PM | Not possible | Type "2:45 PM" or "14:45" in input |
-
----
-
-## Updated TimeRangeRow Component
-
-```typescript
-function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: TimeRangeRowProps) {
-  return (
-    <div className="flex items-center gap-2">
-      <TimeInput 
-        value={range.startTime} 
-        onChange={(v) => onUpdate(range.id, 'startTime', v)} 
-      />
-
-      <span className="text-muted-foreground text-sm">To</span>
-
-      <TimeInput 
-        value={range.endTime} 
-        onChange={(v) => onUpdate(range.id, 'endTime', v)} 
-      />
-
-      {/* Add/Remove buttons remain the same */}
-    </div>
-  );
-}
-```
+1. **Run SQL migration** to consolidate appointments and leads
+2. **Delete the duplicate project** from the projects table
+3. **Update the webhook handler** to prevent future naming issues
+4. **Verify** that all 665 appointments now appear under the active project
 
 ---
 
-## Edge Cases Handled
+## Expected Outcome
 
-| Input | Interpretation |
-|-------|----------------|
-| `915` | 9:15 AM |
-| `1430` | 2:30 PM |
-| `9:15 pm` | 21:15 |
-| `12:00 AM` | 00:00 |
-| `12:00 PM` | 12:00 |
-| `invalid` | Shows error, reverts to previous value |
+After consolidation:
+- **665 appointments** visible under "Ally Vascular  and Pain Centers"
+- Single project entry with all historical data
+- GHL credentials remain attached
+- Future webhooks will correctly match to the active project
 
 ---
 
-## Backward Compatibility
+## Risk Mitigation
 
-- Existing time values in `HH:mm` format continue to work
-- Dropdown still shows 10-minute intervals for quick selection
-- No database or API changes required
+- Data is only being moved, not deleted
+- Original project with GHL credentials remains intact
+- All appointments retain their IDs and data integrity
 
