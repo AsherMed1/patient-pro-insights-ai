@@ -1,94 +1,177 @@
 
-# Plan: Fix Incomplete Patient Pro Insights for Ally Vascular
 
-## Problem Identified
+# Plan: Fix User Management Screen Refresh Loop
 
-**397 Ally Vascular appointments** have incomplete Patient Pro Insights data (missing insurance, pathology, and medical information). 
+## Problem
 
-### Root Cause
-The GHL webhook only captured basic contact/address information when appointments were created. The complete intake form data (insurance, pathology, PCP) exists in GHL's contact custom fields but wasn't fetched at the time.
+Clicking "Add User" or performing any user operation causes the screen to refresh and enter a looping state. This happens because:
 
-### Proof of Solution
-I tested one appointment (Kenneth Jackson) by:
-1. Calling `fetch-ghl-contact-data` - Retrieved full GHL data including Medicare insurance, GAE pathology, and PCP info
-2. Calling `trigger-reparse` - Populated all structured fields
+1. The `loading` state is shared across multiple operations
+2. When `loading` is `true`, the entire component unmounts (`return <div>Loading...</div>`)
+3. This closes dialogs, loses state, and causes visual "refreshing"
 
-**Before**: Only had address data, no insurance/pathology
-**After**: Complete data - Medicare insurance, GAE procedure, pain level 7, PCP Dr. Alfred Mosqueda
+## Solution
+
+Replace the global `loading` state that unmounts the component with operation-specific loading states that keep the UI intact while showing feedback.
 
 ---
 
-## Solution: Bulk Re-Enrichment Edge Function
+## Files to Modify
 
-Create a new edge function `backfill-ally-ghl-data` that:
-1. Queries all Ally Vascular appointments missing insurance data with valid `ghl_id`
-2. For each appointment, calls `fetch-ghl-contact-data` to get full GHL data
-3. Triggers `trigger-reparse` to populate structured fields
-4. Reports progress and results
+| File | Change |
+|------|--------|
+| `src/components/UserManagement.tsx` | Replace global loading pattern with operation-specific states |
 
 ---
 
 ## Implementation Details
 
-### New Edge Function: `backfill-ally-ghl-data`
+### 1. Add Operation-Specific Loading States
 
-| File | Action |
-|------|--------|
-| `supabase/functions/backfill-ally-ghl-data/index.ts` | Create new bulk enrichment function |
+Replace the single `loading` state with separate states for each operation:
 
-### Function Logic
+```typescript
+// Current (problematic)
+const [loading, setLoading] = useState(true);
 
-```text
-1. Query all_appointments WHERE:
-   - project_name ILIKE '%Ally Vascular%'
-   - detected_insurance_provider IS NULL
-   - ghl_id IS NOT NULL
-
-2. For each appointment (in batches of 10):
-   - Call fetch-ghl-contact-data with appointmentId
-   - On success, call trigger-reparse with appointment_id
-   - Track success/failure counts
-   - Add small delay between batches to avoid rate limits
-
-3. Return summary:
-   - Total appointments processed
-   - Success count
-   - Error count
-   - Sample results
+// Fixed (operation-specific)
+const [initialLoading, setInitialLoading] = useState(true);  // Only for first data fetch
+const [updating, setUpdating] = useState(false);             // For update operations
+const [deleting, setDeleting] = useState(false);             // For delete operations
+const [resending, setResending] = useState(false);           // For resend email
 ```
 
-### Key Implementation Points
+### 2. Update the Early Return Check
 
-- **Rate Limiting**: Process in batches of 10 with 2-second delays to avoid GHL API rate limits
-- **Error Handling**: Continue processing even if individual appointments fail
-- **Logging**: Detailed progress logging for monitoring
-- **Idempotent**: Can be run multiple times safely - only processes appointments still missing data
+Only show loading screen during initial data fetch:
+
+```typescript
+// Current (causes refresh loop)
+if (loading) {
+  return <div>Loading...</div>;
+}
+
+// Fixed (only for initial load)
+if (initialLoading) {
+  return <div className="flex items-center justify-center p-8">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    <span className="ml-2">Loading users...</span>
+  </div>;
+}
+```
+
+### 3. Update `fetchUsers` Function
+
+```typescript
+const fetchUsers = async (showRefreshIndicator = false) => {
+  if (showRefreshIndicator) {
+    setRefreshing(true);
+  }
+  // ... existing logic ...
+  setInitialLoading(false);  // Instead of setLoading(false)
+};
+```
+
+### 4. Update `updateUser` Function
+
+```typescript
+const updateUser = async () => {
+  if (!editingUser) return;
+
+  setUpdating(true);  // Use operation-specific state
+  try {
+    // ... existing logic ...
+  } catch (error) {
+    // ... error handling ...
+  } finally {
+    setUpdating(false);  // Reset operation-specific state
+  }
+};
+```
+
+### 5. Update `deleteUser` Function
+
+```typescript
+const deleteUser = async () => {
+  if (!deletingUser) return;
+
+  setDeleting(true);  // Use operation-specific state
+  try {
+    // ... existing logic ...
+  } catch (error) {
+    // ... error handling ...
+  } finally {
+    setDeleting(false);  // Reset operation-specific state
+  }
+};
+```
+
+### 6. Update `resendWelcomeEmail` Function
+
+```typescript
+const resendWelcomeEmail = async (user: User) => {
+  setResending(true);  // Use operation-specific state
+  try {
+    // ... existing logic ...
+  } catch (error) {
+    // ... error handling ...
+  } finally {
+    setResending(false);  // Reset operation-specific state
+  }
+};
+```
+
+### 7. Update Dialog Buttons to Show Loading States
+
+For the Edit dialog:
+```tsx
+<Button onClick={updateUser} className="w-full" disabled={updating}>
+  {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  {updating ? 'Saving...' : 'Save Changes'}
+</Button>
+```
+
+For the Delete dialog:
+```tsx
+<Button onClick={deleteUser} variant="destructive" disabled={deleting}>
+  {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  {deleting ? 'Deleting...' : 'Delete User'}
+</Button>
+```
 
 ---
 
-## Execution Plan
+## Why This Fixes the Issue
 
-1. **Create** the `backfill-ally-ghl-data` edge function
-2. **Deploy** the function
-3. **Run** the function to process all 397 appointments
-4. **Verify** that Patient Pro Insights now shows complete data
-
----
-
-## Expected Outcome
-
-After running the backfill:
-- **397 appointments** will have complete Patient Pro Insights
-- Insurance information (provider, plan, ID) populated
-- Pathology information (GAE symptoms, duration, pain level) populated  
-- Medical & PCP information populated
-- All structured fields available in the UI
+| Before | After |
+|--------|-------|
+| Single `loading` state unmounts entire component | Operation-specific states keep component mounted |
+| Dialog closes when operation starts | Dialog stays open with loading indicator |
+| User loses visual context | User sees clear progress feedback |
+| Screen appears to "loop" | Smooth, expected UI behavior |
 
 ---
 
-## Technical Notes
+## Additional Improvement: Add Global Error Handler
 
-- The existing `fetch-ghl-contact-data` function already handles the GHL API call and updates `patient_intake_notes`
-- The existing `trigger-reparse` function already handles the AI parsing and populates structured fields
-- This backfill simply orchestrates calling these existing functions in bulk
-- Estimated time: ~20 minutes for 397 appointments (accounting for rate limiting)
+Add an unhandled promise rejection handler in `App.tsx` as a safety net:
+
+```typescript
+useEffect(() => {
+  const handleRejection = (event: PromiseRejectionEvent) => {
+    console.error("Unhandled rejection:", event.reason);
+    toast.error("An error occurred. Please try again.");
+    event.preventDefault();
+  };
+
+  window.addEventListener("unhandledrejection", handleRejection);
+  return () => window.removeEventListener("unhandledrejection", handleRejection);
+}, []);
+```
+
+---
+
+## Summary
+
+This is a known React anti-pattern where using a loading state that unmounts components causes UX issues. The fix follows the pattern already correctly implemented for the `creating` state (line 39) - just needs to be extended to all other operations.
+
