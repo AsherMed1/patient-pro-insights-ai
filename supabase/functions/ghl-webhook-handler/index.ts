@@ -103,8 +103,9 @@ serve(async (req) => {
       )
     }
 
-    // Auto-create project if it doesn't exist
-    await ensureProjectExists(supabase, webhookData.project_name, requestId)
+    // Auto-create project if it doesn't exist (returns canonical project name)
+    const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId)
+    webhookData.project_name = canonicalProjectName // Use canonical name for all operations
 
     // Check if appointment already exists (returns full record for comparison)
     const existingAppointment = await findExistingAppointment(
@@ -695,32 +696,61 @@ function normalizeDob(dob: any): string | null {
   return null
 }
 
-// Ensure project exists, create if not
-async function ensureProjectExists(supabase: any, projectName: string, requestId: string) {
-  console.log(`[${requestId}] Checking if project exists: ${projectName}`)
+// Normalize project name - collapse multiple spaces into single space
+function normalizeProjectName(name: string): string {
+  return name.replace(/\s+/g, ' ').trim()
+}
+
+// Ensure project exists, create if not (with name normalization for matching)
+async function ensureProjectExists(supabase: any, projectName: string, requestId: string): Promise<string> {
+  const normalizedName = normalizeProjectName(projectName)
+  console.log(`[${requestId}] Checking if project exists: "${projectName}" (normalized: "${normalizedName}")`)
   
-  const { data: existing } = await supabase
+  // First try exact match
+  let { data: existing } = await supabase
     .from('projects')
-    .select('id')
+    .select('id, project_name')
     .eq('project_name', projectName)
     .maybeSingle()
   
+  // If no exact match, try normalized matching (find project where normalizing both names results in match)
   if (!existing) {
-    console.log(`[${requestId}] Project not found, creating: ${projectName}`)
+    console.log(`[${requestId}] No exact match, trying normalized matching...`)
+    const { data: allProjects } = await supabase
+      .from('projects')
+      .select('id, project_name')
+      .eq('active', true)
+    
+    if (allProjects) {
+      existing = allProjects.find((p: any) => 
+        normalizeProjectName(p.project_name) === normalizedName
+      )
+      
+      if (existing) {
+        console.log(`[${requestId}] Found normalized match: "${existing.project_name}"`)
+        return existing.project_name // Return the canonical project name
+      }
+    }
+  }
+  
+  if (!existing) {
+    console.log(`[${requestId}] Project not found, creating: ${normalizedName}`)
     const { error } = await supabase
       .from('projects')
       .insert([{ 
-        project_name: projectName, 
+        project_name: normalizedName, // Use normalized name for new projects
         active: true 
       }])
     
     if (error) {
       console.error(`[${requestId}] Failed to create project:`, error)
     } else {
-      console.log(`[${requestId}] Project created successfully: ${projectName}`)
+      console.log(`[${requestId}] Project created successfully: ${normalizedName}`)
     }
+    return normalizedName
   } else {
-    console.log(`[${requestId}] Project exists: ${projectName}`)
+    console.log(`[${requestId}] Project exists: ${existing.project_name}`)
+    return existing.project_name // Return the canonical project name
   }
 }
 
