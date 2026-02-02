@@ -1158,64 +1158,62 @@ const AppointmentCard = ({
             </TooltipProvider>
           )}
           
-          {/* Contact Info - Stacked on mobile */}
-          {(appointment.lead_email || isEditingEmail) && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-start space-x-2">
-                    <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
-                    {isEditingEmail && onUpdateEmail ? (
-                      <Input
-                        type="email"
-                        value={editingEmail}
-                        onChange={(e) => setEditingEmail(e.target.value)}
-                        onBlur={() => {
+          {/* Contact Info - Email (always shown with "-" fallback) */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-start space-x-2">
+                  <Mail className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                  {isEditingEmail && onUpdateEmail ? (
+                    <Input
+                      type="email"
+                      value={editingEmail}
+                      onChange={(e) => setEditingEmail(e.target.value)}
+                      onBlur={() => {
+                        setIsEditingEmail(false);
+                        if (editingEmail !== appointment.lead_email) {
+                          onUpdateEmail(appointment.id, editingEmail);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
                           setIsEditingEmail(false);
                           if (editingEmail !== appointment.lead_email) {
                             onUpdateEmail(appointment.id, editingEmail);
                           }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            setIsEditingEmail(false);
-                            if (editingEmail !== appointment.lead_email) {
-                              onUpdateEmail(appointment.id, editingEmail);
-                            }
-                          }
-                          if (e.key === 'Escape') {
-                            setIsEditingEmail(false);
-                            setEditingEmail(appointment.lead_email || '');
-                          }
-                        }}
-                        className="text-sm flex-1"
-                        autoFocus
-                        placeholder="Enter email"
-                      />
-                    ) : (
-                      <>
-                        <span className="text-sm text-gray-600 break-all">{appointment.lead_email}</span>
-                        {onUpdateEmail && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setIsEditingEmail(true)}
-                            aria-label="Edit email"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Email Address</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+                        }
+                        if (e.key === 'Escape') {
+                          setIsEditingEmail(false);
+                          setEditingEmail(appointment.lead_email || '');
+                        }
+                      }}
+                      className="text-sm flex-1"
+                      autoFocus
+                      placeholder="Enter email"
+                    />
+                  ) : (
+                    <>
+                      <span className="text-sm text-gray-600 break-all">{appointment.lead_email || "—"}</span>
+                      {onUpdateEmail && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setIsEditingEmail(true)}
+                          aria-label="Edit email"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Email Address</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           {(appointment.lead_phone_number || isEditingPhone) && (
             <TooltipProvider>
