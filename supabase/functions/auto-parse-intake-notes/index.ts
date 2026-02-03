@@ -431,16 +431,31 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         result.medical_info.urologist_name = value_str;
       }
     }
-    // Imaging/X-ray fields
+    // Imaging/X-ray fields - look for "Had Imaging Before" and similar fields
     else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || 
-             key.includes('had imaging') || key.includes('mri') || key.includes('ct scan')) {
+             key.includes('had imaging') || key.includes('mri') || key.includes('ct scan') ||
+             key.includes('have you had')) {
       const lowerKey = key.toLowerCase();
-      if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {
-        result.medical_info.xray_details = value;
+      const valueStr = String(value);
+      
+      // Check if this is the "Have you had a knee X-ray or MRI or CT?" field from GAE STEP
+      if (lowerKey.includes('have you had') && (lowerKey.includes('x-ray') || lowerKey.includes('mri') || lowerKey.includes('ct'))) {
+        // If value has details beyond YES/NO, store as imaging_details  
+        const lowerValue = valueStr.toLowerCase().trim();
+        if (lowerValue !== 'yes' && lowerValue !== 'no' && !lowerValue.startsWith('☑️')) {
+          result.medical_info.imaging_details = valueStr;
+        }
+        console.log(`[AUTO-PARSE GHL] Found imaging STEP field "${key}": ${valueStr}`);
+      } else if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {
+        result.medical_info.xray_details = valueStr;
+      } else if (lowerKey.includes('had imaging') || lowerKey.includes('imaging before')) {
+        // Specific "Had Imaging Before?" field with details
+        result.medical_info.imaging_details = valueStr;
+        console.log(`[AUTO-PARSE GHL] Extracted 'Had Imaging Before' field: ${valueStr}`);
       } else {
-        result.medical_info.imaging_details = value;
+        result.medical_info.imaging_details = valueStr;
       }
-      console.log(`[AUTO-PARSE GHL] Extracted imaging field "${key}": ${value}`);
+      console.log(`[AUTO-PARSE GHL] Extracted imaging field "${key}": ${valueStr}`);
     }
     // DOB from custom field
     else if (key.includes('dob') || (key.includes('date') && key.includes('birth'))) {
