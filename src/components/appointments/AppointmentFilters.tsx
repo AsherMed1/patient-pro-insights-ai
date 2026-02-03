@@ -136,7 +136,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             // Extract service: text between quotes or after "your " and before " Consultation"
             const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
-              services.add(serviceMatch[1].trim());
+              let service = serviceMatch[1].trim();
+              // Merge In-person with GAE - they are the same service type
+              if (service.toLowerCase() === 'in-person') {
+                service = 'GAE';
+              }
+              services.add(service);
             }
           }
         });
