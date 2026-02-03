@@ -261,7 +261,12 @@ const AllAppointmentsManager = ({
 
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
-        countQuery = countQuery.ilike('calendar_name', `%${serviceFilter}%`);
+        if (serviceFilter === 'GAE') {
+          // GAE and In-person are the same service type
+          countQuery = countQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+        } else {
+          countQuery = countQuery.ilike('calendar_name', `%${serviceFilter}%`);
+        }
       }
       
       // Apply tab-based filtering to count query
@@ -396,7 +401,12 @@ const AllAppointmentsManager = ({
 
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+        if (serviceFilter === 'GAE') {
+          // GAE and In-person are the same service type
+          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+        } else {
+          appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+        }
       }
       
       

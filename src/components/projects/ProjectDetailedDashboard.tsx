@@ -130,7 +130,12 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
             // Extract service
             const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
-              services.add(serviceMatch[1].trim());
+              let service = serviceMatch[1].trim();
+              // Merge In-person with GAE - they are the same service type
+              if (service.toLowerCase() === 'in-person') {
+                service = 'GAE';
+              }
+              services.add(service);
             }
           }
         });
@@ -188,7 +193,12 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
       // Apply service filter
       if (serviceFilter && serviceFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+        if (serviceFilter === 'GAE') {
+          // GAE and In-person are the same service type
+          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+        } else {
+          appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+        }
       }
 
       // Execute queries
