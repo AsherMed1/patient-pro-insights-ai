@@ -41,6 +41,7 @@ export interface AllAppointment {
   last_ghl_sync_at?: string | null;
   last_ghl_sync_error?: string | null;
   is_reserved_block?: boolean;
+  reserved_end_time?: string | null;
   ghl_location_id?: string | null;
 }
 

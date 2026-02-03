@@ -323,6 +323,7 @@ export function ReserveTimeBlockDialog({
             lead_name: title,
             date_of_appointment: formatInTimeZone(startUtc, tz, 'yyyy-MM-dd'),
             requested_time: formatInTimeZone(startUtc, tz, 'HH:mm'),
+            reserved_end_time: formatInTimeZone(endUtc, tz, 'HH:mm'),
             calendar_name: selectedCalendar?.name || 'Unknown Calendar',
             status: 'Confirmed',
             is_reserved_block: true,
