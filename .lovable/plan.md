@@ -1,83 +1,61 @@
 
+# Plan: Fix Mouse Scrolling in Reserve Time Block Time Picker
 
-# Plan: Fix "Had Imaging Before?" Field Not Pulling from GHL
+## Problem
 
-## Problem Identified
+When selecting a time in the "Reserve Time Block" dialog, mouse scroll doesn't work in the time dropdown. The dropdown appears and times are visible, but scrolling with the mouse wheel does nothing.
 
-The GHL custom field **"Had Imaging Before?"** with detailed responses like "Yes mri both knees are messed up" is not being captured or displayed in Patient Pro Insights for AVA Vascular appointments.
+## Root Cause
 
-### Root Cause
+The `TimeInput` component has a scrollable dropdown list inside a `Popover`. When popovers/dialogs are rendered, they can interfere with pointer events on child elements. The scrollable `<div>` at line 191-208 is missing the `pointer-events-auto` class, which prevents mouse wheel scrolling from being captured.
 
-The `fetch-ghl-contact-data` edge function categorizes GHL custom fields into sections (Contact, Insurance, Pathology, Medical) based on keyword matching. The field "Had Imaging Before?" doesn't match any current keywords and is **being skipped entirely**.
-
-Current keyword categories (lines 220-228):
-- **Insurance**: `insurance`, `member`, `group`, `policy`
-- **Pathology**: `pain`, `symptom`, `condition`, `diagnosis`, `affected`, `duration`, `treat`
-- **Medical**: `medication`, `allerg`, `medical`, `pcp`, `doctor`
-- **Contact**: `phone`, `email`, `address`, `contact`, `name`, `dob`, `date of birth`
-
-The word `imaging` is not in any category, so "Had Imaging Before?" is silently discarded.
-
----
+This is the same issue that was previously fixed for the Calendar component (see the `shadcn-datepicker` context in the project).
 
 ## Solution
 
-### 1. Update `fetch-ghl-contact-data` to capture imaging fields
-
-Add `imaging`, `xray`, `x-ray`, `mri`, and `ct` keywords to the **Medical Information** category so imaging-related fields are included in `patient_intake_notes`.
-
-### 2. Verify `auto-parse-intake-notes` extracts the value correctly
-
-The parser already has logic for imaging fields (lines 434-459). Once the field appears in the notes, it will be extracted to `parsed_medical_info.imaging_details`.
-
-### 3. UI already supports display
-
-The `ParsedIntakeInfo` component already displays `parsedMedicalInfo?.imaging_details` as "Imaging Details:" in the Medical & PCP Information section (line 962-966).
+Add `pointer-events-auto` to the scrollable container in `TimeInput.tsx`.
 
 ---
 
-## Files to Modify
+## File to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/fetch-ghl-contact-data/index.ts` | Add imaging keywords to Medical Information categorization |
+| `src/components/appointments/TimeInput.tsx` | Add `pointer-events-auto` class to scrollable dropdown container |
 
 ---
 
-## Implementation Details
+## Implementation
 
-### Update categorization logic in `fetch-ghl-contact-data`
+### Current Code (Line 191-193)
 
-```typescript
-// Line 224 - Add imaging keywords to Medical Information category
-} else if (key.includes('medication') || key.includes('allerg') || 
-           key.includes('medical') || key.includes('pcp') || key.includes('doctor') ||
-           key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || 
-           key.includes('mri') || key.includes('ct scan')) {
-  sections['Medical Information'].push(formattedLine);
-}
+```tsx
+<div 
+  ref={listRef}
+  className="max-h-[200px] overflow-y-auto"
+>
 ```
 
-This will ensure that:
-- "Had Imaging Before?" → categorized as Medical Information
-- "Have you had a knee X-ray or MRI?" → categorized as Medical Information
-- Any other imaging-related fields are captured
+### Fixed Code
+
+```tsx
+<div 
+  ref={listRef}
+  className="max-h-[200px] overflow-y-auto pointer-events-auto"
+>
+```
 
 ---
 
-## Testing
+## Why This Works
 
-After deployment:
-1. Trigger re-fetch for Bryan Castellanos appointment
-2. Verify "Had Imaging Before?: Yes mri both knees are messed up." appears in patient_intake_notes
-3. Trigger reparse to populate parsed_medical_info.imaging_details
-4. Confirm it displays in the Medical & PCP Information section
+The `pointer-events-auto` class ensures that:
+1. Mouse events (including scroll wheel) are properly captured by the element
+2. The scrollable area responds to mouse wheel input even when nested inside dialog/popover layers
+3. This follows the same pattern already used successfully for the Calendar component in this codebase
 
 ---
 
-## Impact
+## Summary
 
-- **Immediate**: New appointments will capture imaging data correctly
-- **Existing AVA Vascular appointments**: Will need a re-fetch from GHL to populate the field
-- **Other projects**: Will also benefit if they have similar imaging fields
-
+This is a one-line CSS class addition that restores mouse scroll functionality to the time picker dropdown.
