@@ -1,18 +1,38 @@
 
 
-# Plan: Fix User Management Screen Refresh Loop
+# Plan: Fix "Had Imaging Before?" Field Not Pulling from GHL
 
-## Problem
+## Problem Identified
 
-Clicking "Add User" or performing any user operation causes the screen to refresh and enter a looping state. This happens because:
+The GHL custom field **"Had Imaging Before?"** with detailed responses like "Yes mri both knees are messed up" is not being captured or displayed in Patient Pro Insights for AVA Vascular appointments.
 
-1. The `loading` state is shared across multiple operations
-2. When `loading` is `true`, the entire component unmounts (`return <div>Loading...</div>`)
-3. This closes dialogs, loses state, and causes visual "refreshing"
+### Root Cause
+
+The `fetch-ghl-contact-data` edge function categorizes GHL custom fields into sections (Contact, Insurance, Pathology, Medical) based on keyword matching. The field "Had Imaging Before?" doesn't match any current keywords and is **being skipped entirely**.
+
+Current keyword categories (lines 220-228):
+- **Insurance**: `insurance`, `member`, `group`, `policy`
+- **Pathology**: `pain`, `symptom`, `condition`, `diagnosis`, `affected`, `duration`, `treat`
+- **Medical**: `medication`, `allerg`, `medical`, `pcp`, `doctor`
+- **Contact**: `phone`, `email`, `address`, `contact`, `name`, `dob`, `date of birth`
+
+The word `imaging` is not in any category, so "Had Imaging Before?" is silently discarded.
+
+---
 
 ## Solution
 
-Replace the global `loading` state that unmounts the component with operation-specific loading states that keep the UI intact while showing feedback.
+### 1. Update `fetch-ghl-contact-data` to capture imaging fields
+
+Add `imaging`, `xray`, `x-ray`, `mri`, and `ct` keywords to the **Medical Information** category so imaging-related fields are included in `patient_intake_notes`.
+
+### 2. Verify `auto-parse-intake-notes` extracts the value correctly
+
+The parser already has logic for imaging fields (lines 434-459). Once the field appears in the notes, it will be extracted to `parsed_medical_info.imaging_details`.
+
+### 3. UI already supports display
+
+The `ParsedIntakeInfo` component already displays `parsedMedicalInfo?.imaging_details` as "Imaging Details:" in the Medical & PCP Information section (line 962-966).
 
 ---
 
@@ -20,158 +40,44 @@ Replace the global `loading` state that unmounts the component with operation-sp
 
 | File | Change |
 |------|--------|
-| `src/components/UserManagement.tsx` | Replace global loading pattern with operation-specific states |
+| `supabase/functions/fetch-ghl-contact-data/index.ts` | Add imaging keywords to Medical Information categorization |
 
 ---
 
 ## Implementation Details
 
-### 1. Add Operation-Specific Loading States
-
-Replace the single `loading` state with separate states for each operation:
+### Update categorization logic in `fetch-ghl-contact-data`
 
 ```typescript
-// Current (problematic)
-const [loading, setLoading] = useState(true);
-
-// Fixed (operation-specific)
-const [initialLoading, setInitialLoading] = useState(true);  // Only for first data fetch
-const [updating, setUpdating] = useState(false);             // For update operations
-const [deleting, setDeleting] = useState(false);             // For delete operations
-const [resending, setResending] = useState(false);           // For resend email
-```
-
-### 2. Update the Early Return Check
-
-Only show loading screen during initial data fetch:
-
-```typescript
-// Current (causes refresh loop)
-if (loading) {
-  return <div>Loading...</div>;
-}
-
-// Fixed (only for initial load)
-if (initialLoading) {
-  return <div className="flex items-center justify-center p-8">
-    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    <span className="ml-2">Loading users...</span>
-  </div>;
+// Line 224 - Add imaging keywords to Medical Information category
+} else if (key.includes('medication') || key.includes('allerg') || 
+           key.includes('medical') || key.includes('pcp') || key.includes('doctor') ||
+           key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || 
+           key.includes('mri') || key.includes('ct scan')) {
+  sections['Medical Information'].push(formattedLine);
 }
 ```
 
-### 3. Update `fetchUsers` Function
-
-```typescript
-const fetchUsers = async (showRefreshIndicator = false) => {
-  if (showRefreshIndicator) {
-    setRefreshing(true);
-  }
-  // ... existing logic ...
-  setInitialLoading(false);  // Instead of setLoading(false)
-};
-```
-
-### 4. Update `updateUser` Function
-
-```typescript
-const updateUser = async () => {
-  if (!editingUser) return;
-
-  setUpdating(true);  // Use operation-specific state
-  try {
-    // ... existing logic ...
-  } catch (error) {
-    // ... error handling ...
-  } finally {
-    setUpdating(false);  // Reset operation-specific state
-  }
-};
-```
-
-### 5. Update `deleteUser` Function
-
-```typescript
-const deleteUser = async () => {
-  if (!deletingUser) return;
-
-  setDeleting(true);  // Use operation-specific state
-  try {
-    // ... existing logic ...
-  } catch (error) {
-    // ... error handling ...
-  } finally {
-    setDeleting(false);  // Reset operation-specific state
-  }
-};
-```
-
-### 6. Update `resendWelcomeEmail` Function
-
-```typescript
-const resendWelcomeEmail = async (user: User) => {
-  setResending(true);  // Use operation-specific state
-  try {
-    // ... existing logic ...
-  } catch (error) {
-    // ... error handling ...
-  } finally {
-    setResending(false);  // Reset operation-specific state
-  }
-};
-```
-
-### 7. Update Dialog Buttons to Show Loading States
-
-For the Edit dialog:
-```tsx
-<Button onClick={updateUser} className="w-full" disabled={updating}>
-  {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-  {updating ? 'Saving...' : 'Save Changes'}
-</Button>
-```
-
-For the Delete dialog:
-```tsx
-<Button onClick={deleteUser} variant="destructive" disabled={deleting}>
-  {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-  {deleting ? 'Deleting...' : 'Delete User'}
-</Button>
-```
+This will ensure that:
+- "Had Imaging Before?" → categorized as Medical Information
+- "Have you had a knee X-ray or MRI?" → categorized as Medical Information
+- Any other imaging-related fields are captured
 
 ---
 
-## Why This Fixes the Issue
+## Testing
 
-| Before | After |
-|--------|-------|
-| Single `loading` state unmounts entire component | Operation-specific states keep component mounted |
-| Dialog closes when operation starts | Dialog stays open with loading indicator |
-| User loses visual context | User sees clear progress feedback |
-| Screen appears to "loop" | Smooth, expected UI behavior |
-
----
-
-## Additional Improvement: Add Global Error Handler
-
-Add an unhandled promise rejection handler in `App.tsx` as a safety net:
-
-```typescript
-useEffect(() => {
-  const handleRejection = (event: PromiseRejectionEvent) => {
-    console.error("Unhandled rejection:", event.reason);
-    toast.error("An error occurred. Please try again.");
-    event.preventDefault();
-  };
-
-  window.addEventListener("unhandledrejection", handleRejection);
-  return () => window.removeEventListener("unhandledrejection", handleRejection);
-}, []);
-```
+After deployment:
+1. Trigger re-fetch for Bryan Castellanos appointment
+2. Verify "Had Imaging Before?: Yes mri both knees are messed up." appears in patient_intake_notes
+3. Trigger reparse to populate parsed_medical_info.imaging_details
+4. Confirm it displays in the Medical & PCP Information section
 
 ---
 
-## Summary
+## Impact
 
-This is a known React anti-pattern where using a loading state that unmounts components causes UX issues. The fix follows the pattern already correctly implemented for the `creating` state (line 39) - just needs to be extended to all other operations.
+- **Immediate**: New appointments will capture imaging data correctly
+- **Existing AVA Vascular appointments**: Will need a re-fetch from GHL to populate the field
+- **Other projects**: Will also benefit if they have similar imaging fields
 
