@@ -1,111 +1,49 @@
 
-# Plan: Merge "GAE" and "In-person" Services for Ally Vascular
+# Plan: Fix GAE Filter in Tab Counts
 
 ## Problem
 
-In the Ally Vascular project, the Services filter dropdown shows both "GAE" and "In-person" as separate options. These represent the same service type and should be merged into a single "GAE" option.
-
-## Current Calendar Names in Database
-
-```
-Request Your GAE Consultation (San Antonio, TX – Knee Pain Treatment)
-Request Your In-person Consultation at San Antonio, TX
-Request Your In-person Consultation (San Antonio, TX – Knee Pain Treatment)
-Request Your Neuropathy Consultation at San Antonio, TX
-Request Your Virtual Consultation for Knee Pain Treatment
-```
+The GAE service filter is only showing 10 appointments in the tab counts, but there should be more since "GAE" and "In-person" were merged. The database shows 253 appointments match either pattern.
 
 ## Root Cause
 
-The service extraction logic in `AppointmentFilters.tsx` uses regex to extract service type from calendar names:
+The `fetchTabCounts` function in `AllAppointmentsManager.tsx` has a separate `getBaseQuery` function that applies filters for the tab counts. At lines 540-543, the service filter logic is missing the GAE/In-person merge:
+
 ```typescript
-const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
+// Current code (MISSING the GAE merge logic)
+if (serviceFilter !== 'ALL') {
+  query = query.ilike('calendar_name', `%${serviceFilter}%`);
+}
 ```
 
-This extracts "In-person" and "GAE" as separate services.
+The main `fetchAppointments` function was updated correctly, but the `fetchTabCounts` function was not.
 
 ## Solution
 
-Modify the service extraction and filtering logic to:
-1. Treat "In-person" as "GAE" when extracting services for the dropdown
-2. When filtering by "GAE", match both "GAE" and "In-person" calendar names
-
----
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/components/appointments/AppointmentFilters.tsx` | Normalize "In-person" to "GAE" during extraction |
-| `src/components/AllAppointmentsManager.tsx` | Update service filter to match both GAE and In-person |
-| `src/components/projects/ProjectDetailedDashboard.tsx` | Same filter logic update for Overview tab |
-
----
-
-## Implementation Details
-
-### Step 1: Normalize Service Extraction in AppointmentFilters.tsx
-
-Modify the `fetchLocationAndServiceOptions` function to map "In-person" to "GAE":
+Update the service filter in `fetchTabCounts` to include the same GAE/In-person merge logic:
 
 ```typescript
-// Line ~137-140 in fetchLocationAndServiceOptions
-const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
-if (serviceMatch && serviceMatch[1]) {
-  let service = serviceMatch[1].trim();
-  // Merge In-person with GAE - they are the same service type
-  if (service.toLowerCase() === 'in-person') {
-    service = 'GAE';
-  }
-  services.add(service);
-}
-```
-
-### Step 2: Update Filter Logic in AllAppointmentsManager.tsx
-
-When filtering by "GAE", also include "In-person" calendar names:
-
-```typescript
-// Lines ~262-265 (count query) and ~397-400 (data query)
+// Fixed code
 if (serviceFilter !== 'ALL') {
   if (serviceFilter === 'GAE') {
     // GAE and In-person are the same service type
-    countQuery = countQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+    query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
   } else {
-    countQuery = countQuery.ilike('calendar_name', `%${serviceFilter}%`);
-  }
-}
-```
-
-### Step 3: Update ProjectDetailedDashboard.tsx
-
-Apply the same logic for the Overview tab's service filter:
-
-```typescript
-// Lines ~189-192
-if (serviceFilter && serviceFilter !== 'ALL') {
-  if (serviceFilter === 'GAE') {
-    appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
-  } else {
-    appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+    query = query.ilike('calendar_name', `%${serviceFilter}%`);
   }
 }
 ```
 
 ---
 
-## Result
+## File to Modify
 
-After implementation:
-- The Services dropdown will show: **GAE, Neuropathy, Virtual** (no "In-person")
-- Selecting "GAE" will filter to include both GAE and In-person consultation appointments
-- All metrics and counts will correctly combine both service types
+| File | Lines | Change |
+|------|-------|--------|
+| `src/components/AllAppointmentsManager.tsx` | 540-543 | Add GAE/In-person merge logic to service filter in `fetchTabCounts` |
 
 ---
 
-## Technical Notes
+## Summary
 
-- This is a UI-only change - no database modifications needed
-- The calendar names in the database remain unchanged
-- The normalization happens at the presentation layer only
-- This pattern can be extended for other projects if similar merges are needed in the future
+This is a one-location fix to ensure the tab counts match the appointment data when the GAE filter is selected. The logic already exists in `fetchAppointments` - it just needs to be replicated in `fetchTabCounts`.
