@@ -190,7 +190,7 @@ export function TimeInput({ value, onChange, placeholder = 'Enter time' }: TimeI
         >
           <div 
             ref={listRef}
-            className="max-h-[200px] overflow-y-auto"
+            className="max-h-[200px] overflow-y-auto pointer-events-auto"
           >
             {TIME_SLOTS.map((slot) => (
               <button
