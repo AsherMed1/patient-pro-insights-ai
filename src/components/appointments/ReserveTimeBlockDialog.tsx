@@ -338,6 +338,7 @@ export function ReserveTimeBlockDialog({
 
         if (insertError) {
           console.error('[ReserveTimeBlock] Failed to create local record:', insertError);
+          throw new Error(`Block created in GHL but failed to save locally: ${insertError.message}`);
         }
 
         // Create audit note if we have an appointment ID
