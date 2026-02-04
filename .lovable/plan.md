@@ -1,160 +1,49 @@
 
-# Plan: Sync GHL Blocked Time Slots to Client Portal
+# Plan: Fix GAE Filter in Tab Counts
 
 ## Problem
 
-When a time block is created **directly in GoHighLevel** (not through our portal's Reserve Time Block feature), it appears on the GHL calendar but not on the client portal calendar. This happened with Ozark's 1pm-2pm block on Feb 19th.
+The GAE service filter is only showing 10 appointments in the tab counts, but there should be more since "GAE" and "In-person" were merged. The database shows 253 appointments match either pattern.
 
 ## Root Cause
 
-The `ghl-webhook-handler` edge function currently only handles regular appointments. It:
-1. Requires `lead_name` as a mandatory field (blocked slots don't have contacts)
-2. Requires `project_name` to be extractable (may fail for blocked slots)
-3. Has no detection logic for blocked slot webhook payloads
-
-## Solution Overview
-
-Enhance the webhook handler to detect and process GHL blocked slot events, creating them as reserved blocks in our system.
-
----
-
-## Implementation Steps
-
-### Step 1: Add Blocked Slot Detection in extractWebhookData
-
-Add detection for blocked slot webhooks at the start of the `extractWebhookData` function. GHL blocked slots typically have:
-- `type: "BlockedSlotCreate"` or `"BlockedSlotUpdate"`
-- Or `appointment.slotType: "blocked"` / `"block"`
-- No `contactId` or `contact` object
+The `fetchTabCounts` function in `AllAppointmentsManager.tsx` has a separate `getBaseQuery` function that applies filters for the tab counts. At lines 540-543, the service filter logic is missing the GAE/In-person merge:
 
 ```typescript
-// At the start of extractWebhookData function
-if (payload.type?.includes('BlockedSlot') || 
-    payload.appointment?.slotType === 'blocked' ||
-    payload.appointment?.appointmentType === 'block') {
-  console.log(`[${requestId}] Detected: Blocked Slot Webhook`)
-  return extractBlockedSlotFormat(payload)
+// Current code (MISSING the GAE merge logic)
+if (serviceFilter !== 'ALL') {
+  query = query.ilike('calendar_name', `%${serviceFilter}%`);
 }
 ```
 
-### Step 2: Create extractBlockedSlotFormat Function
+The main `fetchAppointments` function was updated correctly, but the `fetchTabCounts` function was not.
 
-Create a new extraction function for blocked slots that:
-- Uses appointment title as `lead_name` (prefixed with "Reserved - ")
-- Sets `is_reserved_block: true`
-- Extracts start and end times for `reserved_end_time`
-- Marks `internal_process_complete: true` to exclude from New tab
+## Solution
+
+Update the service filter in `fetchTabCounts` to include the same GAE/In-person merge logic:
 
 ```typescript
-function extractBlockedSlotFormat(payload: any) {
-  const apt = payload.appointment || payload
-  
-  // Parse times
-  let dateOfAppointment = null
-  let requestedTime = null
-  let reservedEndTime = null
-  
-  if (apt.startTime) {
-    const startDate = new Date(apt.startTime)
-    dateOfAppointment = startDate.toISOString().split('T')[0]
-    requestedTime = startDate.toTimeString().slice(0, 5) // HH:mm format
-  }
-  
-  if (apt.endTime) {
-    const endDate = new Date(apt.endTime)
-    reservedEndTime = endDate.toTimeString().slice(0, 5) // HH:mm format
-  }
-  
-  // Use title as the reserved block name
-  const title = apt.title || apt.notes || 'Reserved'
-  const calendarName = apt.calendarName || apt.calendar?.name || 'Unknown'
-  
-  return {
-    ghl_appointment_id: apt.id || apt.appointmentId,
-    ghl_id: null, // No contact for blocked slots
-    ghl_location_id: payload.location?.id || null,
-    status: 'Confirmed',
-    date_of_appointment: dateOfAppointment,
-    requested_time: requestedTime,
-    reserved_end_time: reservedEndTime,
-    date_appointment_created: apt.dateAdded || new Date().toISOString(),
-    lead_name: `Reserved - ${title}`,
-    calendar_name: calendarName,
-    project_name: payload.location?.name || extractProjectFromCalendar(calendarName),
-    is_reserved_block: true,
-    internal_process_complete: true, // Exclude from "New" tab
-    patient_intake_notes: `Reserved Time Block\nTitle: ${title}\nTime: ${requestedTime} - ${reservedEndTime}`
+// Fixed code
+if (serviceFilter !== 'ALL') {
+  if (serviceFilter === 'GAE') {
+    // GAE and In-person are the same service type
+    query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+  } else {
+    query = query.ilike('calendar_name', `%${serviceFilter}%`);
   }
 }
 ```
 
-### Step 3: Modify Validation to Allow Blocked Slots
+---
 
-Update the validation logic (lines 91-104) to skip `lead_name` requirement for blocked slots:
+## File to Modify
 
-```typescript
-// Validate required fields - blocked slots don't need lead_name
-if (!webhookData.is_reserved_block && (!webhookData.lead_name || !webhookData.project_name)) {
-  return new Response(
-    JSON.stringify({ 
-      error: 'Missing required fields', 
-      message: 'lead_name and project_name are required for appointments',
-      extracted: webhookData,
-      requestId
-    }),
-    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-
-// For blocked slots, only project_name is required
-if (webhookData.is_reserved_block && !webhookData.project_name) {
-  return new Response(
-    JSON.stringify({ 
-      error: 'Missing project for blocked slot', 
-      message: 'Could not determine project for blocked slot',
-      requestId
-    }),
-    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-```
-
-### Step 4: Update getUpdateableFields for Blocked Slots
-
-Ensure the `reserved_end_time`, `is_reserved_block`, and `internal_process_complete` fields are included when creating/updating records.
+| File | Lines | Change |
+|------|-------|--------|
+| `src/components/AllAppointmentsManager.tsx` | 540-543 | Add GAE/In-person merge logic to service filter in `fetchTabCounts` |
 
 ---
 
-## Files to Modify
+## Summary
 
-| File | Changes |
-|------|---------|
-| `supabase/functions/ghl-webhook-handler/index.ts` | Add blocked slot detection, extraction function, and validation updates |
-
----
-
-## Verification After Deployment
-
-Once deployed:
-1. Go to GHL Ozark calendar
-2. Delete and re-create the 1pm-2pm block on Feb 19th
-3. Check that it appears in the client portal calendar within seconds
-4. Verify it shows as a reserved block with correct duration
-
----
-
-## Alternative Approach: Manual Backfill
-
-If GHL doesn't send webhooks for blocked slots (some GHL account configurations may not), we would need to:
-1. Add a "Sync from GHL" button that fetches all blocked slots via GHL API
-2. Or manually create the block in the portal instead of GHL
-
-The webhook approach is preferred as it's real-time and automatic.
-
----
-
-## Technical Notes
-
-- GHL block slot webhooks may use event types like `BlockedSlotCreate`, `BlockedSlotUpdate`, `BlockedSlotDelete`
-- The exact payload format should be confirmed with GHL documentation or by inspecting actual webhook payloads
-- If GHL doesn't send blocked slot webhooks, we'll need the API polling approach instead
+This is a one-location fix to ensure the tab counts match the appointment data when the GAE filter is selected. The logic already exists in `fetchAppointments` - it just needs to be replicated in `fetchTabCounts`.
