@@ -39,6 +39,44 @@ import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Filter raw intake notes to only show pathology data for the current procedure
+const filterIntakeNotesByProcedure = (notes: string, calendarName: string | null): string => {
+  if (!notes || !calendarName) return notes || '';
+  
+  // Detect procedure from calendar name
+  const lowerCalendar = calendarName.toLowerCase();
+  let currentProcedure: string | null = null;
+  
+  if (lowerCalendar.includes('gae') || lowerCalendar.includes('knee') || lowerCalendar.includes('in-person')) {
+    currentProcedure = 'GAE';
+  } else if (lowerCalendar.includes('ufe') || lowerCalendar.includes('fibroid')) {
+    currentProcedure = 'UFE';
+  } else if (lowerCalendar.includes('pae') || lowerCalendar.includes('prostate')) {
+    currentProcedure = 'PAE';
+  } else if (lowerCalendar.includes('pfe') || lowerCalendar.includes('pelvic floor')) {
+    currentProcedure = 'PFE';
+  }
+  
+  if (!currentProcedure) return notes;
+  
+  // Filter lines - remove STEP data from other procedures
+  const lines = notes.split('\n');
+  const filteredLines = lines.filter(line => {
+    const upperLine = line.toUpperCase();
+    
+    // Check if this is a STEP line from a different procedure
+    const stepProcedures = ['GAE', 'UFE', 'PAE', 'PFE'];
+    for (const proc of stepProcedures) {
+      if (proc !== currentProcedure && upperLine.includes(`${proc} STEP`)) {
+        return false; // Skip lines from other procedures
+      }
+    }
+    return true;
+  });
+  
+  return filteredLines.join('\n');
+};
+
 interface DetailedAppointmentViewProps {
   isOpen: boolean;
   onClose: () => void;
@@ -549,9 +587,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="prose prose-sm max-w-none">
+                <div className="prose prose-sm max-w-none">
                     <div className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg border">
-                      {appointment.patient_intake_notes || leadDetails?.patient_intake_notes}
+                      {filterIntakeNotesByProcedure(
+                        appointment.patient_intake_notes || leadDetails?.patient_intake_notes || '',
+                        appointment.calendar_name
+                      )}
                     </div>
                   </div>
                   
