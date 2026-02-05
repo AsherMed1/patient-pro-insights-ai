@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,28 +41,8 @@ serve(async (req) => {
       throw new Error('SLACK_WEBHOOK_URL not configured');
     }
 
-    // Initialize Supabase client to count appointments for row number approximation
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     // Extract service type from calendar name
     const serviceType = extractServiceType(calendarName || '');
-
-    // Count appointments for this project to approximate row number
-    let rowNumber = 'N/A';
-    try {
-      const { count, error } = await supabase
-        .from('all_appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_name', projectName);
-      
-      if (!error && count !== null) {
-        rowNumber = String(count);
-      }
-    } catch (countError) {
-      console.warn('[notify-slack-oon] Could not calculate row number:', countError);
-    }
 
     // Format account sheet name
     const accountSheetName = `${projectName} | Tracking Sheet ${serviceType}`;
@@ -105,10 +84,10 @@ serve(async (req) => {
         },
         {
           type: "section",
-          fields: [
-            { type: "mrkdwn", text: `*Account Sheet name :*\n${accountSheetName}` },
-            { type: "mrkdwn", text: `*Row Number :*\n${rowNumber}` }
-          ]
+          text: {
+            type: "mrkdwn",
+            text: `*Account Sheet name :*\n${accountSheetName}`
+          }
         },
         {
           type: "divider"
