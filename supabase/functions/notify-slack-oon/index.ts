@@ -35,10 +35,10 @@ serve(async (req) => {
 
     const { firstName, lastName, phone, calendarName, projectName, appointmentId } = payload;
 
-    const SLACK_WEBHOOK_URL = Deno.env.get('SLACK_WEBHOOK_URL');
-    if (!SLACK_WEBHOOK_URL) {
-      console.error('[notify-slack-oon] SLACK_WEBHOOK_URL not configured');
-      throw new Error('SLACK_WEBHOOK_URL not configured');
+    const SLACK_OON_WEBHOOK_URL = Deno.env.get('SLACK_OON_WEBHOOK_URL');
+    if (!SLACK_OON_WEBHOOK_URL) {
+      console.error('[notify-slack-oon] SLACK_OON_WEBHOOK_URL not configured');
+      throw new Error('SLACK_OON_WEBHOOK_URL not configured');
     }
 
     // Extract service type from calendar name
@@ -111,7 +111,7 @@ serve(async (req) => {
 
     console.log('[notify-slack-oon] Sending to Slack...');
 
-    const response = await fetch(SLACK_WEBHOOK_URL, {
+    const response = await fetch(SLACK_OON_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(slackPayload)
