@@ -1,125 +1,70 @@
 
-# Plan: OON Status Slack Notification
+# Plan: Use Dedicated Slack Channel for OON Notifications
 
 ## Overview
 
-When a patient appointment is marked with "OON" (Out of Network) status, automatically send a Slack notification to alert the team for immediate follow-up. This follows the existing pattern used for "Do Not Call" status and calendar update notifications.
+Configure the OON notification edge function to use a dedicated Slack webhook URL, allowing notifications to go to a separate channel from support requests.
 
 ---
 
 ## Implementation Steps
 
-### 1. Create Edge Function: `notify-slack-oon`
+### Step 1: Add New Secret
 
-Create a new edge function that sends a formatted Slack notification when called.
+Create a new secret `SLACK_OON_WEBHOOK_URL` to store the webhook URL for your OON notifications channel.
 
-**File**: `supabase/functions/notify-slack-oon/index.ts`
+**You'll need to:**
+1. Create an incoming webhook in Slack for your desired channel
+2. Copy the webhook URL (format: `https://hooks.slack.com/services/T.../B.../...`)
 
-**Input payload**:
+---
+
+### Step 2: Update Edge Function
+
+Modify `supabase/functions/notify-slack-oon/index.ts` to use the new secret:
+
+**Change from:**
 ```typescript
-interface OONNotificationPayload {
-  firstName: string;
-  lastName: string;
-  phone: string;
-  calendarName: string;
-  projectName: string;
-  appointmentId: string;
+const SLACK_WEBHOOK_URL = Deno.env.get('SLACK_WEBHOOK_URL');
+if (!SLACK_WEBHOOK_URL) {
+  console.error('[notify-slack-oon] SLACK_WEBHOOK_URL not configured');
+  throw new Error('SLACK_WEBHOOK_URL not configured');
 }
 ```
 
-**Slack Message Format** (matching user's sample):
-```text
-ACTION REQUIRED
-
-{firstName} is now OON.
-
-First Name : {firstName}
-Last Name : {lastName}
-Call: {phone}
-Calendar: {calendarName}
-Account Sheet name : {projectName} | Tracking Sheet {serviceType}
-Row Number : {calculatedRowNumber}
-
-Follow up within 5 minutes.
-```
-
-**Technical details**:
-- Uses existing `SLACK_WEBHOOK_URL` secret (same as support notifications)
-- Extracts service type (GAE, UFE, PAE, PFE) from calendar name
-- Calculates approximate "row number" by counting appointments for that project/calendar combination
-- Uses Slack Block Kit for rich formatting with action required styling
-
----
-
-### 2. Update Frontend: Trigger Notification on OON Status
-
-Modify the `updateAppointmentStatus` function in `AllAppointmentsManager.tsx` to invoke the new edge function when status is set to "OON".
-
-**File**: `src/components/AllAppointmentsManager.tsx`
-
-**Location**: Inside the status change handler, after the existing "Do Not Call" logic block (around line 721)
-
-**Logic**:
+**Change to:**
 ```typescript
-// Send Slack notification for OON status
-if (status === 'OON') {
-  try {
-    const appointmentData = appointments.find(a => a.id === appointmentId);
-    if (appointmentData) {
-      // Split lead_name into first/last name
-      const nameParts = appointmentData.lead_name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-      
-      await supabase.functions.invoke('notify-slack-oon', {
-        body: {
-          firstName,
-          lastName,
-          phone: appointmentData.lead_phone_number || '',
-          calendarName: appointmentData.calendar_name || '',
-          projectName: appointmentData.project_name,
-          appointmentId
-        }
-      });
-      console.log('Slack OON notification sent');
-    }
-  } catch (oonError) {
-    console.error('Failed to send OON Slack notification (non-critical):', oonError);
-    // Don't throw - notification failure shouldn't block status update
-  }
+const SLACK_OON_WEBHOOK_URL = Deno.env.get('SLACK_OON_WEBHOOK_URL');
+if (!SLACK_OON_WEBHOOK_URL) {
+  console.error('[notify-slack-oon] SLACK_OON_WEBHOOK_URL not configured');
+  throw new Error('SLACK_OON_WEBHOOK_URL not configured');
 }
 ```
 
----
-
-### 3. Update Config
-
-Add the new function to `supabase/config.toml`.
-
-**File**: `supabase/config.toml`
-
-```toml
-[functions.notify-slack-oon]
-verify_jwt = false
-# Send Slack notification when appointment status is changed to OON (Out of Network)
-```
+Also update the fetch call to use the new variable name.
 
 ---
 
-## Files to Create/Modify
+## Files to Modify
 
-| File | Action | Description |
-|------|--------|-------------|
-| `supabase/functions/notify-slack-oon/index.ts` | Create | New edge function for Slack OON notifications |
-| `src/components/AllAppointmentsManager.tsx` | Modify | Add OON notification trigger in status update handler |
-| `supabase/config.toml` | Modify | Register new edge function |
+| File | Change |
+|------|--------|
+| `supabase/functions/notify-slack-oon/index.ts` | Use `SLACK_OON_WEBHOOK_URL` instead of `SLACK_WEBHOOK_URL` |
+
+---
+
+## Setup Required
+
+Before or after implementation, you'll need to provide the Slack webhook URL for your OON channel. The webhook can be created from:
+1. Go to [Slack API Apps](https://api.slack.com/apps)
+2. Select your workspace app (or create one)
+3. Go to "Incoming Webhooks" and create a new webhook for your OON channel
+4. Copy the webhook URL
 
 ---
 
 ## Technical Notes
 
-- **Non-blocking**: Notification failure won't prevent status update (try/catch with logged warning)
-- **Reuses existing secret**: Uses `SLACK_WEBHOOK_URL` already configured
-- **Row number calculation**: Counts total appointments for project to approximate sheet row
-- **Service type extraction**: Detects GAE/UFE/PAE/PFE from calendar name to format sheet name
-- **Name parsing**: Splits `lead_name` field into first/last components
+- This follows the same pattern as `SLACK_CALENDAR_UPDATES_WEBHOOK_URL` for calendar notifications
+- The existing `SLACK_WEBHOOK_URL` remains unchanged for support notifications
+- No changes needed to the frontend - only the edge function secret reference changes
