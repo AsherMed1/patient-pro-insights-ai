@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,25 +20,25 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
   const procedureRate = stats.totalShowed > 0 ? (stats.totalProceduresOrdered / stats.totalShowed) * 100 : 0;
 
   return (
-    <div className="portal-section">
-      <h2 className="text-xl font-semibold text-foreground mb-4">Practice Overview</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="section-card animate-fade-in-up">
+      <h2 className="text-xl font-semibold text-foreground mb-5">Practice Overview</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Appointments */}
         <Card 
-          className="stats-card stats-card-medical cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+          className="group stats-card stats-card-medical"
           onClick={() => onCardClick?.('all')}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Total Appointments</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalAppointments}</p>
-                <Badge variant="secondary" className="text-xs">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-muted-foreground tracking-wide">Total Appointments</p>
+                <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalAppointments}</p>
+                <Badge variant="secondary" className="text-xs font-normal mt-1.5">
                   All scheduled
                 </Badge>
               </div>
-              <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-                <CalendarDays className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <div className="p-3.5 bg-blue-100/80 dark:bg-blue-900/50 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <CalendarDays className="h-7 w-7 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
           </CardContent>
@@ -47,20 +46,20 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
 
         {/* Patient Show Rate */}
         <Card 
-          className="stats-card stats-card-positive cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+          className="group stats-card stats-card-positive"
           onClick={() => onCardClick?.('showed')}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Patients Showed</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalShowed}</p>
-                <Badge variant="default" className="text-xs bg-green-600">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-muted-foreground tracking-wide">Patients Showed</p>
+                <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalShowed}</p>
+                <Badge variant="default" className="text-xs font-normal mt-1.5 bg-green-600 hover:bg-green-600">
                   {showRate.toFixed(1)}% show rate
                 </Badge>
               </div>
-              <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
-                <UserCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <div className="p-3.5 bg-green-100/80 dark:bg-green-900/50 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <UserCheck className="h-7 w-7 text-green-600 dark:text-green-400" />
               </div>
             </div>
           </CardContent>
@@ -68,38 +67,38 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
 
         {/* Procedures Ordered */}
         <Card 
-          className="stats-card stats-card-procedure cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+          className="group stats-card stats-card-procedure"
           onClick={() => onCardClick?.('procedures')}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Procedures Ordered</p>
-                <p className="text-3xl font-bold text-foreground">{stats.totalProceduresOrdered}</p>
-                <Badge variant="outline" className="text-xs">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-muted-foreground tracking-wide">Procedures Ordered</p>
+                <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalProceduresOrdered}</p>
+                <Badge variant="outline" className="text-xs font-normal mt-1.5">
                   {procedureRate.toFixed(1)}% conversion
                 </Badge>
               </div>
-              <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
-                <Activity className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              <div className="p-3.5 bg-purple-100/80 dark:bg-purple-900/50 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <Activity className="h-7 w-7 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Revenue Projection */}
-        <Card className="stats-card stats-card-revenue">
+        <Card className="group stats-card stats-card-revenue">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Projected Revenue</p>
-                <p className="text-3xl font-bold text-foreground">${stats.projectedRevenue.toLocaleString()}</p>
-                <Badge variant="outline" className="text-xs text-orange-600">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-muted-foreground tracking-wide">Projected Revenue</p>
+                <p className="text-3xl font-bold text-foreground tabular-nums">${stats.projectedRevenue.toLocaleString()}</p>
+                <Badge variant="outline" className="text-xs font-normal mt-1.5 text-orange-600 border-orange-200">
                   $7K avg per procedure
                 </Badge>
               </div>
-              <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-full">
-                <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              <div className="p-3.5 bg-orange-100/80 dark:bg-orange-900/50 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <TrendingUp className="h-7 w-7 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
           </CardContent>

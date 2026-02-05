@@ -70,70 +70,72 @@ const AppointmentsTabs = ({
   };
 
   return (
-    <div className="portal-section">
-      <div className="flex items-center gap-2 mb-6">
-        <Calendar className="h-5 w-5 text-primary" />
+    <div className="section-card animate-fade-in-up">
+      <div className="flex items-center gap-2.5 mb-6">
+        <div className="p-2 bg-primary/10 rounded-lg">
+          <Calendar className="h-5 w-5 text-primary" />
+        </div>
         <h3 className="text-lg font-semibold text-foreground">Appointment Management</h3>
       </div>
       
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-        <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto p-1 gap-1' : 'grid-cols-5'} bg-muted/50 p-1 rounded-lg`}>
+        <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-5 gap-0.5'} bg-muted/40 p-1.5 rounded-xl`}>
           <TabsTrigger 
             value="new" 
-            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-blue-500" />
-              <span>New</span>
-              <Badge variant={displayCounts.new > 0 ? "default" : "secondary"} className="ml-auto">
+            <div className="flex items-center gap-2.5 w-full">
+              <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <span className="font-medium">New</span>
+              <Badge variant={displayCounts.new > 0 ? "default" : "secondary"} className="ml-auto min-w-[28px] justify-center">
                 {displayCounts.new}
               </Badge>
             </div>
           </TabsTrigger>
           <TabsTrigger 
             value="needs-review" 
-            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-red-500" />
-              <span>Needs Review</span>
-              <Badge variant={displayCounts.needsReview > 0 ? "destructive" : "secondary"} className="ml-auto">
+            <div className="flex items-center gap-2.5 w-full">
+              <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+              <span className="font-medium">Needs Review</span>
+              <Badge variant={displayCounts.needsReview > 0 ? "destructive" : "secondary"} className="ml-auto min-w-[28px] justify-center">
                 {displayCounts.needsReview}
               </Badge>
             </div>
           </TabsTrigger>
           <TabsTrigger 
             value="future" 
-            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-500" />
-              <span>Upcoming</span>
-              <Badge variant="secondary" className="ml-auto">
+            <div className="flex items-center gap-2.5 w-full">
+              <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <span className="font-medium">Upcoming</span>
+              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
                 {displayCounts.future}
               </Badge>
             </div>
           </TabsTrigger>
           <TabsTrigger 
             value="past" 
-            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-green-500" />
-              <span>Completed</span>
-              <Badge variant="secondary" className="ml-auto">
+            <div className="flex items-center gap-2.5 w-full">
+              <Calendar className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <span className="font-medium">Completed</span>
+              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
                 {displayCounts.past}
               </Badge>
             </div>
           </TabsTrigger>
           <TabsTrigger 
             value="all" 
-            className={`${isMobile ? 'w-full py-4 text-sm justify-start' : 'py-3 text-sm'} relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-purple-500" />
-              <span>All</span>
-              <Badge variant="secondary" className="ml-auto">
+            <div className="flex items-center gap-2.5 w-full">
+              <Calendar className="h-4 w-4 text-purple-500 flex-shrink-0" />
+              <span className="font-medium">All</span>
+              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
                 {displayCounts.all}
               </Badge>
             </div>

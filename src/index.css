@@ -99,11 +99,67 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
 @layer components {
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Soft shadow system */
+  .shadow-soft-sm {
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05), 
+                0 4px 12px -4px rgba(0, 0, 0, 0.05);
+  }
+  
+  .shadow-soft-md {
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.08), 
+                0 8px 24px -8px rgba(0, 0, 0, 0.06);
+  }
+  
+  .shadow-soft-lg {
+    box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.1), 
+                0 12px 40px -12px rgba(0, 0, 0, 0.08);
+  }
+  
+  /* Hover lift effect */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .hover-lift:hover {
+    @apply -translate-y-0.5;
+    box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Section container */
+  .section-card {
+    @apply bg-card rounded-xl border border-border/40 p-6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  }
+  
+  /* Page header */
+  .page-header {
+    @apply flex items-center justify-between py-4 mb-6;
+  }
+  
+  /* Refined button groups */
+  .button-group {
+    @apply inline-flex items-center rounded-lg bg-muted/50 p-1 gap-1;
+  }
+  
+  .button-group-item {
+    @apply rounded-md px-3 py-2 text-sm font-medium transition-all;
+  }
+  
+  .button-group-item[data-active="true"] {
+    @apply bg-background shadow-sm text-foreground;
+  }
+
   /* Auth Page Brand Styling */
   .auth-container {
     @apply min-h-screen flex;
@@ -132,12 +188,12 @@
   }
   
   .auth-brand-card {
-    @apply bg-white/80 backdrop-blur-sm border border-white/20 shadow-2xl;
+    @apply bg-white/80 backdrop-blur-sm border border-white/20 shadow-2xl rounded-xl;
     box-shadow: var(--shadow-brand);
   }
   
   .brand-button {
-    @apply relative overflow-hidden transition-all duration-300 hover:scale-105;
+    @apply relative overflow-hidden transition-all duration-300 hover:scale-[1.02];
     background: var(--gradient-primary);
     box-shadow: var(--shadow-brand);
   }
@@ -149,38 +205,39 @@
 
   /* Medical Portal Visual Enhancements */
   .portal-section {
-    @apply bg-card rounded-lg border border-border/50 p-6 shadow-sm;
+    @apply bg-card rounded-xl border border-border/40 p-6 animate-fade-in-up;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   }
   
   .portal-spacing {
-    @apply space-y-8;
+    @apply space-y-6;
   }
   
   .stats-card {
-    @apply transition-all duration-200 hover:shadow-md hover:scale-105 cursor-pointer border border-border/30;
+    @apply transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer border border-border/30 rounded-xl;
   }
   
   .stats-card-medical {
-    @apply bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900;
+    @apply bg-gradient-to-br from-blue-50/80 to-blue-100/40 dark:from-blue-950/30 dark:to-blue-900/20;
   }
   
   .stats-card-positive {
-    @apply bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900;
+    @apply bg-gradient-to-br from-green-50/80 to-green-100/40 dark:from-green-950/30 dark:to-green-900/20;
   }
   
   .stats-card-procedure {
-    @apply bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900;
+    @apply bg-gradient-to-br from-purple-50/80 to-purple-100/40 dark:from-purple-950/30 dark:to-purple-900/20;
   }
   
   .stats-card-revenue {
-    @apply bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900;
+    @apply bg-gradient-to-br from-orange-50/80 to-orange-100/40 dark:from-orange-950/30 dark:to-orange-900/20;
   }
   
   .quick-filter-btn {
-    @apply px-3 py-2 text-sm font-medium rounded-md border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors;
+    @apply px-3 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-all duration-200;
   }
   
   .quick-filter-btn.active {
-    @apply bg-primary text-primary-foreground;
+    @apply bg-primary text-primary-foreground shadow-sm;
   }
 }

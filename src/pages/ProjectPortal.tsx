@@ -359,14 +359,14 @@ const ProjectPortal = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
+    <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto portal-spacing">
         {/* Header with user info, project switcher, and sign out */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="page-header border-b border-border/30 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8 mb-6">
           <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              Welcome, {user?.email}
-            </div>
+            <span className="text-sm text-muted-foreground">
+              Welcome, <span className="font-medium text-foreground">{user?.email}</span>
+            </span>
             <ProjectSwitcher 
               currentProject={project.project_name} 
               showBackToDashboard={true}
@@ -375,12 +375,12 @@ const ProjectPortal = () => {
           
           <div className="flex items-center gap-2">
             <Link to="/settings">
-              <Button variant="outline" className="hover:bg-accent">
+              <Button variant="ghost" size="sm" className="h-9 hover:bg-accent/50">
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
               </Button>
             </Link>
-            <Button variant="outline" onClick={signOut} className="hover:bg-accent">
+            <Button variant="ghost" size="sm" onClick={signOut} className="h-9 hover:bg-accent/50">
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
             </Button>
@@ -392,10 +392,14 @@ const ProjectPortal = () => {
 
         {/* Tabbed Interface */}
         <Tabs defaultValue="appointments" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${canViewOverview ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
-            <TabsTrigger value="appointments">Appointments</TabsTrigger>
+          <TabsList className={`grid w-full ${canViewOverview ? 'grid-cols-2' : 'grid-cols-1'} mb-6 bg-muted/40 p-1.5 rounded-xl`}>
+            <TabsTrigger value="appointments" className="rounded-lg py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              Appointments
+            </TabsTrigger>
             {canViewOverview && (
-              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="overview" className="rounded-lg py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                Overview
+              </TabsTrigger>
             )}
           </TabsList>
 
