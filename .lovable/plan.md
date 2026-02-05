@@ -1,70 +1,48 @@
 
-# Plan: Use Dedicated Slack Channel for OON Notifications
+
+# Plan: Simplify Slack Notification to Show Project Name
 
 ## Overview
 
-Configure the OON notification edge function to use a dedicated Slack webhook URL, allowing notifications to go to a separate channel from support requests.
+Update the OON Slack notification to display "Project: {projectName}" instead of "Account Sheet name: {projectName} | Tracking Sheet {serviceType}".
 
 ---
 
-## Implementation Steps
+## Changes
 
-### Step 1: Add New Secret
+### File: `supabase/functions/notify-slack-oon/index.ts`
 
-Create a new secret `SLACK_OON_WEBHOOK_URL` to store the webhook URL for your OON notifications channel.
-
-**You'll need to:**
-1. Create an incoming webhook in Slack for your desired channel
-2. Copy the webhook URL (format: `https://hooks.slack.com/services/T.../B.../...`)
-
----
-
-### Step 2: Update Edge Function
-
-Modify `supabase/functions/notify-slack-oon/index.ts` to use the new secret:
-
-**Change from:**
+**Current (lines 85-91):**
 ```typescript
-const SLACK_WEBHOOK_URL = Deno.env.get('SLACK_WEBHOOK_URL');
-if (!SLACK_WEBHOOK_URL) {
-  console.error('[notify-slack-oon] SLACK_WEBHOOK_URL not configured');
-  throw new Error('SLACK_WEBHOOK_URL not configured');
+{
+  type: "section",
+  text: {
+    type: "mrkdwn",
+    text: `*Account Sheet name :*\n${accountSheetName}`
+  }
 }
 ```
 
-**Change to:**
+**New:**
 ```typescript
-const SLACK_OON_WEBHOOK_URL = Deno.env.get('SLACK_OON_WEBHOOK_URL');
-if (!SLACK_OON_WEBHOOK_URL) {
-  console.error('[notify-slack-oon] SLACK_OON_WEBHOOK_URL not configured');
-  throw new Error('SLACK_OON_WEBHOOK_URL not configured');
+{
+  type: "section",
+  text: {
+    type: "mrkdwn",
+    text: `*Project:*\n${projectName}`
+  }
 }
 ```
 
-Also update the fetch call to use the new variable name.
+**Additional cleanup:**
+- Remove the unused `extractServiceType` function (lines 17-25)
+- Remove the unused `serviceType` and `accountSheetName` variables (lines 44-48)
 
 ---
 
-## Files to Modify
+## Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/notify-slack-oon/index.ts` | Use `SLACK_OON_WEBHOOK_URL` instead of `SLACK_WEBHOOK_URL` |
+| `supabase/functions/notify-slack-oon/index.ts` | Replace "Account Sheet name" with "Project: {projectName}" and remove unused code |
 
----
-
-## Setup Required
-
-Before or after implementation, you'll need to provide the Slack webhook URL for your OON channel. The webhook can be created from:
-1. Go to [Slack API Apps](https://api.slack.com/apps)
-2. Select your workspace app (or create one)
-3. Go to "Incoming Webhooks" and create a new webhook for your OON channel
-4. Copy the webhook URL
-
----
-
-## Technical Notes
-
-- This follows the same pattern as `SLACK_CALENDAR_UPDATES_WEBHOOK_URL` for calendar notifications
-- The existing `SLACK_WEBHOOK_URL` remains unchanged for support notifications
-- No changes needed to the frontend - only the edge function secret reference changes
