@@ -83,30 +83,34 @@ const Auth = () => {
     <div className="auth-container">
       {/* Hero Section */}
       <div className="auth-hero">
-        <div className="auth-hero-content bg-white">
-          <div className="text-center space-y-8">
-            <div className="space-y-4">
+        <div className="auth-hero-content bg-white/95 backdrop-blur-sm">
+          <div className="text-center space-y-10">
+            <div className="space-y-5">
               <img 
                 src={logoImage} 
                 alt="PatientPro Logo" 
-                className="h-20 w-auto mx-auto"
+                className="h-20 w-auto mx-auto drop-shadow-md"
               />
-              <h1 className="text-4xl font-bold text-primary">Patient Pro Client Portal</h1>
-              <p className="text-xl text-primary/70 max-w-md">
+              <h1 className="text-4xl font-bold text-primary tracking-tight">Patient Pro Client Portal</h1>
+              <p className="text-xl text-primary/70 max-w-md leading-relaxed">
                 Secure medical practice management platform designed for modern healthcare professionals
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-6 mt-12">
-              <div className="text-center space-y-2">
-                <Users className="h-8 w-8 mx-auto text-primary/60" />
+            <div className="grid grid-cols-2 gap-8 mt-12">
+              <div className="text-center space-y-3 p-4 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors">
+                <div className="p-3 bg-primary/10 rounded-xl w-fit mx-auto">
+                  <Users className="h-7 w-7 text-primary" />
+                </div>
                 <h3 className="font-semibold text-primary">Patient Management</h3>
-                <p className="text-sm text-primary/60">Comprehensive patient records and care coordination</p>
+                <p className="text-sm text-primary/60 leading-relaxed">Comprehensive patient records and care coordination</p>
               </div>
-              <div className="text-center space-y-2">
-                <BarChart className="h-8 w-8 mx-auto text-primary/60" />
+              <div className="text-center space-y-3 p-4 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors">
+                <div className="p-3 bg-primary/10 rounded-xl w-fit mx-auto">
+                  <BarChart className="h-7 w-7 text-primary" />
+                </div>
                 <h3 className="font-semibold text-primary">Analytics Dashboard</h3>
-                <p className="text-sm text-primary/60">Real-time insights and performance metrics</p>
+                <p className="text-sm text-primary/60 leading-relaxed">Real-time insights and performance metrics</p>
               </div>
             </div>
           </div>
