@@ -719,6 +719,34 @@ const AllAppointmentsManager = ({
             // Don't throw - DND failure shouldn't block the status update
           }
         }
+
+        // Send Slack notification for OON status
+        if (status === 'OON') {
+          try {
+            const appointmentData = appointments.find(a => a.id === appointmentId);
+            if (appointmentData) {
+              // Split lead_name into first/last name
+              const nameParts = appointmentData.lead_name.split(' ');
+              const firstName = nameParts[0] || '';
+              const lastName = nameParts.slice(1).join(' ') || '';
+              
+              await supabase.functions.invoke('notify-slack-oon', {
+                body: {
+                  firstName,
+                  lastName,
+                  phone: appointmentData.lead_phone_number || '',
+                  calendarName: appointmentData.calendar_name || '',
+                  projectName: appointmentData.project_name,
+                  appointmentId
+                }
+              });
+              console.log('✅ Slack OON notification sent for:', appointmentData.lead_name);
+            }
+          } catch (oonError) {
+            console.error('⚠️ Failed to send OON Slack notification (non-critical):', oonError);
+            // Don't throw - notification failure shouldn't block status update
+          }
+        }
         
         // Trigger webhook for status change
         try {

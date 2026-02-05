@@ -145,3 +145,7 @@ verify_jwt = false
 [functions.backfill-ally-ghl-data]
 verify_jwt = false
 # Bulk enrichment function to fetch full GHL contact data and reparse for Ally Vascular appointments
+
+[functions.notify-slack-oon]
+verify_jwt = false
+# Send Slack notification when appointment status is changed to OON (Out of Network)
