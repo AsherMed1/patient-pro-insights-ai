@@ -8,6 +8,7 @@ const corsHeaders = {
 interface CalendarUpdatePayload {
   projectName: string;
   calendarName: string;
+  calendarNames?: string[];
   date: string;
   timeRanges: string[];
   reason?: string;
@@ -28,6 +29,7 @@ serve(async (req) => {
     const {
       projectName,
       calendarName,
+      calendarNames,
       date,
       timeRanges,
       reason,
@@ -68,7 +70,9 @@ serve(async (req) => {
             },
             {
               type: 'mrkdwn',
-              text: `*Calendar:*\n${calendarName}`,
+              text: calendarNames && calendarNames.length > 1
+                ? `*Calendars (${calendarNames.length}):*\n${calendarNames.map(n => `• ${n}`).join('\n')}`
+                : `*Calendar:*\n${calendarName}`,
             },
             {
               type: 'mrkdwn',

@@ -12,13 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Popover,
   PopoverContent,
@@ -93,6 +87,86 @@ function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: T
   );
 }
 
+interface CalendarCheckboxListProps {
+  calendars: Array<{ id: string; name: string }>;
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
+  loading: boolean;
+}
+
+function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loading }: CalendarCheckboxListProps) {
+  const toggleCalendar = (id: string) => {
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter(cid => cid !== id));
+    } else {
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
+  const selectAll = () => onSelectionChange(calendars.map(c => c.id));
+  const deselectAll = () => onSelectionChange([]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        <Label>Calendar(s)</Label>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading calendars...
+        </div>
+      </div>
+    );
+  }
+
+  if (calendars.length === 0) {
+    return (
+      <div className="space-y-2">
+        <Label>Calendar(s)</Label>
+        <p className="text-sm text-muted-foreground">
+          No calendars available. Please configure GHL integration.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>Calendar(s)</Label>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={selectAll} className="h-7 px-2 text-xs">
+            Select All
+          </Button>
+          <Button variant="ghost" size="sm" onClick={deselectAll} className="h-7 px-2 text-xs">
+            Deselect All
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-lg border p-3 bg-muted/30 max-h-48 overflow-y-auto space-y-2">
+        {calendars.map((calendar) => (
+          <div key={calendar.id} className="flex items-center gap-2">
+            <Checkbox
+              id={`cal-${calendar.id}`}
+              checked={selectedIds.includes(calendar.id)}
+              onCheckedChange={() => toggleCalendar(calendar.id)}
+            />
+            <label 
+              htmlFor={`cal-${calendar.id}`} 
+              className="text-sm cursor-pointer truncate flex-1"
+              title={calendar.name}
+            >
+              {calendar.name}
+            </label>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {selectedIds.length} of {calendars.length} calendar{calendars.length !== 1 ? 's' : ''} selected
+      </p>
+    </div>
+  );
+}
+
 export function ReserveTimeBlockDialog({
   open,
   onOpenChange,
@@ -114,7 +188,7 @@ export function ReserveTimeBlockDialog({
       endTime: '17:00',
     },
   ]);
-  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('');
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [reason, setReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ghlLocationId, setGhlLocationId] = useState<string | null>(null);
@@ -171,13 +245,6 @@ export function ReserveTimeBlockDialog({
     fetchProjectSettings();
   }, [projectName, open, fetchCalendars]);
 
-  // Set default calendar when calendars load
-  useEffect(() => {
-    if (calendars.length > 0 && !selectedCalendarId) {
-      setSelectedCalendarId(calendars[0].id);
-    }
-  }, [calendars, selectedCalendarId]);
-
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -189,6 +256,7 @@ export function ReserveTimeBlockDialog({
           endTime: '17:00',
         },
       ]);
+      setSelectedCalendarIds([]);
       setReason('');
     }
   }, [open, initialDate, initialHour]);
@@ -249,10 +317,10 @@ export function ReserveTimeBlockDialog({
   };
 
   const handleSubmit = async () => {
-    if (!selectedDate || !selectedCalendarId) {
+    if (!selectedDate || selectedCalendarIds.length === 0) {
       toast({
         title: 'Missing Information',
-        description: 'Please select a date and calendar.',
+        description: 'Please select a date and at least one calendar.',
         variant: 'destructive',
       });
       return;
@@ -265,135 +333,174 @@ export function ReserveTimeBlockDialog({
     setIsSubmitting(true);
 
     try {
-      const createdAppointments: Array<{ range: TimeRange; ghlResult: any }> = [];
-      const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId);
+      const allCreatedAppointments: Array<{ calendarId: string; calendarName: string; range: TimeRange; ghlResult: any }> = [];
+      const failedCalendars: string[] = [];
       const title = reason ? `Reserved - ${reason}` : 'Reserved';
 
-      // Create appointment for each time range
-      for (const range of timeRanges) {
-        // IMPORTANT: build times in the *project's* timezone (not the user's browser timezone)
-        // so the slot matches what GHL considers available.
-        const tz =
-          projectTimezone ||
-          Intl.DateTimeFormat().resolvedOptions().timeZone ||
-          'UTC';
+      // Process each selected calendar
+      for (const calendarId of selectedCalendarIds) {
+        const selectedCalendar = calendars.find((c) => c.id === calendarId);
+        const calendarName = selectedCalendar?.name || 'Unknown Calendar';
 
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        // Create appointment for each time range on this calendar
+        for (const range of timeRanges) {
+          try {
+            // IMPORTANT: build times in the *project's* timezone (not the user's browser timezone)
+            // so the slot matches what GHL considers available.
+            const tz =
+              projectTimezone ||
+              Intl.DateTimeFormat().resolvedOptions().timeZone ||
+              'UTC';
 
-        const startUtc = fromZonedTime(`${dateStr}T${range.startTime}:00`, tz);
-        const endUtc = fromZonedTime(`${dateStr}T${range.endTime}:00`, tz);
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-        // GHL docs show start/end with an explicit offset (e.g. +05:30). Provide that.
-        const startTimeForGhl = formatInTimeZone(startUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-        const endTimeForGhl = formatInTimeZone(endUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+            const startUtc = fromZonedTime(`${dateStr}T${range.startTime}:00`, tz);
+            const endUtc = fromZonedTime(`${dateStr}T${range.endTime}:00`, tz);
 
-        console.log('[ReserveTimeBlock] Creating reservation:', {
-          project_name: projectName,
-          calendar_id: selectedCalendarId,
-          timezone: tz,
-          start_time: startTimeForGhl,
-          end_time: endTimeForGhl,
-          title,
-        });
+            // GHL docs show start/end with an explicit offset (e.g. +05:30). Provide that.
+            const startTimeForGhl = formatInTimeZone(startUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+            const endTimeForGhl = formatInTimeZone(endUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
 
-        // Create appointment in GHL
-        const { data: ghlResult, error: ghlError } = await supabase.functions.invoke(
-          'create-ghl-appointment',
-          {
-            body: {
+            console.log('[ReserveTimeBlock] Creating reservation:', {
               project_name: projectName,
-              calendar_id: selectedCalendarId,
+              calendar_id: calendarId,
+              calendar_name: calendarName,
+              timezone: tz,
               start_time: startTimeForGhl,
               end_time: endTimeForGhl,
               title,
-              reason,
-            },
+            });
+
+            // Create appointment in GHL
+            const { data: ghlResult, error: ghlError } = await supabase.functions.invoke(
+              'create-ghl-appointment',
+              {
+                body: {
+                  project_name: projectName,
+                  calendar_id: calendarId,
+                  start_time: startTimeForGhl,
+                  end_time: endTimeForGhl,
+                  title,
+                  reason,
+                },
+              }
+            );
+
+            if (ghlError || !ghlResult?.success) {
+              throw new Error(ghlResult?.error || ghlError?.message || 'Failed to create GHL appointment');
+            }
+
+            // Create local record in all_appointments
+            const { data: newAppointment, error: insertError } = await supabase
+              .from('all_appointments')
+              .insert({
+                project_name: projectName,
+                lead_name: title,
+                date_of_appointment: formatInTimeZone(startUtc, tz, 'yyyy-MM-dd'),
+                requested_time: formatInTimeZone(startUtc, tz, 'HH:mm'),
+                reserved_end_time: formatInTimeZone(endUtc, tz, 'HH:mm'),
+                calendar_name: calendarName,
+                status: 'Confirmed',
+                is_reserved_block: true,
+                internal_process_complete: true, // Mark complete so it doesn't appear in "New" tab
+                ghl_appointment_id: ghlResult.ghl_appointment_id,
+                ghl_location_id: ghlLocationId,
+                date_appointment_created: format(new Date(), 'yyyy-MM-dd'),
+                patient_intake_notes: `Time block reserved by ${userName || 'Portal User'} on ${format(new Date(), 'PPP')}\nReason: ${reason || 'Not specified'}\nCalendar: ${calendarName}\nTime: ${range.startTime} - ${range.endTime}`,
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error('[ReserveTimeBlock] Failed to create local record:', insertError);
+              throw new Error(`Block created in GHL but failed to save locally: ${insertError.message}`);
+            }
+
+            // Create audit note if we have an appointment ID
+            if (newAppointment?.id && userId) {
+              await supabase.from('appointment_notes').insert({
+                appointment_id: newAppointment.id,
+                note_text: `Reserved time block created by ${userName || 'Portal User'}. Reason: ${reason || 'Not specified'}. Calendar: ${calendarName}. Time: ${range.startTime} - ${range.endTime}.`,
+                created_by: userId,
+              });
+            }
+
+            allCreatedAppointments.push({ calendarId, calendarName, range, ghlResult });
+          } catch (error) {
+            console.error(`[ReserveTimeBlock] Failed to create block on ${calendarName}:`, error);
+            if (!failedCalendars.includes(calendarName)) {
+              failedCalendars.push(calendarName);
+            }
           }
-        );
-
-        if (ghlError || !ghlResult?.success) {
-          throw new Error(ghlResult?.error || ghlError?.message || 'Failed to create GHL appointment');
         }
+      }
 
-        // Create local record in all_appointments
-        const { data: newAppointment, error: insertError } = await supabase
-          .from('all_appointments')
-          .insert({
-            project_name: projectName,
-            lead_name: title,
-            date_of_appointment: formatInTimeZone(startUtc, tz, 'yyyy-MM-dd'),
-            requested_time: formatInTimeZone(startUtc, tz, 'HH:mm'),
-            reserved_end_time: formatInTimeZone(endUtc, tz, 'HH:mm'),
-            calendar_name: selectedCalendar?.name || 'Unknown Calendar',
-            status: 'Confirmed',
-            is_reserved_block: true,
-            internal_process_complete: true, // Mark complete so it doesn't appear in "New" tab
-            ghl_appointment_id: ghlResult.ghl_appointment_id,
-            ghl_location_id: ghlLocationId,
-            date_appointment_created: format(new Date(), 'yyyy-MM-dd'),
-            patient_intake_notes: `Time block reserved by ${userName || 'Portal User'} on ${format(new Date(), 'PPP')}\nReason: ${reason || 'Not specified'}\nTime: ${range.startTime} - ${range.endTime}`,
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('[ReserveTimeBlock] Failed to create local record:', insertError);
-          throw new Error(`Block created in GHL but failed to save locally: ${insertError.message}`);
-        }
-
-        // Create audit note if we have an appointment ID
-        if (newAppointment?.id && userId) {
-          await supabase.from('appointment_notes').insert({
-            appointment_id: newAppointment.id,
-            note_text: `Reserved time block created by ${userName || 'Portal User'}. Reason: ${reason || 'Not specified'}. Time: ${range.startTime} - ${range.endTime}.`,
-            created_by: userId,
+      // Show appropriate toast based on results
+      if (allCreatedAppointments.length > 0) {
+        const calendarCount = selectedCalendarIds.length;
+        const blockCount = allCreatedAppointments.length;
+        
+        if (failedCalendars.length > 0) {
+          toast({
+            title: 'Partial Success',
+            description: `Created ${blockCount} block(s). Failed on: ${failedCalendars.join(', ')}`,
+            variant: 'default',
+          });
+        } else {
+          toast({
+            title: 'Time Blocks Reserved',
+            description: calendarCount > 1
+              ? `Created ${blockCount} block(s) across ${calendarCount} calendars`
+              : `Created ${blockCount} reservation(s) for ${format(selectedDate, 'PPP')}`,
           });
         }
 
-        createdAppointments.push({ range, ghlResult });
+        // Calculate if this is a full day block (8+ hours)
+        const totalMinutesBlocked = timeRanges.reduce((sum, range) => {
+          const [startH, startM] = range.startTime.split(':').map(Number);
+          const [endH, endM] = range.endTime.split(':').map(Number);
+          return sum + ((endH * 60 + endM) - (startH * 60 + startM));
+        }, 0);
+
+        const isFullDay = totalMinutesBlocked >= 480;
+
+        // Helper to format time for display
+        const formatTimeDisplay = (time: string) => {
+          const [h, m] = time.split(':').map(Number);
+          const ampm = h < 12 ? 'AM' : 'PM';
+          const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+          return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
+        };
+
+        // Get unique calendar names from successful creations
+        const successfulCalendarNames = [...new Set(allCreatedAppointments.map(a => a.calendarName))];
+
+        // Send Slack notification (fire-and-forget, don't block on failure)
+        supabase.functions.invoke('notify-calendar-update', {
+          body: {
+            projectName,
+            calendarName: successfulCalendarNames.length > 1 
+              ? `${successfulCalendarNames.length} calendars` 
+              : successfulCalendarNames[0] || 'Unknown Calendar',
+            calendarNames: successfulCalendarNames,
+            date: format(selectedDate, 'PPPP'),
+            timeRanges: timeRanges.map((range) => 
+              `${formatTimeDisplay(range.startTime)} - ${formatTimeDisplay(range.endTime)}`
+            ),
+            reason: reason || 'Not specified',
+            blockedBy: userName || 'Portal User',
+            isFullDay,
+          }
+        }).catch(err => {
+          console.error('[ReserveTimeBlock] Failed to send Slack notification:', err);
+        });
+
+        onOpenChange(false);
+        onSuccess?.();
+      } else {
+        throw new Error(`Failed to create blocks on all calendars: ${failedCalendars.join(', ')}`);
       }
 
-      toast({
-        title: 'Time Blocks Reserved',
-        description: `Created ${createdAppointments.length} reservation(s) for ${format(selectedDate, 'PPP')}`,
-      });
-
-      // Calculate if this is a full day block (8+ hours)
-      const totalMinutesBlocked = timeRanges.reduce((sum, range) => {
-        const [startH, startM] = range.startTime.split(':').map(Number);
-        const [endH, endM] = range.endTime.split(':').map(Number);
-        return sum + ((endH * 60 + endM) - (startH * 60 + startM));
-      }, 0);
-
-      const isFullDay = totalMinutesBlocked >= 480;
-
-      // Helper to format time for display
-      const formatTimeDisplay = (time: string) => {
-        const [h, m] = time.split(':').map(Number);
-        const ampm = h < 12 ? 'AM' : 'PM';
-        const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-        return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
-      };
-
-      // Send Slack notification (fire-and-forget, don't block on failure)
-      supabase.functions.invoke('notify-calendar-update', {
-        body: {
-          projectName,
-          calendarName: selectedCalendar?.name || 'Unknown Calendar',
-          date: format(selectedDate, 'PPPP'),
-          timeRanges: createdAppointments.map(({ range }) => 
-            `${formatTimeDisplay(range.startTime)} - ${formatTimeDisplay(range.endTime)}`
-          ),
-          reason: reason || 'Not specified',
-          blockedBy: userName || 'Portal User',
-          isFullDay,
-        }
-      }).catch(err => {
-        console.error('[ReserveTimeBlock] Failed to send Slack notification:', err);
-      });
-
-      onOpenChange(false);
-      onSuccess?.();
     } catch (error) {
       console.error('[ReserveTimeBlock] Error:', error);
       
@@ -467,33 +574,13 @@ export function ReserveTimeBlockDialog({
             </div>
           </div>
 
-          {/* Calendar Select */}
-          <div className="space-y-2">
-            <Label>Calendar</Label>
-            {calendarsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading calendars...
-              </div>
-            ) : calendars.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No calendars available. Please configure GHL integration.
-              </p>
-            ) : (
-              <Select value={selectedCalendarId} onValueChange={setSelectedCalendarId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select calendar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {calendars.map((calendar) => (
-                    <SelectItem key={calendar.id} value={calendar.id}>
-                      {calendar.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          {/* Calendar Multi-Select */}
+          <CalendarCheckboxList
+            calendars={calendars}
+            selectedIds={selectedCalendarIds}
+            onSelectionChange={setSelectedCalendarIds}
+            loading={calendarsLoading}
+          />
 
           {/* Reason Input */}
           <div className="space-y-2">
@@ -510,14 +597,16 @@ export function ReserveTimeBlockDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedCalendarId}>
+          <Button onClick={handleSubmit} disabled={isSubmitting || selectedCalendarIds.length === 0}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Reserving...
+                Reserving {selectedCalendarIds.length > 1 ? `${selectedCalendarIds.length} blocks` : ''}...
               </>
             ) : (
-              'Reserve Time'
+              selectedCalendarIds.length > 1 
+                ? `Reserve on ${selectedCalendarIds.length} Calendars` 
+                : 'Reserve Time'
             )}
           </Button>
         </DialogFooter>
