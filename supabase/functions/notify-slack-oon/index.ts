@@ -14,16 +14,6 @@ interface OONNotificationPayload {
   appointmentId: string;
 }
 
-// Extract service type from calendar name
-const extractServiceType = (calendarName: string): string => {
-  const lowerCalendar = calendarName.toLowerCase();
-  if (lowerCalendar.includes('gae') || lowerCalendar.includes('knee')) return 'GAE';
-  if (lowerCalendar.includes('ufe') || lowerCalendar.includes('fibroid')) return 'UFE';
-  if (lowerCalendar.includes('pae') || lowerCalendar.includes('prostate')) return 'PAE';
-  if (lowerCalendar.includes('pfe') || lowerCalendar.includes('pelvic')) return 'PFE';
-  return 'Unknown';
-};
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -40,12 +30,6 @@ serve(async (req) => {
       console.error('[notify-slack-oon] SLACK_OON_WEBHOOK_URL not configured');
       throw new Error('SLACK_OON_WEBHOOK_URL not configured');
     }
-
-    // Extract service type from calendar name
-    const serviceType = extractServiceType(calendarName || '');
-
-    // Format account sheet name
-    const accountSheetName = `${projectName} | Tracking Sheet ${serviceType}`;
 
     // Format Slack message with blocks for rich formatting
     const slackPayload = {
@@ -86,7 +70,7 @@ serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*Account Sheet name :*\n${accountSheetName}`
+            text: `*Project:*\n${projectName}`
           }
         },
         {
