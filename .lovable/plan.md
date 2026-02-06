@@ -1,82 +1,104 @@
 
+# Plan: Always Extract Imaging Details via Regex (Post-AI Enrichment)
 
-# Plan: Fix Missing Pathology Display Due to NULL parsing_completed_at
+## Problem Summary
 
-## Problem Identified
+The `had_imaging_before: YES LAST JANUARY AT CLINIC 123` data is correctly captured in `patient_intake_notes`, but the OpenAI parser didn't extract it into `parsed_medical_info.imaging_details`. The fallback regex parser would have caught this, but it only runs when OpenAI fails completely (rate limit, etc.).
 
-The Medical Information section in Patient Pro Insights is not displaying for some appointments because the conditional render requires BOTH:
-1. `parsedPathologyInfo` - The actual pathology data
-2. `parsingCompletedAt` - A timestamp indicating parsing is complete
+**Current behavior:**
+- OpenAI runs and returns partial data (misses `imaging_details`)
+- Fallback regex only runs on OpenAI failure
+- Critical field `imaging_details` remains null
 
-**Root cause**: Some older appointments (especially in Vivid Vascular) have `parsed_pathology_info` populated BUT `parsing_completed_at` is NULL. This causes the Medical Information section to be hidden even though the data exists.
-
-**Database evidence**:
-- Found 20+ Vivid Vascular appointments where `has_notes=true`, `has_pathology=true`, but `has_parsing=false`
-- Example: Adrian Cruz, Howard Gedowzki, George Michael, etc.
+**Desired behavior:**
+- OpenAI runs first
+- Regex enrichment runs AFTER to fill any gaps for critical fields
+- Imaging details always captured when present in intake notes
 
 ---
 
 ## Solution
 
-### Option A: Fix the Frontend Conditional (Recommended)
+Add a post-AI regex enrichment step that specifically extracts `imaging_details` (and other critical fields) even when AI parsing succeeds. This ensures no data is lost due to AI parsing gaps.
 
-Update `ParsedIntakeInfo.tsx` to show Medical Information when pathology data exists, regardless of whether `parsingCompletedAt` is set. The timestamp check was originally added to hide the section while parsing is "in progress", but if data already exists, it should display.
+### File: `supabase/functions/auto-parse-intake-notes/index.ts`
 
-**File**: `src/components/appointments/ParsedIntakeInfo.tsx`
+**Add after the OpenAI parsing block (around line 1175):**
 
-**Current code** (line 689):
-```tsx
-{parsedPathologyInfo && parsingCompletedAt && (
+```typescript
+// Post-AI enrichment: Always run regex extraction for critical fields
+// This catches anything the AI parser might have missed
+function enrichWithCriticalFields(parsedData: any, intakeNotes: string) {
+  if (!intakeNotes) return parsedData;
+  
+  // Ensure medical_info exists
+  if (!parsedData.medical_info) {
+    parsedData.medical_info = {};
+  }
+  
+  // Extract imaging details if not already populated
+  if (!parsedData.medical_info.imaging_details) {
+    const imagingPatterns = [
+      /had_imaging_before:\s*([^\n|]+)/i,
+      /have you had.*?imaging.*?:\s*([^\n|]+)/i,
+      /had imaging before:\s*([^\n|]+)/i,
+      /previous imaging:\s*([^\n|]+)/i
+    ];
+    
+    for (const pattern of imagingPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        parsedData.medical_info.imaging_details = value;
+        console.log(`[AUTO-PARSE] Enriched imaging_details via regex: ${value}`);
+        break;
+      }
+    }
+  }
+  
+  return parsedData;
+}
 ```
 
-**Updated code**:
-```tsx
-{parsedPathologyInfo && (
+**Then call it after AI/GHL merging (around line 1201):**
+
+```typescript
+// After GHL merge...
+parsedData = enrichWithCriticalFields(parsedData, record.patient_intake_notes);
 ```
-
-### Option B: Backfill Missing parsing_completed_at Timestamps
-
-Run a database update to set `parsing_completed_at` for all records that have pathology data but are missing the timestamp.
-
-```sql
-UPDATE all_appointments
-SET parsing_completed_at = updated_at
-WHERE parsed_pathology_info IS NOT NULL
-  AND parsing_completed_at IS NULL;
-```
-
----
-
-## Recommendation
-
-**Implement Option A (frontend fix)** as the primary solution because:
-1. It's safer - doesn't modify database records
-2. It's more logical - if pathology data exists, display it
-3. It prevents future issues from similar data states
-
-**Then optionally run Option B** as a data cleanup to ensure consistency.
 
 ---
 
 ## Technical Details
 
+### Changes Summary
+
+| Location | Change |
+|----------|--------|
+| Lines ~520-550 | Add `enrichWithCriticalFields()` function |
+| Line ~1201 | Call enrichment function after AI/GHL merge |
+
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Remove `parsingCompletedAt` requirement from Medical Information section conditional |
-
-### Impact
-
-- Approximately 20+ Vivid Vascular appointments will immediately start showing their Medical Information section
-- All future appointments with pathology data will display correctly regardless of parsing timestamp state
+| File | Changes |
+|------|---------|
+| `supabase/functions/auto-parse-intake-notes/index.ts` | Add post-AI regex enrichment for critical fields |
 
 ---
 
-## Testing
+## Benefits
+
+1. **Reliability** - Critical fields like `imaging_details` are always extracted when present
+2. **AI Fallback** - Catches gaps in OpenAI parsing without replacing it
+3. **No Breaking Changes** - AI parsing still takes priority; regex only fills gaps
+4. **Immediate Fix** - After deploy, trigger reparse on affected records
+
+---
+
+## Verification
 
 After implementation:
-1. Navigate to Vivid Vascular project
-2. Open any appointment with pathology data (e.g., Adrian Cruz)
-3. Verify Medical Information section now displays with procedure type, duration, pain level, and symptoms
-
+1. Deploy the updated edge function
+2. Trigger reparse for `2DONOTCONTACT 2TESTLEAD` record
+3. Verify `parsed_medical_info.imaging_details` = "YES LAST JANUARY AT CLINIC 123"
+4. Confirm it displays in the Medical & PCP Information card in the UI
