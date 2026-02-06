@@ -1,110 +1,155 @@
 
-
-# Plan: Fix Calendar Not Updating After Reserved Block Creation
+# Plan: Display Note Timestamps in Viewer's Local Timezone
 
 ## Problem Summary
 
-User Susana in Ozark Regional Vein and Artery Center:
-- Created a 4pm block that appears in GoHighLevel (GHL) 
-- Sees an error in the portal ("Failed to Reserve Time")
-- The portal calendar doesn't update to show the block
+Notes in the portal show inconsistent timestamps because:
+- When a user creates/triggers a note, the timestamp embedded in the note text uses their local timezone
+- When another user in a different timezone views the note, they see the original creator's timezone - not their own
 
-Investigation reveals:
-1. The 4pm "TEST BLOCK" exists in GHL but NOT in the local database
-2. The edge function was just updated with rollback logic - this block was likely created before that fix
-3. The edge function now works correctly (tested and confirmed)
+For example, a status change made at 4:01 PM Central shows "Feb 4, 2026, 4:01 PM" to everyone, even viewers in Eastern Time who should see 5:01 PM.
 
-## Root Causes
+---
 
-### Issue 1: Stale Edge Function
+## Current Implementation
 
-The user may be running against a stale or cached version of the edge function. When the `create-ghl-appointment` function was updated earlier today, it may not have propagated to all clients immediately.
+### How timestamps get into notes:
 
-### Issue 2: Missing Immediate Refetch
-
-Currently, when a reservation succeeds:
-1. `onSuccess()` is called, incrementing `calendarRefreshKey`
-2. The `CalendarDetailView` component remounts (via React key change)
-3. The hook refetches data
-
-However, this pattern has a potential race condition - if there's any latency between the database commit and the subsequent read, the new record might not appear.
-
-### Issue 3: Orphaned GHL Block
-
-The 4pm block exists in GHL but has no corresponding local record. This indicates either:
-- Rollback failed (unlikely given the DELETE call is simple)
-- Block was created before rollback logic was added
-- The local insert failed after GHL succeeded, but before rollback logic existed
-
-## Solution
-
-### Part 1: Force Redeploy Edge Function
-
-Redeploy the `create-ghl-appointment` edge function to ensure all users get the latest version with:
-- Local record creation using service role key
-- Rollback logic when local insert fails
-
-### Part 2: Add Resilient Refetch After Success
-
-Update `ReserveTimeBlockDialog.tsx` to:
-1. Add a small delay (500ms) before calling `onSuccess()` to allow database propagation
-2. This ensures the calendar refetch sees the newly inserted record
-
-**Current Code:**
+**AllAppointmentsManager.tsx (line 656-665):**
 ```typescript
-onOpenChange(false);
-onSuccess?.();
+const timestamp = new Date().toLocaleString('en-US', { 
+  month: 'short', 
+  day: 'numeric', 
+  year: 'numeric', 
+  hour: 'numeric', 
+  minute: '2-digit',
+  hour12: true 
+});
+const systemNote = `Status changed from "${oldStatus}" to "${status}" - ${timestamp}`;
 ```
 
-**Updated Code:**
-```typescript
-onOpenChange(false);
-// Small delay to ensure database transaction is committed and visible
-setTimeout(() => {
-  onSuccess?.();
-}, 500);
-```
+This uses `toLocaleString()` which formats the date in the **creator's browser timezone** and embeds it as plain text in the note.
 
-### Part 3: Clean Up Orphaned GHL Block (Manual)
+---
 
-The 4pm "TEST BLOCK" in GHL has no corresponding local record. Options:
-1. Manually delete it from GHL
-2. OR manually insert a matching record in the database
+## Solution Approach
+
+### Strategy: Store UTC timestamps in a parseable format, render in viewer's local time
+
+1. **Change note creation** to embed timestamps in an ISO format with a marker that can be detected and parsed at display time
+
+2. **Update note display** to detect and transform embedded timestamps to the viewer's local timezone
+
+---
 
 ## Technical Details
 
-### File: `src/components/appointments/ReserveTimeBlockDialog.tsx`
+### Part 1: Update Note Creation to Embed UTC Timestamps
 
-Add a small delay before calling onSuccess to ensure database consistency:
+Modify how system notes embed timestamps using a parseable format:
 
 ```typescript
-// Around line 487-488
-onOpenChange(false);
-// Allow database transaction to fully propagate before triggering refetch
-setTimeout(() => {
-  onSuccess?.();
-}, 500);
+// Before (creator's local time, not parseable):
+const systemNote = `Status changed from "${oldStatus}" to "${status}" - Feb 4, 2026, 4:01 PM`;
+
+// After (UTC ISO with marker, parseable):
+const utcTimestamp = new Date().toISOString();
+const systemNote = `Status changed from "${oldStatus}" to "${status}" - [[timestamp:${utcTimestamp}]]`;
 ```
 
-This accounts for any eventual consistency delays between write and read.
+The `[[timestamp:...]]` marker allows the display layer to detect and convert timestamps.
+
+**Files to update:**
+- `src/components/AllAppointmentsManager.tsx` - status change notes
+
+---
+
+### Part 2: Create a Timestamp Parsing Utility
+
+Add a new utility function in `src/utils/dateTimeUtils.ts`:
+
+```typescript
+/**
+ * Replace [[timestamp:ISO]] markers with formatted local time
+ */
+export const formatEmbeddedTimestamps = (text: string): string => {
+  // Pattern matches [[timestamp:2026-02-04T22:01:00.000Z]]
+  const pattern = /\[\[timestamp:([^\]]+)\]\]/g;
+  
+  return text.replace(pattern, (match, isoString) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric', 
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return match; // Return original if parsing fails
+    }
+  });
+};
+```
+
+This function:
+- Finds all `[[timestamp:ISO]]` markers in text
+- Converts each to the viewer's local timezone using `toLocaleString()`
+- Returns the formatted text with human-readable local timestamps
+
+---
+
+### Part 3: Update Note Display Component
+
+Modify `AppointmentNotes.tsx` to process note text through the formatter:
+
+```typescript
+import { formatEmbeddedTimestamps } from '@/utils/dateTimeUtils';
+
+// In the render:
+<p className={`text-sm whitespace-pre-wrap ${...}`}>
+  {formatEmbeddedTimestamps(note.note_text)}
+</p>
+```
+
+---
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Add 500ms delay before `onSuccess()` call |
+| `src/utils/dateTimeUtils.ts` | Add `formatEmbeddedTimestamps()` utility function |
+| `src/components/AllAppointmentsManager.tsx` | Update status change note to use `[[timestamp:ISO]]` format |
+| `src/components/appointments/AppointmentNotes.tsx` | Apply `formatEmbeddedTimestamps()` when rendering note text |
 
-## Testing
+---
 
-1. Ask Susana to refresh her browser (clears any cached code)
-2. Have her try creating a new reservation (e.g., 5pm)
-3. Verify:
-   - Success toast appears
-   - Block appears in calendar view
-   - Block appears in GHL
-4. For the orphaned 4pm block: either delete from GHL or create matching DB record
+## Backward Compatibility
+
+**Existing notes** that were created with the old format (plain text timestamps like "Feb 4, 2026, 4:01 PM") will continue to display as-is. They won't be converted since they don't have the `[[timestamp:...]]` marker.
+
+**New notes** going forward will use the parseable format and display correctly in each viewer's local timezone.
+
+---
+
+## Migration Option (Future Enhancement)
+
+If full consistency is needed for existing notes, a database migration script could:
+1. Parse old timestamp formats from note text using regex
+2. Convert detected timestamps to the `[[timestamp:ISO]]` format
+3. Update the records
+
+This is optional and can be done later if needed.
+
+---
 
 ## Summary
 
-The core fix was already deployed (edge function now handles everything server-side). This additional change adds resilience against read-after-write timing issues by introducing a small delay before triggering the calendar refresh.
-
+This solution ensures:
+- All **new notes** with timestamps will display in the viewer's local timezone
+- The UTC timestamp is stored for accuracy (no timezone ambiguity)
+- The display layer handles timezone conversion dynamically
+- **Existing notes** continue to work (graceful degradation)
+- No database schema changes required
