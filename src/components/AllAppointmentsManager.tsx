@@ -653,16 +653,9 @@ const AllAppointmentsManager = ({
 
       // Add system note to track status change
       if (oldStatus !== status) {
-        const timestamp = new Date().toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric', 
-          hour: 'numeric', 
-          minute: '2-digit',
-          hour12: true 
-        });
-        
-        const systemNote = `Status changed from "${oldStatus}" to "${status}" - ${timestamp}`;
+        // Store UTC timestamp in parseable format - will be converted to viewer's local timezone on display
+        const utcTimestamp = new Date().toISOString();
+        const systemNote = `Status changed from "${oldStatus}" to "${status}" - [[timestamp:${utcTimestamp}]]`;
         
         await supabase
           .from('appointment_notes')
