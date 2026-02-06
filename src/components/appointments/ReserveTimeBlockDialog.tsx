@@ -416,16 +416,31 @@ export function ReserveTimeBlockDialog({
               throw new Error(`Block created in GHL but failed to save locally: ${insertError.message}`);
             }
 
-            // Create audit note if we have an appointment ID
-            if (newAppointment?.id && userId) {
-              await supabase.from('appointment_notes').insert({
-                appointment_id: newAppointment.id,
-                note_text: `Reserved time block created by ${userName || 'Portal User'}. Reason: ${reason || 'Not specified'}. Calendar: ${calendarName}. Time: ${range.startTime} - ${range.endTime}.`,
-                created_by: userId,
-              });
-            }
+            console.log('[ReserveTimeBlock] Successfully created reservation:', {
+              appointmentId: newAppointment?.id,
+              calendarName,
+              range: `${range.startTime} - ${range.endTime}`,
+            });
 
+            // Track success IMMEDIATELY after critical operations (GHL + DB insert) succeed
+            // This ensures the reservation is counted as successful before any optional operations
             allCreatedAppointments.push({ calendarId, calendarName, range, ghlResult });
+
+            // Create audit note if we have an appointment ID (non-blocking)
+            // Wrapped in try/catch to prevent audit note failures from triggering error toast
+            if (newAppointment?.id && userId) {
+              try {
+                await supabase.from('appointment_notes').insert({
+                  appointment_id: newAppointment.id,
+                  note_text: `Reserved time block created by ${userName || 'Portal User'}. Reason: ${reason || 'Not specified'}. Calendar: ${calendarName}. Time: ${range.startTime} - ${range.endTime}.`,
+                  created_by: userId,
+                });
+                console.log('[ReserveTimeBlock] Audit note created successfully');
+              } catch (noteError) {
+                console.warn('[ReserveTimeBlock] Audit note failed (non-critical):', noteError);
+                // Don't fail the reservation if just the note fails
+              }
+            }
           } catch (error) {
             console.error(`[ReserveTimeBlock] Failed to create block on ${calendarName}:`, error);
             if (!failedCalendars.includes(calendarName)) {
