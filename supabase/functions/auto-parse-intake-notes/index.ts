@@ -263,6 +263,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       medications: null as string | null, 
       allergies: null as string | null, 
       pcp_name: null as string | null,
+      pcp_phone: null as string | null,
       urologist_name: null as string | null,
       urologist_phone: null as string | null,
       imaging_details: null as string | null,
@@ -414,8 +415,33 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.medical_info.medications = value;
     } else if (key.includes('allerg')) {
       result.medical_info.allergies = value;
-    } else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician')) {
-      result.medical_info.pcp_name = value;
+    } else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician') || key.includes('primary care')) {
+      // PCP/Primary Care fields - extract name and phone from combined values like "Jones 214-555-5555"
+      const value_str = String(value);
+      
+      // Try to extract phone number (XXX-XXX-XXXX, (XXX) XXX-XXXX, or 10+ digits)
+      const phonePatterns = [
+        /(\d{3}-\d{3}-\d{4})/,           // 214-555-5555
+        /(\(\d{3}\)\s*\d{3}-\d{4})/,     // (214) 555-5555
+        /(\d{10,})/                       // 2145555555
+      ];
+      
+      let phoneMatch = null;
+      for (const pattern of phonePatterns) {
+        phoneMatch = value_str.match(pattern);
+        if (phoneMatch) break;
+      }
+      
+      if (phoneMatch) {
+        const phone = phoneMatch[1];
+        const name = value_str.replace(phone, '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim();
+        result.medical_info.pcp_name = name || value_str;
+        result.medical_info.pcp_phone = phone;
+        console.log(`[AUTO-PARSE GHL] Extracted PCP from "${key}": name="${result.medical_info.pcp_name}", phone="${phone}"`);
+      } else {
+        result.medical_info.pcp_name = value_str;
+        console.log(`[AUTO-PARSE GHL] Extracted PCP name from "${key}": "${value_str}" (no phone found)`);
+      }
     }
     // Urologist fields
     else if (key.includes('urologist')) {
