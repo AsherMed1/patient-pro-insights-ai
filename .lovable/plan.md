@@ -1,104 +1,48 @@
 
-# Plan: Always Extract Imaging Details via Regex (Post-AI Enrichment)
 
-## Problem Summary
+# Plan: Remove Duplicate Imaging Details Display
 
-The `had_imaging_before: YES LAST JANUARY AT CLINIC 123` data is correctly captured in `patient_intake_notes`, but the OpenAI parser didn't extract it into `parsed_medical_info.imaging_details`. The fallback regex parser would have caught this, but it only runs when OpenAI fails completely (rate limit, etc.).
+## Problem
 
-**Current behavior:**
-- OpenAI runs and returns partial data (misses `imaging_details`)
-- Fallback regex only runs on OpenAI failure
-- Critical field `imaging_details` remains null
+The `imaging_details` field is currently displayed in TWO cards:
+1. **Medical Information** (amber card) - Line 767-772 as "Had Imaging Before"
+2. **Medical & PCP Information** (teal card) - Line 962-967 as "Imaging Details"
 
-**Desired behavior:**
-- OpenAI runs first
-- Regex enrichment runs AFTER to fill any gaps for critical fields
-- Imaging details always captured when present in intake notes
+This creates confusing redundancy as seen in the screenshot.
 
 ---
 
 ## Solution
 
-Add a post-AI regex enrichment step that specifically extracts `imaging_details` (and other critical fields) even when AI parsing succeeds. This ensures no data is lost due to AI parsing gaps.
+Remove the duplicate from the **Medical & PCP Information** card (teal) and keep it only in the **Medical Information** card (amber) where it logically belongs with other pathology/imaging data.
 
-### File: `supabase/functions/auto-parse-intake-notes/index.ts`
+### File: `src/components/appointments/ParsedIntakeInfo.tsx`
 
-**Add after the OpenAI parsing block (around line 1175):**
+**Remove lines 962-967:**
 
-```typescript
-// Post-AI enrichment: Always run regex extraction for critical fields
-// This catches anything the AI parser might have missed
-function enrichWithCriticalFields(parsedData: any, intakeNotes: string) {
-  if (!intakeNotes) return parsedData;
-  
-  // Ensure medical_info exists
-  if (!parsedData.medical_info) {
-    parsedData.medical_info = {};
-  }
-  
-  // Extract imaging details if not already populated
-  if (!parsedData.medical_info.imaging_details) {
-    const imagingPatterns = [
-      /had_imaging_before:\s*([^\n|]+)/i,
-      /have you had.*?imaging.*?:\s*([^\n|]+)/i,
-      /had imaging before:\s*([^\n|]+)/i,
-      /previous imaging:\s*([^\n|]+)/i
-    ];
-    
-    for (const pattern of imagingPatterns) {
-      const match = intakeNotes.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        parsedData.medical_info.imaging_details = value;
-        console.log(`[AUTO-PARSE] Enriched imaging_details via regex: ${value}`);
-        break;
-      }
-    }
-  }
-  
-  return parsedData;
-}
+```tsx
+// DELETE this block from Medical & PCP Information section:
+{formatValue(parsedMedicalInfo?.imaging_details) && (
+  <div className="text-sm">
+    <span className="text-muted-foreground">Imaging Details:</span>{" "}
+    <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
+  </div>
+)}
 ```
 
-**Then call it after AI/GHL merging (around line 1201):**
+---
 
-```typescript
-// After GHL merge...
-parsedData = enrichWithCriticalFields(parsedData, record.patient_intake_notes);
-```
+## Result
+
+After the change:
+- **Medical Information card** → Will show "Had Imaging Before: YES LAST JANUARY AT CLINIC XYZ"
+- **Medical & PCP Information card** → Will show only PCP Name, Phone, Address, Urologist (if applicable), X-ray Details, Medications, and Allergies
 
 ---
 
 ## Technical Details
 
-### Changes Summary
+| File | Change |
+|------|--------|
+| `src/components/appointments/ParsedIntakeInfo.tsx` | Remove lines 962-967 (imaging_details in Medical & PCP card) |
 
-| Location | Change |
-|----------|--------|
-| Lines ~520-550 | Add `enrichWithCriticalFields()` function |
-| Line ~1201 | Call enrichment function after AI/GHL merge |
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/auto-parse-intake-notes/index.ts` | Add post-AI regex enrichment for critical fields |
-
----
-
-## Benefits
-
-1. **Reliability** - Critical fields like `imaging_details` are always extracted when present
-2. **AI Fallback** - Catches gaps in OpenAI parsing without replacing it
-3. **No Breaking Changes** - AI parsing still takes priority; regex only fills gaps
-4. **Immediate Fix** - After deploy, trigger reparse on affected records
-
----
-
-## Verification
-
-After implementation:
-1. Deploy the updated edge function
-2. Trigger reparse for `2DONOTCONTACT 2TESTLEAD` record
-3. Verify `parsed_medical_info.imaging_details` = "YES LAST JANUARY AT CLINIC 123"
-4. Confirm it displays in the Medical & PCP Information card in the UI
