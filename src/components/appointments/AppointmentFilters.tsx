@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown, ChevronDown, Activity } from 'lucide-react';
-import { format, subDays, startOfWeek, startOfMonth } from 'date-fns';
+import { format, subDays, startOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
@@ -188,7 +188,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       case 'month':
         onDateRangeChange({
           from: startOfMonth(today),
-          to: today
+          to: endOfMonth(today)
         });
         break;
     }
