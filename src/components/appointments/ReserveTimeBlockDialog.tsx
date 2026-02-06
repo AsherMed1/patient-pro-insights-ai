@@ -485,7 +485,10 @@ export function ReserveTimeBlockDialog({
         });
 
         onOpenChange(false);
-        onSuccess?.();
+        // Small delay to ensure database transaction is committed and visible before refetch
+        setTimeout(() => {
+          onSuccess?.();
+        }, 500);
       } else {
         throw new Error(`Failed to create blocks on all calendars: ${failedCalendars.join(', ')}`);
       }
