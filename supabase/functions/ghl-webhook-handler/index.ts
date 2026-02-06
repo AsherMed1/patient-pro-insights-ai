@@ -372,8 +372,8 @@ function extractStandardEventFormat(payload: any) {
     }
   }
   
-  // Format patient intake notes from contact custom fields
-  const patientIntakeNotes = formatCustomFieldsToNotes(contact.customFields || apt.customFields || [])
+  // Format patient intake notes from contact custom fields (check root-level payload.customFields too)
+  const patientIntakeNotes = formatCustomFieldsToNotes(contact.customFields || apt.customFields || payload.customFields || [])
   
   // Extract project name - prioritize location name (sub-account) over calendar name
   const calendarName = apt.calendarName || apt.calendar?.name || 'Unknown'
@@ -395,7 +395,7 @@ function extractStandardEventFormat(payload: any) {
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
     calendar_name: calendarName,
     project_name: projectName,
-    insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields),
+    insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
   }
 }
 
