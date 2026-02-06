@@ -1,121 +1,107 @@
 
 
-# Plan: Fix Phone Number Display in Appointment Cards
+# Plan: Fix PCP and Imaging Data Extraction for Liberty Joint & Vascular
 
-## Problem
+## Problem Summary
 
-The patient's phone number is not displaying in the main appointment card view (list view), but appears correctly when clicking "View Details". The database confirms the phone number exists (`(210) 216-2406` for Theresa Haschke), but it's not being rendered in the card.
+For "Dr. Rachel TEST" in Liberty Joint & Vascular, the user entered PCP (Primary Care Doctor) and imaging information on the GHL insurance link, but this data is not displaying in the Patient Pro Insights portal. Investigation confirms:
+
+1. **GHL data was captured** - The raw `patient_intake_notes` contains:
+   - `Primary Care Doctor's Name and Phone: Jones 214-555-5555`
+   - `Had Imaging Before?: Yes at homie xray`
+
+2. **Data not extracted** - The `parsed_medical_info` shows null for `pcp_name`, `pcp_phone`, and `imaging_details`
+
+3. **Root causes identified**:
+   - PCP field extraction only stores `pcp_name` but doesn't parse the phone from combined values
+   - The record's `parsing_completed_at` is null, meaning auto-parse hasn't processed the updated notes
+
+---
 
 ## Root Cause Analysis
 
-Comparing the two components:
+### Issue 1: PCP Parsing Does Not Extract Phone
 
-**AppointmentCard.tsx (main view):**
-```tsx
-// Line 1218 - Phone is CONDITIONALLY rendered
-{(appointment.lead_phone_number || isEditingPhone) && (
-  // ... phone display
-)}
+The GHL field `Primary Care Doctor's Name and Phone` contains a combined value: `Jones 214-555-5555`
+
+Current code (line 417-418):
+```typescript
+else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician')) {
+  result.medical_info.pcp_name = value; // Stores entire value without parsing phone
+}
 ```
 
-**DetailedAppointmentView.tsx (modal):**
-```tsx
-// Line 419 - Phone uses fallback logic
-{(appointment.lead_phone_number || leadDetails?.phone_number) && (
-  // ... phone display with leadDetails fallback
-)}
-```
+The urologist extraction (lines 421-432) already has logic to parse combined name+phone values, but PCP does not.
 
-The main card view only shows the phone if `lead_phone_number` is directly available on the appointment object. If there's any delay in data loading or if the phone comes from a different source (like `parsed_contact_info`), it won't display.
+### Issue 2: Auto-Parse Not Re-Triggered
 
-Additionally, email always shows with a dash fallback:
-```tsx
-<span className="text-sm text-gray-600 break-all">{appointment.lead_email || '—'}</span>
-```
+When `fetch-ghl-contact-data` appends new GHL data to `patient_intake_notes`, it updates the record but does not:
+- Reset `parsing_completed_at` to null (to trigger re-parsing)
+- Directly trigger the auto-parse function
 
-But phone doesn't have this consistent behavior.
+The record shows `parsing_completed_at: null`, indicating parsing is pending, but the auto-parse batch process may not have run recently.
 
 ---
 
 ## Solution
 
-Update `AppointmentCard.tsx` to:
+### Part 1: Enhance PCP Field Extraction
 
-1. Always display the phone field (like email) instead of conditionally hiding it
-2. Add fallback logic to check multiple sources for phone number:
-   - `appointment.lead_phone_number`
-   - `appointment.parsed_contact_info?.phone`
-3. Show a dash ("—") when no phone is available (matching email behavior)
+Update `auto-parse-intake-notes/index.ts` to parse combined PCP name+phone values similar to urologist handling.
+
+**Changes to lines 417-419:**
+
+```typescript
+else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician') || 
+         key.includes('primary care')) {
+  // Try to extract name and phone from combined value like "Jones 214-555-5555"
+  const value_str = String(value);
+  
+  // Pattern: Look for phone number (XXX-XXX-XXXX, (XXX) XXX-XXXX, or 10 digits)
+  const phonePatterns = [
+    /(\d{3}-\d{3}-\d{4})/,           // 214-555-5555
+    /(\(\d{3}\)\s*\d{3}-\d{4})/,     // (214) 555-5555
+    /(\d{10,})/                       // 2145555555
+  ];
+  
+  let phoneMatch = null;
+  for (const pattern of phonePatterns) {
+    phoneMatch = value_str.match(pattern);
+    if (phoneMatch) break;
+  }
+  
+  if (phoneMatch) {
+    const phone = phoneMatch[1];
+    const name = value_str.replace(phone, '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim();
+    result.medical_info.pcp_name = name || value_str;
+    result.medical_info.pcp_phone = phone;
+  } else {
+    result.medical_info.pcp_name = value_str;
+  }
+}
+```
+
+### Part 2: Ensure Imaging Details Are Captured
+
+The current imaging logic (lines 434-458) should capture `Had Imaging Before?: Yes at homie xray` and store it in `imaging_details`. Verify this works by adding a log statement.
+
+### Part 3: Add "primary care" Keyword Match
+
+The field name `Primary Care Doctor's Name and Phone` would be better matched with `primary care` in addition to `doctor`.
 
 ---
 
 ## Technical Changes
 
-### File: `src/components/appointments/AppointmentCard.tsx`
+### File: `supabase/functions/auto-parse-intake-notes/index.ts`
 
-**1. Add a computed phone number variable with fallback logic:**
+**1. Enhance PCP extraction (replace lines 417-419):**
 
-Near the existing `dobDisplay` computed variable (around line 108), add:
+Add phone parsing logic similar to urologist handling, and add `primary care` keyword.
 
-```tsx
-// Prefer lead_phone_number, fallback to parsed_contact_info phone
-const phoneDisplay = appointment.lead_phone_number || 
-                     (appointment as any).parsed_contact_info?.phone || 
-                     null;
-```
+**2. Add logging for imaging fields (around line 458):**
 
-**2. Update the phone rendering section (lines 1218-1274):**
-
-Change from conditionally rendering to always rendering (like email):
-
-Before:
-```tsx
-{(appointment.lead_phone_number || isEditingPhone) && (
-  <TooltipProvider>
-    ...
-  </TooltipProvider>
-)}
-```
-
-After:
-```tsx
-<TooltipProvider>
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <div className="flex items-center space-x-2">
-        <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
-        {isEditingPhone && onUpdatePhone ? (
-          <Input ... />
-        ) : (
-          <>
-            <span className="text-sm text-gray-600">
-              {phoneDisplay || '—'}
-            </span>
-            {onUpdatePhone && (
-              <Button ... />
-            )}
-          </>
-        )}
-      </div>
-    </TooltipTrigger>
-    <TooltipContent>
-      <p>Phone Number</p>
-    </TooltipContent>
-  </Tooltip>
-</TooltipProvider>
-```
-
-**3. Update the editing state initialization (line 120):**
-
-```tsx
-const [editingPhone, setEditingPhone] = useState(phoneDisplay || '');
-```
-
-**4. Update the useEffect sync (line 376):**
-
-```tsx
-setEditingPhone(phoneDisplay || '');
-```
+Add a console.log when imaging fields are matched to verify extraction.
 
 ---
 
@@ -123,14 +109,29 @@ setEditingPhone(phoneDisplay || '');
 
 | File | Changes |
 |------|---------|
-| `src/components/appointments/AppointmentCard.tsx` | Add `phoneDisplay` variable with fallback logic, always render phone field like email |
+| `supabase/functions/auto-parse-intake-notes/index.ts` | Add PCP phone parsing logic, add `primary care` keyword match, add imaging logging |
+
+---
+
+## Testing After Implementation
+
+1. Re-trigger parsing for Dr. Rachel TEST:
+   - Call `auto-parse-intake-notes` edge function
+   - Or manually reset `parsing_completed_at` to null and wait for batch
+
+2. Verify `parsed_medical_info` contains:
+   - `pcp_name: "Jones"`
+   - `pcp_phone: "214-555-5555"` 
+   - `imaging_details: "Yes at homie xray"`
+
+3. Confirm Patient Pro Insights portal displays PCP and imaging information
 
 ---
 
 ## Summary
 
-This fix ensures phone numbers are always visible in the appointment card view by:
-1. Adding fallback logic to check multiple data sources for the phone number
-2. Always displaying the phone field (with dash fallback when empty) for consistency with email
-3. Using a computed `phoneDisplay` variable to centralize the fallback logic
+The fix involves enhancing the GHL field extraction logic to:
+1. Parse combined PCP name+phone values (like urologist already does)
+2. Add `primary care` as a keyword for PCP field matching
+3. Deploy the updated function and re-parse affected records
 
