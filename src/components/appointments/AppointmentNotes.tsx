@@ -7,6 +7,7 @@ import { Plus, MessageSquare, Clock, User } from 'lucide-react';
 import { useAppointmentNotes } from '@/hooks/useAppointmentNotes';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { formatDistanceToNow } from 'date-fns';
+import { formatEmbeddedTimestamps } from '@/utils/dateTimeUtils';
 
 interface AppointmentNotesProps {
   appointmentId: string;
@@ -135,7 +136,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName }: AppointmentN
                     <p className={`text-sm whitespace-pre-wrap ${
                       isSystemNote ? "text-blue-800 font-medium" : "text-gray-800"
                     }`}>
-                      {note.note_text}
+                      {formatEmbeddedTimestamps(note.note_text)}
                     </p>
                   </div>
                 </CardContent>

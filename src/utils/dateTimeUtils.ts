@@ -97,3 +97,32 @@ export const toCentralTime = (date: string | Date) => {
     return null;
   }
 };
+
+/**
+ * Replace [[timestamp:ISO]] markers with formatted local time for the viewer.
+ * This allows notes to store UTC timestamps but display them in each user's local timezone.
+ */
+export const formatEmbeddedTimestamps = (text: string): string => {
+  if (!text) return text;
+  
+  // Pattern matches [[timestamp:2026-02-04T22:01:00.000Z]]
+  const pattern = /\[\[timestamp:([^\]]+)\]\]/g;
+  
+  return text.replace(pattern, (match, isoString) => {
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return match;
+      
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return match; // Return original if parsing fails
+    }
+  });
+};
