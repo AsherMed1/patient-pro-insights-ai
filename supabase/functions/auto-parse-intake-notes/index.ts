@@ -466,10 +466,15 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       
       // Check if this is the "Have you had a knee X-ray or MRI or CT?" field from GAE STEP
       if (lowerKey.includes('have you had') && (lowerKey.includes('x-ray') || lowerKey.includes('mri') || lowerKey.includes('ct'))) {
-        // If value has details beyond YES/NO, store as imaging_details  
-        const lowerValue = valueStr.toLowerCase().trim();
-        if (lowerValue !== 'yes' && lowerValue !== 'no' && !lowerValue.startsWith('☑️')) {
+        // Handle checkbox format "☑️ YES" or plain "YES"/"NO"
+        const cleanValue = valueStr.replace(/^☑️\s*/, '').trim();
+        
+        // If value has details beyond YES/NO, store as imaging_details
+        if (cleanValue.toLowerCase() !== 'yes' && cleanValue.toLowerCase() !== 'no') {
           result.medical_info.imaging_details = valueStr;
+        } else if (cleanValue.toLowerCase() === 'yes' && !result.medical_info.imaging_details) {
+          // For simple YES answers, store a descriptive placeholder
+          result.medical_info.imaging_details = 'Patient has had previous imaging';
         }
         console.log(`[AUTO-PARSE GHL] Found imaging STEP field "${key}": ${valueStr}`);
       } else if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {

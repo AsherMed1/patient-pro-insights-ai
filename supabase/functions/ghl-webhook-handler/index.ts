@@ -479,7 +479,7 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
       key.includes('concern') || key.includes('complaint') || key.includes('reason')
     ) {
       sections.pathology.push(`${field.key}: ${value}`)
-    } else if (key.includes('medication') || key.includes('allergy') || key.includes('pcp') || key.includes('doctor')) {
+    } else if (key.includes('medication') || key.includes('allergy') || key.includes('pcp') || key.includes('doctor') || key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || key.includes('mri') || key.includes('ct scan')) {
       sections.medical.push(`${field.key}: ${value}`)
     } else {
       sections.contact.push(`${field.key}: ${value}`)
