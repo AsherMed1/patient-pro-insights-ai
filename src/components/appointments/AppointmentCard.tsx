@@ -107,6 +107,11 @@ const AppointmentCard = ({
   // Prefer top-level dob from API, fallback to parsed fields or associated lead
   const dobDisplay = appointment.dob || (appointment as any).parsed_contact_info?.dob || (appointment as any).parsed_demographics?.dob || leadDOB || null;
   
+  // Prefer lead_phone_number, fallback to parsed_contact_info phone
+  const phoneDisplay = appointment.lead_phone_number || 
+                       (appointment as any).parsed_contact_info?.phone || 
+                       null;
+  
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
   const [timeValue, setTimeValue] = useState<string>(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
   const [selectedDOB, setSelectedDOB] = useState<Date | undefined>(dobDisplay ? new Date(dobDisplay) : undefined);
@@ -117,7 +122,7 @@ const AppointmentCard = ({
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [editingEmail, setEditingEmail] = useState(appointment.lead_email || '');
   const [isEditingPhone, setIsEditingPhone] = useState(false);
-  const [editingPhone, setEditingPhone] = useState(appointment.lead_phone_number || '');
+  const [editingPhone, setEditingPhone] = useState(phoneDisplay || '');
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState(appointment.calendar_name || '');
   
@@ -373,7 +378,7 @@ const AppointmentCard = ({
     setSelectedDOB(dobDisplay ? new Date(dobDisplay) : undefined);
     setEditingName(appointment.lead_name);
     setEditingEmail(appointment.lead_email || '');
-    setEditingPhone(appointment.lead_phone_number || '');
+    setEditingPhone(phoneDisplay || '');
     setEditingLocation(appointment.calendar_name || '');
   }, [appointment.date_of_appointment, appointment.requested_time, dobDisplay, appointment.lead_name, appointment.lead_email, appointment.lead_phone_number, appointment.calendar_name]);
 
@@ -1215,63 +1220,61 @@ const AppointmentCard = ({
             </Tooltip>
           </TooltipProvider>
           
-          {(appointment.lead_phone_number || isEditingPhone) && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center space-x-2">
-                    <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    {isEditingPhone && onUpdatePhone ? (
-                      <Input
-                        type="tel"
-                        value={editingPhone}
-                        onChange={(e) => setEditingPhone(e.target.value)}
-                        onBlur={() => {
+<TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2">
+                  <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  {isEditingPhone && onUpdatePhone ? (
+                    <Input
+                      type="tel"
+                      value={editingPhone}
+                      onChange={(e) => setEditingPhone(e.target.value)}
+                      onBlur={() => {
+                        setIsEditingPhone(false);
+                        if (editingPhone !== phoneDisplay) {
+                          onUpdatePhone(appointment.id, editingPhone);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
                           setIsEditingPhone(false);
-                          if (editingPhone !== appointment.lead_phone_number) {
+                          if (editingPhone !== phoneDisplay) {
                             onUpdatePhone(appointment.id, editingPhone);
                           }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            setIsEditingPhone(false);
-                            if (editingPhone !== appointment.lead_phone_number) {
-                              onUpdatePhone(appointment.id, editingPhone);
-                            }
-                          }
-                          if (e.key === 'Escape') {
-                            setIsEditingPhone(false);
-                            setEditingPhone(appointment.lead_phone_number || '');
-                          }
-                        }}
-                        className="text-sm flex-1"
-                        autoFocus
-                        placeholder="Enter phone number"
-                      />
-                    ) : (
-                      <>
-                        <span className="text-sm text-gray-600">{appointment.lead_phone_number}</span>
-                        {onUpdatePhone && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setIsEditingPhone(true)}
-                            aria-label="Edit phone"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Phone Number</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+                        }
+                        if (e.key === 'Escape') {
+                          setIsEditingPhone(false);
+                          setEditingPhone(phoneDisplay || '');
+                        }
+                      }}
+                      className="text-sm flex-1"
+                      autoFocus
+                      placeholder="Enter phone number"
+                    />
+                  ) : (
+                    <>
+                      <span className="text-sm text-gray-600">{phoneDisplay || '—'}</span>
+                      {onUpdatePhone && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setIsEditingPhone(true)}
+                          aria-label="Edit phone"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Phone Number</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           {/* Date Info - More compact on mobile */}
           <div className="space-y-1">
