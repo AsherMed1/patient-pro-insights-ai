@@ -211,6 +211,271 @@ function extractUrologistFromText(text: string | null): { name: string | null, p
   return { name: null, phone: null };
 }
 
+// Fallback regex parser for when OpenAI is unavailable (rate limited, etc.)
+function fallbackRegexParsing(intakeNotes: string): any {
+  console.log('[AUTO-PARSE FALLBACK] Using regex-based fallback parsing...');
+  
+  const result = {
+    insurance_info: {
+      insurance_provider: null as string | null,
+      insurance_plan: null as string | null,
+      insurance_id_number: null as string | null,
+      insurance_group_number: null as string | null,
+      insurance_notes: null as string | null
+    },
+    contact_info: {
+      name: null as string | null,
+      email: null as string | null,
+      phone: null as string | null,
+      address: null as string | null,
+      dob: null as string | null
+    },
+    demographics: {
+      age: null as string | null,
+      gender: null as string | null,
+      dob: null as string | null
+    },
+    pathology_info: {
+      procedure_type: null as string | null,
+      primary_complaint: null as string | null,
+      symptoms: null as string | null,
+      pain_level: null as string | null,
+      affected_area: null as string | null,
+      affected_knee: null as string | null,
+      duration: null as string | null,
+      previous_treatments: null as string | null,
+      oa_tkr_diagnosed: null as string | null,
+      imaging_done: null as string | null
+    },
+    medical_info: {
+      pcp_name: null as string | null,
+      pcp_phone: null as string | null,
+      imaging_details: null as string | null,
+      xray_details: null as string | null,
+      medications: null as string | null,
+      allergies: null as string | null
+    }
+  };
+
+  if (!intakeNotes) return result;
+
+  // Extract imaging details (critical field)
+  const imagingPatterns = [
+    /had_imaging_before:\s*([^\n|]+)/i,
+    /have you had.*?imaging.*?:\s*([^\n|]+)/i,
+    /imaging_done:\s*([^\n|]+)/i,
+    /imaging before:\s*([^\n|]+)/i,
+    /previous imaging:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of imagingPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      const value = match[1].trim();
+      result.medical_info.imaging_details = value;
+      // Also set imaging_done flag
+      const lowerValue = value.toLowerCase();
+      if (lowerValue.startsWith('yes') || lowerValue.includes('☑️ yes')) {
+        result.pathology_info.imaging_done = 'YES';
+      } else if (lowerValue.startsWith('no') || lowerValue.includes('☐ no')) {
+        result.pathology_info.imaging_done = 'NO';
+      }
+      console.log(`[AUTO-PARSE FALLBACK] Extracted imaging_details: ${value}`);
+      break;
+    }
+  }
+
+  // Extract insurance provider
+  const insuranceProviderPatterns = [
+    /Please select your insurance provider:\s*([^\n|]+)/i,
+    /insurance provider:\s*([^\n|]+)/i,
+    /insurance:\s*([^\n|]+)/i,
+    /Plan:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of insuranceProviderPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.insurance_info.insurance_provider = match[1].trim();
+      result.insurance_info.insurance_plan = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract Group Number
+  const groupPatterns = [
+    /Group #:\s*([^\n|]+)/i,
+    /group number:\s*([^\n|]+)/i,
+    /group:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of groupPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.insurance_info.insurance_group_number = match[1].trim();
+      result.insurance_info.insurance_id_number = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted group_number: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract DOB
+  const dobPatterns = [
+    /Date of Birth:\s*([^\n|]+)/i,
+    /DOB:\s*([^\n|]+)/i,
+    /dob:\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
+    /birthdate:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of dobPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.contact_info.dob = match[1].trim();
+      result.demographics.dob = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted dob: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract Name
+  const namePatterns = [
+    /Name:\s*([^\n|]+)/i,
+    /Patient Name:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of namePatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.contact_info.name = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted name: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract Phone
+  const phonePatterns = [
+    /Phone:\s*([^\n|]+)/i,
+    /phone number:\s*([^\n|]+)/i,
+    /contact.*?phone:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of phonePatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.contact_info.phone = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted phone: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract Email
+  const emailMatch = intakeNotes.match(/Email:\s*([^\n|]+)/i) || intakeNotes.match(/[\w.-]+@[\w.-]+\.\w+/);
+  if (emailMatch) {
+    result.contact_info.email = emailMatch[1]?.trim() || emailMatch[0];
+    console.log(`[AUTO-PARSE FALLBACK] Extracted email: ${result.contact_info.email}`);
+  }
+
+  // Extract Address
+  const addressPatterns = [
+    /Address:\s*([^\n|]+)/i,
+    /Street Address:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of addressPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.contact_info.address = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted address: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract PCP
+  const pcpPatterns = [
+    /Primary Care.*?:\s*([^\n|]+)/i,
+    /PCP.*?:\s*([^\n|]+)/i,
+    /physician.*?:\s*([^\n|]+)/i
+  ];
+  
+  for (const pattern of pcpPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      const value = match[1].trim();
+      // Try to extract phone from combined string
+      const phoneMatch = value.match(/(\d{3}[.-]?\d{3}[.-]?\d{4})/);
+      if (phoneMatch) {
+        result.medical_info.pcp_phone = phoneMatch[1];
+        result.medical_info.pcp_name = value.replace(phoneMatch[1], '').trim();
+      } else {
+        result.medical_info.pcp_name = value;
+      }
+      console.log(`[AUTO-PARSE FALLBACK] Extracted PCP: ${value}`);
+      break;
+    }
+  }
+
+  // Extract Pain Level
+  const painPatterns = [
+    /Pain Level:\s*(\d+)/i,
+    /pain.*?:\s*(\d+)/i,
+    /pain_level:\s*(\d+)/i
+  ];
+  
+  for (const pattern of painPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.pathology_info.pain_level = match[1];
+      console.log(`[AUTO-PARSE FALLBACK] Extracted pain_level: ${match[1]}`);
+      break;
+    }
+  }
+
+  // Extract Duration
+  const durationPatterns = [
+    /Duration:\s*([^\n|]+)/i,
+    /how long.*?:\s*([^\n|]+)/i,
+    /Over \d+ year/i
+  ];
+  
+  for (const pattern of durationPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match) {
+      result.pathology_info.duration = match[1]?.trim() || match[0];
+      console.log(`[AUTO-PARSE FALLBACK] Extracted duration: ${result.pathology_info.duration}`);
+      break;
+    }
+  }
+
+  // Extract Symptoms
+  const symptomsPatterns = [
+    /Symptoms:\s*([^\n]+)/i,
+    /symptoms.*?:\s*([^\n]+)/i
+  ];
+  
+  for (const pattern of symptomsPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.pathology_info.symptoms = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted symptoms: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Detect procedure type from keywords
+  const upperNotes = intakeNotes.toUpperCase();
+  if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
+    result.pathology_info.procedure_type = 'GAE';
+  } else if (upperNotes.includes('UFE') || upperNotes.includes('FIBROID')) {
+    result.pathology_info.procedure_type = 'UFE';
+  } else if (upperNotes.includes('PAE') || upperNotes.includes('PROSTATE')) {
+    result.pathology_info.procedure_type = 'PAE';
+  }
+
+  console.log('[AUTO-PARSE FALLBACK] Regex parsing complete');
+  return result;
+}
+
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
@@ -864,27 +1129,49 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           }),
         });
 
+        let parsedData;
+        let usedFallback = false;
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`[AUTO-PARSE] OpenAI API error for ${recordIdentifier}:`, response.status, errorText);
-          throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+          
+          // Check for rate limit error (429) - use fallback regex parsing
+          if (response.status === 429) {
+            console.log(`[AUTO-PARSE] OpenAI rate limited (429), using regex fallback for ${recordIdentifier}`);
+            parsedData = fallbackRegexParsing(record.patient_intake_notes);
+            usedFallback = true;
+          } else {
+            throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+          }
         }
+        
+        if (!usedFallback) {
+          const aiResponse = await response.json();
+          const parsedContent = aiResponse.choices[0]?.message?.content;
 
-        const aiResponse = await response.json();
-        const parsedContent = aiResponse.choices[0]?.message?.content;
-
-        if (!parsedContent) {
-          console.error(`[AUTO-PARSE] No content returned for ${recordIdentifier}`);
-          throw new Error("No content returned from AI");
+          if (!parsedContent) {
+            console.error(`[AUTO-PARSE] No content returned for ${recordIdentifier}`);
+            // Fall back to regex parsing instead of throwing
+            console.log(`[AUTO-PARSE] Using regex fallback due to empty AI response for ${recordIdentifier}`);
+            parsedData = fallbackRegexParsing(record.patient_intake_notes);
+            usedFallback = true;
+          } else {
+            // Parse the JSON response
+            try {
+              parsedData = JSON.parse(parsedContent);
+            } catch (parseError) {
+              console.error(`[AUTO-PARSE] Failed to parse AI response for ${recordIdentifier}:`, parsedContent);
+              // Fall back to regex parsing instead of throwing
+              console.log(`[AUTO-PARSE] Using regex fallback due to invalid JSON for ${recordIdentifier}`);
+              parsedData = fallbackRegexParsing(record.patient_intake_notes);
+              usedFallback = true;
+            }
+          }
         }
-
-        // Parse the JSON response
-        let parsedData;
-        try {
-          parsedData = JSON.parse(parsedContent);
-        } catch (parseError) {
-          console.error(`[AUTO-PARSE] Failed to parse AI response for ${recordIdentifier}:`, parsedContent);
-          throw new Error(`Invalid JSON returned from AI: ${parseError.message}`);
+        
+        if (usedFallback) {
+          console.log(`[AUTO-PARSE] ✓ Fallback parsing completed for ${recordIdentifier}`);
         }
 
         // Merge GHL-fetched data with AI-parsed data
