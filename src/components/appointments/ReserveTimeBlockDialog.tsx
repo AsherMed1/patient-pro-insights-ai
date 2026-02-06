@@ -371,7 +371,9 @@ export function ReserveTimeBlockDialog({
               title,
             });
 
-            // Create appointment in GHL
+            // Create appointment in GHL + local record in one atomic operation
+            // Edge function handles: GHL block creation, local DB insert, audit note
+            // If local insert fails, edge function rolls back the GHL block
             const { data: ghlResult, error: ghlError } = await supabase.functions.invoke(
               'create-ghl-appointment',
               {
@@ -382,65 +384,37 @@ export function ReserveTimeBlockDialog({
                   end_time: endTimeForGhl,
                   title,
                   reason,
+                  // Pass additional params for local record creation
+                  calendar_name: calendarName,
+                  user_name: userName || 'Portal User',
+                  user_id: userId,
+                  create_local_record: true,
                 },
               }
             );
 
             if (ghlError || !ghlResult?.success) {
-              throw new Error(ghlResult?.error || ghlError?.message || 'Failed to create GHL appointment');
-            }
-
-            // Create local record in all_appointments
-            const { data: newAppointment, error: insertError } = await supabase
-              .from('all_appointments')
-              .insert({
-                project_name: projectName,
-                lead_name: title,
-                date_of_appointment: formatInTimeZone(startUtc, tz, 'yyyy-MM-dd'),
-                requested_time: formatInTimeZone(startUtc, tz, 'HH:mm'),
-                reserved_end_time: formatInTimeZone(endUtc, tz, 'HH:mm'),
-                calendar_name: calendarName,
-                status: 'Confirmed',
-                is_reserved_block: true,
-                internal_process_complete: true, // Mark complete so it doesn't appear in "New" tab
-                ghl_appointment_id: ghlResult.ghl_appointment_id,
-                ghl_location_id: ghlLocationId,
-                date_appointment_created: format(new Date(), 'yyyy-MM-dd'),
-                patient_intake_notes: `Time block reserved by ${userName || 'Portal User'} on ${format(new Date(), 'PPP')}\nReason: ${reason || 'Not specified'}\nCalendar: ${calendarName}\nTime: ${range.startTime} - ${range.endTime}`,
-              })
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('[ReserveTimeBlock] Failed to create local record:', insertError);
-              throw new Error(`Block created in GHL but failed to save locally: ${insertError.message}`);
+              const errorMsg = ghlResult?.error || ghlError?.message || 'Failed to create reservation';
+              console.error('[ReserveTimeBlock] Edge function failed:', errorMsg);
+              throw new Error(errorMsg);
             }
 
             console.log('[ReserveTimeBlock] Successfully created reservation:', {
-              appointmentId: newAppointment?.id,
+              localAppointmentId: ghlResult.local_appointment_id,
+              ghlAppointmentId: ghlResult.ghl_appointment_id,
               calendarName,
               range: `${range.startTime} - ${range.endTime}`,
+              ghlSynced: ghlResult.ghl_synced,
+              localSaved: ghlResult.local_saved,
             });
 
-            // Track success IMMEDIATELY after critical operations (GHL + DB insert) succeed
-            // This ensures the reservation is counted as successful before any optional operations
-            allCreatedAppointments.push({ calendarId, calendarName, range, ghlResult });
-
-            // Create audit note if we have an appointment ID (non-blocking)
-            // Wrapped in try/catch to prevent audit note failures from triggering error toast
-            if (newAppointment?.id && userId) {
-              try {
-                await supabase.from('appointment_notes').insert({
-                  appointment_id: newAppointment.id,
-                  note_text: `Reserved time block created by ${userName || 'Portal User'}. Reason: ${reason || 'Not specified'}. Calendar: ${calendarName}. Time: ${range.startTime} - ${range.endTime}.`,
-                  created_by: userId,
-                });
-                console.log('[ReserveTimeBlock] Audit note created successfully');
-              } catch (noteError) {
-                console.warn('[ReserveTimeBlock] Audit note failed (non-critical):', noteError);
-                // Don't fail the reservation if just the note fails
-              }
-            }
+            // Track success - edge function handled everything
+            allCreatedAppointments.push({ 
+              calendarId, 
+              calendarName, 
+              range, 
+              ghlResult,
+            });
           } catch (error) {
             console.error(`[ReserveTimeBlock] Failed to create block on ${calendarName}:`, error);
             if (!failedCalendars.includes(calendarName)) {
