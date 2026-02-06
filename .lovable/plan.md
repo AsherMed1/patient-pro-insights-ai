@@ -1,137 +1,110 @@
 
 
-# Plan: Fix PCP and Imaging Data Extraction for Liberty Joint & Vascular
+# Plan: Fix Calendar Not Updating After Reserved Block Creation
 
 ## Problem Summary
 
-For "Dr. Rachel TEST" in Liberty Joint & Vascular, the user entered PCP (Primary Care Doctor) and imaging information on the GHL insurance link, but this data is not displaying in the Patient Pro Insights portal. Investigation confirms:
+User Susana in Ozark Regional Vein and Artery Center:
+- Created a 4pm block that appears in GoHighLevel (GHL) 
+- Sees an error in the portal ("Failed to Reserve Time")
+- The portal calendar doesn't update to show the block
 
-1. **GHL data was captured** - The raw `patient_intake_notes` contains:
-   - `Primary Care Doctor's Name and Phone: Jones 214-555-5555`
-   - `Had Imaging Before?: Yes at homie xray`
+Investigation reveals:
+1. The 4pm "TEST BLOCK" exists in GHL but NOT in the local database
+2. The edge function was just updated with rollback logic - this block was likely created before that fix
+3. The edge function now works correctly (tested and confirmed)
 
-2. **Data not extracted** - The `parsed_medical_info` shows null for `pcp_name`, `pcp_phone`, and `imaging_details`
+## Root Causes
 
-3. **Root causes identified**:
-   - PCP field extraction only stores `pcp_name` but doesn't parse the phone from combined values
-   - The record's `parsing_completed_at` is null, meaning auto-parse hasn't processed the updated notes
+### Issue 1: Stale Edge Function
 
----
+The user may be running against a stale or cached version of the edge function. When the `create-ghl-appointment` function was updated earlier today, it may not have propagated to all clients immediately.
 
-## Root Cause Analysis
+### Issue 2: Missing Immediate Refetch
 
-### Issue 1: PCP Parsing Does Not Extract Phone
+Currently, when a reservation succeeds:
+1. `onSuccess()` is called, incrementing `calendarRefreshKey`
+2. The `CalendarDetailView` component remounts (via React key change)
+3. The hook refetches data
 
-The GHL field `Primary Care Doctor's Name and Phone` contains a combined value: `Jones 214-555-5555`
+However, this pattern has a potential race condition - if there's any latency between the database commit and the subsequent read, the new record might not appear.
 
-Current code (line 417-418):
-```typescript
-else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician')) {
-  result.medical_info.pcp_name = value; // Stores entire value without parsing phone
-}
-```
+### Issue 3: Orphaned GHL Block
 
-The urologist extraction (lines 421-432) already has logic to parse combined name+phone values, but PCP does not.
-
-### Issue 2: Auto-Parse Not Re-Triggered
-
-When `fetch-ghl-contact-data` appends new GHL data to `patient_intake_notes`, it updates the record but does not:
-- Reset `parsing_completed_at` to null (to trigger re-parsing)
-- Directly trigger the auto-parse function
-
-The record shows `parsing_completed_at: null`, indicating parsing is pending, but the auto-parse batch process may not have run recently.
-
----
+The 4pm block exists in GHL but has no corresponding local record. This indicates either:
+- Rollback failed (unlikely given the DELETE call is simple)
+- Block was created before rollback logic was added
+- The local insert failed after GHL succeeded, but before rollback logic existed
 
 ## Solution
 
-### Part 1: Enhance PCP Field Extraction
+### Part 1: Force Redeploy Edge Function
 
-Update `auto-parse-intake-notes/index.ts` to parse combined PCP name+phone values similar to urologist handling.
+Redeploy the `create-ghl-appointment` edge function to ensure all users get the latest version with:
+- Local record creation using service role key
+- Rollback logic when local insert fails
 
-**Changes to lines 417-419:**
+### Part 2: Add Resilient Refetch After Success
 
+Update `ReserveTimeBlockDialog.tsx` to:
+1. Add a small delay (500ms) before calling `onSuccess()` to allow database propagation
+2. This ensures the calendar refetch sees the newly inserted record
+
+**Current Code:**
 ```typescript
-else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician') || 
-         key.includes('primary care')) {
-  // Try to extract name and phone from combined value like "Jones 214-555-5555"
-  const value_str = String(value);
-  
-  // Pattern: Look for phone number (XXX-XXX-XXXX, (XXX) XXX-XXXX, or 10 digits)
-  const phonePatterns = [
-    /(\d{3}-\d{3}-\d{4})/,           // 214-555-5555
-    /(\(\d{3}\)\s*\d{3}-\d{4})/,     // (214) 555-5555
-    /(\d{10,})/                       // 2145555555
-  ];
-  
-  let phoneMatch = null;
-  for (const pattern of phonePatterns) {
-    phoneMatch = value_str.match(pattern);
-    if (phoneMatch) break;
-  }
-  
-  if (phoneMatch) {
-    const phone = phoneMatch[1];
-    const name = value_str.replace(phone, '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim();
-    result.medical_info.pcp_name = name || value_str;
-    result.medical_info.pcp_phone = phone;
-  } else {
-    result.medical_info.pcp_name = value_str;
-  }
-}
+onOpenChange(false);
+onSuccess?.();
 ```
 
-### Part 2: Ensure Imaging Details Are Captured
+**Updated Code:**
+```typescript
+onOpenChange(false);
+// Small delay to ensure database transaction is committed and visible
+setTimeout(() => {
+  onSuccess?.();
+}, 500);
+```
 
-The current imaging logic (lines 434-458) should capture `Had Imaging Before?: Yes at homie xray` and store it in `imaging_details`. Verify this works by adding a log statement.
+### Part 3: Clean Up Orphaned GHL Block (Manual)
 
-### Part 3: Add "primary care" Keyword Match
+The 4pm "TEST BLOCK" in GHL has no corresponding local record. Options:
+1. Manually delete it from GHL
+2. OR manually insert a matching record in the database
 
-The field name `Primary Care Doctor's Name and Phone` would be better matched with `primary care` in addition to `doctor`.
+## Technical Details
 
----
+### File: `src/components/appointments/ReserveTimeBlockDialog.tsx`
 
-## Technical Changes
+Add a small delay before calling onSuccess to ensure database consistency:
 
-### File: `supabase/functions/auto-parse-intake-notes/index.ts`
+```typescript
+// Around line 487-488
+onOpenChange(false);
+// Allow database transaction to fully propagate before triggering refetch
+setTimeout(() => {
+  onSuccess?.();
+}, 500);
+```
 
-**1. Enhance PCP extraction (replace lines 417-419):**
-
-Add phone parsing logic similar to urologist handling, and add `primary care` keyword.
-
-**2. Add logging for imaging fields (around line 458):**
-
-Add a console.log when imaging fields are matched to verify extraction.
-
----
+This accounts for any eventual consistency delays between write and read.
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/auto-parse-intake-notes/index.ts` | Add PCP phone parsing logic, add `primary care` keyword match, add imaging logging |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | Add 500ms delay before `onSuccess()` call |
 
----
+## Testing
 
-## Testing After Implementation
-
-1. Re-trigger parsing for Dr. Rachel TEST:
-   - Call `auto-parse-intake-notes` edge function
-   - Or manually reset `parsing_completed_at` to null and wait for batch
-
-2. Verify `parsed_medical_info` contains:
-   - `pcp_name: "Jones"`
-   - `pcp_phone: "214-555-5555"` 
-   - `imaging_details: "Yes at homie xray"`
-
-3. Confirm Patient Pro Insights portal displays PCP and imaging information
-
----
+1. Ask Susana to refresh her browser (clears any cached code)
+2. Have her try creating a new reservation (e.g., 5pm)
+3. Verify:
+   - Success toast appears
+   - Block appears in calendar view
+   - Block appears in GHL
+4. For the orphaned 4pm block: either delete from GHL or create matching DB record
 
 ## Summary
 
-The fix involves enhancing the GHL field extraction logic to:
-1. Parse combined PCP name+phone values (like urologist already does)
-2. Add `primary care` as a keyword for PCP field matching
-3. Deploy the updated function and re-parse affected records
+The core fix was already deployed (edge function now handles everything server-side). This additional change adds resilience against read-after-write timing issues by introducing a small delay before triggering the calendar refresh.
 
