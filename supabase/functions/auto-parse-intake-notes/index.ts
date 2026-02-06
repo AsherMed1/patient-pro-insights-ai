@@ -476,6 +476,66 @@ function fallbackRegexParsing(intakeNotes: string): any {
   return result;
 }
 
+// Post-AI enrichment: Always run regex extraction for critical fields
+// This catches anything the AI parser might have missed (e.g., imaging_details)
+function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
+  if (!intakeNotes) return parsedData;
+  
+  // Ensure medical_info exists
+  if (!parsedData.medical_info) {
+    parsedData.medical_info = {};
+  }
+  
+  // Extract imaging details if not already populated
+  if (!parsedData.medical_info.imaging_details) {
+    const imagingPatterns = [
+      /had_imaging_before:\s*([^\n|]+)/i,
+      /have you had.*?imaging.*?:\s*([^\n|]+)/i,
+      /had imaging before:\s*([^\n|]+)/i,
+      /previous imaging:\s*([^\n|]+)/i,
+      /imaging_done:\s*([^\n|]+)/i
+    ];
+    
+    for (const pattern of imagingPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        parsedData.medical_info.imaging_details = value;
+        console.log(`[AUTO-PARSE ENRICH] Extracted imaging_details via regex: ${value}`);
+        break;
+      }
+    }
+  }
+  
+  // Extract PCP info if not already populated
+  if (!parsedData.medical_info.pcp_name) {
+    const pcpPatterns = [
+      /Primary Care.*?:\s*([^\n|]+)/i,
+      /PCP.*?:\s*([^\n|]+)/i,
+      /physician.*?:\s*([^\n|]+)/i
+    ];
+    
+    for (const pattern of pcpPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        // Try to extract phone from combined string
+        const phoneMatch = value.match(/(\d{3}[.-]?\d{3}[.-]?\d{4})/);
+        if (phoneMatch) {
+          parsedData.medical_info.pcp_phone = phoneMatch[1];
+          parsedData.medical_info.pcp_name = value.replace(phoneMatch[1], '').trim();
+        } else {
+          parsedData.medical_info.pcp_name = value;
+        }
+        console.log(`[AUTO-PARSE ENRICH] Extracted PCP via regex: ${value}`);
+        break;
+      }
+    }
+  }
+  
+  return parsedData;
+}
+
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
@@ -1199,6 +1259,10 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             parsedData.pathology_info.procedure_type = calendarProcedure;
           }
         }
+
+        // Post-AI enrichment: Always run regex extraction for critical fields
+        // This catches anything the AI parser might have missed
+        parsedData = enrichWithCriticalFields(parsedData, record.patient_intake_notes);
 
         // Extract urologist info from raw intake notes (fallback if not found in GHL or AI)
         const urologistFromText = extractUrologistFromText(record.patient_intake_notes);
