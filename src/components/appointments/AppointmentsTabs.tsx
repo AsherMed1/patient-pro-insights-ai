@@ -22,6 +22,7 @@ interface AppointmentsTabsProps {
   onUpdateInternalProcess?: (appointmentId: string, isComplete: boolean) => void;
   onUpdateDOB?: (appointmentId: string, dob: string | null) => void;
   onDelete?: (appointmentId: string) => void;
+  onBulkDelete?: (ids: string[]) => Promise<void>;
   onUpdateName?: (appointmentId: string, name: string) => void;
   onUpdateEmail?: (appointmentId: string, email: string) => void;
   onUpdatePhone?: (appointmentId: string, phone: string) => void;
@@ -49,6 +50,7 @@ const AppointmentsTabs = ({
   onUpdateInternalProcess,
   onUpdateDOB,
   onDelete,
+  onBulkDelete,
   onUpdateName,
   onUpdateEmail,
   onUpdatePhone,
@@ -155,6 +157,7 @@ const AppointmentsTabs = ({
           onUpdateInternalProcess={onUpdateInternalProcess}
           onUpdateDOB={onUpdateDOB}
           onDelete={onDelete}
+          onBulkDelete={onBulkDelete}
           onUpdateName={onUpdateName}
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
@@ -175,6 +178,7 @@ const AppointmentsTabs = ({
           onUpdateInternalProcess={onUpdateInternalProcess}
           onUpdateDOB={onUpdateDOB}
           onDelete={onDelete}
+          onBulkDelete={onBulkDelete}
           onUpdateName={onUpdateName}
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
@@ -190,15 +194,16 @@ const AppointmentsTabs = ({
           statusOptions={statusOptions}
           onUpdateStatus={onUpdateStatus}
           onUpdateProcedure={onUpdateProcedure}
-            onUpdateDate={onUpdateDate}
-            onUpdateTime={onUpdateTime}
-            onUpdateInternalProcess={onUpdateInternalProcess}
-            onUpdateDOB={onUpdateDOB}
-            onDelete={onDelete}
-            onUpdateName={onUpdateName}
-            onUpdateEmail={onUpdateEmail}
-            onUpdatePhone={onUpdatePhone}
-            onUpdateCalendarLocation={onUpdateCalendarLocation}
+          onUpdateDate={onUpdateDate}
+          onUpdateTime={onUpdateTime}
+          onUpdateInternalProcess={onUpdateInternalProcess}
+          onUpdateDOB={onUpdateDOB}
+          onDelete={onDelete}
+          onBulkDelete={onBulkDelete}
+          onUpdateName={onUpdateName}
+          onUpdateEmail={onUpdateEmail}
+          onUpdatePhone={onUpdatePhone}
+          onUpdateCalendarLocation={onUpdateCalendarLocation}
         />
       </TabsContent>
 
@@ -213,12 +218,13 @@ const AppointmentsTabs = ({
           onUpdateDate={onUpdateDate}
           onUpdateTime={onUpdateTime}
           onUpdateInternalProcess={onUpdateInternalProcess}
-            onUpdateDOB={onUpdateDOB}
-            onDelete={onDelete}
-            onUpdateName={onUpdateName}
-            onUpdateEmail={onUpdateEmail}
-            onUpdatePhone={onUpdatePhone}
-            onUpdateCalendarLocation={onUpdateCalendarLocation}
+          onUpdateDOB={onUpdateDOB}
+          onDelete={onDelete}
+          onBulkDelete={onBulkDelete}
+          onUpdateName={onUpdateName}
+          onUpdateEmail={onUpdateEmail}
+          onUpdatePhone={onUpdatePhone}
+          onUpdateCalendarLocation={onUpdateCalendarLocation}
         />
       </TabsContent>
 
@@ -233,12 +239,13 @@ const AppointmentsTabs = ({
           onUpdateDate={onUpdateDate}
           onUpdateTime={onUpdateTime}
           onUpdateInternalProcess={onUpdateInternalProcess}
-            onUpdateDOB={onUpdateDOB}
-            onDelete={onDelete}
-            onUpdateName={onUpdateName}
-            onUpdateEmail={onUpdateEmail}
-            onUpdatePhone={onUpdatePhone}
-            onUpdateCalendarLocation={onUpdateCalendarLocation}
+          onUpdateDOB={onUpdateDOB}
+          onDelete={onDelete}
+          onBulkDelete={onBulkDelete}
+          onUpdateName={onUpdateName}
+          onUpdateEmail={onUpdateEmail}
+          onUpdatePhone={onUpdatePhone}
+          onUpdateCalendarLocation={onUpdateCalendarLocation}
         />
       </TabsContent>
       </Tabs>
