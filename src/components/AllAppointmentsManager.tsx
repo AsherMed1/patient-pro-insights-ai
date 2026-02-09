@@ -987,7 +987,6 @@ const AllAppointmentsManager = ({
 
       if (error) throw error;
 
-      // Remove the appointment from local state
       setAppointments(prev => prev.filter(appointment => appointment.id !== appointmentId));
 
       toast({
@@ -995,7 +994,6 @@ const AllAppointmentsManager = ({
         description: "Appointment deleted successfully"
       });
       
-      // Refresh tab counts and appointments
       fetchTabCounts();
       fetchAppointments();
       onDataChanged?.();
@@ -1004,6 +1002,36 @@ const AllAppointmentsManager = ({
       toast({
         title: "Error",
         description: "Failed to delete appointment",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const bulkDeleteAppointments = async (ids: string[]) => {
+    try {
+      // Delete in batches of 50
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        const { error } = await supabase
+          .from('all_appointments')
+          .delete()
+          .in('id', batch);
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Success",
+        description: `${ids.length} appointment${ids.length !== 1 ? 's' : ''} deleted successfully`
+      });
+
+      fetchAppointments();
+      fetchTabCounts();
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error bulk deleting appointments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete appointments",
         variant: "destructive"
       });
     }
@@ -1250,6 +1278,7 @@ const AllAppointmentsManager = ({
             onUpdateEmail={updateAppointmentEmail}
             onUpdatePhone={updateAppointmentPhone}
             onUpdateCalendarLocation={updateCalendarLocation}
+            onBulkDelete={bulkDeleteAppointments}
             tabCounts={tabCounts}
           />
           
