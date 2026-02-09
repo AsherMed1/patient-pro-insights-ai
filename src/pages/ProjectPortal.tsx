@@ -83,6 +83,16 @@ const ProjectPortal = () => {
   const [reserveInitialDate, setReserveInitialDate] = useState<Date | undefined>();
   const [reserveInitialHour, setReserveInitialHour] = useState<number | undefined>();
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
+
+  const handleToggleEventType = (type: string) => {
+    setSelectedEventTypes(prev => {
+      if (prev.includes(type)) {
+        return prev.filter(t => t !== type);
+      }
+      return [...prev, type];
+    });
+  };
 
   // Calendar navigation helpers
   const goToPrevious = () => {
@@ -565,7 +575,11 @@ const ProjectPortal = () => {
               {/* Event Type Legend - only shown for calendar view */}
               {showCalendarView && (
                 <div className="px-1">
-                  <EventTypeLegend projectName={project.project_name} />
+                  <EventTypeLegend 
+                    projectName={project.project_name}
+                    selectedTypes={selectedEventTypes}
+                    onToggleType={handleToggleEventType}
+                  />
                 </div>
               )}
             </div>
@@ -579,6 +593,7 @@ const ProjectPortal = () => {
                     projectName={project.project_name}
                     selectedDate={selectedCalendarDate}
                     viewMode={calendarViewMode}
+                    selectedEventTypes={selectedEventTypes}
                     onAppointmentClick={(apt) => setSelectedAppointment(apt)}
                     onDateSelect={(date) => {
                       setSelectedCalendarDate(date);

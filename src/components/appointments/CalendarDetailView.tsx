@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AllAppointment } from './types';
 import { CalendarDayView } from './CalendarDayView';
 import { CalendarWeekView } from './CalendarWeekView';
 import { CalendarMonthView } from './CalendarMonthView';
 import { UpcomingEventsPanel } from './UpcomingEventsPanel';
-import { useCalendarAppointments } from '@/hooks/useCalendarAppointments';
+import { useCalendarAppointments, DayAppointmentData } from '@/hooks/useCalendarAppointments';
+import { getEventTypeFromCalendar } from './calendarUtils';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface CalendarDetailViewProps {
@@ -14,6 +15,7 @@ interface CalendarDetailViewProps {
   onAppointmentClick: (appointment: AllAppointment) => void;
   onDateSelect: (date: Date) => void;
   onReserveTimeSlot?: (hour: number, date: Date) => void;
+  selectedEventTypes?: string[];
 }
 
 export function CalendarDetailView({
@@ -22,7 +24,8 @@ export function CalendarDetailView({
   viewMode,
   onAppointmentClick,
   onDateSelect,
-  onReserveTimeSlot
+  onReserveTimeSlot,
+  selectedEventTypes
 }: CalendarDetailViewProps) {
   const { appointmentsByDate, loading } = useCalendarAppointments({
     projectName,
@@ -30,6 +33,20 @@ export function CalendarDetailView({
     viewMode,
     selectedDate
   });
+
+  const filteredByDate = useMemo(() => {
+    if (!selectedEventTypes || selectedEventTypes.length === 0) return appointmentsByDate;
+
+    const filtered: Record<string, DayAppointmentData> = {};
+    for (const [dateKey, dayData] of Object.entries(appointmentsByDate)) {
+      const filteredApts = dayData.appointments.filter(apt => {
+        const eventType = getEventTypeFromCalendar(apt.calendar_name);
+        return selectedEventTypes.includes(eventType.type);
+      });
+      filtered[dateKey] = { ...dayData, appointments: filteredApts, count: filteredApts.length };
+    }
+    return filtered;
+  }, [appointmentsByDate, selectedEventTypes]);
 
   if (loading) {
     return (
@@ -54,12 +71,11 @@ export function CalendarDetailView({
 
   return (
     <div className="flex h-full">
-      {/* Main Calendar View */}
       <div className="flex-1 min-w-0">
         {viewMode === 'day' && (
           <CalendarDayView
             date={selectedDate}
-            appointmentsByDate={appointmentsByDate}
+            appointmentsByDate={filteredByDate}
             onAppointmentClick={onAppointmentClick}
             onReserveTimeSlot={onReserveTimeSlot}
           />
@@ -67,7 +83,7 @@ export function CalendarDetailView({
         {viewMode === 'week' && (
           <CalendarWeekView
             selectedDate={selectedDate}
-            appointmentsByDate={appointmentsByDate}
+            appointmentsByDate={filteredByDate}
             onAppointmentClick={onAppointmentClick}
             onDateSelect={onDateSelect}
           />
@@ -75,7 +91,7 @@ export function CalendarDetailView({
         {viewMode === 'month' && (
           <CalendarMonthView
             month={selectedDate}
-            appointmentsByDate={appointmentsByDate}
+            appointmentsByDate={filteredByDate}
             onAppointmentClick={onAppointmentClick}
             onDateSelect={onDateSelect}
             selectedDate={selectedDate}
@@ -83,7 +99,6 @@ export function CalendarDetailView({
         )}
       </div>
       
-      {/* Upcoming Events Sidebar - hidden on mobile */}
       <div className="hidden lg:block w-72 border-l border-border">
         <UpcomingEventsPanel 
           projectName={projectName}
