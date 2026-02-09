@@ -1,21 +1,20 @@
 
 
-# Plan: Bulk Delete Appointments
+# Plan: Interactive Event Type Filter on Calendar View
 
 ## Overview
 
-Add a "Select Mode" toggle to the appointments list that enables checkboxes on each appointment card, allowing you to select multiple appointments and delete them all at once.
+Turn the existing "Event Types" legend (currently display-only dots) into clickable toggle filters, similar to GHL's calendar. Clicking an event type will show/hide those appointments on the calendar. All types are enabled by default.
 
 ---
 
 ## How It Will Work
 
-1. Click a **"Select"** button in the toolbar to enter selection mode
-2. Checkboxes appear on each appointment card
-3. Select individual appointments or use **"Select All on Page"**
-4. A floating action bar shows the count of selected items with a **"Delete Selected"** button
-5. Confirmation dialog before deletion proceeds
-6. Appointments are deleted in batches of 50 for reliability
+1. Each event type dot in the legend becomes a clickable toggle button
+2. Active types are shown with full color; inactive types appear dimmed/struck-through
+3. Only appointments matching the selected event types are displayed on the calendar
+4. All types are selected by default when the calendar loads
+5. The filter applies to Day, Week, and Month views
 
 ---
 
@@ -25,46 +24,58 @@ Add a "Select Mode" toggle to the appointments list that enables checkboxes on e
 
 | File | Changes |
 |------|---------|
-| `src/components/appointments/AppointmentsList.tsx` | Add selection state, checkboxes on each card, select all toggle, floating action bar with bulk delete button, and confirmation dialog |
-| `src/components/AllAppointmentsManager.tsx` | Add `bulkDeleteAppointments(ids: string[])` function and pass it to `AppointmentsList` |
+| `src/components/appointments/EventTypeLegend.tsx` | Make event type items clickable toggles; add `selectedTypes` and `onToggleType` props |
+| `src/pages/ProjectPortal.tsx` | Add `selectedEventTypes` state; pass it to both `EventTypeLegend` and `CalendarDetailView` |
+| `src/components/appointments/CalendarDetailView.tsx` | Accept `selectedEventTypes` prop; filter `appointmentsByDate` before passing to child views |
 
-### New UI Elements
+### EventTypeLegend Changes
 
-- **Select button** in the pagination info bar to toggle selection mode
-- **Checkbox** on the left side of each `AppointmentCard` (only visible in select mode)
-- **"Select All on Page"** checkbox in the header
-- **Floating action bar** at bottom showing: `"X selected"` + `"Delete Selected"` button (red)
-- **Confirmation dialog** with count: `"Are you sure you want to delete X appointments? This cannot be undone."`
+- Add new props: `selectedTypes: string[]` and `onToggleType: (type: string) => void`
+- Each legend item becomes a `button` with cursor-pointer
+- Selected types show full color; deselected types show reduced opacity and a line-through style
+- Toggling is instant (no re-fetch needed, filtering happens client-side)
 
-### Bulk Delete Function (in AllAppointmentsManager)
+### ProjectPortal Changes
+
+- Add state: `const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([])` (empty = all selected)
+- Initialize with all active types once the legend loads
+- Pass filter state to both `EventTypeLegend` and `CalendarDetailView`
+
+### CalendarDetailView Changes
+
+- Accept new prop: `selectedEventTypes?: string[]`
+- Filter `appointmentsByDate` using `getEventTypeFromCalendar()` before passing data to Day/Week/Month views
+- When `selectedEventTypes` is empty or undefined, show all (no filtering)
+
+### Filtering Logic
 
 ```typescript
-const bulkDeleteAppointments = async (ids: string[]) => {
-  // Delete in batches of 50
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
-    await supabase.from('all_appointments').delete().in('id', batch);
+// In CalendarDetailView, filter appointments by selected event types
+const filteredByDate = useMemo(() => {
+  if (!selectedEventTypes || selectedEventTypes.length === 0) return appointmentsByDate;
+  
+  const filtered: Record<string, DayAppointmentData> = {};
+  for (const [dateKey, dayData] of Object.entries(appointmentsByDate)) {
+    const filteredApts = dayData.appointments.filter(apt => {
+      const eventType = getEventTypeFromCalendar(apt.calendar_name);
+      return selectedEventTypes.includes(eventType.type);
+    });
+    if (filteredApts.length > 0) {
+      filtered[dateKey] = { ...dayData, appointments: filteredApts, count: filteredApts.length };
+    } else {
+      filtered[dateKey] = { ...dayData, appointments: [], count: 0 };
+    }
   }
-  // Refresh data
-  fetchAppointments();
-  fetchTabCounts();
-  onDataChanged?.();
-};
-```
-
-### Selection State (in AppointmentsList)
-
-```typescript
-const [selectionMode, setSelectionMode] = useState(false);
-const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  return filtered;
+}, [appointmentsByDate, selectedEventTypes]);
 ```
 
 ---
 
-## Safety Measures
+## UI Behavior
 
-- Confirmation dialog required before any bulk delete
-- Dialog shows exact count of appointments to be deleted
-- Exiting selection mode clears all selections
-- Batch deletion (50 at a time) prevents timeouts
+- **Default**: All event types selected (full color)
+- **Click a type**: Toggles it on/off; dimmed types are excluded from the calendar
+- **Visual feedback**: Deselected types get `opacity-40` styling
+- **No data re-fetch**: Filtering is purely client-side on already-loaded data
 
