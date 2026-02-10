@@ -551,54 +551,19 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                         </Tooltip>
                       )}
 
-                      <div className="flex items-center space-x-2">
-                        <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <Select
-                          value={currentStatus || ''}
-                          onValueChange={(value) => {
-                            setCurrentStatus(value);
-                            handleFieldUpdate({ status: value });
-                          }}
-                          disabled={isUpdating}
-                        >
-                          <SelectTrigger className="h-8 w-[160px] text-sm">
-                            <SelectValue placeholder="Set status" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-[9999]">
-                            <SelectItem value="Confirmed">Confirmed</SelectItem>
-                            <SelectItem value="Showed">Showed</SelectItem>
-                            <SelectItem value="No Show">No Show</SelectItem>
-                            <SelectItem value="Cancelled">Cancelled</SelectItem>
-                            <SelectItem value="Rescheduled">Rescheduled</SelectItem>
-                            <SelectItem value="OON">OON</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {isUpdating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-                      </div>
-
-                      {/* Procedure Status Dropdown */}
-                      <div className="flex items-center space-x-2">
-                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <Select
-                          value={currentProcedureStatus || 'not_set'}
-                          onValueChange={(value) => {
-                            const newValue = value === 'not_set' ? null : value;
-                            setCurrentProcedureStatus(newValue);
-                            handleFieldUpdate({ procedure_status: newValue });
-                          }}
-                          disabled={isUpdating}
-                        >
-                          <SelectTrigger className="h-8 w-[200px] text-sm">
-                            <SelectValue placeholder="Procedure status" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-[9999]">
-                            <SelectItem value="not_set">Not Set</SelectItem>
-                            <SelectItem value="ordered">Procedure Ordered</SelectItem>
-                            <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
-                            <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {appointment.calendar_name && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center space-x-2 cursor-default">
+                              <Hash className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{appointment.calendar_name}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Calendar / Service</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
 
                       {appointment.agent && (
                         <Tooltip>
@@ -618,48 +583,105 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 </TooltipProvider>
 
                 {hasInsuranceInfo() && (
-                  <>
-                    <div className="pt-2 no-print">
-                      <Button
-                        onClick={() => setShowInsuranceModal(true)}
-                        variant="outline"
-                        className="bg-blue-50 hover:bg-blue-100 border-blue-200"
-                      >
-                        <Shield className="h-4 w-4 mr-2 text-blue-600" />
-                        <span className="text-blue-600">View Insurance Information</span>
-                      </Button>
+                  <div className="hidden print:block print-section mt-4">
+                    <div className="print-section-title">Insurance Information</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {getInsuranceData().insurance_provider && (
+                        <div>
+                          <span className="font-medium">Provider:</span> {getInsuranceData().insurance_provider}
+                        </div>
+                      )}
+                      {getInsuranceData().insurance_plan && (
+                        <div>
+                          <span className="font-medium">Plan:</span> {getInsuranceData().insurance_plan}
+                        </div>
+                      )}
+                      {getInsuranceData().insurance_id && (
+                        <div>
+                          <span className="font-medium">ID:</span> {getInsuranceData().insurance_id}
+                        </div>
+                      )}
+                      {getInsuranceData().group_number && (
+                        <div>
+                          <span className="font-medium">Group:</span> {getInsuranceData().group_number}
+                        </div>
+                      )}
                     </div>
-                    
-                    {/* Insurance info for print */}
-                    <div className="hidden print:block print-section mt-4">
-                      <div className="print-section-title">Insurance Information</div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {getInsuranceData().insurance_provider && (
-                          <div>
-                            <span className="font-medium">Provider:</span> {getInsuranceData().insurance_provider}
-                          </div>
-                        )}
-                        {getInsuranceData().insurance_plan && (
-                          <div>
-                            <span className="font-medium">Plan:</span> {getInsuranceData().insurance_plan}
-                          </div>
-                        )}
-                        {getInsuranceData().insurance_id && (
-                          <div>
-                            <span className="font-medium">ID:</span> {getInsuranceData().insurance_id}
-                          </div>
-                        )}
-                        {getInsuranceData().group_number && (
-                          <div>
-                            <span className="font-medium">Group:</span> {getInsuranceData().group_number}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Action Row: Insurance, Status, Procedure */}
+            <div className="flex flex-wrap items-center gap-3 no-print">
+              {hasInsuranceInfo() && (
+                <Button
+                  onClick={() => setShowInsuranceModal(true)}
+                  variant="outline"
+                  size="sm"
+                  className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                >
+                  <Shield className="h-4 w-4 mr-2 text-blue-600" />
+                  <span className="text-blue-600">View Insurance</span>
+                </Button>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Select
+                  value={currentStatus || ''}
+                  onValueChange={(value) => {
+                    setCurrentStatus(value);
+                    handleFieldUpdate({ status: value });
+                  }}
+                  disabled={isUpdating}
+                >
+                  <SelectTrigger className="h-8 w-[160px] text-sm">
+                    <SelectValue placeholder="Set status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-[9999]">
+                    <SelectItem value="Confirmed">Confirmed</SelectItem>
+                    <SelectItem value="Showed">Showed</SelectItem>
+                    <SelectItem value="No Show">No Show</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    <SelectItem value="Rescheduled">Rescheduled</SelectItem>
+                    <SelectItem value="OON">OON</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Select
+                  value={currentProcedureStatus || 'not_set'}
+                  onValueChange={(value) => {
+                    const newValue = value === 'not_set' ? null : value;
+                    setCurrentProcedureStatus(newValue);
+                    handleFieldUpdate({ procedure_status: newValue });
+                  }}
+                  disabled={isUpdating}
+                >
+                  <SelectTrigger className="h-8 w-[200px] text-sm">
+                    <SelectValue placeholder="Procedure status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-[9999]">
+                    <SelectItem value="not_set">Not Set</SelectItem>
+                    <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                    <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+                    <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isUpdating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            </div>
+
+            {/* Internal Notes (compact, no Card wrapper) */}
+            <div>
+              <AppointmentNotes
+                appointmentId={appointment.id}
+                leadName={appointment.lead_name}
+                projectName={appointment.project_name}
+              />
+            </div>
 
             {/* Patient Intake Notes */}
             {(appointment.patient_intake_notes || leadDetails?.patient_intake_notes) && (
@@ -720,19 +742,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               </Card>
             )}
 
-            {/* Internal Notes */}
-            <Card className="print-card">
-              <CardHeader>
-                <CardTitle>Internal Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AppointmentNotes
-                  appointmentId={appointment.id}
-                  leadName={appointment.lead_name}
-                  projectName={appointment.project_name}
-                />
-              </CardContent>
-            </Card>
+
+
           </div>
         </DialogContent>
       </Dialog>
