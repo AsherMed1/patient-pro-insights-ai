@@ -665,6 +665,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   <SelectContent className="bg-popover z-[9999]">
                     <SelectItem value="not_set">Not Set</SelectItem>
                     <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                    <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
                     <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                     <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
                   </SelectContent>
