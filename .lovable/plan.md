@@ -1,75 +1,29 @@
 
 
-# Plan: Reposition Status, Procedure, and Notes in Appointment Detail View
+# Plan: Add "Imaging Ordered" Procedure Status Option
 
 ## Overview
 
-Rearrange the layout of the Appointment Detail dialog so that **Status**, **Procedure**, and **Notes** appear in the same positions as shown in the reference image -- a horizontal action row right below the Appointment Overview content, before the Patient Intake Notes section.
+Add a new "Imaging Ordered" status to the procedure status dropdown across the app. This is a simple tracking/reporting status with no special logic -- it works identically to the existing options like "Procedure Ordered" or "Not Covered."
 
-## Current Layout
+## What Changes
 
-```text
-Appointment Overview Card
-  [Left Column: Name, Phone, Email, Address, Project]
-  [Right Column: Date, Time, Status dropdown, Procedure dropdown, Agent]
-  [Insurance Button]
+A new value `imaging_ordered` with label **"Imaging Ordered"** will appear in every procedure status dropdown across the application.
 
-Patient Intake Notes Card
-...
-Internal Notes Card (at bottom)
-```
+## Files to Modify
 
-## New Layout (matching the reference image)
+| File | Change |
+|------|--------|
+| `src/components/appointments/AppointmentCard.tsx` | Add `<SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>` to the procedure status dropdown; add styling for the new value (e.g., blue tint) in `getProcedureCardClass` |
+| `src/components/appointments/AppointmentFilters.tsx` | Add `<SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>` to the filter dropdown |
+| `src/components/appointments/DetailedAppointmentView.tsx` | Add `<SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>` to the calendar detail view's procedure dropdown |
+| `src/components/AllAppointmentsManager.tsx` | Update `updateProcedureOrdered` to handle the new value in the backward-compatibility mapping (map to `procedure_ordered: null` since it's not a final procedure decision) |
 
-```text
-Appointment Overview Card
-  [Left Column: Name, Phone, Email, Address, Project]
-  [Right Column: Date, Time, Calendar/Service, Agent]
+## No Database or Edge Function Changes
 
-Action Row: [View Insurance] [Status dropdown] [Procedure dropdown]
-Notes Row:  [Internal Notes - inline/compact]
+The `procedure_status` column is already a text field -- it accepts any string value. No migration needed. The `update-appointment-fields` edge function writes arbitrary field values, so it handles this automatically.
 
-Patient Intake Notes Card
-...
-```
+## Visual Styling
 
-## Technical Details
-
-### File: `src/components/appointments/DetailedAppointmentView.tsx`
-
-1. **Remove Status and Procedure dropdowns** from the right column of the grid (lines ~554-601) -- they currently sit between the Time tooltip and the Agent tooltip.
-
-2. **Create a new action row** after the Appointment Overview card's `</CardContent>` but still inside the card (or right after it). This row contains three items side by side:
-   - "View Insurance Information" button (moved from its current position at line ~622)
-   - Status `Select` dropdown
-   - Procedure Status `Select` dropdown
-
-3. **Move Internal Notes** from its standalone Card at the bottom (lines ~723-735) to a compact section directly below the action row, still before the Patient Intake Notes card. This will be rendered without the heavy Card wrapper -- just a label and the `AppointmentNotes` component.
-
-4. **Keep the calendar name** in the right column where Status used to be, showing it with the Hash icon (currently Status uses Hash -- we can keep Hash for calendar/service type display).
-
-### Layout Structure
-
-```text
-<Card> Appointment Overview
-  <grid>
-    left: Name, Phone, Email, Address, Project
-    right: Date, Time, Calendar Name, Agent
-  </grid>
-</Card>
-
-<div className="flex flex-wrap items-center gap-3">
-  [Insurance Button]  [Status Select]  [Procedure Select]  [Loader if updating]
-</div>
-
-<div> Internal Notes (compact, no Card wrapper)
-  <AppointmentNotes ... />
-</div>
-
-<Card> Patient Intake Notes ... </Card>
-```
-
-### No New Files or Dependencies
-
-All changes are within `DetailedAppointmentView.tsx` -- just moving existing elements into a new arrangement.
+The "Imaging Ordered" option will use a blue/indigo card highlight (e.g., `bg-blue-50 border-blue-200`) to visually distinguish it from green (Procedure Ordered), red (Not Covered), and gray (No Procedure).
 
