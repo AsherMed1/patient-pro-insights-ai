@@ -303,6 +303,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 <SelectContent>
                   <SelectItem value="ALL">All Procedures</SelectItem>
                   <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                  <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
                   <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                   <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
                   <SelectItem value="null">Not Set</SelectItem>

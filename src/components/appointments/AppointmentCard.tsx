@@ -200,6 +200,8 @@ const AppointmentCard = ({
       return `${baseClass} bg-green-50 border-green-200 hover:bg-green-100`;
     } else if (procedureStatus === 'not_covered') {
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
+    } else if (procedureStatus === 'imaging_ordered') {
+      return `${baseClass} bg-blue-50 border-blue-200 hover:bg-blue-100`;
     } else if (procedureStatus === 'no_procedure') {
       return `${baseClass} bg-gray-50 border-gray-200 hover:bg-gray-100`;
     } else {
@@ -1469,6 +1471,7 @@ const AppointmentCard = ({
               <SelectContent>
                 <SelectItem value="null">Not Set</SelectItem>
                 <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
                 <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                 <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
               </SelectContent>
