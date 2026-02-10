@@ -625,6 +625,7 @@ const ProjectPortal = () => {
                 appointment={selectedAppointment}
                 isOpen={!!selectedAppointment}
                 onClose={() => setSelectedAppointment(null)}
+                onDataRefresh={() => setCalendarRefreshKey(prev => prev + 1)}
                 onDeleted={() => {
                   setSelectedAppointment(null);
                   setCalendarRefreshKey(prev => prev + 1);
