@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +29,8 @@ import {
   MapPin,
   Hash,
   Printer,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
@@ -38,6 +40,7 @@ import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/utils/appointmentLeadMatcher";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useUserAttribution } from '@/hooks/useUserAttribution';
 
 // Filter raw intake notes to only show pathology data for the current procedure
 const filterIntakeNotesByProcedure = (notes: string, calendarName: string | null): string => {
@@ -106,6 +109,52 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [loading, setLoading] = useState(false);
   const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(appointment.status);
+  const [currentProcedureStatus, setCurrentProcedureStatus] = useState(
+    (appointment as any).procedure_status || null
+  );
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { userId, userName } = useUserAttribution();
+
+  // Sync state when appointment prop changes
+  useEffect(() => {
+    setCurrentStatus(appointment.status);
+    setCurrentProcedureStatus((appointment as any).procedure_status || null);
+  }, [appointment.id, appointment.status, (appointment as any).procedure_status]);
+
+  const handleFieldUpdate = async (updates: Record<string, any>) => {
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase.functions.invoke('update-appointment-fields', {
+        body: { appointmentId: appointment.id, updates, userId, userName, changeSource: 'portal' }
+      });
+      if (error) throw error;
+
+      // GHL sync for status changes
+      if (updates.status && appointment.ghl_appointment_id) {
+        try {
+          await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              project_name: appointment.project_name,
+              ghl_appointment_id: appointment.ghl_appointment_id,
+              status: updates.status
+            }
+          });
+        } catch (ghlErr) {
+          console.error('GHL sync failed:', ghlErr);
+          toast.error('Saved locally but GHL sync failed');
+        }
+      }
+
+      onDataRefresh?.();
+      toast.success('Updated successfully');
+    } catch (err) {
+      console.error('Update error:', err);
+      toast.error('Failed to update');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -502,19 +551,54 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                         </Tooltip>
                       )}
 
-                      {appointment.status && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-2 cursor-default">
-                              <Hash className="h-4 w-4 text-muted-foreground" />
-                              <Badge variant="outline">{appointment.status}</Badge>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Status</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <Select
+                          value={currentStatus || ''}
+                          onValueChange={(value) => {
+                            setCurrentStatus(value);
+                            handleFieldUpdate({ status: value });
+                          }}
+                          disabled={isUpdating}
+                        >
+                          <SelectTrigger className="h-8 w-[160px] text-sm">
+                            <SelectValue placeholder="Set status" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-[9999]">
+                            <SelectItem value="Confirmed">Confirmed</SelectItem>
+                            <SelectItem value="Showed">Showed</SelectItem>
+                            <SelectItem value="No Show">No Show</SelectItem>
+                            <SelectItem value="Cancelled">Cancelled</SelectItem>
+                            <SelectItem value="Rescheduled">Rescheduled</SelectItem>
+                            <SelectItem value="OON">OON</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {isUpdating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                      </div>
+
+                      {/* Procedure Status Dropdown */}
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <Select
+                          value={currentProcedureStatus || 'not_set'}
+                          onValueChange={(value) => {
+                            const newValue = value === 'not_set' ? null : value;
+                            setCurrentProcedureStatus(newValue);
+                            handleFieldUpdate({ procedure_status: newValue });
+                          }}
+                          disabled={isUpdating}
+                        >
+                          <SelectTrigger className="h-8 w-[200px] text-sm">
+                            <SelectValue placeholder="Procedure status" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-[9999]">
+                            <SelectItem value="not_set">Not Set</SelectItem>
+                            <SelectItem value="ordered">Procedure Ordered</SelectItem>
+                            <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+                            <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       {appointment.agent && (
                         <Tooltip>
