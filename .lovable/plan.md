@@ -1,81 +1,93 @@
 
 
-# Plan: Interactive Event Type Filter on Calendar View
+# Plan: Inline Patient Updates from Calendar Detail View
 
 ## Overview
 
-Turn the existing "Event Types" legend (currently display-only dots) into clickable toggle filters, similar to GHL's calendar. Clicking an event type will show/hide those appointments on the calendar. All types are enabled by default.
+When you click an appointment on the calendar, the detail dialog currently shows status and procedure as read-only badges. This plan adds editable dropdowns for **Status** and **Procedure Status** directly in that dialog, plus ensures the existing **Notes** section and **data refresh** work seamlessly so changes sync back to the calendar and list views without navigating away.
 
----
+## What Changes
 
-## How It Will Work
+### 1. Status Dropdown (replaces static badge)
+- The current read-only `Badge` showing the appointment status (line ~510 in DetailedAppointmentView) becomes a `Select` dropdown
+- Options: Confirmed, Showed, No Show, Cancelled, Rescheduled, OON (same as the list view's AppointmentCard)
+- Changing the status calls the `update-appointment-fields` edge function
+- If GHL sync is available, the status also syncs to GoHighLevel via `update-ghl-appointment`
 
-1. Each event type dot in the legend becomes a clickable toggle button
-2. Active types are shown with full color; inactive types appear dimmed/struck-through
-3. Only appointments matching the selected event types are displayed on the calendar
-4. All types are selected by default when the calendar loads
-5. The filter applies to Day, Week, and Month views
+### 2. Procedure Status Dropdown (new addition)
+- A new row is added below the status showing a `Select` dropdown for procedure status
+- Options: Not Set, Procedure Ordered, No Procedure Ordered, Procedure Not Covered
+- Changes are saved via the same `update-appointment-fields` edge function
+
+### 3. Calendar Auto-Refresh on Save
+- The `DetailedAppointmentView` already accepts `onDataRefresh` -- but the calendar in ProjectPortal does not pass it
+- Add `onDataRefresh` to the `DetailedAppointmentView` rendered from the calendar, incrementing `calendarRefreshKey` so the calendar re-fetches after any update
+
+### 4. Notes Already Work
+- The Internal Notes section with `AppointmentNotes` component is already present in the detail dialog and fully functional -- no changes needed there
 
 ---
 
 ## Technical Details
 
-### Files to Modify
+### File: `src/components/appointments/DetailedAppointmentView.tsx`
 
-| File | Changes |
-|------|---------|
-| `src/components/appointments/EventTypeLegend.tsx` | Make event type items clickable toggles; add `selectedTypes` and `onToggleType` props |
-| `src/pages/ProjectPortal.tsx` | Add `selectedEventTypes` state; pass it to both `EventTypeLegend` and `CalendarDetailView` |
-| `src/components/appointments/CalendarDetailView.tsx` | Accept `selectedEventTypes` prop; filter `appointmentsByDate` before passing to child views |
+**Add imports**: `Select, SelectContent, SelectItem, SelectTrigger, SelectValue` from ui/select, plus `useAuth` and `useUserAttribution` hooks.
 
-### EventTypeLegend Changes
-
-- Add new props: `selectedTypes: string[]` and `onToggleType: (type: string) => void`
-- Each legend item becomes a `button` with cursor-pointer
-- Selected types show full color; deselected types show reduced opacity and a line-through style
-- Toggling is instant (no re-fetch needed, filtering happens client-side)
-
-### ProjectPortal Changes
-
-- Add state: `const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([])` (empty = all selected)
-- Initialize with all active types once the legend loads
-- Pass filter state to both `EventTypeLegend` and `CalendarDetailView`
-
-### CalendarDetailView Changes
-
-- Accept new prop: `selectedEventTypes?: string[]`
-- Filter `appointmentsByDate` using `getEventTypeFromCalendar()` before passing data to Day/Week/Month views
-- When `selectedEventTypes` is empty or undefined, show all (no filtering)
-
-### Filtering Logic
-
+**Add state**:
 ```typescript
-// In CalendarDetailView, filter appointments by selected event types
-const filteredByDate = useMemo(() => {
-  if (!selectedEventTypes || selectedEventTypes.length === 0) return appointmentsByDate;
-  
-  const filtered: Record<string, DayAppointmentData> = {};
-  for (const [dateKey, dayData] of Object.entries(appointmentsByDate)) {
-    const filteredApts = dayData.appointments.filter(apt => {
-      const eventType = getEventTypeFromCalendar(apt.calendar_name);
-      return selectedEventTypes.includes(eventType.type);
+const [currentStatus, setCurrentStatus] = useState(appointment.status);
+const [currentProcedureStatus, setCurrentProcedureStatus] = useState(
+  (appointment as any).procedure_status || null
+);
+const [isUpdating, setIsUpdating] = useState(false);
+```
+
+**Add update handler**:
+```typescript
+const handleFieldUpdate = async (updates: Record<string, any>) => {
+  setIsUpdating(true);
+  try {
+    await supabase.functions.invoke('update-appointment-fields', {
+      body: { appointmentId: appointment.id, updates, userId, userName, changeSource: 'portal' }
     });
-    if (filteredApts.length > 0) {
-      filtered[dateKey] = { ...dayData, appointments: filteredApts, count: filteredApts.length };
-    } else {
-      filtered[dateKey] = { ...dayData, appointments: [], count: 0 };
-    }
+    onDataRefresh?.();
+    toast.success('Updated successfully');
+  } finally {
+    setIsUpdating(false);
   }
-  return filtered;
-}, [appointmentsByDate, selectedEventTypes]);
+};
+```
+
+**Replace status Badge** (around line 510): Swap the static `<Badge>` with a `<Select>` dropdown that calls `handleFieldUpdate({ status: newValue })`.
+
+**Add procedure status row**: New row below status with a `<Select>` dropdown for procedure status values.
+
+**Optional GHL sync**: When status changes, also invoke `update-ghl-appointment` if `ghl_appointment_id` exists (same pattern as AppointmentCard).
+
+### File: `src/pages/ProjectPortal.tsx`
+
+**Pass `onDataRefresh`** to `DetailedAppointmentView` (around line 624):
+```typescript
+<DetailedAppointmentView
+  appointment={selectedAppointment}
+  isOpen={!!selectedAppointment}
+  onClose={() => setSelectedAppointment(null)}
+  onDataRefresh={() => setCalendarRefreshKey(prev => prev + 1)}
+  onDeleted={() => {
+    setSelectedAppointment(null);
+    setCalendarRefreshKey(prev => prev + 1);
+  }}
+/>
 ```
 
 ---
 
-## UI Behavior
+## Summary of Changes
 
-- **Default**: All event types selected (full color)
-- **Click a type**: Toggles it on/off; dimmed types are excluded from the calendar
-- **Visual feedback**: Deselected types get `opacity-40` styling
-- **No data re-fetch**: Filtering is purely client-side on already-loaded data
+| File | Change |
+|------|--------|
+| `DetailedAppointmentView.tsx` | Replace read-only status badge with editable Select dropdown; add procedure status dropdown; add update handler using existing edge function |
+| `ProjectPortal.tsx` | Pass `onDataRefresh` to refresh calendar after edits |
 
+No new files, no database changes, no new edge functions needed. All editing uses the existing `update-appointment-fields` edge function and GHL sync patterns already proven in `AppointmentCard`.
