@@ -1036,36 +1036,53 @@ const AppointmentCard = ({
                 </Badge>
               )}
             </div>
-            <div className="flex flex-col items-end space-y-1 ml-2">
-              <Button variant="outline" size="sm" onClick={() => setShowDetailedView(true)} className="flex items-center space-x-1">
-                <Info className="h-3 w-3" />
-                <span className="hidden sm:inline">View Details</span>
-              </Button>
+            <div className="flex flex-row items-center gap-1 ml-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={() => setShowDetailedView(true)} className="h-7 w-7">
+                      <Info className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View Details</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {hasInsuranceInfo() && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleViewInsurance}
-                  disabled={loadingLeadData}
-                  className="flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 border-blue-200"
-                >
-                  <Shield className="h-3 w-3 text-blue-600" />
-                  <span className="text-blue-600 hidden sm:inline">View Insurance</span>
-                  <span className="text-blue-600 sm:hidden">Insurance</span>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleViewInsurance}
+                        disabled={loadingLeadData}
+                        className="h-7 w-7 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                      >
+                        <Shield className="h-3.5 w-3.5 text-blue-600" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View Insurance</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               {isAdmin() && onDelete && (
                 <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex items-center space-x-1 bg-red-50 hover:bg-red-100 border-red-200 text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span className="hidden sm:inline">Delete</span>
-                    </Button>
-                  </AlertDialogTrigger>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 bg-red-50 hover:bg-red-100 border-red-200 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
