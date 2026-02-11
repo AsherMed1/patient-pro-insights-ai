@@ -86,10 +86,10 @@ const AppointmentsTabs = ({
             value="new" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-primary/20`}
           >
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0" />
               <span className="font-medium">New</span>
-              <Badge variant={displayCounts.new > 0 ? "default" : "secondary"} className="ml-auto min-w-[28px] justify-center">
+              <Badge variant={displayCounts.new > 0 ? "default" : "secondary"} className="min-w-[28px] justify-center">
                 {displayCounts.new}
               </Badge>
             </div>
@@ -98,10 +98,10 @@ const AppointmentsTabs = ({
             value="needs-review" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-primary/20`}
           >
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
               <span className="font-medium">Needs Review</span>
-              <Badge variant={displayCounts.needsReview > 0 ? "destructive" : "secondary"} className="ml-auto min-w-[28px] justify-center">
+              <Badge variant={displayCounts.needsReview > 0 ? "destructive" : "secondary"} className="min-w-[28px] justify-center">
                 {displayCounts.needsReview}
               </Badge>
             </div>
@@ -110,10 +110,10 @@ const AppointmentsTabs = ({
             value="future" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-primary/20`}
           >
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
               <span className="font-medium">Upcoming</span>
-              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
+              <Badge variant="secondary" className="min-w-[28px] justify-center">
                 {displayCounts.future}
               </Badge>
             </div>
@@ -122,10 +122,10 @@ const AppointmentsTabs = ({
             value="past" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-primary/20`}
           >
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-green-500 flex-shrink-0" />
               <span className="font-medium">Completed</span>
-              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
+              <Badge variant="secondary" className="min-w-[28px] justify-center">
                 {displayCounts.past}
               </Badge>
             </div>
@@ -134,10 +134,10 @@ const AppointmentsTabs = ({
             value="all" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-primary/20`}
           >
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-purple-500 flex-shrink-0" />
               <span className="font-medium">All</span>
-              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
+              <Badge variant="secondary" className="min-w-[28px] justify-center">
                 {displayCounts.all}
               </Badge>
             </div>
