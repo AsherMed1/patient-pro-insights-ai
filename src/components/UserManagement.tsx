@@ -145,6 +145,7 @@ const UserManagement = () => {
         
         const formattedUser = {
           ...profile,
+          full_name: profile.full_name || profile.email || '',
           role: userRole?.role as UserRole,
           assignedProjects
         };
@@ -695,8 +696,8 @@ const UserManagement = () => {
                     const search = searchTerm.toLowerCase();
                     const matchesSearch = 
                       user.email.toLowerCase().includes(search) ||
-                      user.full_name.toLowerCase().includes(search) ||
-                      user.role?.toLowerCase().includes(search);
+                      (user.full_name || '').toLowerCase().includes(search) ||
+                      (user.role || '').toLowerCase().includes(search);
                     if (!matchesSearch) return false;
                   }
                   
@@ -727,9 +728,9 @@ const UserManagement = () => {
                     case 'date-asc':
                       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
                     case 'name-asc':
-                      return a.full_name.localeCompare(b.full_name);
+                      return (a.full_name || '').localeCompare(b.full_name || '');
                     case 'name-desc':
-                      return b.full_name.localeCompare(a.full_name);
+                      return (b.full_name || '').localeCompare(a.full_name || '');
                     default:
                       return 0;
                   }
@@ -739,8 +740,8 @@ const UserManagement = () => {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.full_name}</TableCell>
                   <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role!)}>
-                      {user.role}
+                    <Badge variant={getRoleBadgeVariant(user.role || 'project_user')}>
+                      {user.role || 'project_user'}
                     </Badge>
                   </TableCell>
                   <TableCell>
