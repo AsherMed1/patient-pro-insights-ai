@@ -6,7 +6,7 @@ import { AllAppointment } from './types';
 import { filterAppointments } from './utils';
 import AppointmentsList from './AppointmentsList';
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Calendar } from 'lucide-react';
+import { AlertCircle, Calendar, Clock } from 'lucide-react';
 
 interface AppointmentsTabsProps {
   appointments: AllAppointment[];
@@ -81,36 +81,66 @@ const AppointmentsTabs = ({
       </div>
       
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-        <TabsList className={`inline-flex w-full rounded-lg border border-border bg-transparent p-1 gap-1`}>
+        <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-5 gap-0.5'} bg-muted/40 p-1.5 rounded-xl`}>
           <TabsTrigger 
             value="new" 
-            className={`flex-1 rounded-md ${isMobile ? 'px-2 py-2 text-xs' : 'px-4 py-2.5 text-sm'} font-medium transition-all data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            New{displayCounts.new > 0 ? ` (${displayCounts.new})` : ''}
+            <div className="flex items-center gap-2.5 w-full">
+              <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <span className="font-medium">New</span>
+              <Badge variant={displayCounts.new > 0 ? "default" : "secondary"} className="ml-auto min-w-[28px] justify-center">
+                {displayCounts.new}
+              </Badge>
+            </div>
           </TabsTrigger>
           <TabsTrigger 
             value="needs-review" 
-            className={`flex-1 rounded-md ${isMobile ? 'px-2 py-2 text-xs' : 'px-4 py-2.5 text-sm'} font-medium transition-all data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            Needs Review{displayCounts.needsReview > 0 ? ` (${displayCounts.needsReview})` : ''}
+            <div className="flex items-center gap-2.5 w-full">
+              <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+              <span className="font-medium">Needs Review</span>
+              <Badge variant={displayCounts.needsReview > 0 ? "destructive" : "secondary"} className="ml-auto min-w-[28px] justify-center">
+                {displayCounts.needsReview}
+              </Badge>
+            </div>
           </TabsTrigger>
           <TabsTrigger 
             value="future" 
-            className={`flex-1 rounded-md ${isMobile ? 'px-2 py-2 text-xs' : 'px-4 py-2.5 text-sm'} font-medium transition-all data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            Upcoming{displayCounts.future > 0 ? ` (${displayCounts.future})` : ''}
+            <div className="flex items-center gap-2.5 w-full">
+              <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <span className="font-medium">Upcoming</span>
+              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
+                {displayCounts.future}
+              </Badge>
+            </div>
           </TabsTrigger>
           <TabsTrigger 
             value="past" 
-            className={`flex-1 rounded-md ${isMobile ? 'px-2 py-2 text-xs' : 'px-4 py-2.5 text-sm'} font-medium transition-all data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            Completed{displayCounts.past > 0 ? ` (${displayCounts.past})` : ''}
+            <div className="flex items-center gap-2.5 w-full">
+              <Calendar className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <span className="font-medium">Completed</span>
+              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
+                {displayCounts.past}
+              </Badge>
+            </div>
           </TabsTrigger>
           <TabsTrigger 
             value="all" 
-            className={`flex-1 rounded-md ${isMobile ? 'px-2 py-2 text-xs' : 'px-4 py-2.5 text-sm'} font-medium transition-all data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground`}
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-lg transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`}
           >
-            All{displayCounts.all > 0 ? ` (${displayCounts.all})` : ''}
+            <div className="flex items-center gap-2.5 w-full">
+              <Calendar className="h-4 w-4 text-purple-500 flex-shrink-0" />
+              <span className="font-medium">All</span>
+              <Badge variant="secondary" className="ml-auto min-w-[28px] justify-center">
+                {displayCounts.all}
+              </Badge>
+            </div>
           </TabsTrigger>
         </TabsList>
 
