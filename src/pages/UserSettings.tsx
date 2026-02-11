@@ -426,8 +426,8 @@ const UserSettings = () => {
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold">Account Settings</h1>
-          <p className="text-muted-foreground">Manage your account preferences and security settings</p>
+          <h1 className="heading-2">Account Settings</h1>
+          <p className="body-base">Manage your account preferences and security settings</p>
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">

@@ -31,8 +31,8 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-muted-foreground tracking-wide">Total Appointments</p>
-                <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalAppointments}</p>
+                <p className="label-muted">Total Appointments</p>
+                <p className="stat-value">{stats.totalAppointments}</p>
                 <Badge variant="secondary" className="text-xs font-normal mt-1.5">
                   All scheduled
                 </Badge>
@@ -52,8 +52,8 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-muted-foreground tracking-wide">Patients Showed</p>
-                <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalShowed}</p>
+                <p className="label-muted">Patients Showed</p>
+                <p className="stat-value">{stats.totalShowed}</p>
                 <Badge variant="default" className="text-xs font-normal mt-1.5 bg-green-600 hover:bg-green-600">
                   {showRate.toFixed(1)}% show rate
                 </Badge>
@@ -73,8 +73,8 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-muted-foreground tracking-wide">Procedures Ordered</p>
-                <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalProceduresOrdered}</p>
+                <p className="label-muted">Procedures Ordered</p>
+                <p className="stat-value">{stats.totalProceduresOrdered}</p>
                 <Badge variant="outline" className="text-xs font-normal mt-1.5">
                   {procedureRate.toFixed(1)}% conversion
                 </Badge>
@@ -91,8 +91,8 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-muted-foreground tracking-wide">Projected Revenue</p>
-                <p className="text-3xl font-bold text-foreground tabular-nums">${stats.projectedRevenue.toLocaleString()}</p>
+                <p className="label-muted">Projected Revenue</p>
+                <p className="stat-value">${stats.projectedRevenue.toLocaleString()}</p>
                 <Badge variant="outline" className="text-xs font-normal mt-1.5 text-orange-600 border-orange-200">
                   $7K avg per procedure
                 </Badge>

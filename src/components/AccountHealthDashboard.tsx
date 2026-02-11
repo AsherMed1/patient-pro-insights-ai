@@ -100,7 +100,7 @@ const AccountHealthDashboard = ({ clientId }: AccountHealthDashboardProps) => {
             <TrendingUp className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.accountStatus}</div>
+            <div className="stat-value">{data.accountStatus}</div>
             <p className="text-xs opacity-90 mt-1">Overall health</p>
           </CardContent>
         </Card>
@@ -111,7 +111,7 @@ const AccountHealthDashboard = ({ clientId }: AccountHealthDashboardProps) => {
             <CheckCircle className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.retentionScore}/10</div>
+            <div className="stat-value">{data.retentionScore}/10</div>
             <Progress value={data.retentionScore * 10} className="mt-2 bg-purple-400" />
           </CardContent>
         </Card>
@@ -122,7 +122,7 @@ const AccountHealthDashboard = ({ clientId }: AccountHealthDashboardProps) => {
             <CheckCircle className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.tasksCompleted}%</div>
+            <div className="stat-value">{data.tasksCompleted}%</div>
             <Progress value={data.tasksCompleted} className="mt-2 bg-pink-400" />
           </CardContent>
         </Card>
@@ -133,7 +133,7 @@ const AccountHealthDashboard = ({ clientId }: AccountHealthDashboardProps) => {
             <MessageCircle className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.communicationFrequency}</div>
+            <div className="stat-value">{data.communicationFrequency}</div>
             <p className="text-xs opacity-90 mt-1">Touch frequency</p>
           </CardContent>
         </Card>

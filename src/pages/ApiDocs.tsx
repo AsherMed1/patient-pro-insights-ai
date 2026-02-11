@@ -10,8 +10,8 @@ const ApiDocs = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-gray-900">API Documentation</h1>
-          <p className="text-xl text-gray-600">Complete API reference for all endpoints</p>
+           <h1 className="heading-1">API Documentation</h1>
+          <p className="body-lg">Complete API reference for all endpoints</p>
         </div>
 
         <Tabs defaultValue="appointments-api" className="w-full">
