@@ -426,7 +426,7 @@ const ProjectPortal = () => {
               </Tooltip>
             )}
 
-            <div className="mt-auto pb-4 pt-4 border-t border-border/20 flex flex-col items-center gap-2">
+            <div className="mt-auto pb-6 pt-4 border-t border-border/20 flex flex-col items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
