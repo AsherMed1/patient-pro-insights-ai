@@ -1,27 +1,20 @@
 
 
-# Plan: Replace Action Buttons with Icon-Only Row
+# Fix: Appointment Management Tabs Styling
 
-## What Changes
-Replace the vertically stacked "View Details", "View Insurance", and "Delete" buttons in the top-right corner of each appointment card with a compact horizontal row of icon-only buttons with tooltips.
+## Problem
+The tab bar has excessive padding, making it look bloated. The active tab doesn't stand out clearly -- the background and shadow differences are too subtle, making it hard to tell which tab is selected.
 
-## Layout Change
+## Changes
 
-**Before**: Three buttons stacked vertically with text labels, taking significant vertical space
-**After**: Three icon buttons in a horizontal row, each wrapped in a tooltip for discoverability
+### File: `src/components/appointments/AppointmentsTabs.tsx`
 
-## Technical Details
+1. **Reduce TabsList padding** -- Change `p-1.5` to `p-1` and remove `gap-0.5` to tighten the tab bar
+2. **Reduce TabsTrigger padding** -- Change `py-2.5` to `py-2` on desktop for a more compact look
+3. **Improve active state visibility** -- Add a stronger active indicator:
+   - Add `data-[state=active]:shadow-md` for more contrast
+   - Add `data-[state=active]:border data-[state=active]:border-primary/20` for a subtle border on the active tab
+4. **Reduce inner gaps** -- Change `gap-2.5` inside each tab trigger to `gap-2` for tighter icon/text/badge spacing
 
-### File: `src/components/appointments/AppointmentCard.tsx`
-
-**Lines 1039-1088** -- Replace the vertical `flex-col` button group with a horizontal `flex-row` icon-only layout:
-
-- Change `flex-col items-end space-y-1` to `flex-row items-center gap-1`
-- **View Details**: Icon-only button using `size="icon"` with `Info` icon, wrapped in a `Tooltip` showing "View Details"
-- **View Insurance**: Icon-only button using `size="icon"` with `Shield` icon (blue styling preserved), wrapped in a `Tooltip` showing "View Insurance"  
-- **Delete**: Icon-only button using `size="icon"` with `Trash2` icon (red styling preserved), wrapped in a `Tooltip` showing "Delete", still inside the existing `AlertDialog` for confirmation
-- Remove all `<span>` text labels from these buttons
-- Keep all existing click handlers, conditional rendering, and the delete confirmation dialog unchanged
-
-The buttons will be approximately 28x28px each (using `h-7 w-7` or similar small icon size), sitting in a single horizontal row that takes far less space than the current stacked layout.
+These are purely CSS class changes across lines 84-142, no logic changes.
 
