@@ -6,14 +6,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Upload, Calendar as CalendarIcon, Search, Clock, CalendarRange, ChevronDown, X, SlidersHorizontal } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Clock, CalendarRange, ChevronDown, X, SlidersHorizontal } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { format, subDays, startOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
 import { useRole } from '@/hooks/useRole';
-import { InsuranceSyncTrigger } from '@/components/InsuranceSyncTrigger';
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -26,8 +25,6 @@ interface AppointmentFiltersProps {
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
   onClearFilters: () => void;
-  onShowImport: () => void;
-  showImport: boolean;
   projectFilter: string;
   onProjectFilterChange: (value: string) => void;
   statusFilter: string;
@@ -50,8 +47,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   dateRange,
   onDateRangeChange,
   onClearFilters,
-  onShowImport,
-  showImport,
   projectFilter,
   onProjectFilterChange,
   statusFilter,
@@ -195,39 +190,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     }
   };
   return <div className="portal-spacing">
-      {/* Admin Actions - Import CSV - Collapsible */}
-      {isAdmin() && !showImport && (
-        <Collapsible defaultOpen={false} className="portal-section">
-          <CollapsibleTrigger asChild>
-            <Button 
-              variant="ghost" 
-              className="w-full justify-between hover:bg-accent p-4"
-            >
-              <div className="flex items-center gap-2">
-                <Upload className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Data Management</span>
-              </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Data Management</h3>
-                <p className="text-sm text-muted-foreground">Import historical appointment data and sync insurance info from leads</p>
-              </div>
-              <div className="flex gap-2">
-                <InsuranceSyncTrigger />
-                <Button onClick={onShowImport} variant="outline" className="flex items-center gap-2">
-                  <Upload className="h-4 w-4" />
-                  Import CSV
-                </Button>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
       {/* Compact Filter Bar */}
       <div className="rounded-xl bg-muted/30 p-4 space-y-3">
         {/* Primary filters row */}

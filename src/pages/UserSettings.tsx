@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, User, Lock, Shield, FileText, Copy, AlertCircle, Upload, Camera } from 'lucide-react';
 import { AuditLogDashboard } from '@/components/audit/AuditLogDashboard';
+import { InsuranceSyncTrigger } from '@/components/InsuranceSyncTrigger';
+import AppointmentsCsvImport from '@/components/AppointmentsCsvImport';
 import { useRole } from '@/hooks/useRole';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -56,6 +58,7 @@ const UserSettings = () => {
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [showDataImport, setShowDataImport] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -431,10 +434,11 @@ const UserSettings = () => {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-5' : 'grid-cols-3'}`}>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            {role === 'admin' && <TabsTrigger value="data-management">Data Management</TabsTrigger>}
             {role === 'admin' && <TabsTrigger value="audit">Audit Logs</TabsTrigger>}
           </TabsList>
 
@@ -689,6 +693,51 @@ const UserSettings = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {role === 'admin' && (
+            <TabsContent value="data-management">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Upload className="h-5 w-5" />
+                    Data Management
+                  </CardTitle>
+                  <CardDescription>
+                    Import historical appointment data and sync insurance info from leads
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Sync Insurance Data</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Sync intake notes and insurance IDs from leads to their matching appointments.
+                    </p>
+                    <InsuranceSyncTrigger />
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Import Appointments CSV</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Upload historical appointment data from a CSV file.
+                    </p>
+                    {!showDataImport ? (
+                      <Button onClick={() => setShowDataImport(true)} variant="outline" className="flex items-center gap-2">
+                        <Upload className="h-4 w-4" />
+                        Import CSV
+                      </Button>
+                    ) : (
+                      <div className="space-y-4">
+                        <AppointmentsCsvImport />
+                        <Button variant="outline" onClick={() => setShowDataImport(false)}>
+                          Cancel Import
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {role === 'admin' && (
             <TabsContent value="audit">
