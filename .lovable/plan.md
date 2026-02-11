@@ -1,20 +1,17 @@
 
 
-# Fix: Appointment Management Tabs Styling
+# Fix: Tab Padding / Spacing
 
 ## Problem
-The tab bar has excessive padding, making it look bloated. The active tab doesn't stand out clearly -- the background and shadow differences are too subtle, making it hard to tell which tab is selected.
+The tabs have too much horizontal spacing between the icon, label, and badge. The `w-full` on each inner `div` stretches the content across the entire tab width, and `ml-auto` pushes the badge to the far right edge, creating excessive whitespace.
 
 ## Changes
 
 ### File: `src/components/appointments/AppointmentsTabs.tsx`
 
-1. **Reduce TabsList padding** -- Change `p-1.5` to `p-1` and remove `gap-0.5` to tighten the tab bar
-2. **Reduce TabsTrigger padding** -- Change `py-2.5` to `py-2` on desktop for a more compact look
-3. **Improve active state visibility** -- Add a stronger active indicator:
-   - Add `data-[state=active]:shadow-md` for more contrast
-   - Add `data-[state=active]:border data-[state=active]:border-primary/20` for a subtle border on the active tab
-4. **Reduce inner gaps** -- Change `gap-2.5` inside each tab trigger to `gap-2` for tighter icon/text/badge spacing
+For all 5 tab triggers (lines 89, 101, 113, 125, 137):
+- Remove `w-full` from the inner `<div className="flex items-center gap-2 w-full">` so the content only takes the space it needs
+- Remove `ml-auto` from each `<Badge>` so it sits naturally next to the text instead of being pushed to the far edge
 
-These are purely CSS class changes across lines 84-142, no logic changes.
+This keeps the tabs centered within their grid cell with tighter icon-label-badge grouping. No logic changes, purely CSS class removals on ~10 elements.
 
