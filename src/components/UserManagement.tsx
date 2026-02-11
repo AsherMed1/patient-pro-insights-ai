@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
@@ -77,7 +77,7 @@ const UserManagement = () => {
     fetchProjects();
   }, []);
 
-  const fetchUsers = async (showRefreshIndicator = false) => {
+  const fetchUsers = async (showRefreshIndicator = false, showToast = false) => {
     if (showRefreshIndicator) {
       setRefreshing(true);
     }
@@ -171,10 +171,12 @@ const UserManagement = () => {
 
       setUsers(formattedUsers);
       
-      toast({
-        title: "Users Refreshed",
-        description: `Loaded ${formattedUsers.length} users`,
-      });
+      if (showToast) {
+        toast({
+          title: "Users Refreshed",
+          description: `Loaded ${formattedUsers.length} users`,
+        });
+      }
       
     } catch (error) {
       console.error('❌ Error fetching users:', error);
@@ -270,7 +272,7 @@ const UserManagement = () => {
           role: 'project_user',
           selectedProjectId: ''
         });
-        fetchUsers(true);
+        setTimeout(() => fetchUsers(true), 500);
       } else {
         // Handle application-level errors returned from the edge function
         const errorMessage = data?.error || "Failed to create user";
@@ -534,7 +536,7 @@ const UserManagement = () => {
               <CardTitle>User Management ({users.length} users)</CardTitle>
               <div className="space-x-2">
               <Button 
-                onClick={() => fetchUsers(true)} 
+                onClick={() => fetchUsers(true, true)} 
                 variant="outline"
                 disabled={refreshing}
               >
@@ -551,6 +553,7 @@ const UserManagement = () => {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Create New User</DialogTitle>
+                    <DialogDescription>Fill in the details below to create a new user account.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -818,6 +821,7 @@ const UserManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>Update the user's information below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -870,6 +874,7 @@ const UserManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
+            <DialogDescription>This action is permanent and cannot be undone.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p>Are you sure you want to delete <strong>{deletingUser?.email}</strong>?</p>
@@ -894,6 +899,7 @@ const UserManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>Set a new password for this user.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -938,6 +944,7 @@ const UserManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Password Generated</DialogTitle>
+            <DialogDescription>Copy the generated password below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
