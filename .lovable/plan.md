@@ -1,38 +1,41 @@
 
 
-# Plan: Add Password Reset to User Management
+# Plan: Fix Page Blank/Refresh Issue When Adding a User
 
-## Overview
+## Root Cause Analysis
 
-Add a "Reset Password" button to each user's action row in the User Management table. Clicking it opens a dialog where the admin can either enter a custom password or generate a random one. The existing `admin-reset-password` edge function already handles everything server-side.
+After reviewing the code, I identified several issues that contribute to the blank page behavior:
 
-## What Changes
+1. **Unnecessary toast on every data fetch**: The `fetchUsers` function (line 174) fires a "Users Refreshed" toast on EVERY call -- including initial page load and after creating/updating/deleting users. This causes duplicate toasts (a "Success" toast AND a "Users Refreshed" toast) and may trigger re-renders that disrupt the UI.
+
+2. **Missing `DialogDescription`**: All four Dialog components (Create, Edit, Delete, Reset Password) are missing the required `DialogDescription` component, causing Radix UI warnings that can lead to unexpected behavior in some browsers.
+
+3. **No guard against re-fetch timing**: After creating a user, `fetchUsers(true)` is called immediately. If there's any timing issue with the database triggers (profile creation via `handle_new_user`), it could return incomplete data causing render issues.
+
+## Changes
 
 ### File: `src/components/UserManagement.tsx`
 
-1. **New state variables**: Add `resetPasswordUser`, `resetPasswordValue`, `resetLoading`, `showResetDialog`, `showGeneratedPasswordDialog`, and `generatedPassword`.
+1. **Split the toast out of `fetchUsers`** -- Only show the "Users Refreshed" toast when the function is called from the manual Refresh button (add a `showToast` parameter), NOT when called internally after create/update/delete or on initial mount.
 
-2. **New icon import**: Add `KeyRound` from lucide-react.
+2. **Add `DialogDescription`** to all four Dialog components (Create User, Edit User, Delete User, Reset Password, Generated Password) to fix the Radix UI accessibility warnings and prevent potential rendering issues.
 
-3. **Reset password handler**: A function that calls `supabase.functions.invoke('admin-reset-password', { body: { userId, newPassword } })`. If no custom password is provided, the edge function generates one and returns it, which is then shown in a confirmation dialog.
+3. **Add a small delay before refetch** after user creation to let database triggers complete before fetching the updated user list.
 
-4. **New action button**: Add a `KeyRound` icon button next to the existing Edit/Delete/Mail buttons in the Actions column (line ~717). It opens a dialog for the selected user.
+### Specific Code Changes
 
-5. **Reset Password Dialog**: Contains an input for a custom password (optional), two buttons -- "Reset with Custom Password" and "Generate and Reset" -- and a note that all resets are audit-logged.
-
-6. **Generated Password Dialog**: If a password was auto-generated, a second dialog displays the generated password so the admin can copy and share it securely.
+| Location | Change |
+|----------|--------|
+| `fetchUsers` function signature | Add a second parameter `showToast = false` to control toast display |
+| Line 174 (toast call) | Wrap in `if (showToast)` condition |
+| Line 76 (initial mount) | Keep as `fetchUsers()` -- no toast |
+| Line 273 (after create) | Change to `setTimeout(() => fetchUsers(true), 500)` -- no toast, small delay |
+| Line 348 (after edit) | Change to `fetchUsers(true)` -- no toast |
+| Line 405 (after delete) | Change to `fetchUsers(true)` -- no toast |
+| Line 537 (Refresh button) | Change to `fetchUsers(true, true)` -- with toast |
+| All DialogContent elements | Add `DialogDescription` import and component inside each dialog |
 
 ## No Backend Changes
 
-The `admin-reset-password` edge function already exists and handles admin verification, password generation, GHL sync prevention, and audit logging. No database or edge function changes needed.
-
-## Technical Details
-
-| Element | Detail |
-|---------|--------|
-| Edge function | `admin-reset-password` (existing) |
-| Auth check | Edge function verifies caller is admin via `user_roles` |
-| Self-reset blocked | Edge function returns error if admin tries to reset own password |
-| Audit logging | Edge function logs via `log_audit_event` RPC |
-| must_change_password | The edge function does not currently set this flag -- users will be prompted to change on next login only if the flag is set during creation. This can be enhanced later if needed. |
+All fixes are client-side in the single `UserManagement.tsx` file.
 
