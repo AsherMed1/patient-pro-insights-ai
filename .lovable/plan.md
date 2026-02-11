@@ -1,30 +1,44 @@
 
 
-# Shrink Project Name on Scroll with Smooth Animation
+# Convert Tabs to Modern Side Navigation
 
 ## What Changes
-When the user scrolls down, the project header will smoothly transition to a compact version -- the heading shrinks from `text-2xl` to `text-lg`, the subtitle hides, and the icon shrinks. When scrolling back to the top, it smoothly expands again.
+Replace the horizontal "Appointments | Overview" tab bar with a vertical side navigation using icon buttons. This creates a modern split-layout: a narrow icon sidebar on the left and the main content area on the right.
 
-## How It Works
-- Add a scroll listener in `ProjectPortal.tsx` that detects when the page has scrolled past a threshold (e.g., 50px)
-- Pass a `compact` boolean prop to `ProjectHeader`
-- `ProjectHeader` uses CSS `transition` classes to smoothly animate the size changes
+## Visual Layout
+
+```text
++--sticky header (project name + actions)--+
+|                                           |
+| [Cal]  |   Main Content Area             |
+| [Chart]|   (appointments or overview)     |
+|        |                                  |
+|        |                                  |
++--------+----------------------------------+
+```
+
+- Left rail: ~56px wide, with two vertically stacked icon buttons (Calendar icon for Appointments, BarChart3 icon for Overview)
+- Active icon gets a highlighted background and accent color
+- Inactive icons are muted/gray
+- Tooltips on hover to show the label
 
 ## Technical Details
 
 ### File: `src/pages/ProjectPortal.tsx`
 
-1. Add a `useState` for `isScrolled` and a `useEffect` with a scroll listener that sets `isScrolled = true` when `window.scrollY > 50`
-2. Pass `isScrolled` as a `compact` prop to `<ProjectHeader>`
+1. Replace the `Tabs` + `TabsList` + `TabsTrigger` horizontal layout with a custom side nav + content area
+2. Keep the `activeTab` state and `setActiveTab` logic (already exists)
+3. Structure the content area below the sticky header as a flex row:
+   - **Left**: A narrow vertical nav bar (`w-14`) with icon buttons for "Appointments" (CalendarDays icon) and "Overview" (BarChart3 icon, shown only if `canViewOverview`)
+   - **Right**: The content area (`flex-1`) rendering the active tab's content
+4. Style the active nav item with `bg-primary/10 text-primary` and inactive with `text-muted-foreground`
+5. Add `transition-colors duration-200` for smooth hover/active state changes
+6. Import `CalendarDays` and `BarChart3` from lucide-react
+7. Remove the `TabsList`/`TabsTrigger` components; keep `activeTab` state to control which content panel renders
+8. Use Tooltip components (already available) to show labels on hover
+9. The side nav should have a subtle right border (`border-r border-border/30`) and stick alongside the content
 
-### File: `src/components/projects/ProjectHeader.tsx`
-
-1. Add `compact?: boolean` to the props interface
-2. Apply transition classes to the wrapper: `transition-all duration-300 ease-in-out`
-3. Conditionally apply sizing:
-   - **Icon container**: `p-2.5` when normal, `p-1.5` when compact (with `transition-all duration-300`)
-   - **Icon**: `h-6 w-6` when normal, `h-4 w-4` when compact
-   - **Heading**: `text-2xl` when normal, `text-base` when compact
-   - **Subtitle**: visible at full size, hidden (`opacity-0 max-h-0`) when compact, with smooth opacity/height transition
-4. All size changes use `transition-all duration-300 ease-in-out` for a smooth animation
+### Removed
+- The horizontal `TabsList` with text-based triggers
+- The `Tabs` wrapper component (replaced by manual state-driven rendering)
 
