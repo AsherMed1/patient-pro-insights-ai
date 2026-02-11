@@ -85,7 +85,13 @@ const ProjectPortal = () => {
   const [reserveInitialHour, setReserveInitialHour] = useState<number | undefined>();
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
+  const [isScrolled, setIsScrolled] = useState(false);
 
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   const handleToggleEventType = (type: string) => {
     setSelectedEventTypes(prev => {
       if (prev.includes(type)) {
@@ -369,12 +375,13 @@ const ProjectPortal = () => {
     );
   }
 
+
   return (
     <div className="min-h-screen bg-background">
       {/* Sticky header */}
       <div className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/20">
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between">
-          <ProjectHeader projectName={project.project_name} />
+          <ProjectHeader projectName={project.project_name} compact={isScrolled} />
           
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-9 w-9 hover:bg-accent/50" title="Back to Dashboard">
