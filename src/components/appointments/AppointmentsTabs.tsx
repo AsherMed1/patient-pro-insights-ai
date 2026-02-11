@@ -72,15 +72,7 @@ const AppointmentsTabs = ({
   };
 
   return (
-    <div className="section-card animate-fade-in-up">
-      <div className="flex items-center gap-2.5 mb-6">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Calendar className="h-5 w-5 text-primary" />
-        </div>
-        <h3 className="text-lg font-semibold text-foreground">Appointment Management</h3>
-      </div>
-      
-      <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="w-full animate-fade-in-up">
         <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-5'} bg-muted/40 p-1.5 rounded-xl`}>
           <TabsTrigger 
             value="new" 
@@ -249,7 +241,6 @@ const AppointmentsTabs = ({
         />
       </TabsContent>
       </Tabs>
-    </div>
   );
 };
 
