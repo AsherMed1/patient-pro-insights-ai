@@ -533,6 +533,30 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // Extract generic "Notes" field if insurance_notes not already populated
+  if (!parsedData.insurance_info) {
+    parsedData.insurance_info = {};
+  }
+  if (!parsedData.insurance_info.insurance_notes) {
+    const notesPatterns = [
+      /Notes\s*\(Example:.*?\).*?:\s*([^\n]+)/i,
+      /Notes\s*\(.*?optional.*?\).*?:\s*([^\n]+)/i,
+      /^  Notes.*?:\s*([^\n]+)/im,
+    ];
+    
+    for (const pattern of notesPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        if (value && value.length > 0) {
+          parsedData.insurance_info.insurance_notes = value;
+          console.log(`[AUTO-PARSE ENRICH] Extracted insurance_notes via regex: ${value}`);
+          break;
+        }
+      }
+    }
+  }
+  
   return parsedData;
 }
 
@@ -670,6 +694,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
                !key.includes('conversation') && !result.insurance_info.insurance_notes) {
       result.insurance_info.insurance_notes = value;
+      console.log(`[AUTO-PARSE GHL] Captured generic notes field "${rawKey}" as insurance_notes: ${value}`);
     }
     // Insurance card URL
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
@@ -1109,7 +1134,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "insurance_plan": "string or null",
     "insurance_id_number": "string or null",
     "insurance_group_number": "string or null",
-    "insurance_notes": "string or null - Any additional insurance notes, secondary insurance info, VA coverage, Medicaid/Medicare notes, or other insurance-related comments documented by the caller"
+    "insurance_notes": "string or null - Any additional notes from the intake form, including fields labeled 'Notes', 'Notes (Example: Imaging, Secondary, etc.)', secondary insurance info, VA coverage, Medicaid/Medicare notes, or clinical observations documented by the caller. Always extract any generic 'Notes' field value here."
   },
   "contact_info": {
     "name": "string or null",
@@ -1241,6 +1266,8 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         // GHL data has already been filtered by procedure, so it takes priority
         if (ghlData) {
           console.log('[AUTO-PARSE] Merging GHL data with AI-parsed data (non-null only)...');
+          console.log(`[AUTO-PARSE] GHL insurance_notes: ${ghlData.insurance_info?.insurance_notes || 'null'}`);
+          console.log(`[AUTO-PARSE] AI insurance_notes: ${parsedData.insurance_info?.insurance_notes || 'null'}`);
           parsedData.insurance_info = mergeWithNonNull(parsedData.insurance_info, ghlData.insurance_info);
           parsedData.contact_info = mergeWithNonNull(parsedData.contact_info, ghlData.contact_info);
           parsedData.demographics = mergeWithNonNull(parsedData.demographics, ghlData.demographics);
