@@ -1,38 +1,33 @@
 
-# Fix: Remove Double Card Border Between Sections
+# Show Icon Only for Settings and Sign Out Buttons
 
 ## Problem
-The "Appointment Management" header with its own bordered card (`section-card` class) is nested inside the parent `Card` component from `AllAppointmentsManager`. This creates a visible double-border/nested-card effect with unnecessary visual separation.
+The "Settings" and "Sign Out" buttons in the ProjectPortal header currently show both an icon and text label, taking up unnecessary horizontal space.
 
 ## Solution
-Remove the `section-card` wrapper and the redundant "Appointment Management" header from `AppointmentsTabs`. The parent Card in `AllAppointmentsManager` already provides the title ("All Appointments"), border, and padding -- the inner card is redundant.
+Remove the text labels and `mr-2` spacing from both buttons, keeping only the icons. Use the `icon` size variant for a compact square button.
 
 ## Technical Details
 
-### File: `src/components/appointments/AppointmentsTabs.tsx`
+### File: `src/components/pages/ProjectPortal.tsx` (lines 386-397)
 
-**Lines 74-81** -- Remove the `section-card` wrapper div and the "Appointment Management" header block:
+Update the two buttons in the header's right-side group:
 
-Replace:
+**Settings button** (lines 387-391): Remove "Settings" text, remove `mr-2` from icon, change `size="sm"` to `size="icon"`
+
+**Sign Out button** (lines 393-396): Remove "Sign Out" text, remove `mr-2` from icon, change `size="sm"` to `size="icon"`
+
 ```tsx
-<div className="section-card animate-fade-in-up">
-  <div className="flex items-center gap-2.5 mb-6">
-    <div className="p-2 bg-primary/10 rounded-lg">
-      <Calendar className="h-5 w-5 text-primary" />
-    </div>
-    <h3 className="text-lg font-semibold text-foreground">Appointment Management</h3>
-  </div>
-  <Tabs ...>
-    ...
-  </Tabs>
+<div className="flex items-center gap-2">
+  <Link to="/settings">
+    <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50">
+      <Settings className="h-4 w-4" />
+    </Button>
+  </Link>
+  <Button variant="ghost" size="icon" onClick={signOut} className="h-9 w-9 hover:bg-accent/50">
+    <LogOut className="h-4 w-4" />
+  </Button>
 </div>
 ```
 
-With just:
-```tsx
-<Tabs ...>
-  ...
-</Tabs>
-```
-
-This removes the nested card entirely so tabs flow naturally inside the parent Card, eliminating the border between the title area and the tab content.
+Optionally, wrap each in a `Tooltip` so users can still see the label on hover -- but since the icons are standard (gear and logout arrow), they are self-explanatory without tooltips.
