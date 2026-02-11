@@ -6,7 +6,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Upload, Calendar as CalendarIcon, Filter, Search, Clock, CalendarRange, Zap, Building2, CheckCircle, ArrowUpDown, ChevronDown, Activity } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Search, Clock, CalendarRange, ChevronDown, X, SlidersHorizontal } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
 import { format, subDays, startOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -227,263 +228,219 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         </Collapsible>
       )}
 
-      {/* Search and Filter Panel */}
-      <div className="portal-section">
-        <div className="flex items-center gap-2 mb-6">
-          <Filter className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold text-foreground">Search & Filter Appointments</h3>
+      {/* Compact Filter Bar */}
+      <div className="rounded-xl bg-muted/30 p-4 space-y-3">
+        {/* Primary filters row */}
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Search group */}
+          <div className="flex items-center gap-1 bg-background rounded-lg border border-border/50 px-2 shadow-sm">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Select value={searchType} onValueChange={onSearchTypeChange}>
+              <SelectTrigger className="w-[80px] border-0 shadow-none h-8 text-xs px-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="phone">Phone</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input 
+              placeholder={searchType === 'name' ? "Search patient..." : "Search phone..."}
+              value={searchTerm} 
+              onChange={e => onSearchChange(e.target.value)} 
+              className="w-[160px] border-0 shadow-none h-8 text-sm focus-visible:ring-0" 
+            />
+          </div>
+
+          {!isProjectSpecificView && (
+            <Select value={projectFilter} onValueChange={onProjectFilterChange}>
+              <SelectTrigger className="w-[150px] h-8 text-xs">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Projects</SelectItem>
+                {projects.map(project => <SelectItem key={project} value={project}>{project}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Statuses</SelectItem>
+              {statusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
+            <SelectTrigger className="w-[150px] h-8 text-xs">
+              <SelectValue placeholder="All Procedures" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Procedures</SelectItem>
+              <SelectItem value="ordered">Procedure Ordered</SelectItem>
+              <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
+              <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
+              <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
+              <SelectItem value="null">Not Set</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={sortBy} onValueChange={onSortChange}>
+            <SelectTrigger className="w-[150px] h-8 text-xs">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date_desc">Newest First</SelectItem>
+              <SelectItem value="date_asc">Oldest First</SelectItem>
+              <SelectItem value="procedure_ordered">Procedure Status</SelectItem>
+              <SelectItem value="project">Project</SelectItem>
+              <SelectItem value="name_asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name_desc">Name (Z-A)</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={locationFilter} onValueChange={onLocationFilterChange}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue placeholder="All Locations" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Locations</SelectItem>
+              {locationOptions.map(location => (
+                <SelectItem key={location} value={location}>{location}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={serviceFilter} onValueChange={onServiceFilterChange}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue placeholder="All Services" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Services</SelectItem>
+              {serviceOptions.map(service => (
+                <SelectItem key={service} value={service}>{service}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Date filter toggle */}
+          <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Dates
+                {(dateRange.from || dateRange.to) && (
+                  <Badge variant="secondary" className="h-4 w-4 p-0 flex items-center justify-center text-[10px] rounded-full">1</Badge>
+                )}
+                <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", advancedFiltersOpen && "rotate-180")} />
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+
+          {/* Clear all button - only show when filters active */}
+          {(searchTerm || statusFilter !== 'ALL' || procedureOrderFilter !== 'ALL' || locationFilter !== 'ALL' || serviceFilter !== 'ALL' || dateRange.from || dateRange.to || (!isProjectSpecificView && projectFilter !== 'ALL')) && (
+            <Button variant="ghost" size="sm" onClick={onClearFilters} className="h-8 text-xs text-muted-foreground hover:text-foreground">
+              Clear all
+            </Button>
+          )}
         </div>
-        
-        <div className="space-y-6">
-          {/* Search Bar and Project Filter */}
-          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto">
-            <div className="flex items-center space-x-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Select value={searchType} onValueChange={onSearchTypeChange}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="phone">Phone</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input 
-                placeholder={
-                  searchType === 'name' ? "Search by patient name..." :
-                  searchType === 'phone' ? "Search by phone number..." :
-                  "Search by DOB (YYYY-MM-DD)..."
-                } 
-                value={searchTerm} 
-                onChange={e => onSearchChange(e.target.value)} 
-                className="w-[240px]" 
-              />
-            </div>
-            
-            
-            {/* Project Filter - Only show if not in project-specific view */}
-            {!isProjectSpecificView && (
-              <div className="flex items-center space-x-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <Select value={projectFilter} onValueChange={onProjectFilterChange}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="All Projects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Projects</SelectItem>
-                    {projects.map(project => <SelectItem key={project} value={project}>
-                        {project}
-                      </SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+
+        {/* Active filter chips */}
+        {(searchTerm || statusFilter !== 'ALL' || procedureOrderFilter !== 'ALL' || locationFilter !== 'ALL' || serviceFilter !== 'ALL' || dateRange.from || (!isProjectSpecificView && projectFilter !== 'ALL')) && (
+          <div className="flex flex-wrap gap-1.5">
+            {searchTerm && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {searchType === 'name' ? 'Name' : 'Phone'}: {searchTerm}
+                <button onClick={() => onSearchChange('')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
             )}
-            
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Statuses</SelectItem>
-                  {statusOptions.map(status => <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <Select value={procedureOrderFilter} onValueChange={onProcedureOrderFilterChange}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Procedures" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Procedures</SelectItem>
-                  <SelectItem value="ordered">Procedure Ordered</SelectItem>
-                  <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
-                  <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
-                  <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
-                  <SelectItem value="null">Not Set</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              <Select value={sortBy} onValueChange={onSortChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date_desc">Date (Newest First)</SelectItem>
-                  <SelectItem value="date_asc">Date (Oldest First)</SelectItem>
-                  <SelectItem value="procedure_ordered">Sort by Procedure Status</SelectItem>
-                  <SelectItem value="project">Sort by Project</SelectItem>
-                  <SelectItem value="name_asc">Name (A-Z)</SelectItem>
-                  <SelectItem value="name_desc">Name (Z-A)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <Select value={locationFilter} onValueChange={onLocationFilterChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Locations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Locations</SelectItem>
-                  {locationOptions.map(location => (
-                    <SelectItem key={location} value={location}>
-                      {location}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <Select value={serviceFilter} onValueChange={onServiceFilterChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Services" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Services</SelectItem>
-                  {serviceOptions.map(service => (
-                    <SelectItem key={service} value={service}>
-                      {service}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isProjectSpecificView && projectFilter !== 'ALL' && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {projectFilter}
+                <button onClick={() => onProjectFilterChange('ALL')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
+            )}
+            {statusFilter !== 'ALL' && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {statusFilter}
+                <button onClick={() => onStatusFilterChange('ALL')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
+            )}
+            {procedureOrderFilter !== 'ALL' && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {procedureOrderFilter}
+                <button onClick={() => onProcedureOrderFilterChange('ALL')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
+            )}
+            {locationFilter !== 'ALL' && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {locationFilter}
+                <button onClick={() => onLocationFilterChange('ALL')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
+            )}
+            {serviceFilter !== 'ALL' && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {serviceFilter}
+                <button onClick={() => onServiceFilterChange('ALL')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
+            )}
+            {(dateRange.from || dateRange.to) && (
+              <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                {getDateRangeText()}
+                <button onClick={() => onDateRangeChange({ from: undefined, to: undefined })} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
+              </Badge>
+            )}
           </div>
-          
-          {/* Advanced Filters - Collapsible */}
-          <div className="border-t border-border pt-4">
-            <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-              <CollapsibleTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="w-full justify-between hover:bg-accent"
-                >
-                  <div className="flex items-center gap-2">
-                    <CalendarRange className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Advanced Date Filters</span>
-                  </div>
-                  <ChevronDown 
-                    className={cn(
-                      "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                      advancedFiltersOpen && "rotate-180"
-                    )} 
-                  />
-                </Button>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent className="space-y-4 pt-4">
-                {/* Quick Filters */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">Quick Filters:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setQuickDateRange('today')} className="quick-filter-btn">
-                      <Clock className="h-3 w-3 mr-1" />
-                      Today
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setQuickDateRange('week')} className="quick-filter-btn">
-                      <CalendarRange className="h-3 w-3 mr-1" />
-                      This Week
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setQuickDateRange('month')} className="quick-filter-btn">
-                      <CalendarIcon className="h-3 w-3 mr-1" />
-                      This Month
-                    </Button>
-                  </div>
-                </div>
+        )}
 
-                {/* Custom Date Range */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">Custom Date Range:</span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3 items-center">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange.from ? format(dateRange.from, "MMM dd") : "Start date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={dateRange.from} onSelect={date => onDateRangeChange({
-                        ...dateRange,
-                        from: date
-                      })} initialFocus className="p-3 pointer-events-auto" />
-                      </PopoverContent>
-                    </Popover>
+        {/* Collapsible date section */}
+        <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+          <CollapsibleContent className="pt-2 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setQuickDateRange('today')} className="rounded-full h-7 text-xs">
+                <Clock className="h-3 w-3 mr-1" />
+                Today
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setQuickDateRange('week')} className="rounded-full h-7 text-xs">
+                <CalendarRange className="h-3 w-3 mr-1" />
+                This Week
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setQuickDateRange('month')} className="rounded-full h-7 text-xs">
+                <CalendarIcon className="h-3 w-3 mr-1" />
+                This Month
+              </Button>
 
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange.to ? format(dateRange.to, "MMM dd") : "End date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={dateRange.to} onSelect={date => onDateRangeChange({
-                        ...dateRange,
-                        to: date
-                      })} initialFocus className="p-3 pointer-events-auto" />
-                      </PopoverContent>
-                    </Popover>
+              <div className="h-4 w-px bg-border mx-1" />
 
-                    <Button variant="outline" onClick={onClearFilters} className="text-sm">
-                      Clear All
-                    </Button>
-                  </div>
-
-                  {/* Current Filter Display */}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Showing:</span>
-                    <span className="font-bold text-base text-foreground">{getDateRangeText()}</span>
-                    {!isProjectSpecificView && projectFilter !== 'ALL' && <>
-                        <span>•</span>
-                        <span>Project: "{projectFilter}"</span>
-                      </>}
-                    {statusFilter !== 'ALL' && <>
-                        <span>•</span>
-                        <span>Status: "{statusFilter}"</span>
-                      </>}
-                    {procedureOrderFilter !== 'ALL' && <>
-                        <span>•</span>
-                        <span>Procedure: "{procedureOrderFilter === 'true' ? 'Ordered' : procedureOrderFilter === 'false' ? 'No Procedure' : 'Not Set'}"</span>
-                      </>}
-                     {searchTerm && <>
-                        <span>•</span>
-                        <span>Search ({searchType === 'name' ? 'Name' : searchType === 'phone' ? 'Phone' : 'DOB'}): "{searchTerm}"</span>
-                      </>}
-                    {locationFilter !== 'ALL' && <>
-                        <span>•</span>
-                        <span>Location: "{locationFilter}"</span>
-                      </>}
-                    {serviceFilter !== 'ALL' && <>
-                        <span>•</span>
-                        <span>Service: "{serviceFilter}"</span>
-                      </>}
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-7 text-xs rounded-full", !dateRange.from && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-1 h-3 w-3" />
+                    {dateRange.from ? format(dateRange.from, "MMM dd") : "Start"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dateRange.from} onSelect={date => onDateRangeChange({ ...dateRange, from: date })} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <span className="text-xs text-muted-foreground">→</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-7 text-xs rounded-full", !dateRange.to && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-1 h-3 w-3" />
+                    {dateRange.to ? format(dateRange.to, "MMM dd") : "End"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dateRange.to} onSelect={date => onDateRangeChange({ ...dateRange, to: date })} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>;
 };
