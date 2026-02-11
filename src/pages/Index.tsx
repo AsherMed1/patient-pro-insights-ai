@@ -143,8 +143,8 @@ const Index = () => {
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="flex justify-between items-center">
             <div className="space-y-2">
-              <h1 className="text-4xl font-bold text-foreground">Your Projects</h1>
-              <p className="text-xl text-muted-foreground">
+              <h1 className="heading-1">Your Projects</h1>
+              <p className="body-lg">
                 You have access to {accessibleProjects.length} project{accessibleProjects.length !== 1 ? 's' : ''}. 
                 Select one to view its dashboard.
               </p>
@@ -217,8 +217,8 @@ const Index = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold text-gray-900">Call Center Analytics Dashboard</h1>
-            <p className="text-xl text-gray-600">Comprehensive tracking and management system</p>
+             <h1 className="heading-1">Call Center Analytics Dashboard</h1>
+            <p className="body-lg">Comprehensive tracking and management system</p>
           </div>
           <div className="flex items-center space-x-4">
             <div className="flex flex-col items-end space-y-2">

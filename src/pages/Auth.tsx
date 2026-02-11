@@ -91,7 +91,7 @@ const Auth = () => {
                 alt="PatientPro Logo" 
                 className="h-20 w-auto mx-auto drop-shadow-md"
               />
-              <h1 className="text-4xl font-bold text-primary tracking-tight">Patient Pro Client Portal</h1>
+              <h1 className="heading-1 !text-primary">Patient Pro Client Portal</h1>
               <p className="text-xl text-primary/70 max-w-md leading-relaxed">
                 Secure medical practice management platform designed for modern healthcare professionals
               </p>
@@ -121,7 +121,7 @@ const Auth = () => {
       <div className="auth-form-section">
         <div className="auth-card">
           <div className="text-center space-y-4 mb-8">
-            <h2 className="text-3xl font-bold text-foreground">Get Started</h2>
+            <h2 className="heading-2">Get Started</h2>
             <p className="text-muted-foreground">
               Access your secure medical practice dashboard
             </p>

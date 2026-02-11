@@ -240,4 +240,16 @@
   .quick-filter-btn.active {
     @apply bg-primary text-primary-foreground shadow-sm;
   }
+
+  /* Typography scale */
+  .heading-1 { @apply text-4xl md:text-5xl font-bold tracking-tight text-foreground; }
+  .heading-2 { @apply text-3xl font-bold tracking-tight text-foreground; }
+  .heading-3 { @apply text-2xl font-semibold tracking-tight text-foreground; }
+  .heading-4 { @apply text-lg font-semibold tracking-tight text-foreground; }
+  .heading-5 { @apply text-sm font-semibold uppercase tracking-wide text-muted-foreground; }
+  .body-lg   { @apply text-lg text-muted-foreground; }
+  .body-base { @apply text-base text-muted-foreground; }
+  .body-sm   { @apply text-sm text-muted-foreground; }
+  .stat-value { @apply text-3xl font-bold tabular-nums text-foreground; }
+  .label-muted { @apply text-sm font-medium tracking-wide text-muted-foreground; }
 }

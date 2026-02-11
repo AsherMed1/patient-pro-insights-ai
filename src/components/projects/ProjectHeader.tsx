@@ -13,10 +13,10 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ projectName }) => 
           <Building className="h-10 w-10 text-primary" />
         </div>
         <div className="text-left">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+          <h1 className="heading-1">
             {projectName}
           </h1>
-          <p className="text-base text-muted-foreground mt-1.5">
+          <p className="body-base mt-1.5">
             Medical Practice Portal & Analytics
           </p>
         </div>
