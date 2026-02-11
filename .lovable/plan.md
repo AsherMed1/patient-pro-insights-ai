@@ -1,18 +1,30 @@
 
 
-# Make Header Sticky on Scroll
+# Shrink Project Name on Scroll with Smooth Animation
 
 ## What Changes
-Make the project header bar (project name + action icons) stick to the top of the viewport when scrolling, so it remains visible at all times.
+When the user scrolls down, the project header will smoothly transition to a compact version -- the heading shrinks from `text-2xl` to `text-lg`, the subtitle hides, and the icon shrinks. When scrolling back to the top, it smoothly expands again.
+
+## How It Works
+- Add a scroll listener in `ProjectPortal.tsx` that detects when the page has scrolled past a threshold (e.g., 50px)
+- Pass a `compact` boolean prop to `ProjectHeader`
+- `ProjectHeader` uses CSS `transition` classes to smoothly animate the size changes
 
 ## Technical Details
 
-### File: `src/pages/ProjectPortal.tsx` (lines 373-392)
+### File: `src/pages/ProjectPortal.tsx`
 
-1. Extract the header out of the padded content container so it can span the full viewport width when sticky
-2. Add `sticky top-0 z-50 bg-background` to the header wrapper so it pins to the top on scroll
-3. Add horizontal padding matching the page (`px-4 md:px-6 lg:px-8`) and constrain inner content with `max-w-7xl mx-auto`
-4. Add a subtle bottom border or backdrop blur (`backdrop-blur-sm border-b border-border/20`) for visual separation when scrolled
+1. Add a `useState` for `isScrolled` and a `useEffect` with a scroll listener that sets `isScrolled = true` when `window.scrollY > 50`
+2. Pass `isScrolled` as a `compact` prop to `<ProjectHeader>`
 
-Result: The header with project name, back arrow, settings, and sign-out icons stays fixed at the top while the rest of the page scrolls beneath it.
+### File: `src/components/projects/ProjectHeader.tsx`
+
+1. Add `compact?: boolean` to the props interface
+2. Apply transition classes to the wrapper: `transition-all duration-300 ease-in-out`
+3. Conditionally apply sizing:
+   - **Icon container**: `p-2.5` when normal, `p-1.5` when compact (with `transition-all duration-300`)
+   - **Icon**: `h-6 w-6` when normal, `h-4 w-4` when compact
+   - **Heading**: `text-2xl` when normal, `text-base` when compact
+   - **Subtitle**: visible at full size, hidden (`opacity-0 max-h-0`) when compact, with smooth opacity/height transition
+4. All size changes use `transition-all duration-300 ease-in-out` for a smooth animation
 
