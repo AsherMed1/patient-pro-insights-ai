@@ -1215,8 +1215,6 @@ const AllAppointmentsManager = ({
         onServiceFilterChange={setServiceFilter}
         sortBy={sortBy}
         onSortChange={setSortBy}
-        showImport={showImport}
-        onShowImport={() => setShowImport(true)}
         isProjectSpecificView={!!projectFilter} // Pass true if we have a projectFilter prop
       />
 
