@@ -1040,7 +1040,7 @@ const AppointmentCard = ({
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" onClick={() => setShowDetailedView(true)} className="h-7 w-7">
+                    <Button variant="ghost" size="icon" onClick={() => setShowDetailedView(true)} className="h-7 w-7">
                       <Info className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
@@ -1052,11 +1052,11 @@ const AppointmentCard = ({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
                         onClick={handleViewInsurance}
                         disabled={loadingLeadData}
-                        className="h-7 w-7 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                        className="h-7 w-7 hover:bg-blue-100"
                       >
                         <Shield className="h-3.5 w-3.5 text-blue-600" />
                       </Button>
@@ -1072,9 +1072,9 @@ const AppointmentCard = ({
                       <TooltipTrigger asChild>
                         <AlertDialogTrigger asChild>
                           <Button 
-                            variant="outline" 
+                            variant="ghost" 
                             size="icon" 
-                            className="h-7 w-7 bg-red-50 hover:bg-red-100 border-red-200 text-red-600 hover:text-red-700"
+                            className="h-7 w-7 hover:bg-red-100 text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
