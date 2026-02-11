@@ -33,7 +33,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ projectName, compa
           "text-sm text-muted-foreground transition-all duration-300 ease-in-out",
           compact ? "opacity-0 max-h-0" : "opacity-100 max-h-6"
         )}>
-          Medical Practice Portal & Analytics
+          Clinic Portal and Analytics
         </p>
       </div>
     </div>
