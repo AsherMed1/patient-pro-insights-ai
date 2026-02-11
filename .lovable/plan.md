@@ -1,20 +1,35 @@
 
 
-# Modern Icon-Only Toggle for List/Calendar Switch
+# Modernize the Top Header Section
 
 ## What Changes
-Replace the current List/Calendar toggle buttons (which show icons + text labels) with a cleaner, icon-only toggle using just the List and Calendar icons -- no words.
+Streamline the top navigation bar and project header into a single, cohesive section -- removing the oversized bordered card, shrinking the icon, and integrating everything into a compact, modern layout.
+
+## Design Approach
+- Merge the nav bar and project identity into one unified header strip instead of two separate blocks
+- Remove the bordered `section-card` container from `ProjectHeader` -- no card wrapper needed
+- Reduce the project name from `text-4xl/5xl` down to `text-2xl` for a proportional heading
+- Shrink the Building icon and its container for better balance
+- Remove the bottom gradient divider line
+- Keep the subtitle but make it smaller and more subtle
 
 ## Technical Details
 
+### File: `src/components/projects/ProjectHeader.tsx`
+
+Full rewrite of the component:
+
+1. Remove the `section-card` wrapper (bordered card with padding) -- replace with a simple `div` with minimal padding
+2. Reduce the icon container from `p-4` / `rounded-2xl` to `p-2.5` / `rounded-xl`, and the icon from `h-10 w-10` to `h-6 w-6`
+3. Change heading from `heading-1` (text-4xl/5xl) to `text-2xl font-bold tracking-tight`
+4. Reduce subtitle text size from `body-base` to `text-sm text-muted-foreground`
+5. Remove the bottom gradient divider (`w-full h-px bg-gradient-to-r...`)
+6. Remove `text-center` and `mb-5` -- keep left-aligned, tighter spacing
+
 ### File: `src/pages/ProjectPortal.tsx`
 
-**Lines 460-488** -- Update the view toggle buttons:
+Line 375 area -- Tighten the top nav bar:
+- Remove the heavy `border-b border-border/30 pb-4` and negative margins from the page-header div
+- Use a simpler flex row with `pb-2 mb-4` for less vertical space
 
-1. Remove the text "List" (line 473) and "Calendar" (line 487) from the buttons
-2. Remove `mr-2` from icon classNames since there's no adjacent text
-3. Reduce `px-4` to `px-3` on the buttons for a tighter icon-only pill
-4. Keep the existing rounded-full pill container, active/inactive color scheme, and transition behavior
-
-Result: Two compact icon-only pill buttons side by side -- the active one highlighted in dark blue, the inactive one in subtle gray.
-
+This produces a compact header where the nav bar flows naturally into the project name, taking roughly half the vertical space of the current layout.
