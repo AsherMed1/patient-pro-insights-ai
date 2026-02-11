@@ -225,6 +225,9 @@ Deno.serve(async (req) => {
           sections['Medical Information'].push(formattedLine);
         } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name') || key.includes('dob') || key.includes('date of birth')) {
           sections['Contact Information'].push(formattedLine);
+        } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) &&
+                   !key.includes('conversation')) {
+          sections['Insurance Information'].push(formattedLine);
         }
         // Skip all other fields (conversation notes, tracking data, workflow fields, etc.)
       });
