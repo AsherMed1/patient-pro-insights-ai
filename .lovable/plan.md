@@ -1,41 +1,39 @@
 
+# Plan: Add Password Visibility Toggle to Reset Password Dialog
 
-# Plan: Fix Blank Page Crash in User Management
+## Overview
+Add an eye/eye-off icon button to the password input in the Reset Password dialog, allowing admins to toggle between hidden and visible password text.
 
-## Root Cause
-
-The page goes blank because of null reference errors during rendering. When a newly created user profile has a `null` value for `full_name` or `role` (due to database trigger timing), the component crashes on:
-
-- `user.full_name.toLowerCase()` in the search filter (line 698)
-- `a.full_name.localeCompare(b.full_name)` in the sort (lines 730-731)
-- `getRoleBadgeVariant(user.role!)` using a non-null assertion on a potentially null value (line 742)
-
-A single `TypeError` in the render path crashes the entire React tree, producing a blank page.
-
-## Fix
+## Changes
 
 ### File: `src/components/UserManagement.tsx`
 
-1. **Default `full_name` during data mapping** (line 146-148): Change the user formatting to default `full_name` to `email` or empty string if null:
-   ```
-   full_name: profile.full_name || profile.email || '',
-   ```
+1. **Add `Eye` and `EyeOff` to the lucide-react import** (existing icon import line).
 
-2. **Add null safety to the search filter** (line 698): Use optional chaining:
-   ```
-   (user.full_name || '').toLowerCase().includes(search)
-   (user.role || '').toLowerCase().includes(search)
-   ```
+2. **Add state variable**: `const [showResetPasswordText, setShowResetPasswordText] = useState(false)` -- reset to `false` when the dialog opens (inside `startResetPassword`).
 
-3. **Add null safety to the sort** (lines 730-731): Use fallback values:
-   ```
-   (a.full_name || '').localeCompare(b.full_name || '')
-   (b.full_name || '').localeCompare(a.full_name || '')
-   ```
+3. **Wrap the password Input in a relative div** and add a toggle button (lines 911-917):
 
-4. **Remove unsafe non-null assertion** (line 742): Change `user.role!` to `user.role || 'project_user'` to prevent crash when role is undefined.
+```
+<div className="relative">
+  <Input
+    id="resetPassword"
+    type={showResetPasswordText ? "text" : "password"}
+    value={resetPasswordValue}
+    onChange={(e) => setResetPasswordValue(e.target.value)}
+    placeholder="Leave blank to auto-generate"
+    className="pr-10"
+  />
+  <button
+    type="button"
+    onClick={() => setShowResetPasswordText(!showResetPasswordText)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+    tabIndex={-1}
+  >
+    {showResetPasswordText ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+  </button>
+</div>
+```
 
 ## No Backend Changes
-
-This is purely a defensive coding fix in one file.
-
+This is a UI-only enhancement in one file.
