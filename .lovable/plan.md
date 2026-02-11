@@ -1,35 +1,18 @@
 
 
-# Streamline Header: Remove Welcome, Reorder Layout
+# Make Header Sticky on Scroll
 
 ## What Changes
-- Remove the "Welcome, user@email.com" text from the header
-- Move the ProjectHeader (project name + subtitle) to the very top of the page
-- Replace the "Back to Dashboard" button with an icon-only button, placed next to the Settings gear icon
-
-## Design Result
-The top of the page will show: **[Icon] Alliance Vascular** (with subtitle) on the left, and on the right: **Back (arrow icon) | Settings (gear) | Sign Out (logout)** -- all as icon-only buttons in a row.
+Make the project header bar (project name + action icons) stick to the top of the viewport when scrolling, so it remains visible at all times.
 
 ## Technical Details
 
-### File: `src/pages/ProjectPortal.tsx` (lines 374-399)
+### File: `src/pages/ProjectPortal.tsx` (lines 373-392)
 
-Restructure the header area:
+1. Extract the header out of the padded content container so it can span the full viewport width when sticky
+2. Add `sticky top-0 z-50 bg-background` to the header wrapper so it pins to the top on scroll
+3. Add horizontal padding matching the page (`px-4 md:px-6 lg:px-8`) and constrain inner content with `max-w-7xl mx-auto`
+4. Add a subtle bottom border or backdrop blur (`backdrop-blur-sm border-b border-border/20`) for visual separation when scrolled
 
-1. Remove lines 376-384 (the welcome text + ProjectSwitcher row)
-2. Move `ProjectHeader` up into the `page-header` div on the left side
-3. Add a "Back to Dashboard" icon-only button (using `ArrowLeft` icon) next to the Settings and Sign Out buttons
-4. Import `ArrowLeft` from lucide-react and `useNavigate` from react-router-dom
-5. The `ProjectSwitcher` component can be removed from this page since the back button replaces it
-
-New layout structure:
-```
-page-header (flex justify-between)
-  LEFT:  ProjectHeader (project name + subtitle)
-  RIGHT: [ArrowLeft icon] [Settings icon] [LogOut icon]
-```
-
-### File: `src/components/projects/ProjectHeader.tsx`
-
-No changes needed -- the component is already compact from the previous update.
+Result: The header with project name, back arrow, settings, and sign-out icons stays fixed at the top while the rest of the page scrolls beneath it.
 
