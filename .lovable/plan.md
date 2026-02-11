@@ -1,27 +1,49 @@
 
 
-# Plan: Replace Action Buttons with Icon-Only Row
+# Plan: Restyle Appointment Tabs to Match Reference Design
 
-## What Changes
-Replace the vertically stacked "View Details", "View Insurance", and "Delete" buttons in the top-right corner of each appointment card with a compact horizontal row of icon-only buttons with tooltips.
+## Design Reference
+The screenshot shows a clean, minimal tab bar with:
+- Tabs displayed as plain text in a horizontal row
+- Active tab has a solid dark/filled background with white text and rounded corners
+- Inactive tabs are plain text with no background
+- No icons, no badges inside the tab triggers -- just clean text labels
+- Evenly spaced across the full width
 
-## Layout Change
+## Current State
+The `AppointmentsTabs` component in `src/components/appointments/AppointmentsTabs.tsx` uses a grid layout with icons, badges, and heavy styling per tab trigger. Each tab has an icon (AlertCircle, Clock, Calendar), a text label, and a count badge.
 
-**Before**: Three buttons stacked vertically with text labels, taking significant vertical space
-**After**: Three icon buttons in a horizontal row, each wrapped in a tooltip for discoverability
+## Changes
+
+### File: `src/components/appointments/AppointmentsTabs.tsx`
+
+1. **Simplify TabsList**: Replace the current grid layout with a clean horizontal flex row, with a subtle border/outline container (like the screenshot's thin border around all tabs).
+
+2. **Simplify TabsTrigger content**: Remove icons and inline badge counts from each trigger. Keep only the text label (New, Needs Review, Upcoming, Completed, All). Move the count badge to sit beside the label as a small superscript or parenthetical if desired, or remove entirely for a cleaner look.
+
+3. **Active tab styling**: Apply a solid dark background (`bg-foreground text-background` or similar) with rounded corners to the active tab, matching the screenshot's "Consistency" tab style. Inactive tabs get transparent background with muted text.
+
+4. **Badge counts**: Move the count badges outside the tab triggers -- display them as small parenthetical numbers next to the label text, e.g., "New (3)" to preserve the count info without cluttering the design.
+
+5. **Remove icons**: Remove the AlertCircle, Clock, and Calendar icon imports from the tab triggers (keep them for the section header).
 
 ## Technical Details
 
-### File: `src/components/appointments/AppointmentCard.tsx`
+### Approximate new TabsList styling:
+```tsx
+<TabsList className="inline-flex w-full rounded-lg border border-border bg-transparent p-1 gap-1">
+  <TabsTrigger
+    value="new"
+    className="flex-1 rounded-md px-4 py-2.5 text-sm font-medium transition-all
+               data-[state=active]:bg-foreground data-[state=active]:text-background
+               data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground"
+  >
+    New {displayCounts.new > 0 && `(${displayCounts.new})`}
+  </TabsTrigger>
+  {/* Same pattern for needs-review, future, past, all */}
+</TabsList>
+```
 
-**Lines 1039-1088** -- Replace the vertical `flex-col` button group with a horizontal `flex-row` icon-only layout:
-
-- Change `flex-col items-end space-y-1` to `flex-row items-center gap-1`
-- **View Details**: Icon-only button using `size="icon"` with `Info` icon, wrapped in a `Tooltip` showing "View Details"
-- **View Insurance**: Icon-only button using `size="icon"` with `Shield` icon (blue styling preserved), wrapped in a `Tooltip` showing "View Insurance"  
-- **Delete**: Icon-only button using `size="icon"` with `Trash2` icon (red styling preserved), wrapped in a `Tooltip` showing "Delete", still inside the existing `AlertDialog` for confirmation
-- Remove all `<span>` text labels from these buttons
-- Keep all existing click handlers, conditional rendering, and the delete confirmation dialog unchanged
-
-The buttons will be approximately 28x28px each (using `h-7 w-7` or similar small icon size), sitting in a single horizontal row that takes far less space than the current stacked layout.
+### Mobile responsive
+On mobile, the tabs will remain horizontal but with smaller text (`text-xs`) and tighter padding to fit all five tabs on screen. No stacking to single column -- keeps the clean horizontal bar from the reference.
 
