@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
-import { Plus, Edit, Trash2, RefreshCw, Mail, Search, Loader2, KeyRound, Copy, Check } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Mail, Search, Loader2, KeyRound, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
 import { useSendWelcomeEmail } from '@/hooks/useWelcomeEmail';
 
@@ -452,9 +452,12 @@ const UserManagement = () => {
     }
   };
 
+  const [showResetPasswordText, setShowResetPasswordText] = useState(false);
+
   const startResetPassword = (user: User) => {
     setResetPasswordUser(user);
     setResetPasswordValue('');
+    setShowResetPasswordText(false);
     setShowResetDialog(true);
   };
 
@@ -908,13 +911,24 @@ const UserManagement = () => {
             </p>
             <div className="space-y-2">
               <Label htmlFor="resetPassword">Custom Password (Optional)</Label>
-              <Input
-                id="resetPassword"
-                type="password"
-                value={resetPasswordValue}
-                onChange={(e) => setResetPasswordValue(e.target.value)}
-                placeholder="Leave blank to auto-generate"
-              />
+              <div className="relative">
+                <Input
+                  id="resetPassword"
+                  type={showResetPasswordText ? "text" : "password"}
+                  value={resetPasswordValue}
+                  onChange={(e) => setResetPasswordValue(e.target.value)}
+                  placeholder="Leave blank to auto-generate"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowResetPasswordText(!showResetPasswordText)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showResetPasswordText ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <div className="flex space-x-2">
               <Button 
