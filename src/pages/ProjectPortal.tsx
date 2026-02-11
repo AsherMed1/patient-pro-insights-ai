@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight, Plus, CalendarDays, BarChart3 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ import { ProjectStatsCards } from '@/components/projects/ProjectStatsCards';
 import DateRangeFilter from '@/components/projects/DateRangeFilter';
 import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 import { SupportWidget } from '@/components/support-widget/SupportWidget';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CalendarDetailView } from '@/components/appointments/CalendarDetailView';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { AllAppointment } from '@/components/appointments/types';
@@ -399,24 +399,55 @@ const ProjectPortal = () => {
         </div>
       </div>
 
-      <div className="p-4 md:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto portal-spacing">
+      <div className="flex">
+        {/* Side Navigation Rail */}
+        <TooltipProvider delayDuration={0}>
+          <nav className="w-14 shrink-0 border-r border-border/30 sticky top-[57px] h-[calc(100vh-57px)] flex flex-col items-center pt-4 gap-2 bg-background">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setActiveTab('appointments')}
+                  className={cn(
+                    "flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200",
+                    activeTab === 'appointments'
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <CalendarDays className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Appointments</TooltipContent>
+            </Tooltip>
 
-        {/* Tabbed Interface */}
-        <Tabs defaultValue="appointments" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${canViewOverview ? 'grid-cols-2' : 'grid-cols-1'} mb-6 bg-muted/40 p-1.5 rounded-xl`}>
-            <TabsTrigger value="appointments" className="rounded-lg py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              Appointments
-            </TabsTrigger>
             {canViewOverview && (
-              <TabsTrigger value="overview" className="rounded-lg py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Overview
-              </TabsTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setActiveTab('overview')}
+                    className={cn(
+                      "flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200",
+                      activeTab === 'overview'
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <BarChart3 className="h-5 w-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Overview</TooltipContent>
+              </Tooltip>
             )}
-          </TabsList>
+          </nav>
+        </TooltipProvider>
 
-          {canViewOverview && (
-            <TabsContent value="overview" className="space-y-6">
+        {/* Main Content Area */}
+        <div className="flex-1 p-4 md:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto portal-spacing">
+
+          {/* Overview Content */}
+          {canViewOverview && activeTab === 'overview' && (
+            <div className="space-y-6">
               {/* Date Range Filter */}
               <DateRangeFilter 
                 dateRange={dateRange} 
@@ -452,10 +483,12 @@ const ProjectPortal = () => {
                   </ProjectDetailedDashboard>
                 </div>
               )}
-            </TabsContent>
+            </div>
           )}
 
-          <TabsContent value="appointments">
+          {/* Appointments Content */}
+          {activeTab === 'appointments' && (
+            <div>
             {/* View Toggle Header */}
             <div className="space-y-4 mb-4">
               {/* Top Row: View toggle + Calendar controls */}
@@ -644,12 +677,13 @@ const ProjectPortal = () => {
               userId={user?.id}
               onSuccess={() => setCalendarRefreshKey(prev => prev + 1)}
             />
-          </TabsContent>
-        </Tabs>
+          </div>
+          )}
 
-        {/* Floating chat widget for quick access */}
-        <SupportWidget projectName={project.project_name} />
-      </div>
+          {/* Floating chat widget for quick access */}
+          <SupportWidget projectName={project.project_name} />
+        </div>
+        </div>
       </div>
     </div>
   );
