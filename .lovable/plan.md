@@ -1,44 +1,38 @@
 
 
-# Convert Tabs to Modern Side Navigation
+# Move Header Action Icons to Side Navigation
 
 ## What Changes
-Replace the horizontal "Appointments | Overview" tab bar with a vertical side navigation using icon buttons. This creates a modern split-layout: a narrow icon sidebar on the left and the main content area on the right.
+Move the three action icons (Back to Dashboard, Settings, Sign Out) from the top-right sticky header into the side navigation rail. They will be placed at the bottom of the sidebar, separated from the tab navigation icons at the top by a spacer, creating a cleaner header that only shows the project name.
 
 ## Visual Layout
 
 ```text
-+--sticky header (project name + actions)--+
++--sticky header (project name only)-------+
 |                                           |
 | [Cal]  |   Main Content Area             |
-| [Chart]|   (appointments or overview)     |
+| [Chart]|                                  |
 |        |                                  |
+|  ...   |                                  |
+|  spacer|                                  |
 |        |                                  |
+| [<-]   |                                  |
+| [gear] |                                  |
+| [exit] |                                  |
 +--------+----------------------------------+
 ```
-
-- Left rail: ~56px wide, with two vertically stacked icon buttons (Calendar icon for Appointments, BarChart3 icon for Overview)
-- Active icon gets a highlighted background and accent color
-- Inactive icons are muted/gray
-- Tooltips on hover to show the label
 
 ## Technical Details
 
 ### File: `src/pages/ProjectPortal.tsx`
 
-1. Replace the `Tabs` + `TabsList` + `TabsTrigger` horizontal layout with a custom side nav + content area
-2. Keep the `activeTab` state and `setActiveTab` logic (already exists)
-3. Structure the content area below the sticky header as a flex row:
-   - **Left**: A narrow vertical nav bar (`w-14`) with icon buttons for "Appointments" (CalendarDays icon) and "Overview" (BarChart3 icon, shown only if `canViewOverview`)
-   - **Right**: The content area (`flex-1`) rendering the active tab's content
-4. Style the active nav item with `bg-primary/10 text-primary` and inactive with `text-muted-foreground`
-5. Add `transition-colors duration-200` for smooth hover/active state changes
-6. Import `CalendarDays` and `BarChart3` from lucide-react
-7. Remove the `TabsList`/`TabsTrigger` components; keep `activeTab` state to control which content panel renders
-8. Use Tooltip components (already available) to show labels on hover
-9. The side nav should have a subtle right border (`border-r border-border/30`) and stick alongside the content
-
-### Removed
-- The horizontal `TabsList` with text-based triggers
-- The `Tabs` wrapper component (replaced by manual state-driven rendering)
+1. **Remove** the three icon buttons (ArrowLeft, Settings, LogOut) from the sticky header's right side (lines 386-398)
+2. **Add** them to the side nav (lines 405-441), positioned at the bottom using `mt-auto` spacer before the group
+3. Each icon gets a Tooltip (same pattern as existing CalendarDays/BarChart3 buttons):
+   - ArrowLeft -> "Back to Dashboard" (navigates to `/`)
+   - Settings -> "Settings" (links to `/settings`)
+   - LogOut -> "Sign Out" (calls `signOut`)
+4. Add a visual separator (`border-t border-border/20`) above the bottom icon group
+5. The nav already uses `flex flex-col`, so adding `mt-auto` to the bottom group pushes it to the bottom
+6. Style matches existing nav icons: `h-10 w-10 rounded-lg text-muted-foreground hover:bg-accent`
 
