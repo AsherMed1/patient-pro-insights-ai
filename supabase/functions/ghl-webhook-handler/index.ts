@@ -481,6 +481,9 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
       sections.pathology.push(`${field.key}: ${value}`)
     } else if (key.includes('medication') || key.includes('allergy') || key.includes('pcp') || key.includes('doctor') || key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || key.includes('mri') || key.includes('ct scan')) {
       sections.medical.push(`${field.key}: ${value}`)
+    } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
+               !key.includes('conversation')) {
+      sections.insurance.push(`${field.key}: ${value}`)
     } else {
       sections.contact.push(`${field.key}: ${value}`)
     }
