@@ -1,15 +1,15 @@
 
 
-# Fix Sidebar Bottom Padding
+# Fix Content Area Spacing
 
 ## Problem
-The bottom action icons (Back, Settings, Sign Out) in the side navigation are getting cut off at the bottom of the viewport. The current `pb-4` padding is insufficient.
+The main content area next to the side navigation has excessive left padding, creating too much whitespace between the sidebar and the appointment cards.
 
 ## Fix
 
-### File: `src/pages/ProjectPortal.tsx` (line 429)
+### File: `src/pages/ProjectPortal.tsx` (line 467)
 
-Increase the bottom padding on the bottom icon group from `pb-4` to `pb-6`, ensuring the Sign Out icon has enough breathing room from the viewport edge.
+Reduce the content area padding from `p-4 md:p-6 lg:p-8` to `p-4 md:p-4 lg:p-6`. This tightens the spacing at medium and large breakpoints so the appointment cards sit closer to the side navigation rail.
 
-This is a one-line className change: `pb-4` becomes `pb-6` on the bottom actions container div.
+Single className change on the content wrapper div.
 
