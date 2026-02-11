@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
-import { Plus, Edit, Trash2, RefreshCw, Mail, Search, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Mail, Search, Loader2, KeyRound, Copy, Check } from 'lucide-react';
 import ProjectUserManager from './ProjectUserManager';
 import { useSendWelcomeEmail } from '@/hooks/useWelcomeEmail';
 
@@ -40,11 +40,18 @@ const UserManagement = () => {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [resending, setResending] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [showGeneratedPasswordDialog, setShowGeneratedPasswordDialog] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState('');
+  const [copiedPassword, setCopiedPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [projectFilter, setProjectFilter] = useState<string>('all');
@@ -442,6 +449,60 @@ const UserManagement = () => {
     }
   };
 
+  const startResetPassword = (user: User) => {
+    setResetPasswordUser(user);
+    setResetPasswordValue('');
+    setShowResetDialog(true);
+  };
+
+  const handleResetPassword = async (useCustom: boolean) => {
+    if (!resetPasswordUser) return;
+    setResetLoading(true);
+    try {
+      const body: any = { userId: resetPasswordUser.id };
+      if (useCustom && resetPasswordValue) {
+        body.newPassword = resetPasswordValue;
+      }
+
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', { body });
+
+      if (error) throw new Error(error.message || 'Failed to reset password');
+      if (data?.error) throw new Error(data.error);
+
+      setShowResetDialog(false);
+
+      if (data?.generatedPassword) {
+        setGeneratedPassword(data.generatedPassword);
+        setCopiedPassword(false);
+        setShowGeneratedPasswordDialog(true);
+      } else {
+        toast({
+          title: "Password Reset",
+          description: `Password updated for ${resetPasswordUser.email}`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reset password",
+        variant: "destructive",
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const copyGeneratedPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedPassword);
+      setCopiedPassword(true);
+      setTimeout(() => setCopiedPassword(false), 2000);
+    } catch {
+      toast({ title: "Error", description: "Failed to copy to clipboard", variant: "destructive" });
+    }
+  };
+
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
       case 'admin':
@@ -732,6 +793,14 @@ const UserManagement = () => {
                       <Button variant="outline" size="sm" onClick={() => startEdit(user)}>
                         <Edit className="h-4 w-4" />
                       </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => startResetPassword(user)}
+                        title="Reset Password"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => startDelete(user)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -816,6 +885,77 @@ const UserManagement = () => {
                 Cancel
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Reset password for <strong>{resetPasswordUser?.email}</strong>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="resetPassword">Custom Password (Optional)</Label>
+              <Input
+                id="resetPassword"
+                type="password"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                placeholder="Leave blank to auto-generate"
+              />
+            </div>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => handleResetPassword(true)} 
+                className="flex-1" 
+                disabled={resetLoading || !resetPasswordValue}
+              >
+                {resetLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Reset with Custom
+              </Button>
+              <Button 
+                variant="secondary"
+                onClick={() => handleResetPassword(false)} 
+                className="flex-1" 
+                disabled={resetLoading}
+              >
+                {resetLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Generate & Reset
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">All password resets are audit-logged.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generated Password Dialog */}
+      <Dialog open={showGeneratedPasswordDialog} onOpenChange={setShowGeneratedPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Password Generated</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              A new password has been generated for <strong>{resetPasswordUser?.email}</strong>. Copy it now — it won't be shown again.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={generatedPassword}
+                className="font-mono"
+              />
+              <Button variant="outline" size="icon" onClick={copyGeneratedPassword}>
+                {copiedPassword ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <Button className="w-full" onClick={() => setShowGeneratedPasswordDialog(false)}>
+              Done
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
