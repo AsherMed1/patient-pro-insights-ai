@@ -372,7 +372,7 @@ const ProjectPortal = () => {
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto portal-spacing">
         {/* Header with user info, project switcher, and sign out */}
-        <div className="page-header border-b border-border/30 pb-4 -mx-4 px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8 mb-6">
+        <div className="page-header pb-2 mb-4">
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
               Welcome, <span className="font-medium text-foreground">{user?.email}</span>
