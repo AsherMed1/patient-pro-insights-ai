@@ -462,29 +462,27 @@ const ProjectPortal = () => {
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                      "rounded-full px-3 h-9 transition-all",
                       !showCalendarView 
                         ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
                         : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
                     )}
                     onClick={() => setShowCalendarView(false)}
                   >
-                    <List className="h-4 w-4 mr-2" />
-                    List
+                    <List className="h-4 w-4" />
                   </Button>
                   <Button 
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "rounded-full px-4 h-9 text-sm font-medium transition-all",
+                      "rounded-full px-3 h-9 transition-all",
                       showCalendarView 
                         ? "bg-[#1e3a5f] text-white shadow-sm hover:bg-[#1e3a5f]/90" 
                         : "text-gray-600 hover:text-gray-900 hover:bg-transparent"
                     )}
                     onClick={() => setShowCalendarView(true)}
                   >
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Calendar
+                    <Calendar className="h-4 w-4" />
                   </Button>
                 </div>
                 
