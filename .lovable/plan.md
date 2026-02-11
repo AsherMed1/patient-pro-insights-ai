@@ -1,38 +1,50 @@
 
 
-# Plan: Route Generic "Notes" Field in fetch-ghl-contact-data
+# Plan: Fix Generic "Notes" Field Not Being Captured in insurance_notes
 
-## Problem
-The `fetch-ghl-contact-data` edge function has the same gap we just fixed in the webhook handler and auto-parser. On line 229, any GHL custom field that doesn't match a known category keyword is silently dropped. A field like "Notes (Example: Imaging, Secondary, Etc.)" doesn't contain keywords like "insurance", "pain", "medication", etc., so it gets skipped entirely.
+## Root Cause
+The deployed fix checks for `key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')` but the GHL custom field key from Naadi Healthcare Manteca is `notes (example: imaging, secondary, etc.) - optional`. When lowercased, this becomes `notes (example: imaging, secondary, etc.) - optional`.
 
-This is why the "Naadi TEST ONLY" appointment in Naadi Healthcare Manteca is missing the Notes data -- it was never written into `patient_intake_notes` in the first place.
+The problem: `key.startsWith('notes ')` checks for "notes" followed by a space, but `key.startsWith('notes(')` checks for "notes" followed by an open paren. The actual key is `notes (example...` which starts with `notes ` (with space) -- so it should match. However, the key also contains "imaging" which means it matches the **imaging check on line 789** (`key.includes('imaging')`) in a LATER else-if branch.
 
-## Fix
+Looking more carefully at the code structure: lines 659-682 form one if/else chain (insurance fields), and lines 683+ form a SEPARATE else-if chain connected to it. The field matches line 670 (`key.startsWith('notes ')`) BUT the imaging check on line 789 is part of the same chain via `else if`. Since the notes check (line 670) comes BEFORE the imaging check (line 789), the notes check should win.
 
-### File: `supabase/functions/fetch-ghl-contact-data/index.ts`
+The real issue: the GHL `extractDataFromGHLFields` function IS setting `insurance_notes`, but the AI parser runs AFTER and overwrites it with null. The merge logic needs to preserve GHL-extracted values.
 
-**In `formatCustomFieldsToText`** (around lines 226-229), add the same generic "notes" routing before the skip-all-else comment:
+## Changes
 
+### 1. `supabase/functions/auto-parse-intake-notes/index.ts` - Merge logic fix
+
+In the merge section (around line 1200+), ensure that GHL-extracted `insurance_notes` is NOT overwritten by AI-parsed null values. Add explicit logging in extractDataFromGHLFields when the notes field is matched.
+
+Add a console.log after line 672:
 ```typescript
-} else if (key.includes('phone') || key.includes('email') || ...) {
-  sections['Contact Information'].push(formattedLine);
-} else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) &&
-           !key.includes('conversation')) {
-  sections['Insurance Information'].push(formattedLine);
+} else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
+           !key.includes('conversation') && !result.insurance_info.insurance_notes) {
+  result.insurance_info.insurance_notes = value;
+  console.log(`[AUTO-PARSE GHL] Captured generic notes field "${rawKey}" as insurance_notes: ${value}`);
 }
-// Skip all other fields ...
 ```
 
-This matches the same pattern we already deployed in the webhook handler and auto-parser.
+In the merge section, ensure GHL insurance_notes is preserved when AI returns null:
+- Find where `insurance_info` merging happens
+- Ensure `insurance_notes` from GHL data takes precedence over null AI results
 
-### Deployment and Verification
+### 2. Also update the AI prompt
 
-After updating the function, deploy it and then re-fetch the GHL data for "Naadi TEST ONLY" to verify the Notes field appears in the portal.
+Add explicit instruction in the AI system prompt to extract any "Notes" field (especially ones labeled like "Notes (Example: Imaging...)") into `insurance_notes`, since the raw text contains this under Medical Information section.
 
-## Technical Details
+Around line 1112, update the insurance_notes description:
+```
+"insurance_notes": "string or null - Any additional notes from the intake form, including fields labeled 'Notes', secondary insurance info, VA coverage, Medicaid/Medicare notes, or clinical observations documented by the caller. Look for any field like 'Notes (Example: Imaging, Secondary, etc.)' and extract its value here."
+```
 
-- Only one file changes: `supabase/functions/fetch-ghl-contact-data/index.ts`
-- The change adds 3 lines before the existing skip comment on line 229
-- Consistent with the pattern already applied in `ghl-webhook-handler` and `auto-parse-intake-notes`
-- After deployment, a manual re-fetch of GHL data for the test appointment will confirm the fix
+### 3. Verify merge logic preserves GHL values
 
+Check the merge section to ensure when GHL data has a non-null `insurance_notes` but AI returns null, the GHL value is kept. The current merge uses a "non-null only" strategy but we need to confirm it applies to `insurance_notes` specifically.
+
+## Testing
+- Re-deploy the auto-parse function
+- Trigger re-parse for "Naadi TEST ONLY" appointment
+- Verify `insurance_notes` shows "Both feet and hands, tried all kinds of treatment"
+- Confirm it displays in the Medical Information card in the portal
