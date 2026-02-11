@@ -667,6 +667,9 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.insurance_info.insurance_group_number = value;
     } else if (key.includes('insurance') && key.includes('note')) {
       result.insurance_info.insurance_notes = value;
+    } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
+               !key.includes('conversation') && !result.insurance_info.insurance_notes) {
+      result.insurance_info.insurance_notes = value;
     }
     // Insurance card URL
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
