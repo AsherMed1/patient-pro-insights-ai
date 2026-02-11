@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, LogOut, Settings, RefreshCw, Calendar, List, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,7 @@ interface DateRange {
 
 const ProjectPortal = () => {
   const { projectName } = useParams<{ projectName: string }>();
+  const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { role, loading: roleLoading, hasProjectAccess, accessibleProjects, hasManagementAccess } = useRole();
   const [project, setProject] = useState<Project | null>(null);
@@ -371,32 +372,24 @@ const ProjectPortal = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto portal-spacing">
-        {/* Header with user info, project switcher, and sign out */}
-        <div className="page-header pb-2 mb-4">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Welcome, <span className="font-medium text-foreground">{user?.email}</span>
-            </span>
-            <ProjectSwitcher 
-              currentProject={project.project_name} 
-              showBackToDashboard={true}
-            />
-          </div>
+        {/* Header with project name and actions */}
+        <div className="flex items-center justify-between pb-2 mb-4">
+          <ProjectHeader projectName={project.project_name} />
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-9 w-9 hover:bg-accent/50" title="Back to Dashboard">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <Link to="/settings">
-              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50">
+              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50" title="Settings">
                 <Settings className="h-4 w-4" />
               </Button>
             </Link>
-            <Button variant="ghost" size="icon" onClick={signOut} className="h-9 w-9 hover:bg-accent/50">
+            <Button variant="ghost" size="icon" onClick={signOut} className="h-9 w-9 hover:bg-accent/50" title="Sign Out">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
-
-        {/* Project Header with enhanced typography */}
-        <ProjectHeader projectName={project.project_name} />
 
         {/* Tabbed Interface */}
         <Tabs defaultValue="appointments" value={activeTab} onValueChange={setActiveTab} className="w-full">
