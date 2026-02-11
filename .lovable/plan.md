@@ -1,35 +1,35 @@
 
 
-# Modernize the Top Header Section
+# Streamline Header: Remove Welcome, Reorder Layout
 
 ## What Changes
-Streamline the top navigation bar and project header into a single, cohesive section -- removing the oversized bordered card, shrinking the icon, and integrating everything into a compact, modern layout.
+- Remove the "Welcome, user@email.com" text from the header
+- Move the ProjectHeader (project name + subtitle) to the very top of the page
+- Replace the "Back to Dashboard" button with an icon-only button, placed next to the Settings gear icon
 
-## Design Approach
-- Merge the nav bar and project identity into one unified header strip instead of two separate blocks
-- Remove the bordered `section-card` container from `ProjectHeader` -- no card wrapper needed
-- Reduce the project name from `text-4xl/5xl` down to `text-2xl` for a proportional heading
-- Shrink the Building icon and its container for better balance
-- Remove the bottom gradient divider line
-- Keep the subtitle but make it smaller and more subtle
+## Design Result
+The top of the page will show: **[Icon] Alliance Vascular** (with subtitle) on the left, and on the right: **Back (arrow icon) | Settings (gear) | Sign Out (logout)** -- all as icon-only buttons in a row.
 
 ## Technical Details
 
+### File: `src/pages/ProjectPortal.tsx` (lines 374-399)
+
+Restructure the header area:
+
+1. Remove lines 376-384 (the welcome text + ProjectSwitcher row)
+2. Move `ProjectHeader` up into the `page-header` div on the left side
+3. Add a "Back to Dashboard" icon-only button (using `ArrowLeft` icon) next to the Settings and Sign Out buttons
+4. Import `ArrowLeft` from lucide-react and `useNavigate` from react-router-dom
+5. The `ProjectSwitcher` component can be removed from this page since the back button replaces it
+
+New layout structure:
+```
+page-header (flex justify-between)
+  LEFT:  ProjectHeader (project name + subtitle)
+  RIGHT: [ArrowLeft icon] [Settings icon] [LogOut icon]
+```
+
 ### File: `src/components/projects/ProjectHeader.tsx`
 
-Full rewrite of the component:
+No changes needed -- the component is already compact from the previous update.
 
-1. Remove the `section-card` wrapper (bordered card with padding) -- replace with a simple `div` with minimal padding
-2. Reduce the icon container from `p-4` / `rounded-2xl` to `p-2.5` / `rounded-xl`, and the icon from `h-10 w-10` to `h-6 w-6`
-3. Change heading from `heading-1` (text-4xl/5xl) to `text-2xl font-bold tracking-tight`
-4. Reduce subtitle text size from `body-base` to `text-sm text-muted-foreground`
-5. Remove the bottom gradient divider (`w-full h-px bg-gradient-to-r...`)
-6. Remove `text-center` and `mb-5` -- keep left-aligned, tighter spacing
-
-### File: `src/pages/ProjectPortal.tsx`
-
-Line 375 area -- Tighten the top nav bar:
-- Remove the heavy `border-b border-border/30 pb-4` and negative margins from the page-header div
-- Use a simpler flex row with `pb-2 mb-4` for less vertical space
-
-This produces a compact header where the nav bar flows naturally into the project name, taking roughly half the vertical space of the current layout.
