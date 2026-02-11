@@ -389,7 +389,7 @@ const ProjectPortal = () => {
       <div className="flex">
         {/* Side Navigation Rail */}
         <TooltipProvider delayDuration={0}>
-          <nav className="w-14 shrink-0 border-r border-border/30 sticky top-[57px] h-[calc(100vh-57px)] flex flex-col items-center pt-4 gap-2 bg-background">
+          <nav className="w-14 shrink-0 border-r border-slate-800 sticky top-[57px] h-[calc(100vh-57px)] flex flex-col items-center pt-4 gap-2 bg-slate-900">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -397,8 +397,8 @@ const ProjectPortal = () => {
                   className={cn(
                     "flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200",
                     activeTab === 'appointments'
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-white/10 text-white"
+                      : "text-slate-400 hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <CalendarDays className="h-5 w-5" />
@@ -415,8 +415,8 @@ const ProjectPortal = () => {
                     className={cn(
                       "flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200",
                       activeTab === 'overview'
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        ? "bg-white/10 text-white"
+                        : "text-slate-400 hover:bg-white/10 hover:text-white"
                     )}
                   >
                     <BarChart3 className="h-5 w-5" />
@@ -426,12 +426,12 @@ const ProjectPortal = () => {
               </Tooltip>
             )}
 
-            <div className="mt-auto pb-4 pt-4 border-t border-border/20 flex flex-col items-center gap-2">
+            <div className="mt-auto pb-4 pt-4 border-t border-slate-700 flex flex-col items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => navigate('/')}
-                    className="flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    className="flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200 text-slate-400 hover:bg-white/10 hover:text-white"
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </button>
@@ -441,7 +441,7 @@ const ProjectPortal = () => {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Link to="/settings" className="flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200 text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+                  <Link to="/settings" className="flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200 text-slate-400 hover:bg-white/10 hover:text-white">
                     <Settings className="h-5 w-5" />
                   </Link>
                 </TooltipTrigger>
@@ -452,7 +452,7 @@ const ProjectPortal = () => {
                 <TooltipTrigger asChild>
                   <button
                     onClick={signOut}
-                    className="flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    className="flex items-center justify-center h-10 w-10 rounded-lg transition-colors duration-200 text-slate-400 hover:bg-white/10 hover:text-white"
                   >
                     <LogOut className="h-5 w-5" />
                   </button>
