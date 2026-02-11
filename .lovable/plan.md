@@ -1,38 +1,19 @@
 
 
-# Move Header Action Icons to Side Navigation
+# Make the Side Navigation Bar Dark Mode
 
 ## What Changes
-Move the three action icons (Back to Dashboard, Settings, Sign Out) from the top-right sticky header into the side navigation rail. They will be placed at the bottom of the sidebar, separated from the tab navigation icons at the top by a spacer, creating a cleaner header that only shows the project name.
+The side navigation rail will get a dark background with light-colored icons, giving it a sleek contrast against the light main content area. This applies regardless of the app's theme -- the sidebar is always dark.
 
-## Visual Layout
-
-```text
-+--sticky header (project name only)-------+
-|                                           |
-| [Cal]  |   Main Content Area             |
-| [Chart]|                                  |
-|        |                                  |
-|  ...   |                                  |
-|  spacer|                                  |
-|        |                                  |
-| [<-]   |                                  |
-| [gear] |                                  |
-| [exit] |                                  |
-+--------+----------------------------------+
-```
-
-## Technical Details
+## Styling Updates
 
 ### File: `src/pages/ProjectPortal.tsx`
 
-1. **Remove** the three icon buttons (ArrowLeft, Settings, LogOut) from the sticky header's right side (lines 386-398)
-2. **Add** them to the side nav (lines 405-441), positioned at the bottom using `mt-auto` spacer before the group
-3. Each icon gets a Tooltip (same pattern as existing CalendarDays/BarChart3 buttons):
-   - ArrowLeft -> "Back to Dashboard" (navigates to `/`)
-   - Settings -> "Settings" (links to `/settings`)
-   - LogOut -> "Sign Out" (calls `signOut`)
-4. Add a visual separator (`border-t border-border/20`) above the bottom icon group
-5. The nav already uses `flex flex-col`, so adding `mt-auto` to the bottom group pushes it to the bottom
-6. Style matches existing nav icons: `h-10 w-10 rounded-lg text-muted-foreground hover:bg-accent`
+1. **Nav container** (line 392): Change `bg-background` to a dark background (`bg-slate-900`) and update the border to `border-slate-800`
+2. **Active tab icons**: Change from `bg-primary/10 text-primary` to `bg-white/10 text-white` for visibility on dark background
+3. **Inactive tab icons**: Change from `text-muted-foreground hover:bg-accent` to `text-slate-400 hover:bg-white/10 hover:text-white`
+4. **Bottom action icons** (Dashboard, Settings, Sign Out): Same treatment -- `text-slate-400 hover:bg-white/10 hover:text-white`
+5. **Bottom separator**: Change `border-border/20` to `border-slate-700`
+
+This creates a persistent dark sidebar that contrasts nicely with the light content area.
 
