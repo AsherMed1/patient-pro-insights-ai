@@ -385,14 +385,12 @@ const ProjectPortal = () => {
           
           <div className="flex items-center gap-2">
             <Link to="/settings">
-              <Button variant="ghost" size="sm" className="h-9 hover:bg-accent/50">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
+              <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50">
+                <Settings className="h-4 w-4" />
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={signOut} className="h-9 hover:bg-accent/50">
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+            <Button variant="ghost" size="icon" onClick={signOut} className="h-9 w-9 hover:bg-accent/50">
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
