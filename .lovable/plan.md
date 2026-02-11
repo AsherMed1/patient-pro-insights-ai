@@ -1,40 +1,31 @@
 
-# Modernize the Search & Filter Panel
+
+# Move Data Management to Settings (Admin Only)
 
 ## What Changes
-Redesign the filter section to be compact, clean, and visually modern -- replacing the current bulky layout with an inline filter bar and a streamlined collapsible date section.
+Remove the "Data Management" collapsible section from the appointments filter area and relocate it to a new "Data Management" tab in the Settings page, visible only to admin users.
 
-## Design Approach
-- Remove the large "Search & Filter Appointments" header with icon -- filters should be self-explanatory
-- Consolidate all primary filters into a single horizontal row with minimal visual noise
-- Use a subtle `bg-muted/30` container instead of a bordered card section
-- Replace individual icon+select pairs with cleaner, tighter grouped selects
-- Move the "Advanced Date Filters" collapsible into a simpler expandable row
-- Show active filter count as a badge on the filter toggle
-- Use pill-style quick date filters instead of outline buttons
-- Remove the verbose "Showing: All dates" summary line -- replace with compact active filter chips that can be dismissed
+## Why
+Data import and insurance sync are administrative operations that don't belong in the day-to-day appointment filtering UI. Moving them to Settings keeps the appointment view clean and restricts access to admins.
 
 ## Technical Details
 
-### File: `src/components/appointments/AppointmentFilters.tsx`
+### 1. File: `src/components/appointments/AppointmentFilters.tsx`
 
-**Lines 230-235** -- Remove the header block entirely (the "Search & Filter Appointments" title with Filter icon).
+Remove the entire "Data Management" collapsible block (lines 199-229), including the `isAdmin()` check, `Upload`/`ChevronDown` icons, `InsuranceSyncTrigger`, and the "Import CSV" button. Also remove the related props (`showImport`, `onShowImport`) if they are only used here.
 
-**Lines 239-364** -- Redesign the primary filter row:
-- Remove individual icon prefixes from each select (the `Search`, `CheckCircle`, `Building2`, `ArrowUpDown`, `Activity` icons before each dropdown)
-- Group the search input with its type selector more tightly using a combined input group with rounded ends
-- Arrange all selects in a single `flex flex-wrap gap-2 items-center` row without extra wrapper divs
-- Reduce select widths from `w-[180px]`/`w-[200px]` to `w-[150px]` for a tighter look
+### 2. File: `src/pages/UserSettings.tsx`
 
-**Lines 367-485** -- Simplify the advanced date filters section:
-- Remove the `border-t` divider line
-- Use a more subtle collapsible trigger (smaller text, no full-width button)
-- Make quick filter buttons use `variant="secondary"` with rounded-full styling for a pill look
-- Remove the "Showing:" summary block and replace with dismissible filter chips shown inline in the main filter row
+- Add a new "Data Management" tab (visible only when `role === 'admin'`)
+- Update the grid columns count to accommodate the new tab
+- Import `InsuranceSyncTrigger` and `AppointmentsCsvImport` components (or the import trigger button/logic)
+- Add a card inside the new tab containing:
+  - An "Import CSV" button that toggles the `AppointmentsCsvImport` component
+  - The `InsuranceSyncTrigger` button
+  - Brief description text explaining these admin tools
+- The tab will use the `Upload` icon consistent with the current design
 
-### Summary of visual changes:
-1. No section header -- space saved
-2. Single compact row of dropdowns without redundant icons
-3. Pill-style quick date filters
-4. Active filters shown as dismissible chips instead of text summary
-5. Cleaner divider-free layout
+### 3. Props cleanup in `AppointmentFilters.tsx`
+
+Remove the `showImport` and `onShowImport` props from the `AppointmentFilters` component interface if they were only used for the Data Management section. Update any parent components that pass these props accordingly.
+
