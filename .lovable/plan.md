@@ -1,38 +1,38 @@
 
+# Fix: Remove Double Card Border Between Sections
 
-# Lift Appointment Cards for a Modern Look
+## Problem
+The "Appointment Management" header with its own bordered card (`section-card` class) is nested inside the parent `Card` component from `AllAppointmentsManager`. This creates a visible double-border/nested-card effect with unnecessary visual separation.
 
-## What Changes
-Update the appointment card container styling to give each card a "lifted" floating appearance with enhanced shadows, more rounded corners, and subtle hover effects -- matching the reference design.
-
-## Visual Effect
-- Cards will appear to float above the page with a soft, layered shadow
-- More rounded corners for a modern feel
-- Subtle hover lift animation for interactivity
-- Clean white background with refined border
+## Solution
+Remove the `section-card` wrapper and the redundant "Appointment Management" header from `AppointmentsTabs`. The parent Card in `AllAppointmentsManager` already provides the title ("All Appointments"), border, and padding -- the inner card is redundant.
 
 ## Technical Details
 
-### File: `src/components/appointments/AppointmentCard.tsx` (line ~914-919)
+### File: `src/components/appointments/AppointmentsTabs.tsx`
 
-Update the card container `div` classes:
+**Lines 74-81** -- Remove the `section-card` wrapper div and the "Appointment Management" header block:
 
-**Current:**
+Replace:
+```tsx
+<div className="section-card animate-fade-in-up">
+  <div className="flex items-center gap-2.5 mb-6">
+    <div className="p-2 bg-primary/10 rounded-lg">
+      <Calendar className="h-5 w-5 text-primary" />
+    </div>
+    <h3 className="text-lg font-semibold text-foreground">Appointment Management</h3>
+  </div>
+  <Tabs ...>
+    ...
+  </Tabs>
+</div>
 ```
-"border rounded-lg p-3 md:p-4 space-y-3 shadow-sm transition-colors duration-300"
+
+With just:
+```tsx
+<Tabs ...>
+  ...
+</Tabs>
 ```
 
-**New:**
-```
-"border border-border/40 rounded-xl p-4 md:p-5 space-y-3 shadow-soft-md hover-lift transition-all duration-300"
-```
-
-Key changes:
-- `rounded-lg` to `rounded-xl` -- more rounded corners
-- `shadow-sm` to `shadow-soft-md` -- uses the existing design system's soft shadow for a lifted look
-- Add `hover-lift` class -- existing utility that lifts the card on hover with enhanced shadow
-- `border` to `border border-border/40` -- softer border for a cleaner appearance
-- Slightly more padding: `p-3 md:p-4` to `p-4 md:p-5`
-
-These classes (`shadow-soft-md`, `hover-lift`) are already defined in the project's `index.css` design system, so no new CSS is needed.
-
+This removes the nested card entirely so tabs flow naturally inside the parent Card, eliminating the border between the title area and the tab content.
