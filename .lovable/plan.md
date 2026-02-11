@@ -1,38 +1,15 @@
 
 
-# Move Header Action Icons to Side Navigation
+# Fix Sidebar Bottom Padding
 
-## What Changes
-Move the three action icons (Back to Dashboard, Settings, Sign Out) from the top-right sticky header into the side navigation rail. They will be placed at the bottom of the sidebar, separated from the tab navigation icons at the top by a spacer, creating a cleaner header that only shows the project name.
+## Problem
+The bottom action icons (Back, Settings, Sign Out) in the side navigation are getting cut off at the bottom of the viewport. The current `pb-4` padding is insufficient.
 
-## Visual Layout
+## Fix
 
-```text
-+--sticky header (project name only)-------+
-|                                           |
-| [Cal]  |   Main Content Area             |
-| [Chart]|                                  |
-|        |                                  |
-|  ...   |                                  |
-|  spacer|                                  |
-|        |                                  |
-| [<-]   |                                  |
-| [gear] |                                  |
-| [exit] |                                  |
-+--------+----------------------------------+
-```
+### File: `src/pages/ProjectPortal.tsx` (line 429)
 
-## Technical Details
+Increase the bottom padding on the bottom icon group from `pb-4` to `pb-6`, ensuring the Sign Out icon has enough breathing room from the viewport edge.
 
-### File: `src/pages/ProjectPortal.tsx`
-
-1. **Remove** the three icon buttons (ArrowLeft, Settings, LogOut) from the sticky header's right side (lines 386-398)
-2. **Add** them to the side nav (lines 405-441), positioned at the bottom using `mt-auto` spacer before the group
-3. Each icon gets a Tooltip (same pattern as existing CalendarDays/BarChart3 buttons):
-   - ArrowLeft -> "Back to Dashboard" (navigates to `/`)
-   - Settings -> "Settings" (links to `/settings`)
-   - LogOut -> "Sign Out" (calls `signOut`)
-4. Add a visual separator (`border-t border-border/20`) above the bottom icon group
-5. The nav already uses `flex flex-col`, so adding `mt-auto` to the bottom group pushes it to the bottom
-6. Style matches existing nav icons: `h-10 w-10 rounded-lg text-muted-foreground hover:bg-accent`
+This is a one-line className change: `pb-4` becomes `pb-6` on the bottom actions container div.
 
