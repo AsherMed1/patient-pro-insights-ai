@@ -912,7 +912,7 @@ const AppointmentCard = ({
 
   return <>
       <div className={cn(
-        "border rounded-lg p-3 md:p-4 space-y-3 shadow-sm transition-colors duration-300",
+        "border border-border/40 rounded-xl p-4 md:p-5 space-y-3 shadow-soft-md hover-lift transition-all duration-300",
         projectFilter && appointment.internal_process_complete 
           ? "bg-green-50 border-green-200" 
           : "bg-white"
