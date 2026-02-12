@@ -3704,6 +3704,15 @@ export type Database = {
           leads_count: number
         }[]
       }
+      get_project_call_summary: {
+        Args: { p_date_from?: string; p_date_to?: string }
+        Returns: {
+          confirmed: number
+          inbound: number
+          outbound: number
+          project_name: string
+        }[]
+      }
       get_project_stats: {
         Args: { project_filter?: string }
         Returns: {
