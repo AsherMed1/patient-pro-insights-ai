@@ -57,6 +57,7 @@ const ProjectCallSummaryTable = () => {
   const [stats, setStats] = useState<Record<string, ProjectStats>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [activeQuick, setActiveQuick] = useState<QuickFilter>("all");
@@ -139,7 +140,7 @@ const ProjectCallSummaryTable = () => {
     };
 
     fetchData();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, refreshKey]);
 
   const sorted = Object.entries(stats).sort(
     ([, a], [, b]) => b.inbound + b.outbound - (a.inbound + a.outbound)
@@ -169,7 +170,7 @@ const ProjectCallSummaryTable = () => {
         description: data?.message || `Synced ${data?.synced || 0} call records`,
       });
       // Re-fetch data after sync
-      setLoading(true);
+      setRefreshKey(k => k + 1);
     } catch (err) {
       console.error("GHL sync error:", err);
       toast({
