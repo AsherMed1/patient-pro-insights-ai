@@ -217,8 +217,8 @@ const Index = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <div className="text-center space-y-2">
-             <h1 className="heading-1">Call Center Analytics Dashboard</h1>
-            <p className="body-lg">Comprehensive tracking and management system</p>
+              <h1 className="heading-1">Patient Pro Client Portal</h1>
+            <p className="body-lg">Clinic Portal and Analytics</p>
           </div>
           <div className="flex items-center space-x-4">
             <div className="flex flex-col items-end space-y-2">
