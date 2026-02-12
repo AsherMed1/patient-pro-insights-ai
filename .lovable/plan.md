@@ -1,32 +1,34 @@
 
 
-# Add Date Range Filter & Quick Filters to Project Performance Summary
+# Fix Call Tabs Showing 0 -- Optimize Data Fetching
 
-## Overview
-Add a filter bar above the summary table with quick-select buttons (Today, This Week, This Month, All Time) and a custom date range picker, filtering calls by `call_datetime` and appointments by `date_of_appointment`.
+## Root Cause
 
-## Changes
+Both `CallCenterDashboard.tsx` and `CallTeamTab.tsx` use `select('*')` to fetch 47,000+ call records and thousands of appointment records. Each record includes heavy columns (JSON fields, transcription text, audio URLs, etc.) that are never used for computing metrics. This causes requests to time out or fail silently, resulting in all metrics showing as 0.
 
-### File: `src/components/dashboard/ProjectCallSummaryTable.tsx`
+The `ProjectCallSummaryTable` works fine because it only fetches `project_name, direction` -- two small columns.
 
-1. **Add state** for date range (`from`/`to` as `Date | undefined`) defaulting to "All Time" (both undefined).
+## Fix
 
-2. **Add filter bar** between the CardHeader and table:
-   - Quick filter buttons: Today, This Week, This Month, All Time (pill-style, matching the existing appointment filter design)
-   - Custom date range picker using two Popover/Calendar components for start and end dates
-   - Active date shown as a dismissible Badge chip
+### 1. `src/components/CallCenterDashboard.tsx`
 
-3. **Apply date filters to queries**:
-   - `all_calls`: filter on `call_datetime` using `.gte()` / `.lte()`
-   - `all_appointments`: filter on `date_of_appointment` using `.gte()` / `.lte()`
-   - Pass filters via the existing `fetchAllPaginated` callback parameter
+Replace `select('*')` with only the columns actually needed for metric calculations:
 
-4. **Re-fetch on date change**: Add `dateFrom` and `dateTo` to the `useEffect` dependency array so the table updates when filters change.
+- **Calls query**: Change `select('*')` to `select('agent, duration_seconds, date, project_name')`
+- **Appointments query**: Change `select('*')` to `select('agent, date_of_appointment, date_appointment_created, project_name')`
 
-## Technical Details
+This reduces payload size by roughly 90%, making the paginated fetches complete in seconds instead of timing out.
 
-- Uses existing `Calendar`, `Popover`, `Button`, and `Badge` components already imported elsewhere in the project
-- Quick filter logic reuses `startOfWeek`, `startOfMonth`, `endOfMonth` from `date-fns` (already installed)
-- Date values formatted with `format()` from `date-fns` for the picker button labels
-- Consistent styling with the compact filter bar pattern used in `AppointmentFilters.tsx`
+### 2. `src/components/callteam/CallTeamTab.tsx`
+
+Same optimization:
+
+- **Calls query**: Change `select('*')` to `select('agent, duration_seconds, date')`
+- **Appointments query**: Change `select('*')` to `select('agent, date_of_appointment')`
+
+## Why This Works
+
+- Current: ~47,000 rows x ~50 columns (including large JSON blobs) = massive payload
+- After fix: ~47,000 rows x 3-4 small columns = fast, lightweight queries
+- No database changes needed -- just selecting fewer columns on the client side
 
