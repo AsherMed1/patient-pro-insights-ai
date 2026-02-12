@@ -1,33 +1,41 @@
 
 
-# Separate Settings and Sign Out into Individual Icon Buttons
+# Fix Project Performance Summary: Server-Side Aggregation
 
-## Change
+## Problem
 
-Replace the dropdown menu with two separate borderless icon-only buttons side by side in the header.
+The table fetches **all 52,000+ call records and 10,000+ appointment records** row-by-row in batches of 1,000 from the client, just to count them by project. This requires 50+ sequential HTTP requests, causing timeouts and stale/missing data.
 
-### File: `src/pages/Index.tsx`
+## Solution
 
-1. Remove the `DropdownMenu` wrapper and its imports
-2. Replace with two individual `Button` components:
-   - **Settings** (gear icon) - `variant="ghost" size="icon"`, navigates to `/settings`
-   - **Sign Out** (LogOut icon) - `variant="ghost" size="icon"`, calls `handleSignOut()`
-3. Both buttons: no border, icon-only (`h-9 w-9`)
+Replace the client-side pagination loop with a **Supabase database function** that performs the aggregation server-side and returns only the summary counts per project.
 
-### Resulting header layout
+## Technical Steps
 
-```text
-[Logo] Patient Pro Client Portal    email (role)  [gear]  [logout]
-```
+### 1. Create a database function: `get_project_call_summary`
 
-### Code
+A new PostgreSQL function that accepts optional date range parameters and returns aggregated counts per project:
 
-```tsx
-<Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
-  <Settings className="h-5 w-5" />
-</Button>
-<Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={handleSignOut}>
-  <LogOut className="h-5 w-5" />
-</Button>
-```
+- Queries `all_calls` for inbound/outbound counts grouped by `project_name`
+- Queries `all_appointments` for confirmed appointment counts grouped by `project_name`
+- Combines results using a FULL OUTER JOIN
+- Excludes the demo project ("PPM - Test Account")
+- Returns one row per project with: `project_name`, `inbound`, `outbound`, `confirmed`
+
+This replaces 50+ HTTP requests with a **single RPC call**.
+
+### 2. Update `ProjectCallSummaryTable.tsx`
+
+- Remove the `fetchAllPaginated` helper function
+- Replace the `useEffect` data fetching with a single `supabase.rpc('get_project_call_summary', { ... })` call
+- Pass `p_date_from` and `p_date_to` parameters for date filtering
+- Map the returned rows directly into the stats object
+- Keep all existing UI (filters, sync button, table layout) unchanged
+
+### Result
+
+- Data loads in **one request** instead of 50+
+- Aggregation happens on the database server (fast)
+- Table will show current data reliably
+- No changes to the visual UI or filter behavior
 
