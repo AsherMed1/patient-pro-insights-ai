@@ -234,12 +234,6 @@ const Index = () => {
               <Settings className="h-3.5 w-3.5 mr-1" />
               Settings
             </Button>
-            {role === 'admin' && (
-              <Button variant="ghost" size="sm" onClick={() => setActiveTab('users')}>
-                <Settings className="h-3.5 w-3.5 mr-1" />
-                Admin
-              </Button>
-            )}
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="h-3.5 w-3.5 mr-1" />
               Sign Out
