@@ -1,27 +1,33 @@
 
 
-# Replace Settings/Sign Out with Icon-Only Dropdown
+# Separate Settings and Sign Out into Individual Icon Buttons
 
 ## Change
 
-Replace the separate "Settings" and "Sign Out" buttons with a single icon-only trigger (gear icon) that reveals a dropdown menu on hover containing both options. No border on the icon button.
+Replace the dropdown menu with two separate borderless icon-only buttons side by side in the header.
 
 ### File: `src/pages/Index.tsx`
 
-1. Import `DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger` from `@/components/ui/dropdown-menu`
-2. Remove the two separate buttons (Settings + Sign Out)
-3. Replace with a `DropdownMenu` using a borderless icon-only trigger (`variant="ghost" size="icon"`) showing a `Settings` (gear) icon
-4. The dropdown contains two items:
-   - **Settings** (with Settings icon) -- navigates to `/settings`
-   - **Sign Out** (with LogOut icon) -- calls `handleSignOut()`
+1. Remove the `DropdownMenu` wrapper and its imports
+2. Replace with two individual `Button` components:
+   - **Settings** (gear icon) - `variant="ghost" size="icon"`, navigates to `/settings`
+   - **Sign Out** (LogOut icon) - `variant="ghost" size="icon"`, calls `handleSignOut()`
+3. Both buttons: no border, icon-only (`h-9 w-9`)
 
 ### Resulting header layout
 
+```text
+[Logo] Patient Pro Client Portal    email (role)  [gear]  [logout]
 ```
-[Logo] Patient Pro Client Portal    email (role)  [gear icon]
-                                                      |
-                                                  (on hover)
-                                                  Settings
-                                                  Sign Out
+
+### Code
+
+```tsx
+<Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
+  <Settings className="h-5 w-5" />
+</Button>
+<Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={handleSignOut}>
+  <LogOut className="h-5 w-5" />
+</Button>
 ```
 
