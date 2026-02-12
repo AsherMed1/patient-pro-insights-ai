@@ -1,30 +1,50 @@
 
 
-# Fix Duplicate Locations for ECCO Medical
+# Add Project Summary Table with Call & Appointment Metrics
 
-## Problem
-Calendar names for ECCO Medical are inconsistent — some end with just the city ("Lone Tree", "Pueblo") while others include the state ("Lone Tree, CO", "Pueblo, CO"). The location extraction regex treats these as separate locations, producing duplicates in the dropdown.
+## Overview
+Create a new component that displays a summary table on the admin Dashboard tab, showing per-project breakdowns of inbound calls, outbound calls, total calls, and confirmed appointments booked.
 
-## Fix
+## New Component
 
-### File: `src/components/appointments/AppointmentFilters.tsx` (~line 113)
+### File: `src/components/dashboard/ProjectCallSummaryTable.tsx` (new file)
 
-After extracting the location string from `calendar_name`, normalize it by stripping a trailing state abbreviation (e.g., ", CO", ", KY"). This collapses "Lone Tree, CO" into "Lone Tree" and "Pueblo, CO" into "Pueblo".
+A table component that:
+1. Fetches all records from `all_calls` (paginated in batches of 1000) and groups by `project_name` + `direction`
+2. Fetches confirmed appointments from `all_appointments` where `LOWER(TRIM(status)) = 'confirmed'`, grouped by `project_name`
+3. Excludes the demo project ("PPM - Test Account")
+4. Displays a clean table with columns:
+   - **Project Name**
+   - **Inbound Calls** (direction = 'inbound')
+   - **Outbound Calls** (direction = 'outbound')
+   - **Total Calls** (sum of both)
+   - **Confirmed Appointments**
+5. Sorted by total calls descending
+6. Shows a loading spinner while data loads
+7. Includes a totals row at the bottom
 
-Add one line after extracting the location:
+### UI Design
+- Uses existing `Table` components from `src/components/ui/table.tsx`
+- Wrapped in a Card with header "Project Performance Summary"
+- Consistent styling with the rest of the dashboard
 
-```typescript
-// After: const location = locationMatch[1].trim();
-// Add normalization to strip trailing state abbreviation
-const normalizedLocation = location.replace(/,\s*[A-Z]{2}$/, '').trim();
+## Integration
+
+### File: `src/pages/Index.tsx` (~line 296-299)
+
+Add the new `ProjectCallSummaryTable` component to the Dashboard tab, placed between `MasterDatabaseStats` and `CallCenterDashboard`:
+
+```tsx
+<TabsContent value="dashboard" className="space-y-6">
+  <MasterDatabaseStats />
+  <ProjectCallSummaryTable />
+  <CallCenterDashboard projectId="ALL" />
+</TabsContent>
 ```
 
-Then use `normalizedLocation` instead of `location` for the Somerset check and the `locations.add()` call.
+## Technical Details
 
-### File: `src/components/projects/ProjectDetailedDashboard.tsx`
-
-Apply the same normalization in the dashboard's location extraction logic so both views stay consistent.
-
-### Result
-The dropdown will show just "Lone Tree" and "Pueblo" — no duplicates.
+- Reuses the same paginated fetch pattern already used in `CallCenterDashboard.tsx` and `CallTeamTab.tsx`
+- Groups data client-side using a `Record<string, { inbound, outbound, confirmed }>` map
+- No database changes needed -- uses existing `all_calls.direction` and `all_appointments.status` columns
 
