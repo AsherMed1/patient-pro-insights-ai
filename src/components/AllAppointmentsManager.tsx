@@ -9,6 +9,7 @@ import AppointmentsCsvImport from './AppointmentsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
+import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { statusOptions } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
@@ -68,6 +69,7 @@ const AllAppointmentsManager = ({
   const [serviceFilter, setServiceFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
   const { toast } = useToast();
+  const { userName } = useUserAttribution();
   
   const APPOINTMENTS_PER_PAGE = 50;
 
@@ -655,14 +657,14 @@ const AllAppointmentsManager = ({
       if (oldStatus !== status) {
         // Store UTC timestamp in parseable format - will be converted to viewer's local timezone on display
         const utcTimestamp = new Date().toISOString();
-        const systemNote = `Status changed from "${oldStatus}" to "${status}" - [[timestamp:${utcTimestamp}]]`;
+        const systemNote = `Status changed from "${oldStatus}" to "${status}" by ${userName} - [[timestamp:${utcTimestamp}]]`;
         
         await supabase
           .from('appointment_notes')
           .insert({
             appointment_id: appointmentId,
             note_text: systemNote,
-            created_by: 'System'
+            created_by: userName
           });
 
         // Add "DO NOT CALL" note and enable DND in GHL when that status is selected
@@ -672,7 +674,7 @@ const AllAppointmentsManager = ({
             .insert({
               appointment_id: appointmentId,
               note_text: 'DO NOT CALL',
-              created_by: 'System'
+              created_by: userName
             });
 
           // Enable DND in GoHighLevel for all channels
