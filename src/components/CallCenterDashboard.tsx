@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import CallMetricsCards from './dashboard/CallMetricsCards';
 import ConversionMetrics from './dashboard/ConversionMetrics';
 import AgentPerformanceSection from './dashboard/AgentPerformanceSection';
 import DashboardFilters from './DashboardFilters';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface CallCenterDashboardProps {
   projectId: string;
@@ -28,7 +31,9 @@ interface CallData {
 const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
   const [callData, setCallData] = useState<CallData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -237,17 +242,57 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
     agents: []
   };
 
+  const syncFromGHL = async () => {
+    setSyncing(true);
+    try {
+      const { data, error: syncError } = await supabase.functions.invoke('sync-ghl-calls', {
+        body: {
+          dateFrom: dateRange.from?.toISOString() || undefined,
+          dateTo: dateRange.to?.toISOString() || undefined,
+          projectName: projectId === 'project-1' ? 'ALL' : projectId,
+        },
+      });
+      if (syncError) throw syncError;
+      toast({
+        title: "Sync Complete",
+        description: data?.message || `Synced ${data?.synced || 0} call records`,
+      });
+      fetchDashboardData();
+    } catch (err) {
+      console.error("GHL sync error:", err);
+      toast({
+        title: "Sync Failed",
+        description: err instanceof Error ? err.message : "Failed to sync from GHL",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <DashboardFilters 
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        procedure={procedure}
-        onProcedureChange={setProcedure}
-        selectedAgent={selectedAgent}
-        onAgentChange={setSelectedAgent}
-        availableAgents={availableAgents}
-      />
+      <div className="flex items-center justify-between">
+        <DashboardFilters 
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          procedure={procedure}
+          onProcedureChange={setProcedure}
+          selectedAgent={selectedAgent}
+          onAgentChange={setSelectedAgent}
+          availableAgents={availableAgents}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={syncFromGHL}
+          disabled={syncing}
+          className="gap-1.5 shrink-0"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+          {syncing ? "Syncing..." : "Sync from GHL"}
+        </Button>
+      </div>
 
       <CallMetricsCards 
         totalDials={data.totalDials}
