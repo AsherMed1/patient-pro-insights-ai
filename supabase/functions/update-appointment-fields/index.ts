@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { appointmentId, updates, userId, userName, changeSource } = await req.json();
+    const { appointmentId, updates, previousValues, userId, userName, changeSource } = await req.json();
 
     if (!appointmentId) {
       return new Response(
@@ -47,12 +47,22 @@ Deno.serve(async (req) => {
 
     // If user attribution is provided, create an internal note and audit log
     if (userId && userName) {
-      const changedFields = Object.keys(updates).join(', ');
+      const changedFields = Object.keys(updates);
       const source = changeSource || 'portal';
+      
+      // Build descriptive change details with old and new values
+      const changeDetails = changedFields.map(field => {
+        const oldVal = previousValues?.[field];
+        const newVal = updates[field];
+        if (oldVal !== undefined && oldVal !== null) {
+          return `${field} from "${oldVal}" to "${newVal}"`;
+        }
+        return `${field} to "${newVal}"`;
+      }).join(', ');
       
       // Create an internal note documenting the change
       try {
-        const noteText = `${source === 'portal' ? 'Portal' : 'System'} update by ${userName}: Updated ${changedFields}`;
+        const noteText = `${source === 'portal' ? 'Portal' : 'System'} update by ${userName}: Updated ${changeDetails}`;
         
         const { error: noteError } = await supabase
           .from('appointment_notes')
@@ -77,7 +87,7 @@ Deno.serve(async (req) => {
           .rpc('log_audit_event', {
             p_entity: 'appointment',
             p_action: 'portal_update',
-            p_description: `${userName} updated appointment fields: ${changedFields}`,
+            p_description: `${userName} updated appointment: ${changeDetails}`,
             p_source: source,
             p_metadata: {
               appointment_id: appointmentId,
