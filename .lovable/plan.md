@@ -1,57 +1,30 @@
 
 
-# Appointment History Section in Detail View
+# Route "Do Not Call" to Completed Tab
 
-## Overview
+## Problem
 
-Add an "Appointment History" section to the appointment detail modal (between Internal Notes and Patient Intake Notes) that shows all past and future appointments for the same patient. This gives portal users a GHL-like view of the patient's full appointment timeline without leaving the current view.
+Appointments with "Do Not Call" status currently stay in the New or Needs Review tabs because it is not listed as a terminal/completed status. Since "Do Not Call" means the patient should be blocked from contact and scheduling, it should be treated like a cancelled appointment and routed to the Completed tab.
 
-## How It Works
+## Changes
 
-When a patient's appointment detail modal opens, query the `all_appointments` table for all appointments matching the same patient (by `ghl_id`, phone, or name+project). Display them in reverse chronological order, showing date/time, service type, location, and status.
+### 1. `src/components/appointments/utils.ts`
 
-## What the User Sees
+Add `'do not call'` and `'donotcall'` to the `completedStatuses` array in the `filterAppointments` function so these appointments route to the Completed tab.
 
-A new collapsible "Appointment History" section appears in the detail modal. Each entry is a compact row:
+```
+// Current
+const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon'];
 
-```text
-2026-02-12 14:30 | GAE Consult | Lone Tree | Confirmed
-2026-02-10 09:00 | GAE Consult | Lone Tree | Cancelled
-2026-02-08 11:15 | GAE Consult | Lone Tree | Rescheduled -> 2026-02-12 14:30
+// Updated
+const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon', 'do not call', 'donotcall'];
 ```
 
-- Shows the most recent 10 entries by default
-- "View more" button expands to show up to 20
-- The current appointment is highlighted with a subtle indicator
-- Times are displayed in a readable format
+### 2. Database Trigger (if applicable)
 
-## Technical Details
+Check whether the `handle_appointment_status_completion` trigger also needs updating to set `internal_process_complete = true` for "Do Not Call" status, keeping it consistent with other terminal statuses (showed, no show, cancelled, oon).
 
-### New Hook: `src/hooks/useAppointmentHistory.tsx`
+### Result
 
-- Accepts the current appointment's identifiers (ghl_id, phone, name, project)
-- Queries `all_appointments` for all matching records, ordered by `date_of_appointment DESC`
-- Limits to 20 records max
-- Matches by `ghl_id` first, then falls back to phone number within the same project, then name + project
-
-### New Component: `src/components/appointments/AppointmentHistory.tsx`
-
-- Receives the current appointment and renders the history list
-- Each row shows: date/time, calendar_name (service type), project_name (location proxy), and status
-- Color-coded status badges (green for Showed, red for Cancelled/No Show, blue for Confirmed, gray for others)
-- Initially shows 10 entries; "View more" button reveals the rest
-- Wrapped in a collapsible section with a History icon
-- Skips reserved blocks (`is_reserved_block = true`)
-
-### Modified: `src/components/appointments/DetailedAppointmentView.tsx`
-
-- Import and render `AppointmentHistory` between the Internal Notes section (line 694) and Patient Intake Notes section (line 698)
-- Pass the current appointment object so the history component can find related records
-
-### Guardrails
-
-- Read-only display -- no editing from the history section
-- Only appends context, never modifies existing notes or data
-- Capped at 20 entries to keep queries fast
-- Current appointment is visually distinguished so users know which one they're viewing
+Appointments marked "Do Not Call" will immediately move to the Completed tab, matching the behavior of Cancelled appointments.
 
