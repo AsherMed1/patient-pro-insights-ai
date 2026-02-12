@@ -1,41 +1,52 @@
 
 
-# Fix Project Performance Summary: Server-Side Aggregation
+# Sync Status Changes to GoHighLevel from Calendar View
 
 ## Problem
 
-The table fetches **all 52,000+ call records and 10,000+ appointment records** row-by-row in batches of 1,000 from the client, just to count them by project. This requires 50+ sequential HTTP requests, causing timeouts and stale/missing data.
+When changing an appointment's status from the calendar view (via the `DetailedAppointmentView` modal), the code calls `update-ghl-appointment` with a `status` parameter -- but that edge function ignores it entirely. It only handles rescheduling (date/time changes) and calendar transfers. The `status` field is never destructured or sent to the GHL API.
+
+This means status changes made in the calendar detail view are saved locally but never reflected in GoHighLevel.
 
 ## Solution
 
-Replace the client-side pagination loop with a **Supabase database function** that performs the aggregation server-side and returns only the summary counts per project.
+Update the `update-ghl-appointment` edge function to also accept a `status` parameter, map it to GHL's `appointmentStatus` values, and send it as part of the PUT request. Then ensure the `DetailedAppointmentView` (used by the calendar) calls it correctly with the project's GHL API key.
 
 ## Technical Steps
 
-### 1. Create a database function: `get_project_call_summary`
+### 1. Update `supabase/functions/update-ghl-appointment/index.ts`
 
-A new PostgreSQL function that accepts optional date range parameters and returns aggregated counts per project:
+- Add `status` and `project_name` to the destructured request body
+- Create a status mapping from portal values to GHL API values:
 
-- Queries `all_calls` for inbound/outbound counts grouped by `project_name`
-- Queries `all_appointments` for confirmed appointment counts grouped by `project_name`
-- Combines results using a FULL OUTER JOIN
-- Excludes the demo project ("PPM - Test Account")
-- Returns one row per project with: `project_name`, `inbound`, `outbound`, `confirmed`
+```
+Portal Status    ->  GHL appointmentStatus
+-----------          ---------------------
+Confirmed        ->  confirmed
+Cancelled        ->  cancelled
+No Show          ->  noshow
+Showed           ->  showed
+```
 
-This replaces 50+ HTTP requests with a **single RPC call**.
+- Add a new code path: when `status` is provided (without `new_date`/`new_time`/`calendar_id`), build a status-only update payload with `appointmentStatus` set to the mapped value
+- When `project_name` is provided but no `ghl_api_key`, look up the project's `ghl_api_key` from the `projects` table (requires creating a Supabase admin client in the function)
+- Keep existing start/end times from the fetched appointment so the PUT request preserves the current schedule
 
-### 2. Update `ProjectCallSummaryTable.tsx`
+### 2. Update `src/components/appointments/DetailedAppointmentView.tsx`
 
-- Remove the `fetchAllPaginated` helper function
-- Replace the `useEffect` data fetching with a single `supabase.rpc('get_project_call_summary', { ... })` call
-- Pass `p_date_from` and `p_date_to` parameters for date filtering
-- Map the returned rows directly into the stats object
-- Keep all existing UI (filters, sync button, table layout) unchanged
+- The existing GHL sync call (lines 135-148) already fires on status change, but it needs to also pass the `ghl_api_key` or ensure the edge function can look it up
+- No structural change needed -- the call is already there, just the edge function needed to actually process the `status` field
+
+### 3. Update `src/components/AllAppointmentsManager.tsx`
+
+- Add GHL status sync to the `updateAppointmentStatus` function (used by the list view's `AppointmentCard` inline status dropdown)
+- After the local database update and system note, call `update-ghl-appointment` with the appointment's `ghl_appointment_id` and new `status`
+- This ensures list view status changes also sync to GHL consistently
 
 ### Result
 
-- Data loads in **one request** instead of 50+
-- Aggregation happens on the database server (fast)
-- Table will show current data reliably
-- No changes to the visual UI or filter behavior
+- Status changes from the calendar detail modal will sync to GHL
+- Status changes from the list view will also sync to GHL
+- Both views use the same edge function for consistency
+- Statuses that don't map to GHL values (like "Welcome Call", "OON", "Pending") will be saved locally only, with a console warning
 
