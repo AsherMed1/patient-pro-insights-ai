@@ -26,32 +26,7 @@ interface ProjectStats {
   confirmed: number;
 }
 
-const DEMO_PROJECT = "PPM - Test Account";
-const BATCH_SIZE = 1000;
-
 type QuickFilter = "today" | "week" | "month" | "all";
-
-async function fetchAllPaginated(
-  table: "all_calls" | "all_appointments",
-  columns: string,
-  filters?: (query: any) => any
-) {
-  const results: any[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase.from(table).select(columns).range(from, from + BATCH_SIZE - 1);
-    if (filters) query = filters(query);
-    const { data, error } = await query;
-    if (error) throw error;
-    if (data) results.push(...data);
-    hasMore = data?.length === BATCH_SIZE;
-    from += BATCH_SIZE;
-  }
-
-  return results;
-}
 
 const ProjectCallSummaryTable = () => {
   const [stats, setStats] = useState<Record<string, ProjectStats>>({});
@@ -96,41 +71,21 @@ const ProjectCallSummaryTable = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const callFilters = (q: any) => {
-          if (dateFrom) q = q.gte("call_datetime", dateFrom.toISOString());
-          if (dateTo) q = q.lte("call_datetime", dateTo.toISOString());
-          return q;
-        };
-        const apptFilters = (q: any) => {
-          if (dateFrom) q = q.gte("date_of_appointment", dateFrom.toISOString());
-          if (dateTo) q = q.lte("date_of_appointment", dateTo.toISOString());
-          return q;
-        };
+        const { data, error } = await supabase.rpc('get_project_call_summary', {
+          p_date_from: dateFrom?.toISOString() || null,
+          p_date_to: dateTo?.toISOString() || null,
+        });
 
-        const [calls, appointments] = await Promise.all([
-          fetchAllPaginated("all_calls", "project_name, direction", callFilters),
-          fetchAllPaginated("all_appointments", "project_name, status", apptFilters),
-        ]);
+        if (error) throw error;
 
         const map: Record<string, ProjectStats> = {};
-
-        for (const call of calls) {
-          const name = call.project_name;
-          if (name === DEMO_PROJECT) continue;
-          if (!map[name]) map[name] = { inbound: 0, outbound: 0, confirmed: 0 };
-          if (call.direction === "inbound") map[name].inbound++;
-          else if (call.direction === "outbound") map[name].outbound++;
+        for (const row of (data || [])) {
+          map[row.project_name] = {
+            inbound: Number(row.inbound),
+            outbound: Number(row.outbound),
+            confirmed: Number(row.confirmed),
+          };
         }
-
-        for (const appt of appointments) {
-          const name = appt.project_name;
-          if (name === DEMO_PROJECT) continue;
-          if (!map[name]) map[name] = { inbound: 0, outbound: 0, confirmed: 0 };
-          if (appt.status && appt.status.trim().toLowerCase() === "confirmed") {
-            map[name].confirmed++;
-          }
-        }
-
         setStats(map);
       } catch (err) {
         console.error("Error fetching project summary:", err);
