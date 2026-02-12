@@ -214,51 +214,38 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex justify-between items-center">
-          <div className="text-center space-y-2">
-              <h1 className="heading-1">Patient Pro Client Portal</h1>
-            <p className="body-lg">Clinic Portal and Analytics</p>
+          <div>
+            <h1 className="heading-1">Patient Pro Client Portal</h1>
+            <p className="text-sm text-muted-foreground">Clinic Portal and Analytics</p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex flex-col items-end space-y-2">
-              <div className="flex items-center space-x-2">
-                <User className="h-4 w-4" />
-                <span className="text-sm text-gray-600">{user?.email} ({role})</span>
-              </div>
-              <div className="flex space-x-2">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => navigate('/settings')}
-                  className="text-xs"
-                >
-                  <Settings className="h-3 w-3 mr-1" />
-                  Settings
-                </Button>
-                {(role === 'admin') && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setActiveTab('users')}
-                    className="text-xs"
-                  >
-                    <Settings className="h-3 w-3 mr-1" />
-                    Admin Control
-                  </Button>
-                )}
-              </div>
-            </div>
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
+          <div className="flex items-center gap-2">
+            <span className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
+              <User className="h-3.5 w-3.5" />
+              {user?.email} ({role})
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
+              <Settings className="h-3.5 w-3.5 mr-1" />
+              Settings
+            </Button>
+            {role === 'admin' && (
+              <Button variant="ghost" size="sm" onClick={() => setActiveTab('users')}>
+                <Settings className="h-3.5 w-3.5 mr-1" />
+                Admin
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-3.5 w-3.5 mr-1" />
               Sign Out
             </Button>
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
+          <div className="overflow-x-auto -mx-4 px-4 md:-mx-6 md:px-6">
+            <TabsList className="inline-flex w-auto min-w-full whitespace-nowrap gap-1 h-auto p-1">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
@@ -292,7 +279,8 @@ const Index = () => {
             {hasManagementAccess() && (
               <TabsTrigger value="help-videos">Help Videos</TabsTrigger>
             )}
-          </TabsList>
+            </TabsList>
+          </div>
 
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />

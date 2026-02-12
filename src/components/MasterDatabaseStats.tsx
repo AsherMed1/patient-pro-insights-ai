@@ -20,7 +20,7 @@ const MasterDatabaseStats = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium opacity-90">Total Projects</CardTitle>
