@@ -126,8 +126,20 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const handleFieldUpdate = async (updates: Record<string, any>) => {
     setIsUpdating(true);
     try {
+      // Build previousValues from current appointment state
+      const previousValues: Record<string, any> = {};
+      for (const key of Object.keys(updates)) {
+        if (key === 'procedure_status') {
+          previousValues[key] = currentProcedureStatus || null;
+        } else if (key === 'status') {
+          previousValues[key] = currentStatus || null;
+        } else {
+          previousValues[key] = (appointment as any)[key] ?? null;
+        }
+      }
+
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
-        body: { appointmentId: appointment.id, updates, userId, userName, changeSource: 'portal' }
+        body: { appointmentId: appointment.id, updates, previousValues, userId, userName, changeSource: 'portal' }
       });
       if (error) throw error;
 
