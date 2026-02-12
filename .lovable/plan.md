@@ -1,50 +1,32 @@
 
 
-# Add Project Summary Table with Call & Appointment Metrics
+# Add Date Range Filter & Quick Filters to Project Performance Summary
 
 ## Overview
-Create a new component that displays a summary table on the admin Dashboard tab, showing per-project breakdowns of inbound calls, outbound calls, total calls, and confirmed appointments booked.
+Add a filter bar above the summary table with quick-select buttons (Today, This Week, This Month, All Time) and a custom date range picker, filtering calls by `call_datetime` and appointments by `date_of_appointment`.
 
-## New Component
+## Changes
 
-### File: `src/components/dashboard/ProjectCallSummaryTable.tsx` (new file)
+### File: `src/components/dashboard/ProjectCallSummaryTable.tsx`
 
-A table component that:
-1. Fetches all records from `all_calls` (paginated in batches of 1000) and groups by `project_name` + `direction`
-2. Fetches confirmed appointments from `all_appointments` where `LOWER(TRIM(status)) = 'confirmed'`, grouped by `project_name`
-3. Excludes the demo project ("PPM - Test Account")
-4. Displays a clean table with columns:
-   - **Project Name**
-   - **Inbound Calls** (direction = 'inbound')
-   - **Outbound Calls** (direction = 'outbound')
-   - **Total Calls** (sum of both)
-   - **Confirmed Appointments**
-5. Sorted by total calls descending
-6. Shows a loading spinner while data loads
-7. Includes a totals row at the bottom
+1. **Add state** for date range (`from`/`to` as `Date | undefined`) defaulting to "All Time" (both undefined).
 
-### UI Design
-- Uses existing `Table` components from `src/components/ui/table.tsx`
-- Wrapped in a Card with header "Project Performance Summary"
-- Consistent styling with the rest of the dashboard
+2. **Add filter bar** between the CardHeader and table:
+   - Quick filter buttons: Today, This Week, This Month, All Time (pill-style, matching the existing appointment filter design)
+   - Custom date range picker using two Popover/Calendar components for start and end dates
+   - Active date shown as a dismissible Badge chip
 
-## Integration
+3. **Apply date filters to queries**:
+   - `all_calls`: filter on `call_datetime` using `.gte()` / `.lte()`
+   - `all_appointments`: filter on `date_of_appointment` using `.gte()` / `.lte()`
+   - Pass filters via the existing `fetchAllPaginated` callback parameter
 
-### File: `src/pages/Index.tsx` (~line 296-299)
-
-Add the new `ProjectCallSummaryTable` component to the Dashboard tab, placed between `MasterDatabaseStats` and `CallCenterDashboard`:
-
-```tsx
-<TabsContent value="dashboard" className="space-y-6">
-  <MasterDatabaseStats />
-  <ProjectCallSummaryTable />
-  <CallCenterDashboard projectId="ALL" />
-</TabsContent>
-```
+4. **Re-fetch on date change**: Add `dateFrom` and `dateTo` to the `useEffect` dependency array so the table updates when filters change.
 
 ## Technical Details
 
-- Reuses the same paginated fetch pattern already used in `CallCenterDashboard.tsx` and `CallTeamTab.tsx`
-- Groups data client-side using a `Record<string, { inbound, outbound, confirmed }>` map
-- No database changes needed -- uses existing `all_calls.direction` and `all_appointments.status` columns
+- Uses existing `Calendar`, `Popover`, `Button`, and `Badge` components already imported elsewhere in the project
+- Quick filter logic reuses `startOfWeek`, `startOfMonth`, `endOfMonth` from `date-fns` (already installed)
+- Date values formatted with `format()` from `date-fns` for the picker button labels
+- Consistent styling with the compact filter bar pattern used in `AppointmentFilters.tsx`
 
