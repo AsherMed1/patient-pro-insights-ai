@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { statusOptions } from './utils';
 import { 
   User, 
   Phone, 
@@ -639,12 +640,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     <SelectValue placeholder="Set status" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-[9999]">
-                    <SelectItem value="Confirmed">Confirmed</SelectItem>
-                    <SelectItem value="Showed">Showed</SelectItem>
-                    <SelectItem value="No Show">No Show</SelectItem>
-                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    <SelectItem value="Rescheduled">Rescheduled</SelectItem>
-                    <SelectItem value="OON">OON</SelectItem>
+                    {statusOptions.sort().map((status) => (
+                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
