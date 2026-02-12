@@ -1,48 +1,24 @@
 
+# Add Search Box to Projects
 
-# Fix Project Card Layout and Alignment
+## Change
 
-## Problems
-1. Project name and badge/actions sit side-by-side, causing long names to push content and overlap
-2. "Appointments" text overflows its stat box on narrower cards
-3. Buttons float at different vertical positions across cards of varying height
-4. Created and Last Activity dates need to always be visible
+Add a search input field to `src/components/ProjectsManager.tsx` that filters project cards by name in real-time.
 
-## Changes to `src/components/projects/ProjectCard.tsx`
+### Details
 
-### 1. Use flex-col with h-full so cards stretch uniformly
-- Add `h-full flex flex-col` to the outer `Card`
-- Make `CardContent` use `flex-1 flex flex-col` so the button section can be pushed to the bottom
+1. **Add state**: `const [searchQuery, setSearchQuery] = useState('');`
 
-### 2. Restructure the header
-- Stack the project name on its own line (full width, truncated with `truncate` if needed)
-- Put the activity badge and action icons on a second row below the name
-- This prevents long names like "Vascular Institute of Michigan" from colliding with badges
+2. **Add search input** between the header and the card grid (inside `CardContent`, before the grid). It will be a simple `Input` with a search icon, placeholder "Search projects...", and a clear button when text is present.
 
-### 3. Fix the "Appointments" overlap
-- Shorten the label to "Appts" in the stat boxes, or use `text-[10px] leading-tight truncate` to prevent overflow
+3. **Filter the projects list**: Add a `.filter()` step in the existing chain (line 309) that checks `project.project_name.toLowerCase().includes(searchQuery.toLowerCase())`.
 
-### 4. Always show Created and Last Activity
-- Show "Last activity: --" when there is no activity data instead of hiding the row entirely
-- This keeps card heights consistent
+4. **Update empty state**: If the search returns no results but projects exist, show "No projects match your search" instead of the generic empty message.
 
-### 5. Pin buttons to the bottom
-- Use `mt-auto` on the button container so it always sticks to the bottom of the card regardless of content height
+### File: `src/components/ProjectsManager.tsx`
 
-## Technical Summary
-
-```
-Card (h-full flex flex-col, border-l-4)
-  CardHeader
-    Row 1: Project Name (truncate) + Disabled badge
-    Row 2: Activity badge + toggle/edit/delete icons
-  CardContent (flex-1 flex flex-col)
-    Stats grid (Leads | Calls | Appts)
-    Created date
-    Last activity date (always shown)
-    Spacer (flex-1)
-    Buttons pinned at bottom (mt-auto)
-```
-
-All changes are in a single file: `src/components/projects/ProjectCard.tsx`. The parent grid in `ProjectsManager.tsx` already uses CSS grid, so adding `h-full` to the cards will make them equal height automatically.
-
+- Import `Input` from `@/components/ui/input` and `Search, X` from `lucide-react`
+- Add `searchQuery` state variable
+- Add a search bar with icon before the grid at ~line 300
+- Add `.filter(project => project.project_name.toLowerCase().includes(searchQuery.toLowerCase()))` to the existing filter chain at line 309
+- Show a "no matches" message when filtered list is empty but `projects.length > 0`
