@@ -1,30 +1,30 @@
 
 
-# Fix Missing Statuses in Calendar Detail View Dropdown
+# Fix Duplicate Locations for ECCO Medical
 
 ## Problem
-The status dropdown in the calendar's Detailed Appointment View (DetailedAppointmentView.tsx) has only 6 hardcoded statuses: Confirmed, Showed, No Show, Cancelled, Rescheduled, OON.
-
-The rest of the app uses a shared `statusOptions` list from `src/components/appointments/utils.ts` which includes 11 statuses:
-- New, Pending, Confirmed, Scheduled, Showed, No Show, Cancelled, Rescheduled, Welcome Call, OON, Do Not Call
-
-The calendar view is missing: **New, Pending, Scheduled, Welcome Call, Do Not Call**.
+Calendar names for ECCO Medical are inconsistent — some end with just the city ("Lone Tree", "Pueblo") while others include the state ("Lone Tree, CO", "Pueblo, CO"). The location extraction regex treats these as separate locations, producing duplicates in the dropdown.
 
 ## Fix
 
-### File: `src/components/appointments/DetailedAppointmentView.tsx` (~line 641-648)
+### File: `src/components/appointments/AppointmentFilters.tsx` (~line 113)
 
-Replace the 6 hardcoded `<SelectItem>` entries with a dynamic list using the shared `statusOptions` array imported from `./utils`.
+After extracting the location string from `calendar_name`, normalize it by stripping a trailing state abbreviation (e.g., ", CO", ", KY"). This collapses "Lone Tree, CO" into "Lone Tree" and "Pueblo, CO" into "Pueblo".
 
-1. Add import: `import { statusOptions } from './utils';`
-2. Replace the hardcoded items with:
-```tsx
-<SelectContent className="bg-popover z-[9999]">
-  {statusOptions.sort().map((status) => (
-    <SelectItem key={status} value={status}>{status}</SelectItem>
-  ))}
-</SelectContent>
+Add one line after extracting the location:
+
+```typescript
+// After: const location = locationMatch[1].trim();
+// Add normalization to strip trailing state abbreviation
+const normalizedLocation = location.replace(/,\s*[A-Z]{2}$/, '').trim();
 ```
 
-This ensures the calendar detail view stays in sync with the rest of the app whenever statuses are added or changed.
+Then use `normalizedLocation` instead of `location` for the Somerset check and the `locations.add()` call.
+
+### File: `src/components/projects/ProjectDetailedDashboard.tsx`
+
+Apply the same normalization in the dashboard's location extraction logic so both views stay consistent.
+
+### Result
+The dropdown will show just "Lone Tree" and "Pueblo" — no duplicates.
 
