@@ -94,7 +94,7 @@ export const isProcedureUpdated = (appointment: AllAppointment) => {
 };
 
 export const filterAppointments = (appointments: AllAppointment[], filterType: string) => {
-  const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon'];
+  const completedStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon', 'do not call', 'donotcall'];
   
   return appointments.filter(appointment => {
     const normalizedStatus = appointment.status?.trim().toLowerCase();
