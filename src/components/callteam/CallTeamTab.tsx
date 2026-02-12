@@ -31,7 +31,7 @@ const CallTeamTab = () => {
       const PAGE_SIZE = 1000;
 
       const buildCallsQuery = () => {
-        let q = supabase.from("all_calls").select("*");
+        let q = supabase.from("all_calls").select("agent, duration_seconds, date");
         if (dateRange.from) {
           const from = dateRange.from.toISOString().split("T")[0];
           q = q.gte("date", from);
@@ -47,7 +47,7 @@ const CallTeamTab = () => {
       };
 
       const buildApptsQuery = () => {
-        let q = supabase.from("all_appointments").select("*");
+        let q = supabase.from("all_appointments").select("agent, date_of_appointment");
         if (dateRange.from) {
           const from = dateRange.from.toISOString().split("T")[0];
           q = q.gte("date_of_appointment", from);

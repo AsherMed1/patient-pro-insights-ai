@@ -52,12 +52,12 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
       // Remove any default limits to allow fetching all records
       let callsQuery = supabase
         .from('all_calls')
-        .select('*')
+        .select('agent, duration_seconds, date, project_name')
         .order('date', { ascending: false });
 
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select('*')
+        .select('agent, date_of_appointment, date_appointment_created, project_name')
         .order('date_appointment_created', { ascending: false });
 
       // Only filter by project if it's not the default "project-1" or "ALL"
