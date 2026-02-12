@@ -757,6 +757,22 @@ const AllAppointmentsManager = ({
         }
       }
 
+      // Sync status to GoHighLevel
+      if (currentAppointment?.ghl_appointment_id && oldStatus !== status) {
+        try {
+          await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: currentAppointment.ghl_appointment_id,
+              project_name: currentAppointment.project_name,
+              status,
+            }
+          });
+          console.log('✅ GHL status synced:', status);
+        } catch (ghlErr) {
+          console.error('⚠️ GHL status sync failed (non-critical):', ghlErr);
+        }
+      }
+
       // Update local state
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId

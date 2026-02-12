@@ -1,11 +1,53 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { formatInTimeZone, fromZonedTime } from "npm:date-fns-tz@3.2.0";
 import { addMinutes } from "npm:date-fns@3.6.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Map portal statuses to GHL appointmentStatus values
+const STATUS_MAP: Record<string, string> = {
+  'Confirmed': 'confirmed',
+  'Cancelled': 'cancelled',
+  'No Show': 'noshow',
+  'Showed': 'showed',
+};
+
+async function resolveApiKey(
+  ghl_api_key: string | undefined,
+  project_name: string | undefined
+): Promise<string | null> {
+  // Use provided key first
+  if (ghl_api_key) return ghl_api_key;
+
+  // Look up from project if project_name given
+  if (project_name) {
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data } = await supabase
+        .from('projects')
+        .select('ghl_api_key')
+        .eq('project_name', project_name)
+        .single();
+
+      if (data?.ghl_api_key) {
+        console.log('Resolved API key from project:', project_name);
+        return data.ghl_api_key;
+      }
+    } catch (err) {
+      console.warn('Failed to look up project API key:', err);
+    }
+  }
+
+  // Fall back to global key
+  return Deno.env.get('GHL_LOCATION_API_KEY') || null;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -13,40 +55,68 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_appointment_id, ghl_location_id, new_date, new_time, timezone, ghl_api_key, calendar_id, title } = await req.json();
+    const {
+      ghl_appointment_id,
+      ghl_location_id,
+      new_date,
+      new_time,
+      timezone,
+      ghl_api_key,
+      calendar_id,
+      title,
+      status,
+      project_name,
+    } = await req.json();
 
-    // For calendar transfer, only appointment_id and calendar_id are required
-    const isCalendarTransfer = calendar_id && !new_date && !new_time;
-    
-    // Validate required fields based on operation type
+    // Determine operation type
+    const isCalendarTransfer = calendar_id && !new_date && !new_time && !status;
+    const isStatusUpdate = status && !new_date && !new_time && !calendar_id;
+    const isReschedule = new_date && new_time;
+
+    // Validate required fields
     if (!ghl_appointment_id) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Missing required field: ghl_appointment_id'
-        }),
+        JSON.stringify({ error: 'Missing required field: ghl_appointment_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    if (!isCalendarTransfer && (!new_date || !new_time)) {
+
+    if (!isCalendarTransfer && !isStatusUpdate && !isReschedule) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Missing required fields for reschedule',
-          required: ['ghl_appointment_id', 'new_date', 'new_time'],
-          hint: 'For calendar transfer only, provide ghl_appointment_id and calendar_id'
+        JSON.stringify({
+          error: 'Missing required fields',
+          hint: 'Provide new_date+new_time for reschedule, calendar_id for transfer, or status for status update'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Use project-specific API key if provided, otherwise fall back to global key
-    const apiKey = ghl_api_key || Deno.env.get('GHL_LOCATION_API_KEY');
+    // Resolve API key
+    const apiKey = await resolveApiKey(ghl_api_key, project_name);
     if (!apiKey) {
-      console.error('No GHL API key available (neither project-specific nor global)');
+      console.error('No GHL API key available');
       return new Response(
         JSON.stringify({ error: 'GHL API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // For status updates, map portal status to GHL value
+    let ghlStatus: string | undefined;
+    if (status) {
+      ghlStatus = STATUS_MAP[status];
+      if (!ghlStatus) {
+        console.warn(`Status "${status}" has no GHL mapping — skipping GHL sync`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            skipped: true,
+            reason: `Status "${status}" does not map to a GHL appointmentStatus value`,
+            appointment_id: ghl_appointment_id,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     console.log('Updating GHL appointment:', {
@@ -54,11 +124,15 @@ serve(async (req) => {
       ghl_location_id,
       calendar_id,
       isCalendarTransfer,
+      isStatusUpdate,
+      isReschedule,
       new_date,
-      new_time
+      new_time,
+      status,
+      ghlStatus,
     });
 
-    // First, fetch the existing appointment to get current data
+    // Fetch existing appointment to get current data
     const getResponse = await fetch(
       `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
       {
@@ -75,7 +149,7 @@ serve(async (req) => {
       const errorText = await getResponse.text();
       console.error('Failed to fetch existing appointment:', getResponse.status, errorText);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Failed to fetch existing appointment from GoHighLevel',
           details: errorText,
           status: getResponse.status,
@@ -90,9 +164,9 @@ serve(async (req) => {
     const existingStartTime = existingAppointment.appointment?.startTime;
     const existingEndTime = existingAppointment.appointment?.endTime;
 
-    // If no assignedUserId, try to fetch from calendar's team members as fallback
+    // Fallback: fetch assignedUserId from calendar team members
     if (!assignedUserId && existingCalendarId) {
-      console.warn('No assignedUserId found, attempting to fetch from calendar:', existingCalendarId);
+      console.warn('No assignedUserId found, attempting fallback from calendar:', existingCalendarId);
       try {
         const calendarResponse = await fetch(
           `https://services.leadconnectorhq.com/calendars/${existingCalendarId}`,
@@ -118,53 +192,49 @@ serve(async (req) => {
       }
     }
 
-    console.log('Found existing appointment data:', { assignedUserId, existingCalendarId, existingStartTime });
+    console.log('Existing appointment data:', { assignedUserId, existingCalendarId, existingStartTime });
 
-    // Build the update payload - only include assignedUserId if we have one
+    // Build the update payload
     let updatePayload: any = {
       toNotify: true,
       ignoreDateRange: true,
       ignoreFreeSlotValidation: true,
     };
 
-    // Only include assignedUserId if available
     if (assignedUserId) {
       updatePayload.assignedUserId = assignedUserId;
     }
 
-    // If calendar transfer, include new calendarId
     if (calendar_id) {
       updatePayload.calendarId = calendar_id;
       console.log('Including calendar transfer to:', calendar_id);
     }
 
-    // If title update is provided
     if (title) {
       updatePayload.title = title;
       console.log('Updating appointment title to:', title);
     }
 
-    // If rescheduling (new date/time provided)
-    if (new_date && new_time) {
+    // Rescheduling
+    if (isReschedule) {
       const tz = timezone || 'America/Chicago';
       const startDateTimeInTz = fromZonedTime(`${new_date}T${new_time}`, tz);
       const endDateTimeInTz = addMinutes(startDateTimeInTz, 30);
       const startTime = formatInTimeZone(startDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
       const endTime = formatInTimeZone(endDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-      
+
       updatePayload.startTime = startTime;
       updatePayload.endTime = endTime;
-      updatePayload.appointmentStatus = 'confirmed';
-      
+      updatePayload.appointmentStatus = ghlStatus || 'confirmed';
       console.log('Including reschedule to:', { startTime, endTime });
-    } else if (isCalendarTransfer) {
-      // For calendar-only transfer, keep existing times
+    } else {
+      // For status-only or calendar transfer, keep existing times
       updatePayload.startTime = existingStartTime;
       updatePayload.endTime = existingEndTime;
-      updatePayload.appointmentStatus = 'confirmed';
+      updatePayload.appointmentStatus = ghlStatus || 'confirmed';
     }
 
-    // Update the appointment
+    // PUT to GHL
     const ghlResponse = await fetch(
       `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
       {
@@ -183,12 +253,12 @@ serve(async (req) => {
       const errorText = await ghlResponse.text();
       console.error('GHL API error:', ghlResponse.status, errorText);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Failed to update appointment in GoHighLevel',
           details: errorText,
           status: ghlResponse.status,
           ghl_appointment_id,
-          attempted_update: updatePayload
+          attempted_update: updatePayload,
         }),
         { status: ghlResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -198,23 +268,21 @@ serve(async (req) => {
     console.log('Successfully updated GHL appointment:', result);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         appointment_id: ghl_appointment_id,
         calendar_transferred: !!calendar_id,
-        rescheduled: !!(new_date && new_time),
-        ghl_response: result
+        rescheduled: isReschedule,
+        status_updated: isStatusUpdate,
+        ghl_status: ghlStatus,
+        ghl_response: result,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error('Error in update-ghl-appointment:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        stack: error.stack 
-      }),
+      JSON.stringify({ error: error.message, stack: error.stack }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
