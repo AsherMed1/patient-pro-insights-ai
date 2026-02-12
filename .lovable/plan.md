@@ -1,45 +1,27 @@
 
 
-# Fix Scattered Dashboard Layout
+# Fix: Project Performance Summary Stuck Loading
 
-## Problems Identified
-1. **Header misalignment** -- The title ("Patient Pro Client Portal") is center-aligned while user info sits on the right, creating visual imbalance
-2. **Tabs overflow onto two rows** -- 13 navigation tabs wrap awkwardly with uneven spacing
-3. **Inconsistent visual hierarchy** -- The header, tabs, and stats cards lack cohesive spacing and grouping
+## Root Cause
 
-## Changes
+In `ProjectCallSummaryTable.tsx`, line 172, after a successful GHL sync:
 
-### 1. Restructure the header (`src/pages/Index.tsx`, lines 219-258)
-- Left-align the title and subtitle
-- Move user email, Settings, and Admin Control into a compact inline row on the right
-- Tighten vertical spacing
-
-### 2. Improve tab navigation (`src/pages/Index.tsx`, lines 260-295)
-- Use a horizontal scroll container (`overflow-x-auto`) instead of flex-wrap so tabs stay on one line
-- Add subtle scroll indicators or keep the row clean with `whitespace-nowrap`
-
-### 3. Polish stats cards (`src/components/MasterDatabaseStats.tsx`)
-- Minor spacing refinement to ensure the 4-card grid aligns cleanly beneath the single-row tabs
-
-### 4. Tighten page container (`src/pages/Index.tsx`)
-- Reduce top-level `space-y-6` to `space-y-4` for a more compact, less "scattered" feel
-- Ensure the header and tabs feel visually connected
-
-## Technical Details
-
-**Header** -- Replace the current `text-center` title block with a flex-row layout:
-```text
-[Title + subtitle (left)]  ----  [email | Settings | Admin | Sign Out (right)]
+```typescript
+// Re-fetch data after sync
+setLoading(true);  // <-- sets loading skeleton, but nothing triggers the useEffect
 ```
 
-**Tabs** -- Wrap `TabsList` in a scrollable container:
-```text
-<div class="overflow-x-auto">
-  <TabsList class="inline-flex w-auto min-w-full whitespace-nowrap">
-    ...triggers...
-  </TabsList>
-</div>
-```
+The `useEffect` on line 94 only depends on `[dateFrom, dateTo]`. Since neither changes after a sync, the data fetch never re-runs and the component stays stuck showing skeleton loaders.
 
-This keeps all tabs visible in a single row with horizontal scroll on smaller screens rather than wrapping onto a second line.
+## Fix
+
+Replace the manual `setLoading(true)` with a proper re-fetch mechanism. Add a `refreshKey` counter to the component state and include it in the `useEffect` dependency array. After a successful sync, increment the counter to trigger a re-fetch.
+
+### Changes to `src/components/dashboard/ProjectCallSummaryTable.tsx`
+
+1. Add a `refreshKey` state variable: `const [refreshKey, setRefreshKey] = useState(0);`
+2. Add `refreshKey` to the `useEffect` dependency array: `[dateFrom, dateTo, refreshKey]`
+3. Replace `setLoading(true)` on line 172 with `setRefreshKey(k => k + 1)` -- this triggers the useEffect which already handles setting loading state
+
+This is a minimal, targeted fix -- just 3 lines changed.
 
