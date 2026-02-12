@@ -36,6 +36,7 @@ import {
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
 import AppointmentNotes from './AppointmentNotes';
+import AppointmentHistory from './AppointmentHistory';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/utils/appointmentLeadMatcher";
@@ -693,6 +694,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 projectName={appointment.project_name}
               />
             </div>
+
+            {/* Appointment History */}
+            <AppointmentHistory appointment={appointment} />
 
             {/* Patient Intake Notes */}
             {(appointment.patient_intake_notes || leadDetails?.patient_intake_notes) && (
