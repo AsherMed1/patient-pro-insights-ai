@@ -1,52 +1,30 @@
 
-
-# Sync Status Changes to GoHighLevel from Calendar View
+# Show User Name Instead of "System" on Status Change Notes
 
 ## Problem
 
-When changing an appointment's status from the calendar view (via the `DetailedAppointmentView` modal), the code calls `update-ghl-appointment` with a `status` parameter -- but that edge function ignores it entirely. It only handles rescheduling (date/time changes) and calendar transfers. The `status` field is never destructured or sent to the GHL API.
+When a status is changed from the portal list view, the internal note says `created_by: 'System'` with no user attribution. The user wants the note to show the actual person who made the change (e.g., "Jenny S" or "Lisa") instead of "System", similar to how the `update-appointment-fields` edge function already attributes notes to the user.
 
-This means status changes made in the calendar detail view are saved locally but never reflected in GoHighLevel.
+## Change
 
-## Solution
+### File: `src/components/AllAppointmentsManager.tsx`
 
-Update the `update-ghl-appointment` edge function to also accept a `status` parameter, map it to GHL's `appointmentStatus` values, and send it as part of the PUT request. Then ensure the `DetailedAppointmentView` (used by the calendar) calls it correctly with the project's GHL API key.
+1. Import `useUserAttribution` hook (already exists in the codebase)
+2. Call `useUserAttribution()` at the top of the component to get `userName`
+3. Update the status change note (line 658) to include the user name:
+   - From: `Status changed from "X" to "Y" - [[timestamp:...]]`
+   - To: `Status changed from "X" to "Y" by {userName} - [[timestamp:...]]`
+4. Change `created_by` (line 665) from `'System'` to the actual `userName`
+5. Also update the "DO NOT CALL" note (line 675) `created_by` from `'System'` to `userName`
 
-## Technical Steps
+### File: `src/components/appointments/AppointmentNotes.tsx`
 
-### 1. Update `supabase/functions/update-ghl-appointment/index.ts`
-
-- Add `status` and `project_name` to the destructured request body
-- Create a status mapping from portal values to GHL API values:
-
-```
-Portal Status    ->  GHL appointmentStatus
------------          ---------------------
-Confirmed        ->  confirmed
-Cancelled        ->  cancelled
-No Show          ->  noshow
-Showed           ->  showed
-```
-
-- Add a new code path: when `status` is provided (without `new_date`/`new_time`/`calendar_id`), build a status-only update payload with `appointmentStatus` set to the mapped value
-- When `project_name` is provided but no `ghl_api_key`, look up the project's `ghl_api_key` from the `projects` table (requires creating a Supabase admin client in the function)
-- Keep existing start/end times from the fetched appointment so the PUT request preserves the current schedule
-
-### 2. Update `src/components/appointments/DetailedAppointmentView.tsx`
-
-- The existing GHL sync call (lines 135-148) already fires on status change, but it needs to also pass the `ghl_api_key` or ensure the edge function can look it up
-- No structural change needed -- the call is already there, just the edge function needed to actually process the `status` field
-
-### 3. Update `src/components/AllAppointmentsManager.tsx`
-
-- Add GHL status sync to the `updateAppointmentStatus` function (used by the list view's `AppointmentCard` inline status dropdown)
-- After the local database update and system note, call `update-ghl-appointment` with the appointment's `ghl_appointment_id` and new `status`
-- This ensures list view status changes also sync to GHL consistently
+No changes needed -- the display logic already handles non-"System" names correctly (shows yellow styling for user notes vs blue for system notes). Notes attributed to real users will display with the user's name.
 
 ### Result
 
-- Status changes from the calendar detail modal will sync to GHL
-- Status changes from the list view will also sync to GHL
-- Both views use the same edge function for consistency
-- Statuses that don't map to GHL values (like "Welcome Call", "OON", "Pending") will be saved locally only, with a console warning
+Status change notes will show:
+- `Status changed from "Confirmed" to "Welcome Call" by Jenny S - Feb 11, 2026, 2:06 AM` with `created_by: "Jenny S"`
 
+instead of:
+- `Status changed from "Confirmed" to "Welcome Call" - Feb 11, 2026, 2:06 AM` with `created_by: "System"`
