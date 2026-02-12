@@ -1,24 +1,19 @@
 
-# Add Search Box to Projects
 
-## Change
+# Shrink Header Title and Add Logo
 
-Add a search input field to `src/components/ProjectsManager.tsx` that filters project cards by name in real-time.
+## Changes
 
-### Details
+### 1. Add logo to project assets
+- Copy the uploaded logo (`Untitled_design_-_2026-02-02T175736.227.png`) to `src/assets/patient-pro-logo.png`
 
-1. **Add state**: `const [searchQuery, setSearchQuery] = useState('');`
+### 2. Update header in `src/pages/Index.tsx`
+- Import the logo image
+- Replace the large `heading-1` title with a compact row: logo image (h-8) + title text (`text-lg font-semibold`) + subtitle (`text-sm`)
+- This brings the header in line with the compact right-side controls
 
-2. **Add search input** between the header and the card grid (inside `CardContent`, before the grid). It will be a simple `Input` with a search icon, placeholder "Search projects...", and a clear button when text is present.
+### Result
+- The oversized "Patient Pro Client Portal" text shrinks from `heading-1` (which renders very large) down to a standard `text-lg`
+- The logo sits to the left of the text, giving it a polished branded look
+- The overall header row becomes much more compact
 
-3. **Filter the projects list**: Add a `.filter()` step in the existing chain (line 309) that checks `project.project_name.toLowerCase().includes(searchQuery.toLowerCase())`.
-
-4. **Update empty state**: If the search returns no results but projects exist, show "No projects match your search" instead of the generic empty message.
-
-### File: `src/components/ProjectsManager.tsx`
-
-- Import `Input` from `@/components/ui/input` and `Search, X` from `lucide-react`
-- Add `searchQuery` state variable
-- Add a search bar with icon before the grid at ~line 300
-- Add `.filter(project => project.project_name.toLowerCase().includes(searchQuery.toLowerCase()))` to the existing filter chain at line 309
-- Show a "no matches" message when filtered list is empty but `projects.length > 0`
