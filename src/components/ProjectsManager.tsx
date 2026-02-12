@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Search, X } from 'lucide-react';
 import { ProjectCard } from './projects/ProjectCard';
 import { AddProjectDialog } from './projects/AddProjectDialog';
 import { EditProjectDialog } from './projects/EditProjectDialog';
@@ -47,6 +48,7 @@ const ProjectsManager = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -298,15 +300,42 @@ const ProjectsManager = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {projects.length > 0 && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
         {projects.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-muted-foreground">
             <p>No projects found.</p>
             <p className="text-sm">Click "Add Project" to create your first project.</p>
+          </div>
+        ) : projects
+              .filter(project => project && project.project_name)
+              .filter(project => project.project_name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No projects match your search.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects
               .filter(project => project && project.project_name)
+              .filter(project => project.project_name.toLowerCase().includes(searchQuery.toLowerCase()))
               .sort((a, b) => {
                 // First sort by active status (active projects first)
                 if (a.active !== b.active) {
