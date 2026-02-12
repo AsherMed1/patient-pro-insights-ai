@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut, User, Settings } from "lucide-react";
+import patientProLogo from "@/assets/patient-pro-logo.png";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { useNavigate } from "react-router-dom";
@@ -217,9 +218,12 @@ const Index = () => {
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="heading-1">Patient Pro Client Portal</h1>
-            <p className="text-sm text-muted-foreground">Clinic Portal and Analytics</p>
+          <div className="flex items-center gap-3">
+            <img src={patientProLogo} alt="Patient Pro Logo" className="h-8 w-auto" />
+            <div>
+              <h1 className="text-lg font-semibold leading-none">Patient Pro Client Portal</h1>
+              <p className="text-sm text-muted-foreground">Admin Dashboard</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
