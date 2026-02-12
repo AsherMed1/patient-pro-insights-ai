@@ -1,39 +1,57 @@
 
 
-# Enhance Internal Notes with Old and New Values
+# Appointment History Section in Detail View
 
-## Problem
+## Overview
 
-When a status (or other field) is updated from the calendar detail view, the internal note says:
-"Portal update by Jenny S: Updated status"
+Add an "Appointment History" section to the appointment detail modal (between Internal Notes and Patient Intake Notes) that shows all past and future appointments for the same patient. This gives portal users a GHL-like view of the patient's full appointment timeline without leaving the current view.
 
-It should say:
-"Portal update by Jenny S: Updated status from "Confirmed" to "Scheduled"
+## How It Works
 
-## Changes
+When a patient's appointment detail modal opens, query the `all_appointments` table for all appointments matching the same patient (by `ghl_id`, phone, or name+project). Display them in reverse chronological order, showing date/time, service type, location, and status.
 
-### 1. `src/components/appointments/DetailedAppointmentView.tsx`
+## What the User Sees
 
-Pass the previous values to the edge function so it can build a descriptive note. When calling `update-appointment-fields`, include a new `previousValues` object containing the old values for any fields being changed.
+A new collapsible "Appointment History" section appears in the detail modal. Each entry is a compact row:
 
-For example, when status changes from "Confirmed" to "Scheduled":
-- `updates`: `{ status: "Scheduled" }`
-- `previousValues`: `{ status: "Confirmed" }`
+```text
+2026-02-12 14:30 | GAE Consult | Lone Tree | Confirmed
+2026-02-10 09:00 | GAE Consult | Lone Tree | Cancelled
+2026-02-08 11:15 | GAE Consult | Lone Tree | Rescheduled -> 2026-02-12 14:30
+```
 
-This applies to all fields updated via `handleFieldUpdate` -- status, procedure_status, and any other inline edits.
+- Shows the most recent 10 entries by default
+- "View more" button expands to show up to 20
+- The current appointment is highlighted with a subtle indicator
+- Times are displayed in a readable format
 
-### 2. `supabase/functions/update-appointment-fields/index.ts`
+## Technical Details
 
-- Accept the new `previousValues` parameter from the request body
-- Update the note text generation (line 55) to include old and new values:
-  - For each changed field, format as: `Updated {field} from "{oldValue}" to "{newValue}"`
-  - If no previous value is available, fall back to: `Updated {field} to "{newValue}"`
-  - Multiple fields joined with `, `
+### New Hook: `src/hooks/useAppointmentHistory.tsx`
 
-Example output:
-`Portal update by Jenny S: Updated status from "Confirmed" to "Scheduled"`
+- Accepts the current appointment's identifiers (ghl_id, phone, name, project)
+- Queries `all_appointments` for all matching records, ordered by `date_of_appointment DESC`
+- Limits to 20 records max
+- Matches by `ghl_id` first, then falls back to phone number within the same project, then name + project
 
-### Result
+### New Component: `src/components/appointments/AppointmentHistory.tsx`
 
-Internal notes will clearly show what changed, making the audit trail more informative and matching the format used elsewhere in the system.
+- Receives the current appointment and renders the history list
+- Each row shows: date/time, calendar_name (service type), project_name (location proxy), and status
+- Color-coded status badges (green for Showed, red for Cancelled/No Show, blue for Confirmed, gray for others)
+- Initially shows 10 entries; "View more" button reveals the rest
+- Wrapped in a collapsible section with a History icon
+- Skips reserved blocks (`is_reserved_block = true`)
+
+### Modified: `src/components/appointments/DetailedAppointmentView.tsx`
+
+- Import and render `AppointmentHistory` between the Internal Notes section (line 694) and Patient Intake Notes section (line 698)
+- Pass the current appointment object so the history component can find related records
+
+### Guardrails
+
+- Read-only display -- no editing from the history section
+- Only appends context, never modifies existing notes or data
+- Capped at 20 entries to keep queries fast
+- Current appointment is visually distinguished so users know which one they're viewing
 
