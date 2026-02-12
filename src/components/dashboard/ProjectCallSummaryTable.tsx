@@ -16,8 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProjectStats {
   inbound: number;
@@ -55,9 +56,11 @@ async function fetchAllPaginated(
 const ProjectCallSummaryTable = () => {
   const [stats, setStats] = useState<Record<string, ProjectStats>>({});
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [activeQuick, setActiveQuick] = useState<QuickFilter>("all");
+  const { toast } = useToast();
 
   const applyQuickFilter = (filter: QuickFilter) => {
     setActiveQuick(filter);
@@ -151,6 +154,34 @@ const ProjectCallSummaryTable = () => {
     { inbound: 0, outbound: 0, confirmed: 0 }
   );
 
+  const syncFromGHL = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-ghl-calls', {
+        body: {
+          dateFrom: dateFrom?.toISOString() || undefined,
+          dateTo: dateTo?.toISOString() || undefined,
+        },
+      });
+      if (error) throw error;
+      toast({
+        title: "Sync Complete",
+        description: data?.message || `Synced ${data?.synced || 0} call records`,
+      });
+      // Re-fetch data after sync
+      setLoading(true);
+    } catch (err) {
+      console.error("GHL sync error:", err);
+      toast({
+        title: "Sync Failed",
+        description: err instanceof Error ? err.message : "Failed to sync from GHL",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const quickButtons: { label: string; value: QuickFilter }[] = [
     { label: "Today", value: "today" },
     { label: "This Week", value: "week" },
@@ -160,8 +191,18 @@ const ProjectCallSummaryTable = () => {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Project Performance Summary</CardTitle>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={syncFromGHL}
+          disabled={syncing}
+          className="gap-1.5"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+          {syncing ? "Syncing..." : "Sync from GHL"}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filter Bar */}

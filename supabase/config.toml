@@ -149,3 +149,7 @@ verify_jwt = false
 [functions.notify-slack-oon]
 verify_jwt = false
 # Send Slack notification when appointment status is changed to OON (Out of Network)
+
+[functions.sync-ghl-calls]
+verify_jwt = false
+# On-demand sync of call data from GoHighLevel conversations API
