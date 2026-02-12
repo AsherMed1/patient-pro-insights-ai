@@ -101,60 +101,58 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const isPPMTestAccount = project.project_name === 'PPM - Test Account';
 
   return (
-    <Card className={`border-l-4 ${
+    <Card className={`h-full flex flex-col border-l-4 ${
       !project.active 
         ? 'border-l-gray-300 opacity-60 bg-gray-50' 
         : activityStatus.isInactive 
           ? 'border-l-red-500 bg-red-50' 
           : 'border-l-blue-500'
     }`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-2">
-            <CardTitle className={`text-lg font-medium ${!project.active ? 'text-gray-500' : ''}`}>
-              {project.project_name}
-            </CardTitle>
-            {!project.active && (
-              <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600">
-                Disabled
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            <Badge className={`text-xs ${activityStatus.color}`}>
-              {activityStatus.status}
+      <CardHeader className="pb-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <CardTitle className={`text-lg font-medium truncate ${!project.active ? 'text-gray-500' : ''}`}>
+            {project.project_name}
+          </CardTitle>
+          {!project.active && (
+            <Badge variant="secondary" className="text-xs bg-gray-200 text-gray-600 shrink-0">
+              Disabled
             </Badge>
-            <div className="flex space-x-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onToggleActive(project)}
-                title={project.active ? 'Disable Project' : 'Enable Project'}
-              >
-                {project.active ? (
-                  <PowerOff className="h-3 w-3 text-orange-600" />
-                ) : (
-                  <Power className="h-3 w-3 text-green-600" />
-                )}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onEdit(project)}
-              >
-                <Edit className="h-3 w-3" />
-              </Button>
-              {isAdmin() && (
-                <DeleteProjectDialog
-                  project={project}
-                  onDelete={onDelete}
-                />
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <Badge className={`text-xs ${activityStatus.color}`}>
+            {activityStatus.status}
+          </Badge>
+          <div className="flex space-x-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onToggleActive(project)}
+              title={project.active ? 'Disable Project' : 'Enable Project'}
+            >
+              {project.active ? (
+                <PowerOff className="h-3 w-3 text-orange-600" />
+              ) : (
+                <Power className="h-3 w-3 text-green-600" />
               )}
-            </div>
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onEdit(project)}
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
+            {isAdmin() && (
+              <DeleteProjectDialog
+                project={project}
+                onDelete={onDelete}
+              />
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex-1 flex flex-col space-y-3">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="bg-blue-50 p-2 rounded">
             <div className="text-lg font-semibold text-blue-600">
@@ -172,26 +170,22 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             <div className="text-lg font-semibold text-purple-600">
               {stats?.appointments_count || 0}
             </div>
-            <div className="text-xs text-purple-600">Appointments</div>
+            <div className="text-[10px] leading-tight text-purple-600">Appts</div>
           </div>
         </div>
         
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <div className="flex items-center space-x-1">
-            <Calendar className="h-3 w-3" />
-            <span>Created: {formatDate(project.created_at)}</span>
-          </div>
+        <div className="flex items-center space-x-1 text-sm text-gray-500">
+          <Calendar className="h-3 w-3" />
+          <span>Created: {formatDate(project.created_at)}</span>
         </div>
         
-        {stats?.last_activity && (
-          <div className="flex items-center space-x-1 text-sm text-gray-500">
-            <Activity className="h-3 w-3" />
-            <span>Last activity: {formatDate(stats.last_activity)}</span>
-          </div>
-        )}
+        <div className="flex items-center space-x-1 text-sm text-gray-500">
+          <Activity className="h-3 w-3" />
+          <span>Last activity: {stats?.last_activity ? formatDate(stats.last_activity) : '—'}</span>
+        </div>
 
         {/* Project Portal and Detailed Stats Buttons */}
-        <div className="pt-2 space-y-2">
+        <div className="mt-auto pt-2 space-y-2">
           <Link to={`/project/${encodeURIComponent(project.project_name)}`}>
             <Button 
               variant="default" 
