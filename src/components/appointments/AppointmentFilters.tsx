@@ -37,7 +37,9 @@ interface AppointmentFiltersProps {
   onLocationFilterChange: (value: string) => void;
   serviceFilter: string;
   onServiceFilterChange: (value: string) => void;
-  isProjectSpecificView?: boolean; // New prop to indicate we're in a project-specific view
+  isProjectSpecificView?: boolean;
+  dateFilterType: 'appointment' | 'created';
+  onDateFilterTypeChange: (type: 'appointment' | 'created') => void;
 }
 export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   searchTerm,
@@ -59,7 +61,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   onLocationFilterChange,
   serviceFilter,
   onServiceFilterChange,
-  isProjectSpecificView = false
+  isProjectSpecificView = false,
+  dateFilterType,
+  onDateFilterTypeChange
 }) => {
   const { isAdmin } = useRole();
   const [projects, setProjects] = useState<string[]>([]);
@@ -151,18 +155,19 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     }
   };
   const getDateRangeText = () => {
+    const prefix = dateFilterType === 'created' ? 'Created: ' : 'Appt: ';
     if (!dateRange.from && !dateRange.to) return 'All dates';
     if (dateRange.from && !dateRange.to) {
-      return `From ${format(dateRange.from, "MMM dd, yyyy")}`;
+      return `${prefix}From ${format(dateRange.from, "MMM dd, yyyy")}`;
     }
     if (!dateRange.from && dateRange.to) {
-      return `Until ${format(dateRange.to, "MMM dd, yyyy")}`;
+      return `${prefix}Until ${format(dateRange.to, "MMM dd, yyyy")}`;
     }
     if (dateRange.from && dateRange.to) {
       if (dateRange.from.toDateString() === dateRange.to.toDateString()) {
-        return format(dateRange.from, "MMM dd, yyyy");
+        return `${prefix}${format(dateRange.from, "MMM dd, yyyy")}`;
       }
-      return `${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd, yyyy")}`;
+      return `${prefix}${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd, yyyy")}`;
     }
     return 'Select date range';
   };
@@ -363,6 +368,30 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
           <CollapsibleContent className="pt-2 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
+              {/* Date type toggle */}
+              <div className="flex items-center bg-background rounded-full border border-border/50 p-0.5">
+                <button
+                  onClick={() => onDateFilterTypeChange('appointment')}
+                  className={cn(
+                    "px-3 h-6 text-xs rounded-full transition-colors",
+                    dateFilterType === 'appointment' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Appt Date
+                </button>
+                <button
+                  onClick={() => onDateFilterTypeChange('created')}
+                  className={cn(
+                    "px-3 h-6 text-xs rounded-full transition-colors",
+                    dateFilterType === 'created' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Created Date
+                </button>
+              </div>
+
+              <div className="h-4 w-px bg-border mx-1" />
+
               <Button variant="secondary" size="sm" onClick={() => setQuickDateRange('today')} className="rounded-full h-7 text-xs">
                 <Clock className="h-3 w-3 mr-1" />
                 Today
