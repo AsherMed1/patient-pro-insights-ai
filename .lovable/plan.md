@@ -1,70 +1,41 @@
 
-# Add Created Date Filter to Appointments
 
-## Overview
+# Fix: Insurance Card URL Showing in Medical Information Notes
 
-Add a "date type" toggle to the existing Dates filter section, letting users choose whether the date range applies to **Appointment Date** (current behavior) or **Created Date** (when the record was created). No database changes needed -- the `date_appointment_created` and `created_at` columns already exist.
+## Problem
 
-## Changes
+The "Notes" field in the Medical Information card is displaying raw insurance card upload URLs like:
+"Upload A Copy Of Your Insurance Card: https://services.leadconnectorhq.com/documents/download/..."
 
-### 1. `src/components/appointments/AppointmentFilters.tsx`
+This happens because the GHL "Notes" custom field sometimes contains both the patient's actual notes and the insurance card upload prompt/URL. The parser captures the entire value as `insurance_notes`, and the UI displays it as-is.
 
-- Add a new prop `dateFilterType` (`'appointment' | 'created'`) and its change handler `onDateFilterTypeChange`
-- Inside the collapsible Dates section, add a segmented toggle (two pill buttons) before the quick-date pills:
-  - **Appt Date** (default) -- filters by `date_of_appointment`
-  - **Created Date** -- filters by `date_appointment_created`
-- Show the active date type in the active filter chip (e.g., "Created: Jan 01 - Jan 31")
+## Fix
 
-### 2. `src/components/AllAppointmentsManager.tsx`
+**File: `src/components/appointments/ParsedIntakeInfo.tsx`**
 
-- Add new state: `dateFilterType` (default `'appointment'`)
-- Pass the new props to `AppointmentFilters`
-- Update **both** the count query and data query to use the selected column:
-  - When `'appointment'`: filter on `date_of_appointment` (current behavior)
-  - When `'created'`: filter on `date_appointment_created`
-- Include `dateFilterType` in the dependency array of the `fetchAppointments` effect
-- Update the `clearFilters` handler to reset `dateFilterType` to `'appointment'`
+Clean the `insurance_notes` value before displaying it by stripping out any "Upload A Copy Of Your Insurance Card: [URL]" text. If the entire note is just the upload prompt, hide the Notes field entirely.
 
-### 3. No database changes required
+Add a small helper that:
+1. Removes text matching patterns like "Upload A Copy Of Your Insurance Card: https://..." from the notes string
+2. Trims the result
+3. Returns null/empty if nothing meaningful remains
 
-The `all_appointments` table already has:
-- `date_of_appointment` (appointment/scheduled date)
-- `date_appointment_created` (when the record was created)
-- `created_at` (row insertion timestamp)
+This is a display-only fix -- the raw data in the database stays intact, and the insurance card URL is already extracted and shown separately via the "View Insurance Card" button.
 
-We will use `date_appointment_created` for the "Created Date" filter since it is a date field that aligns with the existing date-range picker format.
+## Technical Detail
 
-## Technical Details
+Before the Notes display block (around line 814), sanitize the value:
 
-**New state in AllAppointmentsManager:**
 ```typescript
-const [dateFilterType, setDateFilterType] = useState<'appointment' | 'created'>('appointment');
+const cleanedInsuranceNotes = (() => {
+  const raw = parsedInsuranceInfo?.insurance_notes;
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/Upload\s+A\s+Copy\s+Of\s+Your\s+Insurance\s+Card:\s*https?:\/\/\S+/gi, '')
+    .replace(/https?:\/\/services\.leadconnectorhq\.com\/documents\/download\/\S+/gi, '')
+    .trim();
+  return cleaned || null;
+})();
 ```
 
-**Query logic change (applied in two places -- count query and data query):**
-```typescript
-const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
-
-if (dateRange.from) {
-  query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
-}
-if (dateRange.to) {
-  query = query.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
-}
-```
-
-**New props on AppointmentFilters:**
-```typescript
-dateFilterType: 'appointment' | 'created';
-onDateFilterTypeChange: (type: 'appointment' | 'created') => void;
-```
-
-**UI in the Dates collapsible section** (before the Today/This Week/This Month pills):
-```
-[Appt Date] [Created Date]   |   Today   This Week   This Month   |   Start → End
-```
-
-Two small pill-style buttons with active state styling to indicate which date column is being filtered.
-
-**Filter chip update:**
-The date range badge will show "Appt: Jan 01 - Jan 31" or "Created: Jan 01 - Jan 31" depending on the selected type.
+Then use `cleanedInsuranceNotes` instead of `parsedInsuranceInfo?.insurance_notes` in both the condition check and the rendered output.
