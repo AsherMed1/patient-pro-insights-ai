@@ -67,6 +67,7 @@ const AllAppointmentsManager = ({
   const [procedureOrderFilter, setProcedureOrderFilter] = useState(initialProcedureFilter || 'ALL');
   const [locationFilter, setLocationFilter] = useState('ALL');
   const [serviceFilter, setServiceFilter] = useState('ALL');
+  const [dateFilterType, setDateFilterType] = useState<'appointment' | 'created'>('appointment');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
   const { toast } = useToast();
   const { userName } = useUserAttribution();
@@ -175,7 +176,7 @@ const AllAppointmentsManager = ({
     setCurrentPage(1);
     fetchAppointments();
     fetchTabCounts();
-  }, [projectFilter, dateRange, activeTab, searchTerm, searchType, localProjectFilter, statusFilter, procedureOrderFilter, locationFilter, serviceFilter, sortBy]);
+  }, [projectFilter, dateRange, activeTab, searchTerm, searchType, localProjectFilter, statusFilter, procedureOrderFilter, locationFilter, serviceFilter, sortBy, dateFilterType]);
 
   useEffect(() => {
     fetchAppointments();
@@ -184,7 +185,7 @@ const AllAppointmentsManager = ({
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      
+      const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
       // Build the base query for counting
       let countQuery = supabase
         .from('all_appointments')
@@ -211,12 +212,12 @@ const AllAppointmentsManager = ({
         // No additional filtering needed for main analytics
       }
       
-      // Apply date range filter (filter by actual appointment date, not creation date)
+      // Apply date range filter using selected date column
       if (dateRange.from) {
-        countQuery = countQuery.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
+        countQuery = countQuery.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
       }
       if (dateRange.to) {
-        countQuery = countQuery.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+        countQuery = countQuery.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
       }
       
       // Apply search filter based on search type
@@ -352,11 +353,12 @@ const AllAppointmentsManager = ({
         }
       }
       
+      
       if (dateRange.from) {
-        appointmentsQuery = appointmentsQuery.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
+        appointmentsQuery = appointmentsQuery.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
       }
       if (dateRange.to) {
-        appointmentsQuery = appointmentsQuery.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+        appointmentsQuery = appointmentsQuery.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
       }
       
       // Apply search filter based on search type
@@ -490,11 +492,12 @@ const AllAppointmentsManager = ({
           }
         }
         
+        const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
         if (dateRange.from) {
-          query = query.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
+          query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
         }
         if (dateRange.to) {
-          query = query.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+          query = query.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
         }
         
         // Apply search filter based on search type
@@ -1220,6 +1223,7 @@ const AllAppointmentsManager = ({
           setLocationFilter('ALL');
           setServiceFilter('ALL');
           setSortBy('date_desc');
+          setDateFilterType('appointment');
         }}
         projectFilter={localProjectFilter !== 'ALL' ? localProjectFilter : (projectFilter || 'ALL')}
         onProjectFilterChange={setLocalProjectFilter}
@@ -1233,7 +1237,9 @@ const AllAppointmentsManager = ({
         onServiceFilterChange={setServiceFilter}
         sortBy={sortBy}
         onSortChange={setSortBy}
-        isProjectSpecificView={!!projectFilter} // Pass true if we have a projectFilter prop
+        isProjectSpecificView={!!projectFilter}
+        dateFilterType={dateFilterType}
+        onDateFilterTypeChange={setDateFilterType}
       />
 
       {/* CSV Import Component */}
