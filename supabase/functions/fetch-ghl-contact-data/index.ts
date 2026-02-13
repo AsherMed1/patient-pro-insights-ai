@@ -221,13 +221,13 @@ Deno.serve(async (req) => {
           sections['Insurance Information'].push(formattedLine);
         } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || key.includes('treat')) {
           sections['Pathology Information'].push(formattedLine);
+        } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) &&
+                   !key.includes('conversation')) {
+          sections['Insurance Information'].push(formattedLine);
         } else if (key.includes('medication') || key.includes('allerg') || key.includes('medical') || key.includes('pcp') || key.includes('doctor') || key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || key.includes('mri') || key.includes('ct scan')) {
           sections['Medical Information'].push(formattedLine);
         } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name') || key.includes('dob') || key.includes('date of birth')) {
           sections['Contact Information'].push(formattedLine);
-        } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) &&
-                   !key.includes('conversation')) {
-          sections['Insurance Information'].push(formattedLine);
         }
         // Skip all other fields (conversation notes, tracking data, workflow fields, etc.)
       });
