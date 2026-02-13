@@ -811,14 +811,23 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.treatment}</span>
                   </div>
                 )}
-                {formatValue(parsedInsuranceInfo?.insurance_notes) && (
+                {(() => {
+                  const raw = parsedInsuranceInfo?.insurance_notes;
+                  if (!raw || !formatValue(raw)) return null;
+                  const cleaned = raw
+                    .replace(/Upload\s+A\s+Copy\s+Of\s+Your\s+Insurance\s+Card:\s*https?:\/\/\S+/gi, '')
+                    .replace(/https?:\/\/services\.leadconnectorhq\.com\/documents\/download\/\S+/gi, '')
+                    .trim();
+                  if (!cleaned) return null;
+                  return (
                   <div className="text-sm pt-2 border-t border-amber-200 mt-2">
                     <span className="text-muted-foreground">Notes:</span>{" "}
                     <span className="font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                      {parsedInsuranceInfo.insurance_notes}
+                      {cleaned}
                     </span>
                   </div>
-                )}
+                  );
+                })()}
               </CardContent>
             </Card>
           )}
