@@ -1,41 +1,26 @@
 
 
-# Fix: Insurance Card URL Showing in Medical Information Notes
+# Hide Delete/Trash Button on Project Cards
 
-## Problem
+## Overview
 
-The "Notes" field in the Medical Information card is displaying raw insurance card upload URLs like:
-"Upload A Copy Of Your Insurance Card: https://services.leadconnectorhq.com/documents/download/..."
+Remove the trash icon button from project cards to prevent accidental project deletion. The delete functionality will be removed from the UI entirely.
 
-This happens because the GHL "Notes" custom field sometimes contains both the patient's actual notes and the insurance card upload prompt/URL. The parser captures the entire value as `insurance_notes`, and the UI displays it as-is.
+## Change
 
-## Fix
+**File: `src/components/projects/ProjectCard.tsx`**
 
-**File: `src/components/appointments/ParsedIntakeInfo.tsx`**
+Remove the `DeleteProjectDialog` import and the conditional block (around lines 123-127) that renders the trash icon for admin users:
 
-Clean the `insurance_notes` value before displaying it by stripping out any "Upload A Copy Of Your Insurance Card: [URL]" text. If the entire note is just the upload prompt, hide the Notes field entirely.
-
-Add a small helper that:
-1. Removes text matching patterns like "Upload A Copy Of Your Insurance Card: https://..." from the notes string
-2. Trims the result
-3. Returns null/empty if nothing meaningful remains
-
-This is a display-only fix -- the raw data in the database stays intact, and the insurance card URL is already extracted and shown separately via the "View Insurance Card" button.
-
-## Technical Detail
-
-Before the Notes display block (around line 814), sanitize the value:
-
-```typescript
-const cleanedInsuranceNotes = (() => {
-  const raw = parsedInsuranceInfo?.insurance_notes;
-  if (!raw) return null;
-  const cleaned = raw
-    .replace(/Upload\s+A\s+Copy\s+Of\s+Your\s+Insurance\s+Card:\s*https?:\/\/\S+/gi, '')
-    .replace(/https?:\/\/services\.leadconnectorhq\.com\/documents\/download\/\S+/gi, '')
-    .trim();
-  return cleaned || null;
-})();
+```tsx
+// Remove this block:
+{isAdmin() && (
+  <DeleteProjectDialog
+    project={project}
+    onDelete={onDelete}
+  />
+)}
 ```
 
-Then use `cleanedInsuranceNotes` instead of `parsedInsuranceInfo?.insurance_notes` in both the condition check and the rendered output.
+Also remove the unused imports: `DeleteProjectDialog`, `useRole`, and `Trash2` (if no longer referenced elsewhere). The `onDelete` prop can remain in the interface for now to avoid breaking the parent component.
+
