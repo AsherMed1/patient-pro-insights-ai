@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, Trash2, TrendingUp, ExternalLink, Power, PowerOff, Database } from 'lucide-react';
+import { Calendar, Activity, Edit, TrendingUp, ExternalLink, Power, PowerOff, Database } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/use-toast';
@@ -143,12 +142,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             >
               <Edit className="h-3 w-3" />
             </Button>
-            {isAdmin() && (
-              <DeleteProjectDialog
-                project={project}
-                onDelete={onDelete}
-              />
-            )}
           </div>
         </div>
       </CardHeader>
