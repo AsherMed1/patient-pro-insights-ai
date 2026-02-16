@@ -248,6 +248,7 @@ const Index = () => {
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
+            <TabsTrigger value="reporting">Reporting</TabsTrigger>
             <TabsTrigger value="leads">New Leads</TabsTrigger>
             <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
@@ -281,7 +282,6 @@ const Index = () => {
 
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />
-            <ProjectCallSummaryTable />
             <CallCenterDashboard projectId="ALL" />
           </TabsContent>
 
@@ -300,6 +300,10 @@ const Index = () => {
 
           <TabsContent value="call-team" className="space-y-6">
             <CallTeamTab />
+          </TabsContent>
+
+          <TabsContent value="reporting" className="space-y-6">
+            <ProjectCallSummaryTable />
           </TabsContent>
 
           <TabsContent value="leads" className="space-y-6">
