@@ -1,26 +1,48 @@
 
 
-# Fix: Add Unique Constraint for GHL Call Sync
+# Duplicate Cleanup + Unique Index for GHL Call Sync
 
-## Current Status
-The `sync-ghl-calls` function is now correctly fetching phone call data from GoHighLevel (confirmed in logs), but **every database write fails** because the `all_calls` table lacks a unique constraint on the `ghl_id` column. The upsert operation requires this constraint to detect and skip duplicates.
+## Step 1: Remove duplicate `ghl_id` rows from `all_calls`
 
-## Solution
-Add a partial unique index on `all_calls.ghl_id` (only for non-null values) so the upsert can work.
+Run a single migration that:
+1. Deletes redundant duplicate rows (keeping the most recently updated record per `ghl_id`)
+2. Creates the partial unique index on `ghl_id`
 
-## Technical Details
-
-**Database change:**
 ```sql
+DELETE FROM public.all_calls
+WHERE id IN (
+  SELECT id FROM (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY ghl_id ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST) as rn
+    FROM public.all_calls
+    WHERE ghl_id IS NOT NULL
+  ) ranked
+  WHERE rn > 1
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_all_calls_ghl_id_unique 
 ON public.all_calls (ghl_id) 
 WHERE ghl_id IS NOT NULL;
 ```
 
-This is a partial unique index that:
-- Only applies to rows where `ghl_id` is not null (existing rows without a GHL ID are unaffected)
-- Prevents duplicate GHL call records from being inserted
-- Enables the `ON CONFLICT ('ghl_id')` upsert that the sync function uses
+- ~20,021 redundant duplicates removed
+- 18,040 rows without ghl_id untouched
+- 14,410 unique GHL call records preserved
 
-No other file changes are needed. Once this index is in place, clicking "Sync from GHL" will successfully write call data to the database and the Project Performance Summary will show updated numbers.
+## Step 2: Test with Clarity Care
+
+After the migration succeeds, call the `sync-ghl-calls` edge function with a request scoped to Clarity Care only:
+
+```json
+{
+  "projectName": "Clarity Care",
+  "dateFrom": "2025-01-01",
+  "dateTo": "2026-02-16"
+}
+```
+
+This will verify that the full pipeline works end-to-end: GHL API fetch, data mapping, and upsert into `all_calls`.
+
+## Step 3: Verify results
+
+Query the `all_calls` table filtered to Clarity Care to confirm new records were written, then check the Project Performance Summary in the UI to confirm updated numbers appear.
 
