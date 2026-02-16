@@ -333,7 +333,8 @@ const AllAppointmentsManager = ({
         if (sortBy === 'name_asc' || sortBy === 'name_desc') {
           appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
         } else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
-          appointmentsQuery = appointmentsQuery.order('created_at', { ascending: sortBy === 'date_asc', nullsFirst: false });
+          const sortColumn = dateFilterType === 'created' ? 'created_at' : 'date_of_appointment';
+          appointmentsQuery = appointmentsQuery.order(sortColumn, { ascending: sortBy === 'date_asc', nullsFirst: false });
         } else {
           appointmentsQuery = appointmentsQuery.order(
             sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
