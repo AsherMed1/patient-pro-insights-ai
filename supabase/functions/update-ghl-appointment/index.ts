@@ -14,6 +14,8 @@ const STATUS_MAP: Record<string, string> = {
   'Cancelled': 'cancelled',
   'No Show': 'noshow',
   'Showed': 'showed',
+  'OON': 'cancelled',
+  'Do Not Call': 'cancelled',
 };
 
 async function resolveApiKey(
