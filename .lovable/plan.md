@@ -1,48 +1,47 @@
 
+# Fix: Inbound Call Direction Detection in GHL Sync
 
-# Duplicate Cleanup + Unique Index for GHL Call Sync
+## Problem
+Every call synced from GoHighLevel is classified as "outbound" because the direction detection logic checks for the string `"inbound"`, but the GHL Conversations Search API returns `lastMessageDirection` with a numeric value (`1` for inbound, `2` for outbound) or uses `"incoming"` instead of `"inbound"`.
 
-## Step 1: Remove duplicate `ghl_id` rows from `all_calls`
-
-Run a single migration that:
-1. Deletes redundant duplicate rows (keeping the most recently updated record per `ghl_id`)
-2. Creates the partial unique index on `ghl_id`
-
-```sql
-DELETE FROM public.all_calls
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id, ROW_NUMBER() OVER (PARTITION BY ghl_id ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST) as rn
-    FROM public.all_calls
-    WHERE ghl_id IS NOT NULL
-  ) ranked
-  WHERE rn > 1
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_all_calls_ghl_id_unique 
-ON public.all_calls (ghl_id) 
-WHERE ghl_id IS NOT NULL;
+Current broken code:
+```typescript
+const direction = (conv.lastMessageDirection || '').toLowerCase().includes('inbound')
+  ? 'inbound'
+  : 'outbound'
 ```
 
-- ~20,021 redundant duplicates removed
-- 18,040 rows without ghl_id untouched
-- 14,410 unique GHL call records preserved
+This never matches, so every call defaults to `"outbound"`.
 
-## Step 2: Test with Clarity Care
+## Solution
 
-After the migration succeeds, call the `sync-ghl-calls` edge function with a request scoped to Clarity Care only:
+### 1. Update the `sync-ghl-calls` edge function
 
-```json
-{
-  "projectName": "Clarity Care",
-  "dateFrom": "2025-01-01",
-  "dateTo": "2026-02-16"
-}
+Fix the direction detection to handle all known GHL API response formats:
+
+```typescript
+const rawDir = String(conv.lastMessageDirection || '').toLowerCase().trim();
+const direction = (rawDir === '1' || rawDir.includes('inbound') || rawDir.includes('incoming'))
+  ? 'inbound'
+  : 'outbound';
 ```
 
-This will verify that the full pipeline works end-to-end: GHL API fetch, data mapping, and upsert into `all_calls`.
+Also add a one-time debug log to capture the raw `lastMessageDirection` value from the first conversation on each page, so we can confirm the exact format GHL returns.
 
-## Step 3: Verify results
+### 2. Backfill existing records
 
-Query the `all_calls` table filtered to Clarity Care to confirm new records were written, then check the Project Performance Summary in the UI to confirm updated numbers appear.
+After deploying the fix, re-run the sync for all projects. Since the unique index is now in place, the upsert will update the `direction` field on existing records with the correct value.
 
+### 3. Test with a known project
+
+Invoke the sync for a single project (e.g., "Clarity Care" or "Texas Vascular Institute") and verify that inbound calls now appear in the database and in the Project Performance Summary table.
+
+## Technical Details
+
+**File changed:** `supabase/functions/sync-ghl-calls/index.ts`
+- Fix direction detection logic (lines ~130-133)
+- Add debug logging for raw `lastMessageDirection` value
+
+**No database changes needed** -- the unique index from the previous migration is already in place.
+
+**No frontend changes needed** -- the UI already queries by `direction = 'inbound'` and will show data once records exist.
