@@ -155,9 +155,13 @@ Deno.serve(async (req) => {
         const callRecords = conversations.map(conv => {
           const contactName = conv.fullName || conv.contactName || 'Unknown'
           const phone = conv.phone || ''
-          const direction = (conv.lastMessageDirection || '').toLowerCase().includes('inbound')
-            ? 'inbound'
-            : 'outbound'
+        const rawDir = String(conv.lastMessageDirection ?? '').toLowerCase().trim()
+        if (conversations.indexOf(conv) === 0) {
+          console.log(`[SYNC-GHL-CALLS] DEBUG raw lastMessageDirection for ${project.project_name}:`, JSON.stringify(conv.lastMessageDirection), `=> rawDir="${rawDir}"`)
+        }
+        const direction = (rawDir === '1' || rawDir.includes('inbound') || rawDir.includes('incoming'))
+          ? 'inbound'
+          : 'outbound'
           // lastMessageDate can be a Unix timestamp (number) or ISO string
           const rawDate = conv.lastMessageDate
           const callDatetime = typeof rawDate === 'number'
@@ -186,7 +190,7 @@ Deno.serve(async (req) => {
           const batch = callRecords.slice(i, i + batchSize)
           const { error: upsertError } = await supabase
             .from('all_calls')
-            .upsert(batch, { onConflict: 'ghl_id', ignoreDuplicates: true })
+            .upsert(batch, { onConflict: 'ghl_id' })
 
           if (upsertError) {
             console.error(`[SYNC-GHL-CALLS] Upsert error for ${project.project_name}:`, upsertError)
