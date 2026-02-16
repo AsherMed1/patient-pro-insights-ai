@@ -1,36 +1,30 @@
 
 
-# Fix: Notes Not Showing for New Lead "VES TEST ONLY"
+# Map "OON" Status to Cancel in GoHighLevel
 
-## Investigation Findings
+## Problem
+When a user selects "OON" (Out of Network) as the appointment status, the system updates the local database but does NOT cancel the appointment in GoHighLevel. This is because the `update-ghl-appointment` edge function's `STATUS_MAP` only includes four statuses (Confirmed, Cancelled, No Show, Showed) and skips any unmapped status.
 
-After checking the database, the appointment record for "VES TEST ONLY" (ID: `9eb68541`) exists in the `all_appointments` table. However, the text "I have pain when i sit on the toilet and i bleed a lot" is **not present anywhere in the stored data**.
+## Solution
+Add `'OON': 'cancelled'` to the `STATUS_MAP` in the `update-ghl-appointment` edge function. This way, when OON is selected in the portal, the appointment will automatically be cancelled in GHL.
 
-The GHL data that was captured includes:
-- Contact info (name, phone, email, DOB, address)
-- Insurance info (Medicare, ID number, card upload)
-- HAE pathology step questions (pain level 7, symptoms, treatments)
-- PCP info (Dr who)
+## Technical Change
 
-But no free-text "Notes" field was captured from GHL with the hemorrhoid complaint text.
+**File: `supabase/functions/update-ghl-appointment/index.ts`** (line 13-17)
 
-## Root Cause
+Update the STATUS_MAP to include OON:
 
-The GHL contact likely has a "Notes" custom field (or similar) containing "I have pain when i sit on the toilet and i bleed a lot", but it was either:
-1. Not present at the time the webhook fired and GHL data was fetched
-2. Named in a way that gets filtered out (e.g., "Conversation Notes" is explicitly skipped by the webhook handler)
-3. Added to the GHL contact after the initial data sync
+```typescript
+const STATUS_MAP: Record<string, string> = {
+  'Confirmed': 'confirmed',
+  'Cancelled': 'cancelled',
+  'No Show': 'noshow',
+  'Showed': 'showed',
+  'OON': 'cancelled',        // OON cancels the appointment in GHL
+  'Do Not Call': 'cancelled', // Also cancel DNC appointments in GHL
+};
+```
 
-## Proposed Fix
+This also adds "Do Not Call" mapping to "cancelled" since it is another terminal status that should logically cancel the GHL appointment.
 
-**Re-fetch GHL data** for this contact to pull the latest custom fields, which should now include the notes. This can be done by clicking the "Fetch GHL Data" button on the appointment detail view, which calls the `fetch-ghl-contact-data` edge function.
-
-If the notes still don't appear after re-fetching, it means the GHL custom field name doesn't match any of the routing patterns. In that case, I would need to:
-
-1. Check the edge function logs to see what custom fields are returned from GHL for this contact
-2. Update the field routing logic in both the `ghl-webhook-handler` and `fetch-ghl-contact-data` functions to capture the specific field name used for HAE notes
-
-## Recommended Next Step
-
-Before making code changes, try clicking "Fetch GHL Data" on the VES TEST ONLY appointment to re-sync from GHL. If notes still don't appear, I can check the edge function logs to identify the exact field name being used and add routing for it.
-
+No frontend changes are needed -- the existing `AllAppointmentsManager.tsx` already sends the status to `update-ghl-appointment` for any GHL-linked appointment when the status changes.
