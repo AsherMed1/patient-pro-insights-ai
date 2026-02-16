@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com'
-const GHL_API_VERSION = '2021-07-28'
+const GHL_API_VERSION = '2021-04-15'
 
 interface GHLConversation {
   id: string
@@ -28,7 +28,7 @@ interface GHLSearchResponse {
   total?: number
 }
 
-async function fetchGHLConversations(
+async function fetchGHLCallConversations(
   apiKey: string,
   locationId: string,
   startAfterDate?: string,
@@ -36,20 +36,30 @@ async function fetchGHLConversations(
   limit = 50
 ): Promise<GHLConversation[]> {
   const allConversations: GHLConversation[] = []
-  let startAfterId: string | undefined
+  let lastCursor: string | undefined
 
-  // Paginate through results
   for (let page = 0; page < 20; page++) {
     const params = new URLSearchParams({
       locationId,
       limit: String(limit),
+      lastMessageType: 'TYPE_CALL',
     })
-    if (startAfterDate) params.set('startAfterDate', startAfterDate)
-    if (endAfterDate) params.set('endAfterDate', endAfterDate)
-    if (startAfterId) params.set('startAfterId', startAfterId)
+
+    // For the first page, use the provided date filters as Unix timestamps
+    if (page === 0) {
+      if (startAfterDate) {
+        params.set('startAfterDate', String(new Date(startAfterDate).getTime()))
+      }
+      if (endAfterDate) {
+        params.set('endAfterDate', String(new Date(endAfterDate).getTime()))
+      }
+    } else if (lastCursor) {
+      // For subsequent pages, use the last conversation's date as cursor
+      params.set('startAfterDate', lastCursor)
+    }
 
     const url = `${GHL_BASE_URL}/conversations/search?${params.toString()}`
-    console.log(`[SYNC-GHL-CALLS] Fetching: ${url}`)
+    console.log(`[SYNC-GHL-CALLS] Fetching page ${page}: ${url}`)
 
     const response = await fetch(url, {
       method: 'GET',
@@ -70,9 +80,14 @@ async function fetchGHLConversations(
     if (!data.conversations || data.conversations.length === 0) break
 
     allConversations.push(...data.conversations)
+    console.log(`[SYNC-GHL-CALLS] Page ${page}: got ${data.conversations.length} call conversations`)
 
     if (data.conversations.length < limit) break
-    startAfterId = data.conversations[data.conversations.length - 1].id
+
+    // Use lastMessageDate of the last conversation as pagination cursor
+    const lastConv = data.conversations[data.conversations.length - 1]
+    lastCursor = lastConv.lastMessageDate || undefined
+    if (!lastCursor) break
   }
 
   return allConversations
@@ -92,7 +107,6 @@ Deno.serve(async (req) => {
 
     console.log(`[SYNC-GHL-CALLS] Syncing calls from=${dateFrom} to=${dateTo} project=${projectName || 'ALL'}`)
 
-    // Get projects with GHL credentials
     let projectsQuery = supabase
       .from('projects')
       .select('project_name, ghl_api_key, ghl_location_id')
@@ -114,35 +128,41 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log(`[SYNC-GHL-CALLS] Found ${projects.length} projects with GHL credentials`)
+
     let totalSynced = 0
     const projectResults: Record<string, number> = {}
 
     for (const project of projects) {
       try {
-        console.log(`[SYNC-GHL-CALLS] Processing project: ${project.project_name}`)
+        const keyPrefix = project.ghl_api_key?.substring(0, 6) || 'N/A'
+        console.log(`[SYNC-GHL-CALLS] Processing ${project.project_name} (key prefix: ${keyPrefix}..., location: ${project.ghl_location_id})`)
 
-        const conversations = await fetchGHLConversations(
+        const conversations = await fetchGHLCallConversations(
           project.ghl_api_key,
           project.ghl_location_id,
           dateFrom,
           dateTo
         )
 
-        console.log(`[SYNC-GHL-CALLS] Found ${conversations.length} conversations for ${project.project_name}`)
+        console.log(`[SYNC-GHL-CALLS] Found ${conversations.length} call conversations for ${project.project_name}`)
 
         if (conversations.length === 0) {
           projectResults[project.project_name] = 0
           continue
         }
 
-        // Map conversations to all_calls records
         const callRecords = conversations.map(conv => {
           const contactName = conv.fullName || conv.contactName || 'Unknown'
           const phone = conv.phone || ''
-          const direction = (conv.lastMessageDirection || 'outbound').toLowerCase().includes('inbound')
+          const direction = (conv.lastMessageDirection || '').toLowerCase().includes('inbound')
             ? 'inbound'
             : 'outbound'
-          const callDatetime = conv.lastMessageDate || new Date().toISOString()
+          // lastMessageDate can be a Unix timestamp (number) or ISO string
+          const rawDate = conv.lastMessageDate
+          const callDatetime = typeof rawDate === 'number'
+            ? new Date(rawDate).toISOString()
+            : (rawDate || new Date().toISOString())
           const dateOnly = callDatetime.split('T')[0] || new Date().toISOString().split('T')[0]
 
           return {
@@ -153,19 +173,18 @@ Deno.serve(async (req) => {
             direction,
             call_datetime: callDatetime,
             date: dateOnly,
-            duration_seconds: 0, // Not available from conversations API
+            duration_seconds: 0,
             status: 'completed',
             call_summary: conv.lastMessageBody || null,
           }
         })
 
-        // Upsert in batches
         const batchSize = 50
         let projectSynced = 0
 
         for (let i = 0; i < callRecords.length; i += batchSize) {
           const batch = callRecords.slice(i, i + batchSize)
-          const { error: upsertError, data: upsertData } = await supabase
+          const { error: upsertError } = await supabase
             .from('all_calls')
             .upsert(batch, { onConflict: 'ghl_id', ignoreDuplicates: true })
 
@@ -180,7 +199,6 @@ Deno.serve(async (req) => {
         totalSynced += projectSynced
         console.log(`[SYNC-GHL-CALLS] Synced ${projectSynced} records for ${project.project_name}`)
 
-        // Rate limit: wait between projects
         if (projects.length > 1) {
           await new Promise(r => setTimeout(r, 1000))
         }
