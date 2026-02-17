@@ -250,6 +250,7 @@ export type Database = {
           procedure_status: string | null
           project_name: string
           requested_time: string | null
+          reschedule_history: Json | null
           reserved_end_time: string | null
           stage_booked: string | null
           status: string | null
@@ -300,6 +301,7 @@ export type Database = {
           procedure_status?: string | null
           project_name: string
           requested_time?: string | null
+          reschedule_history?: Json | null
           reserved_end_time?: string | null
           stage_booked?: string | null
           status?: string | null
@@ -350,6 +352,7 @@ export type Database = {
           procedure_status?: string | null
           project_name?: string
           requested_time?: string | null
+          reschedule_history?: Json | null
           reserved_end_time?: string | null
           stage_booked?: string | null
           status?: string | null

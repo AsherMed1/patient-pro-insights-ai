@@ -596,6 +596,18 @@ function getUpdateableFields(
     
     // Reset IPC and status if date actually changed (reschedule detected)
     if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
+      // Record reschedule history before overwriting
+      const existingHistory = existingAppointment.reschedule_history || []
+      existingHistory.push({
+        previous_date: existingAppointment.date_of_appointment,
+        previous_time: existingAppointment.requested_time,
+        new_date: webhookData.date_of_appointment,
+        new_time: webhookData.requested_time,
+        changed_at: new Date().toISOString(),
+        previous_status: existingAppointment.status
+      })
+      updateFields.reschedule_history = existingHistory
+
       updateFields.internal_process_complete = false
       updateFields.status = 'Confirmed'
       updateFields.was_ever_confirmed = true
