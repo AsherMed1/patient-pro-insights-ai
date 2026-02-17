@@ -695,6 +695,44 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               />
             </div>
 
+            {/* Reschedule History */}
+            {appointment.reschedule_history && appointment.reschedule_history.length > 0 && (
+              <Card className="print-card">
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Reschedule History ({appointment.reschedule_history.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 pt-0">
+                  <div className="space-y-1">
+                    {appointment.reschedule_history.map((entry: any, idx: number) => {
+                      const prevDate = entry.previous_date ? formatDate(entry.previous_date) : 'Unknown';
+                      const prevTime = entry.previous_time ? formatTime(entry.previous_time) : '';
+                      const newDate = entry.new_date ? formatDate(entry.new_date) : 'Unknown';
+                      const newTime = entry.new_time ? formatTime(entry.new_time) : '';
+                      const changedAt = entry.changed_at ? new Date(entry.changed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                      return (
+                        <div key={idx} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded bg-muted/50">
+                          <span className="whitespace-nowrap">{prevDate} {prevTime}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="whitespace-nowrap font-medium">{newDate} {newTime}</span>
+                          {entry.previous_status && (
+                            <Badge variant={entry.previous_status.toLowerCase().includes('cancel') ? 'cancelled' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                              was: {entry.previous_status}
+                            </Badge>
+                          )}
+                          {changedAt && (
+                            <span className="text-muted-foreground ml-auto whitespace-nowrap">changed {changedAt}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Appointment History */}
             <AppointmentHistory appointment={appointment} />
 

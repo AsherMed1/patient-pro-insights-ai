@@ -1,0 +1,1 @@
+ALTER TABLE public.all_appointments ADD COLUMN IF NOT EXISTS reschedule_history jsonb DEFAULT '[]'::jsonb;

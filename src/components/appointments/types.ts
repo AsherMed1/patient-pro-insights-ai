@@ -43,6 +43,7 @@ export interface AllAppointment {
   is_reserved_block?: boolean;
   reserved_end_time?: string | null;
   ghl_location_id?: string | null;
+  reschedule_history?: any;
 }
 
 export interface AllAppointmentsManagerProps {
