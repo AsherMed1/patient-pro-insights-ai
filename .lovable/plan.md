@@ -1,31 +1,18 @@
 
+# Fix: Confirmed Status Showing Blank in Calendar View
 
-# Add Color-Coded Status Dropdown
+## Root Cause
 
-## What Changes
+Some appointments in the database have status stored as lowercase `"confirmed"` instead of capitalized `"Confirmed"`. The status dropdown uses strict value matching -- when the stored value `"confirmed"` doesn't exactly match any `SelectItem` value (`"Confirmed"`), the dropdown appears blank.
 
-Update the status `<Select>` dropdown in `DetailedAppointmentView.tsx` to show colored text/background on the trigger based on the current status value.
+This affects STC (Southern Tennessee Cardiology) appointments and likely others. Ozark works because their statuses were stored with proper capitalization.
 
-## Color Mapping
+## Fix
 
-| Status | Color |
-|--------|-------|
-| Showed | Green (bg-green-100, text-green-800) |
-| Confirmed | Blue (bg-blue-100, text-blue-700) |
-| No Show | Yellow (bg-yellow-100, text-yellow-800) |
-| Cancelled | Red (bg-red-100, text-red-700) |
-| Rescheduled | Purple (bg-purple-100, text-purple-700) |
-| OON | Orange (bg-orange-100, text-orange-800) |
-| Do Not Call | Red-900 (bg-red-900, text-red-100) |
-| Welcome Call | Gray (bg-gray-200, text-gray-800) |
-| Other/default | Default styling |
+**File: `src/components/appointments/DetailedAppointmentView.tsx`**
 
-These match the existing badge variants already defined in `badge.tsx`.
+Normalize `currentStatus` when it's set so it always matches the capitalization in `statusOptions`. This means:
+- When `appointment.status` is read (initial state and in the `useEffect`), find the matching entry in `statusOptions` (case-insensitive) and use the properly capitalized version
+- If no match is found, use the raw value as-is
 
-## File Changed
-
-**`src/components/appointments/DetailedAppointmentView.tsx`**
-- Add a helper function `getStatusColor(status)` that returns Tailwind classes based on the status value
-- Apply those classes to the `SelectTrigger` so the dropdown button shows the appropriate color
-- Optionally add small colored dots or backgrounds to each `SelectItem` in the dropdown list so users can see colors before selecting
-
+This is a small change to the `useState` initializer and the `useEffect` that syncs the status -- adding a normalization step using the existing `statusOptions` array.
