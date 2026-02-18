@@ -470,6 +470,8 @@ function fallbackRegexParsing(intakeNotes: string): any {
     result.pathology_info.procedure_type = 'UFE';
   } else if (upperNotes.includes('PAE') || upperNotes.includes('PROSTATE')) {
     result.pathology_info.procedure_type = 'PAE';
+  } else if (upperNotes.includes('PAD') || upperNotes.includes('PERIPHERAL ARTERY') || upperNotes.includes('POOR CIRCULATION')) {
+    result.pathology_info.procedure_type = 'PAD';
   }
 
   console.log('[AUTO-PARSE FALLBACK] Regex parsing complete');
@@ -563,7 +565,7 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
-  if (upperKey.includes('GAE') || (upperKey.includes('KNEE') && !upperKey.includes('UFE') && !upperKey.includes('PAE'))) {
+  if (upperKey.includes('GAE') || (upperKey.includes('KNEE') && !upperKey.includes('UFE') && !upperKey.includes('PAE') && !upperKey.includes('PAD'))) {
     return 'GAE';
   }
   if (upperKey.includes('UFE') || upperKey.includes('FIBROID') || upperKey.includes('UTERINE')) {
@@ -574,6 +576,9 @@ function detectProcedureFromFieldKey(key: string): string | null {
   }
   if (upperKey.includes('PFE') || upperKey.includes('PELVIC FLOOR')) {
     return 'PFE';
+  }
+  if (upperKey.includes('PAD') || upperKey.includes('PERIPHERAL')) {
+    return 'PAD';
   }
   return null;
 }
@@ -657,7 +662,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     const isPathologyField = key.includes('step') || key.includes('pain') || key.includes('symptom') || 
                              key.includes('complaint') || key.includes('pae') || key.includes('ufe') || 
                              key.includes('gae') || key.includes('knee') || key.includes('prostate') ||
-                             key.includes('fibroid') || key.includes('uterine') || key.includes('pelvic');
+                             key.includes('fibroid') || key.includes('uterine') || key.includes('pelvic') ||
+                             key.includes('pad') || key.includes('peripheral');
     
     // Skip pathology fields from different procedures
     if (targetProcedure && fieldProcedure && fieldProcedure !== targetProcedure && isPathologyField) {
@@ -752,16 +758,57 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         result.pathology_info.symptoms = value;
       }
     }
-    // PAE/UFE/GAE specific fields
+    // PAE/UFE/GAE/PAD specific fields
     else if (key.includes('pae') || key.includes('prostate')) {
       result.pathology_info.primary_complaint = 'PAE Consultation';
       result.pathology_info.affected_area = 'Prostate';
     } else if (key.includes('ufe') || key.includes('fibroid') || key.includes('uterine')) {
       result.pathology_info.primary_complaint = 'UFE Consultation';
       result.pathology_info.affected_area = 'Uterus';
-    } else if (key.includes('gae') || key.includes('gastric') || key.includes('artery') && key.includes('embolization')) {
+    } else if (key.includes('gae') || key.includes('gastric') || (key.includes('artery') && key.includes('embolization'))) {
       result.pathology_info.primary_complaint = 'GAE Consultation';
       result.pathology_info.affected_area = 'Gastric';
+    }
+    // PAD-specific survey fields
+    else if (key.includes('open wounds') || key.includes('open_wounds') || key.includes('sores')) {
+      const lowerVal = String(value).toLowerCase();
+      if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
+        result.pathology_info.symptoms = result.pathology_info.symptoms 
+          ? `${result.pathology_info.symptoms}, Open wounds or sores` : 'Open wounds or sores';
+      }
+    } else if (key.includes('pain to the toes') || key.includes('pain_to_the_toes') || key.includes('toe pain')) {
+      result.pathology_info.primary_complaint = String(value);
+    } else if (key.includes('vascular provider') || key.includes('vascular_provider') || key.includes('care of a vascular')) {
+      (result.pathology_info as any).vascular_provider = String(value);
+    } else if (key.includes('medical conditions') || key.includes('medical_conditions')) {
+      (result.pathology_info as any).diagnosis = String(value);
+    } else if (key.includes('smoke') || key.includes('tobacco')) {
+      (result.medical_info as any).smoking_status = String(value);
+    } else if (key.includes('numbness') || key.includes('cold feet') || key.includes('discoloration')) {
+      const lowerVal = String(value).toLowerCase();
+      if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
+        result.pathology_info.symptoms = result.pathology_info.symptoms 
+          ? `${result.pathology_info.symptoms}, Numbness/cold feet/discoloration` : 'Numbness/cold feet/discoloration';
+      }
+    } else if (key.includes('worse when walking') || key.includes('walking') && key.includes('rest')) {
+      const lowerVal = String(value).toLowerCase();
+      if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
+        result.pathology_info.symptoms = result.pathology_info.symptoms 
+          ? `${result.pathology_info.symptoms}, Gets worse when walking, improves with rest` : 'Gets worse when walking, improves with rest';
+      }
+    } else if ((key.includes('pad') && key.includes('circulation')) || key.includes('poor circulation')) {
+      (result.pathology_info as any).pad_diagnosed = String(value);
+    } else if (key.includes('blood thinner') || key.includes('blood_thinner')) {
+      const lowerVal = String(value).toLowerCase();
+      if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
+        result.medical_info.medications = result.medical_info.medications 
+          ? `${result.medical_info.medications}, Currently on blood thinners` : 'Currently on blood thinners';
+        (result.medical_info as any).blood_thinners = 'YES';
+      } else {
+        (result.medical_info as any).blood_thinners = 'NO';
+      }
+    } else if (key.includes('age range') || key.includes('age_range')) {
+      (result.pathology_info as any).age_range = String(value);
     }
     // Medical fields
     else if (key.includes('medication')) {
@@ -927,6 +974,9 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   }
   if (name.includes('pfe') || name.includes('pelvis') || name.includes('pelvic floor')) {
     return 'PFE';
+  }
+  if (name.includes('pad') || name.includes('peripheral')) {
+    return 'PAD';
   }
   return null;
 }
