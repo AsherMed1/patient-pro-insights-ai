@@ -139,7 +139,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [loading, setLoading] = useState(false);
   const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState(appointment.status);
+  // Normalize status to match statusOptions capitalization
+  const normalizeStatus = (raw: string | null) => {
+    if (!raw) return raw;
+    const match = statusOptions.find(opt => opt.toLowerCase() === raw.toLowerCase());
+    return match || raw;
+  };
+
+  const [currentStatus, setCurrentStatus] = useState(normalizeStatus(appointment.status));
   const [currentProcedureStatus, setCurrentProcedureStatus] = useState(
     (appointment as any).procedure_status || null
   );
@@ -148,7 +155,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
 
   // Sync state when appointment prop changes
   useEffect(() => {
-    setCurrentStatus(appointment.status);
+    setCurrentStatus(normalizeStatus(appointment.status));
     setCurrentProcedureStatus((appointment as any).procedure_status || null);
   }, [appointment.id, appointment.status, (appointment as any).procedure_status]);
 
