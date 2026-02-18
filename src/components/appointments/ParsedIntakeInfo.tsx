@@ -811,6 +811,36 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.treatment}</span>
                   </div>
                 )}
+                {formatValue(parsedPathologyInfo.pad_diagnosed) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">PAD / Poor Circulation:</span>{" "}
+                    <Badge variant={String(parsedPathologyInfo.pad_diagnosed).toUpperCase().includes("YES") ? "default" : "secondary"}>
+                      {parsedPathologyInfo.pad_diagnosed}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.vascular_provider) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Vascular Provider:</span>{" "}
+                    <Badge variant={String(parsedPathologyInfo.vascular_provider).toUpperCase().includes("YES") ? "default" : "secondary"}>
+                      {parsedPathologyInfo.vascular_provider}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedMedicalInfo?.smoking_status) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Smoking Status:</span>{" "}
+                    <span className="font-medium">{parsedMedicalInfo.smoking_status}</span>
+                  </div>
+                )}
+                {formatValue(parsedMedicalInfo?.blood_thinners) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Blood Thinners:</span>{" "}
+                    <Badge variant={parsedMedicalInfo.blood_thinners === "YES" ? "destructive" : "secondary"}>
+                      {parsedMedicalInfo.blood_thinners}
+                    </Badge>
+                  </div>
+                )}
                 {(() => {
                   const raw = parsedInsuranceInfo?.insurance_notes;
                   if (!raw || !formatValue(raw)) return null;
