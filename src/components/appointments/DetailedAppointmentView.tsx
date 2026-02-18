@@ -105,6 +105,34 @@ interface LeadDetails {
   address?: string;
 }
 
+const getStatusColor = (status: string | null): string => {
+  switch (status?.toLowerCase()) {
+    case 'showed': return 'bg-green-100 text-green-800 border-green-200';
+    case 'confirmed': return 'bg-blue-100 text-blue-700 border-blue-200';
+    case 'no show': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'cancelled': return 'bg-red-100 text-red-700 border-red-200';
+    case 'rescheduled': return 'bg-purple-100 text-purple-700 border-purple-200';
+    case 'oon': return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'do not call': return 'bg-red-900 text-red-100 border-red-900';
+    case 'welcome call': return 'bg-gray-200 text-gray-800 border-gray-300';
+    default: return '';
+  }
+};
+
+const getStatusDot = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'showed': return 'bg-green-500';
+    case 'confirmed': return 'bg-blue-500';
+    case 'no show': return 'bg-yellow-500';
+    case 'cancelled': return 'bg-red-500';
+    case 'rescheduled': return 'bg-purple-500';
+    case 'oon': return 'bg-orange-500';
+    case 'do not call': return 'bg-red-900';
+    case 'welcome call': return 'bg-gray-500';
+    default: return 'bg-gray-400';
+  }
+};
+
 const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, onDeleted }: DetailedAppointmentViewProps) => {
   const [leadDetails, setLeadDetails] = useState<LeadDetails | null>(null);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
@@ -649,12 +677,17 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   }}
                   disabled={isUpdating}
                 >
-                  <SelectTrigger className="h-8 w-[160px] text-sm">
+                  <SelectTrigger className={`h-8 w-[160px] text-sm ${getStatusColor(currentStatus)}`}>
                     <SelectValue placeholder="Set status" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-[9999]">
                     {statusOptions.sort().map((status) => (
-                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                      <SelectItem key={status} value={status}>
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${getStatusDot(status)}`} />
+                          {status}
+                        </div>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
