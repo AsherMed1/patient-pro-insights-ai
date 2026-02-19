@@ -1,34 +1,48 @@
 
 
-# Adjust Neuropathy Event Color to Distinguish from GAE
+# Fix PFE Procedure Description (Plantar Fasciitis, Not Pelvic Floor)
 
 ## Problem
-GAE uses **orange** and Neuropathy uses **amber** -- these are nearly identical warm yellow-orange tones, making them hard to distinguish on the calendar.
 
-## Solution
-Change Neuropathy from amber to **emerald/green**, which provides strong contrast against GAE's orange and doesn't conflict with any other event type color.
+The AI parser prompt on line 1325 of `auto-parse-intake-notes/index.ts` incorrectly defines PFE as **"Pelvic Floor Embolization"** with symptoms like "pelvic pain, pelvic floor dysfunction." PFE actually stands for **Plantar Fasciitis Embolization**, which focuses on heel pain, foot pain, and plantar fasciitis symptoms.
+
+This causes the AI to hallucinate "pelvic pain" as the primary complaint and "pelvic floor" as the affected area, even though the raw GHL data clearly describes heel pain and plantar fasciitis symptoms.
 
 ## Changes
 
-### File: `src/components/appointments/calendarUtils.ts`
+### File: `supabase/functions/auto-parse-intake-notes/index.ts`
 
-Update the Neuropathy entry in the `EVENT_TYPES` array:
+**Line 1325** -- Update the PFE procedure context:
 
 ```
-// Before (amber - too similar to orange/GAE)
-type: 'Neuropathy',
-borderColor: 'border-l-amber-500',
-bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-textColor: 'text-amber-700 dark:text-amber-300',
-dotColor: 'bg-amber-500'
+// Before:
+PFE (Pelvic Floor Embolization) focuses on: pelvic pain, pelvic floor dysfunction symptoms. Set procedure_type to "PFE".
 
-// After (emerald - distinct green)
-type: 'Neuropathy',
-borderColor: 'border-l-emerald-500',
-bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-textColor: 'text-emerald-700 dark:text-emerald-300',
-dotColor: 'bg-emerald-500'
+// After:
+PFE (Plantar Fasciitis Embolization) focuses on: heel pain, plantar fasciitis, sharp pain in the bottom of the heel, foot pain that worsens with first steps in the morning, pain that improves with rest. Set procedure_type to "PFE".
 ```
 
-This is a single-file, cosmetic change. No other files or deployments are affected.
+**Line 1055** -- Also update the procedure detection keyword (currently maps "pelvis" and "pelvic floor" to PFE, which is incorrect):
+
+```
+// Before:
+if (name.includes('pfe') || name.includes('pelvis') || name.includes('pelvic floor'))
+
+// After:
+if (name.includes('pfe') || name.includes('plantar'))
+```
+
+**Line 657** -- Same fix in the STEP field detection:
+
+```
+// Before:
+if (upperKey.includes('PFE') || upperKey.includes('PELVIC FLOOR'))
+
+// After:
+if (upperKey.includes('PFE') || upperKey.includes('PLANTAR'))
+```
+
+### Deploy and Reparse
+
+Deploy the updated `auto-parse-intake-notes` edge function and trigger a reparse for the Ricky Rooks appointment to verify the corrected output shows heel/plantar fasciitis data instead of pelvic floor.
 
