@@ -1,58 +1,45 @@
 
-# Fix "Oldest to Newest" Sort Not Working on the New Tab
+# Scope "Upcoming Events" Panel to the Current Calendar View
 
-## Root Cause
+## Problem
+The Upcoming Events sidebar always shows appointments from today onwards (hardcoded `gte('date_of_appointment', today)`), regardless of which view mode is active or which date period the user is browsing. If you're in Week view looking at Feb 15-21, the panel may show events far outside that week.
 
-In `src/components/AllAppointmentsManager.tsx` at lines 328-330, the "New" tab has a hardcoded sort override:
+## Solution
+Pass the `viewMode` and `selectedDate` into `UpcomingEventsPanel` so it can compute the correct date range — matching exactly what the calendar is displaying.
 
-```typescript
-// Sort by newest first on the "New" tab using full timestamp
-if (activeTab === 'new') {
-  appointmentsQuery = appointmentsQuery.order('created_at', { ascending: false });
-}
-```
+### Date Range Logic Per View
+- **Day view**: show only that single day (`selectedDate`)
+- **Week view**: show all appointments within that week (Sun–Sat containing `selectedDate`)
+- **Month view**: show all appointments within that calendar month
 
-This completely ignores the user's chosen sort option (`sortBy` state). No matter what the user selects from the sort dropdown — "Oldest First", "Name A-Z", etc. — the "New" tab always reverts to newest-first by `created_at`. The other tabs (Needs Review, Upcoming, Completed) correctly respect the `sortBy` state.
+### Panel Header
+Update the panel title to reflect the current scope:
+- Day: "Events for [Mon Feb 19]"
+- Week: "Events This Week"
+- Month: "Events This Month"
 
-## Fix
+## Files Changed
 
-Remove the hardcoded sort for the "New" tab and apply the same user-driven sort logic that all other tabs use. The default sort will remain "Newest First" (`date_desc`) since that is the default value of `sortBy`.
+### 1. `src/components/appointments/UpcomingEventsPanel.tsx`
+- Add `viewMode` and `selectedDate` to `UpcomingEventsPanelProps`
+- Compute `startDate` and `endDate` from the view mode using `date-fns` helpers:
+  - Day: `format(selectedDate, 'yyyy-MM-dd')` for both start and end
+  - Week: `startOfWeek(selectedDate)` → `endOfWeek(selectedDate)`
+  - Month: `startOfMonth(selectedDate)` → `endOfMonth(selectedDate)`
+- Replace the hardcoded `today` query with `gte(startDate)` and `lte(endDate)`
+- Remove the `limit(10)` cap so all events in the range are shown
+- Update the panel header text to reflect the period (e.g. "Events This Week")
+- Re-fetch when `viewMode` or `selectedDate` changes (add them to the `useEffect` dependency array)
 
-### Before
-```typescript
-if (activeTab === 'new') {
-  appointmentsQuery = appointmentsQuery.order('created_at', { ascending: false });
-} else {
-  // Apply user-selected sorting for ALL views
-  if (sortBy === 'name_asc' || sortBy === 'name_desc') { ... }
-  else if (sortBy === 'date_asc' || sortBy === 'date_desc') { ... }
-  else { ... }
-}
-```
+### 2. `src/components/appointments/CalendarDetailView.tsx`
+- Pass `viewMode` and `selectedDate` as props to `<UpcomingEventsPanel />`:
+  ```tsx
+  <UpcomingEventsPanel 
+    projectName={projectName}
+    viewMode={viewMode}
+    selectedDate={selectedDate}
+    onAppointmentClick={onAppointmentClick}
+  />
+  ```
 
-### After
-```typescript
-// Apply user-selected sorting for ALL tabs (including "new")
-if (sortBy === 'name_asc' || sortBy === 'name_desc') {
-  appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
-} else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
-  const sortColumn = dateFilterType === 'created' ? 'created_at' : 'date_of_appointment';
-  appointmentsQuery = appointmentsQuery.order(sortColumn, { ascending: sortBy === 'date_asc', nullsFirst: false });
-} else {
-  appointmentsQuery = appointmentsQuery.order(
-    sortBy === 'procedure_ordered' ? 'procedure_ordered' :
-    sortBy === 'project' ? 'project_name' : 'created_at',
-    { ascending: sortBy === 'project' ? true : false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
-  );
-}
-```
-
-## Why This Is Safe
-
-- The default value of `sortBy` is `'date_desc'` (Newest First), so the default behavior on the New tab remains unchanged — users will still see newest appointments first by default.
-- All other tabs already use this same sort block and it works correctly there.
-- The fix simply removes the special-casing that was preventing the New tab from respecting the user's sort choice.
-
-## File Changed
-
-- `src/components/AllAppointmentsManager.tsx` — remove the `if (activeTab === 'new')` sort override (lines 328-345), replacing the entire conditional block with the existing `else` branch logic that all other tabs use.
+No other files need to change — the data fetching and display logic are entirely self-contained within `UpcomingEventsPanel`.
