@@ -62,10 +62,10 @@ export const EVENT_TYPES: EventTypeInfo[] = [
   { 
     type: 'Neuropathy', 
     shortName: 'Neuro',
-    borderColor: 'border-l-amber-500', 
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30', 
-    textColor: 'text-amber-700 dark:text-amber-300',
-    dotColor: 'bg-amber-500'
+    borderColor: 'border-l-emerald-500', 
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30', 
+    textColor: 'text-emerald-700 dark:text-emerald-300',
+    dotColor: 'bg-emerald-500'
   },
   { 
     type: 'Vein', 
