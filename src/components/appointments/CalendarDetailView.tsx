@@ -102,6 +102,8 @@ export function CalendarDetailView({
       <div className="hidden lg:block w-72 border-l border-border">
         <UpcomingEventsPanel 
           projectName={projectName}
+          viewMode={viewMode}
+          selectedDate={selectedDate}
           onAppointmentClick={onAppointmentClick}
         />
       </div>

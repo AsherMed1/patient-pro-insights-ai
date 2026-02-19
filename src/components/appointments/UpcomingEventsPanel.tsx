@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { AllAppointment } from './types';
 import { getEventTypeFromCalendar, getStatusInfo } from './calendarUtils';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -11,30 +11,53 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface UpcomingEventsPanelProps {
   projectName: string;
+  viewMode: 'day' | 'week' | 'month';
+  selectedDate: Date;
   onAppointmentClick: (appointment: AllAppointment) => void;
 }
 
-export function UpcomingEventsPanel({ projectName, onAppointmentClick }: UpcomingEventsPanelProps) {
+export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick }: UpcomingEventsPanelProps) {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { startDate, endDate, panelTitle } = useMemo(() => {
+    if (viewMode === 'day') {
+      const d = format(selectedDate, 'yyyy-MM-dd');
+      return {
+        startDate: d,
+        endDate: d,
+        panelTitle: `Events for ${format(selectedDate, 'EEE MMM d')}`
+      };
+    } else if (viewMode === 'week') {
+      return {
+        startDate: format(startOfWeek(selectedDate, { weekStartsOn: 0 }), 'yyyy-MM-dd'),
+        endDate: format(endOfWeek(selectedDate, { weekStartsOn: 0 }), 'yyyy-MM-dd'),
+        panelTitle: 'Events This Week'
+      };
+    } else {
+      return {
+        startDate: format(startOfMonth(selectedDate), 'yyyy-MM-dd'),
+        endDate: format(endOfMonth(selectedDate), 'yyyy-MM-dd'),
+        panelTitle: 'Events This Month'
+      };
+    }
+  }, [viewMode, selectedDate]);
 
   useEffect(() => {
     const fetchUpcoming = async () => {
       setLoading(true);
       try {
-        const today = format(startOfDay(new Date()), 'yyyy-MM-dd');
-        
         const { data, error } = await supabase
           .from('all_appointments')
           .select('*')
           .eq('project_name', projectName)
-          .gte('date_of_appointment', today)
+          .gte('date_of_appointment', startDate)
+          .lte('date_of_appointment', endDate)
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'canceled')
           .not('status', 'ilike', 'oon')
           .order('date_of_appointment', { ascending: true })
-          .order('requested_time', { ascending: true })
-          .limit(10);
+          .order('requested_time', { ascending: true });
 
         if (error) throw error;
         setAppointments((data as AllAppointment[]) || []);
@@ -46,7 +69,7 @@ export function UpcomingEventsPanel({ projectName, onAppointmentClick }: Upcomin
     };
 
     fetchUpcoming();
-  }, [projectName]);
+  }, [projectName, startDate, endDate]);
 
   if (loading) {
     return (
@@ -64,7 +87,7 @@ export function UpcomingEventsPanel({ projectName, onAppointmentClick }: Upcomin
       <div className="px-4 py-3 border-b border-border">
         <h3 className="font-semibold text-foreground flex items-center gap-2">
           <Calendar className="h-4 w-4" />
-          Upcoming Events
+          {panelTitle}
         </h3>
       </div>
       
