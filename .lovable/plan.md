@@ -1,58 +1,34 @@
 
-# Fix PAD Survey Fields Not Populating
 
-## Root Cause
+# Adjust Neuropathy Event Color to Distinguish from GAE
 
-PAD survey fields from GHL are being silently dropped before they ever reach the database. Both `fetch-ghl-contact-data` and `ghl-webhook-handler` categorize GHL custom fields into sections (Contact, Insurance, Pathology, Medical) using keyword matching. PAD-specific keywords like "smoke", "tobacco", "blood thinner", "vascular provider", "open wounds", "numbness", "walking", and "circulation" don't match any routing keyword, so these fields are completely discarded and never written to `patient_intake_notes`.
+## Problem
+GAE uses **orange** and Neuropathy uses **amber** -- these are nearly identical warm yellow-orange tones, making them hard to distinguish on the calendar.
 
-Since `auto-parse-intake-notes` reads from `patient_intake_notes`, it never sees these fields and cannot extract them.
-
-## The Fix
-
-Route all "STEP" fields to the Pathology section. Every GHL survey field follows the naming pattern "PAD Step X | ..." (or "UFE STEP X | ...", etc.), so checking for "step" in the key name is a reliable catch-all for survey/pathology data.
+## Solution
+Change Neuropathy from amber to **emerald/green**, which provides strong contrast against GAE's orange and doesn't conflict with any other event type color.
 
 ## Changes
 
-### 1. Update `supabase/functions/fetch-ghl-contact-data/index.ts`
+### File: `src/components/appointments/calendarUtils.ts`
 
-In the `formatCustomFieldsToText` function (around line 220), add `key.includes('step')` to the Pathology routing check:
+Update the Neuropathy entry in the `EVENT_TYPES` array:
 
 ```
-Before (line 222):
-} else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || ...)
+// Before (amber - too similar to orange/GAE)
+type: 'Neuropathy',
+borderColor: 'border-l-amber-500',
+bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+textColor: 'text-amber-700 dark:text-amber-300',
+dotColor: 'bg-amber-500'
 
-After:
-} else if (key.includes('step') || key.includes('pain') || key.includes('symptom') || key.includes('condition') || ...)
+// After (emerald - distinct green)
+type: 'Neuropathy',
+borderColor: 'border-l-emerald-500',
+bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
+textColor: 'text-emerald-700 dark:text-emerald-300',
+dotColor: 'bg-emerald-500'
 ```
 
-This ensures all "PAD Step 1 | ...", "PAD Step 2 | ..." fields land in the Pathology Information section.
+This is a single-file, cosmetic change. No other files or deployments are affected.
 
-### 2. Update `supabase/functions/ghl-webhook-handler/index.ts`
-
-Same fix in two places where field categorization occurs:
-
-**First location** (around line 472, the `formatCustomFieldsToNotes` helper):
-Add `key.includes('step')` to the pathology routing.
-
-**Second location** (around line 1021, the full enrichment categorization):
-Add `key.includes('step')` to the pathology routing.
-
-### 3. Deploy Both Edge Functions
-
-Deploy `fetch-ghl-contact-data` and `ghl-webhook-handler`, then reparse the DONOTCONTACT TESTLEAD PAD appointment to verify all survey fields populate.
-
-## Expected Result
-
-After the fix and reparse, the PAD appointment's `patient_intake_notes` will contain all survey fields:
-- Open Wounds: Yes
-- Pain To The Toes: Yes
-- Vascular Provider: Yes
-- Medical Conditions: Diabetes, Hypertension, Kidney disease, Heart attack, Stroke, Previous amputation
-- Smoking: Current
-- Age Range: less than 50 years
-- Numbness/Cold Feet: Yes
-- Worse When Walking: Yes
-- PAD/Poor Circulation: Yes
-- Blood Thinners: Yes
-
-The existing `auto-parse-intake-notes` extraction logic (already updated with PAD field matchers) will then correctly populate `parsed_pathology_info` and `parsed_medical_info` for display in the Medical Information card.
