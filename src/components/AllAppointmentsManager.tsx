@@ -325,23 +325,18 @@ const AllAppointmentsManager = ({
       // Exclude reserved time blocks from appointment management
       appointmentsQuery = appointmentsQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
 
-      // Sort by newest first on the "New" tab using full timestamp
-      if (activeTab === 'new') {
-        appointmentsQuery = appointmentsQuery.order('created_at', { ascending: false });
+      // Apply user-selected sorting for ALL tabs (including "new")
+      if (sortBy === 'name_asc' || sortBy === 'name_desc') {
+        appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
+      } else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
+        const sortColumn = dateFilterType === 'created' ? 'created_at' : 'date_of_appointment';
+        appointmentsQuery = appointmentsQuery.order(sortColumn, { ascending: sortBy === 'date_asc', nullsFirst: false });
       } else {
-        // Apply user-selected sorting for ALL views (including project-specific)
-        if (sortBy === 'name_asc' || sortBy === 'name_desc') {
-          appointmentsQuery = appointmentsQuery.order('lead_name', { ascending: sortBy === 'name_asc', nullsFirst: false });
-        } else if (sortBy === 'date_asc' || sortBy === 'date_desc') {
-          const sortColumn = dateFilterType === 'created' ? 'created_at' : 'date_of_appointment';
-          appointmentsQuery = appointmentsQuery.order(sortColumn, { ascending: sortBy === 'date_asc', nullsFirst: false });
-        } else {
-          appointmentsQuery = appointmentsQuery.order(
-            sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
-            sortBy === 'project' ? 'project_name' : 'created_at', 
-            { ascending: sortBy === 'project' ? true : false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
-          );
-        }
+        appointmentsQuery = appointmentsQuery.order(
+          sortBy === 'procedure_ordered' ? 'procedure_ordered' : 
+          sortBy === 'project' ? 'project_name' : 'created_at', 
+          { ascending: sortBy === 'project' ? true : false, nullsFirst: sortBy === 'procedure_ordered' ? false : true }
+        );
       }
 
       // Apply the same filters to the data query
