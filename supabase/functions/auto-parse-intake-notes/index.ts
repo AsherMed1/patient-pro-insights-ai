@@ -559,6 +559,86 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // Ensure pathology_info exists
+  if (!parsedData.pathology_info) {
+    parsedData.pathology_info = {};
+  }
+  
+  // === PAD-specific field extraction from intake notes text ===
+  
+  // Smoking/tobacco status
+  if (!parsedData.medical_info.smoking_status) {
+    const smokeMatch = intakeNotes.match(/(?:smoke|tobacco)[^:]*:\s*([^\n]+)/i);
+    if (smokeMatch && smokeMatch[1]) {
+      parsedData.medical_info.smoking_status = smokeMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted smoking_status via regex: ${parsedData.medical_info.smoking_status}`);
+    }
+  }
+  
+  // Blood thinners
+  if (!parsedData.medical_info.blood_thinners) {
+    const btMatch = intakeNotes.match(/blood thinner[^:]*:\s*([^\n]+)/i);
+    if (btMatch && btMatch[1]) {
+      const val = btMatch[1].trim().toLowerCase();
+      parsedData.medical_info.blood_thinners = val.includes('yes') ? 'YES' : val.includes('no') ? 'NO' : btMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted blood_thinners via regex: ${parsedData.medical_info.blood_thinners}`);
+    }
+  }
+  
+  // Vascular provider
+  if (!parsedData.pathology_info.vascular_provider) {
+    const vpMatch = intakeNotes.match(/vascular provider[^:]*:\s*([^\n]+)/i);
+    if (vpMatch && vpMatch[1]) {
+      parsedData.pathology_info.vascular_provider = vpMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted vascular_provider via regex: ${parsedData.pathology_info.vascular_provider}`);
+    }
+  }
+  
+  // PAD/poor circulation diagnosed
+  if (!parsedData.pathology_info.pad_diagnosed) {
+    const padMatch = intakeNotes.match(/(?:PAD|poor circulation)[^:]*:\s*([^\n]+)/i);
+    if (padMatch && padMatch[1]) {
+      parsedData.pathology_info.pad_diagnosed = padMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted pad_diagnosed via regex: ${parsedData.pathology_info.pad_diagnosed}`);
+    }
+  }
+  
+  // Open wounds
+  if (!parsedData.pathology_info.open_wounds) {
+    const owMatch = intakeNotes.match(/open wounds[^:]*:\s*([^\n]+)/i);
+    if (owMatch && owMatch[1]) {
+      parsedData.pathology_info.open_wounds = owMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted open_wounds via regex: ${parsedData.pathology_info.open_wounds}`);
+    }
+  }
+  
+  // Numbness/cold feet
+  if (!parsedData.pathology_info.numbness_cold_feet) {
+    const ncMatch = intakeNotes.match(/(?:numbness|cold feet|discoloration)[^:]*:\s*([^\n]+)/i);
+    if (ncMatch && ncMatch[1]) {
+      parsedData.pathology_info.numbness_cold_feet = ncMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted numbness_cold_feet via regex: ${parsedData.pathology_info.numbness_cold_feet}`);
+    }
+  }
+  
+  // Worse when walking
+  if (!parsedData.pathology_info.worse_when_walking) {
+    const wwMatch = intakeNotes.match(/(?:worse when walking|walking.*?rest)[^:]*:\s*([^\n]+)/i);
+    if (wwMatch && wwMatch[1]) {
+      parsedData.pathology_info.worse_when_walking = wwMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted worse_when_walking via regex: ${parsedData.pathology_info.worse_when_walking}`);
+    }
+  }
+  
+  // Pain to the toes
+  if (!parsedData.pathology_info.pain_to_toes) {
+    const ptMatch = intakeNotes.match(/pain to the toes[^:]*:\s*([^\n]+)/i);
+    if (ptMatch && ptMatch[1]) {
+      parsedData.pathology_info.pain_to_toes = ptMatch[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted pain_to_toes via regex: ${parsedData.pathology_info.pain_to_toes}`);
+    }
+  }
+  
   return parsedData;
 }
 
