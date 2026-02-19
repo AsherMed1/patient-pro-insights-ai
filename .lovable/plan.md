@@ -1,35 +1,58 @@
 
-
-# Fix PAD Survey Field Population
+# Fix PAD Survey Fields Not Populating
 
 ## Root Cause
 
-Two issues prevent PAD survey data from populating correctly:
+PAD survey fields from GHL are being silently dropped before they ever reach the database. Both `fetch-ghl-contact-data` and `ghl-webhook-handler` categorize GHL custom fields into sections (Contact, Insurance, Pathology, Medical) using keyword matching. PAD-specific keywords like "smoke", "tobacco", "blood thinner", "vascular provider", "open wounds", "numbness", "walking", and "circulation" don't match any routing keyword, so these fields are completely discarded and never written to `patient_intake_notes`.
 
-### Issue 1: Multi-Select GHL Fields Lose Data
-Line 657 of `auto-parse-intake-notes/index.ts`:
-```
-const value = Array.isArray(field.field_value) ? field.field_value[0] : field.field_value;
-```
-GHL multi-select fields (like "Select the following medical conditions") return arrays (e.g., `["Hypertension", "Diabetes", "Kidney disease"]`). The code only takes the **first element**, discarding the rest. This is why DONOTCONTACT TESTLEAD's medical conditions ended up in `other_notes` via the AI instead of `diagnosis` via GHL extraction -- the GHL extraction only got "Hypertension" while the AI got the full comma-separated text from the intake notes.
+Since `auto-parse-intake-notes` reads from `patient_intake_notes`, it never sees these fields and cannot extract them.
 
-### Issue 2: Missing PAD Context in AI Prompt
-The AI prompt includes specific guidance for UFE, PAE, GAE, and PFE procedures but has **no PAD-specific context**. When the AI parser processes PAD intake notes, it doesn't know what PAD-specific fields to prioritize, causing it to misroute data (e.g., medical conditions going to `other_notes` instead of `diagnosis`).
+## The Fix
+
+Route all "STEP" fields to the Pathology section. Every GHL survey field follows the naming pattern "PAD Step X | ..." (or "UFE STEP X | ...", etc.), so checking for "step" in the key name is a reliable catch-all for survey/pathology data.
 
 ## Changes
 
-### File: `supabase/functions/auto-parse-intake-notes/index.ts`
+### 1. Update `supabase/functions/fetch-ghl-contact-data/index.ts`
 
-1. **Fix array value handling (line 657)**: Join array values with ", " instead of taking only the first element:
-   ```
-   const value = Array.isArray(field.field_value) ? field.field_value.join(', ') : field.field_value;
-   ```
+In the `formatCustomFieldsToText` function (around line 220), add `key.includes('step')` to the Pathology routing check:
 
-2. **Add PAD context to AI prompt (around line 1245)**: Add PAD-specific guidance alongside UFE/PAE/GAE/PFE:
-   ```
-   ${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poor circulation, numbness, cold feet, discoloration, open wounds/sores, toe pain, pain that worsens when walking and improves with rest, blood thinners, smoking/tobacco status, medical conditions (diabetes, hypertension, kidney disease). Set procedure_type to "PAD". Map medical conditions to "diagnosis".' : ''}
-   ```
+```
+Before (line 222):
+} else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || ...)
 
-### Deploy
-Deploy the updated `auto-parse-intake-notes` edge function, then reparse the TVI PAD test appointments to verify the fields populate correctly.
+After:
+} else if (key.includes('step') || key.includes('pain') || key.includes('symptom') || key.includes('condition') || ...)
+```
 
+This ensures all "PAD Step 1 | ...", "PAD Step 2 | ..." fields land in the Pathology Information section.
+
+### 2. Update `supabase/functions/ghl-webhook-handler/index.ts`
+
+Same fix in two places where field categorization occurs:
+
+**First location** (around line 472, the `formatCustomFieldsToNotes` helper):
+Add `key.includes('step')` to the pathology routing.
+
+**Second location** (around line 1021, the full enrichment categorization):
+Add `key.includes('step')` to the pathology routing.
+
+### 3. Deploy Both Edge Functions
+
+Deploy `fetch-ghl-contact-data` and `ghl-webhook-handler`, then reparse the DONOTCONTACT TESTLEAD PAD appointment to verify all survey fields populate.
+
+## Expected Result
+
+After the fix and reparse, the PAD appointment's `patient_intake_notes` will contain all survey fields:
+- Open Wounds: Yes
+- Pain To The Toes: Yes
+- Vascular Provider: Yes
+- Medical Conditions: Diabetes, Hypertension, Kidney disease, Heart attack, Stroke, Previous amputation
+- Smoking: Current
+- Age Range: less than 50 years
+- Numbness/Cold Feet: Yes
+- Worse When Walking: Yes
+- PAD/Poor Circulation: Yes
+- Blood Thinners: Yes
+
+The existing `auto-parse-intake-notes` extraction logic (already updated with PAD field matchers) will then correctly populate `parsed_pathology_info` and `parsed_medical_info` for display in the Medical Information card.
