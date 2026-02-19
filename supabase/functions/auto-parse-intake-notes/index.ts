@@ -654,7 +654,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
   for (const field of customFields) {
     const rawKey = customFieldDefs[field.id] || field.key || '';
     const key = rawKey.toLowerCase();
-    const value = Array.isArray(field.field_value) ? field.field_value[0] : field.field_value;
+    const value = Array.isArray(field.field_value) ? field.field_value.join(', ') : field.field_value;
     if (!value) continue;
 
     // Filter pathology fields by procedure if targetProcedure is set
@@ -1243,6 +1243,7 @@ ${calendarProcedure === 'UFE' ? 'UFE (Uterine Fibroid Embolization) focuses on: 
 ${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) focuses on: urinary frequency, weak urinary stream, incomplete bladder emptying, nocturia, prostate-related symptoms. Set procedure_type to "PAE".' : ''}
 ${calendarProcedure === 'GAE' ? 'GAE (Genicular Artery Embolization) focuses on: knee pain, osteoarthritis, joint stiffness, swelling, joint instability, knee-related symptoms. Set procedure_type to "GAE".' : ''}
 ${calendarProcedure === 'PFE' ? 'PFE (Pelvic Floor Embolization) focuses on: pelvic pain, pelvic floor dysfunction symptoms. Set procedure_type to "PFE".' : ''}
+${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poor circulation, numbness, cold feet, discoloration, open wounds/sores, toe pain, pain that worsens when walking and improves with rest, blood thinners, smoking/tobacco status, medical conditions (diabetes, hypertension, kidney disease). Set procedure_type to "PAD". Map medical conditions to "diagnosis".' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;
