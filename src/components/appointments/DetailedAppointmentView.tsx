@@ -39,6 +39,7 @@ import AppointmentNotes from './AppointmentNotes';
 import AppointmentHistory from './AppointmentHistory';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
+import AdminActivityLog from './AdminActivityLog';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/utils/appointmentLeadMatcher";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -775,6 +776,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
 
             {/* Appointment History */}
             <AppointmentHistory appointment={appointment} />
+
+            {/* Admin Activity Log - only visible to admins */}
+            <AdminActivityLog appointmentId={appointment.id} appointmentName={appointment.lead_name} />
 
             {/* Patient Intake Notes */}
             {(appointment.patient_intake_notes || leadDetails?.patient_intake_notes) && (
