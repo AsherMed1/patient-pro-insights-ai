@@ -654,7 +654,7 @@ function detectProcedureFromFieldKey(key: string): string | null {
   if (upperKey.includes('PAE') || upperKey.includes('PROSTATE')) {
     return 'PAE';
   }
-  if (upperKey.includes('PFE') || upperKey.includes('PELVIC FLOOR')) {
+  if (upperKey.includes('PFE') || upperKey.includes('PLANTAR')) {
     return 'PFE';
   }
   if (upperKey.includes('PAD') || upperKey.includes('PERIPHERAL')) {
@@ -1052,7 +1052,7 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) {
     return 'GAE';
   }
-  if (name.includes('pfe') || name.includes('pelvis') || name.includes('pelvic floor')) {
+  if (name.includes('pfe') || name.includes('plantar')) {
     return 'PFE';
   }
   if (name.includes('pad') || name.includes('peripheral')) {
@@ -1322,7 +1322,7 @@ you MUST extract and prioritize the ${calendarProcedure}-specific pathology data
 ${calendarProcedure === 'UFE' ? 'UFE (Uterine Fibroid Embolization) focuses on: pelvic pain, heavy periods, menstrual bleeding issues, urinary symptoms, pain during intercourse, fibroid-related symptoms. Set procedure_type to "UFE".' : ''}
 ${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) focuses on: urinary frequency, weak urinary stream, incomplete bladder emptying, nocturia, prostate-related symptoms. Set procedure_type to "PAE".' : ''}
 ${calendarProcedure === 'GAE' ? 'GAE (Genicular Artery Embolization) focuses on: knee pain, osteoarthritis, joint stiffness, swelling, joint instability, knee-related symptoms. Set procedure_type to "GAE".' : ''}
-${calendarProcedure === 'PFE' ? 'PFE (Pelvic Floor Embolization) focuses on: pelvic pain, pelvic floor dysfunction symptoms. Set procedure_type to "PFE".' : ''}
+${calendarProcedure === 'PFE' ? 'PFE (Plantar Fasciitis Embolization) focuses on: heel pain, plantar fasciitis, sharp pain in the bottom of the heel, foot pain that worsens with first steps in the morning, pain that improves with rest. Set procedure_type to "PFE".' : ''}
 ${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poor circulation, numbness, cold feet, discoloration, open wounds/sores, toe pain, pain that worsens when walking and improves with rest, blood thinners, smoking/tobacco status, medical conditions (diabetes, hypertension, kidney disease). Set procedure_type to "PAD". Map medical conditions to "diagnosis".' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
