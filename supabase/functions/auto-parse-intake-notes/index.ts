@@ -596,10 +596,22 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
   
   // PAD/poor circulation diagnosed
   if (!parsedData.pathology_info.pad_diagnosed) {
-    const padMatch = intakeNotes.match(/(?:PAD|poor circulation)[^:]*:\s*([^\n]+)/i);
+    const padMatch = intakeNotes.match(/(?:have you ever been told you have PAD|poor circulation)[^:]*\??\s*:\s*([^\n]+)/i);
     if (padMatch && padMatch[1]) {
-      parsedData.pathology_info.pad_diagnosed = padMatch[1].trim();
-      console.log(`[AUTO-PARSE ENRICH] Extracted pad_diagnosed via regex: ${parsedData.pathology_info.pad_diagnosed}`);
+      const padVal = padMatch[1].trim().toLowerCase();
+      if (padVal.includes('yes') || padVal.includes('no') || padVal === '☑️ yes') {
+        parsedData.pathology_info.pad_diagnosed = padMatch[1].trim();
+        console.log(`[AUTO-PARSE ENRICH] Extracted pad_diagnosed via regex: ${parsedData.pathology_info.pad_diagnosed}`);
+      }
+    }
+  }
+  
+  // Validate pad_diagnosed contains only Yes/No values (guard against name contamination)
+  if (parsedData.pathology_info.pad_diagnosed) {
+    const padValCheck = String(parsedData.pathology_info.pad_diagnosed).toLowerCase();
+    if (!padValCheck.includes('yes') && !padValCheck.includes('no')) {
+      console.log(`[AUTO-PARSE ENRICH] Clearing invalid pad_diagnosed value: ${parsedData.pathology_info.pad_diagnosed}`);
+      parsedData.pathology_info.pad_diagnosed = null;
     }
   }
   
