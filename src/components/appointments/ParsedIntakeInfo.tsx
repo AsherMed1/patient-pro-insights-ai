@@ -89,6 +89,9 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [isSavingContact, setIsSavingContact] = useState(false);
   const [editEmail, setEditEmail] = useState("");
+  const [editDOB, setEditDOB] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editAddress, setEditAddress] = useState("");
 
   // Reparse state
   const [isReparsing, setIsReparsing] = useState(false);
@@ -272,6 +275,9 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   // Contact edit handlers
   const handleStartEditContact = () => {
     setEditEmail(formatValue(parsedContactInfo?.email) || "");
+    setEditDOB(formatValue(parsedContactInfo?.dob) || dob || "");
+    setEditPhone(formatValue(parsedContactInfo?.phone) || "");
+    setEditAddress(formatValue(parsedContactInfo?.address) || "");
     setIsEditingContact(true);
   };
 
@@ -294,12 +300,20 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       const updatedContactInfo = {
         ...(parsedContactInfo || {}),
         email: editEmail || null,
+        dob: editDOB || null,
+        phone: editPhone || null,
+        address: editAddress || null,
       };
 
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
         body: {
           appointmentId,
-          updates: { parsed_contact_info: updatedContactInfo },
+          updates: {
+            parsed_contact_info: updatedContactInfo,
+            lead_email: editEmail || null,
+            dob: editDOB || null,
+            lead_phone_number: editPhone || null,
+          },
           userId,
           userName,
           changeSource: 'portal'
@@ -482,12 +496,40 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                 {isEditingContact ? (
                   <div className="space-y-3">
                     <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Date of Birth</label>
+                      <Input
+                        value={editDOB}
+                        onChange={(e) => setEditDOB(e.target.value)}
+                        placeholder="YYYY-MM-DD"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Phone</label>
+                      <Input
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="Phone number"
+                        type="tel"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Email</label>
                       <Input
                         value={editEmail}
                         onChange={(e) => setEditEmail(e.target.value)}
                         placeholder="Email address"
                         type="email"
+                        className="h-8 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Address</label>
+                      <Input
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        placeholder="Full address"
                         className="h-8 text-sm bg-background"
                       />
                     </div>
