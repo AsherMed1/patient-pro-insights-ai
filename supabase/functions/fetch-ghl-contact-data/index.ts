@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
         // Categorize fields - skip conversation notes and workflow fields
         if (key.includes('insurance') || key.includes('member') || key.includes('group') || key.includes('policy')) {
           sections['Insurance Information'].push(formattedLine);
-        } else if (key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || key.includes('treat')) {
+        } else if (key.includes('step') || key.includes('pain') || key.includes('symptom') || key.includes('condition') || key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || key.includes('treat')) {
           sections['Pathology Information'].push(formattedLine);
         } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) &&
                    !key.includes('conversation')) {

@@ -470,7 +470,7 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
     if (key.includes('insurance') || key.includes('plan') || key.includes('group') || key.includes('member')) {
       sections.insurance.push(`${field.key}: ${value}`)
     } else if (
-      key.includes('pain') || key.includes('symptom') || key.includes('duration') || 
+      key.includes('step') || key.includes('pain') || key.includes('symptom') || key.includes('duration') || 
       key.includes('treatment') || key.includes('prefer') || key.includes('surgical') ||
       key.includes('non-surgical') || key.includes('nonsurgical') || key.includes('procedure') ||
       key.includes('pae') || key.includes('ufe') || key.includes('gae') ||
@@ -1019,7 +1019,7 @@ async function enrichAppointmentWithGHLData(
       if (key.includes('insurance') || key.includes('member') || key.includes('group') || key.includes('policy')) {
         sections['Insurance Information'].push(formattedLine)
       } else if (
-        key.includes('pain') || key.includes('symptom') || key.includes('condition') || 
+        key.includes('step') || key.includes('pain') || key.includes('symptom') || key.includes('condition') || 
         key.includes('diagnosis') || key.includes('affected') || key.includes('duration') || 
         key.includes('treat') || key.includes('prefer') || key.includes('surgical') ||
         key.includes('non-surgical') || key.includes('nonsurgical') || key.includes('procedure') ||
