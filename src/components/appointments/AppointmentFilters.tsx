@@ -13,6 +13,10 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getBaseStatusOptions } from './utils';
 import { useRole } from '@/hooks/useRole';
+
+const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
+  'Texas Vascular Institute': ['GAE', 'PAD', 'PFE', 'UFE'],
+};
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -147,6 +151,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           }
         });
         
+        // Merge known project services (ensures services appear even with no appointments yet)
+        if (projectFilter && projectFilter !== 'ALL') {
+          const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
+          knownServices.forEach(s => services.add(s));
+        }
+
         setLocationOptions(Array.from(locations).sort());
         setServiceOptions(Array.from(services).sort());
       }
