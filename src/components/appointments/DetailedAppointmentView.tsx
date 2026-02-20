@@ -44,6 +44,8 @@ import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserAttribution } from '@/hooks/useUserAttribution';
+import { useRole } from '@/hooks/useRole';
+import { ExternalLink } from 'lucide-react';
 
 // Filter raw intake notes to only show pathology data for the current procedure
 const filterIntakeNotesByProcedure = (notes: string, calendarName: string | null): string => {
@@ -153,6 +155,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   );
   const [isUpdating, setIsUpdating] = useState(false);
   const { userId, userName } = useUserAttribution();
+  const { isAdmin } = useRole();
 
   // Sync state when appointment prop changes
   useEffect(() => {
@@ -508,6 +511,19 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                           <div className="flex items-center space-x-2 cursor-default">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span>{appointment.lead_name}</span>
+                            {isAdmin() && appointment.ghl_id && appointment.ghl_location_id && (
+                              <a
+                                href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id}/contacts/detail/${appointment.ghl_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 hover:underline"
+                                title="Open in GoHighLevel"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                GHL
+                              </a>
+                            )}
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>

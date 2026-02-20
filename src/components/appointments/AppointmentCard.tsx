@@ -951,6 +951,24 @@ const AppointmentCard = ({
                 <>
                   <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
                   <span className="text-xs text-muted-foreground ml-2">ID: {appointment.id.substring(0, 8)}</span>
+                  {isAdmin() && appointment.ghl_id && appointment.ghl_location_id && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <a
+                            href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id}/contacts/detail/${appointment.ghl_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-orange-100 text-orange-500 hover:text-orange-600 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </TooltipTrigger>
+                        <TooltipContent>Open in GoHighLevel</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                   {onUpdateName && (
                     <Button
                       variant="ghost"
