@@ -94,6 +94,7 @@ const AppointmentCard = ({
   projectLocationMap
 }: AppointmentCardProps) => {
   const { hasManagementAccess, isAdmin } = useRole();
+  const [fetchedLocationId, setFetchedLocationId] = useState<string | null>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [leadData, setLeadData] = useState<NewLead | null>(null);
@@ -251,6 +252,20 @@ const AppointmentCard = ({
 
     checkLeadData();
   }, [appointment]);
+
+  // Fetch project ghl_location_id as fallback when the appointment record is missing it
+  useEffect(() => {
+    if (!appointment.ghl_location_id && !projectLocationMap?.[appointment.project_name]) {
+      supabase
+        .from('projects')
+        .select('ghl_location_id')
+        .eq('project_name', appointment.project_name)
+        .single()
+        .then(({ data }) => {
+          if (data?.ghl_location_id) setFetchedLocationId(data.ghl_location_id);
+        });
+    }
+  }, [appointment.id, appointment.ghl_location_id, appointment.project_name]);
 
   // Fetch project GHL credentials for calendar dropdown
   useEffect(() => {
@@ -953,12 +968,12 @@ const AppointmentCard = ({
                 <>
                   <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
                   <span className="text-xs text-muted-foreground ml-2">ID: {appointment.id.substring(0, 8)}</span>
-                  {isAdmin() && appointment.ghl_id && (appointment.ghl_location_id || projectLocationMap?.[appointment.project_name]) && (
+                  {isAdmin() && appointment.ghl_id && (appointment.ghl_location_id || projectLocationMap?.[appointment.project_name] || fetchedLocationId) && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <a
-                            href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id || projectLocationMap?.[appointment.project_name]}/contacts/detail/${appointment.ghl_id}`}
+                            href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id || projectLocationMap?.[appointment.project_name] || fetchedLocationId}/contacts/detail/${appointment.ghl_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-orange-100 text-orange-500 hover:text-orange-600 transition-colors"
