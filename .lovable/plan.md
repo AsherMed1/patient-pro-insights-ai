@@ -1,45 +1,49 @@
 
-# Scope "Upcoming Events" Panel to the Current Calendar View
+# Add PAD to the Texas Vascular Institute Service Filter
 
-## Problem
-The Upcoming Events sidebar always shows appointments from today onwards (hardcoded `gte('date_of_appointment', today)`), regardless of which view mode is active or which date period the user is browsing. If you're in Week view looking at Feb 15-21, the panel may show events far outside that week.
+## Root Cause
+
+The "All Services" dropdown in `AppointmentFilters.tsx` is populated **dynamically** — it queries the `all_appointments` table, parses each `calendar_name` with a regex, and builds a set of services from actual appointment data. Since Texas Vascular Institute currently has **zero PAD appointments** in the database, "PAD" never gets added to the set, and it never appears in the dropdown.
+
+Their current calendar names are:
+- `Request Your GAE Consultation - Dallas/Hurst/Plano`
+- `Request Your PFE Consultation - Dallas/Hurst/Plano`
+- `Request Your UFE Consultation - Dallas/Hurst/Plano`
+
+There is no `PAD` calendar name for Texas Vascular Institute yet, so the dynamic approach can't discover it.
 
 ## Solution
-Pass the `viewMode` and `selectedDate` into `UpcomingEventsPanel` so it can compute the correct date range — matching exactly what the calendar is displaying.
 
-### Date Range Logic Per View
-- **Day view**: show only that single day (`selectedDate`)
-- **Week view**: show all appointments within that week (Sun–Sat containing `selectedDate`)
-- **Month view**: show all appointments within that calendar month
+Add a **project-level static service fallback** — a known map of services that certain projects offer, which gets merged with dynamically discovered services. This ensures PAD appears in the filter for Texas Vascular Institute immediately, even before any PAD appointments are booked.
 
-### Panel Header
-Update the panel title to reflect the current scope:
-- Day: "Events for [Mon Feb 19]"
-- Week: "Events This Week"
-- Month: "Events This Month"
+This approach is safe and additive: dynamically discovered services still appear (no regression), and the static list simply guarantees known services are always present.
 
-## Files Changed
+## Changes
 
-### 1. `src/components/appointments/UpcomingEventsPanel.tsx`
-- Add `viewMode` and `selectedDate` to `UpcomingEventsPanelProps`
-- Compute `startDate` and `endDate` from the view mode using `date-fns` helpers:
-  - Day: `format(selectedDate, 'yyyy-MM-dd')` for both start and end
-  - Week: `startOfWeek(selectedDate)` → `endOfWeek(selectedDate)`
-  - Month: `startOfMonth(selectedDate)` → `endOfMonth(selectedDate)`
-- Replace the hardcoded `today` query with `gte(startDate)` and `lte(endDate)`
-- Remove the `limit(10)` cap so all events in the range are shown
-- Update the panel header text to reflect the period (e.g. "Events This Week")
-- Re-fetch when `viewMode` or `selectedDate` changes (add them to the `useEffect` dependency array)
+### `src/components/appointments/AppointmentFilters.tsx`
 
-### 2. `src/components/appointments/CalendarDetailView.tsx`
-- Pass `viewMode` and `selectedDate` as props to `<UpcomingEventsPanel />`:
-  ```tsx
-  <UpcomingEventsPanel 
-    projectName={projectName}
-    viewMode={viewMode}
-    selectedDate={selectedDate}
-    onAppointmentClick={onAppointmentClick}
-  />
-  ```
+1. Define a `KNOWN_PROJECT_SERVICES` map at the top of the file:
+   ```typescript
+   const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
+     'Texas Vascular Institute': ['GAE', 'PAD', 'PFE', 'UFE'],
+   };
+   ```
 
-No other files need to change — the data fetching and display logic are entirely self-contained within `UpcomingEventsPanel`.
+2. In `fetchLocationAndServiceOptions()`, after building the `services` Set from the dynamic query, merge in any known services for the current project:
+   ```typescript
+   // Merge known project services (ensures services appear even with no appointments yet)
+   if (projectFilter && projectFilter !== 'ALL') {
+     const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
+     knownServices.forEach(s => services.add(s));
+   }
+   ```
+
+3. The `serviceOptions` state will then include `PAD` for Texas Vascular Institute and the dropdown will show it.
+
+### No changes needed to `AllAppointmentsManager.tsx`
+
+The query-side filter already handles PAD correctly via `.ilike('calendar_name', '%PAD%')` — the generic `else` branch covers it.
+
+## Result
+
+The "All Services" dropdown for Texas Vascular Institute will show: **GAE, PAD, PFE, UFE** — matching all the services they actually offer, regardless of whether PAD appointments exist in the system yet.
