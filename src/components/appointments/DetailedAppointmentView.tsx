@@ -142,6 +142,24 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [loading, setLoading] = useState(false);
   const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [projectGhlLocationId, setProjectGhlLocationId] = useState<string | null>(null);
+
+  // Fetch project ghl_location_id as fallback when appointment doesn't have it
+  useEffect(() => {
+    if (!appointment.ghl_location_id && appointment.project_name) {
+      supabase
+        .from('projects')
+        .select('ghl_location_id')
+        .eq('project_name', appointment.project_name)
+        .single()
+        .then(({ data }) => {
+          if (data?.ghl_location_id) setProjectGhlLocationId(data.ghl_location_id);
+        });
+    }
+  }, [appointment.ghl_location_id, appointment.project_name]);
+
+  const effectiveLocationId = appointment.ghl_location_id || projectGhlLocationId;
+
   // Normalize status to match statusOptions capitalization
   const normalizeStatus = (raw: string | null) => {
     if (!raw) return raw;
@@ -511,9 +529,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                           <div className="flex items-center space-x-2 cursor-default">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span>{appointment.lead_name}</span>
-                            {isAdmin() && appointment.ghl_id && appointment.ghl_location_id && (
+                            {isAdmin() && appointment.ghl_id && effectiveLocationId && (
                               <a
-                                href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id}/contacts/detail/${appointment.ghl_id}`}
+                                href={`https://app.gohighlevel.com/v2/location/${effectiveLocationId}/contacts/detail/${appointment.ghl_id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 hover:underline"

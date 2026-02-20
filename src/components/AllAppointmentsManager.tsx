@@ -48,6 +48,7 @@ const AllAppointmentsManager = ({
 
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState(initialTab || "new");
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,6 +81,26 @@ const AllAppointmentsManager = ({
     if (wasCleared) {
       console.log('Filters cleared for new day');
     }
+  }, []);
+
+  // Fetch project → ghl_location_id mapping once on mount
+  useEffect(() => {
+    const fetchProjectLocationMap = async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('project_name, ghl_location_id')
+        .not('ghl_location_id', 'is', null);
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach((row: any) => {
+          if (row.project_name && row.ghl_location_id) {
+            map[row.project_name] = row.ghl_location_id;
+          }
+        });
+        setProjectLocationMap(map);
+      }
+    };
+    fetchProjectLocationMap();
   }, []);
 
   // One-time update for Star Shamaine Higgins
@@ -1299,6 +1320,7 @@ const AllAppointmentsManager = ({
             onUpdateCalendarLocation={updateCalendarLocation}
             onBulkDelete={bulkDeleteAppointments}
             tabCounts={tabCounts}
+            projectLocationMap={projectLocationMap}
           />
           
           {/* Bottom Pagination */}
