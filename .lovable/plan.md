@@ -1,104 +1,45 @@
 
-# Fix: `await` Inside Non-Async Function Crashing the Webhook
+## Change Default Sort to "Created Date, Newest First"
 
-## Root Cause
+### What's happening now
 
-Lines 616–636 of `supabase/functions/ghl-webhook-handler/index.ts` contain:
-
-```typescript
-try {
-  await supabase   // ← THIS IS THE PROBLEM
-    .from('appointment_notes')
-    .insert({ ... })
-} catch (noteErr) { ... }
-```
-
-This `await` call lives inside `getUpdateableFields()`, which is declared as a plain synchronous function:
+In `src/components/AllAppointmentsManager.tsx`, two `useState` defaults control the initial sort behavior:
 
 ```typescript
-function getUpdateableFields(
-  webhookData: any,
-  existingAppointment: any | null
-): Record<string, any> {   // ← NOT async
+// Line 71
+const [dateFilterType, setDateFilterType] = useState<'appointment' | 'created'>('appointment');
+
+// Line 72
+const [sortBy, setSortBy] = useState<...>('date_desc');
 ```
 
-JavaScript/TypeScript does not allow `await` in a non-async function. Deno's edge runtime catches this at **parse time**, so the function fails to boot entirely. Every incoming webhook gets a 500 error before any logic even runs — which is why GHL keeps retrying.
+- `dateFilterType = 'appointment'` → the date column used for filtering and sorting is `date_of_appointment`
+- `sortBy = 'date_desc'` → descending order on whichever date column is active
 
-## The Fix
+The result: on first load, records are sorted by **appointment date** descending — not by when the lead was created.
 
-Move the `appointment_notes` insert **out of** `getUpdateableFields` and into the `async` main handler (`serve(async (req) => {...})`), where `await` is valid.
+### The fix
 
-The approach:
-1. `getUpdateableFields` returns the reschedule metadata as a side-channel alongside `updateFields`
-2. The async caller (already at the top of the file) performs the actual insert after a successful DB update
+Change the `dateFilterType` default from `'appointment'` to `'created'`. The `sortBy` can stay `'date_desc'` since that already means "newest first." With `dateFilterType = 'created'`, the sort column automatically switches to `created_at` (line 353 in the same file).
 
-### Step 1 — Change `getUpdateableFields` return type
+**File:** `src/components/AllAppointmentsManager.tsx`
 
-Instead of returning just `Record<string, any>`, return an object with two keys:
-
+**Line 71 — change:**
 ```typescript
-function getUpdateableFields(...): { 
-  fields: Record<string, any>; 
-  rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string } 
-}
+// Before
+const [dateFilterType, setDateFilterType] = useState<'appointment' | 'created'>('appointment');
+
+// After
+const [dateFilterType, setDateFilterType] = useState<'appointment' | 'created'>('created');
 ```
 
-### Step 2 — Inside the date-change block (line 615-636), remove the try/catch await entirely
+That single character change (`'appointment'` → `'created'`) is the entire fix. No other logic needs to change because:
 
-Replace it with capturing the note data:
+- The sort query on line 353 already checks `dateFilterType === 'created' ? 'created_at' : 'date_of_appointment'`
+- The filter query on line 512 does the same
+- The "Reset" button on line 1243 will still reset back to `'appointment'` (that's intentional reset behavior)
+- The `sortBy = 'date_desc'` default already means "newest first," so the UI dropdown will correctly read "Newest First" on load
 
-```typescript
-// Before (BROKEN - await in sync function):
-try {
-  await supabase.from('appointment_notes').insert({ ... })
-} catch (noteErr) { ... }
+### Visual result
 
-// After (CORRECT - just capture the data):
-rescheduleNoteData = {
-  fromDateTime: fromDateTime || 'Unknown',
-  toDateTime,
-  appointmentId: existingAppointment.id
-};
-```
-
-### Step 3 — Return both from the function
-
-```typescript
-return { fields: updateFields, rescheduleNote: rescheduleNoteData };
-```
-
-### Step 4 — Update the caller (line 150) to destructure and await the note insert
-
-```typescript
-// Before:
-const appointmentData = getUpdateableFields(webhookData, existingAppointment)
-
-// After:
-const { fields: appointmentData, rescheduleNote } = getUpdateableFields(webhookData, existingAppointment)
-```
-
-Then after the successful DB update (around line 190), insert the note:
-
-```typescript
-// After appointment upsert succeeds:
-if (rescheduleNote) {
-  try {
-    await supabase.from('appointment_notes').insert({
-      appointment_id: rescheduleNote.appointmentId,
-      note_text: `Rescheduled | FROM: ${rescheduleNote.fromDateTime} | TO: ${rescheduleNote.toDateTime} | By: GoHighLevel`,
-      created_by: 'GoHighLevel',
-    });
-    console.log(`[${requestId}] GHL reschedule audit note created`);
-  } catch (noteErr) {
-    console.error(`[${requestId}] Failed to create GHL reschedule audit note:`, noteErr);
-  }
-}
-```
-
-## Files Changed
-
-| File | Change |
-|---|---|
-| `supabase/functions/ghl-webhook-handler/index.ts` | Remove `await` from sync `getUpdateableFields`; return reschedule metadata; insert note in async handler |
-
-The function will be redeployed immediately after the fix. This restores the webhook to a working state and preserves the reschedule audit trail feature.
+On page load the portal will show appointments sorted by **Created Date, Newest First** — the most recently submitted intake forms appear at the top, which matches the clinic's workflow expectation.
