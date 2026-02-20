@@ -1,49 +1,79 @@
 
-# Add PAD to the Texas Vascular Institute Service Filter
+# Add Admin-Only GHL Contact Link to Patient Name
 
-## Root Cause
+## What Will Change
 
-The "All Services" dropdown in `AppointmentFilters.tsx` is populated **dynamically** — it queries the `all_appointments` table, parses each `calendar_name` with a regex, and builds a set of services from actual appointment data. Since Texas Vascular Institute currently has **zero PAD appointments** in the database, "PAD" never gets added to the set, and it never appears in the dropdown.
+When an admin views an appointment (in either the card list or the detailed modal), they will see a small GHL icon link next to the patient's name. Clicking it opens the patient's GoHighLevel contact page in a new tab. Non-admin users (agents, project users) will not see this link.
 
-Their current calendar names are:
-- `Request Your GAE Consultation - Dallas/Hurst/Plano`
-- `Request Your PFE Consultation - Dallas/Hurst/Plano`
-- `Request Your UFE Consultation - Dallas/Hurst/Plano`
+## GHL Contact URL Format
 
-There is no `PAD` calendar name for Texas Vascular Institute yet, so the dynamic approach can't discover it.
+The link is constructed as:
+```
+https://app.gohighlevel.com/v2/location/{ghl_location_id}/contacts/detail/{ghl_id}
+```
 
-## Solution
+Both `ghl_location_id` and `ghl_id` already exist on the `AllAppointment` type and are stored in the database. The link is only shown when both values are present AND the user is an admin.
 
-Add a **project-level static service fallback** — a known map of services that certain projects offer, which gets merged with dynamically discovered services. This ensures PAD appears in the filter for Texas Vascular Institute immediately, even before any PAD appointments are booked.
+## Files Changed
 
-This approach is safe and additive: dynamically discovered services still appear (no regression), and the static list simply guarantees known services are always present.
+### 1. `src/components/appointments/AppointmentCard.tsx`
 
-## Changes
+In the patient name row (around line 950-966), right after the patient name span and before the edit pencil button, add an admin-only GHL link icon:
 
-### `src/components/appointments/AppointmentFilters.tsx`
+```tsx
+{isAdmin() && appointment.ghl_id && appointment.ghl_location_id && (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <a
+          href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id}/contacts/detail/${appointment.ghl_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-orange-100 text-orange-500 hover:text-orange-600 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </TooltipTrigger>
+      <TooltipContent>Open in GoHighLevel</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+)}
+```
 
-1. Define a `KNOWN_PROJECT_SERVICES` map at the top of the file:
-   ```typescript
-   const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
-     'Texas Vascular Institute': ['GAE', 'PAD', 'PFE', 'UFE'],
-   };
-   ```
+`ExternalLink` is already imported in this file (line 8), and `isAdmin()` from `useRole` is already destructured (line 94).
 
-2. In `fetchLocationAndServiceOptions()`, after building the `services` Set from the dynamic query, merge in any known services for the current project:
-   ```typescript
-   // Merge known project services (ensures services appear even with no appointments yet)
-   if (projectFilter && projectFilter !== 'ALL') {
-     const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
-     knownServices.forEach(s => services.add(s));
-   }
-   ```
+### 2. `src/components/appointments/DetailedAppointmentView.tsx`
 
-3. The `serviceOptions` state will then include `PAD` for Texas Vascular Institute and the dropdown will show it.
+The `DetailedAppointmentView` currently doesn't import `useRole`. We need to:
 
-### No changes needed to `AllAppointmentsManager.tsx`
+1. Import `useRole` at the top.
+2. Import `ExternalLink` from `lucide-react`.
+3. Destructure `isAdmin` inside the component.
+4. In the Appointment Overview card (around line 506-516), where the patient name is shown in a `<div>`, wrap the name area to add the GHL link next to it:
 
-The query-side filter already handles PAD correctly via `.ilike('calendar_name', '%PAD%')` — the generic `else` branch covers it.
+```tsx
+<div className="flex items-center space-x-2 cursor-default">
+  <User className="h-4 w-4 text-muted-foreground" />
+  <span>{appointment.lead_name}</span>
+  {isAdmin() && appointment.ghl_id && appointment.ghl_location_id && (
+    <a
+      href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id}/contacts/detail/${appointment.ghl_id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 hover:underline"
+      title="Open in GoHighLevel"
+    >
+      <ExternalLink className="h-3 w-3" />
+      GHL
+    </a>
+  )}
+</div>
+```
 
-## Result
+## Why This Is Safe
 
-The "All Services" dropdown for Texas Vascular Institute will show: **GAE, PAD, PFE, UFE** — matching all the services they actually offer, regardless of whether PAD appointments exist in the system yet.
+- The link is gated by `isAdmin()` which reads from the `user_roles` table via the `useRole` hook — server-side role data, not client-side storage.
+- Non-admin users simply won't see the element rendered at all.
+- The link uses `target="_blank"` with `rel="noopener noreferrer"` for security.
+- If either `ghl_id` or `ghl_location_id` is missing, the link won't render (no broken URLs).
