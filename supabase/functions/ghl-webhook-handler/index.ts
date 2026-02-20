@@ -147,7 +147,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const appointmentData = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
@@ -188,6 +188,20 @@ serve(async (req) => {
     }
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
+
+    // Insert reschedule audit note now that we're in an async context
+    if (rescheduleNote) {
+      try {
+        await supabase.from('appointment_notes').insert({
+          appointment_id: rescheduleNote.appointmentId,
+          note_text: `Rescheduled | FROM: ${rescheduleNote.fromDateTime} | TO: ${rescheduleNote.toDateTime} | By: GoHighLevel`,
+          created_by: 'GoHighLevel',
+        })
+        console.log(`[${requestId}] GHL reschedule audit note created`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create GHL reschedule audit note:`, noteErr)
+      }
+    }
 
       // Enrich all appointments with full GHL contact data (if ghl_id available)
       if (appointmentRecord && webhookData.ghl_id) {
@@ -565,30 +579,33 @@ function normalizeStatus(status: string | null | undefined): string {
 function getUpdateableFields(
   webhookData: any, 
   existingAppointment: any | null
-): Record<string, any> {
+): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string } } {
   // For CREATE - use all webhook data
   if (!existingAppointment) {
     return {
-      date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
-      lead_name: webhookData.lead_name,
-      project_name: webhookData.project_name,
-      date_of_appointment: webhookData.date_of_appointment,
-      requested_time: webhookData.requested_time,
-      lead_email: webhookData.lead_email,
-      lead_phone_number: webhookData.lead_phone_number,
-      calendar_name: webhookData.calendar_name,
-      ghl_id: webhookData.ghl_id,
-      ghl_appointment_id: webhookData.ghl_appointment_id,
-      ghl_location_id: webhookData.ghl_location_id,
-      status: webhookData.status,
-      patient_intake_notes: webhookData.patient_intake_notes,
-      dob: webhookData.dob,
-      was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed',
+      fields: {
+        date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
+        lead_name: webhookData.lead_name,
+        project_name: webhookData.project_name,
+        date_of_appointment: webhookData.date_of_appointment,
+        requested_time: webhookData.requested_time,
+        lead_email: webhookData.lead_email,
+        lead_phone_number: webhookData.lead_phone_number,
+        calendar_name: webhookData.calendar_name,
+        ghl_id: webhookData.ghl_id,
+        ghl_appointment_id: webhookData.ghl_appointment_id,
+        ghl_location_id: webhookData.ghl_location_id,
+        status: webhookData.status,
+        patient_intake_notes: webhookData.patient_intake_notes,
+        dob: webhookData.dob,
+        was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed',
+      }
     }
   }
   
   // For UPDATE - selective fields only
   const updateFields: Record<string, any> = {}
+  let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string } | undefined
   
   // Always accept date/time changes (rescheduling)
   if (webhookData.date_of_appointment !== undefined) {
@@ -612,27 +629,21 @@ function getUpdateableFields(
       updateFields.status = 'Confirmed'
       updateFields.was_ever_confirmed = true
 
-      // Create standardized reschedule audit note (non-blocking)
-      try {
-        const fromDateTime = [
-          existingAppointment.date_of_appointment,
-          existingAppointment.requested_time
-        ].filter(Boolean).join(' ')
+      // Capture reschedule note data to be inserted by the async caller
+      const fromDateTime = [
+        existingAppointment.date_of_appointment,
+        existingAppointment.requested_time
+      ].filter(Boolean).join(' ')
 
-        const toDateTime = [
-          webhookData.date_of_appointment,
-          webhookData.requested_time
-        ].filter(Boolean).join(' ')
+      const toDateTime = [
+        webhookData.date_of_appointment,
+        webhookData.requested_time
+      ].filter(Boolean).join(' ')
 
-        await supabase
-          .from('appointment_notes')
-          .insert({
-            appointment_id: existingAppointment.id,
-            note_text: `Rescheduled | FROM: ${fromDateTime || 'Unknown'} | TO: ${toDateTime} | By: GoHighLevel`,
-            created_by: 'GoHighLevel',
-          })
-      } catch (noteErr) {
-        console.error('Failed to create GHL reschedule audit note:', noteErr)
+      rescheduleNoteData = {
+        fromDateTime: fromDateTime || 'Unknown',
+        toDateTime,
+        appointmentId: existingAppointment.id,
       }
     }
   }
@@ -687,7 +698,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return updateFields
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData }
 }
 
 // Normalize DOB to YYYY-MM-DD
