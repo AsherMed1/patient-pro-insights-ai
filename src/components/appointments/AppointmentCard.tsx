@@ -668,7 +668,33 @@ const AppointmentCard = ({
         .eq('id', appointment.id);
       
       if (updateError) throw updateError;
-      
+
+      // Create standardized reschedule audit note (non-blocking)
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        let noteUserName = 'Unknown User';
+        if (currentUser) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', currentUser.id)
+            .single();
+          noteUserName = profileData?.full_name || currentUser.email || 'Unknown User';
+        }
+        const originalDate = appointment.date_of_appointment
+          ? `${appointment.date_of_appointment}${appointment.requested_time ? ' ' + appointment.requested_time : ''}`.trim()
+          : 'Unknown';
+        const newDateTime = `${newDate}${newTime ? ' ' + newTime : ''}`.trim();
+        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${noteUserName}`;
+        await supabase.from('appointment_notes').insert({
+          appointment_id: appointment.id,
+          note_text: rescheduleNoteText,
+          created_by: noteUserName,
+        });
+      } catch (noteErr) {
+        console.error('Failed to create reschedule audit note:', noteErr);
+      }
+
       // Try to sync with GHL if we have the required data
       if (appointment.ghl_appointment_id) {
         try {

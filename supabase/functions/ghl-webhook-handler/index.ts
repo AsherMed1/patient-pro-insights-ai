@@ -611,6 +611,29 @@ function getUpdateableFields(
       updateFields.internal_process_complete = false
       updateFields.status = 'Confirmed'
       updateFields.was_ever_confirmed = true
+
+      // Create standardized reschedule audit note (non-blocking)
+      try {
+        const fromDateTime = [
+          existingAppointment.date_of_appointment,
+          existingAppointment.requested_time
+        ].filter(Boolean).join(' ')
+
+        const toDateTime = [
+          webhookData.date_of_appointment,
+          webhookData.requested_time
+        ].filter(Boolean).join(' ')
+
+        await supabase
+          .from('appointment_notes')
+          .insert({
+            appointment_id: existingAppointment.id,
+            note_text: `Rescheduled | FROM: ${fromDateTime || 'Unknown'} | TO: ${toDateTime} | By: GoHighLevel`,
+            created_by: 'GoHighLevel',
+          })
+      } catch (noteErr) {
+        console.error('Failed to create GHL reschedule audit note:', noteErr)
+      }
     }
   }
   if (webhookData.requested_time !== undefined) {

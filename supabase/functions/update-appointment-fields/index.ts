@@ -49,36 +49,70 @@ Deno.serve(async (req) => {
     if (userId && userName) {
       const changedFields = Object.keys(updates);
       const source = changeSource || 'portal';
-      
-      // Build descriptive change details with old and new values
-      const changeDetails = changedFields.map(field => {
-        const oldVal = previousValues?.[field];
-        const newVal = updates[field];
-        if (oldVal !== undefined && oldVal !== null) {
-          return `${field} from "${oldVal}" to "${newVal}"`;
-        }
-        return `${field} to "${newVal}"`;
-      }).join(', ');
-      
-      // Create an internal note documenting the change
-      try {
-        const noteText = `${source === 'portal' ? 'Portal' : 'System'} update by ${userName}: Updated ${changeDetails}`;
-        
-        const { error: noteError } = await supabase
-          .from('appointment_notes')
-          .insert({
-            appointment_id: appointmentId,
-            note_text: noteText,
-            created_by: userId,
-          });
 
-        if (noteError) {
-          console.error('Failed to create internal note:', noteError);
-        } else {
-          console.log('✅ Created internal note for portal update');
+      // Special-case: if date_of_appointment changed, write a standardized reschedule note
+      if (changedFields.includes('date_of_appointment')) {
+        try {
+          const fromDate = previousValues?.date_of_appointment || 'Unknown';
+          const fromTime = previousValues?.requested_time || '';
+          const toDate = updates.date_of_appointment;
+          const toTime = updates.requested_time || previousValues?.requested_time || '';
+
+          const fromStr = [fromDate, fromTime].filter(Boolean).join(' ').trim();
+          const toStr = [toDate, toTime].filter(Boolean).join(' ').trim();
+          const rescheduleNoteText = `Rescheduled | FROM: ${fromStr} | TO: ${toStr} | By: ${userName}`;
+
+          const { error: rescheduleNoteError } = await supabase
+            .from('appointment_notes')
+            .insert({
+              appointment_id: appointmentId,
+              note_text: rescheduleNoteText,
+              created_by: userId,
+            });
+
+          if (rescheduleNoteError) {
+            console.error('Failed to create reschedule note:', rescheduleNoteError);
+          } else {
+            console.log('✅ Created standardized reschedule note');
+          }
+        } catch (rescheduleNoteErr) {
+          console.error('Error creating reschedule note:', rescheduleNoteErr);
         }
-      } catch (noteErr) {
-        console.error('Error creating internal note:', noteErr);
+      }
+
+      // Build descriptive change details for the generic audit note (excluding date changes handled above)
+      const nonDateFields = changedFields.filter(f => f !== 'date_of_appointment');
+      
+      // Create an internal note documenting the change (for non-date fields)
+      if (nonDateFields.length > 0) {
+        try {
+          const changeDetails = nonDateFields.map(field => {
+            const oldVal = previousValues?.[field];
+            const newVal = updates[field];
+            if (oldVal !== undefined && oldVal !== null) {
+              return `${field} from "${oldVal}" to "${newVal}"`;
+            }
+            return `${field} to "${newVal}"`;
+          }).join(', ');
+
+          const noteText = `${source === 'portal' ? 'Portal' : 'System'} update by ${userName}: Updated ${changeDetails}`;
+          
+          const { error: noteError } = await supabase
+            .from('appointment_notes')
+            .insert({
+              appointment_id: appointmentId,
+              note_text: noteText,
+              created_by: userId,
+            });
+
+          if (noteError) {
+            console.error('Failed to create internal note:', noteError);
+          } else {
+            console.log('✅ Created internal note for portal update');
+          }
+        } catch (noteErr) {
+          console.error('Error creating internal note:', noteErr);
+        }
       }
 
       // Log to audit_logs with proper user attribution
