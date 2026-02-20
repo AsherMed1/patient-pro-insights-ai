@@ -1,103 +1,112 @@
 
-# Fix: GHL Link Not Showing for Priscilla Garrett (and Similar Cases)
+# Add Standardized Reschedule Audit Notes
 
-## Root Cause Identified
+## Problem
 
-Priscilla Garrett's appointment has:
-- `ghl_id`: `AheTR1tYXy7lBbKcNrEU` ✅ (present)
-- `ghl_location_id`: `null` ❌ (missing on the record)
-- Project `ghl_location_id`: `VUmKpmdD5cOoSIG1jOSQ` ✅ (exists in `projects` table)
+There are three paths through which a reschedule can occur, and none of them write a standardized reschedule note to `appointment_notes`:
 
-The `projectLocationMap` fallback was added to `AppointmentCard`, which uses:
-```tsx
-appointment.ghl_location_id || projectLocationMap?.[appointment.project_name]
+1. **Portal UI reschedule dialog** (`AppointmentCard.tsx → handleRescheduleSubmit`): Updates the DB and `appointment_reschedules` table but never creates an `appointment_notes` entry.
+2. **GHL webhook** (`ghl-webhook-handler/index.ts`): Detects date changes and populates the `reschedule_history` JSONB column but never creates an `appointment_notes` entry.
+3. **`update-appointment-fields` edge function**: Creates a generic note like `Updated date_of_appointment from "X" to "Y"` — readable but not the standardized format clinics need.
+
+## Target Note Format
+
+```
+Rescheduled | FROM: 2026-01-30 10:00 | TO: 2026-02-11 13:00 | By: Jane Smith
 ```
 
-However, **`projectLocationMap` is initialized as `{}`** (empty object) and populated asynchronously. The problem is that `{}` in JavaScript is a **new object reference on every render**, so React may not correctly detect when the map is actually populated — causing cards to not re-render when the map fills in. Additionally, a `{}` reference is always truthy, so it passes conditional checks but lookups return `undefined` until populated.
+## Changes Required
 
-There are also **two separate code paths** where the link renders:
-1. **List view cards** (`AppointmentCard.tsx`) — relies on `projectLocationMap` prop from `AllAppointmentsManager`
-2. **Detailed view modal** (`DetailedAppointmentView.tsx`) — does its own async fetch of `ghl_location_id`
+### 1. `src/components/appointments/AppointmentCard.tsx`
 
-Both paths need to be reliable.
+After a successful reschedule (both GHL sync paths — success, failed, and local-only), insert a standardized internal note into `appointment_notes`. This note will be written with the current user's name.
 
-## Fix Plan
-
-### Fix 1: Make `projectLocationMap` state initialization null-safe in `AllAppointmentsManager.tsx`
-
-Change the initial state from `{}` to `null`, and only pass it down once it's been populated. This ensures cards don't render with a stale empty map.
+Insert immediately after the appointment DB update succeeds (after line 670), before the GHL sync attempt:
 
 ```tsx
-// Before
-const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
+// Create standardized reschedule note
+const originalDate = appointment.date_of_appointment 
+  ? `${appointment.date_of_appointment} ${appointment.requested_time || ''}`.trim()
+  : 'Unknown';
+const newDateTime = `${newDate} ${newTime}`;
+const noteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${userName}`;
 
-// After
-const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string> | null>(null);
+await supabase
+  .from('appointment_notes')
+  .insert({
+    appointment_id: appointment.id,
+    note_text: noteText,
+    created_by: userName,
+  });
 ```
 
-Then wait to pass it down until it's populated (pass `{}` as fallback only after the fetch succeeds).
+The `userName` value comes from `useUserAttribution()` which is already imported and used in this component (line 94 area).
 
-### Fix 2: Improve `AppointmentCard.tsx` GHL link condition
+### 2. `supabase/functions/ghl-webhook-handler/index.ts`
 
-The current condition only shows the link if the `projectLocationMap` prop has an entry. Make it more robust by also triggering a direct DB lookup on the card level if both the prop map and the appointment field are missing the location ID.
+When a date change is detected (lines 598–614 in the webhook handler), in addition to recording `reschedule_history`, also insert an `appointment_notes` record with the standardized format:
 
-Actually, a simpler and more reliable fix: since `AppointmentCard` **already** fetches project credentials (including `ghl_location_id`) from the database for the calendar dropdown feature (lines 260-270 in `AppointmentCard.tsx`), we can **reuse `projectGhlCredentials.ghl_location_id`** as another fallback source.
+```typescript
+// After recording reschedule history and before closing the if-block:
+const fromDateTime = [
+  existingAppointment.date_of_appointment,
+  existingAppointment.requested_time
+].filter(Boolean).join(' ');
 
-```tsx
-// AppointmentCard already has this state from the calendar feature:
-const [projectGhlCredentials, setProjectGhlCredentials] = useState<{ 
-  ghl_location_id: string | null; 
-  ghl_api_key: string | null 
-}>({ ghl_location_id: null, ghl_api_key: null });
+const toDateTime = [
+  webhookData.date_of_appointment,
+  webhookData.requested_time
+].filter(Boolean).join(' ');
+
+await supabase
+  .from('appointment_notes')
+  .insert({
+    appointment_id: existingAppointment.id,
+    note_text: `Rescheduled | FROM: ${fromDateTime || 'Unknown'} | TO: ${toDateTime} | By: GoHighLevel`,
+    created_by: 'GoHighLevel',
+  });
 ```
 
-But this only populates when the calendar dropdown is opened — not on initial render.
+This note is clearly labeled `By: GoHighLevel` so staff know the change came from the GHL side (patient self-rescheduled via GHL booking link, or staff moved it in GHL directly).
 
-### Correct Fix: Add a `useEffect` in `AppointmentCard` to fetch location ID on mount
+### 3. `supabase/functions/update-appointment-fields/index.ts`
 
-Add a small `useEffect` in `AppointmentCard` that fetches `ghl_location_id` from the `projects` table **on mount** (when `appointment.ghl_location_id` is null), storing it in a local state variable `fetchedLocationId`. Use this as a third-tier fallback:
+The existing generic note format (`Updated date_of_appointment from "X" to "Y"`) is replaced with the standardized reschedule format when the changed field is `date_of_appointment`:
 
-```tsx
-const [fetchedLocationId, setFetchedLocationId] = useState<string | null>(null);
-
-useEffect(() => {
-  if (!appointment.ghl_location_id && !projectLocationMap?.[appointment.project_name]) {
-    supabase
-      .from('projects')
-      .select('ghl_location_id')
-      .eq('project_name', appointment.project_name)
-      .single()
-      .then(({ data }) => {
-        if (data?.ghl_location_id) setFetchedLocationId(data.ghl_location_id);
-      });
-  }
-}, [appointment.id, appointment.ghl_location_id, appointment.project_name]);
-
-const effectiveLocationId = 
-  appointment.ghl_location_id || 
-  projectLocationMap?.[appointment.project_name] || 
-  fetchedLocationId;
+```typescript
+// Special-case reschedule detection inside the note-building loop:
+if (changedFields.includes('date_of_appointment')) {
+  const fromDate = previousValues?.date_of_appointment || 'Unknown';
+  const fromTime = previousValues?.requested_time || '';
+  const toDate = updates.date_of_appointment;
+  const toTime = updates.requested_time || previousValues?.requested_time || '';
+  
+  const rescheduleNote = `Rescheduled | FROM: ${fromDate} ${fromTime}`.trim() 
+    + ` | TO: ${toDate} ${toTime}`.trim() 
+    + ` | By: ${userName}`;
+  
+  // Insert the reschedule note separately (in addition to or instead of the generic note)
+  await supabase.from('appointment_notes').insert({
+    appointment_id: appointmentId,
+    note_text: rescheduleNote,
+    created_by: userId,
+  });
+}
 ```
 
-Then use `effectiveLocationId` for the link.
+This path is triggered when status changes or date edits are made directly through the portal's inline status editor (outside the reschedule dialog).
 
-This mirrors what `DetailedAppointmentView` already does successfully — and makes the card self-sufficient regardless of whether the parent `projectLocationMap` is available.
+## Technical Notes
+
+- All three note insertions are wrapped in `try/catch` (non-blocking) — consistent with the existing decoupled audit logging pattern in this codebase.
+- The `created_by` field stores the user's display name (string), matching the existing pattern in `appointment_notes`.
+- The note will immediately appear in the **Internal Notes** section of any open appointment (it fetches from `appointment_notes` on load and via `refreshNotes`).
+- The note is visually distinguished as a system/auto note (blue card) since `created_by !== 'System'` but the note format makes it unmistakably a reschedule audit entry.
 
 ## Files Changed
 
-### `src/components/appointments/AppointmentCard.tsx`
-
-1. Add `fetchedLocationId` state (initialized to `null`).
-2. Add a `useEffect` that runs on mount: if `appointment.ghl_location_id` is null AND `projectLocationMap` doesn't have the entry, fetch from `projects` table.
-3. Define `effectiveLocationId` using the three-tier fallback.
-4. Replace `(appointment.ghl_location_id || projectLocationMap?.[appointment.project_name])` with `effectiveLocationId` in both the condition and the URL.
-
-This is the only file that needs changing — `DetailedAppointmentView.tsx` already has self-sufficient fallback logic that should work correctly.
-
-## Why This Is Reliable
-
-- Self-contained: each card fetches its own fallback if needed — no dependency on parent timing
-- The query is tiny (single row by project_name) and fast
-- Only runs when `ghl_location_id` is null (most new appointments will have it; only older records need the fallback)
-- State updates cause a re-render that shows the link once the value is available
-- Same pattern already proven to work in `DetailedAppointmentView`
+| File | Change |
+|---|---|
+| `src/components/appointments/AppointmentCard.tsx` | Add reschedule note insertion after successful DB update in `handleRescheduleSubmit` |
+| `supabase/functions/ghl-webhook-handler/index.ts` | Add reschedule note insertion when date change is detected |
+| `supabase/functions/update-appointment-fields/index.ts` | Replace/supplement generic date change note with standardized reschedule format |
