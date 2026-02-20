@@ -43,6 +43,7 @@ interface AppointmentCardProps {
   onUpdateEmail?: (appointmentId: string, email: string) => void;
   onUpdatePhone?: (appointmentId: string, phone: string) => void;
   onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
+  projectLocationMap?: Record<string, string>;
 }
 
 interface NewLead {
@@ -89,7 +90,8 @@ const AppointmentCard = ({
   onUpdateName,
   onUpdateEmail,
   onUpdatePhone,
-  onUpdateCalendarLocation
+  onUpdateCalendarLocation,
+  projectLocationMap
 }: AppointmentCardProps) => {
   const { hasManagementAccess, isAdmin } = useRole();
   const [showLeadDetails, setShowLeadDetails] = useState(false);
@@ -951,12 +953,12 @@ const AppointmentCard = ({
                 <>
                   <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
                   <span className="text-xs text-muted-foreground ml-2">ID: {appointment.id.substring(0, 8)}</span>
-                  {isAdmin() && appointment.ghl_id && appointment.ghl_location_id && (
+                  {isAdmin() && appointment.ghl_id && (appointment.ghl_location_id || projectLocationMap?.[appointment.project_name]) && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <a
-                            href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id}/contacts/detail/${appointment.ghl_id}`}
+                            href={`https://app.gohighlevel.com/v2/location/${appointment.ghl_location_id || projectLocationMap?.[appointment.project_name]}/contacts/detail/${appointment.ghl_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-orange-100 text-orange-500 hover:text-orange-600 transition-colors"

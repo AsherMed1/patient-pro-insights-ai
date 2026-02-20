@@ -34,6 +34,7 @@ interface AppointmentsTabsProps {
     future: number;
     past: number;
   };
+  projectLocationMap?: Record<string, string>;
 }
 
 const AppointmentsTabs = ({
@@ -55,7 +56,8 @@ const AppointmentsTabs = ({
   onUpdateEmail,
   onUpdatePhone,
   onUpdateCalendarLocation,
-  tabCounts
+  tabCounts,
+  projectLocationMap
 }: AppointmentsTabsProps) => {
   const isMobile = useIsMobile();
   
@@ -154,6 +156,7 @@ const AppointmentsTabs = ({
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
+          projectLocationMap={projectLocationMap}
         />
       </TabsContent>
 
@@ -175,6 +178,7 @@ const AppointmentsTabs = ({
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
+          projectLocationMap={projectLocationMap}
         />
       </TabsContent>
 
@@ -196,6 +200,7 @@ const AppointmentsTabs = ({
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
+          projectLocationMap={projectLocationMap}
         />
       </TabsContent>
 
@@ -217,6 +222,7 @@ const AppointmentsTabs = ({
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
+          projectLocationMap={projectLocationMap}
         />
       </TabsContent>
 
@@ -238,6 +244,7 @@ const AppointmentsTabs = ({
           onUpdateEmail={onUpdateEmail}
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
+          projectLocationMap={projectLocationMap}
         />
       </TabsContent>
       </Tabs>
