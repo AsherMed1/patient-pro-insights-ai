@@ -1,97 +1,35 @@
 
 
-## Make Internal Notes Descriptive for JSONB Field Updates
+## Fix Reschedule Status Override and Improve Date Picker Reliability
 
-### Problem
+### Problem 1: Status Stuck on "Rescheduled" (Bug)
 
-When a user edits PCP info, contact info, or other JSONB fields, the internal note reads:
+After a reschedule, the code correctly sets `status: 'Confirmed'` in the database (line 666), but then immediately calls `onUpdateStatus(appointment.id, 'Rescheduled')` (line 819), which is a parent callback that writes the status back to "Rescheduled" in the DB. This contradicts the documented workflow where rescheduled appointments should reset to "Confirmed" and appear in the "New" tab.
 
-> Portal update by Jenny S: Updated parsed_medical_info to "[object Object]"
+**Fix in `src/components/appointments/AppointmentCard.tsx`:**
+- Change line 819 from `onUpdateStatus(appointment.id, 'Rescheduled')` to `onUpdateStatus(appointment.id, 'Confirmed')` so the parent state stays in sync with what was already written to the database.
 
-This happens because the edge function uses string interpolation on JavaScript objects, and the client doesn't send `previousValues` for JSONB fields.
+### Problem 2: GHL Sync Failed
 
-### Solution
+The reschedule for James Potter (GHL appointment ID `brgJkyMiM71V3lCwjzTB`) returned a non-2xx error from the edge function. The AIC project has a valid API key (`pit-afa1b606-...`) and location ID configured. This is likely a GHL-side issue (expired token, or the appointment no longer existing in GHL). The retry button already exists in the UI to re-attempt.
 
-Two changes are needed:
+**Action:** No code change needed. The GHL API key for AIC may need to be refreshed in the projects table, or the appointment may have been deleted in GHL. You can manually retry using the sync retry button on the card, or verify the API key is current in the AIC GHL account.
 
-**1. Edge function (`supabase/functions/update-appointment-fields/index.ts`)**
+### Problem 3: Calendar Popover May Be Blocked in Some Browsers
 
-Update the change-details builder (lines 89-96) to detect when a value is an object and produce a human-readable summary instead of `[object Object]`. Specifically:
+The date picker inside the reschedule dialog uses a `Popover` inside a `Dialog`. On some browsers or screen sizes, the popover z-index can be lower than the dialog overlay, making the calendar unclickable.
 
-- Map known JSONB field names to friendly labels:
-  - `parsed_medical_info` -> "PCP/Medical Info"
-  - `parsed_contact_info` -> "Contact Info"  
-  - `parsed_insurance_info` -> "Insurance Info"
-  - `parsed_pathology_info` -> "Pathology Info"
-  - `parsed_demographics` -> "Demographics"
-- When the new value is an object, list only the non-null sub-fields that were set (e.g., `pcp_name: "Dr. Smith", pcp_phone: "555-1234"`)
-- When `previousValues` is provided for that field, show a diff of changed sub-fields only
+**Fix in `src/components/appointments/AppointmentCard.tsx`:**
+- Add a higher `z-index` to the `PopoverContent` for the reschedule date picker (e.g., `className="w-auto p-0 z-[9999]"`) to ensure it renders above the dialog overlay.
 
-Example output after fix:
-
-> Portal update by Jenny S: Updated PCP/Medical Info (pcp_name: "Dr. Smith", pcp_phone: "478-555-1234", pcp_address: "123 Main St")
-
-Or with previous values:
-
-> Portal update by Jenny S: Updated PCP/Medical Info (pcp_name from "Dr. Jones" to "Dr. Smith")
-
-**2. Client-side: pass `previousValues` from save handlers**
-
-In `src/components/appointments/ParsedIntakeInfo.tsx`:
-
-- **`handleSavePCP` (~line 244):** Add `previousValues: { parsed_medical_info: parsedMedicalInfo }` to the request body so the edge function can diff old vs new.
-- **`handleSaveContact` (~line 308):** Add `previousValues: { parsed_contact_info: parsedContactInfo }` similarly.
-
-### Technical Detail
-
-In the edge function, replace the change-details builder with logic like:
-
-```typescript
-const friendlyNames = {
-  parsed_medical_info: 'PCP/Medical Info',
-  parsed_contact_info: 'Contact Info',
-  parsed_insurance_info: 'Insurance Info',
-  parsed_pathology_info: 'Pathology Info',
-  parsed_demographics: 'Demographics',
-};
-
-const changeDetails = nonDateFields.map(field => {
-  const oldVal = previousValues?.[field];
-  const newVal = updates[field];
-  const label = friendlyNames[field] || field;
-
-  // Handle JSONB objects
-  if (typeof newVal === 'object' && newVal !== null) {
-    if (typeof oldVal === 'object' && oldVal !== null) {
-      // Diff: show only changed sub-fields
-      const diffs = Object.keys(newVal)
-        .filter(k => JSON.stringify(newVal[k]) !== JSON.stringify(oldVal[k]) && newVal[k] != null)
-        .map(k => oldVal[k] != null
-          ? `${k} from "${oldVal[k]}" to "${newVal[k]}"`
-          : `${k}: "${newVal[k]}"`)
-        .join(', ');
-      return diffs ? `${label} (${diffs})` : null;
-    }
-    // No previous value -- list non-null sub-fields
-    const summary = Object.entries(newVal)
-      .filter(([_, v]) => v != null && v !== '')
-      .map(([k, v]) => `${k}: "${v}"`)
-      .join(', ');
-    return `${label} (${summary})`;
-  }
-
-  // Scalar fields (existing logic)
-  if (oldVal !== undefined && oldVal !== null) {
-    return `${label} from "${oldVal}" to "${newVal}"`;
-  }
-  return `${label} to "${newVal}"`;
-}).filter(Boolean).join(', ');
-```
-
-### Files to Change
+### Summary of Code Changes
 
 | File | Change |
 |------|--------|
-| `supabase/functions/update-appointment-fields/index.ts` | Replace change-details builder with JSONB-aware formatting and friendly field names |
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Pass `previousValues` in `handleSavePCP` and `handleSaveContact` |
+| `src/components/appointments/AppointmentCard.tsx` (line 819) | Change `onUpdateStatus(appointment.id, 'Rescheduled')` to `onUpdateStatus(appointment.id, 'Confirmed')` |
+| `src/components/appointments/AppointmentCard.tsx` (line 1718) | Add `z-[9999]` to the PopoverContent className for the date picker |
+
+### Manual Action Needed
+- Verify the AIC GHL API key is still valid, or retry the sync for James Potter from the appointment card.
+- After the fix, James Potter's status can be manually corrected to "Confirmed" from the status dropdown to move him back to the New tab.
 
