@@ -816,7 +816,7 @@ const AppointmentCard = ({
       }
       
       // Trigger parent update
-      onUpdateStatus(appointment.id, 'Rescheduled');
+      onUpdateStatus(appointment.id, 'Confirmed');
       
       // Reset and close dialog
       setShowRescheduleDialog(false);
@@ -1715,7 +1715,7 @@ const AppointmentCard = ({
                     {rescheduleDate ? formatDateFns(rescheduleDate, "PPP") : "Select date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-[9999]" align="start">
                   <Calendar
                     mode="single"
                     selected={rescheduleDate}
