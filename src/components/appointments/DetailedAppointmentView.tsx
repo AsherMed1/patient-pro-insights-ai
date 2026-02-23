@@ -103,6 +103,7 @@ interface LeadDetails {
   insurance_plan?: string;
   insurance_id?: string;
   insurance_id_link?: string;
+  insurance_back_link?: string;
   group_number?: string;
   patient_intake_notes?: string;
   address?: string;
@@ -316,6 +317,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       insurance_plan: leadDetails?.insurance_plan || appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
       insurance_id: leadDetails?.insurance_id || appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
       insurance_id_link: leadDetails?.insurance_id_link || appointment.insurance_id_link,
+      insurance_back_link: leadDetails?.insurance_back_link || appointment.insurance_back_link,
       group_number: leadDetails?.group_number || appointment.parsed_insurance_info?.group_number
     };
   };

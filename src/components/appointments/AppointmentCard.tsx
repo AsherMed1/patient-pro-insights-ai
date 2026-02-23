@@ -67,6 +67,7 @@ interface NewLead {
   insurance_provider?: string;
   insurance_id?: string;
   insurance_id_link?: string;
+  insurance_back_link?: string;
   insurance_plan?: string;
   group_number?: string;
   address?: string;
@@ -560,7 +561,9 @@ const AppointmentCard = ({
                    appointment.detected_insurance_id ||
                    leadInsuranceData?.insurance_id,
       insurance_id_link: appointment.insurance_id_link || 
-                        leadInsuranceData?.insurance_id_link,
+                         leadInsuranceData?.insurance_id_link,
+      insurance_back_link: appointment.insurance_back_link ||
+                          leadInsuranceData?.insurance_back_link,
       group_number: appointment.parsed_insurance_info?.insurance_group_number || 
                    appointment.parsed_insurance_info?.group_number ||
                    leadInsuranceData?.group_number
