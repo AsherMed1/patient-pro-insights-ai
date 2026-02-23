@@ -82,19 +82,47 @@ Deno.serve(async (req) => {
 
       // Build descriptive change details for the generic audit note (excluding date changes handled above)
       const nonDateFields = changedFields.filter(f => f !== 'date_of_appointment');
+
+      // Build descriptive change details (hoisted so audit log can use it too)
+      const friendlyNames: Record<string, string> = {
+        parsed_medical_info: 'PCP/Medical Info',
+        parsed_contact_info: 'Contact Info',
+        parsed_insurance_info: 'Insurance Info',
+        parsed_pathology_info: 'Pathology Info',
+        parsed_demographics: 'Demographics',
+      };
+
+      const changeDetails = nonDateFields.map(field => {
+        const oldVal = previousValues?.[field];
+        const newVal = updates[field];
+        const label = friendlyNames[field] || field;
+
+        if (typeof newVal === 'object' && newVal !== null) {
+          if (typeof oldVal === 'object' && oldVal !== null) {
+            const diffs = Object.keys(newVal)
+              .filter(k => JSON.stringify(newVal[k]) !== JSON.stringify(oldVal[k]) && newVal[k] != null)
+              .map(k => oldVal[k] != null
+                ? `${k} from "${oldVal[k]}" to "${newVal[k]}"`
+                : `${k}: "${newVal[k]}"`)
+              .join(', ');
+            return diffs ? `${label} (${diffs})` : null;
+          }
+          const summary = Object.entries(newVal)
+            .filter(([_, v]) => v != null && v !== '')
+            .map(([k, v]) => `${k}: "${v}"`)
+            .join(', ');
+          return `${label} (${summary})`;
+        }
+
+        if (oldVal !== undefined && oldVal !== null) {
+          return `${label} from "${oldVal}" to "${newVal}"`;
+        }
+        return `${label} to "${newVal}"`;
+      }).filter(Boolean).join(', ');
       
       // Create an internal note documenting the change (for non-date fields)
-      if (nonDateFields.length > 0) {
+      if (nonDateFields.length > 0 && changeDetails) {
         try {
-          const changeDetails = nonDateFields.map(field => {
-            const oldVal = previousValues?.[field];
-            const newVal = updates[field];
-            if (oldVal !== undefined && oldVal !== null) {
-              return `${field} from "${oldVal}" to "${newVal}"`;
-            }
-            return `${field} to "${newVal}"`;
-          }).join(', ');
-
           const noteText = `${source === 'portal' ? 'Portal' : 'System'} update by ${userName}: Updated ${changeDetails}`;
           
           const { error: noteError } = await supabase
@@ -121,7 +149,7 @@ Deno.serve(async (req) => {
           .rpc('log_audit_event', {
             p_entity: 'appointment',
             p_action: 'portal_update',
-            p_description: `${userName} updated appointment: ${changeDetails}`,
+            p_description: `${userName} updated appointment: ${changeDetails || Object.keys(updates).join(', ')}`,
             p_source: source,
             p_metadata: {
               appointment_id: appointmentId,

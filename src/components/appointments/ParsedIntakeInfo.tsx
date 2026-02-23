@@ -245,6 +245,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         body: {
           appointmentId,
           updates: { parsed_medical_info: updatedMedicalInfo },
+          previousValues: { parsed_medical_info: parsedMedicalInfo || {} },
           userId,
           userName,
           changeSource: 'portal'
@@ -314,6 +315,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             dob: editDOB || null,
             lead_phone_number: editPhone || null,
           },
+          previousValues: { parsed_contact_info: parsedContactInfo || {} },
           userId,
           userName,
           changeSource: 'portal'
