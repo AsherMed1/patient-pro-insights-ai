@@ -254,6 +254,68 @@ serve(async (req) => {
     if (!ghlResponse.ok) {
       const errorText = await ghlResponse.text();
       console.error('GHL API error:', ghlResponse.status, errorText);
+
+      // If 422 "not part of calendar team", retry with a valid team member from the calendar
+      if (ghlResponse.status === 422 && errorText.includes('not part of calendar team') && updatePayload.assignedUserId) {
+        const targetCalendarId = updatePayload.calendarId || existingCalendarId;
+        if (targetCalendarId) {
+          console.log('Retrying with fresh assignedUserId from calendar:', targetCalendarId);
+          try {
+            const calRetry = await fetch(
+              `https://services.leadconnectorhq.com/calendars/${targetCalendarId}`,
+              {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${apiKey}`, 'Version': '2021-04-15', 'Accept': 'application/json' },
+              }
+            );
+            if (calRetry.ok) {
+              const calData = await calRetry.json();
+              const members = calData?.calendar?.teamMembers || [];
+              if (members.length > 0) {
+                updatePayload.assignedUserId = members[0].userId;
+                console.log('Retrying with assignedUserId:', updatePayload.assignedUserId);
+
+                const retryResponse = await fetch(
+                  `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
+                  {
+                    method: 'PUT',
+                    headers: {
+                      'Authorization': `Bearer ${apiKey}`,
+                      'Version': '2021-04-15',
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(updatePayload),
+                  }
+                );
+
+                if (retryResponse.ok) {
+                  const retryResult = await retryResponse.json();
+                  console.log('Retry succeeded:', retryResult);
+                  return new Response(
+                    JSON.stringify({
+                      success: true,
+                      appointment_id: ghl_appointment_id,
+                      calendar_transferred: !!calendar_id,
+                      rescheduled: isReschedule,
+                      status_updated: isStatusUpdate,
+                      ghl_status: ghlStatus,
+                      ghl_response: retryResult,
+                      retried_assigned_user: true,
+                    }),
+                    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                  );
+                }
+                const retryError = await retryResponse.text();
+                console.error('Retry also failed:', retryResponse.status, retryError);
+              }
+            }
+          } catch (retryErr) {
+            console.warn('Retry fetch failed:', retryErr);
+          }
+        }
+      }
+
       return new Response(
         JSON.stringify({
           error: 'Failed to update appointment in GoHighLevel',
