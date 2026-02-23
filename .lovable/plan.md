@@ -1,21 +1,33 @@
 
 
-## Change Browser Tab Title
+## Fix: Display Back Side of Insurance Card in Modal
 
-Update the page title shown in the browser tab from "Patient Pro Client Portal" to "Client Portal".
+The `insurance_back_link` field exists in the database and the upload component saves it, but it's never passed through to the Insurance View Modal. Three places need updating:
 
-### Change
+### Changes
 
-**File:** `index.html`
-
-Update the `<title>` tag from:
-```html
-<title>Patient Pro Client Portal</title>
-```
-to:
-```html
-<title>Client Portal</title>
+**1. `src/components/appointments/AppointmentCard.tsx` (line ~562-563)**
+Add `insurance_back_link` to `getInsuranceData()`:
+```typescript
+insurance_id_link: appointment.insurance_id_link || 
+                  leadInsuranceData?.insurance_id_link,
+insurance_back_link: appointment.insurance_back_link ||    // ADD THIS
+                    leadInsuranceData?.insurance_back_link, // ADD THIS
 ```
 
-Also update the `og:title` meta tag on the same page from "Patient Pro Client Portal" to "Client Portal" for consistency.
+**2. `src/components/appointments/DetailedAppointmentView.tsx` (line ~318)**
+Add `insurance_back_link` to `getInsuranceData()`:
+```typescript
+insurance_id_link: leadDetails?.insurance_id_link || appointment.insurance_id_link,
+insurance_back_link: leadDetails?.insurance_back_link || appointment.insurance_back_link, // ADD THIS
+```
+
+**3. `src/components/leads/LeadCard.tsx` (line ~254)**
+Add the field to the inline object:
+```typescript
+insurance_id_link: lead.insurance_id_link,
+insurance_back_link: lead.insurance_back_link, // ADD THIS
+```
+
+No changes needed in `InsuranceViewModal.tsx` itself -- it already has full support for rendering the back image side-by-side with the front. The data just wasn't being passed in.
 
