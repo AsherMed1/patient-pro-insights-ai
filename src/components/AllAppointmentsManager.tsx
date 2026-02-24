@@ -659,6 +659,12 @@ const AllAppointmentsManager = ({
         updateData.procedure_ordered = false;
       }
       // Note: "Showed" status does NOT automatically set procedure_ordered - it should be set independently
+
+      // Auto-set internal_process_complete for workflow-terminal statuses
+      const autoCompleteStatuses = ['welcome call', 'showed', 'won'];
+      if (autoCompleteStatuses.includes(status.toLowerCase())) {
+        updateData.internal_process_complete = true;
+      }
       
       console.log('📡 Making API call with updateData:', updateData);
       const { error } = await supabase
@@ -796,13 +802,16 @@ const AllAppointmentsManager = ({
       }
 
       // Update local state
+      const autoCompleteForLocal = ['welcome call', 'showed', 'won'];
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId
           ? {
               ...appointment,
               status,
               // Only update procedure_ordered for specific statuses, leave unchanged for "Showed"
-              procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') ? false : appointment.procedure_ordered
+              procedure_ordered: status === 'Won' ? true : (status === 'Cancelled' || status === 'No Show' || status.toLowerCase() === 'noshow') ? false : appointment.procedure_ordered,
+              // Auto-set IPC for workflow-terminal statuses
+              internal_process_complete: autoCompleteForLocal.includes(status.toLowerCase()) ? true : appointment.internal_process_complete
             }
           : appointment
       ));
