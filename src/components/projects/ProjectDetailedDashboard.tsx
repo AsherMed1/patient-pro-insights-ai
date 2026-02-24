@@ -123,7 +123,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               const location = locationMatch[1].trim();
               const normalizedLocation = location.replace(/,\s*[A-Z]{2}$/, '').trim();
               // Exclude Somerset from location options
-              if (!normalizedLocation.toLowerCase().includes('somerset')) {
+              if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
                 locations.add(normalizedLocation);
               }
             }
