@@ -1,48 +1,103 @@
 
+## Default the Appointment Date/Time Editor to GHL Calendar Availability
 
-## Fix: IPC Checkbox Not Persisting for "Welcome Call" Status Updates
+### Problem
 
-### Root Cause
+When a setter clicks the pencil (Edit) button on an appointment card, the popover opens with a free-form calendar and a manual time input. This is effectively "Custom mode" -- the setter can pick any date and any time, regardless of what's actually available on the GoHighLevel (GHL) calendar. This nudges setters into custom-booking even when they don't intend to.
 
-When rapidly going through a list of appointments, changing status to "Welcome Call" and checking the IPC box, the IPC click can be lost. This happens because:
+### Solution
 
-1. User selects "Welcome Call" from the status dropdown
-2. The status update fires, which calls `setAppointments(...)` to update local state, causing a React re-render of the appointment card
-3. User immediately clicks the IPC checkbox, but the component is mid-re-render from step 2
-4. The click event either doesn't register or fires on a stale component reference
-5. The DB never receives the IPC update -- confirmed by checking the database where 6 appointments have `internal_process_complete: false` despite the user believing they checked it
+Replace the current free-form date/time popover with a two-mode editor that defaults to "Default" (availability-based) mode:
 
-This is verified in the database: Don Winton, CLEIVER Escobar, Gustavo Vidal, Candido Valdes, Rafael Ramirez, and Arnaldo A Rodriguez all have `status = 'Welcome Call'` but `internal_process_complete = false`, with no audit trail of an IPC toggle ever being sent.
+1. **Default mode (shown first):** Fetches available time slots from the GHL calendar API for the selected date and displays them as clickable buttons. The setter picks a date, sees available slots, and clicks one.
+2. **Custom mode (opt-in):** A small toggle or link at the bottom says "Use custom time" which reveals the current free-form time input. This makes custom booking intentional rather than accidental.
 
-### Fix (Two Parts)
+### New Edge Function: `get-ghl-availability`
 
-**Part 1: Atomic status + IPC update for workflow statuses**
+Create a new edge function that calls the GHL Calendar Free Slots API:
 
-In `src/components/AllAppointmentsManager.tsx`, modify `updateAppointmentStatus` so that when the status is changed to a "workflow complete" status like "Welcome Call", "Showed", or "Won", the `internal_process_complete` flag is automatically set to `true` in the same database call. This eliminates the need for a separate IPC click for these statuses.
-
-```typescript
-// In updateAppointmentStatus, after building updateData:
-const autoCompleteStatuses = ['welcome call', 'showed', 'won'];
-if (autoCompleteStatuses.includes(status.toLowerCase())) {
-  updateData.internal_process_complete = true;
-}
+```
+GET https://services.leadconnectorhq.com/calendars/{calendarId}/free-slots
+  ?startDate=2026-03-09T00:00:00Z
+  &endDate=2026-03-09T23:59:59Z
+  &timezone=America/Chicago
 ```
 
-Also update the local state setter (line 799-808) to include `internal_process_complete: true` for these statuses.
+This returns available time slots for a given calendar and date. The function will:
+- Accept `calendarId`, `date`, `timezone`, and `ghl_api_key` in the request body
+- Look up the calendar ID from the appointment's project if not provided
+- Return an array of available time slots (e.g., `["09:00", "09:30", "10:00", ...]`)
 
-**Part 2: Fix the 6 existing appointments**
+### Client-Side Changes
 
-Run a one-time data fix to set `internal_process_complete = true` for the 6 affected Vivid Vascular appointments that are currently stuck with `Welcome Call` status but `internal_process_complete = false`.
+**`src/components/appointments/AppointmentCard.tsx`** (the Edit popover, lines 1400-1432):
 
-### Files to Change
+Replace the current simple time `<Input>` with a new component that:
 
-| File | Change |
-|------|--------|
-| `src/components/AllAppointmentsManager.tsx` | Auto-set `internal_process_complete = true` when status changes to Welcome Call, Showed, or Won |
-| Database (one-time fix) | Update 6 Vivid Vascular records to set `internal_process_complete = true` |
+1. Starts in "Default" mode showing a loading spinner, then available time slots as pill buttons
+2. When a date is selected on the calendar, fetches slots from the new edge function
+3. Includes a small "Custom time" toggle at the bottom that switches to the existing free-form time input
+4. Persists the mode selection only for the current popover session (resets to Default when reopened)
 
-### Impact
+**New component: `src/components/appointments/AvailableTimeSlots.tsx`**
 
-- Users no longer need to separately check IPC after setting "Welcome Call" -- it happens automatically
-- Eliminates the race condition entirely since both fields are updated in a single DB call
-- Existing workflows for terminal statuses (Cancelled, No Show, OON) already auto-set IPC via the database trigger, so this brings "Welcome Call" in line with that pattern
+A reusable component that:
+- Takes a `calendarId`, `date`, `timezone`, and `ghlApiKey` as props
+- Fetches and displays available time slots as clickable buttons
+- Shows a loading state while fetching
+- Shows "No available slots" with a prompt to use custom time if none found
+- Calls `onSelectTime(time)` when a slot is clicked
+
+### Determining the Calendar ID
+
+The edit popover needs the GHL calendar ID to fetch availability. This will come from:
+- The appointment's existing `calendar_name` matched against the project's GHL calendars (already fetchable via `get-ghl-calendars`)
+- Or from the project's `ghl_location_id` to fetch all calendars and find the matching one
+
+The `AppointmentCard` already has access to `appointment.ghl_location_id` and the `useGhlCalendars` hook. On popover open, it will:
+1. Fetch calendars for the project's GHL location (if not already cached)
+2. Match the appointment's `calendar_name` to find the calendar ID
+3. Pass that calendar ID to the availability fetcher
+
+### UI Layout (Default Mode)
+
+```text
++---------------------------+
+|    [  Calendar Picker  ]  |
+|                           |
+|  Available Times:         |
+|  [9:00 AM] [9:30 AM]     |
+|  [10:00 AM] [10:30 AM]   |
+|  [11:00 AM] [11:30 AM]   |
+|                           |
+|  --- or ---               |
+|  [Use custom time]        |
++---------------------------+
+```
+
+### UI Layout (Custom Mode)
+
+```text
++---------------------------+
+|    [  Calendar Picker  ]  |
+|                           |
+|  Time: [__:__ input]      |
+|                           |
+|  [Show available times]   |
++---------------------------+
+```
+
+### Files to Create/Change
+
+| File | Action | Description |
+|------|--------|-------------|
+| `supabase/functions/get-ghl-availability/index.ts` | Create | New edge function to fetch GHL calendar free slots |
+| `src/components/appointments/AvailableTimeSlots.tsx` | Create | New component showing available time slot buttons |
+| `src/components/appointments/AppointmentCard.tsx` | Modify | Replace the edit popover time section with the new Default/Custom mode UI |
+
+### Edge Cases
+
+- **No GHL location/API key configured:** Falls back to custom-only mode (current behavior)
+- **No matching calendar found:** Shows a message and defaults to custom mode
+- **API error fetching slots:** Shows error with option to retry or use custom time
+- **No available slots for selected date:** Shows "No slots available" with custom time option
