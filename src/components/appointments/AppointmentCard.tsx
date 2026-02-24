@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format as formatDateFns } from "date-fns";
 import { useGhlCalendars } from "@/hooks/useGhlCalendars";
+import AvailableTimeSlots from "./AvailableTimeSlots";
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -1398,37 +1399,32 @@ const AppointmentCard = ({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="z-50 w-auto p-0 bg-background border shadow-md" align="start">
-                    <div className="flex flex-col gap-2">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => {
-                          setSelectedDate(date);
-                          onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                        }}
-                        initialFocus
-                        className={cn("p-3 pointer-events-auto")}
-                      />
-                      <div className="px-3 pb-3">
-                        <label className="text-sm font-medium mb-1 block">Time</label>
-                        <Input
-                          type="time"
-                          value={timeValue}
-                          onChange={(e) => setTimeValue(e.target.value)}
-                          onBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              onUpdateTime(appointment.id, timeValue || null);
-                            }
-                            if (e.key === 'Escape') {
-                              setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
-                            }
-                          }}
-                          className="h-9"
-                          placeholder="Select time"
-                        />
-                      </div>
-                    </div>
+                    <AppointmentDateTimeEditor
+                      appointment={appointment}
+                      selectedDate={selectedDate}
+                      timeValue={timeValue}
+                      calendars={calendars}
+                      projectGhlCredentials={projectGhlCredentials}
+                      projectTimezone={projectTimezone}
+                      onDateSelect={(date) => {
+                        setSelectedDate(date);
+                        onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
+                      }}
+                      onTimeSelect={(time) => {
+                        setTimeValue(time);
+                        onUpdateTime(appointment.id, time || null);
+                      }}
+                      onTimeChange={setTimeValue}
+                      onTimeBlur={() => onUpdateTime(appointment.id, timeValue || null)}
+                      onTimeKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          onUpdateTime(appointment.id, timeValue || null);
+                        }
+                        if (e.key === 'Escape') {
+                          setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
+                        }
+                      }}
+                    />
                   </PopoverContent>
                 </Popover>
               )}
@@ -1787,3 +1783,116 @@ const AppointmentCard = ({
 };
 
 export default AppointmentCard;
+
+// Sub-component for the date/time editor with Default (availability) and Custom modes
+interface AppointmentDateTimeEditorProps {
+  appointment: AllAppointment;
+  selectedDate: Date | undefined;
+  timeValue: string;
+  calendars: { id: string; name: string }[];
+  projectGhlCredentials: { ghl_location_id: string | null; ghl_api_key: string | null };
+  projectTimezone: string;
+  onDateSelect: (date: Date | undefined) => void;
+  onTimeSelect: (time: string) => void;
+  onTimeChange: (time: string) => void;
+  onTimeBlur: () => void;
+  onTimeKeyDown: (e: React.KeyboardEvent) => void;
+}
+
+function AppointmentDateTimeEditor({
+  appointment,
+  selectedDate,
+  timeValue,
+  calendars,
+  projectGhlCredentials,
+  projectTimezone,
+  onDateSelect,
+  onTimeSelect,
+  onTimeChange,
+  onTimeBlur,
+  onTimeKeyDown,
+}: AppointmentDateTimeEditorProps) {
+  const [mode, setMode] = useState<'default' | 'custom'>('default');
+
+  // Resolve calendarId by matching appointment.calendar_name to fetched calendars
+  const resolvedCalendarId = React.useMemo(() => {
+    if (!appointment.calendar_name || calendars.length === 0) return null;
+    const match = calendars.find(
+      (c) => c.name.toLowerCase() === appointment.calendar_name!.toLowerCase()
+    );
+    return match?.id || null;
+  }, [appointment.calendar_name, calendars]);
+
+  const hasGhlConfig = !!projectGhlCredentials.ghl_location_id;
+
+  // If no GHL config, always show custom
+  const effectiveMode = hasGhlConfig ? mode : 'custom';
+
+  const dateStr = selectedDate ? formatDateFns(selectedDate, 'yyyy-MM-dd') : '';
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Calendar
+        mode="single"
+        selected={selectedDate}
+        onSelect={onDateSelect}
+        initialFocus
+        className={cn("p-3 pointer-events-auto")}
+      />
+      <div className="px-3 pb-3">
+        {effectiveMode === 'default' && dateStr ? (
+          <>
+            <AvailableTimeSlots
+              calendarId={resolvedCalendarId}
+              date={dateStr}
+              timezone={projectTimezone}
+              ghlApiKey={projectGhlCredentials.ghl_api_key}
+              selectedTime={timeValue}
+              onSelectTime={onTimeSelect}
+              onFallbackToCustom={() => setMode('custom')}
+            />
+            <div className="mt-2 pt-2 border-t text-center">
+              <Button
+                variant="link"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => setMode('custom')}
+              >
+                Use custom time
+              </Button>
+            </div>
+          </>
+        ) : effectiveMode === 'default' && !dateStr ? (
+          <p className="text-sm text-muted-foreground text-center py-2">
+            Select a date to see available times
+          </p>
+        ) : (
+          <>
+            <label className="text-sm font-medium mb-1 block">Time</label>
+            <Input
+              type="time"
+              value={timeValue}
+              onChange={(e) => onTimeChange(e.target.value)}
+              onBlur={onTimeBlur}
+              onKeyDown={onTimeKeyDown}
+              className="h-9"
+              placeholder="Select time"
+            />
+            {hasGhlConfig && (
+              <div className="mt-2 pt-2 border-t text-center">
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="text-xs text-muted-foreground"
+                  onClick={() => setMode('default')}
+                >
+                  Show available times
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
