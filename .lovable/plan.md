@@ -1,35 +1,48 @@
 
 
-## Fix Reschedule Status Override and Improve Date Picker Reliability
+## Fix: IPC Checkbox Not Persisting for "Welcome Call" Status Updates
 
-### Problem 1: Status Stuck on "Rescheduled" (Bug)
+### Root Cause
 
-After a reschedule, the code correctly sets `status: 'Confirmed'` in the database (line 666), but then immediately calls `onUpdateStatus(appointment.id, 'Rescheduled')` (line 819), which is a parent callback that writes the status back to "Rescheduled" in the DB. This contradicts the documented workflow where rescheduled appointments should reset to "Confirmed" and appear in the "New" tab.
+When rapidly going through a list of appointments, changing status to "Welcome Call" and checking the IPC box, the IPC click can be lost. This happens because:
 
-**Fix in `src/components/appointments/AppointmentCard.tsx`:**
-- Change line 819 from `onUpdateStatus(appointment.id, 'Rescheduled')` to `onUpdateStatus(appointment.id, 'Confirmed')` so the parent state stays in sync with what was already written to the database.
+1. User selects "Welcome Call" from the status dropdown
+2. The status update fires, which calls `setAppointments(...)` to update local state, causing a React re-render of the appointment card
+3. User immediately clicks the IPC checkbox, but the component is mid-re-render from step 2
+4. The click event either doesn't register or fires on a stale component reference
+5. The DB never receives the IPC update -- confirmed by checking the database where 6 appointments have `internal_process_complete: false` despite the user believing they checked it
 
-### Problem 2: GHL Sync Failed
+This is verified in the database: Don Winton, CLEIVER Escobar, Gustavo Vidal, Candido Valdes, Rafael Ramirez, and Arnaldo A Rodriguez all have `status = 'Welcome Call'` but `internal_process_complete = false`, with no audit trail of an IPC toggle ever being sent.
 
-The reschedule for James Potter (GHL appointment ID `brgJkyMiM71V3lCwjzTB`) returned a non-2xx error from the edge function. The AIC project has a valid API key (`pit-afa1b606-...`) and location ID configured. This is likely a GHL-side issue (expired token, or the appointment no longer existing in GHL). The retry button already exists in the UI to re-attempt.
+### Fix (Two Parts)
 
-**Action:** No code change needed. The GHL API key for AIC may need to be refreshed in the projects table, or the appointment may have been deleted in GHL. You can manually retry using the sync retry button on the card, or verify the API key is current in the AIC GHL account.
+**Part 1: Atomic status + IPC update for workflow statuses**
 
-### Problem 3: Calendar Popover May Be Blocked in Some Browsers
+In `src/components/AllAppointmentsManager.tsx`, modify `updateAppointmentStatus` so that when the status is changed to a "workflow complete" status like "Welcome Call", "Showed", or "Won", the `internal_process_complete` flag is automatically set to `true` in the same database call. This eliminates the need for a separate IPC click for these statuses.
 
-The date picker inside the reschedule dialog uses a `Popover` inside a `Dialog`. On some browsers or screen sizes, the popover z-index can be lower than the dialog overlay, making the calendar unclickable.
+```typescript
+// In updateAppointmentStatus, after building updateData:
+const autoCompleteStatuses = ['welcome call', 'showed', 'won'];
+if (autoCompleteStatuses.includes(status.toLowerCase())) {
+  updateData.internal_process_complete = true;
+}
+```
 
-**Fix in `src/components/appointments/AppointmentCard.tsx`:**
-- Add a higher `z-index` to the `PopoverContent` for the reschedule date picker (e.g., `className="w-auto p-0 z-[9999]"`) to ensure it renders above the dialog overlay.
+Also update the local state setter (line 799-808) to include `internal_process_complete: true` for these statuses.
 
-### Summary of Code Changes
+**Part 2: Fix the 6 existing appointments**
+
+Run a one-time data fix to set `internal_process_complete = true` for the 6 affected Vivid Vascular appointments that are currently stuck with `Welcome Call` status but `internal_process_complete = false`.
+
+### Files to Change
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/AppointmentCard.tsx` (line 819) | Change `onUpdateStatus(appointment.id, 'Rescheduled')` to `onUpdateStatus(appointment.id, 'Confirmed')` |
-| `src/components/appointments/AppointmentCard.tsx` (line 1718) | Add `z-[9999]` to the PopoverContent className for the date picker |
+| `src/components/AllAppointmentsManager.tsx` | Auto-set `internal_process_complete = true` when status changes to Welcome Call, Showed, or Won |
+| Database (one-time fix) | Update 6 Vivid Vascular records to set `internal_process_complete = true` |
 
-### Manual Action Needed
-- Verify the AIC GHL API key is still valid, or retry the sync for James Potter from the appointment card.
-- After the fix, James Potter's status can be manually corrected to "Confirmed" from the status dropdown to move him back to the New tab.
+### Impact
 
+- Users no longer need to separately check IPC after setting "Welcome Call" -- it happens automatically
+- Eliminates the race condition entirely since both fields are updated in a single DB call
+- Existing workflows for terminal statuses (Cancelled, No Show, OON) already auto-set IPC via the database trigger, so this brings "Welcome Call" in line with that pattern
