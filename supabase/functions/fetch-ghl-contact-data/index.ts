@@ -197,7 +197,8 @@ Deno.serve(async (req) => {
         'Contact Information': [],
         'Insurance Information': [],
         'Pathology Information': [],
-        'Medical Information': []
+        'Medical Information': [],
+        'Additional Information': []
       };
 
       fields.forEach(field => {
@@ -228,8 +229,9 @@ Deno.serve(async (req) => {
           sections['Medical Information'].push(formattedLine);
         } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name') || key.includes('dob') || key.includes('date of birth')) {
           sections['Contact Information'].push(formattedLine);
+        } else {
+          sections['Additional Information'].push(formattedLine);
         }
-        // Skip all other fields (conversation notes, tracking data, workflow fields, etc.)
       });
 
       // Build formatted text

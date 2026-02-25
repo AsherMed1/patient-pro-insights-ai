@@ -1026,7 +1026,8 @@ async function enrichAppointmentWithGHLData(
       'Contact Information': [],
       'Insurance Information': [],
       'Pathology Information': [],
-      'Medical Information': []
+      'Medical Information': [],
+      'Additional Information': []
     }
     
     // Add basic contact info to Contact Information section FIRST
@@ -1067,6 +1068,10 @@ async function enrichAppointmentWithGHLData(
         sections['Medical Information'].push(formattedLine)
       } else if (key.includes('phone') || key.includes('email') || key.includes('address') || key.includes('contact') || key.includes('name') || key.includes('dob') || key.includes('date of birth')) {
         sections['Contact Information'].push(formattedLine)
+      } else if (key.includes('notes') || key.includes('note')) {
+        sections['Insurance Information'].push(formattedLine)
+      } else {
+        sections['Additional Information'].push(formattedLine)
       }
     })
     
