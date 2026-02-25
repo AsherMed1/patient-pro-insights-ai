@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     // Get appointment details
     const { data: appointment, error: apptError } = await supabase
       .from('all_appointments')
-      .select('id, ghl_appointment_id, ghl_id, project_name, lead_name')
+      .select('id, ghl_appointment_id, ghl_id, project_name, lead_name, patient_intake_notes')
       .eq('id', appointmentId)
       .single();
 
