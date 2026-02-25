@@ -1,36 +1,35 @@
 
 
-## Fix: Add "Twin Falls" to Location Dropdown
+## Fix: Notes Field Not Showing in Portal + Backfill
 
-### Problem
-The calendar name format for Vascular Surgery Center of Excellence is `"Request Your GAE Consultation Twin Falls, ID"`. The location extraction regex only handles two patterns:
-- `/ - (.+)$/` (e.g., "Name - Twin Falls")
-- `/at\s+(.+)$/` (e.g., "Name at Twin Falls")
+### Root Cause
+The categorization fix from the last edit IS working -- the "Notes" field now correctly routes to Insurance Information. However, two issues prevent it from appearing in the portal:
 
-Since "Twin Falls, ID" appears directly after "Consultation" with just a space (no " - " or " at "), it is never extracted and the location dropdown stays empty.
+1. **`fetch-ghl-contact-data` overwrites existing notes**: Line 38 selects `id, ghl_appointment_id, ghl_id, project_name, lead_name` but NOT `patient_intake_notes`. When it later reads `appointment.patient_intake_notes`, it gets `undefined`, treating it as empty and replacing all existing notes instead of appending. This erased the original webhook data.
 
-### Change
+2. **Reparse not triggered**: After the enrichment, the AI parser needs to run to extract "TEST" from the intake notes into `parsed_insurance_info.insurance_notes`, which is what the portal UI reads (line 889 of `ParsedIntakeInfo.tsx`).
 
-| File | Change |
+### Changes
+
+| Step | Action |
 |------|--------|
-| `src/components/appointments/AppointmentFilters.tsx` | Add a third regex pattern: `/Consultation\s+(.+)$/i` to extract locations that follow "Consultation" directly |
-| `src/components/projects/ProjectDetailedDashboard.tsx` | Same regex addition (duplicated location extraction logic) |
+| 1 | Fix `fetch-ghl-contact-data` to include `patient_intake_notes` in its select query so it appends instead of overwrites |
+| 2 | Trigger reparse for BVC TEST ONLY (`1671ba97-9898-4916-8452-4c3b93b9ff1c`) to populate `parsed_insurance_info.insurance_notes` with "TEST" |
+| 3 | Trigger reparse for all Buffalo Vascular Care appointments that have `patient_intake_notes` containing "Notes" to backfill any other missed records |
 
 ### Technical Detail
 
-In both files, after the existing two regex attempts, add a third fallback:
+**File: `supabase/functions/fetch-ghl-contact-data/index.ts`** (line 38)
 
 ```typescript
-let locationMatch = item.calendar_name.match(/ - (.+)$/);
-if (!locationMatch) {
-  locationMatch = item.calendar_name.match(/at\s+(.+)$/);
-}
-if (!locationMatch) {
-  locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
-}
+// BEFORE:
+.select('id, ghl_appointment_id, ghl_id, project_name, lead_name')
+
+// AFTER:
+.select('id, ghl_appointment_id, ghl_id, project_name, lead_name, patient_intake_notes')
 ```
 
-This captures `"Twin Falls, ID"`, which then gets normalized to `"Twin Falls"` by the existing state-abbreviation stripping logic (`location.replace(/,\s*[A-Z]{2}$/, '')`).
+This one-line fix ensures the function reads existing notes before appending, preventing data loss.
 
-No database changes needed. The location will appear automatically in the dropdown for any project whose calendar names follow this pattern.
+**Backfill**: Call `reparse-specific-appointments` with relevant Buffalo Vascular Care appointment IDs to re-run the AI parser and populate `parsed_insurance_info.insurance_notes`.
 
