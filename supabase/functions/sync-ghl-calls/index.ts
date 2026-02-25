@@ -222,6 +222,10 @@ Deno.serve(async (req) => {
 
           for (const msg of messages) {
             const dt = msg.dateAdded || new Date().toISOString()
+
+            // Filter call messages by date range if provided
+            if (dateFrom && new Date(dt) < new Date(dateFrom)) continue
+            if (dateTo && new Date(dt) > new Date(dateTo)) continue
             const duration = (msg.meta as any)?.call?.duration ?? msg.meta?.callDuration ?? 0
             records.push({
               ghl_id: msg.id,
