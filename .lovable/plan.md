@@ -1,68 +1,87 @@
 
 
-## Fix: Stop Full Page Reload After Saving Appointment Details
+## Investigation: `sync-ghl-calls` Edge Function -- Root Causes for Missing Data
 
-### Root Cause
+### Summary of the Problem
 
-**Line 1678 in `AppointmentCard.tsx`:**
-```typescript
-onDataRefresh={() => window.location.reload()}
-```
+The CSV (GHL source of truth) shows ~16,700 total calls across 41 sub-accounts for February. The database has ~1,600 calls across 19 projects. That is roughly **10% capture rate**. 22 projects have zero calls synced despite having valid GHL credentials.
 
-When a user opens the detailed appointment view from the **All Appointments list** and saves any field (contact info, insurance, PCP, status, etc.), the `onDataRefresh` callback fires `window.location.reload()`. This does a full browser reload, which:
-1. Destroys all React state (filters, search, scroll position, selected tab)
-2. Navigates the user back to the default portal view
-3. Closes the detail modal they were working in
+### Root Causes Identified
 
-In contrast, the **calendar view** path in `ProjectPortal.tsx` (line 683) correctly uses `setCalendarRefreshKey(prev => prev + 1)` -- no full reload.
+There are **three compounding bottlenecks** in the current function:
 
-### Fix
+---
 
-Replace `window.location.reload()` with a targeted data refetch. The `AppointmentCard` is rendered by `AllAppointmentsManager`, which has a `fetchAppointments()` function that reloads just the appointment data. We need to:
+#### 1. Hard Cap: `MAX_CONVERSATIONS_PER_PROJECT = 100` (Line 10)
 
-1. **Add an `onDataRefresh` prop** to `AppointmentCard` that `AllAppointmentsManager` can pass down
-2. **In `AllAppointmentsManager`**, pass `fetchAppointments` as the refresh callback
-3. **In `AppointmentCard`**, use that callback instead of `window.location.reload()`
+The function fetches at most 100 conversations per project. But a single conversation = one contact, not one call. Texas Vascular Institute has 1,254 calls in February -- even if every conversation had exactly one call, the function would miss 92% of them. Many projects have 500-700+ calls, meaning the 100-conversation cap misses the vast majority.
 
-### Files to Change
+#### 2. Wrong API Filter: `lastMessageType: 'TYPE_CALL'` (Line 39)
+
+The Conversations Search API is filtered to only return conversations where the **most recent message** was a call. If a contact had a call on Feb 5, then received a text on Feb 10, that conversation is excluded from the search results entirely. This silently drops a large percentage of call-containing conversations.
+
+#### 3. Timeout / Sequential Processing of 40+ Projects
+
+The function processes all projects sequentially with 600ms rate-limit delays between conversations. For 40 projects x 100 conversations x 600ms = **40 minutes minimum**. Even with `EdgeRuntime.waitUntil`, Supabase Edge Functions have a wall-clock limit. The function likely times out partway through, leaving later projects unsynced. This explains why some projects have data and others have zero.
+
+---
+
+### Proposed Fix: Per-Project Paginated Sync
+
+Restructure the sync to process **one project per function call** with **resumable cursor-based pagination**, removing the conversation cap and the broken filter.
+
+#### Changes
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/AppointmentCard.tsx` | Replace `window.location.reload()` with the parent-provided refresh callback. Add `onDataRefresh` to the props interface. |
-| `src/components/AllAppointmentsManager.tsx` | Pass `fetchAppointments` as `onDataRefresh` to each `AppointmentCard` |
+| `supabase/functions/sync-ghl-calls/index.ts` | Rewrite to process one project per invocation, remove 100-conversation cap, remove `lastMessageType` filter (fetch ALL conversations then check for calls in messages), add cursor storage for resumability |
+| New migration | Create `call_sync_cursors` table to store pagination state per project |
+| `src/components/dashboard/ProjectCallSummaryTable.tsx` | Update sync trigger to loop through projects one at a time, calling the function repeatedly |
+| `src/components/CallCenterDashboard.tsx` | Same loop-per-project pattern |
 
-### Technical Detail
+#### Technical Detail
 
-**`AppointmentCard.tsx`** -- Add prop and use it:
-```typescript
-// In AppointmentCardProps interface, add:
-onDataRefresh?: () => void;
+**New edge function flow (one project per call):**
 
-// Line 1678, change from:
-onDataRefresh={() => window.location.reload()}
-// to:
-onDataRefresh={() => {
-  onDataRefresh?.();
-}}
+```text
+Client calls: sync-ghl-calls { projectName: "Texas Vascular Institute", dateFrom, dateTo }
+  |
+  v
+Function reads cursor from call_sync_cursors table (if resuming)
+  |
+  v
+Fetches up to 500 conversations (no lastMessageType filter)
+  Uses cursor for pagination across calls
+  |
+  v
+For each conversation, fetches messages and filters for call type
+  |
+  v
+Upserts call records to all_calls
+  |
+  v
+Saves cursor to call_sync_cursors table
+  |
+  v
+Returns { hasMore: true/false, synced: N, cursor: "..." }
 ```
 
-If no `onDataRefresh` prop is provided (defensive), it simply does nothing (the toast already confirms the save succeeded, and local state in `ParsedIntakeInfo` already reflects the edit).
-
-**`AllAppointmentsManager.tsx`** -- Pass the callback:
-```typescript
-<AppointmentCard
-  // ...existing props
-  onDataRefresh={() => {
-    fetchAppointments();
-    fetchTabCounts();
-  }}
-/>
+**Client-side loop:**
+```text
+for each project:
+  let hasMore = true
+  while (hasMore):
+    result = invoke('sync-ghl-calls', { projectName, dateFrom, dateTo })
+    hasMore = result.hasMore
+    update progress UI
 ```
 
-This ensures that after saving inside the detail view:
-- The appointment list refreshes with fresh data
-- Tab counts update
-- The detail modal stays open
-- Filters, search, scroll position are all preserved
-- No full page reload occurs
+**Key differences from current approach:**
+- No `MAX_CONVERSATIONS_PER_PROJECT` cap -- processes all conversations
+- No `lastMessageType: 'TYPE_CALL'` filter -- scans all conversations for call messages
+- One project per invocation -- no timeout risk
+- Cursor-based resumability -- can pick up where it left off if interrupted
+- Progress tracking -- frontend can show sync status per project
+
+This should bring the capture rate from ~10% to near 100%, matching the CSV numbers.
 
