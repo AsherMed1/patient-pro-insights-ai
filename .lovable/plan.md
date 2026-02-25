@@ -1,87 +1,65 @@
 
 
-## Investigation: `sync-ghl-calls` Edge Function -- Root Causes for Missing Data
+## Fix: sync-ghl-calls Cursor Persistence and Timeout Issues
 
-### Summary of the Problem
+### Problems Found in Logs
 
-The CSV (GHL source of truth) shows ~16,700 total calls across 41 sub-accounts for February. The database has ~1,600 calls across 19 projects. That is roughly **10% capture rate**. 22 projects have zero calls synced despite having valid GHL credentials.
+**1. Cursor is never read back (Clarity Care infinite loop)**
 
-### Root Causes Identified
+The logs show Clarity Care syncing repeatedly with `prevProcessed=0` despite the cursor table having a valid row. The bug is on lines 190-193 of the edge function:
 
-There are **three compounding bottlenecks** in the current function:
+```typescript
+.is('date_from', dateFrom || null)   // BUG
+.is('date_to', dateTo || null)       // BUG
+```
 
----
+The `.is()` operator in PostgREST is exclusively for `IS NULL` / `IS NOT NULL` checks. When `dateFrom` has a value like `"2026-02-01T05:00:00.000Z"`, this query returns zero rows. The cursor is saved but never found on the next call, so every invocation starts fresh and processes the same 100 conversations forever.
 
-#### 1. Hard Cap: `MAX_CONVERSATIONS_PER_PROJECT = 100` (Line 10)
+**2. Edge function timeout (Texas Vascular)**
 
-The function fetches at most 100 conversations per project. But a single conversation = one contact, not one call. Texas Vascular Institute has 1,254 calls in February -- even if every conversation had exactly one call, the function would miss 92% of them. Many projects have 500-700+ calls, meaning the 100-conversation cap misses the vast majority.
+`CONVERSATIONS_PER_BATCH = 100` with 600ms delays between each = 60+ seconds just for rate limiting, plus the time to fetch messages from each conversation. This exceeds the Supabase Edge Function wall-clock limit, causing the function to be killed before it can return.
 
-#### 2. Wrong API Filter: `lastMessageType: 'TYPE_CALL'` (Line 39)
-
-The Conversations Search API is filtered to only return conversations where the **most recent message** was a call. If a contact had a call on Feb 5, then received a text on Feb 10, that conversation is excluded from the search results entirely. This silently drops a large percentage of call-containing conversations.
-
-#### 3. Timeout / Sequential Processing of 40+ Projects
-
-The function processes all projects sequentially with 600ms rate-limit delays between conversations. For 40 projects x 100 conversations x 600ms = **40 minutes minimum**. Even with `EdgeRuntime.waitUntil`, Supabase Edge Functions have a wall-clock limit. The function likely times out partway through, leaving later projects unsynced. This explains why some projects have data and others have zero.
-
----
-
-### Proposed Fix: Per-Project Paginated Sync
-
-Restructure the sync to process **one project per function call** with **resumable cursor-based pagination**, removing the conversation cap and the broken filter.
-
-#### Changes
+### Changes
 
 | File | Change |
 |------|--------|
-| `supabase/functions/sync-ghl-calls/index.ts` | Rewrite to process one project per invocation, remove 100-conversation cap, remove `lastMessageType` filter (fetch ALL conversations then check for calls in messages), add cursor storage for resumability |
-| New migration | Create `call_sync_cursors` table to store pagination state per project |
-| `src/components/dashboard/ProjectCallSummaryTable.tsx` | Update sync trigger to loop through projects one at a time, calling the function repeatedly |
-| `src/components/CallCenterDashboard.tsx` | Same loop-per-project pattern |
+| `supabase/functions/sync-ghl-calls/index.ts` | Fix cursor read to use `.eq()` for non-null date values and `.is()` only for null. Reduce `CONVERSATIONS_PER_BATCH` from 100 to 40 to stay within timeout. |
 
-#### Technical Detail
+### Technical Detail
 
-**New edge function flow (one project per call):**
+**Cursor read fix (lines 189-193):**
+```typescript
+// Before (broken):
+.is('date_from', dateFrom || null)
+.is('date_to', dateTo || null)
 
-```text
-Client calls: sync-ghl-calls { projectName: "Texas Vascular Institute", dateFrom, dateTo }
-  |
-  v
-Function reads cursor from call_sync_cursors table (if resuming)
-  |
-  v
-Fetches up to 500 conversations (no lastMessageType filter)
-  Uses cursor for pagination across calls
-  |
-  v
-For each conversation, fetches messages and filters for call type
-  |
-  v
-Upserts call records to all_calls
-  |
-  v
-Saves cursor to call_sync_cursors table
-  |
-  v
-Returns { hasMore: true/false, synced: N, cursor: "..." }
+// After (correct):
+// Use .eq() when value exists, .is() only for NULL
+let cursorQuery = supabase
+  .from('call_sync_cursors')
+  .select('*')
+  .eq('project_name', projectName)
+  .eq('status', 'in_progress');
+
+if (dateFrom) cursorQuery = cursorQuery.eq('date_from', dateFrom);
+else cursorQuery = cursorQuery.is('date_from', null);
+
+if (dateTo) cursorQuery = cursorQuery.eq('date_to', dateTo);
+else cursorQuery = cursorQuery.is('date_to', null);
 ```
 
-**Client-side loop:**
-```text
-for each project:
-  let hasMore = true
-  while (hasMore):
-    result = invoke('sync-ghl-calls', { projectName, dateFrom, dateTo })
-    hasMore = result.hasMore
-    update progress UI
+**Batch size reduction:**
+```typescript
+const CONVERSATIONS_PER_BATCH = 40  // was 100
 ```
 
-**Key differences from current approach:**
-- No `MAX_CONVERSATIONS_PER_PROJECT` cap -- processes all conversations
-- No `lastMessageType: 'TYPE_CALL'` filter -- scans all conversations for call messages
-- One project per invocation -- no timeout risk
-- Cursor-based resumability -- can pick up where it left off if interrupted
-- Progress tracking -- frontend can show sync status per project
+With 40 conversations at 600ms delay = ~24 seconds for rate limiting, leaving plenty of headroom for API calls and DB writes.
 
-This should bring the capture rate from ~10% to near 100%, matching the CSV numbers.
+**Cursor delete fix (same `.is()` bug on lines 273-276):**
+Apply the same conditional `.eq()` / `.is()` pattern to the delete query that clears the cursor when sync completes.
+
+These two fixes will allow the sync to:
+- Actually resume from where it left off instead of restarting every time
+- Complete within the edge function timeout for each batch
+- Iterate through all conversations across multiple invocations until done
 
