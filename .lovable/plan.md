@@ -1,33 +1,36 @@
 
 
-## Fix: GHL "Notes" Custom Field Not Captured in Portal
+## Fix: Add "Twin Falls" to Location Dropdown
 
 ### Problem
-The GHL custom field **"Notes (Example: Imaging, Secondary, Etc.) - Optional"** is being silently dropped during the GHL-to-portal sync. The field categorization logic in `ghl-webhook-handler/index.ts` (lines 1050-1070) checks for specific keywords like `insurance`, `step`, `pain`, `medication`, `phone`, etc. — but has no rule that matches a generic "notes" field. Since this field doesn't match any category, it is never included in `patient_intake_notes`, so the AI parser never sees it, and it never reaches `parsed_insurance_info.insurance_notes`.
+The calendar name format for Vascular Surgery Center of Excellence is `"Request Your GAE Consultation Twin Falls, ID"`. The location extraction regex only handles two patterns:
+- `/ - (.+)$/` (e.g., "Name - Twin Falls")
+- `/at\s+(.+)$/` (e.g., "Name at Twin Falls")
 
-The AI parser prompt (in `auto-parse-intake-notes`) already instructs: *"Always extract any generic 'Notes' field value here"* into `insurance_notes`. The problem is upstream — the data never makes it into the intake notes text.
+Since "Twin Falls, ID" appears directly after "Consultation" with just a space (no " - " or " at "), it is never extracted and the location dropdown stays empty.
 
 ### Change
 
 | File | Change |
 |------|--------|
-| `supabase/functions/ghl-webhook-handler/index.ts` | Add a catch-all `else` clause to the field categorization logic that places unmatched fields (like "Notes") into an "Additional Information" section, so no custom field data is silently dropped. Also add an explicit `notes` keyword match to route it to Insurance Information (where the parser expects it). |
+| `src/components/appointments/AppointmentFilters.tsx` | Add a third regex pattern: `/Consultation\s+(.+)$/i` to extract locations that follow "Consultation" directly |
+| `src/components/projects/ProjectDetailedDashboard.tsx` | Same regex addition (duplicated location extraction logic) |
 
 ### Technical Detail
 
-In `ghl-webhook-handler/index.ts` around line 1025, add an "Additional Information" section to the sections object, and around line 1070, add:
+In both files, after the existing two regex attempts, add a third fallback:
 
 ```typescript
-// Add explicit "notes" keyword match
-} else if (key.includes('notes') || key.includes('note')) {
-  sections['Insurance Information'].push(formattedLine)
-// Catch-all for unmatched fields
-} else {
-  sections['Additional Information'].push(formattedLine)
+let locationMatch = item.calendar_name.match(/ - (.+)$/);
+if (!locationMatch) {
+  locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+}
+if (!locationMatch) {
+  locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
 }
 ```
 
-This ensures the "TEST" note (and any other uncategorized GHL fields) flows into the intake notes, gets parsed by AI, and appears in the portal under the Insurance card's "Notes" line.
+This captures `"Twin Falls, ID"`, which then gets normalized to `"Twin Falls"` by the existing state-abbreviation stripping logic (`location.replace(/,\s*[A-Z]{2}$/, '')`).
 
-After deploying, a re-parse of the BVC TEST ONLY record will pick up the note.
+No database changes needed. The location will appear automatically in the dropdown for any project whose calendar names follow this pattern.
 
