@@ -7,8 +7,8 @@ const corsHeaders = {
 
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com'
 const GHL_API_VERSION = '2021-04-15'
-const CONVERSATIONS_PER_BATCH = 100 // Process 100 conversations per invocation
-const RATE_LIMIT_DELAY_MS = 600
+const CONVERSATIONS_PER_BATCH = 20 // Process 20 conversations per invocation to stay within timeout
+const RATE_LIMIT_DELAY_MS = 400
 
 interface GHLConversation {
   id: string
@@ -182,14 +182,19 @@ Deno.serve(async (req) => {
     }
 
     // Read cursor from call_sync_cursors table
-    const cursorKey = { project_name: projectName, date_from: dateFrom || null, date_to: dateTo || null }
-    const { data: existingCursor } = await supabase
+    let cursorQuery = supabase
       .from('call_sync_cursors')
       .select('*')
       .eq('project_name', projectName)
-      .is('date_from', dateFrom || null)
-      .is('date_to', dateTo || null)
       .eq('status', 'in_progress')
+
+    if (dateFrom) cursorQuery = cursorQuery.eq('date_from', dateFrom)
+    else cursorQuery = cursorQuery.is('date_from', null)
+
+    if (dateTo) cursorQuery = cursorQuery.eq('date_to', dateTo)
+    else cursorQuery = cursorQuery.is('date_to', null)
+
+    const { data: existingCursor } = await cursorQuery
       .maybeSingle()
 
     const cursor = existingCursor?.cursor_value || undefined
@@ -269,11 +274,17 @@ Deno.serve(async (req) => {
       }, { onConflict: 'project_name,date_from,date_to' })
     } else {
       // Mark complete or delete cursor
-      await supabase.from('call_sync_cursors')
+      let deleteQuery = supabase.from('call_sync_cursors')
         .delete()
         .eq('project_name', projectName)
-        .is('date_from', dateFrom || null)
-        .is('date_to', dateTo || null)
+
+      if (dateFrom) deleteQuery = deleteQuery.eq('date_from', dateFrom)
+      else deleteQuery = deleteQuery.is('date_from', null)
+
+      if (dateTo) deleteQuery = deleteQuery.eq('date_to', dateTo)
+      else deleteQuery = deleteQuery.is('date_to', null)
+
+      await deleteQuery
     }
 
     console.log(`[SYNC] ${projectName}: batch done. synced=${synced}, totalSynced=${totalSynced}, totalProcessed=${totalProcessed}, hasMore=${hasMore}`)
