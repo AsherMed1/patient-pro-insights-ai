@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, StopCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import CallMetricsCards from './dashboard/CallMetricsCards';
 import ConversionMetrics from './dashboard/ConversionMetrics';
 import AgentPerformanceSection from './dashboard/AgentPerformanceSection';
 import DashboardFilters from './DashboardFilters';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { useGhlCallSync } from '@/hooks/useGhlCallSync';
 
 interface CallCenterDashboardProps {
   projectId: string;
@@ -31,9 +32,8 @@ interface CallData {
 const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
   const [callData, setCallData] = useState<CallData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const { syncing, progress, syncAllProjects, cancelSync } = useGhlCallSync();
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -242,32 +242,13 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
     agents: []
   };
 
-  const syncFromGHL = async () => {
-    setSyncing(true);
-    try {
-      const { data, error: syncError } = await supabase.functions.invoke('sync-ghl-calls', {
-        body: {
-          dateFrom: dateRange.from?.toISOString() || undefined,
-          dateTo: dateRange.to?.toISOString() || undefined,
-          projectName: projectId === 'project-1' ? 'ALL' : projectId,
-        },
-      });
-      if (syncError) throw syncError;
-      toast({
-        title: "Sync Complete",
-        description: data?.message || `Synced ${data?.synced || 0} call records`,
-      });
-      fetchDashboardData();
-    } catch (err) {
-      console.error("GHL sync error:", err);
-      toast({
-        title: "Sync Failed",
-        description: err instanceof Error ? err.message : "Failed to sync from GHL",
-        variant: "destructive",
-      });
-    } finally {
-      setSyncing(false);
-    }
+  const handleSync = () => {
+    syncAllProjects({
+      dateFrom: dateRange.from?.toISOString(),
+      dateTo: dateRange.to?.toISOString(),
+      projectName: projectId === 'project-1' ? 'ALL' : projectId,
+      onComplete: () => fetchDashboardData(),
+    });
   };
 
   return (
@@ -282,17 +263,35 @@ const CallCenterDashboard = ({ projectId }: CallCenterDashboardProps) => {
           onAgentChange={setSelectedAgent}
           availableAgents={availableAgents}
         />
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={syncFromGHL}
-          disabled={syncing}
-          className="gap-1.5 shrink-0"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-          {syncing ? "Syncing..." : "Sync from GHL"}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {syncing && (
+            <Button size="sm" variant="ghost" onClick={cancelSync} className="gap-1.5 text-destructive">
+              <StopCircle className="h-3.5 w-3.5" /> Cancel
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="gap-1.5">
+            <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+            {syncing ? "Syncing..." : "Sync from GHL"}
+          </Button>
+        </div>
       </div>
+
+      {/* Sync Progress */}
+      {syncing && progress && (
+        <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium truncate">{progress.currentProject}</span>
+            <span className="text-muted-foreground shrink-0 ml-2">
+              {progress.projectIndex + 1}/{progress.totalProjects} projects
+            </span>
+          </div>
+          <Progress value={Math.round(((progress.projectIndex + (progress.hasMore ? 0.5 : 1)) / progress.totalProjects) * 100)} className="h-2" />
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{progress.totalSynced.toLocaleString()} calls synced</span>
+            <span>{progress.totalProcessed.toLocaleString()} conversations processed</span>
+          </div>
+        </div>
+      )}
 
       <CallMetricsCards 
         totalDials={data.totalDials}
