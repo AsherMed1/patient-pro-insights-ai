@@ -128,6 +128,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             if (!locationMatch) {
               locationMatch = item.calendar_name.match(/at\s+(.+)$/);
             }
+            if (!locationMatch) {
+              locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
+            }
             
             if (locationMatch && locationMatch[1]) {
               const location = locationMatch[1].trim();
