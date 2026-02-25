@@ -34,6 +34,7 @@ interface AppointmentsListProps {
   onUpdatePhone?: (appointmentId: string, phone: string) => void;
   onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
   projectLocationMap?: Record<string, string>;
+  onDataRefresh?: () => void;
 }
 
 const AppointmentsList = ({
@@ -53,7 +54,8 @@ const AppointmentsList = ({
   onUpdateEmail,
   onUpdatePhone,
   onUpdateCalendarLocation,
-  projectLocationMap
+  projectLocationMap,
+  onDataRefresh
 }: AppointmentsListProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -250,6 +252,7 @@ const AppointmentsList = ({
                 onUpdatePhone={onUpdatePhone}
                 onUpdateCalendarLocation={onUpdateCalendarLocation}
                 projectLocationMap={projectLocationMap}
+                onDataRefresh={onDataRefresh}
               />
             </div>
           </div>

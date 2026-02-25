@@ -45,6 +45,7 @@ interface AppointmentCardProps {
   onUpdatePhone?: (appointmentId: string, phone: string) => void;
   onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
   projectLocationMap?: Record<string, string>;
+  onDataRefresh?: () => void;
 }
 
 interface NewLead {
@@ -93,7 +94,8 @@ const AppointmentCard = ({
   onUpdateEmail,
   onUpdatePhone,
   onUpdateCalendarLocation,
-  projectLocationMap
+  projectLocationMap,
+  onDataRefresh
 }: AppointmentCardProps) => {
   const { hasManagementAccess, isAdmin } = useRole();
   const [fetchedLocationId, setFetchedLocationId] = useState<string | null>(null);
@@ -1675,7 +1677,7 @@ const AppointmentCard = ({
         isOpen={showDetailedView}
         onClose={() => setShowDetailedView(false)}
         appointment={appointment}
-        onDataRefresh={() => window.location.reload()}
+        onDataRefresh={() => { onDataRefresh?.(); }}
       />
 
       {/* Reschedule Dialog */}

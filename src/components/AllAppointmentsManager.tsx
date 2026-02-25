@@ -1328,6 +1328,7 @@ const AllAppointmentsManager = ({
             onUpdatePhone={updateAppointmentPhone}
             onUpdateCalendarLocation={updateCalendarLocation}
             onBulkDelete={bulkDeleteAppointments}
+            onDataRefresh={() => { fetchAppointments(); fetchTabCounts(); }}
             tabCounts={tabCounts}
             projectLocationMap={projectLocationMap}
           />

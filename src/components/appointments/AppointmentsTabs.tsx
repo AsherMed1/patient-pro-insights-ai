@@ -27,6 +27,7 @@ interface AppointmentsTabsProps {
   onUpdateEmail?: (appointmentId: string, email: string) => void;
   onUpdatePhone?: (appointmentId: string, phone: string) => void;
   onUpdateCalendarLocation?: (appointmentId: string, location: string) => void;
+  onDataRefresh?: () => void;
   tabCounts?: {
     all: number;
     new: number;
@@ -56,6 +57,7 @@ const AppointmentsTabs = ({
   onUpdateEmail,
   onUpdatePhone,
   onUpdateCalendarLocation,
+  onDataRefresh,
   tabCounts,
   projectLocationMap
 }: AppointmentsTabsProps) => {
@@ -157,6 +159,7 @@ const AppointmentsTabs = ({
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
           projectLocationMap={projectLocationMap}
+          onDataRefresh={onDataRefresh}
         />
       </TabsContent>
 
@@ -179,6 +182,7 @@ const AppointmentsTabs = ({
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
           projectLocationMap={projectLocationMap}
+          onDataRefresh={onDataRefresh}
         />
       </TabsContent>
 
@@ -201,6 +205,7 @@ const AppointmentsTabs = ({
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
           projectLocationMap={projectLocationMap}
+          onDataRefresh={onDataRefresh}
         />
       </TabsContent>
 
@@ -223,6 +228,7 @@ const AppointmentsTabs = ({
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
           projectLocationMap={projectLocationMap}
+          onDataRefresh={onDataRefresh}
         />
       </TabsContent>
 
@@ -245,6 +251,7 @@ const AppointmentsTabs = ({
           onUpdatePhone={onUpdatePhone}
           onUpdateCalendarLocation={onUpdateCalendarLocation}
           projectLocationMap={projectLocationMap}
+          onDataRefresh={onDataRefresh}
         />
       </TabsContent>
       </Tabs>
