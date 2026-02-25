@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com'
 const GHL_API_VERSION = '2021-04-15'
-const MAX_CONVERSATIONS_PER_PROJECT = 100
+const CONVERSATIONS_PER_BATCH = 100 // Process 100 conversations per invocation
 const RATE_LIMIT_DELAY_MS = 600
 
 interface GHLConversation {
@@ -16,6 +16,7 @@ interface GHLConversation {
   fullName?: string
   contactName?: string
   phone?: string
+  lastMessageDate?: string
 }
 
 interface GHLMessage {
@@ -29,72 +30,85 @@ interface GHLMessage {
   meta?: { callDuration?: number; callStatus?: string; [key: string]: unknown }
 }
 
-async function fetchCallConversations(
-  apiKey: string, locationId: string, startAfterDate?: string, endAfterDate?: string,
-): Promise<GHLConversation[]> {
+/**
+ * Fetch a batch of conversations (NO lastMessageType filter).
+ * Uses cursor-based pagination via startAfterDate.
+ */
+async function fetchConversationBatch(
+  apiKey: string,
+  locationId: string,
+  cursor?: string,
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<{ conversations: GHLConversation[]; nextCursor: string | null }> {
   const all: GHLConversation[] = []
-  let lastCursor: string | undefined
+  let lastCursor = cursor || undefined
+  let isFirstPage = !cursor
 
-  for (let page = 0; page < 20; page++) {
-    const params = new URLSearchParams({ locationId, limit: '50', lastMessageType: 'TYPE_CALL' })
-    if (page === 0) {
-      if (startAfterDate) params.set('startAfterDate', String(new Date(startAfterDate).getTime()))
-      if (endAfterDate) params.set('endAfterDate', String(new Date(endAfterDate).getTime()))
+  for (let page = 0; page < Math.ceil(CONVERSATIONS_PER_BATCH / 50); page++) {
+    const params = new URLSearchParams({ locationId, limit: '50' })
+
+    if (isFirstPage && page === 0) {
+      // First ever page: use date range filter
+      if (dateFrom) params.set('startAfterDate', String(new Date(dateFrom).getTime()))
+      if (dateTo) params.set('endAfterDate', String(new Date(dateTo).getTime()))
+      isFirstPage = false
     } else if (lastCursor) {
       params.set('startAfterDate', lastCursor)
+      if (dateTo) params.set('endAfterDate', String(new Date(dateTo).getTime()))
     }
 
     const res = await fetch(`${GHL_BASE_URL}/conversations/search?${params}`, {
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_API_VERSION, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Version': GHL_API_VERSION,
+        'Content-Type': 'application/json',
+      },
     })
-    if (!res.ok) { console.error(`[SYNC] Conv API error ${res.status}`); break }
+
+    if (!res.ok) {
+      console.error(`[SYNC] Conv API error ${res.status}: ${await res.text()}`)
+      break
+    }
 
     const data = await res.json()
-    const convs = data.conversations || []
+    const convs: GHLConversation[] = data.conversations || []
     if (convs.length === 0) break
+
     all.push(...convs)
-    if (all.length >= MAX_CONVERSATIONS_PER_PROJECT || convs.length < 50) break
     lastCursor = convs[convs.length - 1].lastMessageDate || undefined
+
+    if (all.length >= CONVERSATIONS_PER_BATCH || convs.length < 50) break
     if (!lastCursor) break
+
+    await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY_MS))
   }
-  return all.slice(0, MAX_CONVERSATIONS_PER_PROJECT)
+
+  const nextCursor = all.length >= CONVERSATIONS_PER_BATCH && lastCursor ? lastCursor : null
+
+  return { conversations: all.slice(0, CONVERSATIONS_PER_BATCH), nextCursor }
 }
 
-async function fetchCallMessages(apiKey: string, conversationId: string, debug = false): Promise<GHLMessage[]> {
+async function fetchCallMessages(apiKey: string, conversationId: string): Promise<GHLMessage[]> {
   const calls: GHLMessage[] = []
   let lastMessageId: string | undefined
 
-  for (let page = 0; page < 3; page++) {
-    // Don't filter by type in query — fetch all messages and filter locally
+  for (let page = 0; page < 5; page++) {
     const params = new URLSearchParams({ limit: '50' })
     if (lastMessageId) params.set('lastMessageId', lastMessageId)
 
     const url = `${GHL_BASE_URL}/conversations/${conversationId}/messages?${params}`
     const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_API_VERSION, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Version': GHL_API_VERSION,
+        'Content-Type': 'application/json',
+      },
     })
-    
-    if (!res.ok) {
-      if (debug) console.error(`[SYNC] Messages API ${res.status} for ${conversationId}`)
-      break
-    }
+
+    if (!res.ok) break
 
     const data = await res.json()
-    
-    if (debug && page === 0) {
-      // Log raw response structure for debugging
-      const keys = Object.keys(data)
-      console.log(`[SYNC] DEBUG Messages response keys: ${keys.join(', ')}`)
-      const rawMsgs = data.messages?.messages || data.messages || []
-      if (rawMsgs.length > 0) {
-        const sample = rawMsgs[0]
-        console.log(`[SYNC] DEBUG First msg: type=${sample.type}, contentType=${sample.contentType}, direction=${sample.direction}, messageType=${sample.messageType}, keys=${Object.keys(sample).join(',')}`)
-        console.log(`[SYNC] DEBUG First msg raw:`, JSON.stringify(sample).substring(0, 800))
-      } else {
-        console.log(`[SYNC] DEBUG No messages in response. Raw:`, JSON.stringify(data).substring(0, 500))
-      }
-    }
-
     const msgs: GHLMessage[] = data.messages?.messages || data.messages || []
     if (msgs.length === 0) break
 
@@ -105,17 +119,12 @@ async function fetchCallMessages(apiKey: string, conversationId: string, debug =
       const mt = String((m as any).messageType || '').toLowerCase()
       return t === 5 || t === 'Call' as any || ct.includes('call') || mt.includes('call')
     })
-    
-    if (debug && page === 0) {
-      console.log(`[SYNC] DEBUG Page 0: ${msgs.length} total msgs, ${filtered.length} call msgs`)
-      // Show all unique types in this batch
-      const types = [...new Set(msgs.map(m => `type=${m.type},ct=${m.contentType},mt=${(m as any).messageType}`))]
-      console.log(`[SYNC] DEBUG Message types found: ${types.join(' | ')}`)
-    }
 
     calls.push(...filtered)
     if (msgs.length < 50 || !data.nextPage) break
     lastMessageId = msgs[msgs.length - 1].id
+
+    await new Promise(r => setTimeout(r, 300))
   }
   return calls
 }
@@ -134,94 +143,6 @@ function parseStatus(msg: GHLMessage): string {
   return 'completed'
 }
 
-async function processProjects(supabase: any, projects: any[], dateFrom: string, dateTo: string) {
-  let totalSynced = 0
-  const results: Record<string, number> = {}
-
-  for (const project of projects) {
-    try {
-      console.log(`[SYNC] Processing ${project.project_name}`)
-      const conversations = await fetchCallConversations(project.ghl_api_key, project.ghl_location_id, dateFrom, dateTo)
-      console.log(`[SYNC] ${project.project_name}: ${conversations.length} conversations`)
-
-      if (conversations.length === 0) { results[project.project_name] = 0; continue }
-
-      const records: any[] = []
-      let totalMsgsFetched = 0
-      let totalCallsFound = 0
-
-      for (let i = 0; i < conversations.length; i++) {
-        const conv = conversations[i]
-        try {
-          const messages = await fetchCallMessages(project.ghl_api_key, conv.id, i < 3)
-          totalCallsFound += messages.length
-          
-          if (messages.length > 0) {
-            if (i < 3) {
-              console.log(`[SYNC] Conv ${i}: ${messages.length} calls found, sample id=${messages[0].id}`)
-            }
-
-            const contactName = conv.fullName || conv.contactName || 'Unknown'
-            const phone = conv.phone || ''
-
-            for (const msg of messages) {
-              const dt = msg.dateAdded || new Date().toISOString()
-              const duration = (msg.meta as any)?.call?.duration ?? msg.meta?.callDuration ?? 0
-              records.push({
-                ghl_id: msg.id,
-                project_name: project.project_name,
-                lead_name: contactName,
-                lead_phone_number: phone || '0000000000',
-                direction: parseDirection(msg),
-                call_datetime: dt,
-                date: dt.split('T')[0] || new Date().toISOString().split('T')[0],
-                duration_seconds: typeof duration === 'number' ? duration : 0,
-                status: parseStatus(msg),
-                call_summary: msg.body || null,
-              })
-            }
-          }
-
-          // Log progress every 25 conversations
-          if ((i + 1) % 25 === 0) {
-            console.log(`[SYNC] Progress: ${i + 1}/${conversations.length} convs, ${records.length} records so far`)
-          }
-
-          // Rate limit
-          if (i < conversations.length - 1) await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY_MS))
-        } catch (e) {
-          console.error(`[SYNC] Conv ${i} (${conv.id}) error:`, e)
-        }
-      }
-
-      console.log(`[SYNC] ${project.project_name}: totalCallsFound=${totalCallsFound}, records=${records.length}`)
-
-      console.log(`[SYNC] ${project.project_name}: ${records.length} individual call records`)
-
-      // Upsert in batches
-      let synced = 0
-      for (let i = 0; i < records.length; i += 50) {
-        const batch = records.slice(i, i + 50)
-        const { error } = await supabase.from('all_calls').upsert(batch, { onConflict: 'ghl_id' })
-        if (error) console.error(`[SYNC] Upsert error:`, error)
-        else synced += batch.length
-      }
-
-      results[project.project_name] = synced
-      totalSynced += synced
-      console.log(`[SYNC] ${project.project_name}: synced ${synced} records`)
-
-      if (projects.length > 1) await new Promise(r => setTimeout(r, 1000))
-    } catch (e) {
-      console.error(`[SYNC] ${project.project_name} error:`, e)
-      results[project.project_name] = -1
-    }
-  }
-
-  console.log(`[SYNC] COMPLETE: ${totalSynced} total records across ${projects.length} projects`)
-  return { totalSynced, results }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -232,35 +153,140 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { dateFrom, dateTo, projectName } = await req.json()
-    console.log(`[SYNC] Request: from=${dateFrom} to=${dateTo} project=${projectName || 'ALL'}`)
+    const { projectName, dateFrom, dateTo } = await req.json()
 
-    let q = supabase.from('projects').select('project_name, ghl_api_key, ghl_location_id')
-      .eq('active', true).not('ghl_api_key', 'is', null).not('ghl_location_id', 'is', null)
-    if (projectName && projectName !== 'ALL') q = q.eq('project_name', projectName)
-
-    const { data: projects, error } = await q
-    if (error) throw error
-    if (!projects?.length) {
-      return new Response(JSON.stringify({ success: true, message: 'No projects found', synced: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (!projectName) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'projectName is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    console.log(`[SYNC] ${projects.length} projects, starting background processing`)
+    console.log(`[SYNC] Processing project: ${projectName}, from=${dateFrom}, to=${dateTo}`)
 
-    // Background processing via waitUntil
-    const bgTask = processProjects(supabase, projects, dateFrom, dateTo)
-    
-    // @ts-ignore - EdgeRuntime.waitUntil is available in Supabase Edge Functions
-    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
-      EdgeRuntime.waitUntil(bgTask)
+    // Get project credentials
+    const { data: project, error: projErr } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .eq('project_name', projectName)
+      .eq('active', true)
+      .not('ghl_api_key', 'is', null)
+      .not('ghl_location_id', 'is', null)
+      .single()
+
+    if (projErr || !project) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Project not found or missing GHL credentials: ${projectName}` }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+
+    // Read cursor from call_sync_cursors table
+    const cursorKey = { project_name: projectName, date_from: dateFrom || null, date_to: dateTo || null }
+    const { data: existingCursor } = await supabase
+      .from('call_sync_cursors')
+      .select('*')
+      .eq('project_name', projectName)
+      .is('date_from', dateFrom || null)
+      .is('date_to', dateTo || null)
+      .eq('status', 'in_progress')
+      .maybeSingle()
+
+    const cursor = existingCursor?.cursor_value || undefined
+    const prevProcessed = existingCursor?.conversations_processed || 0
+    const prevSynced = existingCursor?.calls_synced || 0
+
+    console.log(`[SYNC] ${projectName}: cursor=${cursor ? 'resuming' : 'fresh start'}, prevProcessed=${prevProcessed}`)
+
+    // Fetch batch of conversations
+    const { conversations, nextCursor } = await fetchConversationBatch(
+      project.ghl_api_key, project.ghl_location_id, cursor, dateFrom, dateTo
+    )
+
+    console.log(`[SYNC] ${projectName}: fetched ${conversations.length} conversations, hasMore=${!!nextCursor}`)
+
+    // Process conversations: fetch messages and filter for calls
+    const records: any[] = []
+    for (let i = 0; i < conversations.length; i++) {
+      const conv = conversations[i]
+      try {
+        const messages = await fetchCallMessages(project.ghl_api_key, conv.id)
+        if (messages.length > 0) {
+          const contactName = conv.fullName || conv.contactName || 'Unknown'
+          const phone = conv.phone || ''
+
+          for (const msg of messages) {
+            const dt = msg.dateAdded || new Date().toISOString()
+            const duration = (msg.meta as any)?.call?.duration ?? msg.meta?.callDuration ?? 0
+            records.push({
+              ghl_id: msg.id,
+              project_name: project.project_name,
+              lead_name: contactName,
+              lead_phone_number: phone || '0000000000',
+              direction: parseDirection(msg),
+              call_datetime: dt,
+              date: dt.split('T')[0] || new Date().toISOString().split('T')[0],
+              duration_seconds: typeof duration === 'number' ? duration : 0,
+              status: parseStatus(msg),
+              call_summary: msg.body || null,
+            })
+          }
+        }
+
+        if ((i + 1) % 25 === 0) {
+          console.log(`[SYNC] ${projectName}: ${i + 1}/${conversations.length} convs, ${records.length} calls`)
+        }
+
+        if (i < conversations.length - 1) await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY_MS))
+      } catch (e) {
+        console.error(`[SYNC] Conv ${conv.id} error:`, e)
+      }
+    }
+
+    // Upsert records in batches
+    let synced = 0
+    for (let i = 0; i < records.length; i += 50) {
+      const batch = records.slice(i, i + 50)
+      const { error } = await supabase.from('all_calls').upsert(batch, { onConflict: 'ghl_id' })
+      if (error) console.error(`[SYNC] Upsert error:`, error)
+      else synced += batch.length
+    }
+
+    const totalProcessed = prevProcessed + conversations.length
+    const totalSynced = prevSynced + synced
+    const hasMore = !!nextCursor
+
+    // Update cursor state
+    if (hasMore) {
+      await supabase.from('call_sync_cursors').upsert({
+        project_name: projectName,
+        date_from: dateFrom || null,
+        date_to: dateTo || null,
+        cursor_value: nextCursor,
+        conversations_processed: totalProcessed,
+        calls_synced: totalSynced,
+        status: 'in_progress',
+      }, { onConflict: 'project_name,date_from,date_to' })
+    } else {
+      // Mark complete or delete cursor
+      await supabase.from('call_sync_cursors')
+        .delete()
+        .eq('project_name', projectName)
+        .is('date_from', dateFrom || null)
+        .is('date_to', dateTo || null)
+    }
+
+    console.log(`[SYNC] ${projectName}: batch done. synced=${synced}, totalSynced=${totalSynced}, totalProcessed=${totalProcessed}, hasMore=${hasMore}`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Processing ${projects.length} projects in background. Check logs for results.`,
-        projectCount: projects.length,
+        projectName,
+        synced: synced,
+        totalSynced,
+        totalProcessed,
+        conversationsInBatch: conversations.length,
+        hasMore,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

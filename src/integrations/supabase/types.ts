@@ -709,6 +709,45 @@ export type Database = {
         }
         Relationships: []
       }
+      call_sync_cursors: {
+        Row: {
+          calls_synced: number | null
+          conversations_processed: number | null
+          created_at: string
+          cursor_value: string | null
+          date_from: string | null
+          date_to: string | null
+          id: string
+          project_name: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          calls_synced?: number | null
+          conversations_processed?: number | null
+          created_at?: string
+          cursor_value?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          id?: string
+          project_name: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calls_synced?: number | null
+          conversations_processed?: number | null
+          created_at?: string
+          cursor_value?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          id?: string
+          project_name?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_performance_facts: {
         Row: {
           ad_spend: number | null
