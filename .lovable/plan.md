@@ -1,31 +1,25 @@
-
-
-## Fix: Call Message Date Filtering in sync-ghl-calls
+## Fix: Merge Duplicate "Naadi Healthcare" into "Naadi Healthcare Manteca"
 
 ### Problem
-The sync has processed 440+ conversations and synced 1,581+ records for Texas Vascular Institute, but February inbound is still stuck at 66. The reason: the edge function pulls **all call messages** from each conversation regardless of date. Most synced records are from other months (total across all months is now 5,850).
 
-### Change
+The call sync created a second project called "Naadi Healthcare" (Feb 24) with 3 call records. The canonical project is "Naadi Healthcare Manteca" (Jun 1, 2025) which has all 1,605 calls, 221 appointments, and 1,081 leads plus valid GHL credentials.
 
-| File | Change |
-|------|--------|
-| `supabase/functions/sync-ghl-calls/index.ts` | Add date filtering when processing individual call messages — skip any message whose `dateAdded` falls outside `dateFrom`/`dateTo` |
+### Steps
 
-### Technical Detail
-
-On line 223-237, inside the `for (const msg of messages)` loop, add a date range check before pushing the record:
-
-```typescript
-for (const msg of messages) {
-  const dt = msg.dateAdded || new Date().toISOString()
+1. **Migrate the 3 orphaned calls** from `Naadi Healthcare` to `Naadi Healthcare Manteca` in the `all_calls` table
+2. **Delete the duplicate project** `Naadi Healthcare` from the `projects` table  
   
-  // Filter call messages by date range if provided
-  if (dateFrom && new Date(dt) < new Date(dateFrom)) continue
-  if (dateTo && new Date(dt) > new Date(dateTo)) continue
-  
-  // ... rest of record creation unchanged
-}
-```
+3. all appointment will go to `Naadi Healthcare Manteca`
 
-This ensures the `synced` count and `totalSynced` only reflect February calls, giving us an accurate comparison against the CSV's 136 inbound. After deploying, we should also clear the stale cursor entry (the one with null dates) and re-run the sync for Texas Vascular Institute to verify accuracy.
+This is a data-only fix -- no code changes needed. A single SQL migration will handle it.
 
+
+| Action | Table       | Detail                                                                                    |
+| ------ | ----------- | ----------------------------------------------------------------------------------------- |
+| UPDATE | `all_calls` | Set `project_name = 'Naadi Healthcare Manteca'` where `project_name = 'Naadi Healthcare'` |
+| DELETE | `projects`  | Remove the row where `project_name = 'Naadi Healthcare'`                                  |
+
+
+### Prevention
+
+The `normalizeProjectName` utility in the webhook handler already handles whitespace issues, but this was a substring mismatch (missing " Manteca"). A longer-term fix would be to add fuzzy matching or a project alias table, but for now manual cleanup is the pragmatic approach.
