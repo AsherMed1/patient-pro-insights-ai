@@ -51,6 +51,33 @@ const ProjectsManager = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
 
+  const fuzzyMatch = (text: string, query: string): boolean => {
+    if (!query) return true;
+    const t = text.toLowerCase();
+    const q = query.toLowerCase();
+    if (t.includes(q)) return true;
+    // Simple Levenshtein-based substring check
+    const maxDist = q.length <= 3 ? 1 : Math.floor(q.length / 3);
+    for (let i = 0; i <= t.length - Math.max(1, q.length - maxDist); i++) {
+      const sub = t.substring(i, i + q.length + maxDist);
+      if (levenshtein(sub.substring(0, q.length), q) <= maxDist) return true;
+    }
+    return false;
+  };
+
+  const levenshtein = (a: string, b: string): number => {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+      Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+    );
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = a[i-1] === b[j-1]
+          ? dp[i-1][j-1]
+          : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    return dp[m][n];
+  };
+
   useEffect(() => {
     fetchProjectsAndStats();
   }, []);
@@ -326,7 +353,7 @@ const ProjectsManager = () => {
           </div>
         ) : projects
               .filter(project => project && project.project_name)
-              .filter(project => project.project_name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(project => fuzzyMatch(project.project_name, searchQuery))
               .length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No projects match your search.</p>
@@ -335,7 +362,7 @@ const ProjectsManager = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects
               .filter(project => project && project.project_name)
-              .filter(project => project.project_name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(project => fuzzyMatch(project.project_name, searchQuery))
               .sort((a, b) => {
                 // First sort by active status (active projects first)
                 if (a.active !== b.active) {
