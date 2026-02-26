@@ -121,6 +121,7 @@ const AppointmentCard = ({
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(appointment.date_of_appointment ? new Date(appointment.date_of_appointment) : undefined);
   const [timeValue, setTimeValue] = useState<string>(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
+  const [dateTimePopoverOpen, setDateTimePopoverOpen] = useState(false);
   const [selectedDOB, setSelectedDOB] = useState<Date | undefined>(dobDisplay ? new Date(dobDisplay) : undefined);
   
   // Editing states
@@ -1389,7 +1390,7 @@ const AppointmentCard = ({
                 </span>
               )}
               {hasManagementAccess() && (
-                <Popover>
+                <Popover open={dateTimePopoverOpen} onOpenChange={setDateTimePopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
@@ -1403,29 +1404,19 @@ const AppointmentCard = ({
                   <PopoverContent className="z-50 w-auto p-0 bg-background border shadow-md" align="start">
                     <AppointmentDateTimeEditor
                       appointment={appointment}
-                      selectedDate={selectedDate}
-                      timeValue={timeValue}
+                      initialDate={selectedDate}
+                      initialTime={timeValue}
                       calendars={calendars}
                       projectGhlCredentials={projectGhlCredentials}
                       projectTimezone={projectTimezone}
-                      onDateSelect={(date) => {
+                      onConfirm={(date, time) => {
                         setSelectedDate(date);
-                        onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
-                      }}
-                      onTimeSelect={(time) => {
                         setTimeValue(time);
+                        onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
                         onUpdateTime(appointment.id, time || null);
+                        setDateTimePopoverOpen(false);
                       }}
-                      onTimeChange={setTimeValue}
-                      onTimeBlur={() => onUpdateTime(appointment.id, timeValue || null)}
-                      onTimeKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          onUpdateTime(appointment.id, timeValue || null);
-                        }
-                        if (e.key === 'Escape') {
-                          setTimeValue(appointment.requested_time ? appointment.requested_time.slice(0,5) : '');
-                        }
-                      }}
+                      onClose={() => setDateTimePopoverOpen(false)}
                     />
                   </PopoverContent>
                 </Popover>
@@ -1789,34 +1780,29 @@ export default AppointmentCard;
 // Sub-component for the date/time editor with Default (availability) and Custom modes
 interface AppointmentDateTimeEditorProps {
   appointment: AllAppointment;
-  selectedDate: Date | undefined;
-  timeValue: string;
+  initialDate: Date | undefined;
+  initialTime: string;
   calendars: { id: string; name: string }[];
   projectGhlCredentials: { ghl_location_id: string | null; ghl_api_key: string | null };
   projectTimezone: string;
-  onDateSelect: (date: Date | undefined) => void;
-  onTimeSelect: (time: string) => void;
-  onTimeChange: (time: string) => void;
-  onTimeBlur: () => void;
-  onTimeKeyDown: (e: React.KeyboardEvent) => void;
+  onConfirm: (date: Date | undefined, time: string) => void;
+  onClose: () => void;
 }
 
 function AppointmentDateTimeEditor({
   appointment,
-  selectedDate,
-  timeValue,
+  initialDate,
+  initialTime,
   calendars,
   projectGhlCredentials,
   projectTimezone,
-  onDateSelect,
-  onTimeSelect,
-  onTimeChange,
-  onTimeBlur,
-  onTimeKeyDown,
+  onConfirm,
+  onClose,
 }: AppointmentDateTimeEditorProps) {
   const [mode, setMode] = useState<'default' | 'custom'>('default');
+  const [pendingDate, setPendingDate] = useState<Date | undefined>(initialDate);
+  const [pendingTime, setPendingTime] = useState<string>(initialTime);
 
-  // Resolve calendarId by matching appointment.calendar_name to fetched calendars
   const resolvedCalendarId = React.useMemo(() => {
     if (!appointment.calendar_name || calendars.length === 0) return null;
     const match = calendars.find(
@@ -1826,22 +1812,20 @@ function AppointmentDateTimeEditor({
   }, [appointment.calendar_name, calendars]);
 
   const hasGhlConfig = !!projectGhlCredentials.ghl_location_id;
-
-  // If no GHL config, always show custom
   const effectiveMode = hasGhlConfig ? mode : 'custom';
-
-  const dateStr = selectedDate ? formatDateFns(selectedDate, 'yyyy-MM-dd') : '';
+  const dateStr = pendingDate ? formatDateFns(pendingDate, 'yyyy-MM-dd') : '';
+  const hasChanges = pendingDate !== initialDate || pendingTime !== initialTime;
 
   return (
     <div className="flex flex-col gap-2">
       <Calendar
         mode="single"
-        selected={selectedDate}
-        onSelect={onDateSelect}
+        selected={pendingDate}
+        onSelect={setPendingDate}
         initialFocus
         className={cn("p-3 pointer-events-auto")}
       />
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-1">
         {effectiveMode === 'default' && dateStr ? (
           <>
             <AvailableTimeSlots
@@ -1849,8 +1833,8 @@ function AppointmentDateTimeEditor({
               date={dateStr}
               timezone={projectTimezone}
               ghlApiKey={projectGhlCredentials.ghl_api_key}
-              selectedTime={timeValue}
-              onSelectTime={onTimeSelect}
+              selectedTime={pendingTime}
+              onSelectTime={setPendingTime}
               onFallbackToCustom={() => setMode('custom')}
             />
             <div className="mt-2 pt-2 border-t text-center">
@@ -1873,10 +1857,8 @@ function AppointmentDateTimeEditor({
             <label className="text-sm font-medium mb-1 block">Time</label>
             <Input
               type="time"
-              value={timeValue}
-              onChange={(e) => onTimeChange(e.target.value)}
-              onBlur={onTimeBlur}
-              onKeyDown={onTimeKeyDown}
+              value={pendingTime}
+              onChange={(e) => setPendingTime(e.target.value)}
               className="h-9"
               placeholder="Select time"
             />
@@ -1894,6 +1876,14 @@ function AppointmentDateTimeEditor({
             )}
           </>
         )}
+      </div>
+      <div className="flex justify-end gap-2 px-3 pb-3 border-t pt-2">
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={!hasChanges} onClick={() => onConfirm(pendingDate, pendingTime)}>
+          Confirm
+        </Button>
       </div>
     </div>
   );
