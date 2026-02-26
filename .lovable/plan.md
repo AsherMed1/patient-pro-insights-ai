@@ -1,35 +1,52 @@
 
 
-## Fix: Notes Field Not Showing in Portal + Backfill
+## Two Fixes: Remove "No Show" from Calendar + Fix Status Color Coding
 
-### Root Cause
-The categorization fix from the last edit IS working -- the "Notes" field now correctly routes to Insurance Information. However, two issues prevent it from appearing in the portal:
+### Problem 1: No Show patients visible on calendar
+The query in `useCalendarAppointments.tsx` (line 66-68) filters out `cancelled`, `canceled`, and `oon` but does NOT filter out `no show` or `noshow`. Same issue in `UpcomingEventsPanel.tsx`.
 
-1. **`fetch-ghl-contact-data` overwrites existing notes**: Line 38 selects `id, ghl_appointment_id, ghl_id, project_name, lead_name` but NOT `patient_intake_notes`. When it later reads `appointment.patient_intake_notes`, it gets `undefined`, treating it as empty and replacing all existing notes instead of appending. This erased the original webhook data.
-
-2. **Reparse not triggered**: After the enrichment, the AI parser needs to run to extract "TEST" from the intake notes into `parsed_insurance_info.insurance_notes`, which is what the portal UI reads (line 889 of `ParsedIntakeInfo.tsx`).
+### Problem 2: All status badges look the same
+The `getStatusInfo()` function in `calendarUtils.ts` returns generic badge variants (`default`, `secondary`, `outline`, `destructive`) instead of the custom color-coded variants already defined in `badge.tsx` (`showed`, `confirmed`, `noshow`, `cancelled`, `rescheduled`, `oon`, `welcomeCall`, `doNotCall`).
 
 ### Changes
 
-| Step | Action |
+| File | Change |
 |------|--------|
-| 1 | Fix `fetch-ghl-contact-data` to include `patient_intake_notes` in its select query so it appends instead of overwrites |
-| 2 | Trigger reparse for BVC TEST ONLY (`1671ba97-9898-4916-8452-4c3b93b9ff1c`) to populate `parsed_insurance_info.insurance_notes` with "TEST" |
-| 3 | Trigger reparse for all Buffalo Vascular Care appointments that have `patient_intake_notes` containing "Notes" to backfill any other missed records |
+| `src/hooks/useCalendarAppointments.tsx` | Add `.not('status', 'ilike', 'no show')` and `.not('status', 'ilike', 'noshow')` filters to the query |
+| `src/components/appointments/UpcomingEventsPanel.tsx` | Same "no show" filters added to its query |
+| `src/components/appointments/calendarUtils.ts` | Update `getStatusInfo()` to return the correct color-coded badge variants (`showed`, `confirmed`, `noshow`, `cancelled`, `rescheduled`, `oon`, `welcomeCall`, `doNotCall`) instead of generic ones |
 
 ### Technical Detail
 
-**File: `supabase/functions/fetch-ghl-contact-data/index.ts`** (line 38)
-
+**Filter fix** (both `useCalendarAppointments.tsx` and `UpcomingEventsPanel.tsx`):
 ```typescript
-// BEFORE:
-.select('id, ghl_appointment_id, ghl_id, project_name, lead_name')
-
-// AFTER:
-.select('id, ghl_appointment_id, ghl_id, project_name, lead_name, patient_intake_notes')
+.not('status', 'ilike', 'no show')
+.not('status', 'ilike', 'noshow')
 ```
 
-This one-line fix ensures the function reads existing notes before appending, preventing data loss.
-
-**Backfill**: Call `reparse-specific-appointments` with relevant Buffalo Vascular Care appointment IDs to re-run the AI parser and populate `parsed_insurance_info.insurance_notes`.
+**Status color fix** (`calendarUtils.ts` `getStatusInfo`):
+```typescript
+switch (normalizedStatus) {
+  case 'showed':
+    return { label: 'Showed', variant: 'showed' };
+  case 'confirmed':
+    return { label: 'Confirmed', variant: 'confirmed' };
+  case 'cancelled':
+    return { label: 'Cancelled', variant: 'cancelled' };
+  case 'no show':
+  case 'noshow':
+    return { label: 'No Show', variant: 'noshow' };
+  case 'rescheduled':
+    return { label: 'Rescheduled', variant: 'rescheduled' };
+  case 'oon':
+    return { label: 'OON', variant: 'oon' };
+  case 'welcome call':
+    return { label: 'Welcome Call', variant: 'welcomeCall' };
+  case 'do not call':
+  case 'donotcall':
+    return { label: 'Do Not Call', variant: 'doNotCall' };
+  default:
+    return { label: status || 'Scheduled', variant: 'outline' };
+}
+```
 
