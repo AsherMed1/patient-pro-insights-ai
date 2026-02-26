@@ -1,22 +1,27 @@
 
 
-## Add PAD Event Type to Calendar
+## Add Confirm Button to Appointment Date/Time Editor
 
-### Change
+### Problem
+When editing an appointment's date and time, selecting a date immediately saves it (along with the old time), forcing the user to re-open the editor to change the time. The user wants to pick both date and time first, then confirm with a single save action — like GoHighLevel does.
 
-**File: `src/components/appointments/calendarUtils.ts`**
+### Changes
 
-1. Add a PAD entry to the `EVENT_TYPES` array (before "Other") with a distinct color (red):
-   ```typescript
-   { type: 'PAD', shortName: 'PAD', borderColor: 'border-l-red-500', bgColor: 'bg-red-50 dark:bg-red-950/30', textColor: 'text-red-700 dark:text-red-300', dotColor: 'bg-red-500' }
-   ```
+**File: `src/components/appointments/AppointmentCard.tsx`**
 
-2. Add PAD detection in `getEventTypeFromCalendar()` — match `'PAD'` and `'PERIPHERAL'` in the calendar name (inserted before the PAE check to avoid false matches):
-   ```typescript
-   if (upperName.includes('PAD') || upperName.includes('PERIPHERAL')) {
-     return EVENT_TYPES.find(e => e.type === 'PAD')!;
-   }
-   ```
+1. **`AppointmentDateTimeEditor` component** (~line 1804): Add local staging state for date and time so selections don't immediately propagate to the parent. Add a "Confirm" button that commits both changes at once, and a "Cancel" button that discards changes and closes the popover.
 
-This will make PAD appear in the Event Types legend as a red dot alongside GAE, PFE, and UFE for TVI (and any other clinic with PAD calendars).
+   - Add `pendingDate` and `pendingTime` local state (initialized from current values)
+   - Calendar `onSelect` updates `pendingDate` only (no parent callback)
+   - Time slot / custom time updates `pendingTime` only
+   - New "Confirm" button calls `onDateSelect(pendingDate)` then `onTimeSelect(pendingTime)` together
+   - New `onClose` prop to close the popover on Cancel
+
+2. **Popover usage** (~line 1392): Convert the `<Popover>` to a controlled popover with `open`/`onOpenChange` state so the editor can close itself on Confirm or Cancel.
+
+3. **Interface update** (~line 1790): Add `onClose` callback to `AppointmentDateTimeEditorProps`.
+
+### Technical Detail
+
+The key architectural change is introducing a two-phase commit: selections are staged locally inside `AppointmentDateTimeEditor`, and only flushed to the parent (which triggers the database save and GHL sync) when the user clicks "Confirm". This mirrors the GHL workflow the user referenced.
 
