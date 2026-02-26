@@ -808,7 +808,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.imaging_type}</span>
                   </div>
                 )}
-                {formatValue(parsedMedicalInfo?.imaging_details) && (
+                {formatValue(parsedMedicalInfo?.imaging_details) && String(parsedMedicalInfo.imaging_details).length < 300 && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Had Imaging Before:</span>{" "}
                     <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
