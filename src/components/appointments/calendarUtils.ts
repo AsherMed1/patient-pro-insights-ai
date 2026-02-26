@@ -76,6 +76,14 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     dotColor: 'bg-indigo-500'
   },
   { 
+    type: 'PAD', 
+    shortName: 'PAD',
+    borderColor: 'border-l-red-500', 
+    bgColor: 'bg-red-50 dark:bg-red-950/30', 
+    textColor: 'text-red-700 dark:text-red-300',
+    dotColor: 'bg-red-500'
+  },
+  { 
     type: 'Other', 
     shortName: 'Other',
     borderColor: 'border-l-gray-400', 
@@ -107,6 +115,9 @@ export function getEventTypeFromCalendar(calendarName: string | null, isReserved
   }
   if (upperName.includes('UFE')) {
     return EVENT_TYPES.find(e => e.type === 'UFE')!;
+  }
+  if (upperName.includes('PAD') || upperName.includes('PERIPHERAL')) {
+    return EVENT_TYPES.find(e => e.type === 'PAD')!;
   }
   if (upperName.includes('PAE')) {
     return EVENT_TYPES.find(e => e.type === 'PAE')!;
