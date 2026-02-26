@@ -66,6 +66,8 @@ export function useCalendarAppointments({
         .not('status', 'ilike', 'cancelled')
         .not('status', 'ilike', 'canceled')
         .not('status', 'ilike', 'oon')
+        .not('status', 'ilike', 'no show')
+        .not('status', 'ilike', 'noshow')
         .order('date_of_appointment', { ascending: true });
 
       if (projectName) {

@@ -126,20 +126,28 @@ export function getEventTypeFromCalendar(calendarName: string | null, isReserved
 }
 
 // Get status badge info
-export function getStatusInfo(status: string | null): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
+export function getStatusInfo(status: string | null): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'showed' | 'confirmed' | 'noshow' | 'cancelled' | 'rescheduled' | 'oon' | 'welcomeCall' | 'doNotCall' } {
   const normalizedStatus = (status ?? '').toLowerCase().trim();
   
   switch (normalizedStatus) {
     case 'showed':
-      return { label: 'Showed', variant: 'default' };
+      return { label: 'Showed', variant: 'showed' };
     case 'confirmed':
-      return { label: 'Confirmed', variant: 'secondary' };
+      return { label: 'Confirmed', variant: 'confirmed' };
     case 'cancelled':
+      return { label: 'Cancelled', variant: 'cancelled' };
     case 'no show':
     case 'noshow':
-      return { label: normalizedStatus === 'cancelled' ? 'Cancelled' : 'No Show', variant: 'destructive' };
+      return { label: 'No Show', variant: 'noshow' };
     case 'rescheduled':
-      return { label: 'Rescheduled', variant: 'outline' };
+      return { label: 'Rescheduled', variant: 'rescheduled' };
+    case 'oon':
+      return { label: 'OON', variant: 'oon' };
+    case 'welcome call':
+      return { label: 'Welcome Call', variant: 'welcomeCall' };
+    case 'do not call':
+    case 'donotcall':
+      return { label: 'Do Not Call', variant: 'doNotCall' };
     default:
       return { label: status || 'Scheduled', variant: 'outline' };
   }
