@@ -972,9 +972,16 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       } else if (lowerKey.includes('x-ray') || lowerKey.includes('xray')) {
         result.medical_info.xray_details = valueStr;
       } else if (lowerKey.includes('had imaging') || lowerKey.includes('imaging before')) {
-        // Specific "Had Imaging Before?" field with details
-        result.medical_info.imaging_details = valueStr;
-        console.log(`[AUTO-PARSE GHL] Extracted 'Had Imaging Before' field: ${valueStr}`);
+        // Guard against GHL bot prompts stored in imaging fields
+        if (valueStr.length > 200 || /booking|consultation|schedule|challenger/i.test(valueStr)) {
+          console.log(`[AUTO-PARSE GHL] Skipping bot prompt in imaging field: ${valueStr.substring(0, 50)}...`);
+          if (!result.medical_info.imaging_details) {
+            result.medical_info.imaging_details = 'Patient has had previous imaging';
+          }
+        } else {
+          result.medical_info.imaging_details = valueStr;
+        }
+        console.log(`[AUTO-PARSE GHL] Extracted 'Had Imaging Before' field: ${valueStr.substring(0, 100)}`);
       } else {
         result.medical_info.imaging_details = valueStr;
       }
