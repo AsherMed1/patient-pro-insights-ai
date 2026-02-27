@@ -22,6 +22,7 @@ import { CalendarDetailView } from '@/components/appointments/CalendarDetailView
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { AllAppointment } from '@/components/appointments/types';
 import { EventTypeLegend } from '@/components/appointments/EventTypeLegend';
+import { LocationLegend } from '@/components/appointments/LocationLegend';
 import { ReserveTimeBlockDialog } from '@/components/appointments/ReserveTimeBlockDialog';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
@@ -85,6 +86,7 @@ const ProjectPortal = () => {
   const [reserveInitialHour, setReserveInitialHour] = useState<number | undefined>();
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -629,11 +631,20 @@ const ProjectPortal = () => {
 
               {/* Event Type Legend - only shown for calendar view */}
               {showCalendarView && (
-                <div className="px-1">
+                <div className="px-1 space-y-2">
                   <EventTypeLegend 
                     projectName={project.project_name}
                     selectedTypes={selectedEventTypes}
                     onToggleType={handleToggleEventType}
+                  />
+                  <LocationLegend
+                    projectName={project.project_name}
+                    selectedLocations={selectedLocations}
+                    onToggleLocation={(loc) => {
+                      setSelectedLocations(prev =>
+                        prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
+                      );
+                    }}
                   />
                 </div>
               )}
@@ -649,6 +660,7 @@ const ProjectPortal = () => {
                     selectedDate={selectedCalendarDate}
                     viewMode={calendarViewMode}
                     selectedEventTypes={selectedEventTypes}
+                    selectedLocations={selectedLocations}
                     onAppointmentClick={(apt) => setSelectedAppointment(apt)}
                     onDateSelect={(date) => {
                       setSelectedCalendarDate(date);
