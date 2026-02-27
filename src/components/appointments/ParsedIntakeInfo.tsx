@@ -843,6 +843,64 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </Badge>
                   </div>
                 )}
+                {formatValue(parsedPathologyInfo.affected_shoulder) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Affected Shoulder:</span>{" "}
+                    <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300">
+                      {parsedPathologyInfo.affected_shoulder}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.difficulty_movement) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Difficulty with Movement:</span>{" "}
+                    <Badge variant={String(parsedPathologyInfo.difficulty_movement).toUpperCase().includes("YES") ? "destructive" : "secondary"}>
+                      {parsedPathologyInfo.difficulty_movement}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.long_term_relief) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Long-term Relief from Treatments:</span>{" "}
+                    <Badge variant={String(parsedPathologyInfo.long_term_relief).toUpperCase().includes("YES") ? "default" : "secondary"}>
+                      {parsedPathologyInfo.long_term_relief}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.pain_worse_at_night) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Pain Worse at Night/Lying:</span>{" "}
+                    <Badge variant={String(parsedPathologyInfo.pain_worse_at_night).toUpperCase().includes("YES") ? "destructive" : "secondary"}>
+                      {parsedPathologyInfo.pain_worse_at_night}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.duration) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Duration:</span>{" "}
+                    <span className="font-medium">{parsedPathologyInfo.duration}</span>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.previous_treatments) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Previous Treatments:</span>{" "}
+                    <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.imaging_done) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Imaging Done:</span>{" "}
+                    <Badge variant={String(parsedPathologyInfo.imaging_done).toUpperCase().includes("YES") ? "default" : "secondary"}>
+                      {parsedPathologyInfo.imaging_done}
+                    </Badge>
+                  </div>
+                )}
+                {formatValue(parsedPathologyInfo.age_range) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Age Range:</span>{" "}
+                    <span className="font-medium">{parsedPathologyInfo.age_range}</span>
+                  </div>
+                )}
                 {formatValue(parsedPathologyInfo.diagnosis) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Diagnosis:</span>{" "}
