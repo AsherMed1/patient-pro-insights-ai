@@ -18,7 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { statusOptions } from './utils';
-import { 
+import {
   User, 
   Phone, 
   Mail, 
@@ -31,7 +31,9 @@ import {
   Hash,
   Printer,
   Trash2,
-  Loader2
+  Loader2,
+  Plus,
+  MessageSquare
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
@@ -144,6 +146,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [isFetchingGHLData, setIsFetchingGHLData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [projectGhlLocationId, setProjectGhlLocationId] = useState<string | null>(null);
+  const [showNotesForm, setShowNotesForm] = useState(false);
 
   // Fetch project ghl_location_id as fallback when appointment doesn't have it
   useEffect(() => {
@@ -760,15 +763,32 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 </Select>
               </div>
 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowNotesForm(true);
+                  setTimeout(() => {
+                    document.getElementById('appointment-notes')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }}
+                className="flex items-center space-x-1"
+              >
+                <MessageSquare className="h-4 w-4 mr-1" />
+                <span>Add Note</span>
+              </Button>
+
               {isUpdating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
 
             {/* Internal Notes (compact, no Card wrapper) */}
-            <div>
+            <div id="appointment-notes">
               <AppointmentNotes
                 appointmentId={appointment.id}
                 leadName={appointment.lead_name}
                 projectName={appointment.project_name}
+                externalShowForm={showNotesForm}
+                onFormToggled={(showing) => setShowNotesForm(showing)}
               />
             </div>
 
