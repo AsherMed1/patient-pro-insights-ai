@@ -1,42 +1,33 @@
 
 
-## Fix: GHL Webhook Echo Overwrites OON/Do Not Call Status
+## Add FSE (Frozen Shoulder Embolization) Event Type to Calendar
 
-### Problem
-When a user sets an appointment to "OON" in the portal:
-1. Portal saves status as "OON" in the database
-2. Portal syncs to GHL, which maps OON → `cancelled` (GHL has no "OON" status)
-3. GHL fires a webhook back with `appointmentStatus: "cancelled"`
-4. The webhook handler sees "cancelled" as an explicit status change (line 664) and **overwrites OON with "Cancelled"**
+### Changes
 
-The same issue affects "Do Not Call" status, which also maps to `cancelled` in GHL.
+| File | Change |
+|------|--------|
+| `src/components/appointments/calendarUtils.ts` | Add FSE entry to `EVENT_TYPES` array (before "Other") with a distinct color (amber/yellow — `amber-500`) and add `FSE` / `FROZEN SHOULDER` keyword matching in `getEventTypeFromCalendar()` |
 
-The reschedule note is a secondary symptom — GHL's webhook likely includes the appointment date, and because the handler processes date changes before status, it may detect a spurious date difference and trigger reschedule logic.
+### Detail
 
-### Fix
+**New event type entry:**
+```typescript
+{
+  type: 'FSE',
+  shortName: 'FSE',
+  borderColor: 'border-l-amber-500',
+  bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+  textColor: 'text-amber-700 dark:text-amber-300',
+  dotColor: 'bg-amber-500'
+}
+```
 
-**File: `supabase/functions/ghl-webhook-handler/index.ts`**
+**New parser match** (in `getEventTypeFromCalendar`, before the default return):
+```typescript
+if (upperName.includes('FSE') || upperName.includes('FROZEN SHOULDER')) {
+  return EVENT_TYPES.find(e => e.type === 'FSE')!;
+}
+```
 
-1. **Guard against echo-back overwrites** (~line 662-666): Before applying an incoming status, check if the existing appointment already has a portal-only terminal status (`OON`, `Do Not Call`). If the incoming GHL status is `cancelled` and the existing status is one of these, skip the status update — it's just GHL echoing back the portal's own sync.
-
-   ```typescript
-   // Conditionally update status (only for explicit changes)
-   const incomingStatus = webhookData.status?.toLowerCase()
-   if (isExplicitStatusChange(incomingStatus)) {
-     // Guard: Don't let GHL's "cancelled" echo overwrite portal-only statuses
-     const existingStatus = existingAppointment.status?.toLowerCase()
-     const portalOnlyStatuses = ['oon', 'do not call']
-     const isEchoBack = (incomingStatus === 'cancelled' || incomingStatus === 'canceled') 
-                         && portalOnlyStatuses.includes(existingStatus)
-     if (!isEchoBack) {
-       updateFields.status = webhookData.status
-     } else {
-       console.log(`[WEBHOOK] Skipping status echo-back: existing="${existingAppointment.status}", incoming="${webhookData.status}"`)
-     }
-   }
-   ```
-
-2. **Guard reschedule logic against echo-back** (~line 611-648): Similarly, when the existing status is a portal-only terminal status and the incoming GHL data includes a date, skip the reschedule reset logic. The date in the webhook is just GHL confirming what it knows — not a real reschedule.
-
-   Add a check: if `existingStatus` is `OON` or `Do Not Call`, skip the reschedule block (don't reset status to Confirmed, don't reset IPC, don't add reschedule history).
+Amber is chosen to avoid conflicts with existing colors (orange=GAE, blue=PFE, teal=UFE, purple=PAE, pink=HAE, emerald=Neuropathy, indigo=Vein, red=PAD).
 
