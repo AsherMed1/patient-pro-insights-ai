@@ -84,6 +84,14 @@ export const EVENT_TYPES: EventTypeInfo[] = [
     dotColor: 'bg-red-500'
   },
   { 
+    type: 'FSE', 
+    shortName: 'FSE',
+    borderColor: 'border-l-amber-500', 
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30', 
+    textColor: 'text-amber-700 dark:text-amber-300',
+    dotColor: 'bg-amber-500'
+  },
+  { 
     type: 'Other', 
     shortName: 'Other',
     borderColor: 'border-l-gray-400', 
@@ -130,6 +138,10 @@ export function getEventTypeFromCalendar(calendarName: string | null, isReserved
   }
   if (upperName.includes('VEIN') || upperName.includes('VARICOSE')) {
     return EVENT_TYPES.find(e => e.type === 'Vein')!;
+  }
+  
+  if (upperName.includes('FSE') || upperName.includes('FROZEN SHOULDER')) {
+    return EVENT_TYPES.find(e => e.type === 'FSE')!;
   }
   
   // Default to "Other"
