@@ -6,6 +6,7 @@ import { CalendarMonthView } from './CalendarMonthView';
 import { UpcomingEventsPanel } from './UpcomingEventsPanel';
 import { useCalendarAppointments, DayAppointmentData } from '@/hooks/useCalendarAppointments';
 import { getEventTypeFromCalendar } from './calendarUtils';
+import { extractLocationFromCalendarName } from './LocationLegend';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface CalendarDetailViewProps {
@@ -16,6 +17,7 @@ interface CalendarDetailViewProps {
   onDateSelect: (date: Date) => void;
   onReserveTimeSlot?: (hour: number, date: Date) => void;
   selectedEventTypes?: string[];
+  selectedLocations?: string[];
 }
 
 export function CalendarDetailView({
@@ -25,7 +27,8 @@ export function CalendarDetailView({
   onAppointmentClick,
   onDateSelect,
   onReserveTimeSlot,
-  selectedEventTypes
+  selectedEventTypes,
+  selectedLocations
 }: CalendarDetailViewProps) {
   const { appointmentsByDate, loading } = useCalendarAppointments({
     projectName,
@@ -35,18 +38,29 @@ export function CalendarDetailView({
   });
 
   const filteredByDate = useMemo(() => {
-    if (!selectedEventTypes || selectedEventTypes.length === 0) return appointmentsByDate;
+    const needsEventFilter = selectedEventTypes && selectedEventTypes.length > 0;
+    const needsLocationFilter = selectedLocations && selectedLocations.length > 0;
+    if (!needsEventFilter && !needsLocationFilter) return appointmentsByDate;
 
     const filtered: Record<string, DayAppointmentData> = {};
     for (const [dateKey, dayData] of Object.entries(appointmentsByDate)) {
-      const filteredApts = dayData.appointments.filter(apt => {
-        const eventType = getEventTypeFromCalendar(apt.calendar_name);
-        return selectedEventTypes.includes(eventType.type);
-      });
+      let filteredApts = dayData.appointments;
+      if (needsEventFilter) {
+        filteredApts = filteredApts.filter(apt => {
+          const eventType = getEventTypeFromCalendar(apt.calendar_name);
+          return selectedEventTypes!.includes(eventType.type);
+        });
+      }
+      if (needsLocationFilter) {
+        filteredApts = filteredApts.filter(apt => {
+          const loc = extractLocationFromCalendarName(apt.calendar_name || '');
+          return !loc || selectedLocations!.includes(loc);
+        });
+      }
       filtered[dateKey] = { ...dayData, appointments: filteredApts, count: filteredApts.length };
     }
     return filtered;
-  }, [appointmentsByDate, selectedEventTypes]);
+  }, [appointmentsByDate, selectedEventTypes, selectedLocations]);
 
   if (loading) {
     return (
