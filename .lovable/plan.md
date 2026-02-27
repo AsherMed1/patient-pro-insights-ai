@@ -1,48 +1,42 @@
 
 
-## Fix: GHL Booking Script Stored as Imaging Details
+## Fix: GHL Webhook Echo Overwrites OON/Do Not Call Status
 
 ### Problem
-The "Had Imaging Before" field for some TVI patients (e.g., Oralia Gabriela Cabrera Martinez) contains the entire GHL AI booking script/prompt text instead of actual imaging information. The parser is blindly storing the GHL custom field value without validating it.
+When a user sets an appointment to "OON" in the portal:
+1. Portal saves status as "OON" in the database
+2. Portal syncs to GHL, which maps OON → `cancelled` (GHL has no "OON" status)
+3. GHL fires a webhook back with `appointmentStatus: "cancelled"`
+4. The webhook handler sees "cancelled" as an explicit status change (line 664) and **overwrites OON with "Cancelled"**
 
-### Root Cause
-In `auto-parse-intake-notes/index.ts` (lines 974-977), when the parser encounters a GHL field matching `'had imaging'` or `'imaging before'`, it stores the raw value without checking if it's actually patient data or a bot configuration prompt.
+The same issue affects "Do Not Call" status, which also maps to `cancelled` in GHL.
 
-### Changes
+The reschedule note is a secondary symptom — GHL's webhook likely includes the appointment date, and because the handler processes date changes before status, it may detect a spurious date difference and trigger reschedule logic.
 
-| File | Change |
-|------|--------|
-| `supabase/functions/auto-parse-intake-notes/index.ts` | Add a sanitization check before storing `imaging_details` — if the value exceeds ~200 characters or contains keywords like "booking", "consultation", "schedule", "challenger sale", treat it as a bot prompt and discard it (store `null` or a simple "YES"/"NO" based on surrounding context) |
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Add a defensive max-length guard on the `imaging_details` display — if the value exceeds 300 characters, truncate or hide it to prevent prompt text from ever rendering in the UI |
-| **One-time data fix** | Update the existing corrupted record for Oralia Gabriela Cabrera Martinez (`id: 651bd8eb`) to clear the bad `imaging_details` value and set it to `'Patient has had previous imaging'` based on imaging_done=YES |
+### Fix
 
-### Technical Detail
+**File: `supabase/functions/ghl-webhook-handler/index.ts`**
 
-**Parser sanitization** (`auto-parse-intake-notes/index.ts`, ~line 974):
-```typescript
-} else if (lowerKey.includes('had imaging') || lowerKey.includes('imaging before')) {
-  // Guard against GHL bot prompts stored in imaging fields
-  if (valueStr.length > 200 || /booking|consultation|schedule|challenger/i.test(valueStr)) {
-    console.log(`[AUTO-PARSE GHL] Skipping bot prompt in imaging field: ${valueStr.substring(0, 50)}...`);
-    if (!result.medical_info.imaging_details) {
-      result.medical_info.imaging_details = 'Patient has had previous imaging';
-    }
-  } else {
-    result.medical_info.imaging_details = valueStr;
-  }
-}
-```
+1. **Guard against echo-back overwrites** (~line 662-666): Before applying an incoming status, check if the existing appointment already has a portal-only terminal status (`OON`, `Do Not Call`). If the incoming GHL status is `cancelled` and the existing status is one of these, skip the status update — it's just GHL echoing back the portal's own sync.
 
-**UI guard** (`ParsedIntakeInfo.tsx`, ~line 811):
-```typescript
-{formatValue(parsedMedicalInfo?.imaging_details) && 
- parsedMedicalInfo.imaging_details.length < 300 && (
-```
+   ```typescript
+   // Conditionally update status (only for explicit changes)
+   const incomingStatus = webhookData.status?.toLowerCase()
+   if (isExplicitStatusChange(incomingStatus)) {
+     // Guard: Don't let GHL's "cancelled" echo overwrite portal-only statuses
+     const existingStatus = existingAppointment.status?.toLowerCase()
+     const portalOnlyStatuses = ['oon', 'do not call']
+     const isEchoBack = (incomingStatus === 'cancelled' || incomingStatus === 'canceled') 
+                         && portalOnlyStatuses.includes(existingStatus)
+     if (!isEchoBack) {
+       updateFields.status = webhookData.status
+     } else {
+       console.log(`[WEBHOOK] Skipping status echo-back: existing="${existingAppointment.status}", incoming="${webhookData.status}"`)
+     }
+   }
+   ```
 
-**Data fix** (SQL):
-```sql
-UPDATE all_appointments 
-SET parsed_medical_info = jsonb_set(parsed_medical_info, '{imaging_details}', '"Patient has had previous imaging"')
-WHERE id = '651bd8eb-d743-4eb1-bf45-53f5eb9aa5a5';
-```
+2. **Guard reschedule logic against echo-back** (~line 611-648): Similarly, when the existing status is a portal-only terminal status and the incoming GHL data includes a date, skip the reschedule reset logic. The date in the webhook is just GHL confirming what it knows — not a real reschedule.
+
+   Add a check: if `existingStatus` is `OON` or `Do Not Call`, skip the reschedule block (don't reset status to Confirmed, don't reset IPC, don't add reschedule history).
 
