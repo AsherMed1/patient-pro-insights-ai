@@ -472,6 +472,8 @@ function fallbackRegexParsing(intakeNotes: string): any {
     result.pathology_info.procedure_type = 'PAE';
   } else if (upperNotes.includes('PAD') || upperNotes.includes('PERIPHERAL ARTERY') || upperNotes.includes('POOR CIRCULATION')) {
     result.pathology_info.procedure_type = 'PAD';
+  } else if (upperNotes.includes('FSE') || upperNotes.includes('FROZEN SHOULDER') || upperNotes.includes('SHOULDER')) {
+    result.pathology_info.procedure_type = 'FSE';
   }
 
   console.log('[AUTO-PARSE FALLBACK] Regex parsing complete');
@@ -672,6 +674,9 @@ function detectProcedureFromFieldKey(key: string): string | null {
   if (upperKey.includes('PAD') || upperKey.includes('PERIPHERAL')) {
     return 'PAD';
   }
+  if (upperKey.includes('FSE') || upperKey.includes('FROZEN SHOULDER') || upperKey.includes('SHOULDER')) {
+    return 'FSE';
+  }
   return null;
 }
 
@@ -755,7 +760,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
                              key.includes('complaint') || key.includes('pae') || key.includes('ufe') || 
                              key.includes('gae') || key.includes('knee') || key.includes('prostate') ||
                              key.includes('fibroid') || key.includes('uterine') || key.includes('pelvic') ||
-                             key.includes('pad') || key.includes('peripheral');
+                             key.includes('pad') || key.includes('peripheral') ||
+                             key.includes('fse') || key.includes('shoulder');
     
     // Skip pathology fields from different procedures
     if (targetProcedure && fieldProcedure && fieldProcedure !== targetProcedure && isPathologyField) {
@@ -1077,6 +1083,9 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (name.includes('pad') || name.includes('peripheral')) {
     return 'PAD';
   }
+  if (name.includes('fse') || name.includes('frozen shoulder')) {
+    return 'FSE';
+  }
   return null;
 }
 
@@ -1343,6 +1352,7 @@ ${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) focuses on:
 ${calendarProcedure === 'GAE' ? 'GAE (Genicular Artery Embolization) focuses on: knee pain, osteoarthritis, joint stiffness, swelling, joint instability, knee-related symptoms. Set procedure_type to "GAE".' : ''}
 ${calendarProcedure === 'PFE' ? 'PFE (Plantar Fasciitis Embolization) focuses on: heel pain, plantar fasciitis, sharp pain in the bottom of the heel, foot pain that worsens with first steps in the morning, pain that improves with rest. Set procedure_type to "PFE".' : ''}
 ${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poor circulation, numbness, cold feet, discoloration, open wounds/sores, toe pain, pain that worsens when walking and improves with rest, blood thinners, smoking/tobacco status, medical conditions (diabetes, hypertension, kidney disease). Set procedure_type to "PAD". Map medical conditions to "diagnosis".' : ''}
+${calendarProcedure === 'FSE' ? 'FSE (Frozen Shoulder Embolization) focuses on: shoulder pain, frozen shoulder, limited range of motion, shoulder stiffness, difficulty raising arm, affected shoulder (left/right). Set procedure_type to "FSE".' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;
