@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,11 +13,20 @@ interface AppointmentNotesProps {
   appointmentId: string;
   leadName: string;
   projectName: string;
+  externalShowForm?: boolean;
+  onFormToggled?: (showing: boolean) => void;
 }
 
-const AppointmentNotes = ({ appointmentId, leadName, projectName }: AppointmentNotesProps) => {
+const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowForm, onFormToggled }: AppointmentNotesProps) => {
   const [newNote, setNewNote] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Sync with external trigger
+  useEffect(() => {
+    if (externalShowForm && !showAddForm) {
+      setShowAddForm(true);
+    }
+  }, [externalShowForm]);
   const { notes, loading, submitting, addNote } = useAppointmentNotes(appointmentId);
   const { userName } = useUserAttribution();
 
@@ -28,6 +37,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName }: AppointmentN
     if (success) {
       setNewNote('');
       setShowAddForm(false);
+      onFormToggled?.(false);
     }
   };
 
@@ -87,6 +97,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName }: AppointmentN
                 onClick={() => {
                   setShowAddForm(false);
                   setNewNote('');
+                  onFormToggled?.(false);
                 }}
                 size="sm"
               >
