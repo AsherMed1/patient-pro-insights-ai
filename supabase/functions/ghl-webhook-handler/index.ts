@@ -612,7 +612,12 @@ function getUpdateableFields(
     updateFields.date_of_appointment = webhookData.date_of_appointment
     
     // Reset IPC and status if date actually changed (reschedule detected)
-    if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
+    // Guard: Skip reschedule logic if existing status is a portal-only terminal status
+    const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
+    const portalOnlyTerminalStatuses = ['oon', 'do not call']
+    const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
+    
+    if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
       // Record reschedule history before overwriting
       const existingHistory = existingAppointment.reschedule_history || []
       existingHistory.push({
@@ -645,6 +650,8 @@ function getUpdateableFields(
         toDateTime,
         appointmentId: existingAppointment.id,
       }
+    } else if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && isPortalOnlyTerminal) {
+      console.log(`[WEBHOOK] Skipping reschedule logic for portal-only terminal status: existing="${existingAppointment.status}"`)
     }
   }
   if (webhookData.requested_time !== undefined) {
@@ -662,7 +669,16 @@ function getUpdateableFields(
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
   if (isExplicitStatusChange(incomingStatus)) {
-    updateFields.status = webhookData.status
+    // Guard: Don't let GHL's "cancelled" echo overwrite portal-only statuses (OON, Do Not Call)
+    const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
+    const portalOnlyStatuses = ['oon', 'do not call']
+    const isEchoBack = (incomingStatus === 'cancelled' || incomingStatus === 'canceled') 
+                        && portalOnlyStatuses.includes(existingStatusForEcho)
+    if (!isEchoBack) {
+      updateFields.status = webhookData.status
+    } else {
+      console.log(`[WEBHOOK] Skipping status echo-back: existing="${existingAppointment.status}", incoming="${webhookData.status}"`)
+    }
   }
   
   // Merge contact info (only if local is empty)
