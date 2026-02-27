@@ -782,6 +782,22 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         const painMatch = value.match(/\d+/);
         if (painMatch) result.pathology_info.pain_level = painMatch[0];
       }
+      // Duration / how long
+      if (key.includes('duration') || key.includes('how long') || key.includes('how_long')) {
+        (result.pathology_info as any).duration = String(value);
+      }
+      // Treatments tried
+      if (key.includes('treatment') || key.includes('tried')) {
+        (result.pathology_info as any).previous_treatments = String(value);
+      }
+      // Imaging
+      if (key.includes('imaging') || key.includes('x-ray') || key.includes('mri')) {
+        (result.pathology_info as any).imaging_done = String(value);
+      }
+      // Age range
+      if (key.includes('how old') || key.includes('age') || key.includes('age_range')) {
+        (result.pathology_info as any).age_range = String(value);
+      }
     }
 
     // Insurance fields
@@ -907,6 +923,22 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       }
     } else if (key.includes('age range') || key.includes('age_range')) {
       (result.pathology_info as any).age_range = String(value);
+    }
+    // FSE-specific survey fields
+    else if (key.includes('shoulder') && (key.includes('which') || key.includes('affected') || key.includes('side'))) {
+      (result.pathology_info as any).affected_shoulder = String(value);
+    }
+    else if (key.includes('difficulty') && (key.includes('movement') || key.includes('shoulder') || key.includes('raising') || key.includes('arm'))) {
+      (result.pathology_info as any).difficulty_movement = String(value);
+    }
+    else if (key.includes('long-term') || key.includes('long_term') || key.includes('provide long')) {
+      (result.pathology_info as any).long_term_relief = String(value);
+    }
+    else if (key.includes('worse') && (key.includes('night') || key.includes('lying'))) {
+      (result.pathology_info as any).pain_worse_at_night = String(value);
+    }
+    else if (key.includes('diagnosed') && key.includes('following')) {
+      (result.pathology_info as any).diagnosis = String(value);
     }
     // Medical fields
     else if (key.includes('medication')) {
