@@ -1,52 +1,55 @@
 
 
-## Add Location Filter to Calendar View
+## Fix: Date Changes Saving Without Confirmation
 
-### Problem
-Clinics with multiple locations (e.g., Joint & Vascular Institute, Texas Vascular) have no way to filter the calendar view by location. The list view already has location filtering via `AppointmentFilters.tsx`, but the calendar view only has event type filtering.
+### Investigation Findings
 
-### Changes
+The `AppointmentDateTimeEditor` component (in `AppointmentCard.tsx`) already has a two-phase commit model with pending state and a "Confirm" button. However, I identified two potential causes for the "instant save" behavior:
+
+1. **`updateAppointmentDate` bypasses the edge function** — It writes directly to Supabase without going through `update-appointment-fields`, meaning no audit trail, no GHL sync, and no reschedule history is created. This is inconsistent with the reschedule flow.
+
+2. **Possible popover auto-close behavior** — If the `Popover`'s `onOpenChange` fires `setDateTimePopoverOpen(false)` when the user clicks outside, and there's any watcher on state that auto-saves, the date could save prematurely.
+
+Without seeing the exact video behavior, I suspect the issue may be that clicking a date on the calendar picker within the popover causes the popover to briefly close/reopen or that a click outside the popover triggers an unintended save.
+
+### Proposed Changes
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/LocationLegend.tsx` | **New file.** A toggleable location filter component (styled like `EventTypeLegend`) that extracts unique locations from `calendar_name` using the existing regex patterns (`/ - (.+)$/`, `/at\s+(.+)$/`, `/Consultation\s+(.+)$/i`). Each location rendered as a clickable chip with a colored dot. |
-| `src/pages/ProjectPortal.tsx` | Add `selectedLocations` state array. Render `LocationLegend` below `EventTypeLegend` when in calendar view. Pass `selectedLocations` down to `CalendarDetailView`. |
-| `src/components/appointments/CalendarDetailView.tsx` | Accept new `selectedLocations` prop. Filter appointments by matching `calendar_name` against selected locations (same regex extraction). |
-| `src/hooks/useCalendarAppointments.tsx` | Optionally accept `locationFilter` and apply `.ilike('calendar_name', '%location%')` to the query, or leave client-side filtering in `CalendarDetailView` for simplicity. |
+| `src/components/appointments/AppointmentCard.tsx` | Prevent the popover from closing on outside clicks while editing (use `modal` prop or intercept `onOpenChange` to only close via Cancel/Confirm buttons). Add a confirmation AlertDialog before saving date changes. |
+| `src/components/AllAppointmentsManager.tsx` | Route `updateAppointmentDate` through the `update-appointment-fields` edge function (like status changes) so reschedule notes and audit logs are properly created. |
 
 ### Detail
 
-**LocationLegend.tsx** — Similar pattern to `EventTypeLegend`:
-- Fetches distinct `calendar_name` values for the project
-- Extracts locations using existing regex patterns (excluding legacy locations like Somerset, Milledgeville)
-- Only renders if 2+ locations exist (no point showing filter for single-location clinics)
-- Each location is a toggleable button; clicking toggles it in/out of the filter
-- Uses `MapPin` icon and neutral dot colors (slate/zinc palette to differentiate from event type colors)
-
-**ProjectPortal.tsx** — Add state and wire up:
+**AppointmentCard.tsx — Prevent accidental popover close:**
 ```typescript
-const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-
-// Below EventTypeLegend:
-<LocationLegend
-  projectName={project.project_name}
-  selectedLocations={selectedLocations}
-  onToggleLocation={(loc) => {
-    setSelectedLocations(prev =>
-      prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
-    );
-  }}
-/>
+// Change Popover to only close via explicit actions
+<Popover open={dateTimePopoverOpen} onOpenChange={(open) => {
+  // Only allow opening, not closing via outside clicks
+  if (open) setDateTimePopoverOpen(true);
+  // Closing handled by Cancel/Confirm buttons only
+}}>
 ```
 
-**CalendarDetailView.tsx** — Client-side filter (same approach as event type filtering):
+**AllAppointmentsManager.tsx — Use edge function for date updates:**
 ```typescript
-// After event type filtering, also filter by location
-if (selectedLocations.length > 0) {
-  filteredApts = filteredApts.filter(apt => {
-    const loc = extractLocationFromCalendar(apt.calendar_name);
-    return !loc || selectedLocations.includes(loc);
-  });
-}
+const updateAppointmentDate = async (appointmentId: string, date: string | null) => {
+  try {
+    const { error } = await supabase.functions.invoke('update-appointment-fields', {
+      body: {
+        appointmentId,
+        updates: { date_of_appointment: date, updated_at: new Date().toISOString() },
+        previousValues: { date_of_appointment: /* current date */ },
+        userId, userName, changeSource: 'portal'
+      }
+    });
+    // ... rest of handler
+  }
+};
 ```
+
+This ensures:
+- The popover stays open until the user explicitly clicks "Confirm" or "Cancel"
+- Date changes go through the proper audit/notes pipeline
+- Reschedule history is properly recorded
 
