@@ -744,10 +744,18 @@ const AllAppointmentsManager = ({
         // Send Slack notification for OON status
         if (status === 'OON') {
           try {
-            const appointmentData = appointments.find(a => a.id === appointmentId);
-            if (appointmentData) {
-              // Split lead_name into first/last name
-              const nameParts = appointmentData.lead_name.split(' ');
+            // Use local state first, fallback to DB fetch if not in current page
+            let oonData = appointments.find(a => a.id === appointmentId);
+            if (!oonData) {
+              const { data } = await supabase
+                .from('all_appointments')
+                .select('lead_name, lead_phone_number, calendar_name, project_name')
+                .eq('id', appointmentId)
+                .single();
+              oonData = data as any;
+            }
+            if (oonData) {
+              const nameParts = oonData.lead_name.split(' ');
               const firstName = nameParts[0] || '';
               const lastName = nameParts.slice(1).join(' ') || '';
               
@@ -755,17 +763,16 @@ const AllAppointmentsManager = ({
                 body: {
                   firstName,
                   lastName,
-                  phone: appointmentData.lead_phone_number || '',
-                  calendarName: appointmentData.calendar_name || '',
-                  projectName: appointmentData.project_name,
+                  phone: oonData.lead_phone_number || '',
+                  calendarName: oonData.calendar_name || '',
+                  projectName: oonData.project_name,
                   appointmentId
                 }
               });
-              console.log('✅ Slack OON notification sent for:', appointmentData.lead_name);
+              console.log('✅ Slack OON notification sent for:', oonData.lead_name);
             }
           } catch (oonError) {
             console.error('⚠️ Failed to send OON Slack notification (non-critical):', oonError);
-            // Don't throw - notification failure shouldn't block status update
           }
         }
         
@@ -786,18 +793,31 @@ const AllAppointmentsManager = ({
       }
 
       // Sync status to GoHighLevel
-      if (currentAppointment?.ghl_appointment_id && oldStatus !== status) {
-        try {
-          await supabase.functions.invoke('update-ghl-appointment', {
-            body: {
-              ghl_appointment_id: currentAppointment.ghl_appointment_id,
-              project_name: currentAppointment.project_name,
-              status,
-            }
-          });
-          console.log('✅ GHL status synced:', status);
-        } catch (ghlErr) {
-          console.error('⚠️ GHL status sync failed (non-critical):', ghlErr);
+      if (oldStatus !== status) {
+        // Ensure we have the appointment data (may not be in local state if on different page)
+        let syncData = currentAppointment;
+        if (!syncData?.ghl_appointment_id) {
+          const { data } = await supabase
+            .from('all_appointments')
+            .select('ghl_appointment_id, project_name')
+            .eq('id', appointmentId)
+            .single();
+          syncData = data as any;
+        }
+
+        if (syncData?.ghl_appointment_id) {
+          try {
+            await supabase.functions.invoke('update-ghl-appointment', {
+              body: {
+                ghl_appointment_id: syncData.ghl_appointment_id,
+                project_name: syncData.project_name,
+                status,
+              }
+            });
+            console.log('✅ GHL status synced:', status);
+          } catch (ghlErr) {
+            console.error('⚠️ GHL status sync failed (non-critical):', ghlErr);
+          }
         }
       }
 
