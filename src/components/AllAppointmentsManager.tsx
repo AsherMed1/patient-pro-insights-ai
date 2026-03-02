@@ -880,15 +880,23 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentDate = async (appointmentId: string, date: string | null) => {
     try {
-      const { error } = await supabase
-        .from('all_appointments')
-        .update({
-          date_of_appointment: date,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
+      // Find the current appointment to get previous values for audit trail
+      const currentAppointment = appointments.find(a => a.id === appointmentId);
+      const previousDate = currentAppointment?.date_of_appointment || null;
 
-      if (error) throw error;
+      // Route through the edge function for proper audit logging & reschedule notes
+      const { data: result, error: fnError } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates: { date_of_appointment: date, updated_at: new Date().toISOString() },
+          previousValues: { date_of_appointment: previousDate },
+          userId: (await supabase.auth.getUser()).data.user?.id || null,
+          userName,
+          changeSource: 'portal'
+        }
+      });
+
+      if (fnError) throw fnError;
 
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId
@@ -950,15 +958,22 @@ const AllAppointmentsManager = ({
   const updateRequestedTime = async (appointmentId: string, time: string | null) => {
     try {
       const normalizedTime = time && time.length === 5 ? `${time}:00` : time; // to HH:mm:ss
-      const { error } = await supabase
-        .from('all_appointments')
-        .update({
-          requested_time: normalizedTime,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
+      const currentAppointment = appointments.find(a => a.id === appointmentId);
+      const previousTime = currentAppointment?.requested_time || null;
 
-      if (error) throw error;
+      // Route through edge function for audit logging
+      const { error: fnError } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates: { requested_time: normalizedTime, updated_at: new Date().toISOString() },
+          previousValues: { requested_time: previousTime },
+          userId: (await supabase.auth.getUser()).data.user?.id || null,
+          userName,
+          changeSource: 'portal'
+        }
+      });
+
+      if (fnError) throw fnError;
 
       setAppointments(prev => prev.map(appointment =>
         appointment.id === appointmentId

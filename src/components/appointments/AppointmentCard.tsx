@@ -1390,7 +1390,10 @@ const AppointmentCard = ({
                 </span>
               )}
               {hasManagementAccess() && (
-                <Popover open={dateTimePopoverOpen} onOpenChange={setDateTimePopoverOpen}>
+                <Popover open={dateTimePopoverOpen} onOpenChange={(open) => {
+                  // Only allow opening via trigger; closing is handled by Cancel/Confirm buttons only
+                  if (open) setDateTimePopoverOpen(true);
+                }}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
