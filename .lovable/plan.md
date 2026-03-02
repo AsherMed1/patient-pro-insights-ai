@@ -1,56 +1,41 @@
 
 
-## Fix: OON Status Not Syncing to GHL
+## Merge Naadi Healthcare → Naadi Healthcare Manteca
 
-### Root Cause
+### Current State
+- **Naadi Healthcare** (id: `189ad370`): 6 appointments, 0 leads, 0 calls
+- **Naadi Healthcare Manteca** (id: `347a60ba`): 1081 leads, 1605 calls, 224 appointments
 
-The GHL sync at line 789 of `AllAppointmentsManager.tsx` depends on `currentAppointment?.ghl_appointment_id`, where `currentAppointment` is looked up from the local `appointments` state array (line 646). If the appointment isn't in the currently loaded page of results (e.g., it was on a different page, or the status update was triggered from a search/calendar context), `currentAppointment` is `undefined` and the GHL sync is silently skipped.
+### Steps (all data operations via insert tool)
 
-For Dale Olker, the appointment has `ghl_appointment_id: HjLTcS0YrTr3mBlstWUy` in the database, but `last_ghl_sync_status` is null — confirming the `update-ghl-appointment` function was never called.
+1. **Move 6 appointments** from "Naadi Healthcare" to "Naadi Healthcare Manteca"
+   ```sql
+   UPDATE all_appointments SET project_name = 'Naadi Healthcare Manteca', updated_at = now()
+   WHERE project_name = 'Naadi Healthcare';
+   ```
 
-### Fix
+2. **Delete the orphan project** "Naadi Healthcare"
+   ```sql
+   DELETE FROM projects WHERE id = '189ad370-5cc1-4c78-a5fd-06db985c3967';
+   ```
 
-| File | Change |
-|------|--------|
-| `src/components/AllAppointmentsManager.tsx` | When `currentAppointment` is not found in local state, fetch the appointment directly from the database before attempting GHL sync. This ensures the `ghl_appointment_id` and `project_name` are always available. |
+3. **Rename** "Naadi Healthcare Manteca" → "Naadi Healthcare"
+   - Update the `projects` table name
+   - Update `project_name` on the 230 appointments (now including the 6 transferred)
+   - Update `project_name` on leads and calls
+   ```sql
+   UPDATE projects SET project_name = 'Naadi Healthcare', updated_at = now()
+   WHERE id = '347a60ba-ea98-4180-9ee8-ea8fa5bd187f';
 
-### Detail
+   UPDATE all_appointments SET project_name = 'Naadi Healthcare', updated_at = now()
+   WHERE project_name = 'Naadi Healthcare Manteca';
 
-Replace the GHL sync block (lines ~788-802) with a fallback fetch:
+   UPDATE new_leads SET project_name = 'Naadi Healthcare'
+   WHERE project_name = 'Naadi Healthcare Manteca';
 
-```typescript
-// Sync status to GoHighLevel
-if (oldStatus !== status) {
-  // Ensure we have the appointment data (may not be in local state)
-  let syncData = currentAppointment;
-  if (!syncData?.ghl_appointment_id) {
-    const { data } = await supabase
-      .from('all_appointments')
-      .select('ghl_appointment_id, project_name')
-      .eq('id', appointmentId)
-      .single();
-    syncData = data;
-  }
+   UPDATE all_calls SET project_name = 'Naadi Healthcare'
+   WHERE project_name = 'Naadi Healthcare Manteca';
+   ```
 
-  if (syncData?.ghl_appointment_id) {
-    try {
-      await supabase.functions.invoke('update-ghl-appointment', {
-        body: {
-          ghl_appointment_id: syncData.ghl_appointment_id,
-          project_name: syncData.project_name,
-          status,
-        }
-      });
-    } catch (ghlErr) {
-      console.error('⚠️ GHL status sync failed:', ghlErr);
-    }
-  }
-}
-```
-
-This same fallback pattern should also be applied to the OON Slack notification block (line ~747) and Do Not Call DND block (line ~709), which similarly depend on `currentAppointment` or `appointments.find()`.
-
-### Immediate Fix for Dale Olker
-
-After deploying the code fix, we can manually trigger the GHL sync for Dale Olker by calling the `update-ghl-appointment` edge function with his `ghl_appointment_id`.
+No code changes needed — this is purely a data migration.
 
