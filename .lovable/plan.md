@@ -1,55 +1,56 @@
 
 
-## Fix: Date Changes Saving Without Confirmation
+## Fix: OON Status Not Syncing to GHL
 
-### Investigation Findings
+### Root Cause
 
-The `AppointmentDateTimeEditor` component (in `AppointmentCard.tsx`) already has a two-phase commit model with pending state and a "Confirm" button. However, I identified two potential causes for the "instant save" behavior:
+The GHL sync at line 789 of `AllAppointmentsManager.tsx` depends on `currentAppointment?.ghl_appointment_id`, where `currentAppointment` is looked up from the local `appointments` state array (line 646). If the appointment isn't in the currently loaded page of results (e.g., it was on a different page, or the status update was triggered from a search/calendar context), `currentAppointment` is `undefined` and the GHL sync is silently skipped.
 
-1. **`updateAppointmentDate` bypasses the edge function** — It writes directly to Supabase without going through `update-appointment-fields`, meaning no audit trail, no GHL sync, and no reschedule history is created. This is inconsistent with the reschedule flow.
+For Dale Olker, the appointment has `ghl_appointment_id: HjLTcS0YrTr3mBlstWUy` in the database, but `last_ghl_sync_status` is null — confirming the `update-ghl-appointment` function was never called.
 
-2. **Possible popover auto-close behavior** — If the `Popover`'s `onOpenChange` fires `setDateTimePopoverOpen(false)` when the user clicks outside, and there's any watcher on state that auto-saves, the date could save prematurely.
-
-Without seeing the exact video behavior, I suspect the issue may be that clicking a date on the calendar picker within the popover causes the popover to briefly close/reopen or that a click outside the popover triggers an unintended save.
-
-### Proposed Changes
+### Fix
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/AppointmentCard.tsx` | Prevent the popover from closing on outside clicks while editing (use `modal` prop or intercept `onOpenChange` to only close via Cancel/Confirm buttons). Add a confirmation AlertDialog before saving date changes. |
-| `src/components/AllAppointmentsManager.tsx` | Route `updateAppointmentDate` through the `update-appointment-fields` edge function (like status changes) so reschedule notes and audit logs are properly created. |
+| `src/components/AllAppointmentsManager.tsx` | When `currentAppointment` is not found in local state, fetch the appointment directly from the database before attempting GHL sync. This ensures the `ghl_appointment_id` and `project_name` are always available. |
 
 ### Detail
 
-**AppointmentCard.tsx — Prevent accidental popover close:**
-```typescript
-// Change Popover to only close via explicit actions
-<Popover open={dateTimePopoverOpen} onOpenChange={(open) => {
-  // Only allow opening, not closing via outside clicks
-  if (open) setDateTimePopoverOpen(true);
-  // Closing handled by Cancel/Confirm buttons only
-}}>
-```
+Replace the GHL sync block (lines ~788-802) with a fallback fetch:
 
-**AllAppointmentsManager.tsx — Use edge function for date updates:**
 ```typescript
-const updateAppointmentDate = async (appointmentId: string, date: string | null) => {
-  try {
-    const { error } = await supabase.functions.invoke('update-appointment-fields', {
-      body: {
-        appointmentId,
-        updates: { date_of_appointment: date, updated_at: new Date().toISOString() },
-        previousValues: { date_of_appointment: /* current date */ },
-        userId, userName, changeSource: 'portal'
-      }
-    });
-    // ... rest of handler
+// Sync status to GoHighLevel
+if (oldStatus !== status) {
+  // Ensure we have the appointment data (may not be in local state)
+  let syncData = currentAppointment;
+  if (!syncData?.ghl_appointment_id) {
+    const { data } = await supabase
+      .from('all_appointments')
+      .select('ghl_appointment_id, project_name')
+      .eq('id', appointmentId)
+      .single();
+    syncData = data;
   }
-};
+
+  if (syncData?.ghl_appointment_id) {
+    try {
+      await supabase.functions.invoke('update-ghl-appointment', {
+        body: {
+          ghl_appointment_id: syncData.ghl_appointment_id,
+          project_name: syncData.project_name,
+          status,
+        }
+      });
+    } catch (ghlErr) {
+      console.error('⚠️ GHL status sync failed:', ghlErr);
+    }
+  }
+}
 ```
 
-This ensures:
-- The popover stays open until the user explicitly clicks "Confirm" or "Cancel"
-- Date changes go through the proper audit/notes pipeline
-- Reschedule history is properly recorded
+This same fallback pattern should also be applied to the OON Slack notification block (line ~747) and Do Not Call DND block (line ~709), which similarly depend on `currentAppointment` or `appointments.find()`.
+
+### Immediate Fix for Dale Olker
+
+After deploying the code fix, we can manually trigger the GHL sync for Dale Olker by calling the `update-ghl-appointment` edge function with his `ghl_appointment_id`.
 
