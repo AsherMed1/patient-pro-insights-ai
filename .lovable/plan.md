@@ -1,41 +1,30 @@
 
 
-## Merge Naadi Healthcare → Naadi Healthcare Manteca
+## Fix: Refresh Button Should Fetch GHL Data and Reparse
 
-### Current State
-- **Naadi Healthcare** (id: `189ad370`): 6 appointments, 0 leads, 0 calls
-- **Naadi Healthcare Manteca** (id: `347a60ba`): 1081 leads, 1605 calls, 224 appointments
+### Root Cause
+Two issues:
+1. **CORS headers outdated** — Both `reparse-specific-appointments` and `fetch-ghl-contact-data` are missing required Supabase client headers (`x-supabase-client-platform`, etc.), causing "Failed to fetch" errors from the browser.
+2. **No GHL data refresh** — The refresh button only calls `reparse-specific-appointments` (resets parsing and re-runs AI parser on existing notes). It never calls `fetch-ghl-contact-data` to pull fresh custom fields from GoHighLevel first.
 
-### Steps (all data operations via insert tool)
+### Fix
 
-1. **Move 6 appointments** from "Naadi Healthcare" to "Naadi Healthcare Manteca"
-   ```sql
-   UPDATE all_appointments SET project_name = 'Naadi Healthcare Manteca', updated_at = now()
-   WHERE project_name = 'Naadi Healthcare';
-   ```
+| File | Change |
+|------|--------|
+| `supabase/functions/reparse-specific-appointments/index.ts` | Update CORS headers to include all required Supabase client headers. Add logic to first call `fetch-ghl-contact-data` for each appointment (to pull fresh GHL data) before resetting parsing and invoking the auto-parser. |
+| `supabase/functions/fetch-ghl-contact-data/index.ts` | Update CORS headers to match the required set. |
+| `src/components/appointments/ParsedIntakeInfo.tsx` | Update `handleReparse` to show better status messages during the two-step process (GHL fetch + reparse). |
 
-2. **Delete the orphan project** "Naadi Healthcare"
-   ```sql
-   DELETE FROM projects WHERE id = '189ad370-5cc1-4c78-a5fd-06db985c3967';
-   ```
+### Detail
 
-3. **Rename** "Naadi Healthcare Manteca" → "Naadi Healthcare"
-   - Update the `projects` table name
-   - Update `project_name` on the 230 appointments (now including the 6 transferred)
-   - Update `project_name` on leads and calls
-   ```sql
-   UPDATE projects SET project_name = 'Naadi Healthcare', updated_at = now()
-   WHERE id = '347a60ba-ea98-4180-9ee8-ea8fa5bd187f';
+**reparse-specific-appointments** — Enhanced flow:
+```
+1. For each appointment_id:
+   a. Call fetch-ghl-contact-data internally (server-to-server, no CORS issue)
+      → This pulls fresh custom fields from GHL and appends to patient_intake_notes
+   b. Reset parsing_completed_at to null
+2. Invoke auto-parse-intake-notes to re-parse all reset appointments
+```
 
-   UPDATE all_appointments SET project_name = 'Naadi Healthcare', updated_at = now()
-   WHERE project_name = 'Naadi Healthcare Manteca';
-
-   UPDATE new_leads SET project_name = 'Naadi Healthcare'
-   WHERE project_name = 'Naadi Healthcare Manteca';
-
-   UPDATE all_calls SET project_name = 'Naadi Healthcare'
-   WHERE project_name = 'Naadi Healthcare Manteca';
-   ```
-
-No code changes needed — this is purely a data migration.
+This makes the single refresh button do the full pipeline: GHL fetch → reset → reparse.
 
