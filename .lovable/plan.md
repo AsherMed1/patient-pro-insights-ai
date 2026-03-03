@@ -1,30 +1,34 @@
 
 
-## Fix: Refresh Button Should Fetch GHL Data and Reparse
+## Fix: Reset procedure_status when appointment reverts to Confirmed/Pending
 
-### Root Cause
-Two issues:
-1. **CORS headers outdated** — Both `reparse-specific-appointments` and `fetch-ghl-contact-data` are missing required Supabase client headers (`x-supabase-client-platform`, etc.), causing "Failed to fetch" errors from the browser.
-2. **No GHL data refresh** — The refresh button only calls `reparse-specific-appointments` (resets parsing and re-runs AI parser on existing notes). It never calls `fetch-ghl-contact-data` to pull fresh custom fields from GoHighLevel first.
+### Problem
+When an appointment is cancelled (trigger sets `procedure_ordered = false` / `procedure_status = 'no_procedure'`), then later re-confirmed, the procedure status stays as "No Procedure Ordered" instead of resetting to null (Not Set).
 
 ### Fix
+Update the `handle_appointment_status_completion()` trigger function to also reset `procedure_ordered` and `procedure_status` to null when status reverts to `confirmed` or `pending`.
 
 | File | Change |
 |------|--------|
-| `supabase/functions/reparse-specific-appointments/index.ts` | Update CORS headers to include all required Supabase client headers. Add logic to first call `fetch-ghl-contact-data` for each appointment (to pull fresh GHL data) before resetting parsing and invoking the auto-parser. |
-| `supabase/functions/fetch-ghl-contact-data/index.ts` | Update CORS headers to match the required set. |
-| `src/components/appointments/ParsedIntakeInfo.tsx` | Update `handleReparse` to show better status messages during the two-step process (GHL fetch + reparse). |
+| New migration SQL | Add `NEW.procedure_ordered := NULL; NEW.procedure_status := NULL;` inside the existing `confirmed/pending` reset block (line 11-13 of the current trigger), alongside the existing `internal_process_complete := false` reset. |
 
-### Detail
-
-**reparse-specific-appointments** — Enhanced flow:
+### Migration SQL
+```sql
+CREATE OR REPLACE FUNCTION public.handle_appointment_status_completion()
+  -- Same signature, just add two lines to the confirmed/pending block:
+  IF LOWER(TRIM(NEW.status)) IN ('confirmed', 'pending') THEN
+    NEW.internal_process_complete := false;
+    NEW.procedure_ordered := NULL;      -- NEW
+    NEW.procedure_status := NULL;       -- NEW
+    NEW.updated_at := now();
+  END IF;
+  -- Rest of function unchanged
 ```
-1. For each appointment_id:
-   a. Call fetch-ghl-contact-data internally (server-to-server, no CORS issue)
-      → This pulls fresh custom fields from GHL and appends to patient_intake_notes
-   b. Reset parsing_completed_at to null
-2. Invoke auto-parse-intake-notes to re-parse all reset appointments
-```
 
-This makes the single refresh button do the full pipeline: GHL fetch → reset → reparse.
+Also include a one-time fix for the test appointment (daac27f4) to reset its procedure_status:
+```sql
+UPDATE all_appointments 
+SET procedure_ordered = NULL, procedure_status = NULL, updated_at = now()
+WHERE id = 'daac27f4%'; -- exact ID from screenshot
+```
 
