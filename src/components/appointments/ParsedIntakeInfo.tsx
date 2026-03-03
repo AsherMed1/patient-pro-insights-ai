@@ -356,6 +356,11 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
 
     setIsReparsing(true);
     try {
+      toast({
+        title: "Refreshing",
+        description: "Fetching latest data from HighLevel and re-parsing...",
+      });
+
       const { data, error } = await supabase.functions.invoke('reparse-specific-appointments', {
         body: { appointment_ids: [appointmentId] }
       });
@@ -364,18 +369,18 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
 
       toast({
         title: "Success",
-        description: "Data refresh triggered. Please wait a few seconds and refresh the page.",
+        description: "Data refreshed from HighLevel. Updating in a moment...",
       });
 
-      // Wait a moment then call onUpdate if available
+      // Wait for parsing to complete then refresh
       setTimeout(() => {
         onUpdate?.();
-      }, 3000);
+      }, 5000);
     } catch (error) {
       console.error('Error triggering reparse:', error);
       toast({
         title: "Error",
-        description: "Failed to trigger data refresh",
+        description: "Failed to refresh data from HighLevel",
         variant: "destructive",
       });
     } finally {
