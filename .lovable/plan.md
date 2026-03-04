@@ -1,20 +1,28 @@
 
 
-## Update Support AI Bot Instructions for Rescheduling
+## Hide Embedded OpenAI Prompts from Patient Intake Notes Display
 
 ### Problem
-The AI support bot tells users to find an "Edit" button to change appointment date/time. That workflow is admin-only. Portal users should reschedule via the Status dropdown, which triggers GHL sync automatically.
+The `patient_intake_notes` field for some patients (e.g., Genia Lemanski at TVI) contains the full OpenAI system prompt that was embedded in the GHL form data. This prompt text is being displayed verbatim in both the `DetailedAppointmentView` and `AppointmentCard` components, exposing internal AI instructions to portal users.
 
 ### Fix
-Update the `SYSTEM_PROMPT` in `supabase/functions/support-ai-chat/index.ts` to include explicit instructions on the correct rescheduling workflow.
+Add a sanitization function that strips out the OpenAI prompt section from intake notes before rendering. The prompt block starts with a recognizable pattern like `"OpenAI Prompt:"` or `"OpenAi Prompt:"`.
 
-**Add to the system prompt:**
-- To reschedule an appointment, users should open the appointment record, click the Status dropdown, and select "Rescheduled". This will prompt them to choose a new date and time, which automatically syncs with GoHighLevel.
-- Users do NOT have a direct "Edit" button for date/time — that is admin-only.
-- Clarify that after rescheduling, the status automatically reverts to "Confirmed" and the appointment moves back to the "New" tab.
+**Approach:** Create a utility function that truncates the notes at the `"OpenAI Prompt:"` marker (case-insensitive), removing everything from that point onward.
 
-### Single file change
+### Changes
+
 | File | Change |
 |------|--------|
-| `supabase/functions/support-ai-chat/index.ts` | Expand `SYSTEM_PROMPT` with rescheduling instructions and a note that direct date/time editing is admin-only. |
+| `src/components/appointments/DetailedAppointmentView.tsx` | Add a `stripAIPrompt()` helper that removes text starting from "OpenAI Prompt:" (case-insensitive). Apply it in the intake notes render block (~line 851) before `filterIntakeNotesByProcedure`. |
+| `src/components/appointments/AppointmentCard.tsx` | Apply the same `stripAIPrompt()` helper where `patient_intake_notes` is rendered (~line 1636). |
+
+### Helper function
+```typescript
+const stripAIPrompt = (notes: string): string => {
+  const idx = notes.toLowerCase().indexOf('openai prompt:');
+  if (idx === -1) return notes;
+  return notes.substring(0, idx).trimEnd();
+};
+```
 
