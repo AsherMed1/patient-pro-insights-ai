@@ -1,59 +1,32 @@
 
 
-## Sync DOB Across All Fields When Edited at the Top
+## Remove Duplicate Long-Form Location Names for Apex Vascular
 
 ### Problem
-When a user edits the DOB badge at the top of the appointment card, only the top-level `dob` column is updated. The Demographics section reads from `parsed_demographics.dob` first, and Contact Information reads from `parsed_contact_info.dob` -- both JSONB fields that remain stale after the edit.
+Calendar names like `"Request your GAE Consultation at Apex Vascular - Crossville"` produce the location `"Apex Vascular - Crossville"` via the `at` regex, while `"Request your GAE Consultation at Crossville"` produces just `"Crossville"`. Both appear in the legend, creating duplicates.
 
 ### Fix
-Update the `updateDOB` function in `src/components/AllAppointmentsManager.tsx` to also update:
-1. `parsed_demographics.dob` and `parsed_demographics.age` (recalculated)
-2. `parsed_contact_info.dob`
+In the `extractLocationFromCalendarName` function in `src/components/appointments/LocationLegend.tsx`, update the `at` regex match to strip a leading project/clinic prefix before the dash. If the extracted location contains ` - `, take only the part after the dash.
 
-This requires reading the current JSONB values first, merging the new DOB, and writing them all back in a single update.
-
-### Changes
+### Single file change
 
 | File | Change |
 |------|--------|
-| `src/components/AllAppointmentsManager.tsx` | In `updateDOB` (~line 1022): fetch the current `parsed_demographics` and `parsed_contact_info` JSONB for the appointment, merge in the new DOB (and calculated age), then update all three columns (`dob`, `parsed_demographics`, `parsed_contact_info`) in one `.update()` call. Also update local state to include the JSONB changes so the UI reflects immediately. |
-
-### Implementation detail
+| `src/components/appointments/LocationLegend.tsx` | In the `atMatch` branch (~line 21-23), after extracting the location, check if it contains ` - ` and if so, take only the substring after the last ` - `. This collapses `"Apex Vascular - Crossville"` to `"Crossville"`. |
 
 ```typescript
-const updateDOB = async (appointmentId: string, dob: string | null) => {
-  // 1. Fetch current JSONB fields
-  const { data: current } = await supabase
-    .from('all_appointments')
-    .select('parsed_demographics, parsed_contact_info')
-    .eq('id', appointmentId)
-    .single();
+// Current:
+const loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+return loc;
 
-  // 2. Calculate age from new DOB
-  const calculateAge = (dobStr: string) => {
-    const birth = new Date(dobStr);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    if (today.getMonth() < birth.getMonth() || 
-        (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
-    return age;
-  };
-
-  // 3. Build updated JSONB objects
-  const updatedDemographics = { ...(current?.parsed_demographics || {}), dob, age: dob ? calculateAge(dob) : null };
-  const updatedContact = { ...(current?.parsed_contact_info || {}), dob };
-
-  // 4. Single update with all fields
-  await supabase.from('all_appointments').update({
-    dob,
-    parsed_demographics: updatedDemographics,
-    parsed_contact_info: updatedContact,
-    updated_at: new Date().toISOString()
-  }).eq('id', appointmentId);
-
-  // 5. Update local state with all three fields
-};
+// Updated:
+let loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+const dashIdx = loc.lastIndexOf(' - ');
+if (dashIdx !== -1) {
+  loc = loc.substring(dashIdx + 3).trim();
+}
+return loc;
 ```
 
-Single file change. Demographics age, Demographics DOB, and Contact DOB will all update instantly.
+This ensures only the short location names (Crossville, Decatur, Lenoir City, etc.) appear in the legend, eliminating the "Apex Vascular - X" duplicates.
 
