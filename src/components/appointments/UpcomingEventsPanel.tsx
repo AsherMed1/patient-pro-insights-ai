@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { AllAppointment } from './types';
 import { getEventTypeFromCalendar, getStatusInfo } from './calendarUtils';
+import { extractLocationFromCalendarName } from './LocationLegend';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -14,9 +15,11 @@ interface UpcomingEventsPanelProps {
   viewMode: 'day' | 'week' | 'month';
   selectedDate: Date;
   onAppointmentClick: (appointment: AllAppointment) => void;
+  selectedEventTypes?: string[];
+  selectedLocations?: string[];
 }
 
-export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick }: UpcomingEventsPanelProps) {
+export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick, selectedEventTypes, selectedLocations }: UpcomingEventsPanelProps) {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,6 +76,20 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
     fetchUpcoming();
   }, [projectName, startDate, endDate]);
 
+  const filteredAppointments = useMemo(() => {
+    let result = appointments;
+    if (selectedEventTypes?.length) {
+      result = result.filter(apt => selectedEventTypes.includes(getEventTypeFromCalendar(apt.calendar_name).type));
+    }
+    if (selectedLocations?.length) {
+      result = result.filter(apt => {
+        const loc = extractLocationFromCalendarName(apt.calendar_name || '');
+        return !loc || selectedLocations.includes(loc);
+      });
+    }
+    return result;
+  }, [appointments, selectedEventTypes, selectedLocations]);
+
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -95,12 +112,12 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
       
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-2">
-          {appointments.length === 0 ? (
+          {filteredAppointments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               No upcoming appointments
             </div>
           ) : (
-            appointments.map(apt => {
+            filteredAppointments.map(apt => {
               const eventType = getEventTypeFromCalendar(apt.calendar_name);
               const statusInfo = getStatusInfo(apt.status);
               
