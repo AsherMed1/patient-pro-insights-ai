@@ -49,6 +49,12 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
 import { ExternalLink } from 'lucide-react';
 
+const stripAIPrompt = (notes: string): string => {
+  const idx = notes.toLowerCase().indexOf('openai prompt:');
+  if (idx === -1) return notes;
+  return notes.substring(0, idx).trimEnd();
+};
+
 // Filter raw intake notes to only show pathology data for the current procedure
 const filterIntakeNotesByProcedure = (notes: string, calendarName: string | null): string => {
   if (!notes || !calendarName) return notes || '';
@@ -849,7 +855,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 <div className="prose prose-sm max-w-none">
                     <div className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg border">
                       {filterIntakeNotesByProcedure(
-                        appointment.patient_intake_notes || leadDetails?.patient_intake_notes || '',
+                        stripAIPrompt(appointment.patient_intake_notes || leadDetails?.patient_intake_notes || ''),
                         appointment.calendar_name
                       )}
                     </div>
@@ -894,7 +900,6 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 </CardContent>
               </Card>
             )}
-
 
 
           </div>
