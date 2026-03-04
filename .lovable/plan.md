@@ -1,17 +1,20 @@
 
 
-## Hide "OA or TKR Diagnosed" for FSE Procedures
+## Update Support AI Bot Instructions for Rescheduling
 
-**Problem**: The "OA or TKR Diagnosed" field is knee-specific (OA = Osteoarthritis, TKR = Total Knee Replacement) and irrelevant for FSE (Frozen Shoulder Embolization) appointments. It currently displays for all procedure types.
+### Problem
+The AI support bot tells users to find an "Edit" button to change appointment date/time. That workflow is admin-only. Portal users should reschedule via the Status dropdown, which triggers GHL sync automatically.
 
-**Fix**: In `src/components/appointments/ParsedIntakeInfo.tsx` (~line 760), wrap the existing `oa_tkr_diagnosed` render block with a condition that hides it when `procedure_type` is `'FSE'`.
+### Fix
+Update the `SYSTEM_PROMPT` in `supabase/functions/support-ai-chat/index.ts` to include explicit instructions on the correct rescheduling workflow.
 
-```tsx
-{formatValue(parsedPathologyInfo.oa_tkr_diagnosed) && 
- parsedPathologyInfo.procedure_type?.toUpperCase() !== 'FSE' && (
-  <div className="text-sm">...</div>
-)}
-```
+**Add to the system prompt:**
+- To reschedule an appointment, users should open the appointment record, click the Status dropdown, and select "Rescheduled". This will prompt them to choose a new date and time, which automatically syncs with GoHighLevel.
+- Users do NOT have a direct "Edit" button for date/time — that is admin-only.
+- Clarify that after rescheduling, the status automatically reverts to "Confirmed" and the appointment moves back to the "New" tab.
 
-Single line change, one file.
+### Single file change
+| File | Change |
+|------|--------|
+| `supabase/functions/support-ai-chat/index.ts` | Expand `SYSTEM_PROMPT` with rescheduling instructions and a note that direct date/time editing is admin-only. |
 
