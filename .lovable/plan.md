@@ -1,32 +1,54 @@
 
 
-## Remove Duplicate Long-Form Location Names for Apex Vascular
+## Pass Location Filter to Upcoming Events Panel
 
 ### Problem
-Calendar names like `"Request your GAE Consultation at Apex Vascular - Crossville"` produce the location `"Apex Vascular - Crossville"` via the `at` regex, while `"Request your GAE Consultation at Crossville"` produces just `"Crossville"`. Both appear in the legend, creating duplicates.
+The calendar grid correctly filters appointments by selected locations, but the "Events This Week/Day/Month" sidebar panel fetches its own data independently and does not apply the location filter.
 
-### Fix
-In the `extractLocationFromCalendarName` function in `src/components/appointments/LocationLegend.tsx`, update the `at` regex match to strip a leading project/clinic prefix before the dash. If the extracted location contains ` - `, take only the part after the dash.
-
-### Single file change
+### Changes
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/LocationLegend.tsx` | In the `atMatch` branch (~line 21-23), after extracting the location, check if it contains ` - ` and if so, take only the substring after the last ` - `. This collapses `"Apex Vascular - Crossville"` to `"Crossville"`. |
+| `src/components/appointments/UpcomingEventsPanel.tsx` | Add `selectedLocations` and `selectedEventTypes` optional props. After fetching, filter the displayed appointments client-side using the same `extractLocationFromCalendarName` logic already used in `CalendarDetailView`. |
+| `src/components/appointments/CalendarDetailView.tsx` | Pass `selectedLocations` and `selectedEventTypes` through to `UpcomingEventsPanel` (lines 117-122). |
 
+### Detail
+
+**UpcomingEventsPanel.tsx** — add props and a filtering memo:
 ```typescript
-// Current:
-const loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
-return loc;
-
-// Updated:
-let loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
-const dashIdx = loc.lastIndexOf(' - ');
-if (dashIdx !== -1) {
-  loc = loc.substring(dashIdx + 3).trim();
+interface UpcomingEventsPanelProps {
+  // ...existing
+  selectedEventTypes?: string[];
+  selectedLocations?: string[];
 }
-return loc;
+
+// After fetching, filter before rendering:
+const filteredAppointments = useMemo(() => {
+  let result = appointments;
+  if (selectedEventTypes?.length) {
+    result = result.filter(apt => selectedEventTypes.includes(getEventTypeFromCalendar(apt.calendar_name).type));
+  }
+  if (selectedLocations?.length) {
+    result = result.filter(apt => {
+      const loc = extractLocationFromCalendarName(apt.calendar_name || '');
+      return !loc || selectedLocations.includes(loc);
+    });
+  }
+  return result;
+}, [appointments, selectedEventTypes, selectedLocations]);
 ```
 
-This ensures only the short location names (Crossville, Decatur, Lenoir City, etc.) appear in the legend, eliminating the "Apex Vascular - X" duplicates.
+**CalendarDetailView.tsx** — pass the props:
+```tsx
+<UpcomingEventsPanel 
+  projectName={projectName}
+  viewMode={viewMode}
+  selectedDate={selectedDate}
+  onAppointmentClick={onAppointmentClick}
+  selectedEventTypes={selectedEventTypes}
+  selectedLocations={selectedLocations}
+/>
+```
+
+Two files, minimal changes.
 
