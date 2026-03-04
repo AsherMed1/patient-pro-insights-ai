@@ -119,6 +119,8 @@ export function CalendarDetailView({
           viewMode={viewMode}
           selectedDate={selectedDate}
           onAppointmentClick={onAppointmentClick}
+          selectedEventTypes={selectedEventTypes}
+          selectedLocations={selectedLocations}
         />
       </div>
     </div>
