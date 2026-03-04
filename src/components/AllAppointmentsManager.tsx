@@ -1021,10 +1021,41 @@ const AllAppointmentsManager = ({
 
   const updateDOB = async (appointmentId: string, dob: string | null) => {
     try {
+      // 1. Fetch current JSONB fields
+      const { data: current } = await supabase
+        .from('all_appointments')
+        .select('parsed_demographics, parsed_contact_info')
+        .eq('id', appointmentId)
+        .single();
+
+      // 2. Calculate age from new DOB
+      const calculateAge = (dobStr: string) => {
+        const birth = new Date(dobStr);
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        if (today.getMonth() < birth.getMonth() || 
+            (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+        return age;
+      };
+
+      // 3. Build updated JSONB objects
+      const updatedDemographics = { 
+        ...((current?.parsed_demographics as any) || {}), 
+        dob, 
+        age: dob ? calculateAge(dob) : null 
+      };
+      const updatedContact = { 
+        ...((current?.parsed_contact_info as any) || {}), 
+        dob 
+      };
+
+      // 4. Single update with all fields
       const { error } = await supabase
         .from('all_appointments')
         .update({ 
-          dob: dob,
+          dob,
+          parsed_demographics: updatedDemographics,
+          parsed_contact_info: updatedContact,
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId);
@@ -1039,10 +1070,15 @@ const AllAppointmentsManager = ({
         return;
       }
 
-      // Update local state
+      // 5. Update local state with all three fields
       setAppointments(prev => prev.map(appointment => 
         appointment.id === appointmentId 
-          ? { ...appointment, dob: dob }
+          ? { 
+              ...appointment, 
+              dob, 
+              parsed_demographics: updatedDemographics,
+              parsed_contact_info: updatedContact 
+            }
           : appointment
       ));
 
