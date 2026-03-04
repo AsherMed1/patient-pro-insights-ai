@@ -19,7 +19,11 @@ const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
 function extractLocationFromCalendarName(calendarName: string): string | null {
   const atMatch = calendarName.match(/at\s+(.+)$/i);
   if (atMatch) {
-    const loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+    let loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+    const dashIdx = loc.lastIndexOf(' - ');
+    if (dashIdx !== -1) {
+      loc = loc.substring(dashIdx + 3).trim();
+    }
     return loc;
   }
   const dashMatch = calendarName.match(/ - (.+)$/);
