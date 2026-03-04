@@ -79,6 +79,12 @@ interface NewLead {
   patient_intake_notes?: string;
 }
 
+const stripAIPrompt = (notes: string): string => {
+  const idx = notes.toLowerCase().indexOf('openai prompt:');
+  if (idx === -1) return notes;
+  return notes.substring(0, idx).trimEnd();
+};
+
 const AppointmentCard = ({
   appointment,
   projectFilter,
@@ -1633,7 +1639,7 @@ const AppointmentCard = ({
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
                 <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 rounded border">
-                  {appointment.patient_intake_notes}
+                  {stripAIPrompt(appointment.patient_intake_notes)}
                 </div>
               </CollapsibleContent>
             </Collapsible>
