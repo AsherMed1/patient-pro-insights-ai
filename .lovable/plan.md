@@ -1,38 +1,49 @@
 
 
-## Fix DOB Sync and Auto-Refresh Issues
+## Sync Header Field Updates to Contact Information Section
 
-### Problem 1: DOB changes at the top don't update Demographics and Contact sections
-When changing DOB from the header badge, the Demographics age/DOB and Contact DOB don't update visually. The `updateDOB` function in `AllAppointmentsManager` updates local state but the card may not fully re-render the `ParsedIntakeInfo` sub-sections.
-
-### Problem 2: Page auto-refreshes on its own
-The `ParsedIntakeInfo` component in the card view has `onUpdate={() => window.location.reload()}` (line 1609 of `AppointmentCard.tsx`), which causes a full browser reload whenever any data is saved from within the Patient Pro Insights section (insurance, contact, PCP edits, or reparse).
+### Problem
+When editing email (or phone/name) from the header area, only the top-level column (`lead_email`) is updated. The `parsed_contact_info` JSONB field is not updated, so the Contact Information section in Patient Pro Insights continues showing the old value. Same issue applies to phone and name updates.
 
 ### Changes
 
 | File | Change |
 |------|--------|
-| `src/components/AllAppointmentsManager.tsx` | In `updateDOB`, after updating local state, also call `fetchAppointments()` to ensure the UI fully refreshes with the latest data from the DB (matching how date/time updates work). |
-| `src/components/appointments/AppointmentCard.tsx` | Replace `onUpdate={() => window.location.reload()}` on `ParsedIntakeInfo` with `onUpdate={() => { onDataRefresh?.(); }}` to use the targeted refetch pattern instead of a full page reload. |
+| `src/components/AllAppointmentsManager.tsx` | In `updateAppointmentEmail`, also update `parsed_contact_info.email` in the DB and call `fetchAppointments()` after success. Apply the same pattern to `updateAppointmentPhone` (sync `parsed_contact_info.phone`) and `updateAppointmentName` (sync `parsed_contact_info.name`). |
 
 ### Detail
 
-**AllAppointmentsManager.tsx** — add `fetchAppointments()` call in `updateDOB` after the success path (around line 1089):
+For each of the three update functions, the DB update needs to merge the new value into the existing `parsed_contact_info` JSONB, then call `fetchAppointments()` to refresh the UI fully.
+
+**updateAppointmentEmail** (lines 1195-1227):
 ```typescript
-toast({ title: "Success", description: "Date of birth updated successfully" });
-fetchAppointments();  // <-- add this
-fetchTabCounts();     // <-- add this
-onDataChanged?.();
+const updateAppointmentEmail = async (appointmentId: string, email: string) => {
+  try {
+    const appointment = appointments.find(a => a.id === appointmentId);
+    const updatedContactInfo = {
+      ...(appointment?.parsed_contact_info || {}),
+      email
+    };
+    
+    const { error } = await supabase
+      .from('all_appointments')
+      .update({
+        lead_email: email,
+        parsed_contact_info: updatedContactInfo,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId);
+
+    if (error) throw error;
+    toast({ title: "Success", description: "Email updated" });
+    fetchAppointments();
+    fetchTabCounts();
+    onDataChanged?.();
+  } catch ...
+};
 ```
 
-**AppointmentCard.tsx** — line 1609, replace:
-```typescript
-// Before:
-onUpdate={() => window.location.reload()}
+Apply the same pattern to `updateAppointmentPhone` (sync `parsed_contact_info.phone`) and `updateAppointmentName` (sync `parsed_contact_info.name`).
 
-// After:
-onUpdate={() => { onDataRefresh?.(); }}
-```
-
-Two files, two small changes. The first ensures DOB changes propagate fully; the second eliminates the unwanted page reload.
+Single file, three function updates.
 
