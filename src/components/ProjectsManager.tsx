@@ -39,6 +39,7 @@ interface ProjectFormData {
   ghl_api_key?: string;
   emr_system_name?: string;
   emr_link?: string;
+  short_notice_threshold_hours?: string;
 }
 
 const ProjectsManager = () => {
@@ -192,7 +193,7 @@ const ProjectsManager = () => {
     console.log('EditProject - EMR Link:', data.emr_link);
 
     try {
-      const updateData = {
+      const updateData: Record<string, any> = {
         project_name: data.project_name,
         appointment_webhook_url: data.appointment_webhook_url || null,
         ghl_location_id: data.ghl_location_id || null,
@@ -200,6 +201,7 @@ const ProjectsManager = () => {
         ghl_api_key: data.ghl_api_key || null,
         emr_system_name: data.emr_system_name || null,
         emr_link: data.emr_link || null,
+        short_notice_threshold_hours: data.short_notice_threshold_hours ? parseInt(data.short_notice_threshold_hours, 10) : 72,
         updated_at: new Date().toISOString()
       };
       

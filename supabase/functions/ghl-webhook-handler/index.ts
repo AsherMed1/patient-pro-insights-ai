@@ -189,6 +189,9 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
 
+    // Check for short-notice appointment and fire alert if needed
+    checkShortNoticeAlert(supabase, appointmentRecord, requestId)
+
     // Insert reschedule audit note now that we're in an async context
     if (rescheduleNote) {
       try {
@@ -1179,5 +1182,49 @@ async function enrichAppointmentWithGHLData(
     
   } catch (error) {
     console.error(`[${requestId}] Enrichment failed:`, error)
+  }
+}
+
+// Check if appointment qualifies as short-notice and fire Slack alert
+async function checkShortNoticeAlert(supabase: any, appointment: any, requestId: string) {
+  try {
+    if (!appointment.date_of_appointment) return;
+
+    const status = (appointment.status || '').toLowerCase().trim();
+    const terminal = ['cancelled', 'canceled', 'no show', 'showed', 'oon'];
+    if (terminal.some(t => status.includes(t))) return;
+
+    const { data: project } = await supabase
+      .from('projects')
+      .select('short_notice_threshold_hours')
+      .eq('project_name', appointment.project_name)
+      .single();
+
+    const threshold = project?.short_notice_threshold_hours ?? 72;
+    if (threshold === 0) return;
+
+    const apptTime = new Date(appointment.date_of_appointment + 'T' + (appointment.requested_time || '09:00'));
+    const createdTime = new Date(appointment.date_appointment_created || appointment.created_at);
+    const hoursDiff = (apptTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
+
+    if (hoursDiff <= threshold && hoursDiff > 0) {
+      console.log(`[${requestId}] ⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)}h notice)`);
+      supabase.functions.invoke('notify-slack-short-notice', {
+        body: {
+          appointmentId: appointment.id,
+          projectName: appointment.project_name,
+          leadName: appointment.lead_name,
+          ghlId: appointment.ghl_id || null,
+          appointmentDatetime: apptTime.toISOString(),
+          createdDatetime: createdTime.toISOString(),
+          hoursDifference: hoursDiff,
+          status: appointment.status || 'Unconfirmed',
+          calendarName: appointment.calendar_name || null,
+          phone: appointment.lead_phone_number || null,
+        }
+      });
+    }
+  } catch (err) {
+    console.error(`[${requestId}] Short-notice check error:`, err);
   }
 }

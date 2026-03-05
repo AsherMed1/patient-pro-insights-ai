@@ -2739,6 +2739,7 @@ export type Database = {
           id: string
           project_name: string
           selected_form_types: string[] | null
+          short_notice_threshold_hours: number
           timezone: string | null
           updated_at: string
         }
@@ -2761,6 +2762,7 @@ export type Database = {
           id?: string
           project_name: string
           selected_form_types?: string[] | null
+          short_notice_threshold_hours?: number
           timezone?: string | null
           updated_at?: string
         }
@@ -2783,6 +2785,7 @@ export type Database = {
           id?: string
           project_name?: string
           selected_form_types?: string[] | null
+          short_notice_threshold_hours?: number
           timezone?: string | null
           updated_at?: string
         }
@@ -3051,6 +3054,56 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      short_notice_alerts: {
+        Row: {
+          alert_sent_at: string | null
+          appointment_datetime: string | null
+          appointment_id: string
+          created_at: string | null
+          created_datetime: string | null
+          ghl_id: string | null
+          hours_difference: number
+          id: string
+          lead_name: string
+          project_name: string
+          slack_sent: boolean | null
+        }
+        Insert: {
+          alert_sent_at?: string | null
+          appointment_datetime?: string | null
+          appointment_id: string
+          created_at?: string | null
+          created_datetime?: string | null
+          ghl_id?: string | null
+          hours_difference: number
+          id?: string
+          lead_name: string
+          project_name: string
+          slack_sent?: boolean | null
+        }
+        Update: {
+          alert_sent_at?: string | null
+          appointment_datetime?: string | null
+          appointment_id?: string
+          created_at?: string | null
+          created_datetime?: string | null
+          ghl_id?: string | null
+          hours_difference?: number
+          id?: string
+          lead_name?: string
+          project_name?: string
+          slack_sent?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "short_notice_alerts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       speed_to_lead_stats: {
         Row: {
