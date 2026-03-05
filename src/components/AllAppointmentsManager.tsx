@@ -1160,27 +1160,30 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentName = async (appointmentId: string, name: string) => {
     try {
+      const appointment = appointments.find(a => a.id === appointmentId);
+      const updatedContactInfo = {
+        ...(appointment?.parsed_contact_info || {}),
+        name
+      };
+
       const { error } = await supabase
         .from('all_appointments')
         .update({
           lead_name: name,
+          parsed_contact_info: updatedContactInfo,
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId);
 
       if (error) throw error;
 
-      setAppointments(prev => prev.map(appointment =>
-        appointment.id === appointmentId
-          ? { ...appointment, lead_name: name }
-          : appointment
-      ));
-
       toast({
         title: "Success",
         description: "Patient name updated"
       });
       
+      fetchAppointments();
+      fetchTabCounts();
       onDataChanged?.();
     } catch (error) {
       console.error('Error updating patient name:', error);
@@ -1194,27 +1197,30 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentEmail = async (appointmentId: string, email: string) => {
     try {
+      const appointment = appointments.find(a => a.id === appointmentId);
+      const updatedContactInfo = {
+        ...(appointment?.parsed_contact_info || {}),
+        email
+      };
+
       const { error } = await supabase
         .from('all_appointments')
         .update({
           lead_email: email,
+          parsed_contact_info: updatedContactInfo,
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId);
 
       if (error) throw error;
 
-      setAppointments(prev => prev.map(appointment =>
-        appointment.id === appointmentId
-          ? { ...appointment, lead_email: email }
-          : appointment
-      ));
-
       toast({
         title: "Success",
         description: "Email updated"
       });
       
+      fetchAppointments();
+      fetchTabCounts();
       onDataChanged?.();
     } catch (error) {
       console.error('Error updating email:', error);
@@ -1228,27 +1234,30 @@ const AllAppointmentsManager = ({
 
   const updateAppointmentPhone = async (appointmentId: string, phone: string) => {
     try {
+      const appointment = appointments.find(a => a.id === appointmentId);
+      const updatedContactInfo = {
+        ...(appointment?.parsed_contact_info || {}),
+        phone
+      };
+
       const { error } = await supabase
         .from('all_appointments')
         .update({
           lead_phone_number: phone,
+          parsed_contact_info: updatedContactInfo,
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId);
 
       if (error) throw error;
 
-      setAppointments(prev => prev.map(appointment =>
-        appointment.id === appointmentId
-          ? { ...appointment, lead_phone_number: phone }
-          : appointment
-      ));
-
       toast({
         title: "Success",
         description: "Phone number updated"
       });
       
+      fetchAppointments();
+      fetchTabCounts();
       onDataChanged?.();
     } catch (error) {
       console.error('Error updating phone:', error);
