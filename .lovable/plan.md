@@ -1,54 +1,39 @@
 
 
-## Pass Location Filter to Upcoming Events Panel
-
-### Problem
-The calendar grid correctly filters appointments by selected locations, but the "Events This Week/Day/Month" sidebar panel fetches its own data independently and does not apply the location filter.
+## Add Search Filter and Hide "Call Back Request" Calendars
 
 ### Changes
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/UpcomingEventsPanel.tsx` | Add `selectedLocations` and `selectedEventTypes` optional props. After fetching, filter the displayed appointments client-side using the same `extractLocationFromCalendarName` logic already used in `CalendarDetailView`. |
-| `src/components/appointments/CalendarDetailView.tsx` | Pass `selectedLocations` and `selectedEventTypes` through to `UpcomingEventsPanel` (lines 117-122). |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | 1. In `CalendarCheckboxList`, add a search input above the calendar list that filters calendars by name. 2. Filter out calendars whose name contains "Call Back Request" (case-insensitive) before displaying. 3. Make Select All / Deselect All operate on the filtered (visible) list only. |
 
 ### Detail
 
-**UpcomingEventsPanel.tsx** — add props and a filtering memo:
+In the `CalendarCheckboxList` component:
+
+1. Add `useState` for a search query string
+2. Filter calendars: exclude "Call Back Request" calendars entirely, then filter by search query
+3. Add an `<Input>` with a search icon above the checkbox list
+4. Select All / Deselect All apply to the currently visible (filtered) calendars only
+5. Update the count text to reflect visible vs total
+
 ```typescript
-interface UpcomingEventsPanelProps {
-  // ...existing
-  selectedEventTypes?: string[];
-  selectedLocations?: string[];
-}
+// Inside CalendarCheckboxList
+const [search, setSearch] = useState('');
 
-// After fetching, filter before rendering:
-const filteredAppointments = useMemo(() => {
-  let result = appointments;
-  if (selectedEventTypes?.length) {
-    result = result.filter(apt => selectedEventTypes.includes(getEventTypeFromCalendar(apt.calendar_name).type));
-  }
-  if (selectedLocations?.length) {
-    result = result.filter(apt => {
-      const loc = extractLocationFromCalendarName(apt.calendar_name || '');
-      return !loc || selectedLocations.includes(loc);
-    });
-  }
-  return result;
-}, [appointments, selectedEventTypes, selectedLocations]);
+const visibleCalendars = calendars
+  .filter(c => !c.name.toLowerCase().includes('call back request'))
+  .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
+
+const selectAll = () => onSelectionChange([
+  ...selectedIds,
+  ...visibleCalendars.map(c => c.id).filter(id => !selectedIds.includes(id))
+]);
+const deselectAll = () => onSelectionChange(
+  selectedIds.filter(id => !visibleCalendars.some(c => c.id === id))
+);
 ```
 
-**CalendarDetailView.tsx** — pass the props:
-```tsx
-<UpcomingEventsPanel 
-  projectName={projectName}
-  viewMode={viewMode}
-  selectedDate={selectedDate}
-  onAppointmentClick={onAppointmentClick}
-  selectedEventTypes={selectedEventTypes}
-  selectedLocations={selectedLocations}
-/>
-```
-
-Two files, minimal changes.
+Single file, minimal change.
 
