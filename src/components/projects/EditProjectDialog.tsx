@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -20,6 +21,7 @@ interface Project {
   ghl_api_key?: string | null;
   emr_system_name?: string | null;
   emr_link?: string | null;
+  short_notice_threshold_hours?: number;
 }
 
 interface ProjectFormData {
@@ -30,6 +32,7 @@ interface ProjectFormData {
   ghl_api_key?: string;
   emr_system_name?: string;
   emr_link?: string;
+  short_notice_threshold_hours?: string;
 }
 
 interface EditProjectDialogProps {
@@ -58,6 +61,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
       form.setValue('ghl_api_key', project.ghl_api_key || '');
       form.setValue('emr_system_name', project.emr_system_name || '');
       form.setValue('emr_link', project.emr_link || '');
+      form.setValue('short_notice_threshold_hours', String(project.short_notice_threshold_hours ?? 72));
     }
   }, [project, form]);
 
@@ -266,6 +270,32 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                   </FormControl>
                   <p className="text-sm text-muted-foreground">
                     Direct link to your EMR system. This will appear as a button in the EMR queue for quick access.
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="short_notice_threshold_hours"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Short-Notice Alert Threshold</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || '72'}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select threshold" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="0">Disabled</SelectItem>
+                      <SelectItem value="48">48 hours</SelectItem>
+                      <SelectItem value="72">72 hours (default)</SelectItem>
+                      <SelectItem value="168">168 hours (7 days)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    Send a Slack alert when appointments are booked within this time window. Set to Disabled to turn off.
                   </p>
                 </FormItem>
               )}

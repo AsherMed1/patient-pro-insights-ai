@@ -157,3 +157,7 @@ verify_jwt = false
 [functions.get-ghl-availability]
 verify_jwt = false
 # Fetch available time slots from GoHighLevel calendar for appointment scheduling
+
+[functions.notify-slack-short-notice]
+verify_jwt = false
+# Send Slack alert when appointment is booked within short-notice threshold
