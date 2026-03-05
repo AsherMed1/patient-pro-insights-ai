@@ -95,6 +95,12 @@ interface CalendarCheckboxListProps {
 }
 
 function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loading }: CalendarCheckboxListProps) {
+  const [search, setSearch] = useState('');
+
+  const visibleCalendars = calendars
+    .filter(c => !c.name.toLowerCase().includes('call back request'))
+    .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
+
   const toggleCalendar = (id: string) => {
     if (selectedIds.includes(id)) {
       onSelectionChange(selectedIds.filter(cid => cid !== id));
@@ -103,8 +109,13 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
     }
   };
 
-  const selectAll = () => onSelectionChange(calendars.map(c => c.id));
-  const deselectAll = () => onSelectionChange([]);
+  const selectAll = () => onSelectionChange([
+    ...selectedIds,
+    ...visibleCalendars.map(c => c.id).filter(id => !selectedIds.includes(id))
+  ]);
+  const deselectAll = () => onSelectionChange(
+    selectedIds.filter(id => !visibleCalendars.some(c => c.id === id))
+  );
 
   if (loading) {
     return (
@@ -142,26 +153,36 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
           </Button>
         </div>
       </div>
+      <Input
+        placeholder="Search calendars..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-8 text-sm"
+      />
       <div className="rounded-lg border p-3 bg-muted/30 max-h-48 overflow-y-auto space-y-2">
-        {calendars.map((calendar) => (
-          <div key={calendar.id} className="flex items-center gap-2">
-            <Checkbox
-              id={`cal-${calendar.id}`}
-              checked={selectedIds.includes(calendar.id)}
-              onCheckedChange={() => toggleCalendar(calendar.id)}
-            />
-            <label 
-              htmlFor={`cal-${calendar.id}`} 
-              className="text-sm cursor-pointer truncate flex-1"
-              title={calendar.name}
-            >
-              {calendar.name}
-            </label>
-          </div>
-        ))}
+        {visibleCalendars.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-2">No matching calendars</p>
+        ) : (
+          visibleCalendars.map((calendar) => (
+            <div key={calendar.id} className="flex items-center gap-2">
+              <Checkbox
+                id={`cal-${calendar.id}`}
+                checked={selectedIds.includes(calendar.id)}
+                onCheckedChange={() => toggleCalendar(calendar.id)}
+              />
+              <label 
+                htmlFor={`cal-${calendar.id}`} 
+                className="text-sm cursor-pointer truncate flex-1"
+                title={calendar.name}
+              >
+                {calendar.name}
+              </label>
+            </div>
+          ))
+        )}
       </div>
       <p className="text-xs text-muted-foreground">
-        {selectedIds.length} of {calendars.length} calendar{calendars.length !== 1 ? 's' : ''} selected
+        {selectedIds.length} selected · {visibleCalendars.length} calendar{visibleCalendars.length !== 1 ? 's' : ''} shown
       </p>
     </div>
   );
