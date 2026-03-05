@@ -1,39 +1,38 @@
 
 
-## Add Search Filter and Hide "Call Back Request" Calendars
+## Fix DOB Sync and Auto-Refresh Issues
+
+### Problem 1: DOB changes at the top don't update Demographics and Contact sections
+When changing DOB from the header badge, the Demographics age/DOB and Contact DOB don't update visually. The `updateDOB` function in `AllAppointmentsManager` updates local state but the card may not fully re-render the `ParsedIntakeInfo` sub-sections.
+
+### Problem 2: Page auto-refreshes on its own
+The `ParsedIntakeInfo` component in the card view has `onUpdate={() => window.location.reload()}` (line 1609 of `AppointmentCard.tsx`), which causes a full browser reload whenever any data is saved from within the Patient Pro Insights section (insurance, contact, PCP edits, or reparse).
 
 ### Changes
 
 | File | Change |
 |------|--------|
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | 1. In `CalendarCheckboxList`, add a search input above the calendar list that filters calendars by name. 2. Filter out calendars whose name contains "Call Back Request" (case-insensitive) before displaying. 3. Make Select All / Deselect All operate on the filtered (visible) list only. |
+| `src/components/AllAppointmentsManager.tsx` | In `updateDOB`, after updating local state, also call `fetchAppointments()` to ensure the UI fully refreshes with the latest data from the DB (matching how date/time updates work). |
+| `src/components/appointments/AppointmentCard.tsx` | Replace `onUpdate={() => window.location.reload()}` on `ParsedIntakeInfo` with `onUpdate={() => { onDataRefresh?.(); }}` to use the targeted refetch pattern instead of a full page reload. |
 
 ### Detail
 
-In the `CalendarCheckboxList` component:
-
-1. Add `useState` for a search query string
-2. Filter calendars: exclude "Call Back Request" calendars entirely, then filter by search query
-3. Add an `<Input>` with a search icon above the checkbox list
-4. Select All / Deselect All apply to the currently visible (filtered) calendars only
-5. Update the count text to reflect visible vs total
-
+**AllAppointmentsManager.tsx** — add `fetchAppointments()` call in `updateDOB` after the success path (around line 1089):
 ```typescript
-// Inside CalendarCheckboxList
-const [search, setSearch] = useState('');
-
-const visibleCalendars = calendars
-  .filter(c => !c.name.toLowerCase().includes('call back request'))
-  .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
-
-const selectAll = () => onSelectionChange([
-  ...selectedIds,
-  ...visibleCalendars.map(c => c.id).filter(id => !selectedIds.includes(id))
-]);
-const deselectAll = () => onSelectionChange(
-  selectedIds.filter(id => !visibleCalendars.some(c => c.id === id))
-);
+toast({ title: "Success", description: "Date of birth updated successfully" });
+fetchAppointments();  // <-- add this
+fetchTabCounts();     // <-- add this
+onDataChanged?.();
 ```
 
-Single file, minimal change.
+**AppointmentCard.tsx** — line 1609, replace:
+```typescript
+// Before:
+onUpdate={() => window.location.reload()}
+
+// After:
+onUpdate={() => { onDataRefresh?.(); }}
+```
+
+Two files, two small changes. The first ensures DOB changes propagate fully; the second eliminates the unwanted page reload.
 
