@@ -1606,7 +1606,7 @@ const AppointmentCard = ({
           insuranceBackLink={appointment.insurance_back_link}
           dob={appointment.dob}
           appointmentId={appointment.id}
-          onUpdate={() => window.location.reload()}
+          onUpdate={() => { onDataRefresh?.(); }}
           projectName={appointment.project_name}
           patientName={appointment.lead_name}
           parsingCompletedAt={appointment.parsing_completed_at}

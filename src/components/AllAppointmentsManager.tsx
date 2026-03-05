@@ -1086,6 +1086,8 @@ const AllAppointmentsManager = ({
         title: "Success",
         description: "Date of birth updated successfully",
       });
+      fetchAppointments();
+      fetchTabCounts();
       onDataChanged?.();
     } catch (error) {
       console.error('Error updating DOB:', error);
