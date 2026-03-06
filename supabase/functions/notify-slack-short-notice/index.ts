@@ -79,8 +79,8 @@ serve(async (req) => {
     }
 
     const hoursText = hoursDifference < 1
-      ? `${Math.round(hoursDifference * 60)}m`
-      : `${Math.round(hoursDifference)}h`;
+      ? `${Math.round(hoursDifference * 60)}m (biz)`
+      : `${Math.round(hoursDifference)} biz hrs`;
 
     // Build GHL link using v2 format with locationId
     let ghlLink = 'N/A';
@@ -124,7 +124,7 @@ serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${leadName}* — booked *${hoursText} before appt*`
+            text: `*${leadName}* — booked *${hoursText} before appt* (weekends excluded)`
           }
         },
         { type: "divider" },

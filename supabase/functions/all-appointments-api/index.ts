@@ -439,10 +439,10 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
     const projectTimezone = project?.timezone || 'America/Chicago';
     const apptTime = localDatetimeToUTC(appointment.date_of_appointment, appointment.requested_time, projectTimezone);
     const createdTime = new Date(appointment.created_at || appointment.date_appointment_created);
-    const hoursDiff = (apptTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
+    const hoursDiff = calculateBusinessHours(createdTime, apptTime);
 
     if (hoursDiff <= threshold && hoursDiff > 0) {
-      console.log(`⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)}h notice)`);
+      console.log(`⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)} business hrs notice)`);
       supabase.functions.invoke('notify-slack-short-notice', {
         body: {
           appointmentId: appointment.id,
@@ -463,4 +463,28 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
   } catch (err) {
     console.error('Short-notice check error:', err);
   }
+}
+
+// Calculate hours between two UTC dates, excluding Saturday and Sunday hours
+function calculateBusinessHours(start: Date, end: Date): number {
+  if (end.getTime() <= start.getTime()) return 0;
+  let hours = 0;
+  const cursor = new Date(start.getTime());
+  // Round up to next full hour
+  cursor.setMinutes(0, 0, 0);
+  cursor.setTime(cursor.getTime() + 3600000);
+  
+  while (cursor.getTime() <= end.getTime()) {
+    const day = cursor.getUTCDay(); // 0=Sun, 6=Sat
+    if (day !== 0 && day !== 6) {
+      hours++;
+    }
+    cursor.setTime(cursor.getTime() + 3600000);
+  }
+  // Account for partial first hour (weekday check on start)
+  const startDay = start.getUTCDay();
+  if (startDay !== 0 && startDay !== 6) {
+    hours += (60 - start.getUTCMinutes()) / 60;
+  }
+  return Math.max(hours, 0);
 }
