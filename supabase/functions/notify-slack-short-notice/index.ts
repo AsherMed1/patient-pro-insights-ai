@@ -11,12 +11,14 @@ interface ShortNoticePayload {
   projectName: string;
   leadName: string;
   ghlId?: string;
+  ghlLocationId?: string;
   appointmentDatetime: string;
   createdDatetime: string;
   hoursDifference: number;
   status?: string;
   calendarName?: string;
   phone?: string;
+  timezone?: string;
 }
 
 serve(async (req) => {
@@ -33,12 +35,14 @@ serve(async (req) => {
       projectName,
       leadName,
       ghlId,
+      ghlLocationId,
       appointmentDatetime,
       createdDatetime,
       hoursDifference,
       status,
       calendarName,
       phone,
+      timezone,
     } = payload;
 
     // Log to short_notice_alerts table
@@ -78,13 +82,33 @@ serve(async (req) => {
       ? `${Math.round(hoursDifference * 60)}m`
       : `${Math.round(hoursDifference)}h`;
 
-    const ghlLink = ghlId
-      ? `<https://app.gohighlevel.com/contacts/detail/${ghlId}|View in GHL>`
-      : 'N/A';
+    // Build GHL link using v2 format with locationId
+    let ghlLink = 'N/A';
+    if (ghlId && ghlLocationId) {
+      ghlLink = `<https://app.gohighlevel.com/v2/location/${ghlLocationId}/contacts/detail/${ghlId}|View in GHL>`;
+    } else if (ghlId) {
+      ghlLink = `<https://app.gohighlevel.com/contacts/detail/${ghlId}|View in GHL>`;
+    }
 
-    const apptDate = appointmentDatetime
-      ? new Date(appointmentDatetime).toLocaleString('en-US', { timeZone: 'America/New_York' })
-      : 'N/A';
+    // Use project timezone for display, default to America/Chicago
+    const displayTimezone = timezone || 'America/Chicago';
+    const tzAbbreviations: Record<string, string> = {
+      'America/New_York': 'ET', 'America/Chicago': 'CT', 'America/Denver': 'MT',
+      'America/Los_Angeles': 'PT', 'America/Phoenix': 'MT', 'US/Eastern': 'ET',
+      'US/Central': 'CT', 'US/Mountain': 'MT', 'US/Pacific': 'PT',
+    };
+    const tzLabel = tzAbbreviations[displayTimezone] || displayTimezone;
+
+    let apptDate = 'N/A';
+    try {
+      apptDate = appointmentDatetime
+        ? new Date(appointmentDatetime).toLocaleString('en-US', { timeZone: displayTimezone })
+        : 'N/A';
+    } catch {
+      apptDate = appointmentDatetime
+        ? new Date(appointmentDatetime).toLocaleString('en-US', { timeZone: 'America/Chicago' })
+        : 'N/A';
+    }
 
     const slackPayload = {
       blocks: [
@@ -114,7 +138,7 @@ serve(async (req) => {
         {
           type: "section",
           fields: [
-            { type: "mrkdwn", text: `*Appointment:*\n${apptDate} ET` },
+            { type: "mrkdwn", text: `*Appointment:*\n${apptDate} ${tzLabel}` },
             { type: "mrkdwn", text: `*Calendar:*\n${calendarName || 'N/A'}` }
           ]
         },
@@ -130,7 +154,7 @@ serve(async (req) => {
           type: "context",
           elements: [
             { type: "mrkdwn", text: `Appointment ID: \`${appointmentId || 'N/A'}\`` },
-            { type: "mrkdwn", text: `Alert sent: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET` }
+            { type: "mrkdwn", text: `Alert sent: ${new Date().toLocaleString('en-US', { timeZone: displayTimezone })} ${tzLabel}` }
           ]
         }
       ]
