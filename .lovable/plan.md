@@ -1,59 +1,116 @@
 
 
-## Short-Notice Alert Bugs and Fixes
+## Short-Notice Appointment Alert System
 
-### Three bugs identified for the John Karas alert
+### Overview
+When an appointment is created or rescheduled such that the time between creation and the appointment itself is within a configurable threshold (default 72 hours), fire a Slack alert and log it for dashboard visibility. Applies to both confirmed and unconfirmed appointments.
 
-**Bug 1: Wrong appointment time displayed (8:00 AM ET instead of 1:00 PM CST)**
+### Database Changes (1 migration)
 
-GHL sends appointment times as human-readable strings like `"Thursday, March 6, 2026 1:00 PM"`. Deno's `new Date()` parses this as **UTC** (1:00 PM UTC = 8:00 AM ET = 7:00 AM CST). The time is then stored in Postgres as `13:00:00`, but it actually represents the naive local time that was misinterpreted as UTC.
-
-When `localDatetimeToUTC` later reads `13:00:00` from the DB and tries to apply the CST offset, the Intl `shortOffset` API appears to silently return an incorrect/zero offset in the Deno Supabase edge runtime, causing the function to return 13:00 UTC instead of 19:00 UTC (1 PM CST).
-
-**Fix**: Replace the unreliable `Intl.DateTimeFormat` approach with a DST-aware offset calculation that checks the appointment date itself (not `new Date()`) against known DST transition rules. This applies to all three copies of `localDatetimeToUTC` in:
-- `supabase/functions/ghl-webhook-handler/index.ts`
-- `supabase/functions/all-appointments-api/index.ts`
-- `supabase/functions/update-appointment-fields/index.ts`
-
-The new approach will:
-1. Parse the appointment date to determine if DST is active (second Sunday of March to first Sunday of November)
-2. Use the correct offset (e.g., CST = -6, CDT = -5) without relying on Intl
-3. Apply the offset deterministically
-
-**Bug 2: Wrong hours calculation (13h instead of 23m)**
-
-`checkShortNoticeAlert` uses `date_appointment_created` as the creation time, but this field is often a date-only string (`"2026-03-06"`). `new Date("2026-03-06")` = midnight UTC, not the actual creation time of 12:37 PM CST (18:37 UTC). This inflates the hours difference from ~23 minutes to ~13 hours.
-
-**Fix**: In all three `checkShortNoticeAlert` functions, prefer `created_at` (the DB-generated timestamp with full precision) over `date_appointment_created`:
-```
-const createdTime = new Date(appointment.created_at || appointment.date_appointment_created);
+**1. Add `short_notice_threshold_hours` to `projects` table**
+```sql
+ALTER TABLE public.projects
+ADD COLUMN short_notice_threshold_hours integer NOT NULL DEFAULT 72;
 ```
 
-**Bug 3: GHL link not working**
+**2. Create `short_notice_alerts` table for audit/reporting**
+```sql
+CREATE TABLE public.short_notice_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  appointment_id uuid REFERENCES public.all_appointments(id) ON DELETE CASCADE NOT NULL,
+  project_name text NOT NULL,
+  lead_name text NOT NULL,
+  appointment_datetime timestamptz,
+  created_datetime timestamptz,
+  hours_difference numeric NOT NULL,
+  alert_sent_at timestamptz DEFAULT now(),
+  slack_sent boolean DEFAULT false,
+  ghl_id text,
+  created_at timestamptz DEFAULT now()
+);
 
-The link format `https://app.gohighlevel.com/v2/location/{locationId}/contacts/detail/{ghlId}` is correct. The stored `ghl_id` (`PLJVhqOcHvVwQD4hvNYc`) and `ghl_location_id` (`mmheMRxy3nM6H9lrGuKp`) match the project. This is likely a GHL permissions issue on the user's end rather than a code bug. No code change needed.
+ALTER TABLE public.short_notice_alerts ENABLE ROW LEVEL SECURITY;
 
----
+CREATE POLICY "Authenticated users can view short notice alerts"
+  ON public.short_notice_alerts FOR SELECT TO authenticated USING (true);
+```
 
-### Weekend / Business Day Handling
+### New Edge Function: `notify-slack-short-notice`
 
-**Current setup**: The short-notice system counts pure **clock hours** between appointment creation and appointment time. Weekends are not excluded. For example, if an appointment is booked Friday at 5 PM for Monday at 9 AM, that's ~64 hours of notice.
+A lightweight function (mirroring `notify-slack-oon` pattern) that:
+1. Receives appointment details + hours difference
+2. Sends a Slack alert to `SLACK_SHORT_NOTICE_WEBHOOK_URL` (new secret needed)
+3. Inserts a record into `short_notice_alerts` for reporting
 
-**How it would work with business-day exclusion**: Saturday and Sunday hours would not count toward the threshold. The same Friday-to-Monday booking would count as ~16 business hours (Friday 5 PM to end of Friday = ~4h, Monday 12 AM to 9 AM = ~9h, roughly ~13 business hours depending on exact logic).
+**Slack payload fields:**
+- Header: "SHORT-NOTICE APPOINTMENT"
+- Clinic name (project_name)
+- Patient name
+- GHL link (if ghl_id exists): `https://app.gohighlevel.com/contacts/detail/{ghl_id}`
+- Appointment date/time
+- Time difference (e.g., "Booked 19h before appt")
+- Status (confirmed/unconfirmed)
 
-This adds complexity since you'd also need to decide whether to count by business **hours** (e.g., 8 AM - 6 PM only) or just skip full weekend **days**. Most clinics in this system appear to operate Monday-Friday, so excluding weekends would make the threshold more meaningful for staffing purposes.
+### Integration Points (where to call the alert)
 
-My recommendation: keep it as clock hours for now. The existing per-project threshold (0-168h) already lets clinics tune sensitivity. Weekend exclusion would make the countdown harder to reason about and could mask genuinely short-notice bookings made on Fridays for Monday mornings.
+**1. `ghl-webhook-handler/index.ts`** — After successful create or update (line ~190), add a call to evaluate short-notice criteria and invoke the alert function if triggered.
 
----
+**2. `all-appointments-api/index.ts`** — After successful create/update (line ~260), same logic.
 
-### Summary of changes
+**3. `update-appointment-fields/index.ts`** — When `date_of_appointment` or `requested_time` changes (reschedule), re-evaluate.
+
+The evaluation logic (shared helper):
+```typescript
+async function checkShortNoticeAlert(supabase, appointment, requestId) {
+  if (!appointment.date_of_appointment) return;
+  
+  // Skip terminal statuses
+  const status = (appointment.status || '').toLowerCase().trim();
+  const terminal = ['cancelled', 'canceled', 'no show', 'showed', 'oon'];
+  if (terminal.some(t => status.includes(t))) return;
+  
+  // Get project threshold
+  const { data: project } = await supabase
+    .from('projects')
+    .select('short_notice_threshold_hours')
+    .eq('project_name', appointment.project_name)
+    .single();
+  
+  const threshold = project?.short_notice_threshold_hours ?? 72;
+  if (threshold === 0) return; // 0 = disabled
+  
+  // Calculate hours difference
+  const apptTime = new Date(appointment.date_of_appointment + 'T' + (appointment.requested_time || '09:00'));
+  const createdTime = new Date(appointment.date_appointment_created || appointment.created_at);
+  const hoursDiff = (apptTime - createdTime) / (1000 * 60 * 60);
+  
+  if (hoursDiff <= threshold && hoursDiff > 0) {
+    // Fire alert
+    supabase.functions.invoke('notify-slack-short-notice', {
+      body: { ...relevant fields, hoursDifference: hoursDiff }
+    });
+  }
+}
+```
+
+### Config UI
+
+Add a "Short-Notice Threshold" dropdown to the project settings (in `EditProjectDialog.tsx`):
+- Options: Disabled (0), 48 hours, 72 hours (default), 168 hours
+- Saves to `projects.short_notice_threshold_hours`
+
+### Secret Required
+- `SLACK_SHORT_NOTICE_WEBHOOK_URL` — User will need to provide a Slack incoming webhook URL for the target channel
+
+### Changes Summary
 
 | File | Change |
 |------|--------|
-| `ghl-webhook-handler/index.ts` | Fix `localDatetimeToUTC` DST logic; fix `checkShortNoticeAlert` to use `created_at` |
-| `all-appointments-api/index.ts` | Same two fixes |
-| `update-appointment-fields/index.ts` | Same two fixes |
-
-Three edge functions need redeployment. No frontend changes required.
+| Migration SQL | Add `short_notice_threshold_hours` column to projects, create `short_notice_alerts` table |
+| `supabase/functions/notify-slack-short-notice/index.ts` | New edge function: send Slack alert + log to `short_notice_alerts` |
+| `supabase/config.toml` | Add `[functions.notify-slack-short-notice]` entry |
+| `supabase/functions/ghl-webhook-handler/index.ts` | Add `checkShortNoticeAlert()` call after appointment create/update |
+| `supabase/functions/all-appointments-api/index.ts` | Add `checkShortNoticeAlert()` call after appointment create/update |
+| `supabase/functions/update-appointment-fields/index.ts` | Add short-notice check when `date_of_appointment` changes |
+| `src/components/projects/EditProjectDialog.tsx` | Add threshold dropdown to project settings |
 
