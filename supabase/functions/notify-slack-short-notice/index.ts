@@ -124,7 +124,7 @@ serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${leadName}* — booked *${hoursText} before appt*`
+            text: `*${leadName}* — booked *${hoursText} before appt* (weekends excluded)`
           }
         },
         { type: "divider" },
