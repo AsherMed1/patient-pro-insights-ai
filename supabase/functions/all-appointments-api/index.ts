@@ -438,7 +438,7 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
 
     const projectTimezone = project?.timezone || 'America/Chicago';
     const apptTime = localDatetimeToUTC(appointment.date_of_appointment, appointment.requested_time, projectTimezone);
-    const createdTime = new Date(appointment.date_appointment_created || appointment.created_at);
+    const createdTime = new Date(appointment.created_at || appointment.date_appointment_created);
     const hoursDiff = (apptTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
 
     if (hoursDiff <= threshold && hoursDiff > 0) {
