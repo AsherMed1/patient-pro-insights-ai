@@ -1277,3 +1277,25 @@ async function checkShortNoticeAlert(supabase: any, appointment: any, requestId:
     console.error(`[${requestId}] Short-notice check error:`, err);
   }
 }
+
+// Calculate hours between two UTC dates, excluding Saturday and Sunday hours
+function calculateBusinessHours(start: Date, end: Date): number {
+  if (end.getTime() <= start.getTime()) return 0;
+  let hours = 0;
+  const cursor = new Date(start.getTime());
+  cursor.setMinutes(0, 0, 0);
+  cursor.setTime(cursor.getTime() + 3600000);
+  
+  while (cursor.getTime() <= end.getTime()) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) {
+      hours++;
+    }
+    cursor.setTime(cursor.getTime() + 3600000);
+  }
+  const startDay = start.getUTCDay();
+  if (startDay !== 0 && startDay !== 6) {
+    hours += (60 - start.getUTCMinutes()) / 60;
+  }
+  return Math.max(hours, 0);
+}
