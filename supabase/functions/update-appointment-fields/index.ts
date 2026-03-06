@@ -249,10 +249,10 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
     const projectTimezone = project?.timezone || 'America/Chicago';
     const apptTime = localDatetimeToUTC(appointment.date_of_appointment, appointment.requested_time, projectTimezone);
     const createdTime = new Date(appointment.created_at || appointment.date_appointment_created);
-    const hoursDiff = (apptTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
+    const hoursDiff = calculateBusinessHours(createdTime, apptTime);
 
     if (hoursDiff <= threshold && hoursDiff > 0) {
-      console.log(`⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)}h notice)`);
+      console.log(`⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)} business hrs notice)`);
       supabase.functions.invoke('notify-slack-short-notice', {
         body: {
           appointmentId: appointment.id,
