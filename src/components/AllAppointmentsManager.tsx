@@ -304,7 +304,8 @@ const AllAppointmentsManager = ({
         // New: Appointments where internal_process_complete is NOT true (false or null) AND not Pending status
         countQuery = countQuery
           .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-          .not('status', 'ilike', 'pending');
+          .not('status', 'ilike', 'pending')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending status OR past/null date appointments that don't have completed status
         countQuery = countQuery
@@ -314,7 +315,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         countQuery = countQuery
@@ -326,11 +328,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
       }
 
       // Get the total count first
@@ -437,7 +440,8 @@ const AllAppointmentsManager = ({
         // New: Appointments where internal_process_complete is NOT true (false or null) AND not Pending status
         appointmentsQuery = appointmentsQuery
           .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-          .not('status', 'ilike', 'pending');
+          .not('status', 'ilike', 'pending')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending status OR past/null date appointments that don't have completed status
         appointmentsQuery = appointmentsQuery
@@ -447,7 +451,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         appointmentsQuery = appointmentsQuery
@@ -459,11 +464,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
       }
       
       // Apply pagination
@@ -584,7 +590,8 @@ const AllAppointmentsManager = ({
       // New: Appointments where internal_process_complete is NOT true (false or null) AND not Pending status
       const newQuery = getBaseQuery()
         .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-        .not('status', 'ilike', 'pending');
+        .not('status', 'ilike', 'pending')
+        .not('status', 'ilike', 'do not call');
       
       // Needs Review: Pending status OR past/null date appointments that don't have completed status
       const needsReviewQuery = getBaseQuery()
@@ -594,7 +601,8 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'noshow')
         .not('status', 'ilike', 'showed')
         .not('status', 'ilike', 'won')
-        .not('status', 'ilike', 'oon');
+        .not('status', 'ilike', 'oon')
+        .not('status', 'ilike', 'do not call');
       
       // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         const futureQuery = getBaseQuery()
@@ -606,11 +614,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
-        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
 
       const [allResult, newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
         allQuery,
