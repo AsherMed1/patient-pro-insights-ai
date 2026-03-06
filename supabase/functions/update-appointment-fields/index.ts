@@ -189,6 +189,32 @@ Deno.serve(async (req) => {
   }
 });
 
+// Convert a naive local datetime string to UTC by applying a timezone offset
+function localDatetimeToUTC(dateStr: string, timeStr: string, timezone: string): Date {
+  const naive = `${dateStr}T${timeStr || '09:00'}`;
+  const offsets: Record<string, number> = {
+    'America/New_York': -5, 'America/Chicago': -6, 'America/Denver': -7,
+    'America/Los_Angeles': -8, 'America/Phoenix': -7, 'US/Eastern': -5,
+    'US/Central': -6, 'US/Mountain': -7, 'US/Pacific': -8,
+  };
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' });
+    const parts = formatter.formatToParts(new Date());
+    const tzPart = parts.find(p => p.type === 'timeZoneName');
+    if (tzPart) {
+      const match = tzPart.value.match(/GMT([+-]\d+)/);
+      if (match) {
+        const offsetHours = parseInt(match[1], 10);
+        const utcMs = new Date(naive + 'Z').getTime() - offsetHours * 3600000;
+        return new Date(utcMs);
+      }
+    }
+  } catch (_) { /* fallback */ }
+  const offsetHours = offsets[timezone] ?? -6;
+  const utcMs = new Date(naive + 'Z').getTime() - offsetHours * 3600000;
+  return new Date(utcMs);
+}
+
 // Check if appointment qualifies as short-notice and fire Slack alert
 async function checkShortNoticeAlert(supabase: any, appointment: any) {
   try {
@@ -200,14 +226,15 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
 
     const { data: project } = await supabase
       .from('projects')
-      .select('short_notice_threshold_hours')
+      .select('short_notice_threshold_hours, timezone, ghl_location_id')
       .eq('project_name', appointment.project_name)
       .single();
 
     const threshold = project?.short_notice_threshold_hours ?? 72;
     if (threshold === 0) return;
 
-    const apptTime = new Date(appointment.date_of_appointment + 'T' + (appointment.requested_time || '09:00'));
+    const projectTimezone = project?.timezone || 'America/Chicago';
+    const apptTime = localDatetimeToUTC(appointment.date_of_appointment, appointment.requested_time, projectTimezone);
     const createdTime = new Date(appointment.date_appointment_created || appointment.created_at);
     const hoursDiff = (apptTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60);
 
@@ -219,12 +246,14 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
           projectName: appointment.project_name,
           leadName: appointment.lead_name,
           ghlId: appointment.ghl_id || null,
+          ghlLocationId: project?.ghl_location_id || null,
           appointmentDatetime: apptTime.toISOString(),
           createdDatetime: createdTime.toISOString(),
           hoursDifference: hoursDiff,
           status: appointment.status || 'Unconfirmed',
           calendarName: appointment.calendar_name || null,
           phone: appointment.lead_phone_number || null,
+          timezone: projectTimezone,
         }
       });
     }
