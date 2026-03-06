@@ -590,7 +590,8 @@ const AllAppointmentsManager = ({
       // New: Appointments where internal_process_complete is NOT true (false or null) AND not Pending status
       const newQuery = getBaseQuery()
         .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-        .not('status', 'ilike', 'pending');
+        .not('status', 'ilike', 'pending')
+        .not('status', 'ilike', 'do not call');
       
       // Needs Review: Pending status OR past/null date appointments that don't have completed status
       const needsReviewQuery = getBaseQuery()
