@@ -315,7 +315,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         countQuery = countQuery
@@ -327,11 +328,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
-          .not('status', 'ilike', 'oon');
+          .not('status', 'ilike', 'oon')
+          .not('status', 'ilike', 'do not call');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
       }
 
       // Get the total count first
