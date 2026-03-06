@@ -379,28 +379,41 @@ serve(async (req) => {
   }
 })
 
+// Determine if a given date falls within US Daylight Saving Time
+function isUSDST(year: number, month: number, day: number): boolean {
+  if (month < 3 || month > 11) return false;
+  if (month > 3 && month < 11) return true;
+  if (month === 3) {
+    const firstDay = new Date(year, 2, 1).getDay();
+    const secondSunday = firstDay === 0 ? 8 : (14 - firstDay + 1);
+    return day >= secondSunday;
+  }
+  const firstDay = new Date(year, 10, 1).getDay();
+  const firstSunday = firstDay === 0 ? 1 : (7 - firstDay + 1);
+  return day < firstSunday;
+}
+
+function getTimezoneOffset(timezone: string, year: number, month: number, day: number): number {
+  const stdOffsets: Record<string, [number, number]> = {
+    'America/New_York': [-5, -4], 'US/Eastern': [-5, -4],
+    'America/Chicago': [-6, -5], 'US/Central': [-6, -5],
+    'America/Denver': [-7, -6], 'US/Mountain': [-7, -6],
+    'America/Los_Angeles': [-8, -7], 'US/Pacific': [-8, -7],
+    'America/Phoenix': [-7, -7],
+  };
+  const offsets = stdOffsets[timezone];
+  if (!offsets) return -6;
+  return isUSDST(year, month, day) ? offsets[1] : offsets[0];
+}
+
 // Convert a naive local datetime string to UTC by applying a timezone offset
 function localDatetimeToUTC(dateStr: string, timeStr: string, timezone: string): Date {
   const naive = `${dateStr}T${timeStr || '09:00'}`;
-  const offsets: Record<string, number> = {
-    'America/New_York': -5, 'America/Chicago': -6, 'America/Denver': -7,
-    'America/Los_Angeles': -8, 'America/Phoenix': -7, 'US/Eastern': -5,
-    'US/Central': -6, 'US/Mountain': -7, 'US/Pacific': -8,
-  };
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' });
-    const parts = formatter.formatToParts(new Date());
-    const tzPart = parts.find(p => p.type === 'timeZoneName');
-    if (tzPart) {
-      const match = tzPart.value.match(/GMT([+-]\d+)/);
-      if (match) {
-        const offsetHours = parseInt(match[1], 10);
-        const utcMs = new Date(naive + 'Z').getTime() - offsetHours * 3600000;
-        return new Date(utcMs);
-      }
-    }
-  } catch (_) { /* fallback */ }
-  const offsetHours = offsets[timezone] ?? -6;
+  const parts = dateStr.split('-');
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  const offsetHours = getTimezoneOffset(timezone, year, month, day);
   const utcMs = new Date(naive + 'Z').getTime() - offsetHours * 3600000;
   return new Date(utcMs);
 }
