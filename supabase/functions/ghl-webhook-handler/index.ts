@@ -682,15 +682,15 @@ function getUpdateableFields(
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
   if (isExplicitStatusChange(incomingStatus)) {
-    // Guard: Don't let GHL's "cancelled" echo overwrite portal-only statuses (OON, Do Not Call)
+    // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
     const portalOnlyStatuses = ['oon', 'do not call']
-    const isEchoBack = (incomingStatus === 'cancelled' || incomingStatus === 'canceled') 
-                        && portalOnlyStatuses.includes(existingStatusForEcho)
-    if (!isEchoBack) {
-      updateFields.status = webhookData.status
+    const isPortalOnlyTerminal = portalOnlyStatuses.includes(existingStatusForEcho)
+
+    if (isPortalOnlyTerminal) {
+      console.log(`[WEBHOOK] Preserving portal-only terminal status "${existingAppointment.status}" — ignoring incoming "${webhookData.status}"`)
     } else {
-      console.log(`[WEBHOOK] Skipping status echo-back: existing="${existingAppointment.status}", incoming="${webhookData.status}"`)
+      updateFields.status = webhookData.status
     }
   }
   
