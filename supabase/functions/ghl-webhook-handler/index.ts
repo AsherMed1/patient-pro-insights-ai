@@ -610,55 +610,65 @@ function getUpdateableFields(
   const updateFields: Record<string, any> = {}
   let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string } | undefined
   
-  // Always accept date/time changes (rescheduling)
-  if (webhookData.date_of_appointment !== undefined) {
-    updateFields.date_of_appointment = webhookData.date_of_appointment
-    
-    // Reset IPC and status if date actually changed (reschedule detected)
-    // Guard: Skip reschedule logic if existing status is a portal-only terminal status
-    const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-    const portalOnlyTerminalStatuses = ['oon', 'do not call']
-    const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
-    
-    if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
-      // Record reschedule history before overwriting
-      const existingHistory = existingAppointment.reschedule_history || []
-      existingHistory.push({
-        previous_date: existingAppointment.date_of_appointment,
-        previous_time: existingAppointment.requested_time,
-        new_date: webhookData.date_of_appointment,
-        new_time: webhookData.requested_time,
-        changed_at: new Date().toISOString(),
-        previous_status: existingAppointment.status
-      })
-      updateFields.reschedule_history = existingHistory
+  // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
+  const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
+  const nowTime = new Date()
+  const secondsSinceUpdate = updatedAt ? (nowTime.getTime() - updatedAt.getTime()) / 1000 : Infinity
 
-      updateFields.internal_process_complete = false
-      updateFields.status = 'Confirmed'
-      updateFields.was_ever_confirmed = true
+  if (secondsSinceUpdate < 120) {
+    console.log(`[WEBHOOK] Skipping date/time update — appointment updated ${Math.round(secondsSinceUpdate)}s ago (debounce guard, threshold: 120s)`)
+    // Still allow non-date fields to update below, just skip date_of_appointment and requested_time
+  } else {
+    // Accept date/time changes (rescheduling) only if outside debounce window
+    if (webhookData.date_of_appointment !== undefined) {
+      updateFields.date_of_appointment = webhookData.date_of_appointment
+      
+      // Reset IPC and status if date actually changed (reschedule detected)
+      // Guard: Skip reschedule logic if existing status is a portal-only terminal status
+      const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
+      const portalOnlyTerminalStatuses = ['oon', 'do not call']
+      const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
+      
+      if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
+        // Record reschedule history before overwriting
+        const existingHistory = existingAppointment.reschedule_history || []
+        existingHistory.push({
+          previous_date: existingAppointment.date_of_appointment,
+          previous_time: existingAppointment.requested_time,
+          new_date: webhookData.date_of_appointment,
+          new_time: webhookData.requested_time,
+          changed_at: new Date().toISOString(),
+          previous_status: existingAppointment.status
+        })
+        updateFields.reschedule_history = existingHistory
 
-      // Capture reschedule note data to be inserted by the async caller
-      const fromDateTime = [
-        existingAppointment.date_of_appointment,
-        existingAppointment.requested_time
-      ].filter(Boolean).join(' ')
+        updateFields.internal_process_complete = false
+        updateFields.status = 'Confirmed'
+        updateFields.was_ever_confirmed = true
 
-      const toDateTime = [
-        webhookData.date_of_appointment,
-        webhookData.requested_time
-      ].filter(Boolean).join(' ')
+        // Capture reschedule note data to be inserted by the async caller
+        const fromDateTime = [
+          existingAppointment.date_of_appointment,
+          existingAppointment.requested_time
+        ].filter(Boolean).join(' ')
 
-      rescheduleNoteData = {
-        fromDateTime: fromDateTime || 'Unknown',
-        toDateTime,
-        appointmentId: existingAppointment.id,
+        const toDateTime = [
+          webhookData.date_of_appointment,
+          webhookData.requested_time
+        ].filter(Boolean).join(' ')
+
+        rescheduleNoteData = {
+          fromDateTime: fromDateTime || 'Unknown',
+          toDateTime,
+          appointmentId: existingAppointment.id,
+        }
+      } else if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && isPortalOnlyTerminal) {
+        console.log(`[WEBHOOK] Skipping reschedule logic for portal-only terminal status: existing="${existingAppointment.status}"`)
       }
-    } else if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && isPortalOnlyTerminal) {
-      console.log(`[WEBHOOK] Skipping reschedule logic for portal-only terminal status: existing="${existingAppointment.status}"`)
     }
-  }
-  if (webhookData.requested_time !== undefined) {
-    updateFields.requested_time = webhookData.requested_time
+    if (webhookData.requested_time !== undefined) {
+      updateFields.requested_time = webhookData.requested_time
+    }
   }
   
   // Always accept calendar and location updates
