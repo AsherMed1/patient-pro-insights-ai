@@ -221,7 +221,11 @@ serve(async (req) => {
     if (isReschedule) {
       const tz = timezone || 'America/Chicago';
       const startDateTimeInTz = fromZonedTime(`${new_date}T${new_time}`, tz);
-      const endDateTimeInTz = addMinutes(startDateTimeInTz, 30);
+      const originalDuration = existingEndTime && existingStartTime
+        ? Math.round((new Date(existingEndTime).getTime() - new Date(existingStartTime).getTime()) / 60000)
+        : 30;
+      const endDateTimeInTz = addMinutes(startDateTimeInTz, originalDuration);
+      console.log('Preserving original appointment duration:', originalDuration, 'minutes');
       const startTime = formatInTimeZone(startDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
       const endTime = formatInTimeZone(endDateTimeInTz, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
 
