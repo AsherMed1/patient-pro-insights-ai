@@ -61,6 +61,8 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'donotcall')
           .order('date_of_appointment', { ascending: true })
           .order('requested_time', { ascending: true });
 
