@@ -606,7 +606,8 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'showed')
         .not('status', 'ilike', 'won')
         .not('status', 'ilike', 'oon')
-        .not('status', 'ilike', 'do not call');
+        .not('status', 'ilike', 'do not call')
+        .not('status', 'ilike', 'rescheduled');
       
       // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         const futureQuery = getBaseQuery()
@@ -619,11 +620,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'rescheduled');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
-        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
 
       const [allResult, newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
         allQuery,
