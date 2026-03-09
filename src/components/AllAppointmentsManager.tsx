@@ -314,9 +314,10 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
           .not('status', 'ilike', 'showed')
-          .not('status', 'ilike', 'won')
+         .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'rescheduled');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         countQuery = countQuery
@@ -329,11 +330,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'rescheduled');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
       }
 
       // Get the total count first
@@ -452,7 +454,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'rescheduled');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         appointmentsQuery = appointmentsQuery
@@ -465,11 +468,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'rescheduled');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
-          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
+          .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
       }
       
       // Apply pagination
@@ -602,7 +606,8 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'showed')
         .not('status', 'ilike', 'won')
         .not('status', 'ilike', 'oon')
-        .not('status', 'ilike', 'do not call');
+        .not('status', 'ilike', 'do not call')
+        .not('status', 'ilike', 'rescheduled');
       
       // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         const futureQuery = getBaseQuery()
@@ -615,11 +620,12 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'showed')
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'rescheduled');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
-        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call');
+        .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
 
       const [allResult, newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
         allQuery,
