@@ -194,6 +194,32 @@ serve(async (req) => {
     console.log(`[${requestId}] Executing update with identifier: ${identifierType}=${identifierValue}`)
     console.log(`[${requestId}] Update data:`, JSON.stringify(updateData, null, 2))
 
+    // Guard: Don't overwrite portal-only terminal statuses (OON, Do Not Call)
+    if (updateData.status) {
+      let checkQuery = supabase.from('all_appointments').select('status')
+      if (body.ghl_appointment_id) {
+        checkQuery = checkQuery.eq('appointment_id', body.ghl_appointment_id)
+      } else if (body.ghl_id) {
+        checkQuery = checkQuery.eq('ghl_id', body.ghl_id)
+      } else if (body.lead_phone_number) {
+        checkQuery = checkQuery.eq('lead_phone_number', body.lead_phone_number)
+      } else if (body.id) {
+        checkQuery = checkQuery.eq('id', body.id)
+      } else if (body.lead_name) {
+        checkQuery = checkQuery.eq('lead_name', body.lead_name)
+        if (body.project_name) {
+          checkQuery = checkQuery.eq('project_name', body.project_name)
+        }
+      }
+      const { data: existing } = await checkQuery.maybeSingle()
+      const existingStatus = existing?.status?.toLowerCase()?.trim()
+      const portalOnlyStatuses = ['oon', 'do not call']
+      if (existingStatus && portalOnlyStatuses.includes(existingStatus)) {
+        console.log(`[${requestId}] Preserving portal-only terminal status "${existing.status}" — ignoring incoming "${updateData.status}"`)
+        delete updateData.status
+      }
+    }
+
     // Execute the update query
     const { data, error } = await updateQuery.select()
     
