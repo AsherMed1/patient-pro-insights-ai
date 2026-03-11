@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,12 @@ import AdminActivityLog from './AdminActivityLog';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/utils/appointmentLeadMatcher";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { format as formatDateFns } from "date-fns";
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
 import { ExternalLink } from 'lucide-react';
@@ -182,6 +188,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     (appointment as any).procedure_status || null
   );
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [submittingReschedule, setSubmittingReschedule] = useState(false);
+  const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
   const { isAdmin } = useRole();
 
@@ -300,6 +312,169 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       toast.error("Failed to fetch GHL contact data");
     } finally {
       setIsFetchingGHLData(false);
+    }
+  };
+
+  // Handle reschedule submission
+  const handleRescheduleSubmit = async () => {
+    if (!rescheduleDate) {
+      toast.error("Please select a new date");
+      return;
+    }
+
+    setSubmittingReschedule(true);
+    
+    try {
+      const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
+      const newTime = rescheduleTime || appointment.requested_time || '09:00';
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Create reschedule record
+      const { data: rescheduleRecord, error: rescheduleError } = await supabase
+        .from('appointment_reschedules')
+        .insert({
+          appointment_id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          lead_phone: appointment.lead_phone_number,
+          lead_email: appointment.lead_email,
+          original_date: appointment.date_of_appointment,
+          original_time: appointment.requested_time,
+          new_date: newDate,
+          new_time: newTime,
+          notes: rescheduleNotes || null,
+          requested_by: user?.id,
+          ghl_sync_status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (rescheduleError) throw rescheduleError;
+      
+      // Update appointment - reset IPC and status
+      const { error: updateError } = await supabase
+        .from('all_appointments')
+        .update({
+          date_of_appointment: newDate,
+          requested_time: newTime,
+          status: 'Confirmed',
+          internal_process_complete: false,
+          last_ghl_sync_status: 'pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointment.id);
+      
+      if (updateError) throw updateError;
+
+      // Create audit note
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        let noteUserName = 'Unknown User';
+        if (currentUser) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', currentUser.id)
+            .single();
+          noteUserName = profileData?.full_name || currentUser.email || 'Unknown User';
+        }
+        const originalDate = appointment.date_of_appointment
+          ? `${appointment.date_of_appointment}${appointment.requested_time ? ' ' + appointment.requested_time : ''}`.trim()
+          : 'Unknown';
+        const newDateTime = `${newDate}${newTime ? ' ' + newTime : ''}`.trim();
+        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${noteUserName}`;
+        await supabase.from('appointment_notes').insert({
+          appointment_id: appointment.id,
+          note_text: rescheduleNoteText,
+          created_by: noteUserName,
+        });
+      } catch (noteErr) {
+        console.error('Failed to create reschedule audit note:', noteErr);
+      }
+
+      // GHL sync
+      if (appointment.ghl_appointment_id) {
+        try {
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select('timezone, ghl_location_id, ghl_api_key')
+            .eq('project_name', appointment.project_name)
+            .single();
+          
+          if (projectError) throw projectError;
+          if (!projectData?.ghl_location_id) throw new Error('GHL location ID not configured');
+          
+          const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: appointment.ghl_appointment_id,
+              ghl_location_id: projectData.ghl_location_id,
+              new_date: newDate,
+              new_time: newTime,
+              timezone: projectData.timezone || 'America/Chicago',
+              ghl_api_key: projectData.ghl_api_key,
+            },
+          });
+          
+          if (ghlError) throw ghlError;
+          
+          await supabase.from('all_appointments').update({
+            last_ghl_sync_status: 'success',
+            last_ghl_sync_at: new Date().toISOString(),
+            last_ghl_sync_error: null,
+          }).eq('id', appointment.id);
+          
+          await supabase.from('appointment_reschedules').update({
+            ghl_sync_status: 'success',
+            ghl_synced_at: new Date().toISOString(),
+            processed: true,
+            processed_by: user?.id,
+            processed_at: new Date().toISOString()
+          }).eq('id', rescheduleRecord.id);
+          
+          toast.success("Appointment rescheduled in GoHighLevel successfully");
+        } catch (ghlError: any) {
+          console.error('GHL sync error:', ghlError);
+          await supabase.from('all_appointments').update({
+            last_ghl_sync_status: 'failed',
+            last_ghl_sync_at: new Date().toISOString(),
+            last_ghl_sync_error: ghlError.message || String(ghlError),
+          }).eq('id', appointment.id);
+          await supabase.from('appointment_reschedules').update({
+            ghl_sync_status: 'failed',
+            ghl_sync_error: ghlError.message || String(ghlError),
+            ghl_synced_at: new Date().toISOString()
+          }).eq('id', rescheduleRecord.id);
+          toast.error("Appointment updated locally but GHL sync failed");
+        }
+      } else {
+        await supabase.from('all_appointments').update({
+          last_ghl_sync_status: null,
+          last_ghl_sync_error: 'No GHL appointment ID',
+        }).eq('id', appointment.id);
+        await supabase.from('appointment_reschedules').update({
+          ghl_sync_status: 'skipped',
+          ghl_sync_error: 'No GHL appointment ID',
+          processed: true,
+          processed_by: user?.id,
+          processed_at: new Date().toISOString()
+        }).eq('id', rescheduleRecord.id);
+        toast.success("Appointment rescheduled locally (not linked to GoHighLevel)");
+      }
+      
+      // Update local state and refresh
+      setCurrentStatus('Confirmed');
+      setShowRescheduleDialog(false);
+      setRescheduleDate(undefined);
+      setRescheduleTime('');
+      setRescheduleNotes('');
+      onDataRefresh?.();
+      
+    } catch (error) {
+      console.error('Error submitting reschedule:', error);
+      toast.error("Failed to reschedule appointment");
+    } finally {
+      setSubmittingReschedule(false);
     }
   };
 
@@ -724,9 +899,26 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               <div className="flex items-center space-x-2">
                 <Select
                   value={currentStatus || ''}
-                  onValueChange={(value) => {
-                    setCurrentStatus(value);
-                    handleFieldUpdate({ status: value });
+                  onValueChange={async (value) => {
+                    if (value.toLowerCase() === 'rescheduled') {
+                      // Fetch project timezone before showing dialog
+                      try {
+                        const { data: projectData, error } = await supabase
+                          .from('projects')
+                          .select('timezone')
+                          .eq('project_name', appointment.project_name)
+                          .single();
+                        if (!error && projectData?.timezone) {
+                          setProjectTimezone(projectData.timezone);
+                        }
+                      } catch (err) {
+                        console.error('Error fetching project timezone:', err);
+                      }
+                      setShowRescheduleDialog(true);
+                    } else {
+                      setCurrentStatus(value);
+                      handleFieldUpdate({ status: value });
+                    }
                   }}
                   disabled={isUpdating}
                 >
@@ -914,6 +1106,111 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
         patientName={appointment.lead_name}
         patientDob={appointment.dob || (appointment as any).parsed_contact_info?.dob || (appointment as any).parsed_demographics?.dob || undefined}
       />
+
+      {/* Reschedule Dialog */}
+      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reschedule Appointment</DialogTitle>
+            <DialogDescription>
+              Select the new date and time for {appointment.lead_name}'s appointment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {(appointment.date_of_appointment || appointment.requested_time) && (
+              <div className="bg-muted p-3 rounded-lg">
+                <p className="text-sm font-medium mb-1">Current Appointment:</p>
+                <p className="text-sm">
+                  {appointment.date_of_appointment && formatDate(appointment.date_of_appointment)}
+                  {appointment.date_of_appointment && appointment.requested_time && ' at '}
+                  {appointment.requested_time && formatTime(appointment.requested_time)}
+                </p>
+              </div>
+            )}
+            
+            <div>
+              <Label>New Appointment Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start mt-1">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {rescheduleDate ? formatDateFns(rescheduleDate, "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[9999]" align="start">
+                  <CalendarPicker
+                    mode="single"
+                    selected={rescheduleDate}
+                    onSelect={setRescheduleDate}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            <div>
+              <Label>New Appointment Time (Optional)</Label>
+              <p className="text-xs text-muted-foreground mb-1 mt-1">
+                Time is in <span className="font-semibold">{
+                  ({
+                    'US/Eastern': 'Eastern Time',
+                    'US/Central': 'Central Time',
+                    'US/Mountain': 'Mountain Time',
+                    'US/Pacific': 'Pacific Time',
+                  } as Record<string, string>)[projectTimezone] || projectTimezone
+                }</span> ({projectTimezone})
+              </p>
+              <Input
+                type="time"
+                value={rescheduleTime}
+                onChange={(e) => setRescheduleTime(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            
+            <div>
+              <Label>Notes (Optional)</Label>
+              <Textarea
+                value={rescheduleNotes}
+                onChange={(e) => setRescheduleNotes(e.target.value)}
+                placeholder="Add any additional notes about the reschedule..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowRescheduleDialog(false);
+                setRescheduleDate(undefined);
+                setRescheduleTime('');
+                setRescheduleNotes('');
+              }}
+              disabled={submittingReschedule}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRescheduleSubmit} 
+              disabled={!rescheduleDate || submittingReschedule}
+            >
+              {submittingReschedule ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Reschedule Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
