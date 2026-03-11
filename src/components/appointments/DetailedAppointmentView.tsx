@@ -736,9 +736,26 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               <div className="flex items-center space-x-2">
                 <Select
                   value={currentStatus || ''}
-                  onValueChange={(value) => {
-                    setCurrentStatus(value);
-                    handleFieldUpdate({ status: value });
+                  onValueChange={async (value) => {
+                    if (value.toLowerCase() === 'rescheduled') {
+                      // Fetch project timezone before showing dialog
+                      try {
+                        const { data: projectData, error } = await supabase
+                          .from('projects')
+                          .select('timezone')
+                          .eq('project_name', appointment.project_name)
+                          .single();
+                        if (!error && projectData?.timezone) {
+                          setProjectTimezone(projectData.timezone);
+                        }
+                      } catch (err) {
+                        console.error('Error fetching project timezone:', err);
+                      }
+                      setShowRescheduleDialog(true);
+                    } else {
+                      setCurrentStatus(value);
+                      handleFieldUpdate({ status: value });
+                    }
                   }}
                   disabled={isUpdating}
                 >
