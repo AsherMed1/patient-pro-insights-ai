@@ -188,6 +188,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     (appointment as any).procedure_status || null
   );
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [submittingReschedule, setSubmittingReschedule] = useState(false);
+  const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
   const { isAdmin } = useRole();
 
