@@ -315,7 +315,170 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     }
   };
 
-  const hasInsuranceInfo = () => {
+  // Handle reschedule submission
+  const handleRescheduleSubmit = async () => {
+    if (!rescheduleDate) {
+      toast.error("Please select a new date");
+      return;
+    }
+
+    setSubmittingReschedule(true);
+    
+    try {
+      const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
+      const newTime = rescheduleTime || appointment.requested_time || '09:00';
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Create reschedule record
+      const { data: rescheduleRecord, error: rescheduleError } = await supabase
+        .from('appointment_reschedules')
+        .insert({
+          appointment_id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          lead_phone: appointment.lead_phone_number,
+          lead_email: appointment.lead_email,
+          original_date: appointment.date_of_appointment,
+          original_time: appointment.requested_time,
+          new_date: newDate,
+          new_time: newTime,
+          notes: rescheduleNotes || null,
+          requested_by: user?.id,
+          ghl_sync_status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (rescheduleError) throw rescheduleError;
+      
+      // Update appointment - reset IPC and status
+      const { error: updateError } = await supabase
+        .from('all_appointments')
+        .update({
+          date_of_appointment: newDate,
+          requested_time: newTime,
+          status: 'Confirmed',
+          internal_process_complete: false,
+          last_ghl_sync_status: 'pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointment.id);
+      
+      if (updateError) throw updateError;
+
+      // Create audit note
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        let noteUserName = 'Unknown User';
+        if (currentUser) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', currentUser.id)
+            .single();
+          noteUserName = profileData?.full_name || currentUser.email || 'Unknown User';
+        }
+        const originalDate = appointment.date_of_appointment
+          ? `${appointment.date_of_appointment}${appointment.requested_time ? ' ' + appointment.requested_time : ''}`.trim()
+          : 'Unknown';
+        const newDateTime = `${newDate}${newTime ? ' ' + newTime : ''}`.trim();
+        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${noteUserName}`;
+        await supabase.from('appointment_notes').insert({
+          appointment_id: appointment.id,
+          note_text: rescheduleNoteText,
+          created_by: noteUserName,
+        });
+      } catch (noteErr) {
+        console.error('Failed to create reschedule audit note:', noteErr);
+      }
+
+      // GHL sync
+      if (appointment.ghl_appointment_id) {
+        try {
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select('timezone, ghl_location_id, ghl_api_key')
+            .eq('project_name', appointment.project_name)
+            .single();
+          
+          if (projectError) throw projectError;
+          if (!projectData?.ghl_location_id) throw new Error('GHL location ID not configured');
+          
+          const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: appointment.ghl_appointment_id,
+              ghl_location_id: projectData.ghl_location_id,
+              new_date: newDate,
+              new_time: newTime,
+              timezone: projectData.timezone || 'America/Chicago',
+              ghl_api_key: projectData.ghl_api_key,
+            },
+          });
+          
+          if (ghlError) throw ghlError;
+          
+          await supabase.from('all_appointments').update({
+            last_ghl_sync_status: 'success',
+            last_ghl_sync_at: new Date().toISOString(),
+            last_ghl_sync_error: null,
+          }).eq('id', appointment.id);
+          
+          await supabase.from('appointment_reschedules').update({
+            ghl_sync_status: 'success',
+            ghl_synced_at: new Date().toISOString(),
+            processed: true,
+            processed_by: user?.id,
+            processed_at: new Date().toISOString()
+          }).eq('id', rescheduleRecord.id);
+          
+          toast.success("Appointment rescheduled in GoHighLevel successfully");
+        } catch (ghlError: any) {
+          console.error('GHL sync error:', ghlError);
+          await supabase.from('all_appointments').update({
+            last_ghl_sync_status: 'failed',
+            last_ghl_sync_at: new Date().toISOString(),
+            last_ghl_sync_error: ghlError.message || String(ghlError),
+          }).eq('id', appointment.id);
+          await supabase.from('appointment_reschedules').update({
+            ghl_sync_status: 'failed',
+            ghl_sync_error: ghlError.message || String(ghlError),
+            ghl_synced_at: new Date().toISOString()
+          }).eq('id', rescheduleRecord.id);
+          toast.error("Appointment updated locally but GHL sync failed");
+        }
+      } else {
+        await supabase.from('all_appointments').update({
+          last_ghl_sync_status: null,
+          last_ghl_sync_error: 'No GHL appointment ID',
+        }).eq('id', appointment.id);
+        await supabase.from('appointment_reschedules').update({
+          ghl_sync_status: 'skipped',
+          ghl_sync_error: 'No GHL appointment ID',
+          processed: true,
+          processed_by: user?.id,
+          processed_at: new Date().toISOString()
+        }).eq('id', rescheduleRecord.id);
+        toast.success("Appointment rescheduled locally (not linked to GoHighLevel)");
+      }
+      
+      // Update local state and refresh
+      setCurrentStatus('Confirmed');
+      setShowRescheduleDialog(false);
+      setRescheduleDate(undefined);
+      setRescheduleTime('');
+      setRescheduleNotes('');
+      onDataRefresh?.();
+      
+    } catch (error) {
+      console.error('Error submitting reschedule:', error);
+      toast.error("Failed to reschedule appointment");
+    } finally {
+      setSubmittingReschedule(false);
+    }
+  };
+
+
     const appointmentInsurance = appointment.parsed_insurance_info?.provider || 
                                 appointment.detected_insurance_provider ||
                                 appointment.parsed_insurance_info?.plan ||
