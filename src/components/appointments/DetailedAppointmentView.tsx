@@ -478,7 +478,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     }
   };
 
-
+  const hasInsuranceInfo = () => {
     const appointmentInsurance = appointment.parsed_insurance_info?.provider || 
                                 appointment.detected_insurance_provider ||
                                 appointment.parsed_insurance_info?.plan ||
