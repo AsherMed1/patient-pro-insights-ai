@@ -943,6 +943,111 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
         patientName={appointment.lead_name}
         patientDob={appointment.dob || (appointment as any).parsed_contact_info?.dob || (appointment as any).parsed_demographics?.dob || undefined}
       />
+
+      {/* Reschedule Dialog */}
+      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reschedule Appointment</DialogTitle>
+            <DialogDescription>
+              Select the new date and time for {appointment.lead_name}'s appointment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {(appointment.date_of_appointment || appointment.requested_time) && (
+              <div className="bg-muted p-3 rounded-lg">
+                <p className="text-sm font-medium mb-1">Current Appointment:</p>
+                <p className="text-sm">
+                  {appointment.date_of_appointment && formatDate(appointment.date_of_appointment)}
+                  {appointment.date_of_appointment && appointment.requested_time && ' at '}
+                  {appointment.requested_time && formatTime(appointment.requested_time)}
+                </p>
+              </div>
+            )}
+            
+            <div>
+              <Label>New Appointment Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start mt-1">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {rescheduleDate ? formatDateFns(rescheduleDate, "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[9999]" align="start">
+                  <CalendarPicker
+                    mode="single"
+                    selected={rescheduleDate}
+                    onSelect={setRescheduleDate}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            <div>
+              <Label>New Appointment Time (Optional)</Label>
+              <p className="text-xs text-muted-foreground mb-1 mt-1">
+                Time is in <span className="font-semibold">{
+                  ({
+                    'US/Eastern': 'Eastern Time',
+                    'US/Central': 'Central Time',
+                    'US/Mountain': 'Mountain Time',
+                    'US/Pacific': 'Pacific Time',
+                  } as Record<string, string>)[projectTimezone] || projectTimezone
+                }</span> ({projectTimezone})
+              </p>
+              <Input
+                type="time"
+                value={rescheduleTime}
+                onChange={(e) => setRescheduleTime(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            
+            <div>
+              <Label>Notes (Optional)</Label>
+              <Textarea
+                value={rescheduleNotes}
+                onChange={(e) => setRescheduleNotes(e.target.value)}
+                placeholder="Add any additional notes about the reschedule..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowRescheduleDialog(false);
+                setRescheduleDate(undefined);
+                setRescheduleTime('');
+                setRescheduleNotes('');
+              }}
+              disabled={submittingReschedule}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRescheduleSubmit} 
+              disabled={!rescheduleDate || submittingReschedule}
+            >
+              {submittingReschedule ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Reschedule Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
