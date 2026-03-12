@@ -887,12 +887,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.duration}</span>
                   </div>
                 )}
-                {formatValue(parsedPathologyInfo.previous_treatments) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Previous Treatments:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
-                  </div>
-                )}
                 {formatValue(parsedPathologyInfo.imaging_done) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Imaging Done:</span>{" "}
