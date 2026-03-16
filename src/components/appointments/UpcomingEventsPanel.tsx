@@ -17,6 +17,7 @@ interface UpcomingEventsPanelProps {
   onAppointmentClick: (appointment: AllAppointment) => void;
   selectedEventTypes?: string[];
   selectedLocations?: string[];
+  selectedStatuses?: string[];
 }
 
 export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick, selectedEventTypes, selectedLocations }: UpcomingEventsPanelProps) {

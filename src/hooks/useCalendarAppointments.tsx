@@ -63,13 +63,6 @@ export function useCalendarAppointments({
         .select('*')
         .gte('date_of_appointment', startDate)
         .lte('date_of_appointment', endDate)
-        .not('status', 'ilike', 'cancelled')
-        .not('status', 'ilike', 'canceled')
-        .not('status', 'ilike', 'oon')
-        .not('status', 'ilike', 'no show')
-        .not('status', 'ilike', 'noshow')
-        .not('status', 'ilike', 'do not call')
-        .not('status', 'ilike', 'donotcall')
         .order('date_of_appointment', { ascending: true });
 
       if (projectName) {
