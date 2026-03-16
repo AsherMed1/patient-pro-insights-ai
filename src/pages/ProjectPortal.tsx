@@ -671,6 +671,7 @@ const ProjectPortal = () => {
                     viewMode={calendarViewMode}
                     selectedEventTypes={selectedEventTypes}
                     selectedLocations={selectedLocations}
+                    selectedStatuses={selectedStatuses}
                     onAppointmentClick={(apt) => setSelectedAppointment(apt)}
                     onDateSelect={(date) => {
                       setSelectedCalendarDate(date);
