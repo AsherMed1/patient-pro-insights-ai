@@ -23,6 +23,7 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import { AllAppointment } from '@/components/appointments/types';
 import { EventTypeLegend } from '@/components/appointments/EventTypeLegend';
 import { LocationLegend } from '@/components/appointments/LocationLegend';
+import { StatusFilterLegend, DEFAULT_CALENDAR_STATUSES } from '@/components/appointments/StatusFilterLegend';
 import { ReserveTimeBlockDialog } from '@/components/appointments/ReserveTimeBlockDialog';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
