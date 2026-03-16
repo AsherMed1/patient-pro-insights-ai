@@ -639,12 +639,20 @@ const ProjectPortal = () => {
                     selectedTypes={selectedEventTypes}
                     onToggleType={handleToggleEventType}
                   />
-                  <LocationLegend
+                   <LocationLegend
                     projectName={project.project_name}
                     selectedLocations={selectedLocations}
                     onToggleLocation={(loc) => {
                       setSelectedLocations(prev =>
                         prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
+                      );
+                    }}
+                  />
+                  <StatusFilterLegend
+                    selectedStatuses={selectedStatuses}
+                    onToggleStatus={(status) => {
+                      setSelectedStatuses(prev =>
+                        prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
                       );
                     }}
                   />
