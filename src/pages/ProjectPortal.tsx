@@ -88,6 +88,7 @@ const ProjectPortal = () => {
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_CALENDAR_STATUSES);
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
