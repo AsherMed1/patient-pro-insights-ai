@@ -17,9 +17,10 @@ interface UpcomingEventsPanelProps {
   onAppointmentClick: (appointment: AllAppointment) => void;
   selectedEventTypes?: string[];
   selectedLocations?: string[];
+  selectedStatuses?: string[];
 }
 
-export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick, selectedEventTypes, selectedLocations }: UpcomingEventsPanelProps) {
+export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick, selectedEventTypes, selectedLocations, selectedStatuses }: UpcomingEventsPanelProps) {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,13 +57,6 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
           .eq('project_name', projectName)
           .gte('date_of_appointment', startDate)
           .lte('date_of_appointment', endDate)
-          .not('status', 'ilike', 'cancelled')
-          .not('status', 'ilike', 'canceled')
-          .not('status', 'ilike', 'oon')
-          .not('status', 'ilike', 'no show')
-          .not('status', 'ilike', 'noshow')
-          .not('status', 'ilike', 'do not call')
-          .not('status', 'ilike', 'donotcall')
           .order('date_of_appointment', { ascending: true })
           .order('requested_time', { ascending: true });
 
@@ -80,6 +74,14 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
 
   const filteredAppointments = useMemo(() => {
     let result = appointments;
+    if (selectedStatuses?.length) {
+      result = result.filter(apt => {
+        const normalized = (apt.status ?? '').toLowerCase().trim();
+        // Handle aliases: 'canceled' -> 'cancelled', 'noshow' -> 'no show', 'donotcall' -> 'do not call'
+        const mapped = normalized === 'canceled' ? 'cancelled' : normalized === 'noshow' ? 'no show' : normalized === 'donotcall' ? 'do not call' : normalized;
+        return selectedStatuses.includes(mapped) || (mapped === '' && selectedStatuses.includes('scheduled'));
+      });
+    }
     if (selectedEventTypes?.length) {
       result = result.filter(apt => selectedEventTypes.includes(getEventTypeFromCalendar(apt.calendar_name).type));
     }
@@ -90,7 +92,7 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
       });
     }
     return result;
-  }, [appointments, selectedEventTypes, selectedLocations]);
+  }, [appointments, selectedStatuses, selectedEventTypes, selectedLocations]);
 
   if (loading) {
     return (

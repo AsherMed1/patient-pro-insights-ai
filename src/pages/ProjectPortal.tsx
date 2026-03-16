@@ -23,6 +23,7 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import { AllAppointment } from '@/components/appointments/types';
 import { EventTypeLegend } from '@/components/appointments/EventTypeLegend';
 import { LocationLegend } from '@/components/appointments/LocationLegend';
+import { StatusFilterLegend, DEFAULT_CALENDAR_STATUSES } from '@/components/appointments/StatusFilterLegend';
 import { ReserveTimeBlockDialog } from '@/components/appointments/ReserveTimeBlockDialog';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
@@ -87,6 +88,7 @@ const ProjectPortal = () => {
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_CALENDAR_STATUSES);
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -637,12 +639,20 @@ const ProjectPortal = () => {
                     selectedTypes={selectedEventTypes}
                     onToggleType={handleToggleEventType}
                   />
-                  <LocationLegend
+                   <LocationLegend
                     projectName={project.project_name}
                     selectedLocations={selectedLocations}
                     onToggleLocation={(loc) => {
                       setSelectedLocations(prev =>
                         prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
+                      );
+                    }}
+                  />
+                  <StatusFilterLegend
+                    selectedStatuses={selectedStatuses}
+                    onToggleStatus={(status) => {
+                      setSelectedStatuses(prev =>
+                        prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
                       );
                     }}
                   />
@@ -661,6 +671,7 @@ const ProjectPortal = () => {
                     viewMode={calendarViewMode}
                     selectedEventTypes={selectedEventTypes}
                     selectedLocations={selectedLocations}
+                    selectedStatuses={selectedStatuses}
                     onAppointmentClick={(apt) => setSelectedAppointment(apt)}
                     onDateSelect={(date) => {
                       setSelectedCalendarDate(date);

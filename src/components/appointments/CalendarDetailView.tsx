@@ -18,6 +18,7 @@ interface CalendarDetailViewProps {
   onReserveTimeSlot?: (hour: number, date: Date) => void;
   selectedEventTypes?: string[];
   selectedLocations?: string[];
+  selectedStatuses?: string[];
 }
 
 export function CalendarDetailView({
@@ -28,7 +29,8 @@ export function CalendarDetailView({
   onDateSelect,
   onReserveTimeSlot,
   selectedEventTypes,
-  selectedLocations
+  selectedLocations,
+  selectedStatuses
 }: CalendarDetailViewProps) {
   const { appointmentsByDate, loading } = useCalendarAppointments({
     projectName,
@@ -40,11 +42,19 @@ export function CalendarDetailView({
   const filteredByDate = useMemo(() => {
     const needsEventFilter = selectedEventTypes && selectedEventTypes.length > 0;
     const needsLocationFilter = selectedLocations && selectedLocations.length > 0;
-    if (!needsEventFilter && !needsLocationFilter) return appointmentsByDate;
+    const needsStatusFilter = selectedStatuses && selectedStatuses.length > 0;
+    if (!needsEventFilter && !needsLocationFilter && !needsStatusFilter) return appointmentsByDate;
 
     const filtered: Record<string, DayAppointmentData> = {};
     for (const [dateKey, dayData] of Object.entries(appointmentsByDate)) {
       let filteredApts = dayData.appointments;
+      if (needsStatusFilter) {
+        filteredApts = filteredApts.filter(apt => {
+          const normalized = (apt.status ?? '').toLowerCase().trim();
+          const mapped = normalized === 'canceled' ? 'cancelled' : normalized === 'noshow' ? 'no show' : normalized === 'donotcall' ? 'do not call' : normalized;
+          return selectedStatuses!.includes(mapped) || (mapped === '' && selectedStatuses!.includes('scheduled'));
+        });
+      }
       if (needsEventFilter) {
         filteredApts = filteredApts.filter(apt => {
           const eventType = getEventTypeFromCalendar(apt.calendar_name);
@@ -60,7 +70,7 @@ export function CalendarDetailView({
       filtered[dateKey] = { ...dayData, appointments: filteredApts, count: filteredApts.length };
     }
     return filtered;
-  }, [appointmentsByDate, selectedEventTypes, selectedLocations]);
+  }, [appointmentsByDate, selectedEventTypes, selectedLocations, selectedStatuses]);
 
   if (loading) {
     return (
@@ -121,6 +131,7 @@ export function CalendarDetailView({
           onAppointmentClick={onAppointmentClick}
           selectedEventTypes={selectedEventTypes}
           selectedLocations={selectedLocations}
+          selectedStatuses={selectedStatuses}
         />
       </div>
     </div>
