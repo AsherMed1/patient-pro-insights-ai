@@ -29,7 +29,8 @@ export function CalendarDetailView({
   onDateSelect,
   onReserveTimeSlot,
   selectedEventTypes,
-  selectedLocations
+  selectedLocations,
+  selectedStatuses
 }: CalendarDetailViewProps) {
   const { appointmentsByDate, loading } = useCalendarAppointments({
     projectName,
