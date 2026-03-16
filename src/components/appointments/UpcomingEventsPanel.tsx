@@ -20,7 +20,7 @@ interface UpcomingEventsPanelProps {
   selectedStatuses?: string[];
 }
 
-export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick, selectedEventTypes, selectedLocations }: UpcomingEventsPanelProps) {
+export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onAppointmentClick, selectedEventTypes, selectedLocations, selectedStatuses }: UpcomingEventsPanelProps) {
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
 
