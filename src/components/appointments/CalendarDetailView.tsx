@@ -18,6 +18,7 @@ interface CalendarDetailViewProps {
   onReserveTimeSlot?: (hour: number, date: Date) => void;
   selectedEventTypes?: string[];
   selectedLocations?: string[];
+  selectedStatuses?: string[];
 }
 
 export function CalendarDetailView({
