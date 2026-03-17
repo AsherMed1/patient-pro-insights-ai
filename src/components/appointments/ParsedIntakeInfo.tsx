@@ -89,7 +89,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [isSavingContact, setIsSavingContact] = useState(false);
   const [editEmail, setEditEmail] = useState("");
-  const [editDOB, setEditDOB] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
 
