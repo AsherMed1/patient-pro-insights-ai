@@ -948,6 +948,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   const cleaned = raw
                     .replace(/Upload\s+A\s+Copy\s+Of\s+Your\s+Insurance\s+Card:\s*https?:\/\/\S+/gi, '')
                     .replace(/https?:\/\/services\.leadconnectorhq\.com\/documents\/download\/\S+/gi, '')
+                    .replace(/These insurance plans are not accepted at this clinic:\s*[^.]*\.?\s*/gi, '')
                     .trim();
                   if (!cleaned) return null;
                   return (
