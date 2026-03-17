@@ -533,12 +533,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   </div>
                 ) : (
                   <>
-                    {formatValue(parsedContactInfo.dob) && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Date of Birth:</span>{" "}
-                        <span className="font-medium">{parsedContactInfo.dob}</span>
-                      </div>
-                    )}
                     {/* Email - always show with "-" fallback */}
                     <div className="text-sm">
                       <span className="text-muted-foreground">Email:</span>{" "}
