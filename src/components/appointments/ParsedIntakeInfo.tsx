@@ -276,7 +276,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   // Contact edit handlers
   const handleStartEditContact = () => {
     setEditEmail(formatValue(parsedContactInfo?.email) || "");
-    setEditDOB(formatValue(parsedContactInfo?.dob) || dob || "");
     setEditPhone(formatValue(parsedContactInfo?.phone) || "");
     setEditAddress(formatValue(parsedContactInfo?.address) || "");
     setIsEditingContact(true);
