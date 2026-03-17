@@ -296,24 +296,40 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
 
     setIsSavingContact(true);
     try {
+      const effectiveDob = dob || parsedDemographics?.dob || parsedContactInfo?.dob || null;
       const updatedContactInfo = {
         ...(parsedContactInfo || {}),
         email: editEmail || null,
         phone: editPhone || null,
         address: editAddress || null,
+        dob: effectiveDob,
       };
+
+      const updatedDemographics = effectiveDob
+        ? {
+            ...(parsedDemographics || {}),
+            dob: effectiveDob,
+            age: calculateAge(effectiveDob),
+          }
+        : parsedDemographics || {};
 
       const updates: Record<string, any> = {
         parsed_contact_info: updatedContactInfo,
         lead_email: editEmail || null,
         lead_phone_number: editPhone || null,
+        ...(effectiveDob ? { parsed_demographics: updatedDemographics } : {}),
+      };
+
+      const previousValues: Record<string, any> = {
+        parsed_contact_info: parsedContactInfo || {},
+        ...(effectiveDob ? { parsed_demographics: parsedDemographics || {} } : {}),
       };
 
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
         body: {
           appointmentId,
           updates,
-          previousValues: { parsed_contact_info: parsedContactInfo || {} },
+          previousValues,
           userId,
           userName,
           changeSource: 'portal'
@@ -417,9 +433,9 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-4">
           {/* Demographics Section */}
-          {(parsedDemographics || dob) && (() => {
-            const displayDOB = parsedDemographics?.dob || dob;
-            const displayAge = parsedDemographics?.age || (displayDOB ? calculateAge(displayDOB)?.toString() : null);
+          {(parsedDemographics || dob || parsedContactInfo?.dob) && (() => {
+            const displayDOB = dob || parsedDemographics?.dob || parsedContactInfo?.dob;
+            const displayAge = displayDOB ? calculateAge(displayDOB)?.toString() : parsedDemographics?.age;
             const displayGender = parsedDemographics?.gender;
             
             return (
