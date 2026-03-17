@@ -502,15 +502,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                 {isEditingContact ? (
                   <div className="space-y-3">
                     <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Date of Birth</label>
-                      <Input
-                        value={editDOB}
-                        onChange={(e) => setEditDOB(e.target.value)}
-                        placeholder="YYYY-MM-DD"
-                        className="h-8 text-sm bg-background"
-                      />
-                    </div>
-                    <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Phone</label>
                       <Input
                         value={editPhone}
