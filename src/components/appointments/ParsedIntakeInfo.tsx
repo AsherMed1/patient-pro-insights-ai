@@ -300,20 +300,20 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
       const updatedContactInfo = {
         ...(parsedContactInfo || {}),
         email: editEmail || null,
-        dob: editDOB || null,
         phone: editPhone || null,
         address: editAddress || null,
+      };
+
+      const updates: Record<string, any> = {
+        parsed_contact_info: updatedContactInfo,
+        lead_email: editEmail || null,
+        lead_phone_number: editPhone || null,
       };
 
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
         body: {
           appointmentId,
-          updates: {
-            parsed_contact_info: updatedContactInfo,
-            lead_email: editEmail || null,
-            dob: editDOB || null,
-            lead_phone_number: editPhone || null,
-          },
+          updates,
           previousValues: { parsed_contact_info: parsedContactInfo || {} },
           userId,
           userName,
