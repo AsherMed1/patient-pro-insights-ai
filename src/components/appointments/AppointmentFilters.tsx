@@ -157,7 +157,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               if (service.toLowerCase() === 'in-person') {
                 service = 'GAE';
               }
-              services.add(service);
+              // "Virtual" is a location, not a service
+              if (service.toLowerCase() === 'virtual') {
+                // skip
+              } else {
+                services.add(service);
+              }
             }
           }
         });
