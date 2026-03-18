@@ -144,7 +144,11 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                   locationExtracted = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').trim();
                 }
               }
-              if (locationExtracted && !locationExtracted.toLowerCase().includes('somerset') && !locationExtracted.toLowerCase().includes('milledgeville')) {
+              if (locationExtracted 
+                && !locationExtracted.toLowerCase().includes('somerset') 
+                && !locationExtracted.toLowerCase().includes('milledgeville')
+                && !/^for\s+/i.test(locationExtracted)
+                && !/^\(/.test(locationExtracted)) {
                 locations.add(locationExtracted);
               }
             }

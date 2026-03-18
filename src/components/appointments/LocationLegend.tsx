@@ -42,7 +42,10 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
   }
   const consultMatch = calendarName.match(/Consultation\s+(.+)$/i);
   if (consultMatch) {
-    return consultMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+    const loc = consultMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+    // Skip descriptive suffixes like "for Knee Pain Treatment"
+    if (/^for\s+/i.test(loc)) return null;
+    return loc;
   }
   return null;
 }
