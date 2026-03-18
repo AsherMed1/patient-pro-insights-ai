@@ -17,6 +17,16 @@ const LOCATION_COLORS = [
 const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
 
 function extractLocationFromCalendarName(calendarName: string): string | null {
+  // Handle "Virtual Consultation" as a location
+  if (/virtual\s+consultation/i.test(calendarName)) {
+    return 'Virtual';
+  }
+  // Handle parenthesized format: "(San Antonio, TX – Knee Pain Treatment)"
+  const parenMatch = calendarName.match(/\(([^)]+)\)/);
+  if (parenMatch) {
+    const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
+    return inner.replace(/,\s*[A-Z]{2}$/, '').trim() || null;
+  }
   const atMatch = calendarName.match(/at\s+(.+)$/i);
   if (atMatch) {
     let loc = atMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
@@ -28,13 +38,11 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
   }
   const dashMatch = calendarName.match(/ - (.+)$/);
   if (dashMatch) {
-    const loc = dashMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
-    return loc;
+    return dashMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
   }
   const consultMatch = calendarName.match(/Consultation\s+(.+)$/i);
   if (consultMatch) {
-    const loc = consultMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
-    return loc;
+    return consultMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
   }
   return null;
 }
