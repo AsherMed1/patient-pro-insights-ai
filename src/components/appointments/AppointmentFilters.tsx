@@ -123,21 +123,29 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         
         data.forEach(item => {
           if (item.calendar_name) {
-            // Extract location: try hyphen pattern first (Texas Vascular), then "at" pattern (Fayette Surgical)
-            let locationMatch = item.calendar_name.match(/ - (.+)$/);
-            if (!locationMatch) {
-              locationMatch = item.calendar_name.match(/at\s+(.+)$/);
-            }
-            if (!locationMatch) {
-              locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
-            }
-            
-            if (locationMatch && locationMatch[1]) {
-              const location = locationMatch[1].trim();
-              const normalizedLocation = location.replace(/,\s*[A-Z]{2}$/, '').trim();
-              // Exclude Somerset from location options
-              if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
-                locations.add(normalizedLocation);
+            // Extract location
+            if (/virtual\s+consultation/i.test(item.calendar_name)) {
+              // "Virtual Consultation" → treat "Virtual" as a location
+              locations.add('Virtual');
+            } else {
+              // Try parenthesized format: "(San Antonio, TX – Knee Pain Treatment)"
+              const parenMatch = item.calendar_name.match(/\(([^)]+)\)/);
+              let locationExtracted: string | null = null;
+              if (parenMatch) {
+                // Take city portion before " – " or " - "
+                const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
+                locationExtracted = inner.replace(/,\s*[A-Z]{2}$/, '').trim();
+              } else {
+                // Existing patterns: " - ", " at ", "Consultation "
+                let locationMatch = item.calendar_name.match(/ - (.+)$/);
+                if (!locationMatch) locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+                if (!locationMatch) locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
+                if (locationMatch && locationMatch[1]) {
+                  locationExtracted = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').trim();
+                }
+              }
+              if (locationExtracted && !locationExtracted.toLowerCase().includes('somerset') && !locationExtracted.toLowerCase().includes('milledgeville')) {
+                locations.add(locationExtracted);
               }
             }
             
