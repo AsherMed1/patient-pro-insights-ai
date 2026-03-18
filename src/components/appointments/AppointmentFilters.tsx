@@ -144,7 +144,11 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                   locationExtracted = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').trim();
                 }
               }
-              if (locationExtracted && !locationExtracted.toLowerCase().includes('somerset') && !locationExtracted.toLowerCase().includes('milledgeville')) {
+              if (locationExtracted 
+                && !locationExtracted.toLowerCase().includes('somerset') 
+                && !locationExtracted.toLowerCase().includes('milledgeville')
+                && !/^for\s+/i.test(locationExtracted)
+                && !/^\(/.test(locationExtracted)) {
                 locations.add(locationExtracted);
               }
             }
@@ -157,7 +161,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               if (service.toLowerCase() === 'in-person') {
                 service = 'GAE';
               }
-              services.add(service);
+              // "Virtual" is a location, not a service
+              if (service.toLowerCase() === 'virtual') {
+                // skip
+              } else {
+                services.add(service);
+              }
             }
           }
         });

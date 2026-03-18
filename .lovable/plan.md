@@ -1,53 +1,116 @@
 
 
-## Fix Ally Vascular Location & Service Filter (Round 2)
+## Short-Notice Appointment Alert System
 
-### Problems (from screenshots)
+### Overview
+When an appointment is created or rescheduled such that the time between creation and the appointment itself is within a configurable threshold (default 72 hours), fire a Slack alert and log it for dashboard visibility. Applies to both confirmed and unconfirmed appointments.
 
-**Locations dropdown shows:** `(San Antonio, TX – Knee Pain Treatment)`, `San Antonio`, `for Knee Pain Treatment`
-**Should show:** `Virtual`, `San Antonio`
+### Database Changes (1 migration)
 
-**Services dropdown shows:** `GAE`, `Neuropathy`, `Virtual`
-**Should show:** `GAE`, `Neuropathy`
-
-### Root Causes in `AppointmentFilters.tsx`
-
-1. **Service extraction runs for all calendars including Virtual** — Line 153 regex `your\s+...Consultation` matches "your Virtual Consultation" and extracts "Virtual" as a service. Fix: skip service extraction when calendar is a Virtual Consultation, or filter out "Virtual" from services.
-
-2. **"for Knee Pain Treatment" leaking as location** — Some calendar names like "Virtual Consultation for Knee Pain Treatment" (without "your" prefix) bypass the virtual check on line 127 if the format varies, OR the `Consultation\s+(.+)$` fallback on line 142 catches the suffix. Need to verify: if line 127's virtual check passes, the location extraction is skipped via the if/else — but the fallback regex `Consultation\s+(.+)$` might match a slightly different calendar name format that doesn't trigger the virtual check.
-
-3. **Full parenthetical still appearing** — The parenthesized match regex may not be catching all variants. Could be a calendar name where the paren format differs slightly.
-
-### Fix (in `AppointmentFilters.tsx`, lines ~124-162)
-
-**Service extraction fix:**
-```typescript
-// After extracting service, filter out "Virtual" — it's a location, not a service
-if (service.toLowerCase() === 'in-person') service = 'GAE';
-if (service.toLowerCase() === 'virtual') return; // skip, not a service
+**1. Add `short_notice_threshold_hours` to `projects` table**
+```sql
+ALTER TABLE public.projects
+ADD COLUMN short_notice_threshold_hours integer NOT NULL DEFAULT 72;
 ```
 
-**Location extraction fix — tighten fallback:**
+**2. Create `short_notice_alerts` table for audit/reporting**
+```sql
+CREATE TABLE public.short_notice_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  appointment_id uuid REFERENCES public.all_appointments(id) ON DELETE CASCADE NOT NULL,
+  project_name text NOT NULL,
+  lead_name text NOT NULL,
+  appointment_datetime timestamptz,
+  created_datetime timestamptz,
+  hours_difference numeric NOT NULL,
+  alert_sent_at timestamptz DEFAULT now(),
+  slack_sent boolean DEFAULT false,
+  ghl_id text,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.short_notice_alerts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can view short notice alerts"
+  ON public.short_notice_alerts FOR SELECT TO authenticated USING (true);
+```
+
+### New Edge Function: `notify-slack-short-notice`
+
+A lightweight function (mirroring `notify-slack-oon` pattern) that:
+1. Receives appointment details + hours difference
+2. Sends a Slack alert to `SLACK_SHORT_NOTICE_WEBHOOK_URL` (new secret needed)
+3. Inserts a record into `short_notice_alerts` for reporting
+
+**Slack payload fields:**
+- Header: "SHORT-NOTICE APPOINTMENT"
+- Clinic name (project_name)
+- Patient name
+- GHL link (if ghl_id exists): `https://app.gohighlevel.com/contacts/detail/{ghl_id}`
+- Appointment date/time
+- Time difference (e.g., "Booked 19h before appt")
+- Status (confirmed/unconfirmed)
+
+### Integration Points (where to call the alert)
+
+**1. `ghl-webhook-handler/index.ts`** — After successful create or update (line ~190), add a call to evaluate short-notice criteria and invoke the alert function if triggered.
+
+**2. `all-appointments-api/index.ts`** — After successful create/update (line ~260), same logic.
+
+**3. `update-appointment-fields/index.ts`** — When `date_of_appointment` or `requested_time` changes (reschedule), re-evaluate.
+
+The evaluation logic (shared helper):
 ```typescript
-// In the else branch (non-paren, non-virtual), add guard against "for ..." suffixes
-if (locationMatch && locationMatch[1]) {
-  let loc = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').trim();
-  // Skip descriptive suffixes like "for Knee Pain Treatment"
-  if (/^for\s+/i.test(loc)) continue; // not a real location
-  locations.add(loc);
+async function checkShortNoticeAlert(supabase, appointment, requestId) {
+  if (!appointment.date_of_appointment) return;
+  
+  // Skip terminal statuses
+  const status = (appointment.status || '').toLowerCase().trim();
+  const terminal = ['cancelled', 'canceled', 'no show', 'showed', 'oon'];
+  if (terminal.some(t => status.includes(t))) return;
+  
+  // Get project threshold
+  const { data: project } = await supabase
+    .from('projects')
+    .select('short_notice_threshold_hours')
+    .eq('project_name', appointment.project_name)
+    .single();
+  
+  const threshold = project?.short_notice_threshold_hours ?? 72;
+  if (threshold === 0) return; // 0 = disabled
+  
+  // Calculate hours difference
+  const apptTime = new Date(appointment.date_of_appointment + 'T' + (appointment.requested_time || '09:00'));
+  const createdTime = new Date(appointment.date_appointment_created || appointment.created_at);
+  const hoursDiff = (apptTime - createdTime) / (1000 * 60 * 60);
+  
+  if (hoursDiff <= threshold && hoursDiff > 0) {
+    // Fire alert
+    supabase.functions.invoke('notify-slack-short-notice', {
+      body: { ...relevant fields, hoursDifference: hoursDiff }
+    });
+  }
 }
 ```
 
-**Parenthetical dedup** — ensure the full `(City, ST – Description)` string is never added raw. The current code on line 136-137 should handle this, but add a guard to skip if extraction yields empty or looks like a full paren string.
+### Config UI
 
-### Also update `LocationLegend.tsx`
+Add a "Short-Notice Threshold" dropdown to the project settings (in `EditProjectDialog.tsx`):
+- Options: Disabled (0), 48 hours, 72 hours (default), 168 hours
+- Saves to `projects.short_notice_threshold_hours`
 
-The `extractLocationFromCalendarName` function (lines 17-38) needs the same "for ..." guard to stay consistent.
+### Secret Required
+- `SLACK_SHORT_NOTICE_WEBHOOK_URL` — User will need to provide a Slack incoming webhook URL for the target channel
 
-### Files to Edit
-- `src/components/appointments/AppointmentFilters.tsx` — lines ~124-162
-- `src/components/appointments/LocationLegend.tsx` — lines ~17-38
+### Changes Summary
 
-### Build Error Note
-The `rollup` missing package error is a **pre-existing environment issue** unrelated to these code changes. It requires a dependency reinstall (`npm install` or clearing `node_modules`). This plan focuses solely on the filter logic fix.
+| File | Change |
+|------|--------|
+| Migration SQL | Add `short_notice_threshold_hours` column to projects, create `short_notice_alerts` table |
+| `supabase/functions/notify-slack-short-notice/index.ts` | New edge function: send Slack alert + log to `short_notice_alerts` |
+| `supabase/config.toml` | Add `[functions.notify-slack-short-notice]` entry |
+| `supabase/functions/ghl-webhook-handler/index.ts` | Add `checkShortNoticeAlert()` call after appointment create/update |
+| `supabase/functions/all-appointments-api/index.ts` | Add `checkShortNoticeAlert()` call after appointment create/update |
+| `supabase/functions/update-appointment-fields/index.ts` | Add short-notice check when `date_of_appointment` changes |
+| `src/components/projects/EditProjectDialog.tsx` | Add threshold dropdown to project settings |
 
