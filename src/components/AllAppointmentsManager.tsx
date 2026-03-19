@@ -822,17 +822,29 @@ const AllAppointmentsManager = ({
 
         if (syncData?.ghl_appointment_id) {
           try {
-            await supabase.functions.invoke('update-ghl-appointment', {
+            const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
               body: {
                 ghl_appointment_id: syncData.ghl_appointment_id,
                 project_name: syncData.project_name,
                 status,
               }
             });
+            if (ghlError) throw ghlError;
             console.log('✅ GHL status synced:', status);
           } catch (ghlErr) {
-            console.error('⚠️ GHL status sync failed (non-critical):', ghlErr);
+            console.error('⚠️ GHL status sync failed:', ghlErr);
+            toast({
+              title: "GHL Sync Warning",
+              description: "Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.",
+              variant: "destructive",
+            });
           }
+        } else {
+          console.warn('⚠️ No ghl_appointment_id found, GHL sync skipped');
+          toast({
+            title: "GHL Sync Skipped",
+            description: "No GoHighLevel appointment ID found for this record. Status was saved locally only.",
+          });
         }
       }
 
