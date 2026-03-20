@@ -626,7 +626,7 @@ function getUpdateableFields(
       // Reset IPC and status if date actually changed (reschedule detected)
       // Guard: Skip reschedule logic if existing status is a portal-only terminal status
       const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-      const portalOnlyTerminalStatuses = ['oon', 'do not call']
+      const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call']
       const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
       
       if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
