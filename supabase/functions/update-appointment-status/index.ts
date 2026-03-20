@@ -213,7 +213,7 @@ serve(async (req) => {
       }
       const { data: existing } = await checkQuery.maybeSingle()
       const existingStatus = existing?.status?.toLowerCase()?.trim()
-      const portalOnlyStatuses = ['oon', 'do not call']
+      const portalOnlyStatuses = ['oon', 'do not call', 'welcome call']
       if (existingStatus && portalOnlyStatuses.includes(existingStatus)) {
         console.log(`[${requestId}] Preserving portal-only terminal status "${existing.status}" — ignoring incoming "${updateData.status}"`)
         delete updateData.status

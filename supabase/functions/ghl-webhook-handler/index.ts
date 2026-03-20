@@ -684,7 +684,7 @@ function getUpdateableFields(
   if (isExplicitStatusChange(incomingStatus)) {
     // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
-    const portalOnlyStatuses = ['oon', 'do not call']
+    const portalOnlyStatuses = ['oon', 'do not call', 'welcome call']
     const isPortalOnlyTerminal = portalOnlyStatuses.includes(existingStatusForEcho)
 
     if (isPortalOnlyTerminal) {
