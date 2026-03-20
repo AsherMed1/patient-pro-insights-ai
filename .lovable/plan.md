@@ -1,51 +1,47 @@
 
 
-## Surface GHL Sync Failures to Users
+## Fix: "Welcome Call" Status Being Overwritten by GHL Webhook
 
-### What
-Show a warning toast when the GHL appointment status sync fails, instead of silently catching the error. The portal status update itself succeeds (it's already saved to the database), so this should be a **warning**, not a blocking error.
+### Root Cause
 
-### Change
+"Welcome Call" is a **portal-only status** — it has no equivalent in GoHighLevel. When staff sets an appointment to "Welcome Call" in the portal:
 
-**File: `src/components/AllAppointmentsManager.tsx`, lines 823-836**
+1. The portal saves "Welcome Call" to the database
+2. The portal does NOT sync this to GHL (because `STATUS_MAP` in `update-ghl-appointment` has no mapping for "Welcome Call")
+3. GHL still considers the appointment "confirmed"
+4. When GHL sends any subsequent webhook for this contact (activity, field update, etc.), the `ghl-webhook-handler` sees `status: "confirmed"` and overwrites "Welcome Call" back to "Confirmed"
 
-Replace the silent catch with a warning toast:
+The echo-back guard on line 687 of `ghl-webhook-handler/index.ts` only protects `['oon', 'do not call']` — it does not protect "Welcome Call".
 
+The same gap exists in `update-appointment-status/index.ts` (line 216).
+
+### Fix
+
+**Add "welcome call" to the portal-only protected statuses list** in both edge functions:
+
+**1. `supabase/functions/ghl-webhook-handler/index.ts` (line 687)**
 ```typescript
-if (syncData?.ghl_appointment_id) {
-  try {
-    const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
-      body: {
-        ghl_appointment_id: syncData.ghl_appointment_id,
-        project_name: syncData.project_name,
-        status,
-      }
-    });
-    if (ghlError) throw ghlError;
-    console.log('✅ GHL status synced:', status);
-  } catch (ghlErr) {
-    console.error('⚠️ GHL status sync failed:', ghlErr);
-    toast({
-      title: "GHL Sync Warning",
-      description: "Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.",
-      variant: "destructive",
-    });
-  }
-} else {
-  // No GHL ID — warn that sync was skipped
-  console.warn('⚠️ No ghl_appointment_id found, GHL sync skipped');
-  toast({
-    title: "GHL Sync Skipped",
-    description: "No GoHighLevel appointment ID found for this record. Status was saved locally only.",
-  });
-}
+const portalOnlyStatuses = ['oon', 'do not call', 'welcome call']
 ```
 
-### Key Details
-- Also checks the `error` property from `supabase.functions.invoke()` (which returns `{ data, error }` — a non-throwing pattern), so we catch both network failures and function-level errors.
-- Adds a toast when `ghl_appointment_id` is missing entirely, which was the likely cause of the George Castro issue.
-- The success toast on line 854 still fires since the DB update succeeded — the warning toast appears alongside it to flag the sync gap.
+**2. `supabase/functions/update-appointment-status/index.ts` (line 216)**
+```typescript
+const portalOnlyStatuses = ['oon', 'do not call', 'welcome call']
+```
 
-### Single file edit
-- `src/components/AllAppointmentsManager.tsx`
+**3. `supabase/functions/ghl-webhook-handler/index.ts` (line 629)** — also protect "Welcome Call" from reschedule-triggered status resets:
+```typescript
+const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call']
+```
+
+### Why This Is Safe
+- "Welcome Call" is a workflow status that only exists in the portal
+- GHL never sends "welcome call" as a status, so this guard only prevents GHL's "confirmed" from overwriting it
+- If a genuine status change happens in GHL (e.g., cancelled, no show), the `isExplicitStatusChange` check determines whether to apply it — but the guard ensures portal-only statuses are preserved
+
+### Files to Edit
+- `supabase/functions/ghl-webhook-handler/index.ts` — 2 lines
+- `supabase/functions/update-appointment-status/index.ts` — 1 line
+
+Both functions need redeployment after the edit.
 
