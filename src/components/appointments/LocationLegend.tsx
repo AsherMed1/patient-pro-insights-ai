@@ -47,7 +47,9 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
     if (/^for\s+/i.test(loc)) return null;
     return loc;
   }
-  return null;
+  if (!result) return null;
+  // Normalize: strip trailing " Office" to prevent duplicates
+  return result.replace(/\s+Office$/i, '').trim();
 }
 
 interface LocationLegendProps {
