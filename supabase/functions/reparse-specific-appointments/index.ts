@@ -64,19 +64,29 @@ Deno.serve(async (req) => {
 
     console.log(`[REPARSE] Reset ${resetData?.length || 0} appointments for re-parsing`);
 
-    // Step 3: Call auto-parse-intake-notes to immediately process them
+    // Step 3: Call auto-parse-intake-notes (non-blocking, best-effort)
     console.log('[REPARSE] Invoking auto-parse-intake-notes...');
-    const parseResponse = await fetch(`${supabaseUrl}/functions/v1/auto-parse-intake-notes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`
-      },
-      body: JSON.stringify({})
-    });
+    let parseResult = null;
+    try {
+      const parseResponse = await fetch(`${supabaseUrl}/functions/v1/auto-parse-intake-notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({})
+      });
 
-    const parseResult = await parseResponse.json();
-    console.log('[REPARSE] Parse result:', parseResult);
+      if (parseResponse.ok) {
+        parseResult = await parseResponse.json();
+        console.log('[REPARSE] Parse result:', parseResult);
+      } else {
+        const errorText = await parseResponse.text();
+        console.warn('[REPARSE] Auto-parse returned non-OK status:', parseResponse.status, errorText.substring(0, 200));
+      }
+    } catch (parseErr) {
+      console.warn('[REPARSE] Auto-parse call failed (non-critical):', parseErr.message);
+    }
 
     return new Response(
       JSON.stringify({
