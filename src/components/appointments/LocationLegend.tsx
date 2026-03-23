@@ -25,7 +25,8 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
   const parenMatch = calendarName.match(/\(([^)]+)\)/);
   if (parenMatch) {
     const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
-    return inner.replace(/,\s*[A-Z]{2}$/, '').trim() || null;
+    const loc = inner.replace(/,\s*[A-Z]{2}$/, '').trim();
+    return loc ? loc.replace(/\s+Office$/i, '').trim() : null;
   }
   const atMatch = calendarName.match(/at\s+(.+)$/i);
   if (atMatch) {
@@ -34,18 +35,17 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
     if (dashIdx !== -1) {
       loc = loc.substring(dashIdx + 3).trim();
     }
-    return loc;
+    return loc.replace(/\s+Office$/i, '').trim();
   }
   const dashMatch = calendarName.match(/ - (.+)$/);
   if (dashMatch) {
-    return dashMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
+    return dashMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
   }
   const consultMatch = calendarName.match(/Consultation\s+(.+)$/i);
   if (consultMatch) {
     const loc = consultMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
-    // Skip descriptive suffixes like "for Knee Pain Treatment"
     if (/^for\s+/i.test(loc)) return null;
-    return loc;
+    return loc.replace(/\s+Office$/i, '').trim();
   }
   return null;
 }

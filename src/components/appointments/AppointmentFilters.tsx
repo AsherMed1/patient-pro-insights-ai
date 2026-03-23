@@ -150,6 +150,8 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 && !locationExtracted.toLowerCase().includes('milledgeville')
                 && !/^for\s+/i.test(locationExtracted)
                 && !/^\(/.test(locationExtracted)) {
+                // Normalize: strip trailing " Office" to prevent duplicates
+                locationExtracted = locationExtracted.replace(/\s+Office$/i, '').trim();
                 locations.add(locationExtracted);
               }
             }
