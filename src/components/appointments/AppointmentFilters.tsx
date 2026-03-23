@@ -16,6 +16,7 @@ import { useRole } from '@/hooks/useRole';
 
 const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
   'Texas Vascular Institute': ['GAE', 'PAD', 'PFE', 'UFE'],
+  'Champion Heart and Vascular Center': ['GAE', 'HAE', 'PAE', 'PFE', 'UFE'],
 };
 interface DateRange {
   from: Date | undefined;
