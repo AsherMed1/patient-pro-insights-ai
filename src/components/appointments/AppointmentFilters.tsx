@@ -160,6 +160,8 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
               let service = serviceMatch[1].trim();
+              // Strip " Virtual" suffix — virtual is a location mode, not a service
+              service = service.replace(/\s+Virtual$/i, '').trim();
               // Merge In-person with GAE - they are the same service type
               if (service.toLowerCase() === 'in-person') {
                 service = 'GAE';
