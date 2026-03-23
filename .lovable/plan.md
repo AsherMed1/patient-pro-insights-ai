@@ -1,51 +1,59 @@
 
 
-## Fix: Sync Phone Number from GHL Contact Data to `lead_phone_number`
+## Fix: "Refresh from GHL" Error Due to Auto-Parse Response Handling
 
 ### Problem
-Jerry Hannah's phone number is missing because:
-1. At webhook time, `contact.phone` was null — so `lead_phone_number` was set to null (line 410)
-2. The enrichment function (`enrichAppointmentWithGHLData`, line 1172) updates `parsed_contact_info.phone` but does **not** update the top-level `lead_phone_number` column
-3. The `fetch-ghl-contact-data` function (Refresh from GHL) also does not update `lead_phone_number`
+The "Refresh from GHL" button triggers `reparse-specific-appointments`, which works through 3 steps:
+1. Fetch GHL contact data — succeeds
+2. Reset parsing fields — succeeds
+3. Call `auto-parse-intake-notes` — the function returns an HTML error page instead of JSON
 
-The phone exists in GHL (the user confirms it), but the enrichment and refresh flows never sync it to the column the UI reads from.
+Line 78 calls `parseResponse.json()` on the HTML response, which throws `SyntaxError: Unexpected token '<'`, causing the entire function to return a 500 error to the client.
 
-### Fix (2 edge functions)
+### Root Cause
+The `auto-parse-intake-notes` edge function is returning an HTML error (likely a deployment issue, timeout, or internal error). The `reparse-specific-appointments` function does not handle non-JSON responses gracefully.
 
-**1. `supabase/functions/ghl-webhook-handler/index.ts` — `enrichAppointmentWithGHLData` (~line 1174)**
+### Fix
 
-Add `lead_phone_number` and `lead_email` to the update payload so enrichment backfills missing contact fields:
+**File: `supabase/functions/reparse-specific-appointments/index.ts` (lines 68-79)**
 
-```typescript
-.update({ 
-  patient_intake_notes: updatedNotes,
-  parsed_contact_info: parsedContactInfo,
-  parsed_demographics: parsedDemographics,
-  dob: contact.dateOfBirth || null,
-  lead_phone_number: contact.phone || undefined,  // backfill if available
-  lead_email: contact.email || undefined,          // backfill if available
-  updated_at: new Date().toISOString()
-})
-```
+Make the auto-parse call non-blocking and fault-tolerant. Steps 1 and 2 already succeeded — the parse will eventually run via the database trigger anyway. The fix:
 
-Use conditional inclusion: only set `lead_phone_number` if `contact.phone` is truthy, to avoid overwriting existing values with null.
-
-**2. `supabase/functions/fetch-ghl-contact-data/index.ts` (~line 264)**
-
-Add `lead_phone_number` to the update payload so "Refresh from GHL" also syncs the phone:
+1. Check `parseResponse.ok` before calling `.json()`
+2. If the response is not OK, log the error but still return success (since GHL fetch and reset completed)
+3. Wrap the parse call in its own try/catch so it doesn't fail the entire operation
 
 ```typescript
-.update({ 
-  patient_intake_notes: updatedNotes,
-  lead_phone_number: contact.phone || undefined,
-  lead_email: contact.email || undefined,
-  updated_at: new Date().toISOString()
-})
+// Step 3: Call auto-parse-intake-notes (non-blocking, best-effort)
+console.log('[REPARSE] Invoking auto-parse-intake-notes...');
+let parseResult = null;
+try {
+  const parseResponse = await fetch(`${supabaseUrl}/functions/v1/auto-parse-intake-notes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseKey}`
+    },
+    body: JSON.stringify({})
+  });
+
+  if (parseResponse.ok) {
+    parseResult = await parseResponse.json();
+    console.log('[REPARSE] Parse result:', parseResult);
+  } else {
+    const errorText = await parseResponse.text();
+    console.warn('[REPARSE] Auto-parse returned non-OK status:', parseResponse.status, errorText.substring(0, 200));
+  }
+} catch (parseErr) {
+  console.warn('[REPARSE] Auto-parse call failed (non-critical):', parseErr.message);
+}
 ```
 
-### Files to Edit
-- `supabase/functions/ghl-webhook-handler/index.ts` — enrichment update (~line 1174)
-- `supabase/functions/fetch-ghl-contact-data/index.ts` — refresh update (~line 266)
+Then return success with whatever parse result we got (or null).
 
-Both functions need redeployment. After deployment, clicking "Refresh from GHL" on Jerry Hannah's card will populate the phone number.
+### Single file edit
+- `supabase/functions/reparse-specific-appointments/index.ts` — lines 67-79
+
+### Result
+The refresh button will show "Success" since the GHL data fetch and reset completed. Parsing will still happen — either from the edge function call or from the database trigger that fires when `parsing_completed_at` is reset to null.
 
