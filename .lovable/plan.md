@@ -1,33 +1,34 @@
 
 
-## Remove Duplicate "Office" Locations from Filter
+## Remove "Virtual" from Service Names (Joint & Vascular Institute)
 
 ### Problem
-Location extraction produces duplicates like "Bel Air" and "Bel Air Office", "Elkton" and "Elkton Office", etc. The " Office" suffix is unnecessary and creates clutter.
+Calendar names like "your GAE Virtual Consultation" produce "GAE Virtual" as a service, and "your HAE Virtual Consultation" produces "HAE Virtual". The word "Virtual" here describes the consultation mode (location), not a distinct service. Services should just be "GAE" and "HAE".
 
 ### Fix
 
-**File: `src/components/appointments/AppointmentFilters.tsx` (~line 148)**
+**File: `src/components/appointments/AppointmentFilters.tsx` (line 162)**
 
-After extracting the location string, strip trailing " Office" before adding to the set:
+After extracting the service string, strip trailing " Virtual" before adding to the set:
 
 ```typescript
-if (locationExtracted 
-  && !locationExtracted.toLowerCase().includes('somerset') 
-  && !locationExtracted.toLowerCase().includes('milledgeville')
-  && !/^for\s+/i.test(locationExtracted)
-  && !/^\(/.test(locationExtracted)) {
-  // Normalize: strip trailing " Office" to prevent duplicates
-  locationExtracted = locationExtracted.replace(/\s+Office$/i, '').trim();
-  locations.add(locationExtracted);
+let service = serviceMatch[1].trim();
+// Strip " Virtual" suffix — virtual is a location mode, not a service
+service = service.replace(/\s+Virtual$/i, '').trim();
+// Merge In-person with GAE
+if (service.toLowerCase() === 'in-person') {
+  service = 'GAE';
+}
+// "Virtual" alone is a location, not a service
+if (service.toLowerCase() === 'virtual') {
+  // skip
+} else {
+  services.add(service);
 }
 ```
 
-This collapses "Bel Air Office" → "Bel Air", "Elkton Office" → "Elkton", etc., while keeping the filter functional since the actual query uses `.ilike('calendar_name', '%Bel Air%')` which matches both variants.
-
-**Also update `src/components/appointments/LocationLegend.tsx`** — the `extractLocationFromCalendarName` function should apply the same normalization for consistency.
+This collapses "GAE Virtual" → "GAE" and "HAE Virtual" → "HAE", merging them with their in-person counterparts. The "Virtual" location is already handled by the location extraction on line 128-130.
 
 ### Files to Edit
-- `src/components/appointments/AppointmentFilters.tsx` — add `.replace(/\s+Office$/i, '')` before `locations.add()`
-- `src/components/appointments/LocationLegend.tsx` — same normalization in `extractLocationFromCalendarName`
+- `src/components/appointments/AppointmentFilters.tsx` — 1 line addition at line 162
 
