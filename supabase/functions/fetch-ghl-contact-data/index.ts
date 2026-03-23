@@ -265,6 +265,8 @@ Deno.serve(async (req) => {
       .from('all_appointments')
       .update({ 
         patient_intake_notes: updatedNotes,
+        ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
+        ...(contact.email ? { lead_email: contact.email } : {}),
         updated_at: new Date().toISOString()
       })
       .eq('id', appointmentId);
