@@ -1,22 +1,33 @@
 
 
-## Add UFE to Champion Heart and Vascular Center Services
+## Remove Duplicate "Office" Locations from Filter
 
 ### Problem
-The `KNOWN_PROJECT_SERVICES` map in `AppointmentFilters.tsx` only has an entry for Texas Vascular Institute. Champion Heart and Vascular Center was never added, so UFE doesn't appear.
+Location extraction produces duplicates like "Bel Air" and "Bel Air Office", "Elkton" and "Elkton Office", etc. The " Office" suffix is unnecessary and creates clutter.
 
 ### Fix
 
-**File: `src/components/appointments/AppointmentFilters.tsx` (lines 17-19)**
+**File: `src/components/appointments/AppointmentFilters.tsx` (~line 148)**
 
-Add Champion to the static map:
+After extracting the location string, strip trailing " Office" before adding to the set:
 
 ```typescript
-const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
-  'Texas Vascular Institute': ['GAE', 'PAD', 'PFE', 'UFE'],
-  'Champion Heart and Vascular Center': ['GAE', 'HAE', 'PAE', 'PFE', 'UFE'],
-};
+if (locationExtracted 
+  && !locationExtracted.toLowerCase().includes('somerset') 
+  && !locationExtracted.toLowerCase().includes('milledgeville')
+  && !/^for\s+/i.test(locationExtracted)
+  && !/^\(/.test(locationExtracted)) {
+  // Normalize: strip trailing " Office" to prevent duplicates
+  locationExtracted = locationExtracted.replace(/\s+Office$/i, '').trim();
+  locations.add(locationExtracted);
+}
 ```
 
-Single line addition. The existing merge logic on line 176 will automatically include UFE in the services dropdown when Champion is the active project.
+This collapses "Bel Air Office" → "Bel Air", "Elkton Office" → "Elkton", etc., while keeping the filter functional since the actual query uses `.ilike('calendar_name', '%Bel Air%')` which matches both variants.
+
+**Also update `src/components/appointments/LocationLegend.tsx`** — the `extractLocationFromCalendarName` function should apply the same normalization for consistency.
+
+### Files to Edit
+- `src/components/appointments/AppointmentFilters.tsx` — add `.replace(/\s+Office$/i, '')` before `locations.add()`
+- `src/components/appointments/LocationLegend.tsx` — same normalization in `extractLocationFromCalendarName`
 
