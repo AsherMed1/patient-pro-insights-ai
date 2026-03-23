@@ -1176,6 +1176,8 @@ async function enrichAppointmentWithGHLData(
         parsed_contact_info: parsedContactInfo,
         parsed_demographics: parsedDemographics,
         dob: contact.dateOfBirth || null,
+        ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
+        ...(contact.email ? { lead_email: contact.email } : {}),
         updated_at: new Date().toISOString()
       })
       .eq('id', appointmentId)
