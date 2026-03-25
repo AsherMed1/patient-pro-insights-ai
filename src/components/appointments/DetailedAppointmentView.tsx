@@ -914,6 +914,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       } catch (err) {
                         console.error('Error fetching project timezone:', err);
                       }
+                      // Pre-populate time with current appointment time so user can adjust
+                      setRescheduleTime(appointment.requested_time ? appointment.requested_time.substring(0, 5) : '');
                       setShowRescheduleDialog(true);
                     } else {
                       setCurrentStatus(value);

@@ -619,6 +619,8 @@ const AppointmentCard = ({
         console.error('Error fetching project timezone:', error);
       }
       
+      // Pre-populate time with current appointment time so user can adjust
+      setRescheduleTime(appointment.requested_time ? appointment.requested_time.substring(0, 5) : '');
       setShowRescheduleDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
@@ -1727,7 +1729,7 @@ const AppointmentCard = ({
             
             {/* New Time Picker */}
             <div>
-              <Label>New Appointment Time (Optional)</Label>
+              <Label>New Appointment Time</Label>
               <p className="text-xs text-muted-foreground mb-1 mt-1">
                 Time is in <span className="font-semibold">{formatTimezoneName(projectTimezone)}</span> ({projectTimezone})
               </p>
