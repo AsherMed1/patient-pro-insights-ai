@@ -1153,7 +1153,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
             </div>
             
             <div>
-              <Label>New Appointment Time (Optional)</Label>
+              <Label>New Appointment Time</Label>
               <p className="text-xs text-muted-foreground mb-1 mt-1">
                 Time is in <span className="font-semibold">{
                   ({
