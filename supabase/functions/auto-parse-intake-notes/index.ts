@@ -251,6 +251,8 @@ function fallbackRegexParsing(intakeNotes: string): any {
       pcp_name: null as string | null,
       pcp_phone: null as string | null,
       imaging_details: null as string | null,
+      imaging_facility: null as string | null,
+      imaging_phone: null as string | null,
       xray_details: null as string | null,
       medications: null as string | null,
       allergies: null as string | null
@@ -411,6 +413,24 @@ function fallbackRegexParsing(intakeNotes: string): any {
         result.medical_info.pcp_name = value;
       }
       console.log(`[AUTO-PARSE FALLBACK] Extracted PCP: ${value}`);
+      break;
+    }
+  }
+
+  // Extract Imaging Facility
+  const imagingFacilityPatterns = [
+    /imaging facility:\s*([^\n|]+)/i,
+    /imaging location:\s*([^\n|]+)/i,
+    /where was imaging done:\s*([^\n|]+)/i,
+    /where.*?imaging.*?done:\s*([^\n|]+)/i,
+    /imaging center:\s*([^\n|]+)/i,
+  ];
+  
+  for (const pattern of imagingFacilityPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.medical_info.imaging_facility = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted imaging_facility: ${match[1].trim()}`);
       break;
     }
   }
@@ -653,6 +673,26 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // Extract imaging facility if not already populated
+  if (!parsedData.medical_info.imaging_facility) {
+    const facilityPatterns = [
+      /imaging facility:\s*([^\n|]+)/i,
+      /imaging location:\s*([^\n|]+)/i,
+      /where was imaging done:\s*([^\n|]+)/i,
+      /where.*?imaging.*?done:\s*([^\n|]+)/i,
+      /imaging center:\s*([^\n|]+)/i,
+    ];
+    
+    for (const pattern of facilityPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        parsedData.medical_info.imaging_facility = match[1].trim();
+        console.log(`[AUTO-PARSE ENRICH] Extracted imaging_facility via regex: ${match[1].trim()}`);
+        break;
+      }
+    }
+  }
+  
   return parsedData;
 }
 
@@ -718,6 +758,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       urologist_name: null as string | null,
       urologist_phone: null as string | null,
       imaging_details: null as string | null,
+      imaging_facility: null as string | null,
+      imaging_phone: null as string | null,
       xray_details: null as string | null
     },
     insurance_card_url: null as string | null,
@@ -986,6 +1028,20 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       } else {
         result.medical_info.urologist_name = value_str;
       }
+    }
+    // Imaging facility / location fields
+    else if ((key.includes('imaging') && (key.includes('facility') || key.includes('location') || key.includes('where'))) ||
+             (key.includes('where') && key.includes('imaging'))) {
+      const value_str = String(value);
+      // Try to extract phone from combined value
+      const phoneMatch = value_str.match(/(\d{3}[-.]?\d{3}[-.]?\d{4})/);
+      if (phoneMatch) {
+        result.medical_info.imaging_phone = phoneMatch[1];
+        result.medical_info.imaging_facility = value_str.replace(phoneMatch[1], '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim() || value_str;
+      } else {
+        result.medical_info.imaging_facility = value_str;
+      }
+      console.log(`[AUTO-PARSE GHL] Extracted imaging facility from "${key}": "${result.medical_info.imaging_facility}"`);
     }
     // Imaging/X-ray fields - look for "Had Imaging Before" and similar fields
     else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || 

@@ -84,6 +84,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPCPAddress, setEditPCPAddress] = useState("");
   const [editUrologistName, setEditUrologistName] = useState("");
   const [editUrologistPhone, setEditUrologistPhone] = useState("");
+  const [editImagingFacility, setEditImagingFacility] = useState("");
+  const [editImagingPhone, setEditImagingPhone] = useState("");
 
   // Contact edit state
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -212,6 +214,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     setEditPCPAddress(formatValue(parsedMedicalInfo?.pcp_address) || "");
     setEditUrologistName(formatValue(parsedMedicalInfo?.urologist_name) || "");
     setEditUrologistPhone(formatValue(parsedMedicalInfo?.urologist_phone) || "");
+    setEditImagingFacility(formatValue(parsedMedicalInfo?.imaging_facility) || "");
+    setEditImagingPhone(formatValue(parsedMedicalInfo?.imaging_phone) || "");
     setIsEditingPCP(true);
   };
 
@@ -238,6 +242,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         pcp_address: editPCPAddress || null,
         urologist_name: editUrologistName || null,
         urologist_phone: editUrologistPhone || null,
+        imaging_facility: editImagingFacility || null,
+        imaging_phone: editImagingPhone || null,
       };
 
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
@@ -1061,6 +1067,30 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         </div>
                       </>
                     )}
+                    <div className="pt-3 border-t border-teal-200 mt-3">
+                      <label className="text-xs font-medium text-teal-700 mb-2 block">Imaging Information</label>
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Imaging Facility</label>
+                          <Input
+                            value={editImagingFacility}
+                            onChange={(e) => setEditImagingFacility(e.target.value)}
+                            placeholder="Where was imaging done?"
+                            className="h-8 text-sm bg-background"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Facility Phone</label>
+                          <Input
+                            value={editImagingPhone}
+                            onChange={(e) => setEditImagingPhone(e.target.value)}
+                            placeholder="Facility phone number"
+                            type="tel"
+                            className="h-8 text-sm bg-background"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -1110,6 +1140,24 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       <div className="text-sm">
                         <span className="text-muted-foreground">Allergies:</span>{" "}
                         <span className="font-medium">{parsedMedicalInfo.allergies}</span>
+                      </div>
+                    )}
+                    {/* Imaging Information */}
+                    {(formatValue(parsedMedicalInfo?.imaging_facility) || formatValue(parsedMedicalInfo?.imaging_phone)) && (
+                      <div className="pt-2 border-t border-teal-200 mt-2 space-y-1">
+                        <span className="text-xs font-medium text-teal-700">Imaging Information</span>
+                        {formatValue(parsedMedicalInfo?.imaging_facility) && (
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">Facility:</span>{" "}
+                            <span className="font-medium">{parsedMedicalInfo.imaging_facility}</span>
+                          </div>
+                        )}
+                        {formatValue(parsedMedicalInfo?.imaging_phone) && (
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">Facility Phone:</span>{" "}
+                            <span className="font-medium">{parsedMedicalInfo.imaging_phone}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
