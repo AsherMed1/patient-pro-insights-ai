@@ -84,6 +84,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPCPAddress, setEditPCPAddress] = useState("");
   const [editUrologistName, setEditUrologistName] = useState("");
   const [editUrologistPhone, setEditUrologistPhone] = useState("");
+  const [editImagingFacility, setEditImagingFacility] = useState("");
+  const [editImagingPhone, setEditImagingPhone] = useState("");
 
   // Contact edit state
   const [isEditingContact, setIsEditingContact] = useState(false);
