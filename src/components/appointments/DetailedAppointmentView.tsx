@@ -924,6 +924,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       // Pre-populate time with current appointment time so user can adjust
                       setRescheduleTime(appointment.requested_time ? appointment.requested_time.substring(0, 5) : '');
                       setShowRescheduleDialog(true);
+                    } else if (value.toLowerCase() === 'cancelled' || value.toLowerCase() === 'canceled') {
+                      setShowCancelDialog(true);
                     } else {
                       setCurrentStatus(value);
                       handleFieldUpdate({ status: value });
