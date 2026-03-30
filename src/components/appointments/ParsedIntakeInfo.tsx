@@ -1067,6 +1067,30 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         </div>
                       </>
                     )}
+                    <div className="pt-3 border-t border-teal-200 mt-3">
+                      <label className="text-xs font-medium text-teal-700 mb-2 block">Imaging Information</label>
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Imaging Facility</label>
+                          <Input
+                            value={editImagingFacility}
+                            onChange={(e) => setEditImagingFacility(e.target.value)}
+                            placeholder="Where was imaging done?"
+                            className="h-8 text-sm bg-background"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Facility Phone</label>
+                          <Input
+                            value={editImagingPhone}
+                            onChange={(e) => setEditImagingPhone(e.target.value)}
+                            placeholder="Facility phone number"
+                            type="tel"
+                            className="h-8 text-sm bg-background"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <>
