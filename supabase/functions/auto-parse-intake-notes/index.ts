@@ -991,6 +991,20 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         result.medical_info.urologist_name = value_str;
       }
     }
+    // Imaging facility / location fields
+    else if ((key.includes('imaging') && (key.includes('facility') || key.includes('location') || key.includes('where'))) ||
+             (key.includes('where') && key.includes('imaging'))) {
+      const value_str = String(value);
+      // Try to extract phone from combined value
+      const phoneMatch = value_str.match(/(\d{3}[-.]?\d{3}[-.]?\d{4})/);
+      if (phoneMatch) {
+        result.medical_info.imaging_phone = phoneMatch[1];
+        result.medical_info.imaging_facility = value_str.replace(phoneMatch[1], '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim() || value_str;
+      } else {
+        result.medical_info.imaging_facility = value_str;
+      }
+      console.log(`[AUTO-PARSE GHL] Extracted imaging facility from "${key}": "${result.medical_info.imaging_facility}"`);
+    }
     // Imaging/X-ray fields - look for "Had Imaging Before" and similar fields
     else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || 
              key.includes('had imaging') || key.includes('mri') || key.includes('ct scan') ||
