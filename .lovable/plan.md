@@ -1,55 +1,27 @@
 
 
-## Investigation: OON Portal Status Not Triggering GHL Cancellation
+## Add Imaging Facility Section to Patient Portal
 
-### Root Cause
+### What
+Add an "Imaging Information" section to the Patient Pro Insights panel that displays and allows editing of where the patient had imaging done (facility name) and the facility's phone number.
 
-The OON Slack notification and GHL status sync are both **client-side only** — they run sequentially in the browser after the database update. The execution chain in `AllAppointmentsManager.tsx` (lines 698-848) is:
+### Changes
 
-```text
-1. DB update (status → OON)           ✅ always works
-2. Insert status change note           ← awaited
-3. OON Slack notification              ← awaited (try/catch)
-4. appointment-status-webhook          ← awaited, 30s timeout
-5. GHL status sync                     ← awaited (THE PROBLEM)
-```
+**1. `src/components/appointments/ParsedIntakeInfo.tsx`**
+- Add two new state variables: `editImagingFacility` and `editImagingPhone`
+- Include these fields in the existing `handleStartEditPCP` / `handleSavePCP` flow (they'll be stored in `parsed_medical_info` alongside PCP data)
+- Add display fields for `imaging_facility` and `imaging_phone` in the "Medical & PCP Information" card (read mode)
+- Add editable inputs for these fields in edit mode
+- The save handler already merges into `parsed_medical_info` via the `update-appointment-fields` edge function — just add the two new keys
 
-Step 4 (the appointment-status-webhook) calls the project's external webhook URL with a **30-second timeout**. If that endpoint is slow or unresponsive, the browser may:
-- Time out waiting
-- The user may navigate away before step 5 executes
-- The page may re-render or lose context
+**2. `supabase/functions/auto-parse-intake-notes/index.ts`**
+- Add `imaging_facility` and `imaging_phone` to the `medical_info` structure (both in the regex parser and GHL custom field extraction)
+- Add regex patterns to extract facility/location from intake notes (e.g., "imaging location:", "imaging facility:", "where was imaging done:")
+- Add GHL custom field matching for keys containing "imaging location", "imaging facility", "where" + "imaging"
 
-Since each step is `await`ed sequentially, any delay or failure in steps 2-4 can prevent the GHL sync (step 5) from ever executing — even though the local DB update succeeded.
-
-### Fix: Move GHL Sync Before External Webhook
-
-Reorder the operations so the GHL sync happens **immediately after** the Slack notification (both are critical), and the external webhook (which is non-critical and can be slow) runs last:
-
-**File: `src/components/AllAppointmentsManager.tsx`**
-
-Current order (lines 698-848):
-1. Status change note
-2. Do Not Call / DND logic
-3. OON Slack notification
-4. External webhook (30s timeout) ← blocks GHL sync
-5. GHL sync
-
-New order:
-1. Status change note
-2. Do Not Call / DND logic
-3. OON Slack notification
-4. **GHL sync** ← moved up, runs before external webhook
-5. External webhook (non-critical, fire-and-forget)
-
-Additionally, make the external webhook call **non-blocking** (fire-and-forget) so it never blocks the rest of the flow:
-
-```typescript
-// Fire-and-forget: don't await the external webhook
-supabase.functions.invoke('appointment-status-webhook', {
-  body: { appointment_id: appointmentId, old_status: oldStatus, new_status: status }
-}).catch(err => console.error('⚠️ Webhook failed (non-critical):', err));
-```
-
-### Files to Edit
-- `src/components/AllAppointmentsManager.tsx` — reorder GHL sync before webhook, make webhook fire-and-forget
+### Technical Detail
+- Data stored in `parsed_medical_info` JSONB column as `imaging_facility` and `imaging_phone`
+- No database migration needed — JSONB columns accept arbitrary keys
+- Editable via the existing pencil-icon edit flow on the Medical & PCP card
+- Auto-parsed from GHL data when available, manually editable when not
 
