@@ -1222,6 +1222,140 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancellation Reason Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Appointment</DialogTitle>
+            <DialogDescription>
+              Please select a reason for cancelling {appointment.lead_name}'s appointment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
+              {[
+                'Not Interested Anymore',
+                'Seeking Treatment Elsewhere',
+                'Lives Too Far / Travel Not Feasible',
+                'Does Not Want to Be Contacted',
+                'Unhappy with Service / Experience',
+                'Other'
+              ].map((reason) => (
+                <div key={reason} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason} id={`detail-cancel-${reason}`} />
+                  <Label htmlFor={`detail-cancel-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+            
+            <div>
+              <Label>{cancelReason === 'Other' ? 'Notes (Required)' : 'Notes (Optional)'}</Label>
+              <Textarea
+                value={cancelNotes}
+                onChange={(e) => setCancelNotes(e.target.value)}
+                placeholder="Add any additional notes about the cancellation..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowCancelDialog(false);
+                setCancelReason('');
+                setCancelNotes('');
+              }}
+              disabled={submittingCancel}
+            >
+              Go Back
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={async () => {
+                if (!cancelReason) {
+                  toast.error("Please select a cancellation reason");
+                  return;
+                }
+                if (cancelReason === 'Other' && !cancelNotes.trim()) {
+                  toast.error("Please provide notes for 'Other' reason");
+                  return;
+                }
+                setSubmittingCancel(true);
+                try {
+                  // Save cancellation reason
+                  await supabase
+                    .from('all_appointments')
+                    .update({ cancellation_reason: cancelReason, updated_at: new Date().toISOString() })
+                    .eq('id', appointment.id);
+                  
+                  // Create cancellation note
+                  const noteText = `Cancellation Reason: ${cancelReason}${cancelNotes.trim() ? `. Notes: ${cancelNotes.trim()}` : ''}`;
+                  await supabase.from('appointment_notes').insert({
+                    appointment_id: appointment.id,
+                    note_text: noteText,
+                    created_by: 'System',
+                  });
+                  
+                  // Update status via handleFieldUpdate
+                  setCurrentStatus('Cancelled');
+                  await handleFieldUpdate({ status: 'Cancelled' });
+                  
+                  // If "Does Not Want to Be Contacted", trigger DND
+                  if (cancelReason === 'Does Not Want to Be Contacted') {
+                    try {
+                      const { data: appointmentData } = await supabase
+                        .from('all_appointments')
+                        .select('ghl_id, project_name')
+                        .eq('id', appointment.id)
+                        .single();
+                      if (appointmentData?.ghl_id) {
+                        const { data: projectData } = await supabase
+                          .from('projects')
+                          .select('ghl_api_key')
+                          .eq('project_name', appointmentData.project_name)
+                          .single();
+                        if (projectData?.ghl_api_key) {
+                          await supabase.functions.invoke('update-ghl-contact-dnd', {
+                            body: { ghl_contact_id: appointmentData.ghl_id, ghl_api_key: projectData.ghl_api_key, enable_dnd: true }
+                          });
+                        }
+                      }
+                    } catch (dndErr) {
+                      console.error('DND enable failed:', dndErr);
+                    }
+                  }
+                  
+                  setShowCancelDialog(false);
+                  setCancelReason('');
+                  setCancelNotes('');
+                  toast.success("Appointment cancelled with reason recorded");
+                  onDataRefresh?.();
+                } catch (error) {
+                  console.error('Error cancelling:', error);
+                  toast.error("Failed to cancel appointment");
+                } finally {
+                  setSubmittingCancel(false);
+                }
+              }}
+              disabled={!cancelReason || (cancelReason === 'Other' && !cancelNotes.trim()) || submittingCancel}
+            >
+              {submittingCancel ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                'Confirm Cancellation'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
