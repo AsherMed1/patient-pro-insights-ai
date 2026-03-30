@@ -417,6 +417,24 @@ function fallbackRegexParsing(intakeNotes: string): any {
     }
   }
 
+  // Extract Imaging Facility
+  const imagingFacilityPatterns = [
+    /imaging facility:\s*([^\n|]+)/i,
+    /imaging location:\s*([^\n|]+)/i,
+    /where was imaging done:\s*([^\n|]+)/i,
+    /where.*?imaging.*?done:\s*([^\n|]+)/i,
+    /imaging center:\s*([^\n|]+)/i,
+  ];
+  
+  for (const pattern of imagingFacilityPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.medical_info.imaging_facility = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted imaging_facility: ${match[1].trim()}`);
+      break;
+    }
+  }
+
   // Extract Pain Level
   const painPatterns = [
     /Pain Level:\s*(\d+)/i,
