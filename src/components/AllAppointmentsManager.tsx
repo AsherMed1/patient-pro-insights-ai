@@ -694,9 +694,46 @@ const AllAppointmentsManager = ({
 
       console.log('✅ API call successful');
 
-      // Add system note to track status change
+      // Sync status to GoHighLevel ALWAYS (critical operation - runs regardless of oldStatus check)
+      let syncData = currentAppointment;
+      if (!syncData?.ghl_appointment_id) {
+        const { data } = await supabase
+          .from('all_appointments')
+          .select('ghl_appointment_id, project_name')
+          .eq('id', appointmentId)
+          .single();
+        syncData = data as any;
+      }
+
+      if (syncData?.ghl_appointment_id) {
+        try {
+          const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: syncData.ghl_appointment_id,
+              project_name: syncData.project_name,
+              status,
+            }
+          });
+          if (ghlError) throw ghlError;
+          console.log('✅ GHL status synced:', status);
+        } catch (ghlErr) {
+          console.error('⚠️ GHL status sync failed:', ghlErr);
+          toast({
+            title: "GHL Sync Warning",
+            description: "Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        console.warn('⚠️ No ghl_appointment_id found, GHL sync skipped');
+        toast({
+          title: "GHL Sync Skipped",
+          description: "No GoHighLevel appointment ID found for this record. Status was saved locally only.",
+        });
+      }
+
+      // Add system note and side effects only when status actually changed
       if (oldStatus !== status) {
-        // Store UTC timestamp in parseable format - will be converted to viewer's local timezone on display
         const utcTimestamp = new Date().toISOString();
         const systemNote = `Status changed from "${oldStatus}" to "${status}" by ${userName} - [[timestamp:${utcTimestamp}]]`;
         
@@ -708,7 +745,6 @@ const AllAppointmentsManager = ({
             created_by: userName
           });
 
-        // Add "DO NOT CALL" note and enable DND in GHL when that status is selected
         if (status === 'Do Not Call') {
           await supabase
             .from('appointment_notes')
@@ -718,9 +754,7 @@ const AllAppointmentsManager = ({
               created_by: userName
             });
 
-          // Enable DND in GoHighLevel for all channels
           try {
-            // Get the appointment's ghl_id and project to retrieve API key
             const { data: appointmentData } = await supabase
               .from('all_appointments')
               .select('ghl_id, project_name')
@@ -728,7 +762,6 @@ const AllAppointmentsManager = ({
               .single();
 
             if (appointmentData?.ghl_id && appointmentData?.project_name) {
-              // Get the GHL API key from the project
               const { data: projectData } = await supabase
                 .from('projects')
                 .select('ghl_api_key')
@@ -752,14 +785,11 @@ const AllAppointmentsManager = ({
             }
           } catch (dndError) {
             console.error('⚠️ Failed to enable DND in GoHighLevel (non-critical):', dndError);
-            // Don't throw - DND failure shouldn't block the status update
           }
         }
 
-        // Send Slack notification for OON status
         if (status === 'OON') {
           try {
-            // Use local state first, fallback to DB fetch if not in current page
             let oonData = appointments.find(a => a.id === appointmentId);
             if (!oonData) {
               const { data } = await supabase
@@ -789,45 +819,6 @@ const AllAppointmentsManager = ({
           } catch (oonError) {
             console.error('⚠️ Failed to send OON Slack notification (non-critical):', oonError);
           }
-        }
-        
-        // Sync status to GoHighLevel FIRST (critical operation)
-        // Ensure we have the appointment data (may not be in local state if on different page)
-        let syncData = currentAppointment;
-        if (!syncData?.ghl_appointment_id) {
-          const { data } = await supabase
-            .from('all_appointments')
-            .select('ghl_appointment_id, project_name')
-            .eq('id', appointmentId)
-            .single();
-          syncData = data as any;
-        }
-
-        if (syncData?.ghl_appointment_id) {
-          try {
-            const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
-              body: {
-                ghl_appointment_id: syncData.ghl_appointment_id,
-                project_name: syncData.project_name,
-                status,
-              }
-            });
-            if (ghlError) throw ghlError;
-            console.log('✅ GHL status synced:', status);
-          } catch (ghlErr) {
-            console.error('⚠️ GHL status sync failed:', ghlErr);
-            toast({
-              title: "GHL Sync Warning",
-              description: "Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.",
-              variant: "destructive",
-            });
-          }
-        } else {
-          console.warn('⚠️ No ghl_appointment_id found, GHL sync skipped');
-          toast({
-            title: "GHL Sync Skipped",
-            description: "No GoHighLevel appointment ID found for this record. Status was saved locally only.",
-          });
         }
 
         // Trigger external webhook (fire-and-forget, non-blocking)
