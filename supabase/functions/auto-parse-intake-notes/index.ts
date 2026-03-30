@@ -720,6 +720,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       urologist_name: null as string | null,
       urologist_phone: null as string | null,
       imaging_details: null as string | null,
+      imaging_facility: null as string | null,
+      imaging_phone: null as string | null,
       xray_details: null as string | null
     },
     insurance_card_url: null as string | null,
