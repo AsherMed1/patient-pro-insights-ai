@@ -1142,6 +1142,24 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         <span className="font-medium">{parsedMedicalInfo.allergies}</span>
                       </div>
                     )}
+                    {/* Imaging Information */}
+                    {(formatValue(parsedMedicalInfo?.imaging_facility) || formatValue(parsedMedicalInfo?.imaging_phone)) && (
+                      <div className="pt-2 border-t border-teal-200 mt-2 space-y-1">
+                        <span className="text-xs font-medium text-teal-700">Imaging Information</span>
+                        {formatValue(parsedMedicalInfo?.imaging_facility) && (
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">Facility:</span>{" "}
+                            <span className="font-medium">{parsedMedicalInfo.imaging_facility}</span>
+                          </div>
+                        )}
+                        {formatValue(parsedMedicalInfo?.imaging_phone) && (
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">Facility Phone:</span>{" "}
+                            <span className="font-medium">{parsedMedicalInfo.imaging_phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>
