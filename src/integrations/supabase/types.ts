@@ -212,6 +212,7 @@ export type Database = {
           ai_summary: string | null
           appointment_id: string | null
           calendar_name: string | null
+          cancellation_reason: string | null
           color_indicator: string | null
           confirmed_number: string | null
           created_at: string
@@ -263,6 +264,7 @@ export type Database = {
           ai_summary?: string | null
           appointment_id?: string | null
           calendar_name?: string | null
+          cancellation_reason?: string | null
           color_indicator?: string | null
           confirmed_number?: string | null
           created_at?: string
@@ -314,6 +316,7 @@ export type Database = {
           ai_summary?: string | null
           appointment_id?: string | null
           calendar_name?: string | null
+          cancellation_reason?: string | null
           color_indicator?: string | null
           confirmed_number?: string | null
           created_at?: string

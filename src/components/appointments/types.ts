@@ -44,6 +44,7 @@ export interface AllAppointment {
   reserved_end_time?: string | null;
   ghl_location_id?: string | null;
   reschedule_history?: any;
+  cancellation_reason?: string | null;
 }
 
 export interface AllAppointmentsManagerProps {

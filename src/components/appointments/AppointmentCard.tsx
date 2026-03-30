@@ -608,7 +608,82 @@ const AppointmentCard = ({
     return timezoneMap[tz] || tz;
   };
 
-  // Handle status change - intercept "Rescheduled" to show dialog
+  const CANCELLATION_REASONS = [
+    'Not Interested Anymore',
+    'Seeking Treatment Elsewhere',
+    'Lives Too Far / Travel Not Feasible',
+    'Does Not Want to Be Contacted',
+    'Unhappy with Service / Experience',
+    'Other'
+  ];
+
+  const handleCancelSubmit = async () => {
+    if (!cancelReason) {
+      toast({ title: "Error", description: "Please select a cancellation reason", variant: "destructive" });
+      return;
+    }
+    if (cancelReason === 'Other' && !cancelNotes.trim()) {
+      toast({ title: "Error", description: "Please provide notes for 'Other' reason", variant: "destructive" });
+      return;
+    }
+
+    setSubmittingCancel(true);
+    try {
+      // Save cancellation reason to DB
+      await supabase
+        .from('all_appointments')
+        .update({ cancellation_reason: cancelReason, updated_at: new Date().toISOString() })
+        .eq('id', appointment.id);
+
+      // Create cancellation reason note
+      const noteText = `Cancellation Reason: ${cancelReason}${cancelNotes.trim() ? `. Notes: ${cancelNotes.trim()}` : ''}`;
+      await supabase.from('appointment_notes').insert({
+        appointment_id: appointment.id,
+        note_text: noteText,
+        created_by: 'System',
+      });
+
+      // Trigger the actual status update (which handles GHL sync, DND, etc.)
+      onUpdateStatus(appointment.id, 'Cancelled');
+
+      // If "Does Not Want to Be Contacted", also trigger DND
+      if (cancelReason === 'Does Not Want to Be Contacted') {
+        try {
+          const { data: appointmentData } = await supabase
+            .from('all_appointments')
+            .select('ghl_id, project_name')
+            .eq('id', appointment.id)
+            .single();
+          if (appointmentData?.ghl_id) {
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', appointmentData.project_name)
+              .single();
+            if (projectData?.ghl_api_key) {
+              await supabase.functions.invoke('update-ghl-contact-dnd', {
+                body: { ghl_contact_id: appointmentData.ghl_id, ghl_api_key: projectData.ghl_api_key, enable_dnd: true }
+              });
+            }
+          }
+        } catch (dndErr) {
+          console.error('DND enable failed (non-critical):', dndErr);
+        }
+      }
+
+      setShowCancelDialog(false);
+      setCancelReason('');
+      setCancelNotes('');
+      toast({ title: "Success", description: "Appointment cancelled with reason recorded" });
+    } catch (error) {
+      console.error('Error submitting cancellation:', error);
+      toast({ title: "Error", description: "Failed to cancel appointment", variant: "destructive" });
+    } finally {
+      setSubmittingCancel(false);
+    }
+  };
+
+  // Handle status change - intercept "Rescheduled" and "Cancelled" to show dialogs
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus.toLowerCase() === 'rescheduled') {
       // Fetch project timezone before showing dialog
@@ -629,6 +704,8 @@ const AppointmentCard = ({
       // Pre-populate time with current appointment time so user can adjust
       setRescheduleTime(appointment.requested_time ? appointment.requested_time.substring(0, 5) : '');
       setShowRescheduleDialog(true);
+    } else if (newStatus.toLowerCase() === 'cancelled' || newStatus.toLowerCase() === 'canceled') {
+      setShowCancelDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
