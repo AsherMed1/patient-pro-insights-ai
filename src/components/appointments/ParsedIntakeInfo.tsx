@@ -242,6 +242,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         pcp_address: editPCPAddress || null,
         urologist_name: editUrologistName || null,
         urologist_phone: editUrologistPhone || null,
+        imaging_facility: editImagingFacility || null,
+        imaging_phone: editImagingPhone || null,
       };
 
       const { error } = await supabase.functions.invoke('update-appointment-fields', {
