@@ -55,9 +55,6 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
 import { ExternalLink } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useUserAttribution } from '@/hooks/useUserAttribution';
-import { useRole } from '@/hooks/useRole';
-import { ExternalLink } from 'lucide-react';
 
 const stripAIPrompt = (notes: string): string => {
   const idx = notes.toLowerCase().indexOf('openai prompt:');
