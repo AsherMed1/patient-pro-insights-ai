@@ -200,6 +200,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
   const { isAdmin } = useRole();
+  
+  // Cancellation reason dialog states
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelNotes, setCancelNotes] = useState('');
+  const [submittingCancel, setSubmittingCancel] = useState(false);
 
   // Sync state when appointment prop changes
   useEffect(() => {

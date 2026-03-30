@@ -1867,8 +1867,70 @@ const AppointmentCard = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancellation Reason Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Appointment</DialogTitle>
+            <DialogDescription>
+              Please select a reason for cancelling {appointment.lead_name}'s appointment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
+              {CANCELLATION_REASONS.map((reason) => (
+                <div key={reason} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
+                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+            
+            <div>
+              <Label>{cancelReason === 'Other' ? 'Notes (Required)' : 'Notes (Optional)'}</Label>
+              <Textarea
+                value={cancelNotes}
+                onChange={(e) => setCancelNotes(e.target.value)}
+                placeholder="Add any additional notes about the cancellation..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowCancelDialog(false);
+                setCancelReason('');
+                setCancelNotes('');
+              }}
+              disabled={submittingCancel}
+            >
+              Go Back
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleCancelSubmit} 
+              disabled={!cancelReason || (cancelReason === 'Other' && !cancelNotes.trim()) || submittingCancel}
+            >
+              {submittingCancel ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                'Confirm Cancellation'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>;
-};
+  };
 
 export default AppointmentCard;
 
