@@ -251,6 +251,8 @@ function fallbackRegexParsing(intakeNotes: string): any {
       pcp_name: null as string | null,
       pcp_phone: null as string | null,
       imaging_details: null as string | null,
+      imaging_facility: null as string | null,
+      imaging_phone: null as string | null,
       xray_details: null as string | null,
       medications: null as string | null,
       allergies: null as string | null
