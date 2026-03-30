@@ -214,6 +214,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     setEditPCPAddress(formatValue(parsedMedicalInfo?.pcp_address) || "");
     setEditUrologistName(formatValue(parsedMedicalInfo?.urologist_name) || "");
     setEditUrologistPhone(formatValue(parsedMedicalInfo?.urologist_phone) || "");
+    setEditImagingFacility(formatValue(parsedMedicalInfo?.imaging_facility) || "");
+    setEditImagingPhone(formatValue(parsedMedicalInfo?.imaging_phone) || "");
     setIsEditingPCP(true);
   };
 
