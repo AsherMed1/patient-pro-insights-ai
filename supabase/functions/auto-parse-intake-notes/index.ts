@@ -673,6 +673,26 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // Extract imaging facility if not already populated
+  if (!parsedData.medical_info.imaging_facility) {
+    const facilityPatterns = [
+      /imaging facility:\s*([^\n|]+)/i,
+      /imaging location:\s*([^\n|]+)/i,
+      /where was imaging done:\s*([^\n|]+)/i,
+      /where.*?imaging.*?done:\s*([^\n|]+)/i,
+      /imaging center:\s*([^\n|]+)/i,
+    ];
+    
+    for (const pattern of facilityPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        parsedData.medical_info.imaging_facility = match[1].trim();
+        console.log(`[AUTO-PARSE ENRICH] Extracted imaging_facility via regex: ${match[1].trim()}`);
+        break;
+      }
+    }
+  }
+  
   return parsedData;
 }
 
