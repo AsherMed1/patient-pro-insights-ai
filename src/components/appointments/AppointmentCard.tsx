@@ -156,6 +156,12 @@ const AppointmentCard = ({
   const [retryingGhlSync, setRetryingGhlSync] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState<string>('America/Chicago');
   
+  // Cancellation reason dialog states
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelNotes, setCancelNotes] = useState('');
+  const [submittingCancel, setSubmittingCancel] = useState(false);
+  
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
   const isProcedureUpdated = appointment.procedure_ordered !== null && appointment.procedure_ordered !== undefined;
