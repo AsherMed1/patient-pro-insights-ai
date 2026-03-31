@@ -68,6 +68,7 @@ serve(async (req) => {
       title,
       status,
       project_name,
+      cancellation_notes,
     } = await req.json();
 
     // Determine operation type
