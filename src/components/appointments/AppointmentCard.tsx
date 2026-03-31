@@ -652,11 +652,32 @@ const AppointmentCard = ({
         created_by: 'System',
       });
 
-      // Trigger the actual status update (which handles GHL sync, DND, etc.)
+      // Build cancellation notes string for GHL
+      const ghlCancelNotes = `${cancelReason}${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
+
+      // Trigger the actual status update (which handles GHL sync)
+      // Pass cancellation data via a custom event on the appointment object
       onUpdateStatus(appointment.id, 'Cancelled');
 
-      // If "Does Not Want to Be Contacted", also trigger DND
-      if (cancelReason === 'Does Not Want to Be Contacted') {
+      // Send cancellation notes to GHL via the edge function
+      if (appointment.ghl_appointment_id) {
+        try {
+          await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: appointment.ghl_appointment_id,
+              project_name: appointment.project_name,
+              status: 'Cancelled',
+              cancellation_notes: ghlCancelNotes,
+            }
+          });
+        } catch (ghlErr) {
+          console.error('GHL cancellation note failed (non-critical):', ghlErr);
+        }
+      }
+
+      // For "no reschedule" reasons, enable DND to stop outreach
+      const shouldEnableDND = NO_RESCHEDULE_REASONS.includes(cancelReason);
+      if (shouldEnableDND) {
         try {
           const { data: appointmentData } = await supabase
             .from('all_appointments')
@@ -673,6 +694,7 @@ const AppointmentCard = ({
               await supabase.functions.invoke('update-ghl-contact-dnd', {
                 body: { ghl_contact_id: appointmentData.ghl_id, ghl_api_key: projectData.ghl_api_key, enable_dnd: true }
               });
+              console.log('✅ DND enabled for no-reschedule cancellation reason:', cancelReason);
             }
           }
         } catch (dndErr) {
