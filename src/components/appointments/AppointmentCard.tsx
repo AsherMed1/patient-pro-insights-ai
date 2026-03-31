@@ -1911,7 +1911,16 @@ const AppointmentCard = ({
           
           <div className="space-y-4 py-4">
             <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
-              {CANCELLATION_REASONS.map((reason) => (
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Do Not Reschedule</p>
+              {NO_RESCHEDULE_REASONS.map((reason) => (
+                <div key={reason} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
+                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+                </div>
+              ))}
+              <Separator className="my-2" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Eligible for Reschedule</p>
+              {ALLOW_RESCHEDULE_REASONS.map((reason) => (
                 <div key={reason} className="flex items-center space-x-2">
                   <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
                   <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
