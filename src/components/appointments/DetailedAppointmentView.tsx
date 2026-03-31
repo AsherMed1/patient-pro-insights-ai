@@ -1235,13 +1235,27 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           
           <div className="space-y-4 py-4">
             <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Do Not Reschedule</p>
               {[
                 'Not Interested Anymore',
                 'Seeking Treatment Elsewhere',
                 'Lives Too Far / Travel Not Feasible',
                 'Does Not Want to Be Contacted',
                 'Unhappy with Service / Experience',
-                'Other'
+                'Disqualified / Do Not Re-engage',
+              ].map((reason) => (
+                <div key={reason} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason} id={`detail-cancel-${reason}`} />
+                  <Label htmlFor={`detail-cancel-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+                </div>
+              ))}
+              <Separator className="my-2" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Eligible for Reschedule</p>
+              {[
+                'Unable to Reach (Multiple Attempts)',
+                'Scheduling Conflict',
+                'Missing Required Information',
+                'Other',
               ].map((reason) => (
                 <div key={reason} className="flex items-center space-x-2">
                   <RadioGroupItem value={reason} id={`detail-cancel-${reason}`} />
@@ -1286,6 +1300,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   return;
                 }
                 setSubmittingCancel(true);
+                const NO_RESCHEDULE_REASONS = [
+                  'Not Interested Anymore',
+                  'Seeking Treatment Elsewhere',
+                  'Lives Too Far / Travel Not Feasible',
+                  'Does Not Want to Be Contacted',
+                  'Unhappy with Service / Experience',
+                  'Disqualified / Do Not Re-engage',
+                ];
                 try {
                   // Save cancellation reason
                   await supabase
@@ -1304,9 +1326,26 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   // Update status via handleFieldUpdate
                   setCurrentStatus('Cancelled');
                   await handleFieldUpdate({ status: 'Cancelled' });
+
+                  // Send cancellation notes to GHL
+                  const ghlCancelNotes = `${cancelReason}${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
+                  if (appointment.ghl_appointment_id) {
+                    try {
+                      await supabase.functions.invoke('update-ghl-appointment', {
+                        body: {
+                          ghl_appointment_id: appointment.ghl_appointment_id,
+                          project_name: appointment.project_name,
+                          status: 'Cancelled',
+                          cancellation_notes: ghlCancelNotes,
+                        }
+                      });
+                    } catch (ghlErr) {
+                      console.error('GHL cancellation note failed (non-critical):', ghlErr);
+                    }
+                  }
                   
-                  // If "Does Not Want to Be Contacted", trigger DND
-                  if (cancelReason === 'Does Not Want to Be Contacted') {
+                  // For all "no reschedule" reasons, enable DND
+                  if (NO_RESCHEDULE_REASONS.includes(cancelReason)) {
                     try {
                       const { data: appointmentData } = await supabase
                         .from('all_appointments')

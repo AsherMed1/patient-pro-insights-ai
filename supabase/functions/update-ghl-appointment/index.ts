@@ -68,6 +68,7 @@ serve(async (req) => {
       title,
       status,
       project_name,
+      cancellation_notes,
     } = await req.json();
 
     // Determine operation type
@@ -334,6 +335,39 @@ serve(async (req) => {
 
     const result = await ghlResponse.json();
     console.log('Successfully updated GHL appointment:', result);
+
+    // If cancellation_notes provided & status is cancelled, POST a note to the GHL contact
+    if (cancellation_notes && ghlStatus === 'cancelled') {
+      try {
+        const contactId = existingAppointment.appointment?.contactId;
+        if (contactId) {
+          const noteBody = `Portal Cancellation: ${cancellation_notes}`;
+          const noteRes = await fetch(
+            `https://services.leadconnectorhq.com/contacts/${contactId}/notes`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Version': '2021-04-15',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({ body: noteBody }),
+            }
+          );
+          if (noteRes.ok) {
+            console.log('Successfully added cancellation note to GHL contact:', contactId);
+          } else {
+            const noteErr = await noteRes.text();
+            console.warn('Failed to add cancellation note to GHL contact:', noteRes.status, noteErr);
+          }
+        } else {
+          console.warn('No contactId found on appointment, skipping GHL contact note');
+        }
+      } catch (noteError) {
+        console.warn('Error adding cancellation note to GHL (non-critical):', noteError);
+      }
+    }
 
     return new Response(
       JSON.stringify({

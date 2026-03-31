@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle, MapPin } from 'lucide-react';
 import { AllAppointment } from './types';
@@ -608,14 +609,23 @@ const AppointmentCard = ({
     return timezoneMap[tz] || tz;
   };
 
-  const CANCELLATION_REASONS = [
+  const NO_RESCHEDULE_REASONS = [
     'Not Interested Anymore',
     'Seeking Treatment Elsewhere',
     'Lives Too Far / Travel Not Feasible',
     'Does Not Want to Be Contacted',
     'Unhappy with Service / Experience',
-    'Other'
+    'Disqualified / Do Not Re-engage',
   ];
+
+  const ALLOW_RESCHEDULE_REASONS = [
+    'Unable to Reach (Multiple Attempts)',
+    'Scheduling Conflict',
+    'Missing Required Information',
+    'Other',
+  ];
+
+  const CANCELLATION_REASONS = [...NO_RESCHEDULE_REASONS, ...ALLOW_RESCHEDULE_REASONS];
 
   const handleCancelSubmit = async () => {
     if (!cancelReason) {
@@ -643,11 +653,32 @@ const AppointmentCard = ({
         created_by: 'System',
       });
 
-      // Trigger the actual status update (which handles GHL sync, DND, etc.)
+      // Build cancellation notes string for GHL
+      const ghlCancelNotes = `${cancelReason}${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
+
+      // Trigger the actual status update (which handles GHL sync)
+      // Pass cancellation data via a custom event on the appointment object
       onUpdateStatus(appointment.id, 'Cancelled');
 
-      // If "Does Not Want to Be Contacted", also trigger DND
-      if (cancelReason === 'Does Not Want to Be Contacted') {
+      // Send cancellation notes to GHL via the edge function
+      if (appointment.ghl_appointment_id) {
+        try {
+          await supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: appointment.ghl_appointment_id,
+              project_name: appointment.project_name,
+              status: 'Cancelled',
+              cancellation_notes: ghlCancelNotes,
+            }
+          });
+        } catch (ghlErr) {
+          console.error('GHL cancellation note failed (non-critical):', ghlErr);
+        }
+      }
+
+      // For "no reschedule" reasons, enable DND to stop outreach
+      const shouldEnableDND = NO_RESCHEDULE_REASONS.includes(cancelReason);
+      if (shouldEnableDND) {
         try {
           const { data: appointmentData } = await supabase
             .from('all_appointments')
@@ -664,6 +695,7 @@ const AppointmentCard = ({
               await supabase.functions.invoke('update-ghl-contact-dnd', {
                 body: { ghl_contact_id: appointmentData.ghl_id, ghl_api_key: projectData.ghl_api_key, enable_dnd: true }
               });
+              console.log('✅ DND enabled for no-reschedule cancellation reason:', cancelReason);
             }
           }
         } catch (dndErr) {
@@ -1880,7 +1912,16 @@ const AppointmentCard = ({
           
           <div className="space-y-4 py-4">
             <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
-              {CANCELLATION_REASONS.map((reason) => (
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Do Not Reschedule</p>
+              {NO_RESCHEDULE_REASONS.map((reason) => (
+                <div key={reason} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
+                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+                </div>
+              ))}
+              <Separator className="my-2" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Eligible for Reschedule</p>
+              {ALLOW_RESCHEDULE_REASONS.map((reason) => (
                 <div key={reason} className="flex items-center space-x-2">
                   <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
                   <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
