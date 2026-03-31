@@ -1,57 +1,65 @@
 
 
-## Add Cancellation Reason Dialog
+## Log Cancellation Reason in GHL Notes + Control Reschedule Trigger
 
 ### What
-When a user selects "Cancelled" from the status dropdown, intercept it (like we do for "Rescheduled") and show a dialog requiring a cancellation reason before proceeding. The reason is saved as an internal note and stored on the appointment for reporting.
 
-### Cancellation Reasons
+1. When an appointment is cancelled, send the cancellation reason as a **note on the GHL contact** so it's visible in GoHighLevel.
+2. Add 3 new cancellation reasons that **allow** rescheduling: "Unable to Reach (Multiple Attempts)", "Scheduling Conflict", "Missing Required Information".
+3. Add 1 new reason that **blocks** rescheduling: "Disqualified / Do Not Re-engage".
+4. For "no re-engage" reasons, set the GHL appointment status to `cancelled` **and** add a GHL contact note flagging "Do Not Reschedule". For reasons that allow rescheduling, just cancel normally.
+
+### Cancellation Reason Categories
+
+**Do NOT reschedule** (6 reasons):
 - Not Interested Anymore
 - Seeking Treatment Elsewhere
 - Lives Too Far / Travel Not Feasible
 - Does Not Want to Be Contacted
 - Unhappy with Service / Experience
-- Other (requires notes)
+- Disqualified / Do Not Re-engage *(new)*
+
+**Allow reschedule** (4 reasons):
+- Unable to Reach (Multiple Attempts) *(new)*
+- Scheduling Conflict *(new)*
+- Missing Required Information *(new)*
+- Other
 
 ### Changes
 
-**1. Database: Add `cancellation_reason` column**
-- Add `cancellation_reason TEXT` to `all_appointments` table
-- No migration for JSONB — simple text column to store the selected reason
+**1. `supabase/functions/update-ghl-appointment/index.ts`**
+- Accept new optional param `cancellation_notes` (string) in the request body
+- When `cancellation_notes` is provided and the status is being set to `cancelled`, POST a note to the GHL contact via `https://services.leadconnectorhq.com/contacts/{contactId}/notes` with the cancellation reason text
+- The contact ID comes from fetching the existing appointment (which has `contactId`)
 
 **2. `src/components/appointments/AppointmentCard.tsx`**
-- Add state: `showCancelDialog`, `cancelReason`, `cancelNotes`
-- Intercept "Cancelled" in `handleStatusChange` (same pattern as "Rescheduled") to show the cancel reason dialog
-- Dialog contains: radio buttons for the 6 reasons, a notes textarea (required when "Other" is selected, optional otherwise), and Submit/Cancel buttons
-- On submit: call `onUpdateStatus` with "Cancelled", then save the reason via edge function and create an internal note like `"Cancellation Reason: [reason]. Notes: [notes]"`
+- Update `CANCELLATION_REASONS` array: add the 4 new reasons, organized in two groups (Do Not Reschedule / Allow Reschedule) with visual separators
+- In `handleCancelSubmit`: pass `cancellation_reason` and `cancellation_notes` text to the GHL sync call by including them in the `onUpdateStatus` flow
+- For "Do Not Reschedule" reasons: also add a GHL contact tag or note "Do Not Reschedule - [reason]" via the edge function
 
 **3. `src/components/appointments/DetailedAppointmentView.tsx`**
-- Same intercept pattern for the status dropdown in the detailed view
-- Reuse the same cancel dialog UI
+- Mirror the same reason list and logic as AppointmentCard
 
 **4. `src/components/AllAppointmentsManager.tsx`**
-- Update `updateAppointmentStatus` to accept an optional `cancellationReason` and `cancellationNotes` parameter
-- When present, include `cancellation_reason` in the DB update and create a dedicated internal note
-- If reason is "Does Not Want to Be Contacted", also trigger DND in GHL (same as "Do Not Call" flow)
-
-**5. Update types**
-- Add `cancellation_reason` to `AllAppointment` interface
-- Add `onUpdateStatus` signature to optionally accept reason/notes
+- Update `updateAppointmentStatus` to accept optional `cancellationReason` and `cancellationNotes`
+- Pass these to the `update-ghl-appointment` edge function so the note is created in GHL
+- For "no re-engage" reasons, also enable DND on the GHL contact (same as "Does Not Want to Be Contacted" / "Do Not Call")
 
 ### Technical Flow
+
 ```text
-User selects "Cancelled" → Dialog appears with reason options
-  → User picks reason (+ optional notes) → Submit
-  → DB update: status=Cancelled, cancellation_reason=[reason]
-  → Internal note: "Cancellation Reason: [reason]. Notes: [notes]"
-  → GHL sync: cancel appointment
-  → If "Does Not Want to Be Contacted": also enable DND
+User selects "Cancelled" → Picks reason → Submit
+  → DB: status=Cancelled, cancellation_reason=[reason]
+  → Portal note: "Cancellation Reason: [reason]. Notes: [notes]"
+  → GHL sync: appointmentStatus=cancelled
+  → GHL contact note: "Portal Cancellation: [reason]. [notes]"
+  → If no-reschedule reason: enable DND on contact → GHL stops outreach
+  → If reschedule-eligible reason: no DND, GHL can continue workflows
 ```
 
 ### Files to Edit
-- New migration: add `cancellation_reason` column
-- `src/components/appointments/AppointmentCard.tsx`
-- `src/components/appointments/DetailedAppointmentView.tsx`
-- `src/components/AllAppointmentsManager.tsx`
-- `src/components/appointments/types.ts`
+- `supabase/functions/update-ghl-appointment/index.ts` — add GHL contact note on cancellation
+- `src/components/appointments/AppointmentCard.tsx` — new reasons + pass data through
+- `src/components/appointments/DetailedAppointmentView.tsx` — same updates
+- `src/components/AllAppointmentsManager.tsx` — accept and forward cancellation data to edge function
 
