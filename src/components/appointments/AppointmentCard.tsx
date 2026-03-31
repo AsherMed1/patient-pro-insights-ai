@@ -608,14 +608,23 @@ const AppointmentCard = ({
     return timezoneMap[tz] || tz;
   };
 
-  const CANCELLATION_REASONS = [
+  const NO_RESCHEDULE_REASONS = [
     'Not Interested Anymore',
     'Seeking Treatment Elsewhere',
     'Lives Too Far / Travel Not Feasible',
     'Does Not Want to Be Contacted',
     'Unhappy with Service / Experience',
-    'Other'
+    'Disqualified / Do Not Re-engage',
   ];
+
+  const ALLOW_RESCHEDULE_REASONS = [
+    'Unable to Reach (Multiple Attempts)',
+    'Scheduling Conflict',
+    'Missing Required Information',
+    'Other',
+  ];
+
+  const CANCELLATION_REASONS = [...NO_RESCHEDULE_REASONS, ...ALLOW_RESCHEDULE_REASONS];
 
   const handleCancelSubmit = async () => {
     if (!cancelReason) {
