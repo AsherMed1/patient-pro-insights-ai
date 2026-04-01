@@ -484,7 +484,9 @@ function fallbackRegexParsing(intakeNotes: string): any {
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
-  if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
+  if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
+    result.pathology_info.procedure_type = 'HAE';
+  } else if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
     result.pathology_info.procedure_type = 'GAE';
   } else if (upperNotes.includes('UFE') || upperNotes.includes('FIBROID')) {
     result.pathology_info.procedure_type = 'UFE';
