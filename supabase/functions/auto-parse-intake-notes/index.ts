@@ -484,7 +484,9 @@ function fallbackRegexParsing(intakeNotes: string): any {
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
-  if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
+  if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
+    result.pathology_info.procedure_type = 'HAE';
+  } else if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
     result.pathology_info.procedure_type = 'GAE';
   } else if (upperNotes.includes('UFE') || upperNotes.includes('FIBROID')) {
     result.pathology_info.procedure_type = 'UFE';
@@ -699,6 +701,9 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
+  if (upperKey.includes('HAE') || upperKey.includes('HEMORRHOID')) {
+    return 'HAE';
+  }
   if (upperKey.includes('GAE') || (upperKey.includes('KNEE') && !upperKey.includes('UFE') && !upperKey.includes('PAE') && !upperKey.includes('PAD'))) {
     return 'GAE';
   }
@@ -1161,6 +1166,9 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   }
   if (name.includes('pae') || name.includes('prostate')) {
     return 'PAE';
+  }
+  if (name.includes('hae') || name.includes('hemorrhoid artery')) {
+    return 'HAE';
   }
   if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) {
     return 'GAE';
