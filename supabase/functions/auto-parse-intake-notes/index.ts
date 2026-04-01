@@ -1167,6 +1167,9 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (name.includes('pae') || name.includes('prostate')) {
     return 'PAE';
   }
+  if (name.includes('hae') || name.includes('hemorrhoid artery')) {
+    return 'HAE';
+  }
   if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) {
     return 'GAE';
   }
