@@ -701,6 +701,9 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
+  if (upperKey.includes('HAE') || upperKey.includes('HEMORRHOID')) {
+    return 'HAE';
+  }
   if (upperKey.includes('GAE') || (upperKey.includes('KNEE') && !upperKey.includes('UFE') && !upperKey.includes('PAE') && !upperKey.includes('PAD'))) {
     return 'GAE';
   }
