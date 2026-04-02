@@ -988,6 +988,29 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     else if (key.includes('diagnosed') && key.includes('following')) {
       (result.pathology_info as any).diagnosis = String(value);
     }
+    // HAE-specific survey fields
+    else if (key.includes('hemorrhoid') || (key.includes('rectal') && key.includes('bleeding'))) {
+      result.pathology_info.primary_complaint = result.pathology_info.primary_complaint 
+        ? `${result.pathology_info.primary_complaint}, ${String(value)}` : String(value);
+    }
+    else if (key.includes('bowel') || key.includes('constipation')) {
+      result.pathology_info.symptoms = result.pathology_info.symptoms 
+        ? `${result.pathology_info.symptoms}, ${String(value)}` : String(value);
+    }
+    else if (key.includes('colonoscopy')) {
+      const lowerVal = String(value).toLowerCase();
+      if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
+        result.pathology_info.imaging_done = 'YES';
+        result.medical_info.imaging_details = result.medical_info.imaging_details 
+          ? `${result.medical_info.imaging_details}, Colonoscopy performed` : 'Colonoscopy performed';
+      } else {
+        result.pathology_info.imaging_done = result.pathology_info.imaging_done || 'NO';
+      }
+    }
+    else if (key.includes('rectal') && !key.includes('bleeding')) {
+      result.pathology_info.symptoms = result.pathology_info.symptoms 
+        ? `${result.pathology_info.symptoms}, ${String(value)}` : String(value);
+    }
     // Medical fields
     else if (key.includes('medication')) {
       result.medical_info.medications = value;
