@@ -498,6 +498,36 @@ function fallbackRegexParsing(intakeNotes: string): any {
     result.pathology_info.procedure_type = 'FSE';
   }
 
+  // Filter out pathology data from wrong procedures in multi-procedure notes
+  // e.g., "Pathology (by procedure): GAE—Age Range 56 and above; UFE—Period Length 3-5 days"
+  const multiProcedureMatch = intakeNotes.match(/Pathology\s*\(by procedure\)\s*:\s*(.+)/i);
+  if (multiProcedureMatch && result.pathology_info.procedure_type) {
+    const procedureSection = multiProcedureMatch[1];
+    const targetProc = result.pathology_info.procedure_type;
+    
+    // Check if the target procedure has its own section in the multi-procedure block
+    const procRegex = new RegExp(`${targetProc}[—\\-–]([^;]+)`, 'i');
+    const targetMatch = procedureSection.match(procRegex);
+    
+    if (targetMatch) {
+      // Only use data from the matching procedure section
+      console.log(`[AUTO-PARSE FALLBACK] Found ${targetProc} section in multi-procedure notes: ${targetMatch[1].trim()}`);
+    } else {
+      // Target procedure has no section - clear any pathology data that may have been
+      // incorrectly extracted from other procedure sections
+      console.log(`[AUTO-PARSE FALLBACK] No ${targetProc} section found in multi-procedure notes - clearing wrong procedure data`);
+      result.pathology_info.symptoms = null;
+      result.pathology_info.pain_level = null;
+      result.pathology_info.duration = null;
+      result.pathology_info.primary_complaint = null;
+      result.pathology_info.affected_area = null;
+      result.pathology_info.affected_knee = null;
+      result.pathology_info.previous_treatments = null;
+      result.pathology_info.oa_tkr_diagnosed = null;
+      result.pathology_info.imaging_done = null;
+    }
+  }
+
   console.log('[AUTO-PARSE FALLBACK] Regex parsing complete');
   return result;
 }
