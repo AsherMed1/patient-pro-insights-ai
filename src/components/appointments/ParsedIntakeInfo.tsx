@@ -892,20 +892,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.duration}</span>
                   </div>
                 )}
-                {formatValue(parsedPathologyInfo.imaging_done) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Imaging Done:</span>{" "}
-                    <Badge variant={String(parsedPathologyInfo.imaging_done).toUpperCase().includes("YES") ? "default" : "secondary"}>
-                      {parsedPathologyInfo.imaging_done}
-                    </Badge>
-                  </div>
-                )}
-                {formatValue(parsedPathologyInfo.age_range) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Age Range:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.age_range}</span>
-                  </div>
-                )}
                 {formatValue(parsedPathologyInfo.diagnosis) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Diagnosis:</span>{" "}
