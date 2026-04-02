@@ -808,7 +808,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
                              key.includes('gae') || key.includes('knee') || key.includes('prostate') ||
                              key.includes('fibroid') || key.includes('uterine') || key.includes('pelvic') ||
                              key.includes('pad') || key.includes('peripheral') ||
-                             key.includes('fse') || key.includes('shoulder');
+                             key.includes('fse') || key.includes('shoulder') ||
+                             key.includes('hae') || key.includes('hemorrhoid') || key.includes('rectal') || key.includes('bleeding');
     
     // Skip pathology fields from different procedures
     if (targetProcedure && fieldProcedure && fieldProcedure !== targetProcedure && isPathologyField) {
