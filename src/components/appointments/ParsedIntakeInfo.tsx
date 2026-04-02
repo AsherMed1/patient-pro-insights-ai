@@ -825,12 +825,23 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
                   </div>
                 )}
-                {formatValue(parsedPathologyInfo.other_notes) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Other:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.other_notes}</span>
-                  </div>
-                )}
+                {formatValue(parsedPathologyInfo.other_notes) && (() => {
+                  const raw = String(parsedPathologyInfo.other_notes);
+                  const cleaned = raw
+                    .replace(/never smoked or used tobacco products/gi, '')
+                    .replace(/currently (taking|using) blood thinners?/gi, '')
+                    .replace(/has a vascular (provider|doctor|specialist)/gi, '')
+                    .replace(/yes,?\s*(i\s*)?(had|have)\s*xray/gi, '')
+                    .replace(/\s*[,;|]\s*/g, ' ')
+                    .trim();
+                  if (!cleaned) return null;
+                  return (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Other:</span>{" "}
+                      <span className="font-medium">{cleaned}</span>
+                    </div>
+                  );
+                })()}
                 {formatValue(parsedPathologyInfo.primary_complaint) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Primary Complaint:</span>{" "}
@@ -890,20 +901,6 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   <div className="text-sm">
                     <span className="text-muted-foreground">Duration:</span>{" "}
                     <span className="font-medium">{parsedPathologyInfo.duration}</span>
-                  </div>
-                )}
-                {formatValue(parsedPathologyInfo.imaging_done) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Imaging Done:</span>{" "}
-                    <Badge variant={String(parsedPathologyInfo.imaging_done).toUpperCase().includes("YES") ? "default" : "secondary"}>
-                      {parsedPathologyInfo.imaging_done}
-                    </Badge>
-                  </div>
-                )}
-                {formatValue(parsedPathologyInfo.age_range) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Age Range:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.age_range}</span>
                   </div>
                 )}
                 {formatValue(parsedPathologyInfo.diagnosis) && (
