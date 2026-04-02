@@ -1,48 +1,36 @@
 
 
-## Fix: HAE Parsing Issues for Ventra Medical
+## Fix: NGV TEST PAD Appointment — Duplicate and Incorrect Data Display
 
 ### Problems Identified
 
-1. **Wrong pathology data pulled**: The intake notes contain `Pathology (by procedure): GAE—Age Range 56 and above; UFE—Period Length 3-5 days, Heaviness Light...` — there is NO HAE section. The parser pulls GAE and UFE data and incorrectly assigns it to HAE.
+1. **Duplicate "Imaging Done" and "Age Range" rows**: The Medical Information section in `ParsedIntakeInfo.tsx` renders these fields **twice** — once in the generic block (lines 774-778 for age_range, lines 808-814 for imaging_done) and again in the PAD-specific block (lines 903-907 for age_range, lines 895-901 for imaging_done).
 
-2. **`isPathologyField` missing HAE keywords**: Line 806-811 checks for `pae`, `ufe`, `gae`, `knee`, `prostate`, `fibroid`, `uterine`, `pelvic`, `pad`, `peripheral`, `fse`, `shoulder` — but NOT `hae` or `hemorrhoid`. This means HAE STEP fields from GHL are not recognized as pathology fields and bypass procedure filtering.
+2. **"Other" field shows vascular/blood thinner/smoking questions**: The `other_notes` field in `parsed_pathology_info` contains `"Never smoked or used tobacco products"` — the AI parser is extracting the smoking question answer into `other_notes` instead of only populating `smoking_status` in `medical_info`. The vascular provider and blood thinner questions are also showing in the "Other" row because the AI extracts them as Q&A text into `other_notes`.
 
-3. **No HAE-specific field extraction**: Unlike PAE (prostate), UFE (fibroid), GAE (knee), PAD (circulation), and FSE (shoulder), there are no HAE-specific GHL field matchers (lines 922-970). HAE fields like hemorrhoid bleeding, rectal symptoms, etc. are never captured.
-
-4. **Fallback regex procedure detection order**: `HAE` check on line 487 runs first, but when notes contain `GAE` and `UFE` text (from multi-procedure Pathology sections), the regex extracts data from those sections and assigns it to HAE.
-
-5. **PCP and Imaging not in intake notes**: The raw notes for VENTRA TEST contain no PCP or imaging data. If Ventra's GHL form has those fields under custom field keys, they may not match the current keyword patterns.
+3. **Imaging Type incorrectly shows "X-ray"**: The raw intake notes say `"Had Imaging Before ?: yes i had xray in 2025"` — the AI parser is extracting "X-ray" as `imaging_type` when it should be in `imaging_details` / `xray_details` only.
 
 ### Fix (1 file)
 
-**`supabase/functions/auto-parse-intake-notes/index.ts`**
+**`src/components/appointments/ParsedIntakeInfo.tsx`**
 
-#### 1. Add `hae`/`hemorrhoid` to `isPathologyField` detection (~line 808)
-```typescript
-key.includes('fse') || key.includes('shoulder') ||
-key.includes('hae') || key.includes('hemorrhoid') || key.includes('rectal') || key.includes('bleeding');
-```
-This ensures HAE STEP fields are correctly identified as pathology fields and filtered by procedure.
+Remove the duplicate renders of `imaging_done` (lines 895-901) and `age_range` (lines 903-907) from the PAD-specific section. These are already rendered in the generic section (lines 774-778 and 808-814).
 
-#### 2. Add HAE-specific GHL field matchers (after FSE block, ~line 987)
-Add handlers for hemorrhoid-related custom fields:
-- `hemorrhoid` / `rectal` / `bleeding` → primary_complaint, symptoms
-- `bowel` / `constipation` → symptoms  
-- `colonoscopy` → imaging_done
+This is purely a UI fix — the duplicate rows exist because both the generic pathology fields block and the PAD-specific fields block render the same data. Removing the second occurrence eliminates the duplicates.
 
-#### 3. Fix multi-procedure intake notes parsing
-When the intake notes contain `Pathology (by procedure): GAE—...; UFE—...` format, the fallback regex should only extract data from the section matching the target procedure (HAE). If no HAE section exists, it should not pull GAE/UFE data.
+### Why the "Other" and "Imaging Type" issues are data-level
 
-Add a procedure-section extraction step in the fallback regex parser (~line 485):
-- Parse the `Pathology (by procedure):` format
-- Extract only the section matching the detected procedure
-- If no matching section exists, leave pathology fields empty rather than pulling wrong procedure data
+The `other_notes` and `imaging_type` values come from the AI parser (OpenAI). The AI prompt asks it to fill `other_notes` with anything it considers noteworthy, and it's placing the smoking/vascular/blood thinner Q&A there. The `imaging_type` is being set to "X-ray" by the AI extracting from the free-text imaging answer.
 
-#### 4. Deploy and re-trigger parsing
-- Deploy updated edge function
-- Reset `parsing_completed_at` for the VENTRA TEST appointment to re-parse with corrected logic
+These are not fixable by code changes alone for this specific record — the GHL STEP data already correctly populates `smoking_status: "Never"`, `blood_thinners: "YES"`, and `vascular_provider: "Yes"` into their proper fields. The "Other" row just duplicates what's already shown in the dedicated fields below.
 
-### Note on PCP/Imaging
-The raw intake notes for VENTRA TEST contain no PCP or imaging information. If Ventra's GHL form collects this data under custom fields, those fields will now be captured correctly via the existing PCP/imaging matchers (lines 995-1088) once the `isPathologyField` fix ensures HAE fields aren't blocking them. If Ventra uses non-standard field names for PCP/imaging, we may need to check the actual GHL custom field definitions after re-parsing.
+**Option**: Filter out `other_notes` content that duplicates data already shown in dedicated fields (smoking, blood thinners, vascular provider). Add a cleanup step in the UI to strip known PAD Q&A patterns from `other_notes` before display.
+
+### Summary of Changes
+
+| Change | File | What |
+|--------|------|------|
+| Remove duplicate `imaging_done` render | ParsedIntakeInfo.tsx | Delete lines 895-901 |
+| Remove duplicate `age_range` render | ParsedIntakeInfo.tsx | Delete lines 903-907 |
+| Filter PAD Q&A from `other_notes` display | ParsedIntakeInfo.tsx | Add cleanup regex to strip smoking/vascular/blood thinner text from `other_notes` before rendering |
 
