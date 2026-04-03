@@ -1128,7 +1128,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         <span className="font-medium">{parsedMedicalInfo.xray_details}</span>
                       </div>
                     )}
-                    {formatValue(parsedMedicalInfo?.medications) && (
+                    {formatValue(parsedMedicalInfo?.medications) && !String(parsedMedicalInfo.medications).toLowerCase().match(/^blood\s*thinners?$/i) && (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Medications:</span>{" "}
                         <span className="font-medium">{parsedMedicalInfo.medications}</span>
