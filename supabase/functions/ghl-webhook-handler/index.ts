@@ -490,16 +490,18 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
       key.includes('step') || key.includes('pain') || key.includes('symptom') || key.includes('duration') || 
       key.includes('treatment') || key.includes('prefer') || key.includes('surgical') ||
       key.includes('non-surgical') || key.includes('nonsurgical') || key.includes('procedure') ||
-      key.includes('pae') || key.includes('ufe') || key.includes('gae') ||
+      key.includes('pae') || key.includes('ufe') || key.includes('gae') || key.includes('hae') ||
       key.includes('prostate') || key.includes('fibroid') || key.includes('uterine') ||
       key.includes('gastric') || key.includes('embolization') || key.includes('consultation') ||
+      key.includes('hemorrhoid') || key.includes('rectal') || key.includes('bowel') ||
+      key.includes('colonoscopy') || key.includes('bleeding') ||
       key.includes('concern') || key.includes('complaint') || key.includes('reason')
     ) {
       sections.pathology.push(`${field.key}: ${value}`)
     } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
                !key.includes('conversation')) {
       sections.insurance.push(`${field.key}: ${value}`)
-    } else if (key.includes('medication') || key.includes('allergy') || key.includes('pcp') || key.includes('doctor') || key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || key.includes('mri') || key.includes('ct scan')) {
+    } else if (key.includes('medication') || key.includes('allergy') || key.includes('pcp') || key.includes('doctor') || key.includes('imaging') || key.includes('xray') || key.includes('x-ray') || key.includes('mri') || key.includes('ct scan') || key.includes('constipation')) {
       sections.medical.push(`${field.key}: ${value}`)
     } else {
       sections.contact.push(`${field.key}: ${value}`)
