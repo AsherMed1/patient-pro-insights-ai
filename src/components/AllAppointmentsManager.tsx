@@ -9,6 +9,8 @@ import AppointmentsCsvImport from './AppointmentsCsvImport';
 import PaginationControls from './shared/PaginationControls';
 import { AppointmentFilters } from './appointments/AppointmentFilters';
 import { format } from 'date-fns';
+import { Download } from 'lucide-react';
+import { exportAppointmentsToExcel } from '@/utils/exportAppointmentsToExcel';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { statusOptions } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
@@ -1383,13 +1385,68 @@ const AllAppointmentsManager = ({
       {/* Appointments List */}
       <Card className="w-full">
         <CardHeader className="pb-3 md:pb-6">
-          <CardTitle className="text-lg md:text-xl">
-            {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Showing {totalCount > 0 ? startRecord : 0}-{endRecord} of {totalCount} appointment{totalCount !== 1 ? 's' : ''} (Times in Central Time Zone)
-            {projectFilter && ` for ${projectFilter}`}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg md:text-xl">
+                {projectFilter ? `${projectFilter} - All Appointments` : 'All Appointments'}
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Showing {totalCount > 0 ? startRecord : 0}-{endRecord} of {totalCount} appointment{totalCount !== 1 ? 's' : ''} (Times in Central Time Zone)
+                {projectFilter && ` for ${projectFilter}`}
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  toast({ title: "Preparing export...", description: "Fetching all filtered appointments." });
+                  const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
+                  let query = supabase.from('all_appointments').select('*').or('is_reserved_block.is.null,is_reserved_block.eq.false');
+                  const activeProject = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
+                  if (activeProject) query = query.eq('project_name', activeProject);
+                  if (dateRange.from) query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
+                  if (dateRange.to) query = query.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
+                  if (searchTerm.trim()) {
+                    if (searchType === 'name') query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
+                    else if (searchType === 'phone') {
+                      const nd = searchTerm.trim().replace(/\D/g, '');
+                      const pd = nd.length === 11 && nd.startsWith('1') ? nd.slice(1) : nd;
+                      const sp = pd.length >= 10 ? pd.slice(-10) : pd;
+                      query = query.ilike('lead_phone_number', `%${sp.slice(0,3)}%${sp.slice(3,6)}%${sp.slice(6)}%`);
+                    } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+                  }
+                  if (statusFilter !== 'ALL') {
+                    if (statusFilter === 'New') query = query.or(`status.ilike.${statusFilter},status.is.null`);
+                    else query = query.ilike('status', statusFilter);
+                  }
+                  if (procedureOrderFilter !== 'ALL') {
+                    if (procedureOrderFilter === 'null') query = query.is('procedure_status', null);
+                    else query = query.eq('procedure_status', procedureOrderFilter);
+                  }
+                  if (locationFilter !== 'ALL') query = query.ilike('calendar_name', `%${locationFilter}%`);
+                  if (serviceFilter !== 'ALL') {
+                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+                    else query = query.ilike('calendar_name', `%${serviceFilter}%`);
+                  }
+                  query = query.order('date_appointment_created', { ascending: false });
+                  const { data, error } = await query;
+                  if (error) throw error;
+                  if (!data || data.length === 0) {
+                    toast({ title: "No data to export", variant: "destructive" });
+                    return;
+                  }
+                  exportAppointmentsToExcel(data);
+                  toast({ title: "Export complete", description: `${data.length} appointments exported.` });
+                } catch (e: any) {
+                  toast({ title: "Export failed", description: e.message, variant: "destructive" });
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Export to Excel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-3 md:p-6 pt-0">
           {/* Top Pagination */}
