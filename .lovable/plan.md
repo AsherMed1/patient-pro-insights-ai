@@ -1,38 +1,38 @@
 
 
-## Fix: Christopher Roff (Ventra HAE) — Missing Medical Information
+## Re-parse Historical HAE Appointments Across All Clinics
 
-### Root Cause
+### Current State
+The HAE code fix is **already deployed and working**. New HAE appointments (after April 7) are being parsed correctly — Christopher Roff, Victor Donoso, Edwin Vela, Mira Jan Darwish, etc. all show proper HAE data.
 
-Two gaps prevent HAE data from being captured:
+However, **54 older HAE appointments** were parsed before the fix and are missing hemorrhoid-related medical information:
 
-1. **Webhook handler (`ghl-webhook-handler`)**: The pathology field categorizer (line 493) matches `pae`, `ufe`, `gae` but does NOT include `hae`, `hemorrhoid`, `rectal`, `bowel`, or `colonoscopy`. When the GHL webhook fires, HAE-related custom fields are not categorized as pathology — they either fall into the generic "contact" bucket or are dropped. This is why the stored `patient_intake_notes` only shows `Pathology(by procedure): GAE: Age Range 56 and above` and nothing for HAE.
+| Clinic | Total HAE | Missing Data | Action Needed |
+|--------|-----------|-------------|---------------|
+| Joint & Vascular Institute | 133 | 53 | Re-parse |
+| Champion Heart and Vascular Center | 9 | 1 | Re-parse |
+| The Painless Center | 10 | 0 | Already good |
+| Vascular and Embolization Specialists | 9 | 0 | Already good |
+| Ventra Medical Advanced Interventions | 2 | 0 | Already good |
 
-2. **Auto-parse AI prompt (`auto-parse-intake-notes`)**: The procedure context builder (lines 1500-1505) has entries for UFE, PAE, GAE, PFE, PAD, and FSE — but **no entry for HAE**. When parsing an HAE appointment, the AI gets no guidance about hemorrhoid-related symptoms, rectal bleeding, colonoscopy, etc.
+### Fix — Bulk Re-parse (No Code Changes Needed)
 
-### Fix (2 files + 1 re-parse)
+Reset `parsing_completed_at` to `NULL` for the 54 HAE appointments that have missing pathology data. The auto-parse system will automatically pick them up and re-process them using the already-deployed HAE-aware logic.
 
-**File 1: `supabase/functions/ghl-webhook-handler/index.ts`**
-- Add HAE keywords to the pathology categorizer (line 493): `hae`, `hemorrhoid`, `rectal`, `bowel`, `colonoscopy`, `bleeding`
-- Add HAE keywords to the medical categorizer (line 502): `constipation` (if relevant to medical context)
+**Single database update:**
+```sql
+UPDATE all_appointments
+SET parsing_completed_at = NULL
+WHERE (LOWER(calendar_name) LIKE '%hae%' OR LOWER(calendar_name) LIKE '%hemorrhoid%')
+  AND lead_name NOT LIKE 'Reserved%'
+  AND (parsed_pathology_info->>'primary_complaint' IS NULL 
+       OR parsed_pathology_info->>'primary_complaint' = '')
+```
 
-**File 2: `supabase/functions/auto-parse-intake-notes/index.ts`**
-- Add HAE procedure context to the AI prompt builder (after line 1505):
-  ```
-  HAE (Hemorrhoid Artery Embolization) focuses on: rectal bleeding, internal/external hemorrhoids, 
-  bowel discomfort, constipation, colonoscopy results, hemorrhoid diagnosis, bleeding duration. 
-  Set procedure_type to "HAE".
-  ```
-
-**Post-deploy: Re-parse Christopher Roff**
-- Reset `parsing_completed_at` to null for his record so the auto-parser re-processes with the corrected logic
-- The auto-parser will re-fetch GHL custom fields (Ventra has GHL credentials configured) and now correctly extract HAE-specific data
+This will trigger the auto-parser to re-fetch GHL contact data and extract HAE-specific fields (hemorrhoid diagnosis, rectal bleeding, colonoscopy, PCP info, etc.) for all 54 records.
 
 ### Summary
-
-| Change | File | What |
-|--------|------|------|
-| Add HAE keywords to pathology categorizer | ghl-webhook-handler/index.ts | `hae`, `hemorrhoid`, `rectal`, `bowel`, `colonoscopy`, `bleeding` |
-| Add HAE context to AI prompt | auto-parse-intake-notes/index.ts | HAE procedure description for AI extraction |
-| Re-parse patient | Database update | Reset parsing_completed_at for Christopher Roff |
+- No code changes — the HAE fix is already live
+- One database update to reset 54 stale records for re-parsing
+- The auto-parser will process them automatically in batches
 
