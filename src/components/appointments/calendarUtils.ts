@@ -101,49 +101,42 @@ export const EVENT_TYPES: EventTypeInfo[] = [
   },
 ];
 
-// Extract event type from calendar name (with reserved block check)
-export function getEventTypeFromCalendar(calendarName: string | null, isReservedBlock?: boolean): EventTypeInfo {
+// Match procedure keywords against EVENT_TYPES
+function matchProcedureKeywords(text: string): EventTypeInfo | null {
+  const upper = text.toUpperCase();
+  
+  if (upper.includes('GAE')) return EVENT_TYPES.find(e => e.type === 'GAE')!;
+  if (upper.includes('PFE')) return EVENT_TYPES.find(e => e.type === 'PFE')!;
+  if (upper.includes('UFE')) return EVENT_TYPES.find(e => e.type === 'UFE')!;
+  if (upper.includes('PAD') || upper.includes('PERIPHERAL')) return EVENT_TYPES.find(e => e.type === 'PAD')!;
+  if (upper.includes('PAE')) return EVENT_TYPES.find(e => e.type === 'PAE')!;
+  if (upper.includes('HAE') || upper.includes('HEMORRHOID')) return EVENT_TYPES.find(e => e.type === 'HAE')!;
+  if (upper.includes('NEUROPATHY') || upper.includes('NEURO')) return EVENT_TYPES.find(e => e.type === 'Neuropathy')!;
+  if (upper.includes('VEIN') || upper.includes('VARICOSE')) return EVENT_TYPES.find(e => e.type === 'Vein')!;
+  if (upper.includes('FSE') || upper.includes('FROZEN SHOULDER')) return EVENT_TYPES.find(e => e.type === 'FSE')!;
+  
+  return null;
+}
+
+// Extract event type from calendar name (with reserved block check and optional fallback)
+export function getEventTypeFromCalendar(calendarName: string | null, isReservedBlock?: boolean, fallbackText?: string | null): EventTypeInfo {
   // Return reserved styling if this is a reserved block
   if (isReservedBlock) {
     return RESERVED_EVENT_TYPE;
   }
 
-  if (!calendarName) {
-    return EVENT_TYPES[EVENT_TYPES.length - 1]; // Return "Other"
+  // First try calendar name
+  if (calendarName) {
+    const match = matchProcedureKeywords(calendarName);
+    if (match) return match;
   }
-  
-  const upperName = calendarName.toUpperCase();
-  
-  // Check for specific procedure types
-  if (upperName.includes('GAE')) {
-    return EVENT_TYPES.find(e => e.type === 'GAE')!;
+
+  // Then try fallback text (parsed data, intake notes, etc.)
+  if (fallbackText) {
+    const match = matchProcedureKeywords(fallbackText);
+    if (match) return match;
   }
-  if (upperName.includes('PFE')) {
-    return EVENT_TYPES.find(e => e.type === 'PFE')!;
-  }
-  if (upperName.includes('UFE')) {
-    return EVENT_TYPES.find(e => e.type === 'UFE')!;
-  }
-  if (upperName.includes('PAD') || upperName.includes('PERIPHERAL')) {
-    return EVENT_TYPES.find(e => e.type === 'PAD')!;
-  }
-  if (upperName.includes('PAE')) {
-    return EVENT_TYPES.find(e => e.type === 'PAE')!;
-  }
-  if (upperName.includes('HAE')) {
-    return EVENT_TYPES.find(e => e.type === 'HAE')!;
-  }
-  if (upperName.includes('NEUROPATHY') || upperName.includes('NEURO')) {
-    return EVENT_TYPES.find(e => e.type === 'Neuropathy')!;
-  }
-  if (upperName.includes('VEIN') || upperName.includes('VARICOSE')) {
-    return EVENT_TYPES.find(e => e.type === 'Vein')!;
-  }
-  
-  if (upperName.includes('FSE') || upperName.includes('FROZEN SHOULDER')) {
-    return EVENT_TYPES.find(e => e.type === 'FSE')!;
-  }
-  
+
   // Default to "Other"
   return EVENT_TYPES[EVENT_TYPES.length - 1];
 }

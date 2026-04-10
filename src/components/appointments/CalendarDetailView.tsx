@@ -57,7 +57,8 @@ export function CalendarDetailView({
       }
       if (needsEventFilter) {
         filteredApts = filteredApts.filter(apt => {
-          const eventType = getEventTypeFromCalendar(apt.calendar_name);
+          const fallback = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+          const eventType = getEventTypeFromCalendar(apt.calendar_name, false, fallback);
           return selectedEventTypes!.includes(eventType.type);
         });
       }

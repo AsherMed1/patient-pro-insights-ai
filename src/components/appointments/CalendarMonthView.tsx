@@ -106,7 +106,8 @@ export function CalendarMonthView({
                 {/* Event Previews - Max 3 */}
                 <div className="space-y-0.5">
                   {appointments.slice(0, 3).map(apt => {
-                    const eventType = getEventTypeFromCalendar(apt.calendar_name);
+                    const fallback = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+                    const eventType = getEventTypeFromCalendar(apt.calendar_name, false, fallback);
                     
                     return (
                       <div

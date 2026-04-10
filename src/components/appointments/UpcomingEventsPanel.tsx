@@ -83,7 +83,10 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
       });
     }
     if (selectedEventTypes?.length) {
-      result = result.filter(apt => selectedEventTypes.includes(getEventTypeFromCalendar(apt.calendar_name).type));
+      result = result.filter(apt => {
+        const fallback = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+        return selectedEventTypes.includes(getEventTypeFromCalendar(apt.calendar_name, false, fallback).type);
+      });
     }
     if (selectedLocations?.length) {
       result = result.filter(apt => {
@@ -122,7 +125,8 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
             </div>
           ) : (
             filteredAppointments.map(apt => {
-              const eventType = getEventTypeFromCalendar(apt.calendar_name);
+              const fallback = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+              const eventType = getEventTypeFromCalendar(apt.calendar_name, false, fallback);
               const statusInfo = getStatusInfo(apt.status);
               
               return (
