@@ -69,7 +69,8 @@ export function CalendarWeekView({
               <ScrollArea className="flex-1">
                 <div className="p-1.5 space-y-1">
                   {appointments.slice(0, 8).map(apt => {
-                    const eventType = getEventTypeFromCalendar(apt.calendar_name);
+                    const fallback = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+                    const eventType = getEventTypeFromCalendar(apt.calendar_name, false, fallback);
                     
                     return (
                       <div

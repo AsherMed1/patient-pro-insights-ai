@@ -113,7 +113,8 @@ interface AppointmentBlockProps {
 function AppointmentBlock({ item, onAppointmentClick }: AppointmentBlockProps) {
   const { appointment: apt, startHour, endHour, isMultiHour } = item;
   const isReserved = apt.is_reserved_block === true;
-  const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved);
+  const fallback = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+  const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved, fallback);
   const statusInfo = getStatusInfo(apt.status);
 
   // Calculate position and height
@@ -275,7 +276,8 @@ export function CalendarDayView({
                     {slotAppointments.map(item => {
                       const apt = item.appointment;
                       const isReserved = apt.is_reserved_block === true;
-                      const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved);
+                      const fallback2 = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+                      const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved, fallback2);
                       const statusInfo = getStatusInfo(apt.status);
                       
                       return (
@@ -334,7 +336,8 @@ export function CalendarDayView({
               <div className="space-y-2">
                 {unscheduled.map(apt => {
                   const isReserved = apt.is_reserved_block === true;
-                  const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved);
+                  const fallback3 = (apt as any).parsed_pathology_info?.procedure || (apt as any).patient_intake_notes;
+                  const eventType = getEventTypeFromCalendar(apt.calendar_name, isReserved, fallback3);
                   const statusInfo = getStatusInfo(apt.status);
                   
                   return (
