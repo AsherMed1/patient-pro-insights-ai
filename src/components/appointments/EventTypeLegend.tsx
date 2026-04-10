@@ -18,7 +18,7 @@ export function EventTypeLegend({ projectName, selectedTypes, onToggleType }: Ev
       try {
         const { data, error } = await supabase
           .from('all_appointments')
-          .select('calendar_name')
+          .select('calendar_name, patient_intake_notes, parsed_pathology_info')
           .eq('project_name', projectName)
           .not('calendar_name', 'is', null);
 
@@ -26,7 +26,8 @@ export function EventTypeLegend({ projectName, selectedTypes, onToggleType }: Ev
 
         const uniqueTypes = new Set<string>();
         data?.forEach(row => {
-          const eventType = getEventTypeFromCalendar(row.calendar_name);
+          const fallback = (row as any).parsed_pathology_info?.procedure || (row as any).patient_intake_notes;
+          const eventType = getEventTypeFromCalendar(row.calendar_name, false, fallback);
           if (eventType.type !== 'Other') {
             uniqueTypes.add(eventType.type);
           }
