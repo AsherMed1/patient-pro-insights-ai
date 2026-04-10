@@ -1,38 +1,31 @@
 
 
-## Re-parse Historical HAE Appointments Across All Clinics
+## Fix: Virtual Consultation Appointments Missing Service Type
 
-### Current State
-The HAE code fix is **already deployed and working**. New HAE appointments (after April 7) are being parsed correctly — Christopher Roff, Victor Donoso, Edwin Vela, Mira Jan Darwish, etc. all show proper HAE data.
+### Problem
+Ventra has calendar names like `"Request Your Virtual Consultation at Great Neck, NY"` with no procedure keyword (UFE, HAE, etc.). The `getEventTypeFromCalendar()` function only inspects the calendar name, so these appointments are classified as "Other" — even though their intake notes clearly contain procedure data (e.g., UFE pathology).
 
-However, **54 older HAE appointments** were parsed before the fix and are missing hemorrhoid-related medical information:
+### Approach
+Enhance `getEventTypeFromCalendar` to accept an optional fallback procedure string (from parsed data or intake notes). When the calendar name yields "Other," check the fallback.
 
-| Clinic | Total HAE | Missing Data | Action Needed |
-|--------|-----------|-------------|---------------|
-| Joint & Vascular Institute | 133 | 53 | Re-parse |
-| Champion Heart and Vascular Center | 9 | 1 | Re-parse |
-| The Painless Center | 10 | 0 | Already good |
-| Vascular and Embolization Specialists | 9 | 0 | Already good |
-| Ventra Medical Advanced Interventions | 2 | 0 | Already good |
+### Changes
 
-### Fix — Bulk Re-parse (No Code Changes Needed)
+**File 1: `src/components/appointments/calendarUtils.ts`**
+- Update `getEventTypeFromCalendar` signature to accept an optional `fallbackProcedure?: string` parameter
+- After all calendar-name checks, before returning "Other," check `fallbackProcedure` against the same keyword set (UFE, HAE, GAE, PAE, etc.)
 
-Reset `parsing_completed_at` to `NULL` for the 54 HAE appointments that have missing pathology data. The auto-parse system will automatically pick them up and re-process them using the already-deployed HAE-aware logic.
+**Files 2-6: All callers of `getEventTypeFromCalendar` (6 files)**
+- Pass `parsed_pathology_info?.procedure` or `patient_intake_notes` as the fallback parameter where appointment data is available
+- Affected files: `CalendarDayView.tsx`, `CalendarDetailView.tsx`, `CalendarMonthView.tsx`, `CalendarWeekView.tsx`, `UpcomingEventsPanel.tsx`, `EventTypeLegend.tsx`
 
-**Single database update:**
-```sql
-UPDATE all_appointments
-SET parsing_completed_at = NULL
-WHERE (LOWER(calendar_name) LIKE '%hae%' OR LOWER(calendar_name) LIKE '%hemorrhoid%')
-  AND lead_name NOT LIKE 'Reserved%'
-  AND (parsed_pathology_info->>'primary_complaint' IS NULL 
-       OR parsed_pathology_info->>'primary_complaint' = '')
+### How it works
+```
+Calendar name: "Request Your Virtual Consultation at Great Neck, NY"
+  → No keyword match → check fallback
+  → parsed_pathology_info.procedure = null
+  → scan intake notes for "Pathology (UFE)" or "UFE STEP"
+  → Match → return UFE event type
 ```
 
-This will trigger the auto-parser to re-fetch GHL contact data and extract HAE-specific fields (hemorrhoid diagnosis, rectal bleeding, colonoscopy, PCP info, etc.) for all 54 records.
-
-### Summary
-- No code changes — the HAE fix is already live
-- One database update to reset 54 stale records for re-parsing
-- The auto-parser will process them automatically in batches
+This is a UI-only change — no database or edge function modifications needed.
 
