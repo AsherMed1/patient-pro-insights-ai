@@ -1,31 +1,40 @@
 
 
-## Fix: Virtual Consultation Appointments Missing Service Type
+## Fix: Prevent GHL Webhooks from Reconfirming Cancelled Appointments
 
-### Problem
-Ventra has calendar names like `"Request Your Virtual Consultation at Great Neck, NY"` with no procedure keyword (UFE, HAE, etc.). The `getEventTypeFromCalendar()` function only inspects the calendar name, so these appointments are classified as "Other" — even though their intake notes clearly contain procedure data (e.g., UFE pathology).
+### Root Cause
+In `ghl-webhook-handler/index.ts` (line 689), the "portal-only terminal statuses" list that is protected from GHL overwrites only includes `oon`, `do not call`, and `welcome call`. The `cancelled` status is NOT protected, so when GHL sends a "confirmed" webhook (triggered by insurance upload or other contact activity), it overwrites the cancellation.
 
-### Approach
-Enhance `getEventTypeFromCalendar` to accept an optional fallback procedure string (from parsed data or intake notes). When the calendar name yields "Other," check the fallback.
+Additionally, if the appointment were deleted entirely, the webhook would simply re-create it as a new "Confirmed" appointment — so deletion doesn't solve the problem either.
 
-### Changes
+### Fix (1 file, 2 changes)
 
-**File 1: `src/components/appointments/calendarUtils.ts`**
-- Update `getEventTypeFromCalendar` signature to accept an optional `fallbackProcedure?: string` parameter
-- After all calendar-name checks, before returning "Other," check `fallbackProcedure` against the same keyword set (UFE, HAE, GAE, PAE, etc.)
+**File: `supabase/functions/ghl-webhook-handler/index.ts`**
 
-**Files 2-6: All callers of `getEventTypeFromCalendar` (6 files)**
-- Pass `parsed_pathology_info?.procedure` or `patient_intake_notes` as the fallback parameter where appointment data is available
-- Affected files: `CalendarDayView.tsx`, `CalendarDetailView.tsx`, `CalendarMonthView.tsx`, `CalendarWeekView.tsx`, `UpcomingEventsPanel.tsx`, `EventTypeLegend.tsx`
-
-### How it works
+**Change 1 — Protect cancelled status from GHL overwrites (line 689)**
+Add `cancelled` and `canceled` to the portal-only terminal statuses list:
+```typescript
+const portalOnlyStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
 ```
-Calendar name: "Request Your Virtual Consultation at Great Neck, NY"
-  → No keyword match → check fallback
-  → parsed_pathology_info.procedure = null
-  → scan intake notes for "Pathology (UFE)" or "UFE STEP"
-  → Match → return UFE event type
+This prevents any GHL webhook from changing a cancelled appointment back to confirmed.
+
+**Change 2 — Same protection in the reschedule guard (line 631)**
+Add `cancelled` and `canceled` to the reschedule guard list so GHL can't reschedule a cancelled appointment either:
+```typescript
+const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
 ```
 
-This is a UI-only change — no database or edge function modifications needed.
+### What this means operationally
+- Once you cancel an appointment in the portal, **no GHL webhook** (insurance upload, status change, reschedule) can reconfirm it
+- The lead remains fully active in GHL — all workflows, follow-ups, and reschedule sequences continue unaffected
+- If the lead needs to be rescheduled, the team creates a new appointment in GHL, which creates a fresh record in the portal
+- No database changes needed — this is a single edge function update
+
+### Summary
+| What | Detail |
+|------|--------|
+| Problem | Insurance uploads trigger GHL webhook that overwrites "Cancelled" → "Confirmed" |
+| Fix | Add `cancelled` to the protected status list (2 locations in webhook handler) |
+| Impact on leads | None — GHL workflows are unaffected |
+| Deletion needed? | No — protection is the better approach |
 
