@@ -212,6 +212,53 @@ function extractUrologistFromText(text: string | null): { name: string | null, p
 }
 
 // Fallback regex parser for when OpenAI is unavailable (rate limited, etc.)
+// Parse compound imaging responses like "Yes, x-ray last year January 2025 at Presbyterian Hospital"
+function parseCompoundImagingResponse(value: string, result: any): void {
+  const lowerValue = value.toLowerCase();
+  
+  // Extract imaging type (MRI, CT, X-ray, Ultrasound, etc.)
+  const typeMatch = lowerValue.match(/\b(x[\s-]?ray|mri|ct\s*scan|ct|ultrasound|sonogram|angiogram|venogram|doppler)\b/i);
+  if (typeMatch) {
+    const typeMap: Record<string, string> = {
+      'xray': 'X-ray', 'x ray': 'X-ray', 'x-ray': 'X-ray',
+      'mri': 'MRI', 'ct scan': 'CT Scan', 'ct': 'CT Scan',
+      'ultrasound': 'Ultrasound', 'sonogram': 'Ultrasound',
+      'angiogram': 'Angiogram', 'venogram': 'Venogram', 'doppler': 'Doppler'
+    };
+    const matched = typeMatch[1].toLowerCase().replace(/\s+/g, ' ');
+    result.pathology_info.imaging_type = typeMap[matched] || typeMatch[1];
+    console.log(`[AUTO-PARSE IMAGING] Extracted imaging_type: ${result.pathology_info.imaging_type}`);
+  }
+  
+  // Extract imaging location (text after "at" or "from")
+  const locationMatch = value.match(/\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+(?:Hospital|Medical|Center|Clinic|Imaging|Radiology|Health|Institute|Associates|Diagnostics)?[A-Za-z\s.&']*)/i);
+  if (locationMatch && locationMatch[1]) {
+    const location = locationMatch[1].trim().replace(/[,.\s]+$/, '');
+    if (location.length > 2) {
+      result.medical_info.imaging_location = location;
+      console.log(`[AUTO-PARSE IMAGING] Extracted imaging_location: ${location}`);
+    }
+  }
+  
+  // Extract imaging when (date/timeframe references)
+  const whenPatterns = [
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i,
+    /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/,
+    /\b\d{4}\b(?=\s|$|,)/,
+    /\b(last\s+(?:year|month|week)|(?:\d+)\s+(?:years?|months?|weeks?)\s+ago)\b/i,
+    /\b(recently|this\s+year|earlier\s+this\s+year)\b/i
+  ];
+  
+  for (const pattern of whenPatterns) {
+    const whenMatch = value.match(pattern);
+    if (whenMatch) {
+      result.medical_info.imaging_when = whenMatch[0].trim();
+      console.log(`[AUTO-PARSE IMAGING] Extracted imaging_when: ${result.medical_info.imaging_when}`);
+      break;
+    }
+  }
+}
+
 function fallbackRegexParsing(intakeNotes: string): any {
   console.log('[AUTO-PARSE FALLBACK] Using regex-based fallback parsing...');
   
@@ -561,6 +608,11 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
       if (match && match[1]) {
         const value = match[1].trim();
         parsedData.medical_info.imaging_details = value;
+        // Smart parsing of compound imaging responses
+        parseCompoundImagingResponse(value, {
+          pathology_info: parsedData.pathology_info || {},
+          medical_info: parsedData.medical_info
+        });
         console.log(`[AUTO-PARSE ENRICH] Extracted imaging_details via regex: ${value}`);
         break;
       }
