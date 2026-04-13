@@ -253,6 +253,8 @@ function fallbackRegexParsing(intakeNotes: string): any {
       imaging_details: null as string | null,
       imaging_facility: null as string | null,
       imaging_phone: null as string | null,
+      imaging_location: null as string | null,
+      imaging_when: null as string | null,
       xray_details: null as string | null,
       medications: null as string | null,
       allergies: null as string | null
@@ -282,6 +284,8 @@ function fallbackRegexParsing(intakeNotes: string): any {
       } else if (lowerValue.startsWith('no') || lowerValue.includes('☐ no')) {
         result.pathology_info.imaging_done = 'NO';
       }
+      // Smart parsing of compound imaging responses
+      parseCompoundImagingResponse(value, result);
       console.log(`[AUTO-PARSE FALLBACK] Extracted imaging_details: ${value}`);
       break;
     }
