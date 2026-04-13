@@ -1,40 +1,48 @@
 
 
-## Fix: Prevent GHL Webhooks from Reconfirming Cancelled Appointments
+## Fix: Imaging Data Capture, Parsing, and Display
 
-### Root Cause
-In `ghl-webhook-handler/index.ts` (line 689), the "portal-only terminal statuses" list that is protected from GHL overwrites only includes `oon`, `do not call`, and `welcome call`. The `cancelled` status is NOT protected, so when GHL sends a "confirmed" webhook (triggered by insurance upload or other contact activity), it overwrites the cancellation.
+### Problem
+1. The label "Had Imaging Before?" needs to be replaced with clearer wording
+2. When a patient enters a detailed imaging response (e.g., "Yes, x-ray last year January 2025 at Presbyterian Hospital"), the system stores it as a single string but doesn't extract the imaging type, location, or timeframe
+3. Imaging fields are scattered between the pathology section and medical section — they need to be consolidated under "Medical & PCP Information"
 
-Additionally, if the appointment were deleted entirely, the webhook would simply re-create it as a new "Confirmed" appointment — so deletion doesn't solve the problem either.
+### Changes
 
-### Fix (1 file, 2 changes)
+**File 1: `src/components/appointments/ParsedIntakeInfo.tsx` (UI)**
+- Rename "Had Imaging Before" label to "Imaging Details"
+- Move "Imaging Done" (yes/no badge), "Imaging Type", and "Had Imaging Before" (now "Imaging Details") from the pathology section (lines 808-827) into the Medical & PCP Information section, grouped under the existing "Imaging Information" sub-header (near line 1143)
+- Add new display rows for `imaging_location` and `imaging_when` fields in the Medical & PCP section
+- Add editable fields for `imaging_location` and `imaging_when` in the edit form (near line 1068)
 
-**File: `supabase/functions/ghl-webhook-handler/index.ts`**
+**File 2: `supabase/functions/auto-parse-intake-notes/index.ts` (Parsing)**
+- Add `imaging_location` and `imaging_when` to the `medical_info` structure
+- Enhance the imaging regex extraction (lines 265-286) to parse compound responses like "Yes, x-ray last year January 2025 at Presbyterian Hospital" into:
+  - `imaging_done`: YES
+  - `imaging_type`: X-ray (extract MRI, CT, ultrasound, x-ray keywords)
+  - `imaging_location`: Presbyterian Hospital (extract text after "at" or "from")
+  - `imaging_when`: January 2025 / last year (extract date/timeframe references)
+- Add the same smart parsing to the enrichment function (lines 537-563)
+- In the GHL custom field handler (line 872), when an imaging field is found, run the same compound parser instead of dumping the raw string into `imaging_done`
 
-**Change 1 — Protect cancelled status from GHL overwrites (line 689)**
-Add `cancelled` and `canceled` to the portal-only terminal statuses list:
-```typescript
-const portalOnlyStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
-```
-This prevents any GHL webhook from changing a cancelled appointment back to confirmed.
+**File 3: `supabase/functions/ghl-webhook-handler/index.ts` (Webhook)**
+- Update the GHL field categorizer (line 504) to ensure imaging-related fields with detailed responses are routed to the medical section with the new field naming so the auto-parser can extract them properly
 
-**Change 2 — Same protection in the reschedule guard (line 631)**
-Add `cancelled` and `canceled` to the reschedule guard list so GHL can't reschedule a cancelled appointment either:
-```typescript
-const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
-```
+### How it works after the fix
+Patient enters: "Yes, x-ray last year January 2025 at Presbyterian Hospital"
 
-### What this means operationally
-- Once you cancel an appointment in the portal, **no GHL webhook** (insurance upload, status change, reschedule) can reconfirm it
-- The lead remains fully active in GHL — all workflows, follow-ups, and reschedule sequences continue unaffected
-- If the lead needs to be rescheduled, the team creates a new appointment in GHL, which creates a fresh record in the portal
-- No database changes needed — this is a single edge function update
+Portal displays under **Medical & PCP Information → Imaging Information**:
+- **Imaging Done:** YES
+- **Imaging Type:** X-ray
+- **Imaging Location:** Presbyterian Hospital
+- **Imaging When:** January 2025
+- **Imaging Facility:** (editable)
+- **Facility Phone:** (editable)
 
 ### Summary
-| What | Detail |
-|------|--------|
-| Problem | Insurance uploads trigger GHL webhook that overwrites "Cancelled" → "Confirmed" |
-| Fix | Add `cancelled` to the protected status list (2 locations in webhook handler) |
-| Impact on leads | None — GHL workflows are unaffected |
-| Deletion needed? | No — protection is the better approach |
+| Change | File | What |
+|--------|------|------|
+| Consolidate imaging display | ParsedIntakeInfo.tsx | Move imaging fields to Medical & PCP section, add location/when rows |
+| Smart parsing of compound responses | auto-parse-intake-notes/index.ts | Extract type, location, timeframe from free-text imaging answers |
+| GHL field routing | ghl-webhook-handler/index.ts | Ensure imaging data reaches the parser correctly |
 
