@@ -924,9 +924,19 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       if (key.includes('treatment') || key.includes('tried')) {
         (result.pathology_info as any).previous_treatments = String(value);
       }
-      // Imaging
+      // Imaging - smart parse compound responses
       if (key.includes('imaging') || key.includes('x-ray') || key.includes('mri')) {
-        (result.pathology_info as any).imaging_done = String(value);
+        const imgValue = String(value);
+        const lowerVal = imgValue.toLowerCase();
+        if (lowerVal.startsWith('yes') || lowerVal.includes('☑️ yes')) {
+          (result.pathology_info as any).imaging_done = 'YES';
+        } else if (lowerVal.startsWith('no') || lowerVal.includes('☐ no')) {
+          (result.pathology_info as any).imaging_done = 'NO';
+        } else {
+          (result.pathology_info as any).imaging_done = imgValue;
+        }
+        result.medical_info.imaging_details = imgValue;
+        parseCompoundImagingResponse(imgValue, result);
       }
       // Age range
       if (key.includes('how old') || key.includes('age') || key.includes('age_range')) {
