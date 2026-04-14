@@ -855,7 +855,15 @@ async function findExistingAppointment(
     }
   }
   
-  // Try by GHL contact ID + name (use limit(1) + order to handle duplicates)
+  // If a specific ghl_appointment_id was provided but not found, do NOT fall back
+  // to ghl_id matching. This prevents webhooks for one GHL appointment from
+  // overwriting a different appointment for the same contact.
+  if (ghlAppointmentId) {
+    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found — skipping ghl_id fallback to prevent cross-appointment contamination`)
+    return null
+  }
+  
+  // Only fall back to GHL contact ID matching when no ghl_appointment_id was provided
   if (ghlId) {
     const { data: records } = await supabase
       .from('all_appointments')
@@ -866,7 +874,7 @@ async function findExistingAppointment(
       .limit(1)
     
     if (records && records.length > 0) {
-      console.log(`[${requestId}] Found by ghl_id + name: ${records[0].id}`)
+      console.log(`[${requestId}] Found by ghl_id + name (no appointment ID provided): ${records[0].id}`)
       return records[0]
     }
     
@@ -879,7 +887,7 @@ async function findExistingAppointment(
       .limit(1)
     
     if (byContactOnly && byContactOnly.length > 0) {
-      console.log(`[${requestId}] Found by ghl_id only: ${byContactOnly[0].id}`)
+      console.log(`[${requestId}] Found by ghl_id only (no appointment ID provided): ${byContactOnly[0].id}`)
       return byContactOnly[0]
     }
   }
