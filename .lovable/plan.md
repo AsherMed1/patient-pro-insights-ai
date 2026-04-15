@@ -1,51 +1,32 @@
 
 
-## Fix: Multiple GHL Appointments Per Contact Overwriting Each Other
+## Fix: Treat "Virtual" as Location, Not Service
+
+### Problem
+- "Virtual GAE", "Virtual Neuropathy" etc. appear as separate service filter options
+- This duplicates counts — a Virtual GAE appointment shows under both "Virtual GAE" and "GAE"
+- "Virtual" should only be a location filter option, not a service
 
 ### Root Cause
+`AppointmentFilters.tsx` already has the fix (strips "Virtual" suffix from services, skips bare "Virtual"), but `ProjectDetailedDashboard.tsx` does NOT — it extracts services without any Virtual normalization, and also misses the "Virtual Consultation" → location mapping.
 
-The `findExistingAppointment` function in `ghl-webhook-handler/index.ts` has a problematic fallback:
+### Changes
 
-1. **First lookup**: Match by `ghl_appointment_id` (unique per GHL appointment) — correct
-2. **Fallback**: Match by `ghl_id` (contact ID) — returns the **oldest** record regardless of which GHL appointment the webhook is about
+**File 1: `src/components/projects/ProjectDetailedDashboard.tsx`** (service/location extraction, lines 102-153)
+- Add "Virtual Consultation" → location "Virtual" mapping (same as AppointmentFilters)
+- Add parenthesized location format support
+- Strip "Virtual" suffix from extracted services (e.g., "Virtual GAE" → "GAE")
+- Skip bare "Virtual" as a service
+- Merge "In-person" with "GAE" (already done in AppointmentFilters but missing here)
 
-When a contact like Donna Finn has 3 separate GHL appointments (each with a unique `ghl_appointment_id`), here's what happens:
+**File 2: `src/components/appointments/AppointmentFilters.tsx`** — already correct, no changes needed
 
-- **Webhook 1** (Appointment A, confirmed): No match found → creates portal record with `ghl_appointment_id = A`
-- **Webhook 2** (Appointment B, cancelled): No match by `ghl_appointment_id = B` → falls back to `ghl_id` → finds the portal record from step 1 → **overwrites it with cancelled status**
-- **Webhook 3** (Appointment C, cancelled): Same fallback → same portal record → already cancelled
+**File 3: `src/components/appointments/calendarUtils.ts`** — already correct (keyword matching handles "Virtual GAE" → GAE), no changes needed
 
-The confirmed appointment gets cancelled because the `ghl_id` fallback doesn't distinguish between different appointments for the same contact.
-
-### Fix (1 file, 1 change)
-
-**File: `supabase/functions/ghl-webhook-handler/index.ts`**
-
-**Change the `findExistingAppointment` function (lines 834-889)**:
-
-When a `ghl_appointment_id` is provided but not found in the database, the function should **not** fall back to `ghl_id` matching. The `ghl_id` fallback should only be used when `ghl_appointment_id` is `null` or empty (i.e., the webhook didn't provide one).
-
-Current logic:
-```
-1. Try ghl_appointment_id → not found
-2. Try ghl_id + name → found oldest record → WRONG MATCH
-3. Try ghl_id only → found oldest record → WRONG MATCH
-```
-
-Fixed logic:
-```
-1. Try ghl_appointment_id → not found
-2. IF ghl_appointment_id was provided, STOP here (this is a different appointment)
-3. Only fall back to ghl_id matching if no ghl_appointment_id was provided
-```
-
-This means:
-- If GHL sends a webhook with appointment ID "B" but only appointment "A" exists in the portal, it will be treated as a **new appointment** (and skipped if it has a terminal status like "cancelled")
-- The existing confirmed appointment "A" is never touched by webhooks for appointment "B" or "C"
-
-### Impact
-- Prevents cross-contamination between multiple appointments for the same contact
-- Terminal status guard (already in place) will skip creating new cancelled appointments
-- No database changes needed — single edge function update
-- Existing single-appointment contacts are unaffected (their `ghl_appointment_id` will match directly)
+### Result
+- Service dropdown: GAE, Neuropathy, PFE, UFE, etc. (no "Virtual GAE" or "Virtual Neuropathy")
+- Location dropdown: Virtual, Great Neck, San Antonio, etc.
+- Filtering by service "GAE" returns both in-person and virtual GAE appointments (the `.ilike('%GAE%')` query already matches "Virtual GAE Consultation")
+- Filtering by location "Virtual" returns only virtual appointments
+- Counts are accurate with no duplication
 
