@@ -113,33 +113,49 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         
         data.forEach(item => {
           if (item.calendar_name) {
-            // Extract location: try hyphen pattern first, then "at" pattern
-            let locationMatch = item.calendar_name.match(/ - (.+)$/);
-            if (!locationMatch) {
-              locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+            const calName = item.calendar_name;
+
+            // Map "Virtual Consultation" to "Virtual" location
+            if (/virtual\s+consultation/i.test(calName)) {
+              locations.add('Virtual');
             }
-            if (!locationMatch) {
-              locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
-            }
-            
-            if (locationMatch && locationMatch[1]) {
-              const location = locationMatch[1].trim();
-              const normalizedLocation = location.replace(/,\s*[A-Z]{2}$/, '').trim();
-              // Exclude Somerset from location options
-              if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
-                locations.add(normalizedLocation);
+
+            // Extract location from parenthesized format: "(City, ST – Description)"
+            const parenMatch = calName.match(/\(([^)]+)\)/);
+            if (parenMatch) {
+              const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
+              const loc = inner.replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
+              if (loc && !loc.toLowerCase().includes('somerset') && !loc.toLowerCase().includes('milledgeville')) {
+                locations.add(loc);
+              }
+            } else {
+              // Try hyphen, "at", and "Consultation" patterns
+              let locationMatch = calName.match(/ - (.+)$/);
+              if (!locationMatch) locationMatch = calName.match(/at\s+(.+)$/);
+              if (!locationMatch) locationMatch = calName.match(/Consultation\s+(.+)$/i);
+
+              if (locationMatch && locationMatch[1]) {
+                const normalizedLocation = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
+                if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
+                  locations.add(normalizedLocation);
+                }
               }
             }
             
-            // Extract service
-            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
+            // Extract service — strip "Virtual" prefix so "Virtual GAE" becomes "GAE"
+            const serviceMatch = calName.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
               let service = serviceMatch[1].trim();
+              // Strip "Virtual" prefix from service name
+              service = service.replace(/^Virtual\s+/i, '').trim();
               // Merge In-person with GAE - they are the same service type
               if (service.toLowerCase() === 'in-person') {
                 service = 'GAE';
               }
-              services.add(service);
+              // Skip bare "Virtual" as a service
+              if (service.toLowerCase() !== 'virtual') {
+                services.add(service);
+              }
             }
           }
         });
