@@ -214,7 +214,14 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
       // Apply location filter
       if (locationFilter && locationFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${locationFilter}%`);
+        if (locationFilter === 'Virtual') {
+          appointmentsQuery = appointmentsQuery.ilike('calendar_name', '%Virtual%');
+        } else {
+          // Physical locations must NOT include Virtual calendars (they often share a city name)
+          appointmentsQuery = appointmentsQuery
+            .ilike('calendar_name', `%${locationFilter}%`)
+            .not('calendar_name', 'ilike', '%Virtual%');
+        }
       }
 
       // Apply service filter
@@ -222,6 +229,17 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         if (serviceFilter === 'GAE') {
           // GAE and In-person are the same service type
           appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+        } else if (serviceFilter === 'Virtual (Unspecified)') {
+          // Bare "Virtual Consultation" calendars with no service token (UFE/HAE/GAE/PAE/PFE/Neuropathy/PAD)
+          appointmentsQuery = appointmentsQuery
+            .ilike('calendar_name', '%Virtual Consultation%')
+            .not('calendar_name', 'ilike', '%UFE%')
+            .not('calendar_name', 'ilike', '%HAE%')
+            .not('calendar_name', 'ilike', '%GAE%')
+            .not('calendar_name', 'ilike', '%PAE%')
+            .not('calendar_name', 'ilike', '%PFE%')
+            .not('calendar_name', 'ilike', '%PAD%')
+            .not('calendar_name', 'ilike', '%Neuropathy%');
         } else {
           appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
         }
