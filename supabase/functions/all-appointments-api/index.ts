@@ -424,8 +424,11 @@ async function checkShortNoticeAlert(supabase: any, appointment: any) {
     if (!appointment.date_of_appointment) return;
 
     const status = (appointment.status || '').toLowerCase().trim();
-    const terminal = ['cancelled', 'canceled', 'no show', 'showed', 'oon', 'do not call'];
-    if (terminal.some(t => status.includes(t))) return;
+    const terminal = ['cancelled', 'canceled', 'no show', 'noshow', 'showed', 'oon', 'do not call', 'donotcall', 'rescheduled', 'won'];
+    if (terminal.some(t => status.includes(t))) {
+      console.log(`Skipping short-notice alert — status is terminal: ${appointment.status}`);
+      return;
+    }
 
     const { data: project } = await supabase
       .from('projects')
