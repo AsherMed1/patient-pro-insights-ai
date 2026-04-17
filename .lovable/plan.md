@@ -1,42 +1,40 @@
 
+The user clarified: the new May 19 appointment for Saul Martinez (created Apr 16) was **incorrectly inserted as "No Show"** — it inherited the status from the original Apr 16 No Show appointment instead of defaulting to "Confirmed" per our standard rule.
 
-## Analysis: Saul Martinez Duplicate — Working As Designed
+Per `mem://integrations/ghl-default-appointment-status-confirmed`: ALL new appointments from GHL webhooks should default to "Confirmed" regardless of the GHL-provided status.
 
-### What Happened
-Saul Martinez has **two separate GHL appointments** under the same contact, each with a unique `ghl_appointment_id`:
+Let me verify the actual data and the webhook handler logic before finalizing.
 
-| Record | GHL Appt ID | Created | Appointment | Status |
-|---|---|---|---|---|
-| 1 | `8NksH3wbFNt5kaNio7FG` | Mar 17 | Apr 16, 3:30 PM | No Show |
-| 2 | `K7ozq84rlenkEgDApMmZ` | Apr 16 | Apr 20, 3:00 PM | No Show |
+The Stack Overflow hint suggests the bug is in `ghl-webhook-handler` where status inheritance happens. I need to look at the webhook handler's appointment-creation branch to confirm — but based on the clearly stated rule (always default new appointments to Confirmed) and the symptom (May 19 appt showing as No Show), the fix is to ensure the INSERT path (not the UPDATE path) always sets status to "Confirmed" for brand-new appointments, ignoring whatever status GHL sent.
 
-Both share `ghl_id: 8kUfKrf2rYt1KzlWvITC` (same contact in GHL), but they are **two distinct appointments** booked at different times for different dates.
+## Fix: New Appointments Must Always Default to "Confirmed"
 
-### Why It Wasn't Overwritten (And Shouldn't Be)
-This is the **same pattern** as the previously-fixed Donna Finn / Tammie Huckeby cases. After that fix:
+### Problem
+Saul Martinez's May 19 appointment (a brand-new GHL appointment created on Apr 16) was inserted with status **"No Show"** instead of **"Confirmed"**. This violates the core rule that all newly-created appointments from GHL must default to Confirmed.
 
-- The portal matches strictly by `ghl_appointment_id`. When GHL sent the webhook for the second appointment (`K7ozq84rlenkEgDApMmZ`) on Apr 16, the portal correctly identified it as a **new, separate appointment** rather than overwriting the existing Apr 16 appointment for the same contact.
-- This is intentional: previously, the portal would incorrectly overwrite/cross-contaminate appointments for contacts with multiple bookings. The fix ensures each GHL appointment retains its own portal record.
+### Likely Cause
+In `supabase/functions/ghl-webhook-handler/index.ts`, the INSERT branch (when `findExistingAppointment` returns null) is using the GHL-provided status (`appointmentStatus` from the webhook payload) instead of forcing "Confirmed". When the May 19 appointment came through, GHL may have sent a status that mapped to "No Show", or some inheritance/copy logic from a previous lookup leaked in.
 
-### Why The Patient Appears "Duplicated"
-The patient is **one contact in GHL** but has **two genuine separate appointment bookings**. The portal correctly displays each appointment as its own card. This is the same behavior used across all multi-appointment contacts in the system.
+### Investigation Steps (during implementation)
+1. Read `supabase/functions/ghl-webhook-handler/index.ts` INSERT path
+2. Confirm where `status` is set on new appointment inserts
+3. Check the May 19 record's `created_at`, `updated_at`, and audit trail to see if it was inserted as No Show or updated to No Show after creation
 
-### Verification Needed (Client Side)
-Was the second appointment (Apr 20) actually booked in GHL as a **new appointment**, or was the original Apr 16 appointment **rescheduled** to Apr 20?
+### Fix
+In the INSERT branch of `ghl-webhook-handler`:
+- **Force** `status: 'Confirmed'` for every newly-inserted appointment, regardless of what GHL sends
+- Apply terminal-status guard already in place (skip insert if GHL says cancelled/no-show on a brand-new event — already handled per `mem://constraints/terminal-status-appointments-not-created`)
+- Ensure no status inheritance from any previously-found record leaks into the insert payload
 
-- **If newly booked** → Current behavior is correct. Two records is accurate.
-- **If rescheduled** → Then GHL should have sent a reschedule webhook (same `ghl_appointment_id`, updated date), not a new appointment creation. In that case, the duplication originated in GHL, not the portal.
+### Data Cleanup
+- Update Saul Martinez's May 19 appointment (`K7ozq84rlenkEgDApMmZ`) status from "No Show" → "Confirmed"
+- This will trigger the existing `handle_appointment_status_completion` trigger, which correctly sets `internal_process_complete = false` and clears procedure fields for Confirmed status
 
-Looking at the data: the second record was created Apr 16 at 11:41 PM UTC, which is the **same day** as the first appointment. This suggests after the first appointment was marked "No Show," staff may have **booked a brand new appointment** in GHL (creating a new event with a new ID) rather than using GHL's reschedule action on the original event. That would produce exactly this result.
+### Files
+- `supabase/functions/ghl-webhook-handler/index.ts` — enforce `status: 'Confirmed'` on insert
+- One-time SQL update for Saul Martinez's May 19 record
 
-### Recommendation
-
-| Item | Action |
-|---|---|
-| Two appointment cards | Working as designed — correctly preserves both GHL appointments. No code fix needed. |
-| Avoid future "duplicates" | When rebooking after a No Show / Cancellation, use GHL's **Reschedule** action on the original appointment instead of creating a new one. This keeps the same `ghl_appointment_id` and updates the existing portal record in place. |
-| Optional cleanup | If the client confirms the Apr 16 (No Show) record is no longer needed, it can be deleted from the portal manually. The Apr 20 record will remain. |
-
-### No Code Changes Required
-The previous `findExistingAppointment` fix is functioning correctly. Overwriting one appointment with another would re-introduce the cross-contamination bug we explicitly fixed for Donna Finn.
-
+### Verification
+- Confirm the May 19 record now shows as Confirmed in the portal
+- Confirm no regression on the Apr 16 No Show record (it should remain No Show)
+- Future new appointments will always default to Confirmed
