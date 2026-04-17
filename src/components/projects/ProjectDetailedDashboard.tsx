@@ -142,12 +142,12 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               }
             }
             
-            // Extract service — strip "Virtual" prefix so "Virtual GAE" becomes "GAE"
+            // Extract service — strip "Virtual" prefix AND suffix so "Virtual GAE" / "GAE Virtual" become "GAE"
             const serviceMatch = calName.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
               let service = serviceMatch[1].trim();
-              // Strip "Virtual" prefix from service name
-              service = service.replace(/^Virtual\s+/i, '').trim();
+              // Strip "Virtual" prefix and suffix from service name
+              service = service.replace(/^Virtual\s+/i, '').replace(/\s+Virtual$/i, '').trim();
               // Merge In-person with GAE - they are the same service type
               if (service.toLowerCase() === 'in-person') {
                 service = 'GAE';
