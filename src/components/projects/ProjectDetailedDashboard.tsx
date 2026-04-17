@@ -115,8 +115,9 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
           if (item.calendar_name) {
             const calName = item.calendar_name;
 
-            // Map "Virtual Consultation" to "Virtual" location
-            if (/virtual\s+consultation/i.test(calName)) {
+            // Map any "Virtual" calendar to "Virtual" location
+            // Matches: "Virtual Consultation", "Virtual GAE Consultation", "PAE Virtual Consultation", etc.
+            if (/\bvirtual\b/i.test(calName)) {
               locations.add('Virtual');
             }
 
