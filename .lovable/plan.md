@@ -1,33 +1,60 @@
 
-## Fix: "Virtual" as Location Across All Project Dashboards
+## Ventra Filter Bug — Two Issues
 
-### Problem
-On the project Overview/Dashboard service dropdown, services like **"PAE Virtual"**, **"GAE Virtual"**, **"HAE Virtual"**, **"UFE Virtual"** still appear as separate procedure options. The previous fix only handled the `^Virtual\s+` PREFIX (e.g. "Virtual GAE"), but real GHL data has both prefix AND suffix patterns.
+### What the data actually shows
+Ventra has 4 calendars in GHL:
+| Calendar | Location intent | Service intent |
+|---|---|---|
+| `Request Your HAE Consultation at Great Neck, NY` | Great Neck | HAE |
+| `Request Your UFE Consultation at Great Neck, NY` | Great Neck | UFE |
+| `Request Your UFE Virtual Consultation at Great Neck, NY` | **Virtual** | UFE |
+| `Request Your Virtual Consultation at Great Neck, NY` | **Virtual** | (none — bare) |
 
-### Calendar data found across projects
-Confirmed via DB query — these patterns exist:
-- Prefix: "Request Your **Virtual GAE** Consultation" (ECCO Medical, etc.)
-- Suffix: "Request Your **PAE Virtual** Consultation" (Arterial), "Request Your **GAE Virtual** Consultation" (Joint & Vascular), "Request Your **HAE Virtual** Consultation", "Request Your **UFE Virtual** Consultation at Great Neck, NY"
-- Bare: "Request Your Virtual Consultation [at City]" / "Request Your Virtual Consultation for Knee Pain Treatment"
+### Bug #1 — Great Neck location filter incorrectly includes Virtual appointments
+`fetchLocationAndServiceOptions` adds **"Virtual"** for any calendar matching `\bvirtual\b`, but it **also** falls through to the `at\s+(.+)$` extractor and adds **"Great Neck"** for those same Virtual calendars. Then when the user filters by location "Great Neck", the query runs `calendar_name ILIKE '%Great Neck%'` which matches the Virtual calendars too.
 
-`AppointmentFilters.tsx` (the manager) already strips both prefix and suffix → already correct.
-`ProjectDetailedDashboard.tsx` (the overview) only strips **prefix** → BUG. This is what the user is seeing.
+Same issue on the inverse side: filtering by "Virtual" runs `ILIKE '%Virtual%'` which is correct (only matches virtual calendars).
 
-### Fix — `src/components/projects/ProjectDetailedDashboard.tsx`
-Update the service-extraction block (lines 145–159) to mirror `AppointmentFilters.tsx`:
-- Strip both `^Virtual\s+` prefix AND `\s+Virtual$` suffix from the captured service text
-- Continue skipping bare "Virtual" as a service
-- Continue mapping In-person → GAE
-- Location detection (line 119) already adds "Virtual" correctly via the `virtual\s+consultation` substring check — no change needed
-- The "Virtual" location filter applied via `ilike '%Virtual%'` (line 211) already matches all Virtual calendars correctly — no change needed
-- The service filter using `ilike '%GAE%'` (line 218/220) already matches "Virtual GAE", "GAE Virtual", etc. — no change needed (this means selecting service "GAE" already returns both in-person AND virtual GAE counts)
+**Fix:** When a calendar is identified as Virtual, **do not** also extract a physical location from it. Treat Virtual as the exclusive location.
 
-### Result
-- Overview "Service" dropdown (all projects): only canonical procedures — GAE, HAE, PAE, PFE, UFE, Neuropathy, Knee Pain Treatment, etc. No more "PAE Virtual" / "GAE Virtual" / "HAE Virtual" / "UFE Virtual" entries
-- Overview "Location" dropdown: Virtual + physical locations (Great Neck, Houston, Woodlands, etc.)
-- Filtering by service "GAE" includes both virtual + in-person → no double counting since we count each appointment once
-- Filtering by location "Virtual" returns only virtual appointments
-- Applies across all projects automatically (single shared component)
+```ts
+const isVirtual = /\bvirtual\b/i.test(calName);
+if (isVirtual) {
+  locations.add('Virtual');
+} else {
+  // existing parenthesized / "at" / "Consultation" extraction
+}
+```
 
-### Scope
-Single file edit. No DB migration. No data backfill.
+For the **filter query**, when `locationFilter === 'Great Neck'`, exclude Virtual calendars:
+```ts
+if (locationFilter === 'Virtual') {
+  appointmentsQuery = appointmentsQuery.ilike('calendar_name', '%Virtual%');
+} else if (locationFilter && locationFilter !== 'ALL') {
+  appointmentsQuery = appointmentsQuery
+    .ilike('calendar_name', `%${locationFilter}%`)
+    .not('calendar_name', 'ilike', '%Virtual%');
+}
+```
+
+### Bug #2 — "Virtual Consultation" (bare) appointments missing from service filters
+The calendar `Request Your Virtual Consultation at Great Neck, NY` strips "Virtual" → leaves empty service → skipped. Per Ventra, these bare-virtual appointments are clinically either UFE or HAE but the GHL calendar doesn't say which.
+
+Two options:
+- **A. Server-side fix only (recommended now):** Add an "All Services" option that always returns everything (already exists via `serviceFilter === 'ALL'`). The 6 "missing" virtual appointments simply have no detectable service from the calendar name. Add a synthetic **"Virtual (Unspecified)"** service entry so the user can see and filter them, plus a one-time client guidance: rename the calendar in GHL to either `UFE Virtual` or `HAE Virtual` going forward.
+- **B. Detect service from intake notes:** Use the `parsed_pathology_info.procedure` field on each appointment to back-fill the service. More accurate but heavier query.
+
+**Recommendation: A** — it surfaces the gap honestly and aligns with the client's own request to fix the GHL calendar setup. I'll add "Virtual (Unspecified)" to the service dropdown when bare-virtual calendars exist, and filter via `calendar_name ILIKE '%Virtual Consultation%'` AND not matching any known service token.
+
+### Files
+`src/components/projects/ProjectDetailedDashboard.tsx` only — the appointment manager (`AppointmentFilters.tsx`) already handles this correctly per project memory.
+
+### Result for Ventra
+- **Locations:** Great Neck (8 appts: 3 HAE + 5 UFE in-person), Virtual (35 appts: 25 UFE Virtual + 8 bare Virtual + 2 No Show etc.) — no overlap
+- **Services:** HAE (3), UFE (30 = 5 in-person + 25 UFE Virtual), Virtual (Unspecified) (8) — totals match "All Services"
+- **Filtering Great Neck** no longer pulls in Virtual records
+- **Filtering Virtual** location returns all virtual calendars regardless of service
+- Applies globally to every project — same logic shared
+
+### Client guidance (to include in response)
+Recommend the client rename the bare `Request Your Virtual Consultation at Great Neck, NY` calendar in GHL to either `UFE Virtual` or `HAE Virtual` (or split into two). Once GHL is updated, the "Virtual (Unspecified)" bucket will empty automatically.
