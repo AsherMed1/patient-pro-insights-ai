@@ -586,6 +586,9 @@ function getUpdateableFields(
   existingAppointment: any | null
 ): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string } } {
   // For CREATE - use all webhook data
+  // CRITICAL: Per project rule, ALL new appointments from GHL webhooks MUST default to "Confirmed",
+  // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
+  // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
     return {
       fields: {
@@ -600,10 +603,10 @@ function getUpdateableFields(
         ghl_id: webhookData.ghl_id,
         ghl_appointment_id: webhookData.ghl_appointment_id,
         ghl_location_id: webhookData.ghl_location_id,
-        status: webhookData.status,
+        status: 'Confirmed', // Always force Confirmed on new appointments
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
-        was_ever_confirmed: webhookData.status?.toLowerCase() === 'confirmed',
+        was_ever_confirmed: true,
       }
     }
   }
