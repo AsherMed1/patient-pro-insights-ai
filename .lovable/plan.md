@@ -1,53 +1,42 @@
 
 
-## Analysis: Tammie Huckeby Duplicate Profile / False Alert
+## Analysis: Saul Martinez Duplicate — Working As Designed
 
-### What Actually Happened
+### What Happened
+Saul Martinez has **two separate GHL appointments** under the same contact, each with a unique `ghl_appointment_id`:
 
-Tammie Huckeby has **two separate appointments in GHL**, each with a different `ghl_appointment_id`:
+| Record | GHL Appt ID | Created | Appointment | Status |
+|---|---|---|---|---|
+| 1 | `8NksH3wbFNt5kaNio7FG` | Mar 17 | Apr 16, 3:30 PM | No Show |
+| 2 | `K7ozq84rlenkEgDApMmZ` | Apr 16 | Apr 20, 3:00 PM | No Show |
 
-| Record | GHL Appt ID | Calendar | Date | Status | Created | Updated |
-|---|---|---|---|---|---|---|
-| 1 | `1EAGN7Qkm0jPxoq11tOa` | Neuropathy @ Crossville | **Apr 21** @ 3:15 PM | **Cancelled** | Mar 29 | Apr 16, 8:09 PM |
-| 2 | `877CPabkwyZwkUDdRI45` | GAE @ Crossville | May 19 @ 2:00 PM | **Confirmed** | Apr 16, 8:07 PM | Apr 16, 8:07 PM |
+Both share `ghl_id: 8kUfKrf2rYt1KzlWvITC` (same contact in GHL), but they are **two distinct appointments** booked at different times for different dates.
 
-Both share the same GHL contact ID (`YMcGnc1qX3JSMc9meHuD`) — same patient, two distinct appointments.
+### Why It Wasn't Overwritten (And Shouldn't Be)
+This is the **same pattern** as the previously-fixed Donna Finn / Tammie Huckeby cases. After that fix:
 
-### Why "two profiles" appear in the portal
-This is **not actually two profiles** — it's two separate appointment records (which is correct behavior, since the recent fix to `findExistingAppointment` ensures distinct GHL appointments stay separate). The portal just displays each appointment as its own card. The patient is one contact in GHL.
+- The portal matches strictly by `ghl_appointment_id`. When GHL sent the webhook for the second appointment (`K7ozq84rlenkEgDApMmZ`) on Apr 16, the portal correctly identified it as a **new, separate appointment** rather than overwriting the existing Apr 16 appointment for the same contact.
+- This is intentional: previously, the portal would incorrectly overwrite/cross-contaminate appointments for contacts with multiple bookings. The fix ensures each GHL appointment retains its own portal record.
 
-### Why the short-notice alert fired
-Looking at the timeline on Apr 16:
-1. `20:06:04` — Status changed from `Scheduled` → `Cancelled` on the Apr 21 record
-2. `20:07:46` — The new May 19 (GAE) appointment was created, **status defaulted to Confirmed** (per our "GHL Default Confirmed" rule for new webhooks)
-3. `20:09:21` — Another cancellation update came through for the Apr 21 record
+### Why The Patient Appears "Duplicated"
+The patient is **one contact in GHL** but has **two genuine separate appointment bookings**. The portal correctly displays each appointment as its own card. This is the same behavior used across all multi-appointment contacts in the system.
 
-When the new May 19 appointment was created and inserted with status `Confirmed`, it triggered the short-notice alert evaluation in `ghl-webhook-handler` (line 1279). However, **our `short_notice_alerts` table has NO record of an alert being sent for either of Huckeby's appointments** — only one for "Tammie Scafidi" back on Mar 28.
+### Verification Needed (Client Side)
+Was the second appointment (Apr 20) actually booked in GHL as a **new appointment**, or was the original Apr 16 appointment **rescheduled** to Apr 20?
 
-### Most likely cause of the alert the client received
-Because no entry exists in `short_notice_alerts`, the alert the client got was **almost certainly fired from GHL itself** (a GHL workflow tied to the Apr 21 Neuropathy appointment), **not from our portal**. GHL workflows often have their own appointment-reminder automations that fire independently, and if the GHL workflow wasn't properly halted when the Apr 21 appointment was cancelled, GHL would still send the reminder.
+- **If newly booked** → Current behavior is correct. Two records is accurate.
+- **If rescheduled** → Then GHL should have sent a reschedule webhook (same `ghl_appointment_id`, updated date), not a new appointment creation. In that case, the duplication originated in GHL, not the portal.
 
-### Verification needed (cannot do from portal side)
-- Check the **GHL workflow/automation** attached to the Neuropathy calendar — confirm it has a "cancellation" trigger that removes the contact from the reminder sequence
-- The portal's audit trail confirms WE did not send the alert
+Looking at the data: the second record was created Apr 16 at 11:41 PM UTC, which is the **same day** as the first appointment. This suggests after the first appointment was marked "No Show," staff may have **booked a brand new appointment** in GHL (creating a new event with a new ID) rather than using GHL's reschedule action on the original event. That would produce exactly this result.
 
 ### Recommendation
-| Issue | Action |
+
+| Item | Action |
 |---|---|
-| "Two profiles" in portal | Working as designed — these are two distinct GHL appointments for the same contact. No fix needed. |
-| Alert for cancelled Apr 21 appt | **Not from the portal** — investigate the GHL workflow attached to the Neuropathy calendar. The portal's `short_notice_alerts` table has zero entries for Huckeby. |
-| Optional safety net | Add a guard in `ghl-webhook-handler` short-notice block (line 1279) to skip alerting if the appointment status is in the terminal-status list (`cancelled`, `no show`, etc.) — currently it only checks `hoursDiff > 0`. This would prevent any future portal-side alerts on cancelled appts. |
+| Two appointment cards | Working as designed — correctly preserves both GHL appointments. No code fix needed. |
+| Avoid future "duplicates" | When rebooking after a No Show / Cancellation, use GHL's **Reschedule** action on the original appointment instead of creating a new one. This keeps the same `ghl_appointment_id` and updates the existing portal record in place. |
+| Optional cleanup | If the client confirms the Apr 16 (No Show) record is no longer needed, it can be deleted from the portal manually. The Apr 20 record will remain. |
 
-### Proposed code-side safeguard (if you want it)
-**File:** `supabase/functions/ghl-webhook-handler/index.ts` (~line 1279)
-**Change:** Add a status check before invoking `notify-slack-short-notice`:
-```
-if (TERMINAL_STATUSES.includes(appointment.status?.toLowerCase())) {
-  console.log(`Skipping short-notice alert — status is ${appointment.status}`);
-  return;
-}
-```
-Apply the same guard to `update-appointment-fields/index.ts` (line 254) and `all-appointments-api/index.ts` (line 444).
-
-This prevents the portal from ever sending a short-notice alert for an appointment that's already in a terminal state — defense-in-depth even though our records show no alert was sent in this case.
+### No Code Changes Required
+The previous `findExistingAppointment` fix is functioning correctly. Overwriting one appointment with another would re-introduce the cross-contamination bug we explicitly fixed for Donna Finn.
 
