@@ -45,7 +45,17 @@ export const useEmrQueue = (projectFilter?: string) => {
     try {
       setLoading(true);
       
-      // Build query for pending items
+      // Terminal statuses — appointments with these should never appear in pending queue
+      const TERMINAL_STATUSES = [
+        'cancelled', 'canceled',
+        'no show', 'noshow', 'no-show',
+        'oon',
+        'do not call', 'donotcall',
+        'rescheduled',
+        'won',
+      ];
+
+      // Build query for pending items (defense-in-depth: also exclude terminal statuses)
       let pendingQuery = supabase
         .from('emr_processing_queue')
         .select(`
@@ -59,7 +69,8 @@ export const useEmrQueue = (projectFilter?: string) => {
             detected_insurance_provider,
             detected_insurance_plan,
             detected_insurance_id,
-            insurance_id_link
+            insurance_id_link,
+            status
           )
         `)
         .eq('status', 'pending')
@@ -69,8 +80,15 @@ export const useEmrQueue = (projectFilter?: string) => {
         pendingQuery = pendingQuery.eq('project_name', projectFilter);
       }
 
-      const { data: pending, error: pendingError } = await pendingQuery;
+      const { data: pendingRaw, error: pendingError } = await pendingQuery;
       if (pendingError) throw pendingError;
+
+      // Filter out any rows whose appointment is in a terminal status (safety net
+      // in case the auto-resolve trigger missed one)
+      const pending = (pendingRaw || []).filter(item => {
+        const apptStatus = (item.all_appointments?.status || '').toString().trim().toLowerCase();
+        return !TERMINAL_STATUSES.includes(apptStatus);
+      });
 
       // Build query for completed items
       let completedQuery = supabase
