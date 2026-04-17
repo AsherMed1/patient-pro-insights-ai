@@ -114,35 +114,35 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         data.forEach(item => {
           if (item.calendar_name) {
             const calName = item.calendar_name;
+            const isVirtual = /\bvirtual\b/i.test(calName);
 
-            // Map any "Virtual" calendar to "Virtual" location
-            // Matches: "Virtual Consultation", "Virtual GAE Consultation", "PAE Virtual Consultation", etc.
-            if (/\bvirtual\b/i.test(calName)) {
+            if (isVirtual) {
+              // Virtual is an exclusive location — do NOT also extract a physical location
               locations.add('Virtual');
-            }
-
-            // Extract location from parenthesized format: "(City, ST – Description)"
-            const parenMatch = calName.match(/\(([^)]+)\)/);
-            if (parenMatch) {
-              const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
-              const loc = inner.replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
-              if (loc && !loc.toLowerCase().includes('somerset') && !loc.toLowerCase().includes('milledgeville')) {
-                locations.add(loc);
-              }
             } else {
-              // Try hyphen, "at", and "Consultation" patterns
-              let locationMatch = calName.match(/ - (.+)$/);
-              if (!locationMatch) locationMatch = calName.match(/at\s+(.+)$/);
-              if (!locationMatch) locationMatch = calName.match(/Consultation\s+(.+)$/i);
+              // Extract location from parenthesized format: "(City, ST – Description)"
+              const parenMatch = calName.match(/\(([^)]+)\)/);
+              if (parenMatch) {
+                const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
+                const loc = inner.replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
+                if (loc && !loc.toLowerCase().includes('somerset') && !loc.toLowerCase().includes('milledgeville')) {
+                  locations.add(loc);
+                }
+              } else {
+                // Try hyphen, "at", and "Consultation" patterns
+                let locationMatch = calName.match(/ - (.+)$/);
+                if (!locationMatch) locationMatch = calName.match(/at\s+(.+)$/);
+                if (!locationMatch) locationMatch = calName.match(/Consultation\s+(.+)$/i);
 
-              if (locationMatch && locationMatch[1]) {
-                const normalizedLocation = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
-                if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
-                  locations.add(normalizedLocation);
+                if (locationMatch && locationMatch[1]) {
+                  const normalizedLocation = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
+                  if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
+                    locations.add(normalizedLocation);
+                  }
                 }
               }
             }
-            
+
             // Extract service — strip "Virtual" prefix AND suffix so "Virtual GAE" / "GAE Virtual" become "GAE"
             const serviceMatch = calName.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
@@ -153,8 +153,13 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               if (service.toLowerCase() === 'in-person') {
                 service = 'GAE';
               }
-              // Skip bare "Virtual" as a service
-              if (service.toLowerCase() !== 'virtual') {
+              if (service.toLowerCase() === 'virtual' || service === '') {
+                // Bare "Virtual Consultation" — no specific service token in calendar name.
+                // Surface as "Virtual (Unspecified)" so these appointments remain filterable.
+                if (isVirtual) {
+                  services.add('Virtual (Unspecified)');
+                }
+              } else {
                 services.add(service);
               }
             }
@@ -209,7 +214,14 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
       // Apply location filter
       if (locationFilter && locationFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${locationFilter}%`);
+        if (locationFilter === 'Virtual') {
+          appointmentsQuery = appointmentsQuery.ilike('calendar_name', '%Virtual%');
+        } else {
+          // Physical locations must NOT include Virtual calendars (they often share a city name)
+          appointmentsQuery = appointmentsQuery
+            .ilike('calendar_name', `%${locationFilter}%`)
+            .not('calendar_name', 'ilike', '%Virtual%');
+        }
       }
 
       // Apply service filter
@@ -217,6 +229,17 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         if (serviceFilter === 'GAE') {
           // GAE and In-person are the same service type
           appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+        } else if (serviceFilter === 'Virtual (Unspecified)') {
+          // Bare "Virtual Consultation" calendars with no service token (UFE/HAE/GAE/PAE/PFE/Neuropathy/PAD)
+          appointmentsQuery = appointmentsQuery
+            .ilike('calendar_name', '%Virtual Consultation%')
+            .not('calendar_name', 'ilike', '%UFE%')
+            .not('calendar_name', 'ilike', '%HAE%')
+            .not('calendar_name', 'ilike', '%GAE%')
+            .not('calendar_name', 'ilike', '%PAE%')
+            .not('calendar_name', 'ilike', '%PFE%')
+            .not('calendar_name', 'ilike', '%PAD%')
+            .not('calendar_name', 'ilike', '%Neuropathy%');
         } else {
           appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
         }
