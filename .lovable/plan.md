@@ -1,60 +1,44 @@
 
-## Ventra Filter Bug — Two Issues
 
-### What the data actually shows
-Ventra has 4 calendars in GHL:
-| Calendar | Location intent | Service intent |
-|---|---|---|
-| `Request Your HAE Consultation at Great Neck, NY` | Great Neck | HAE |
-| `Request Your UFE Consultation at Great Neck, NY` | Great Neck | UFE |
-| `Request Your UFE Virtual Consultation at Great Neck, NY` | **Virtual** | UFE |
-| `Request Your Virtual Consultation at Great Neck, NY` | **Virtual** | (none — bare) |
+## Apex – Tammie Huckeby Investigation
 
-### Bug #1 — Great Neck location filter incorrectly includes Virtual appointments
-`fetchLocationAndServiceOptions` adds **"Virtual"** for any calendar matching `\bvirtual\b`, but it **also** falls through to the `at\s+(.+)$` extractor and adds **"Great Neck"** for those same Virtual calendars. Then when the user filters by location "Great Neck", the query runs `calendar_name ILIKE '%Great Neck%'` which matches the Virtual calendars too.
+### What's actually happening
+Tammie has **two separate GHL appointments** under one contact (`YMcGnc1qX3JSMc9meHuD`) — this is correct, not a duplicate profile. Each GHL appointment becomes its own portal record because they have distinct `ghl_appointment_id`s:
 
-Same issue on the inverse side: filtering by "Virtual" runs `ILIKE '%Virtual%'` which is correct (only matches virtual calendars).
+| Record | GHL Appt ID | Service | Date | Status |
+|---|---|---|---|---|
+| Old | `1EAGN7Qkm0jPxoq11tOa` | Neuropathy (Crossville) | Apr 21, 3:15 PM | **Cancelled** ✅ |
+| New | `877CPabkwyZwkUDdRI45` | GAE (Crossville) | May 19, 2:00 PM | **Confirmed** ✅ |
 
-**Fix:** When a calendar is identified as Virtual, **do not** also extract a physical location from it. Treat Virtual as the exclusive location.
+Both records reflect the correct status — the Apr 21 appointment IS marked Cancelled in the portal as of Apr 16, 20:09 UTC.
 
-```ts
-const isVirtual = /\bvirtual\b/i.test(calName);
-if (isVirtual) {
-  locations.add('Virtual');
-} else {
-  // existing parenthesized / "at" / "Consultation" extraction
-}
-```
+### The real problem — the "alert"
+The Apr 21 cancelled appointment is **still sitting in the EMR Processing Queue with `status='pending'`** even though the underlying appointment is Cancelled (IPC=true).
 
-For the **filter query**, when `locationFilter === 'Great Neck'`, exclude Virtual calendars:
-```ts
-if (locationFilter === 'Virtual') {
-  appointmentsQuery = appointmentsQuery.ilike('calendar_name', '%Virtual%');
-} else if (locationFilter && locationFilter !== 'ALL') {
-  appointmentsQuery = appointmentsQuery
-    .ilike('calendar_name', `%${locationFilter}%`)
-    .not('calendar_name', 'ilike', '%Virtual%');
-}
-```
+**Root cause:** The DB trigger `auto_queue_confirmed_appointment` correctly inserts into `emr_processing_queue` when an appointment becomes Confirmed, but **no trigger removes the queue entry when the appointment later moves to a terminal status** (Cancelled, No Show, OON, Rescheduled, Do Not Call). The EMR queue UI (`useEmrQueue`) just selects everything `WHERE status='pending'` with no join-side filter on `all_appointments.status`.
 
-### Bug #2 — "Virtual Consultation" (bare) appointments missing from service filters
-The calendar `Request Your Virtual Consultation at Great Neck, NY` strips "Virtual" → leaves empty service → skipped. Per Ventra, these bare-virtual appointments are clinically either UFE or HAE but the GHL calendar doesn't say which.
+**This is systemic, not isolated to Tammie.** Confirmed query: **4,653 stale pending EMR queue rows** exist across all projects where the appointment is already terminal.
 
-Two options:
-- **A. Server-side fix only (recommended now):** Add an "All Services" option that always returns everything (already exists via `serviceFilter === 'ALL'`). The 6 "missing" virtual appointments simply have no detectable service from the calendar name. Add a synthetic **"Virtual (Unspecified)"** service entry so the user can see and filter them, plus a one-time client guidance: rename the calendar in GHL to either `UFE Virtual` or `HAE Virtual` going forward.
-- **B. Detect service from intake notes:** Use the `parsed_pathology_info.procedure` field on each appointment to back-fill the service. More accurate but heavier query.
+### Fix
 
-**Recommendation: A** — it surfaces the gap honestly and aligns with the client's own request to fix the GHL calendar setup. I'll add "Virtual (Unspecified)" to the service dropdown when bare-virtual calendars exist, and filter via `calendar_name ILIKE '%Virtual Consultation%'` AND not matching any known service token.
+**1. Add a DB trigger that auto-resolves EMR queue entries when an appointment becomes terminal**
+New trigger on `all_appointments` AFTER UPDATE OF status — when new status is in (cancelled, no show, oon, do not call, rescheduled, won), update the matching `emr_processing_queue` row to `status='completed'` with a system note `"Auto-resolved: appointment {status}"` and `processed_at = now()`.
 
-### Files
-`src/components/projects/ProjectDetailedDashboard.tsx` only — the appointment manager (`AppointmentFilters.tsx`) already handles this correctly per project memory.
+**2. One-time backfill cleanup** for the 4,653 existing stale rows — mark them `completed` with note `"Auto-resolved: appointment {status} (backfill)"`.
 
-### Result for Ventra
-- **Locations:** Great Neck (8 appts: 3 HAE + 5 UFE in-person), Virtual (35 appts: 25 UFE Virtual + 8 bare Virtual + 2 No Show etc.) — no overlap
-- **Services:** HAE (3), UFE (30 = 5 in-person + 25 UFE Virtual), Virtual (Unspecified) (8) — totals match "All Services"
-- **Filtering Great Neck** no longer pulls in Virtual records
-- **Filtering Virtual** location returns all virtual calendars regardless of service
-- Applies globally to every project — same logic shared
+**3. UI safety net** in `useEmrQueue.tsx` — also filter the `pending` query so any appointment with terminal status is excluded even if the trigger missed it (defense in depth).
 
-### Client guidance (to include in response)
-Recommend the client rename the bare `Request Your Virtual Consultation at Great Neck, NY` calendar in GHL to either `UFE Virtual` or `HAE Virtual` (or split into two). Once GHL is updated, the "Virtual (Unspecified)" bucket will empty automatically.
+### Files / changes
+- **Migration** — new trigger function `auto_resolve_emr_queue_on_terminal_status()` + trigger on `all_appointments`
+- **Insert SQL** — backfill `UPDATE emr_processing_queue SET status='completed'` for stale rows
+- **`src/hooks/useEmrQueue.tsx`** — exclude terminal-status appointments from pending query
+
+### Result
+- Tammie's Apr 21 record drops out of Apex's EMR queue immediately
+- All 4,653 stale entries across all projects get auto-resolved
+- Future cancellations / no-shows / reschedules auto-clean themselves from the queue
+- The two profiles in the portal remain (correct — they're two distinct GHL appointments)
+
+### Memory update
+Add a core rule: "Terminal status changes auto-resolve EMR processing queue entries (pending → completed)" alongside the existing terminal-status rules.
+
