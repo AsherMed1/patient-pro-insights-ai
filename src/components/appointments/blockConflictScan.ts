@@ -1,0 +1,115 @@
+import { supabase } from '@/integrations/supabase/client';
+
+export interface BlockTimeRange {
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+}
+
+export interface BlockConflict {
+  id: string;
+  lead_name: string;
+  lead_phone_number: string | null;
+  requested_time: string | null;
+  status: string | null;
+  calendar_name: string | null;
+  ghl_appointment_id: string | null;
+  ghl_id: string | null;
+  date_of_appointment: string | null;
+}
+
+/**
+ * Convert "HH:mm" or "HH:mm:ss" to total minutes.
+ * Returns null on parse failure.
+ */
+function timeToMinutes(t: string | null | undefined): number | null {
+  if (!t) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(t.trim());
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  if (isNaN(h) || isNaN(mm)) return null;
+  return h * 60 + mm;
+}
+
+/**
+ * Find unconfirmed appointments that overlap with the proposed block.
+ * - Same project
+ * - Same calendar (matched by calendar_name)
+ * - Same date (date_of_appointment YYYY-MM-DD)
+ * - requested_time falls inside any of the time ranges
+ * - status is null OR 'pending' (case-insensitive)
+ * - is_reserved_block is not true (don't recursively cancel other blocks)
+ */
+export async function scanBlockConflicts(params: {
+  projectName: string;
+  dateStr: string; // 'YYYY-MM-DD'
+  timeRanges: BlockTimeRange[];
+  calendarNames: string[];
+}): Promise<BlockConflict[]> {
+  const { projectName, dateStr, timeRanges, calendarNames } = params;
+
+  if (!projectName || !dateStr || !calendarNames.length || !timeRanges.length) {
+    return [];
+  }
+
+  // Pull candidates: same project, same date, matching calendar names, not a reserved block.
+  const { data, error } = await supabase
+    .from('all_appointments')
+    .select('id, lead_name, lead_phone_number, requested_time, status, calendar_name, ghl_appointment_id, ghl_id, date_of_appointment, is_reserved_block')
+    .eq('project_name', projectName)
+    .gte('date_of_appointment', `${dateStr}T00:00:00`)
+    .lte('date_of_appointment', `${dateStr}T23:59:59`)
+    .in('calendar_name', calendarNames);
+
+  if (error) {
+    console.error('[blockConflictScan] Query failed:', error);
+    return [];
+  }
+
+  if (!data || data.length === 0) return [];
+
+  // Pre-compute range bounds in minutes
+  const rangeBounds = timeRanges
+    .map((r) => ({
+      start: timeToMinutes(r.startTime),
+      end: timeToMinutes(r.endTime),
+    }))
+    .filter((r): r is { start: number; end: number } => r.start !== null && r.end !== null);
+
+  return data.filter((row: any) => {
+    if (row.is_reserved_block === true) return false;
+
+    const status = (row.status || '').toString().trim().toLowerCase();
+    const isUnconfirmed = status === '' || status === 'pending';
+    if (!isUnconfirmed) return false;
+
+    const apptMinutes = timeToMinutes(row.requested_time);
+    if (apptMinutes === null) return false;
+
+    return rangeBounds.some((r) => apptMinutes >= r.start && apptMinutes < r.end);
+  }).map((row: any) => ({
+    id: row.id,
+    lead_name: row.lead_name,
+    lead_phone_number: row.lead_phone_number,
+    requested_time: row.requested_time,
+    status: row.status,
+    calendar_name: row.calendar_name,
+    ghl_appointment_id: row.ghl_appointment_id,
+    ghl_id: row.ghl_id,
+    date_of_appointment: row.date_of_appointment,
+  }));
+}
+
+/**
+ * Format "HH:mm" → "9:30 AM"
+ */
+export function formatRequestedTime(time: string | null): string {
+  if (!time) return '—';
+  const m = /^(\d{1,2}):(\d{2})/.exec(time.trim());
+  if (!m) return time;
+  const h = parseInt(m[1], 10);
+  const mm = m[2];
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${displayHour}:${mm} ${ampm}`;
+}
