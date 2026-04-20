@@ -24,6 +24,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useGhlCalendars } from '@/hooks/useGhlCalendars';
 import { TimeInput } from './TimeInput';
+import { scanBlockConflicts, type BlockConflict } from './blockConflictScan';
+import { BlockConflictDialog } from './BlockConflictDialog';
+
+const AUTO_CANCEL_REASON = 'Auto-cancelled: Clinic blocked time';
 
 interface ReserveTimeBlockDialogProps {
   open: boolean;
