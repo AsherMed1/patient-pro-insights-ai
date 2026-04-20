@@ -289,6 +289,9 @@ export function ReserveTimeBlockDialog({
       ]);
       setSelectedCalendarIds([]);
       setReason('');
+      setConflicts([]);
+      setShowConflictDialog(false);
+      setAutoCancelConflicts(true);
     }
   }, [open, initialDate, initialHour]);
 
