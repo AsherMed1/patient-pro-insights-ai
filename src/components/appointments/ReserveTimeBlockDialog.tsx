@@ -601,6 +601,18 @@ export function ReserveTimeBlockDialog({
         // Get unique calendar names from successful creations
         const successfulCalendarNames = [...new Set(allCreatedAppointments.map(a => a.calendarName))];
 
+        // Auto-cancel conflicting unconfirmed appointments (only for calendars where block succeeded)
+        let cancelledCount = 0;
+        if (conflictsToHandle.length > 0 && autoCancelConflicts) {
+          cancelledCount = await cancelConflictingAppointments(conflictsToHandle, successfulCalendarNames);
+          if (cancelledCount > 0) {
+            toast({
+              title: 'Appointments Auto-Cancelled',
+              description: `${cancelledCount} unconfirmed appointment(s) cancelled. Patients notified via GHL workflow.`,
+            });
+          }
+        }
+
         // Send Slack notification (fire-and-forget, don't block on failure)
         supabase.functions.invoke('notify-calendar-update', {
           body: {
@@ -621,6 +633,7 @@ export function ReserveTimeBlockDialog({
           console.error('[ReserveTimeBlock] Failed to send Slack notification:', err);
         });
 
+        setShowConflictDialog(false);
         onOpenChange(false);
         // Small delay to ensure database transaction is committed and visible before refetch
         setTimeout(() => {
