@@ -364,6 +364,109 @@ export function ReserveTimeBlockDialog({
       return;
     }
 
+    // Run conflict scan against unconfirmed appointments
+    setIsScanning(true);
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const calendarNames = selectedCalendarIds
+        .map((id) => calendars.find((c) => c.id === id)?.name)
+        .filter((n): n is string => !!n);
+
+      const found = await scanBlockConflicts({
+        projectName,
+        dateStr,
+        timeRanges: timeRanges.map((r) => ({ startTime: r.startTime, endTime: r.endTime })),
+        calendarNames,
+      });
+
+      if (found.length > 0) {
+        setConflicts(found);
+        setAutoCancelConflicts(true);
+        setShowConflictDialog(true);
+        setIsScanning(false);
+        return;
+      }
+    } catch (err) {
+      console.error('[ReserveTimeBlock] Conflict scan failed:', err);
+      // Non-blocking — proceed even if scan fails
+    } finally {
+      setIsScanning(false);
+    }
+
+    // No conflicts → proceed straight to creation
+    await executeBlockCreation([]);
+  };
+
+  const cancelConflictingAppointments = async (
+    toCancel: BlockConflict[],
+    successfulCalendarNames: string[]
+  ) => {
+    // Only cancel conflicts on calendars where the block actually succeeded
+    const eligible = toCancel.filter((c) =>
+      c.calendar_name && successfulCalendarNames.includes(c.calendar_name)
+    );
+
+    let cancelledCount = 0;
+
+    for (const appt of eligible) {
+      try {
+        // 1. Update local DB
+        const { error: updateError } = await supabase
+          .from('all_appointments')
+          .update({
+            status: 'Cancelled',
+            cancellation_reason: AUTO_CANCEL_REASON,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', appt.id);
+
+        if (updateError) {
+          console.error(`[ReserveTimeBlock] Failed to cancel appt ${appt.id}:`, updateError);
+          continue;
+        }
+
+        // 2. Internal note (attribution)
+        const noteText = `Auto-cancelled by ${userName || 'Portal User'} due to clinic time block${reason ? ` (${reason})` : ''} on ${format(selectedDate!, 'PPP')}.`;
+        await supabase.from('appointment_notes').insert({
+          appointment_id: appt.id,
+          note_text: noteText,
+          created_by: userId || null,
+        });
+
+        // 3. Sync cancellation to GHL (best-effort)
+        if (appt.ghl_appointment_id) {
+          supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: appt.ghl_appointment_id,
+              project_name: projectName,
+              status: 'Cancelled',
+            },
+          }).catch((err) => {
+            console.error(`[ReserveTimeBlock] GHL sync failed for ${appt.id}:`, err);
+          });
+        }
+
+        // 4. Fire status webhook → triggers patient SMS via clinic's GHL workflow
+        supabase.functions.invoke('appointment-status-webhook', {
+          body: {
+            appointment_id: appt.id,
+            old_status: appt.status || null,
+            new_status: 'Cancelled',
+          },
+        }).catch((err) => {
+          console.error(`[ReserveTimeBlock] Webhook failed for ${appt.id}:`, err);
+        });
+
+        cancelledCount++;
+      } catch (err) {
+        console.error(`[ReserveTimeBlock] Error cancelling appt ${appt.id}:`, err);
+      }
+    }
+
+    return cancelledCount;
+  };
+
+  const executeBlockCreation = async (conflictsToHandle: BlockConflict[]) => {
     setIsSubmitting(true);
 
     try {
