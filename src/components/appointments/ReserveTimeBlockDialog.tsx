@@ -736,11 +736,16 @@ export function ReserveTimeBlockDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting || isScanning}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || selectedCalendarIds.length === 0}>
-            {isSubmitting ? (
+          <Button onClick={handleSubmit} disabled={isSubmitting || isScanning || selectedCalendarIds.length === 0}>
+            {isScanning ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Checking conflicts...
+              </>
+            ) : isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Reserving {selectedCalendarIds.length > 1 ? `${selectedCalendarIds.length} blocks` : ''}...
@@ -753,6 +758,22 @@ export function ReserveTimeBlockDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <BlockConflictDialog
+        open={showConflictDialog}
+        onOpenChange={setShowConflictDialog}
+        conflicts={conflicts}
+        autoCancel={autoCancelConflicts}
+        onAutoCancelChange={setAutoCancelConflicts}
+        isSubmitting={isSubmitting}
+        onCancel={() => {
+          setShowConflictDialog(false);
+          setConflicts([]);
+        }}
+        onConfirm={() => {
+          executeBlockCreation(autoCancelConflicts ? conflicts : []);
+        }}
+      />
     </Dialog>
   );
 }
