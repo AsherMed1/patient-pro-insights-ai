@@ -1,44 +1,39 @@
 
 
-## Apex – Tammie Huckeby Investigation
+## Vivid – Riviann Jerry "Duplicate" Investigation
 
-### What's actually happening
-Tammie has **two separate GHL appointments** under one contact (`YMcGnc1qX3JSMc9meHuD`) — this is correct, not a duplicate profile. Each GHL appointment becomes its own portal record because they have distinct `ghl_appointment_id`s:
+### What's actually in the database
+Same patient (one GHL contact `NcqzoIxXceg4j1rLHiVv`), **two distinct GHL appointments** booked on different days at different locations:
 
-| Record | GHL Appt ID | Service | Date | Status |
-|---|---|---|---|---|
-| Old | `1EAGN7Qkm0jPxoq11tOa` | Neuropathy (Crossville) | Apr 21, 3:15 PM | **Cancelled** ✅ |
-| New | `877CPabkwyZwkUDdRI45` | GAE (Crossville) | May 19, 2:00 PM | **Confirmed** ✅ |
+| Record | GHL Appt ID | Location | Date | Status | Booked |
+|---|---|---|---|---|---|
+| A | `s0hXKzD5fgtpegS2pdq7` | **Hollywood, FL** | Apr 28, 2026 | Confirmed | Apr 18 20:35 UTC |
+| B | `v9VeSGGA2Go0U7m2H5YV` | **Miami, FL** | May 11, 2026 | Confirmed | Apr 18 19:08 UTC |
 
-Both records reflect the correct status — the Apr 21 appointment IS marked Cancelled in the portal as of Apr 16, 20:09 UTC.
+Both have the same phone, email, DOB, and GHL contact ID — same person. Each has a unique `ghl_appointment_id` from GHL, so the portal correctly created two records (same as the Tammie Huckeby case).
 
-### The real problem — the "alert"
-The Apr 21 cancelled appointment is **still sitting in the EMR Processing Queue with `status='pending'`** even though the underlying appointment is Cancelled (IPC=true).
+### This is not a portal bug
+Riviann was booked into **two separate calendars in GHL** — Miami first (19:08), then Hollywood ~90 min later (20:35). GHL sent us two `appointment.create` webhooks with different appointment IDs, so we have two records. That's correct system behavior.
 
-**Root cause:** The DB trigger `auto_queue_confirmed_appointment` correctly inserts into `emr_processing_queue` when an appointment becomes Confirmed, but **no trigger removes the queue entry when the appointment later moves to a terminal status** (Cancelled, No Show, OON, Rescheduled, Do Not Call). The EMR queue UI (`useEmrQueue`) just selects everything `WHERE status='pending'` with no join-side filter on `all_appointments.status`.
+### What's likely going on
+One of three scenarios:
+1. **Patient/agent double-booked by mistake** — booked Miami first, then re-booked Hollywood thinking the first didn't go through (or vice versa). The Miami one (older) should probably be cancelled.
+2. **Intentional reschedule that wasn't done as a reschedule** — agent created a new appointment instead of using the reschedule flow on the existing one. Result: old one still sits Confirmed, new one also Confirmed, both clutter the portal.
+3. **Two real visits intended** (e.g. consultation + procedure prep) — unusual for two UFE consultations, but possible.
 
-**This is systemic, not isolated to Tammie.** Confirmed query: **4,653 stale pending EMR queue rows** exist across all projects where the appointment is already terminal.
+### Recommendation
+**No code change.** The portal is doing exactly what it should. The fix is operational — the Vivid team needs to:
+1. Confirm with the patient which appointment is the real one
+2. Cancel the other in the portal (status → Cancelled). That will:
+   - Sync the cancellation to GHL
+   - Remove it from the EMR queue automatically (per the trigger we shipped Apr 17)
+   - Mark IPC=true so it drops off the New tab
 
-### Fix
+If they confirm both are needed (Hollywood Apr 28 + Miami May 11), leave both as-is.
 
-**1. Add a DB trigger that auto-resolves EMR queue entries when an appointment becomes terminal**
-New trigger on `all_appointments` AFTER UPDATE OF status — when new status is in (cancelled, no show, oon, do not call, rescheduled, won), update the matching `emr_processing_queue` row to `status='completed'` with a system note `"Auto-resolved: appointment {status}"` and `processed_at = now()`.
+### Optional future enhancement (not part of this fix)
+If duplicate-confirmed-appointments-per-contact happen often, we could add a portal warning badge: "⚠️ This contact has 2 confirmed upcoming appointments at different locations" on each card, surfacing the situation without touching data. Would be a follow-up if the team wants it.
 
-**2. One-time backfill cleanup** for the 4,653 existing stale rows — mark them `completed` with note `"Auto-resolved: appointment {status} (backfill)"`.
-
-**3. UI safety net** in `useEmrQueue.tsx` — also filter the `pending` query so any appointment with terminal status is excluded even if the trigger missed it (defense in depth).
-
-### Files / changes
-- **Migration** — new trigger function `auto_resolve_emr_queue_on_terminal_status()` + trigger on `all_appointments`
-- **Insert SQL** — backfill `UPDATE emr_processing_queue SET status='completed'` for stale rows
-- **`src/hooks/useEmrQueue.tsx`** — exclude terminal-status appointments from pending query
-
-### Result
-- Tammie's Apr 21 record drops out of Apex's EMR queue immediately
-- All 4,653 stale entries across all projects get auto-resolved
-- Future cancellations / no-shows / reschedules auto-clean themselves from the queue
-- The two profiles in the portal remain (correct — they're two distinct GHL appointments)
-
-### Memory update
-Add a core rule: "Terminal status changes auto-resolve EMR processing queue entries (pending → completed)" alongside the existing terminal-status rules.
+### What I need from you
+Which appointment should be kept — Hollywood Apr 28 or Miami May 11? Or both? Once you confirm, the team cancels the other one in the portal and the duplicate disappears from view.
 
