@@ -219,6 +219,12 @@ export function ReserveTimeBlockDialog({
   const [ghlLocationId, setGhlLocationId] = useState<string | null>(null);
   const [projectTimezone, setProjectTimezone] = useState<string | null>(null);
 
+  // Conflict-scan state
+  const [conflicts, setConflicts] = useState<BlockConflict[]>([]);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [autoCancelConflicts, setAutoCancelConflicts] = useState(true);
+  const [isScanning, setIsScanning] = useState(false);
+
   // Time range management functions
   const addTimeRange = () => {
     setTimeRanges([
