@@ -24,6 +24,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useGhlCalendars } from '@/hooks/useGhlCalendars';
 import { TimeInput } from './TimeInput';
+import { scanBlockConflicts, type BlockConflict } from './blockConflictScan';
+import { BlockConflictDialog } from './BlockConflictDialog';
+
+const AUTO_CANCEL_REASON = 'Auto-cancelled: Clinic blocked time';
 
 interface ReserveTimeBlockDialogProps {
   open: boolean;
@@ -215,6 +219,12 @@ export function ReserveTimeBlockDialog({
   const [ghlLocationId, setGhlLocationId] = useState<string | null>(null);
   const [projectTimezone, setProjectTimezone] = useState<string | null>(null);
 
+  // Conflict-scan state
+  const [conflicts, setConflicts] = useState<BlockConflict[]>([]);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [autoCancelConflicts, setAutoCancelConflicts] = useState(true);
+  const [isScanning, setIsScanning] = useState(false);
+
   // Time range management functions
   const addTimeRange = () => {
     setTimeRanges([
@@ -279,6 +289,9 @@ export function ReserveTimeBlockDialog({
       ]);
       setSelectedCalendarIds([]);
       setReason('');
+      setConflicts([]);
+      setShowConflictDialog(false);
+      setAutoCancelConflicts(true);
     }
   }, [open, initialDate, initialHour]);
 
@@ -351,6 +364,109 @@ export function ReserveTimeBlockDialog({
       return;
     }
 
+    // Run conflict scan against unconfirmed appointments
+    setIsScanning(true);
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const calendarNames = selectedCalendarIds
+        .map((id) => calendars.find((c) => c.id === id)?.name)
+        .filter((n): n is string => !!n);
+
+      const found = await scanBlockConflicts({
+        projectName,
+        dateStr,
+        timeRanges: timeRanges.map((r) => ({ startTime: r.startTime, endTime: r.endTime })),
+        calendarNames,
+      });
+
+      if (found.length > 0) {
+        setConflicts(found);
+        setAutoCancelConflicts(true);
+        setShowConflictDialog(true);
+        setIsScanning(false);
+        return;
+      }
+    } catch (err) {
+      console.error('[ReserveTimeBlock] Conflict scan failed:', err);
+      // Non-blocking — proceed even if scan fails
+    } finally {
+      setIsScanning(false);
+    }
+
+    // No conflicts → proceed straight to creation
+    await executeBlockCreation([]);
+  };
+
+  const cancelConflictingAppointments = async (
+    toCancel: BlockConflict[],
+    successfulCalendarNames: string[]
+  ) => {
+    // Only cancel conflicts on calendars where the block actually succeeded
+    const eligible = toCancel.filter((c) =>
+      c.calendar_name && successfulCalendarNames.includes(c.calendar_name)
+    );
+
+    let cancelledCount = 0;
+
+    for (const appt of eligible) {
+      try {
+        // 1. Update local DB
+        const { error: updateError } = await supabase
+          .from('all_appointments')
+          .update({
+            status: 'Cancelled',
+            cancellation_reason: AUTO_CANCEL_REASON,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', appt.id);
+
+        if (updateError) {
+          console.error(`[ReserveTimeBlock] Failed to cancel appt ${appt.id}:`, updateError);
+          continue;
+        }
+
+        // 2. Internal note (attribution)
+        const noteText = `Auto-cancelled by ${userName || 'Portal User'} due to clinic time block${reason ? ` (${reason})` : ''} on ${format(selectedDate!, 'PPP')}.`;
+        await supabase.from('appointment_notes').insert({
+          appointment_id: appt.id,
+          note_text: noteText,
+          created_by: userId || null,
+        });
+
+        // 3. Sync cancellation to GHL (best-effort)
+        if (appt.ghl_appointment_id) {
+          supabase.functions.invoke('update-ghl-appointment', {
+            body: {
+              ghl_appointment_id: appt.ghl_appointment_id,
+              project_name: projectName,
+              status: 'Cancelled',
+            },
+          }).catch((err) => {
+            console.error(`[ReserveTimeBlock] GHL sync failed for ${appt.id}:`, err);
+          });
+        }
+
+        // 4. Fire status webhook → triggers patient SMS via clinic's GHL workflow
+        supabase.functions.invoke('appointment-status-webhook', {
+          body: {
+            appointment_id: appt.id,
+            old_status: appt.status || null,
+            new_status: 'Cancelled',
+          },
+        }).catch((err) => {
+          console.error(`[ReserveTimeBlock] Webhook failed for ${appt.id}:`, err);
+        });
+
+        cancelledCount++;
+      } catch (err) {
+        console.error(`[ReserveTimeBlock] Error cancelling appt ${appt.id}:`, err);
+      }
+    }
+
+    return cancelledCount;
+  };
+
+  const executeBlockCreation = async (conflictsToHandle: BlockConflict[]) => {
     setIsSubmitting(true);
 
     try {
@@ -485,6 +601,18 @@ export function ReserveTimeBlockDialog({
         // Get unique calendar names from successful creations
         const successfulCalendarNames = [...new Set(allCreatedAppointments.map(a => a.calendarName))];
 
+        // Auto-cancel conflicting unconfirmed appointments (only for calendars where block succeeded)
+        let cancelledCount = 0;
+        if (conflictsToHandle.length > 0 && autoCancelConflicts) {
+          cancelledCount = await cancelConflictingAppointments(conflictsToHandle, successfulCalendarNames);
+          if (cancelledCount > 0) {
+            toast({
+              title: 'Appointments Auto-Cancelled',
+              description: `${cancelledCount} unconfirmed appointment(s) cancelled. Patients notified via GHL workflow.`,
+            });
+          }
+        }
+
         // Send Slack notification (fire-and-forget, don't block on failure)
         supabase.functions.invoke('notify-calendar-update', {
           body: {
@@ -505,6 +633,7 @@ export function ReserveTimeBlockDialog({
           console.error('[ReserveTimeBlock] Failed to send Slack notification:', err);
         });
 
+        setShowConflictDialog(false);
         onOpenChange(false);
         // Small delay to ensure database transaction is committed and visible before refetch
         setTimeout(() => {
@@ -607,11 +736,16 @@ export function ReserveTimeBlockDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting || isScanning}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || selectedCalendarIds.length === 0}>
-            {isSubmitting ? (
+          <Button onClick={handleSubmit} disabled={isSubmitting || isScanning || selectedCalendarIds.length === 0}>
+            {isScanning ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Checking conflicts...
+              </>
+            ) : isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Reserving {selectedCalendarIds.length > 1 ? `${selectedCalendarIds.length} blocks` : ''}...
@@ -624,6 +758,22 @@ export function ReserveTimeBlockDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <BlockConflictDialog
+        open={showConflictDialog}
+        onOpenChange={setShowConflictDialog}
+        conflicts={conflicts}
+        autoCancel={autoCancelConflicts}
+        onAutoCancelChange={setAutoCancelConflicts}
+        isSubmitting={isSubmitting}
+        onCancel={() => {
+          setShowConflictDialog(false);
+          setConflicts([]);
+        }}
+        onConfirm={() => {
+          executeBlockCreation(autoCancelConflicts ? conflicts : []);
+        }}
+      />
     </Dialog>
   );
 }
