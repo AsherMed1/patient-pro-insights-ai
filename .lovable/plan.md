@@ -1,34 +1,56 @@
 
 
-## Riviann Jerry – Cancel Miami May 11, Keep Hollywood Apr 28
+## Round-Robin Block Conflict Detection — Alert Only
 
-### What you confirmed
-Keep: **Hollywood, FL — Apr 28, 2026** (`s0hXKzD5fgtpegS2pdq7`)
-Cancel: **Miami, FL — May 11, 2026** (`v9VeSGGA2Go0U7m2H5YV`)
+You declined auto-cancellation (right call — auto-cancelling a real patient who's already been booked is risky). Here's a lighter-weight version: **detect and alert, never auto-cancel.** Setters/clinic decide what to do with each conflict.
 
-### What I'll do (one-time data fix, no code change)
+### What this builds
 
-1. **Update the Miami May 11 record in the portal**
-   - `status` → `Cancelled`
-   - `cancellation_reason` → `Duplicate booking — patient kept Hollywood Apr 28 appointment`
-   - Add internal note attributing the cleanup to the support request from Vivid
+When a new appointment lands in the portal (via GHL webhook or manual entry) on a date/time/calendar where a `is_reserved_block=true` record already exists, the system:
 
-2. **Sync the cancellation to GHL** via the existing `update-ghl-appointment` edge function so GHL shows the May 11 slot as cancelled and the Hollywood appointment remains the source of truth.
+1. Flags the appointment with a new `booked_over_block = true` column
+2. Posts a Slack alert to the existing `SLACK_CALENDAR_UPDATES_WEBHOOK_URL` channel
+3. Adds an internal note on the appointment explaining the conflict
+4. Shows a red `⚠ Booked over blocked time` badge on the appointment card
 
-3. **Auto-side-effects** (handled by existing triggers — no extra work):
-   - EMR processing queue: May 11 row auto-resolves to `completed`
-   - `internal_process_complete` → true on the cancelled row → drops off New tab
-   - GHL workflow fires the clinic's standard cancellation SMS to the patient (if Vivid wants to suppress that, say so before approval and I'll skip the GHL sync step and only update the portal record)
-   - Lead in `new_leads` gets removed per existing cancelled-lead-removal rule
+**No status change. No SMS. No GHL sync.** The patient stays Confirmed until a human acts.
 
-### What stays untouched
-- Hollywood Apr 28 record — no changes, status remains Confirmed.
-- Patient's GHL contact (`NcqzoIxXceg4j1rLHiVv`) — no contact-level edits.
+### Files touched
 
-### One thing to flag before approving
-The standard cancellation SMS will go out to Riviann unless you tell me to skip GHL sync. Two options:
-- **Default (recommended):** Sync to GHL, patient gets a cancellation SMS for the Miami slot. Clean and consistent.
-- **Silent:** Only update the portal, do NOT sync to GHL. Vivid's team would then need to manually delete the Miami event in GHL or it'll stay on their calendar there. Use this if Vivid has already spoken to the patient and doesn't want a duplicate SMS.
+| File | Change |
+|---|---|
+| DB migration | Add `all_appointments.booked_over_block boolean default false` |
+| `src/utils/blockOverlapCheck.ts` (new) | Reusable function: given project + calendar + date + time, returns overlapping block records |
+| `supabase/functions/ghl-webhook-handler/index.ts` | After insert, run overlap check; if hit → set flag, log note, fire Slack |
+| `supabase/functions/notify-slack-block-conflict/index.ts` (new) | Lightweight Slack poster, mirrors `notify-slack-short-notice` |
+| `src/components/appointments/AppointmentCard.tsx` | Render badge when `booked_over_block === true` |
+| `src/components/appointments/AppointmentsList.tsx` | Optional filter chip "Booked over block" so setters can pull the list |
 
-Approve as-is for the default, or say "silent" and I'll skip the GHL sync.
+### Slack alert format (sent to `#calendar-updates`)
+
+```
+⚠ Booked over blocked time — needs setter review
+Project: Vascular Surgery Center of Excellence
+Calendar: Request Your GAE Consultation Twin Falls, ID
+Patient: Robert Mcgovern
+Booked: May 4, 2026 1:45 PM
+Block created: Apr 10, 2026 by Karli (reason: patient scheduled)
+[View in portal]
+```
+
+### Robert McGovern specifically
+
+**Default: leave the appointment alone, post a backfill Slack alert** so VSCE/setters see it in the channel like any future case. No status change, no SMS — this matches the "alert-only" philosophy. Clinic already knows about him from the original email and can call him directly.
+
+If you'd rather cancel him outright instead, say so and I'll do it as a separate one-off after this ships.
+
+### Out of scope (intentionally)
+
+- Auto-cancelling real patient bookings — declined, not building
+- Preventing the booking upstream in GHL — separate investigation, requires GHL config changes outside the portal
+- Backfilling historical conflicts — only catches new bookings going forward (plus Robert as the one backfill alert)
+
+### Risk
+
+Very low. New column defaults false, no behavior change for existing records, no destructive actions. Worst case: noisy Slack channel, which is easy to silence by removing the alert call.
 
