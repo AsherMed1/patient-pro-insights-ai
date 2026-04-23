@@ -1,86 +1,93 @@
 
 
-## Backfill Superseded Appointments — Direct SQL Execution
+## Welcome Call Status Blocks GHL Cancellation Sync — Root Cause & Fix
 
-### Approach
+### What happened (Oralia Miller)
 
-Run the backfill as a single SQL migration instead of looping from the browser. Same logic as the `mark_superseded_on_change` trigger, applied retroactively to every existing row in one transaction.
+| Time | Source | Event |
+|---|---|---|
+| Apr 15, 3:16 PM | GHL → portal | Appointment created, status `Confirmed` |
+| Apr 16, 6:48 PM | Portal (Nichole) | Manually changed status to `Welcome Call` |
+| **Apr 21, 7:10–7:11 PM** | **GHL → portal (9 webhook hits)** | **Cancel + other field updates fired. Row was matched and other fields were touched, but the `status` change was silently dropped.** |
 
-### What the migration does
+The audit log shows nine consecutive `UPDATE` events from those minutes, every one logging `old_status:Welcome Call → new_status:Welcome Call`. The webhook arrived; the handler decided to keep "Welcome Call" instead of accepting "Cancelled".
 
-1. **Dry-run report first** (returned via `RAISE NOTICE` in the migration output):
-   - Total candidate rows to be marked
-   - Per-project breakdown
-   - Sample of 25 patients affected
-2. **Then executes the update** in the same migration so the user gets one approval and a single transaction.
+### Root cause
 
-### SQL logic
+`supabase/functions/ghl-webhook-handler/index.ts` line **692**:
 
-```sql
-WITH groups AS (
-  SELECT
-    id,
-    project_name,
-    lead_name,
-    status,
-    created_at,
-    was_ever_confirmed,
-    -- group key: ghl_id when available, else phone+name
-    COALESCE(ghl_id, lead_phone_number || '|' || LOWER(TRIM(lead_name))) AS group_key
-  FROM all_appointments
-  WHERE COALESCE(is_reserved_block, false) = false
-),
-with_active_newer AS (
-  SELECT g.*,
-    EXISTS (
-      SELECT 1 FROM groups g2
-      WHERE g2.project_name = g.project_name
-        AND g2.group_key = g.group_key
-        AND g2.created_at > g.created_at
-        AND (g2.status IS NULL OR LOWER(TRIM(g2.status)) NOT IN
-          ('cancelled','canceled','no show','noshow','no-show',
-           'rescheduled','do not call','donotcall','oon'))
-    ) AS has_active_newer
-  FROM groups g
-)
-UPDATE all_appointments a
-SET is_superseded = true, updated_at = now()
-FROM with_active_newer w
-WHERE a.id = w.id
-  AND COALESCE(a.was_ever_confirmed, false) = false
-  AND LOWER(TRIM(a.status)) IN
-    ('cancelled','canceled','no show','noshow','no-show',
-     'rescheduled','do not call','donotcall','oon')
-  AND w.has_active_newer = true
-  AND COALESCE(a.is_superseded, false) = false;
+```ts
+const portalOnlyStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
 ```
 
-### Safeguards
+This list defines statuses that are **never** allowed to be overwritten by an incoming GHL webhook. The intent was to protect portal-set states like OON / Do Not Call / Cancelled from being clobbered by stale GHL echo-backs. But `'welcome call'` was added to the same list — and Welcome Call is not actually a terminal state. It means "the front-desk has reached out", not "this appointment is closed". A subsequent **Cancellation in GHL is exactly the kind of event we want to honor**, not block.
 
-- `was_ever_confirmed = true` records are skipped (legitimate completed visits)
-- Reserved time blocks excluded
-- Already-superseded rows skipped (idempotent — safe to re-run)
-- Scoped per `project_name` so cross-project records stay separate
-- `Showed` and `Won` are NOT in the terminal list for this purpose — they're legitimate completions, not duplicates to hide
-- All updates in a single transaction → atomic rollback if anything fails
+The same incorrect inclusion exists at line **634** in the reschedule guard:
 
-### After execution
+```ts
+const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
+```
 
-I'll verify by re-querying:
-- Total rows now flagged `is_superseded = true`
-- Spot check Sally Lutchman and Vietta Brown — confirm only the active record shows in the working tabs
-- Confirm Mark Bindah's 4 records collapse to 1 active in working views
+So a GHL reschedule of a Welcome Call appointment is also being ignored today — same bug, second location.
+
+### Fix — 3 small surgical changes
+
+#### 1. Remove `'welcome call'` from both protection lists
+
+`supabase/functions/ghl-webhook-handler/index.ts`:
+- Line 634 — remove from `portalOnlyTerminalStatuses` so reschedules from GHL apply to Welcome Call rows.
+- Line 692 — remove from `portalOnlyStatuses` so status changes from GHL (including Cancelled) apply to Welcome Call rows.
+
+After: only `OON`, `Do Not Call`, `Cancelled`, `Canceled` remain protected from GHL overwrites — all of which **are** legitimately portal-terminal.
+
+#### 2. Confirmed/Welcome-Call → terminal status: log a clean note
+
+When a GHL webhook moves a row out of Welcome Call into Cancelled (or any new status), append an internal note: `Status changed from "Welcome Call" to "Cancelled" via GHL sync — Apr 21, 2026 7:10 PM`. This already happens via `handle_appointment_status_completion` audit, but adding a user-visible internal note keeps clinics from being blindsided.
+
+#### 3. One-time reconciliation for Oralia Miller
+
+Update appointment `2d30f3d8-a318-4ecc-ab60-77c7602f7ce9`:
+- `status` → `Cancelled`
+- `internal_process_complete` → `true` (trigger handles this automatically)
+- Add internal note attributing the change to "GHL backfill — original cancel webhook on Apr 21 was suppressed by Welcome Call guard bug"
+
+Then audit other Welcome Call rows where the same pattern may have suppressed a GHL cancel:
+
+```sql
+SELECT a.id, a.lead_name, a.project_name, a.updated_at
+FROM all_appointments a
+WHERE a.status = 'Welcome Call'
+  AND a.updated_at > a.date_of_appointment - interval '7 days'
+  AND EXISTS (
+    SELECT 1 FROM security_audit_log s
+    WHERE s.details->>'appointment_id' = a.id::text
+      AND s.event_type = 'appointment_auto_completed'
+      AND s.details->>'old_status' = 'Welcome Call'
+      AND s.details->>'new_status' = 'Welcome Call'
+      AND s.created_at > a.updated_at - interval '5 minutes'
+  );
+```
+
+Any rows returned likely also had a suppressed GHL cancel — review case by case.
+
+### Why this is safe
+
+- Welcome Call was never meant to be terminal. `handle_appointment_status_completion` (the trigger) already includes `'welcome call'` in its IPC=true completion list, so the IPC bookkeeping is unaffected by this change.
+- The other four protected statuses (`OON`, `Do Not Call`, `Cancelled`, `Canceled`) stay protected — those are explicit terminal decisions made in the portal that GHL should not overwrite.
+- Cancel echo protection: GHL webhooks arriving within the existing 120s debounce window for a portal-set status are still ignored elsewhere in the handler (the `incomingStatus === existingStatus` guard at `isExplicitStatusChange`).
 
 ### Files touched
 
 | File | Change |
 |---|---|
-| New migration `backfill_superseded_appointments` | Executes the UPDATE described above with NOTICE reporting |
+| `supabase/functions/ghl-webhook-handler/index.ts` | Remove `'welcome call'` from `portalOnlyTerminalStatuses` (line 634) and `portalOnlyStatuses` (line 692). Add an internal-note insert when a Welcome Call row gets its status changed by a GHL webhook. |
+| One-time SQL via migration | Set Oralia Miller's appointment to Cancelled + internal note. Run audit query for similar suppressed-cancel cases and report results. |
+| `mem://integrations/ghl-webhook-sync-logic-v3` | Update memory: Welcome Call is **not** a portal-only terminal status; it does not block GHL status sync. |
 
 ### Risk
 
-Low. Reversible with one SQL line: `UPDATE all_appointments SET is_superseded = false WHERE updated_at >= '<timestamp of migration>' AND is_superseded = true;` — and we have the timestamp from the migration. No data loss; we're only flipping a boolean used for filtering.
+Low. We are removing one mistakenly-included status from two protection lists. After the change, Welcome Call behaves like Confirmed/Pending with respect to GHL sync — which is the original design intent. No schema changes.
 
 ### Approve to proceed
-Approve and I'll switch to default mode, run the migration, then run the verification queries and report counts back.
+Approve and I'll switch to default mode, ship the handler fix, run the reconciliation for Oralia, run the audit query for similar cases, and report counts back.
 
