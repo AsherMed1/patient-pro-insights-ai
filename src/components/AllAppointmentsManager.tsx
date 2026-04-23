@@ -307,7 +307,8 @@ const AllAppointmentsManager = ({
         countQuery = countQuery
           .or('internal_process_complete.is.null,internal_process_complete.eq.false')
           .not('status', 'ilike', 'pending')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending status OR past/null date appointments that don't have completed status
         countQuery = countQuery
@@ -319,7 +320,8 @@ const AllAppointmentsManager = ({
          .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
-          .not('status', 'ilike', 'rescheduled');
+          .not('status', 'ilike', 'rescheduled')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         countQuery = countQuery
@@ -333,7 +335,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
-          .not('status', 'ilike', 'rescheduled');
+          .not('status', 'ilike', 'rescheduled')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
@@ -445,7 +448,8 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery
           .or('internal_process_complete.is.null,internal_process_complete.eq.false')
           .not('status', 'ilike', 'pending')
-          .not('status', 'ilike', 'do not call');
+          .not('status', 'ilike', 'do not call')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending status OR past/null date appointments that don't have completed status
         appointmentsQuery = appointmentsQuery
@@ -457,7 +461,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
-          .not('status', 'ilike', 'rescheduled');
+          .not('status', 'ilike', 'rescheduled')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         appointmentsQuery = appointmentsQuery
@@ -471,7 +476,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
-          .not('status', 'ilike', 'rescheduled');
+          .not('status', 'ilike', 'rescheduled')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
@@ -597,7 +603,8 @@ const AllAppointmentsManager = ({
       const newQuery = getBaseQuery()
         .or('internal_process_complete.is.null,internal_process_complete.eq.false')
         .not('status', 'ilike', 'pending')
-        .not('status', 'ilike', 'do not call');
+        .not('status', 'ilike', 'do not call')
+        .or('is_superseded.is.null,is_superseded.eq.false');
       
       // Needs Review: Pending status OR past/null date appointments that don't have completed status
       const needsReviewQuery = getBaseQuery()
@@ -609,7 +616,8 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'won')
         .not('status', 'ilike', 'oon')
         .not('status', 'ilike', 'do not call')
-        .not('status', 'ilike', 'rescheduled');
+        .not('status', 'ilike', 'rescheduled')
+        .or('is_superseded.is.null,is_superseded.eq.false');
       
       // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
         const futureQuery = getBaseQuery()
@@ -623,7 +631,8 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'won')
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
-          .not('status', 'ilike', 'rescheduled');
+          .not('status', 'ilike', 'rescheduled')
+          .or('is_superseded.is.null,is_superseded.eq.false');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()

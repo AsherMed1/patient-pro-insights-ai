@@ -1084,13 +1084,28 @@ const AppointmentCard = ({
     }
   };
 
+  const isSuperseded = (appointment as any).is_superseded === true;
+
   return <>
       <div className={cn(
         "border border-border/40 rounded-xl p-4 md:p-5 space-y-3 shadow-soft-md hover-lift transition-all duration-300",
-        projectFilter && appointment.internal_process_complete 
-          ? "bg-green-50 border-green-200" 
-          : "bg-white"
+        isSuperseded
+          ? "bg-muted/40 border-muted-foreground/20 opacity-75"
+          : projectFilter && appointment.internal_process_complete 
+            ? "bg-green-50 border-green-200" 
+            : "bg-white"
       )}>
+        {isSuperseded && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+            <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold">Superseded by a newer appointment</p>
+              <p className="text-amber-800/90 mt-0.5">
+                This record is locked because a newer active appointment exists for this patient. Make any edits on the active record instead.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="space-y-2">
           {/* Lead Name - Prominent on mobile */}
           <div className="flex items-center justify-between">
