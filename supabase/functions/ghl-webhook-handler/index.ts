@@ -631,7 +631,7 @@ function getUpdateableFields(
       // Reset IPC and status if date actually changed (reschedule detected)
       // Guard: Skip reschedule logic if existing status is a portal-only terminal status
       const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-      const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
+      const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
       const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
       
       if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
@@ -687,15 +687,23 @@ function getUpdateableFields(
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
   if (isExplicitStatusChange(incomingStatus)) {
-    // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call)
+    // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call, Cancelled)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
-    const portalOnlyStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
+    const portalOnlyStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
     const isPortalOnlyTerminal = portalOnlyStatuses.includes(existingStatusForEcho)
 
     if (isPortalOnlyTerminal) {
       console.log(`[WEBHOOK] Preserving portal-only terminal status "${existingAppointment.status}" — ignoring incoming "${webhookData.status}"`)
     } else {
       updateFields.status = webhookData.status
+      // If transitioning out of Welcome Call via GHL sync, capture a user-visible internal note
+      if (existingStatusForEcho === 'welcome call') {
+        welcomeCallTransitionNote = {
+          appointmentId: existingAppointment.id,
+          fromStatus: existingAppointment.status,
+          toStatus: webhookData.status,
+        }
+      }
     }
   }
   
