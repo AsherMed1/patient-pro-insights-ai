@@ -614,6 +614,7 @@ function getUpdateableFields(
   // For UPDATE - selective fields only
   const updateFields: Record<string, any> = {}
   let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string } | undefined
+  let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   
   // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
   const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
@@ -740,7 +741,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote }
 }
 
 // Normalize DOB to YYYY-MM-DD
