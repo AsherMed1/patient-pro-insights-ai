@@ -147,7 +147,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const { fields: appointmentData, rescheduleNote } = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
@@ -203,6 +203,21 @@ serve(async (req) => {
         console.log(`[${requestId}] GHL reschedule audit note created`)
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create GHL reschedule audit note:`, noteErr)
+      }
+    }
+
+    // Insert internal note when transitioning out of "Welcome Call" via GHL sync
+    if (welcomeCallTransitionNote) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: welcomeCallTransitionNote.appointmentId,
+          note_text: `Status changed from "${welcomeCallTransitionNote.fromStatus}" to "${welcomeCallTransitionNote.toStatus}" via GHL sync — ${ts}`,
+          created_by: 'GoHighLevel',
+        })
+        console.log(`[${requestId}] Welcome Call transition note created`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create Welcome Call transition note:`, noteErr)
       }
     }
 
@@ -584,7 +599,7 @@ function normalizeStatus(status: string | null | undefined): string {
 function getUpdateableFields(
   webhookData: any, 
   existingAppointment: any | null
-): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string } } {
+): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string } } {
   // For CREATE - use all webhook data
   // CRITICAL: Per project rule, ALL new appointments from GHL webhooks MUST default to "Confirmed",
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
@@ -614,6 +629,7 @@ function getUpdateableFields(
   // For UPDATE - selective fields only
   const updateFields: Record<string, any> = {}
   let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string } | undefined
+  let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   
   // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
   const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
@@ -631,7 +647,7 @@ function getUpdateableFields(
       // Reset IPC and status if date actually changed (reschedule detected)
       // Guard: Skip reschedule logic if existing status is a portal-only terminal status
       const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-      const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
+      const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
       const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
       
       if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
@@ -687,15 +703,23 @@ function getUpdateableFields(
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
   if (isExplicitStatusChange(incomingStatus)) {
-    // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call)
+    // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call, Cancelled)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
-    const portalOnlyStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
+    const portalOnlyStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
     const isPortalOnlyTerminal = portalOnlyStatuses.includes(existingStatusForEcho)
 
     if (isPortalOnlyTerminal) {
       console.log(`[WEBHOOK] Preserving portal-only terminal status "${existingAppointment.status}" — ignoring incoming "${webhookData.status}"`)
     } else {
       updateFields.status = webhookData.status
+      // If transitioning out of Welcome Call via GHL sync, capture a user-visible internal note
+      if (existingStatusForEcho === 'welcome call') {
+        welcomeCallTransitionNote = {
+          appointmentId: existingAppointment.id,
+          fromStatus: existingAppointment.status,
+          toStatus: webhookData.status,
+        }
+      }
     }
   }
   
@@ -732,7 +756,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote }
 }
 
 // Normalize DOB to YYYY-MM-DD
