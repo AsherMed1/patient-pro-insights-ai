@@ -18,6 +18,10 @@ interface CreateBlockSlotRequest {
   user_name?: string;
   user_id?: string;
   create_local_record?: boolean;
+  // Telemetry — IDs of patient appointments that were detected to overlap this block
+  // (passed by ReserveTimeBlockDialog after the conflict scan). We log these to
+  // security_audit_log so we have a paper trail if GHL silently cancels them.
+  overlapping_appointment_ids?: string[];
 }
 
 interface TeamMember {
