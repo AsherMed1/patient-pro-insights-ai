@@ -390,6 +390,37 @@ serve(async (req) => {
       }
     }
 
+    // Telemetry: log when a block was successfully created over patient appointments
+    // that the client-side scan flagged. This catches cases where GHL silently cancels
+    // overlapping events even after our pre-flight guards.
+    if (ghlSynced && overlapping_appointment_ids && overlapping_appointment_ids.length > 0) {
+      try {
+        await supabase.from('security_audit_log').insert({
+          event_type: 'block_overlap_warning',
+          user_id: user_id || null,
+          details: {
+            project_name,
+            calendar_id,
+            calendar_name: calendar_name || null,
+            start_time,
+            end_time,
+            title: title || 'Reserved',
+            reason: reason || null,
+            blocked_by: user_name || 'Portal User',
+            ghl_block_ids: allBlockIds,
+            overlapping_appointment_ids,
+            overlap_count: overlapping_appointment_ids.length,
+            note: 'Block created over patient appointment slot(s). GHL may have silently cancelled overlapping events.',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        console.log('[CREATE-GHL-BLOCK-SLOT] Logged block_overlap_warning for', overlapping_appointment_ids.length, 'appointment(s)');
+      } catch (auditErr) {
+        console.error('[CREATE-GHL-BLOCK-SLOT] Failed to log block_overlap_warning:', auditErr);
+        // Non-blocking — don't fail the request just because audit failed
+      }
+    }
+
     // Step 4: Create local record if requested
     if (create_local_record && calendar_name) {
       const localResult = await createLocalRecord(supabase, {
