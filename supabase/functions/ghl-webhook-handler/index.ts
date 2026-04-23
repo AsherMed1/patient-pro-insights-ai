@@ -858,11 +858,70 @@ async function findExistingAppointment(
     }
   }
   
-  // If a specific ghl_appointment_id was provided but not found, do NOT fall back
-  // to ghl_id matching. This prevents webhooks for one GHL appointment from
-  // overwriting a different appointment for the same contact.
+  // If a specific ghl_appointment_id was provided but not found, attempt a
+  // narrow REACTIVATION lookup before giving up. This catches the GHL pattern of
+  // cancelling an appointment and immediately creating a new event for the same
+  // patient (e.g. after a patient uploads insurance post-cancel) which previously
+  // produced duplicate rows. We only reactivate a row that is:
+  //   - same contact (ghl_id) + same project
+  //   - in a terminal status (cancelled / no show / rescheduled)
+  //   - was NEVER confirmed (was_ever_confirmed = false) — protects real history
+  //   - created within the last 60 days (avoid reviving very old records)
+  if (ghlAppointmentId && ghlId) {
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: candidates } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('ghl_id', ghlId)
+      .gte('created_at', sixtyDaysAgo)
+      .eq('was_ever_confirmed', false)
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    const terminalStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'no-show', 'rescheduled', 'do not call', 'donotcall']
+    const reactivationTarget = (candidates || []).find((row: any) => {
+      const s = (row.status || '').toLowerCase().trim()
+      return terminalStatuses.includes(s) && !row.is_reserved_block
+    })
+
+    if (reactivationTarget) {
+      console.log(`[${requestId}] 🔄 REACTIVATION: Reusing terminal-status row ${reactivationTarget.id} (status: ${reactivationTarget.status}) for new ghl_appointment_id ${ghlAppointmentId}`)
+      // Append a reschedule_history entry for traceability
+      const history = Array.isArray(reactivationTarget.reschedule_history) ? reactivationTarget.reschedule_history : []
+      history.push({
+        type: 'reactivation',
+        at: new Date().toISOString(),
+        from_status: reactivationTarget.status,
+        from_ghl_appointment_id: reactivationTarget.ghl_appointment_id,
+        to_ghl_appointment_id: ghlAppointmentId,
+        source: 'ghl-webhook-handler',
+      })
+      // Persist reschedule_history immediately (the main upsert will overwrite other fields)
+      await supabase
+        .from('all_appointments')
+        .update({ reschedule_history: history })
+        .eq('id', reactivationTarget.id)
+
+      // Drop an internal note for the audit log
+      try {
+        await supabase.from('appointment_notes').insert({
+          appointment_id: reactivationTarget.id,
+          note_text: `Reactivated from ${reactivationTarget.status || 'terminal'} status — new GHL event ${ghlAppointmentId}`,
+          created_by: 'GoHighLevel',
+        })
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to write reactivation note:`, noteErr)
+      }
+
+      return reactivationTarget
+    }
+
+    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found and no reactivation candidate — creating new row`)
+    return null
+  }
+
   if (ghlAppointmentId) {
-    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found — skipping ghl_id fallback to prevent cross-appointment contamination`)
+    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found and no ghl_id provided — creating new row`)
     return null
   }
   

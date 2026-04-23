@@ -63,6 +63,7 @@ export function useCalendarAppointments({
         .select('*')
         .gte('date_of_appointment', startDate)
         .lte('date_of_appointment', endDate)
+        .or('is_superseded.is.null,is_superseded.eq.false')
         .order('date_of_appointment', { ascending: true });
 
       if (projectName) {
