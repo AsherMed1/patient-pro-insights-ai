@@ -147,7 +147,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const { fields: appointmentData, rescheduleNote } = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
@@ -203,6 +203,21 @@ serve(async (req) => {
         console.log(`[${requestId}] GHL reschedule audit note created`)
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create GHL reschedule audit note:`, noteErr)
+      }
+    }
+
+    // Insert internal note when transitioning out of "Welcome Call" via GHL sync
+    if (welcomeCallTransitionNote) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: welcomeCallTransitionNote.appointmentId,
+          note_text: `Status changed from "${welcomeCallTransitionNote.fromStatus}" to "${welcomeCallTransitionNote.toStatus}" via GHL sync — ${ts}`,
+          created_by: 'GoHighLevel',
+        })
+        console.log(`[${requestId}] Welcome Call transition note created`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create Welcome Call transition note:`, noteErr)
       }
     }
 
