@@ -220,7 +220,8 @@ export function ReserveTimeBlockDialog({
   const [projectTimezone, setProjectTimezone] = useState<string | null>(null);
 
   // Conflict-scan state
-  const [conflicts, setConflicts] = useState<BlockConflict[]>([]);
+  const [hardConflicts, setHardConflicts] = useState<BlockConflict[]>([]);
+  const [softConflicts, setSoftConflicts] = useState<BlockConflict[]>([]);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
   const [autoCancelConflicts, setAutoCancelConflicts] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
@@ -289,7 +290,8 @@ export function ReserveTimeBlockDialog({
       ]);
       setSelectedCalendarIds([]);
       setReason('');
-      setConflicts([]);
+      setHardConflicts([]);
+      setSoftConflicts([]);
       setShowConflictDialog(false);
       setAutoCancelConflicts(true);
     }
@@ -372,15 +374,16 @@ export function ReserveTimeBlockDialog({
         .map((id) => calendars.find((c) => c.id === id)?.name)
         .filter((n): n is string => !!n);
 
-      const found = await scanBlockConflicts({
+      const { hardConflicts: hard, softConflicts: soft } = await scanBlockConflicts({
         projectName,
         dateStr,
         timeRanges: timeRanges.map((r) => ({ startTime: r.startTime, endTime: r.endTime })),
         calendarNames,
       });
 
-      if (found.length > 0) {
-        setConflicts(found);
+      if (hard.length > 0 || soft.length > 0) {
+        setHardConflicts(hard);
+        setSoftConflicts(soft);
         setAutoCancelConflicts(true);
         setShowConflictDialog(true);
         setIsScanning(false);
@@ -511,6 +514,14 @@ export function ReserveTimeBlockDialog({
             // Create appointment in GHL + local record in one atomic operation
             // Edge function handles: GHL block creation, local DB insert, audit note
             // If local insert fails, edge function rolls back the GHL block
+            // Telemetry: tell the edge function which patient appointment IDs the
+            // client-side scan flagged as overlapping THIS calendar+time range.
+            // Edge function will write a `block_overlap_warning` audit row if the
+            // GHL block POST succeeds.
+            const overlappingForThisSlot = conflictsToHandle
+              .filter((c) => c.calendar_name === calendarName)
+              .map((c) => c.id);
+
             const { data: ghlResult, error: ghlError } = await supabase.functions.invoke(
               'create-ghl-appointment',
               {
@@ -526,6 +537,7 @@ export function ReserveTimeBlockDialog({
                   user_name: userName || 'Portal User',
                   user_id: userId,
                   create_local_record: true,
+                  overlapping_appointment_ids: overlappingForThisSlot,
                 },
               }
             );
@@ -762,16 +774,19 @@ export function ReserveTimeBlockDialog({
       <BlockConflictDialog
         open={showConflictDialog}
         onOpenChange={setShowConflictDialog}
-        conflicts={conflicts}
+        hardConflicts={hardConflicts}
+        softConflicts={softConflicts}
         autoCancel={autoCancelConflicts}
         onAutoCancelChange={setAutoCancelConflicts}
         isSubmitting={isSubmitting}
         onCancel={() => {
           setShowConflictDialog(false);
-          setConflicts([]);
+          setHardConflicts([]);
+          setSoftConflicts([]);
         }}
         onConfirm={() => {
-          executeBlockCreation(autoCancelConflicts ? conflicts : []);
+          // Hard conflicts block submission entirely; only soft conflicts can be auto-cancelled here
+          executeBlockCreation(autoCancelConflicts ? softConflicts : []);
         }}
       />
     </Dialog>

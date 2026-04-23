@@ -18,6 +18,10 @@ interface CreateBlockSlotRequest {
   user_name?: string;
   user_id?: string;
   create_local_record?: boolean;
+  // Telemetry — IDs of patient appointments that were detected to overlap this block
+  // (passed by ReserveTimeBlockDialog after the conflict scan). We log these to
+  // security_audit_log so we have a paper trail if GHL silently cancels them.
+  overlapping_appointment_ids?: string[];
 }
 
 interface TeamMember {
@@ -180,6 +184,7 @@ serve(async (req) => {
       user_name,
       user_id,
       create_local_record,
+      overlapping_appointment_ids,
     } = body;
 
     console.log('[CREATE-GHL-BLOCK-SLOT] Request received:', {
@@ -191,6 +196,7 @@ serve(async (req) => {
       title,
       create_local_record,
       user_name,
+      overlapping_appointment_count: overlapping_appointment_ids?.length || 0,
     });
 
     // Validate required fields
@@ -381,6 +387,37 @@ serve(async (req) => {
         }
 
         console.log('[CREATE-GHL-BLOCK-SLOT] Team member results:', { successCount, failCount, allBlockIds });
+      }
+    }
+
+    // Telemetry: log when a block was successfully created over patient appointments
+    // that the client-side scan flagged. This catches cases where GHL silently cancels
+    // overlapping events even after our pre-flight guards.
+    if (ghlSynced && overlapping_appointment_ids && overlapping_appointment_ids.length > 0) {
+      try {
+        await supabase.from('security_audit_log').insert({
+          event_type: 'block_overlap_warning',
+          user_id: user_id || null,
+          details: {
+            project_name,
+            calendar_id,
+            calendar_name: calendar_name || null,
+            start_time,
+            end_time,
+            title: title || 'Reserved',
+            reason: reason || null,
+            blocked_by: user_name || 'Portal User',
+            ghl_block_ids: allBlockIds,
+            overlapping_appointment_ids,
+            overlap_count: overlapping_appointment_ids.length,
+            note: 'Block created over patient appointment slot(s). GHL may have silently cancelled overlapping events.',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        console.log('[CREATE-GHL-BLOCK-SLOT] Logged block_overlap_warning for', overlapping_appointment_ids.length, 'appointment(s)');
+      } catch (auditErr) {
+        console.error('[CREATE-GHL-BLOCK-SLOT] Failed to log block_overlap_warning:', auditErr);
+        // Non-blocking — don't fail the request just because audit failed
       }
     }
 
