@@ -184,6 +184,7 @@ serve(async (req) => {
       user_name,
       user_id,
       create_local_record,
+      overlapping_appointment_ids,
     } = body;
 
     console.log('[CREATE-GHL-BLOCK-SLOT] Request received:', {
@@ -195,6 +196,7 @@ serve(async (req) => {
       title,
       create_local_record,
       user_name,
+      overlapping_appointment_count: overlapping_appointment_ids?.length || 0,
     });
 
     // Validate required fields
