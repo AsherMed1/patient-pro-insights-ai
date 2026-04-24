@@ -2403,6 +2403,45 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_dnd_releases: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          ghl_contact_id: string
+          id: string
+          last_error: string | null
+          project_name: string
+          release_at: string
+          release_attempts: number
+          released_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          ghl_contact_id: string
+          id?: string
+          last_error?: string | null
+          project_name: string
+          release_at: string
+          release_attempts?: number
+          released_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          ghl_contact_id?: string
+          id?: string
+          last_error?: string | null
+          project_name?: string
+          release_at?: string
+          release_attempts?: number
+          released_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
           color: string
