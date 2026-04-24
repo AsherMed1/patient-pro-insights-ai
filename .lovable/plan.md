@@ -1,93 +1,113 @@
+## Time Blocks Silently Cancelling Confirmed Appointments — Containment, Audit & Recovery
 
+### What happened
 
-## Welcome Call Status Blocks GHL Cancellation Sync — Root Cause & Fix
+The 13 affected patients all share the **exact same fingerprint** in our audit log:
 
-### What happened (Oralia Miller)
+1. Originally `Confirmed` (GHL status synced to portal)
+2. Manually moved to `Welcome Call` in the portal (front-desk reached out)
+3. On **Apr 21, 2026 between 13:05–13:20 UTC**, bulk time-block creation ran for VIM (Flint + Owosso GAE calendars) for Apr 27, 28, 30, May 7, 19, 20, June 10
+4. GHL silently cancelled every overlapping appointment (this is GHL's documented behavior when a calendar block is posted over an active event)
+5. The GHL "Cancelled" webhook arrived back at the portal (visible in `security_audit_log`) — but was silently dropped because of the `Welcome Call` guard bug
+6. Portal still shows `Welcome Call` while GHL shows `Cancelled` and patients are now getting cancellation SMS
 
-| Time | Source | Event |
-|---|---|---|
-| Apr 15, 3:16 PM | GHL → portal | Appointment created, status `Confirmed` |
-| Apr 16, 6:48 PM | Portal (Nichole) | Manually changed status to `Welcome Call` |
-| **Apr 21, 7:10–7:11 PM** | **GHL → portal (9 webhook hits)** | **Cancel + other field updates fired. Row was matched and other fields were touched, but the `status` change was silently dropped.** |
+This is **the exact same root cause** as the Oralia Miller case from yesterday — but the time-block flow is what mass-triggered it.
 
-The audit log shows nine consecutive `UPDATE` events from those minutes, every one logging `old_status:Welcome Call → new_status:Welcome Call`. The webhook arrived; the handler decided to keep "Welcome Call" instead of accepting "Cancelled".
+### Two bugs combined to cause this
 
-### Root cause
+**Bug 1 — already fixed yesterday:** `ghl-webhook-handler` had `'welcome call'` in `portalOnlyStatuses`, so GHL → portal cancellation sync was suppressed for any appointment in Welcome Call. Patched and deployed.
 
-`supabase/functions/ghl-webhook-handler/index.ts` line **692**:
+**Bug 2 — partially fixed Apr 23, full audit needed now:** Before Apr 23 18:23 UTC, `blockConflictScan.ts` only treated `''` and `'pending'` as conflicts. Welcome Call, Confirmed, Scheduled, and any non-pending status were **invisible** to the conflict-detection scan, so the dialog showed "no conflicts" and the user proceeded straight to GHL block creation. The current scan (Apr 23) correctly flags Welcome Call/Confirmed/Scheduled as **hard conflicts** and refuses to create the block. So new blocks are protected — only retroactive cleanup remains.
 
-```ts
-const portalOnlyStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
-```
+### Plan — 4 phases
 
-This list defines statuses that are **never** allowed to be overwritten by an incoming GHL webhook. The intent was to protect portal-set states like OON / Do Not Call / Cancelled from being clobbered by stale GHL echo-backs. But `'welcome call'` was added to the same list — and Welcome Call is not actually a terminal state. It means "the front-desk has reached out", not "this appointment is closed". A subsequent **Cancellation in GHL is exactly the kind of event we want to honor**, not block.
+#### Phase 1: Hard-conflict scan covers ALL confirmed-tier statuses (verify + extend)
 
-The same incorrect inclusion exists at line **634** in the reschedule guard:
+Verify the current `blockConflictScan.ts` correctly treats any of these as hard conflicts:
+- `Confirmed`, `Welcome Call`, `Scheduled`, `Pending` (when `was_ever_confirmed = true`), and any non-terminal status
 
-```ts
-const portalOnlyTerminalStatuses = ['oon', 'do not call', 'welcome call', 'cancelled', 'canceled']
-```
+The current logic (in repo) does this implicitly — anything not in `TERMINAL_STATUSES` and not in `SOFT_STATUSES` becomes hard. Plus we already pull `was_ever_confirmed` and surface it on the conflict object. Add one extra safeguard: **promote any `''` or `'pending'` row with `was_ever_confirmed = true` from soft → hard**, so a once-confirmed-but-currently-pending row is also protected. This is the only gap.
 
-So a GHL reschedule of a Welcome Call appointment is also being ignored today — same bug, second location.
+#### Phase 2: Full historical audit across ALL clinics
 
-### Fix — 3 small surgical changes
-
-#### 1. Remove `'welcome call'` from both protection lists
-
-`supabase/functions/ghl-webhook-handler/index.ts`:
-- Line 634 — remove from `portalOnlyTerminalStatuses` so reschedules from GHL apply to Welcome Call rows.
-- Line 692 — remove from `portalOnlyStatuses` so status changes from GHL (including Cancelled) apply to Welcome Call rows.
-
-After: only `OON`, `Do Not Call`, `Cancelled`, `Canceled` remain protected from GHL overwrites — all of which **are** legitimately portal-terminal.
-
-#### 2. Confirmed/Welcome-Call → terminal status: log a clean note
-
-When a GHL webhook moves a row out of Welcome Call into Cancelled (or any new status), append an internal note: `Status changed from "Welcome Call" to "Cancelled" via GHL sync — Apr 21, 2026 7:10 PM`. This already happens via `handle_appointment_status_completion` audit, but adding a user-visible internal note keeps clinics from being blindsided.
-
-#### 3. One-time reconciliation for Oralia Miller
-
-Update appointment `2d30f3d8-a318-4ecc-ab60-77c7602f7ce9`:
-- `status` → `Cancelled`
-- `internal_process_complete` → `true` (trigger handles this automatically)
-- Add internal note attributing the change to "GHL backfill — original cancel webhook on Apr 21 was suppressed by Welcome Call guard bug"
-
-Then audit other Welcome Call rows where the same pattern may have suppressed a GHL cancel:
+Run a single SQL audit to identify every row with the same fingerprint as the 13 VIM patients. The fingerprint:
 
 ```sql
-SELECT a.id, a.lead_name, a.project_name, a.updated_at
+-- Appointments where:
+--   (a) status is currently a "still active in portal" tier
+--   (b) was_ever_confirmed = true
+--   (c) is_superseded = false
+--   (d) updated_at is in a window where security_audit_log shows
+--       multiple consecutive same-status writes (the GHL-cancel-suppressed signature)
+SELECT a.project_name, a.id, a.lead_name, a.date_of_appointment,
+       a.requested_time, a.status, a.calendar_name, a.ghl_appointment_id,
+       a.updated_at,
+       (SELECT count(*) FROM security_audit_log s
+         WHERE s.event_type = 'appointment_auto_completed'
+           AND s.details->>'appointment_id' = a.id::text
+           AND s.details->>'old_status' = s.details->>'new_status'
+           AND s.created_at BETWEEN a.updated_at - interval '5 minutes'
+                                AND a.updated_at + interval '5 minutes'
+       ) AS suppressed_webhook_hits
 FROM all_appointments a
-WHERE a.status = 'Welcome Call'
-  AND a.updated_at > a.date_of_appointment - interval '7 days'
-  AND EXISTS (
-    SELECT 1 FROM security_audit_log s
-    WHERE s.details->>'appointment_id' = a.id::text
-      AND s.event_type = 'appointment_auto_completed'
-      AND s.details->>'old_status' = 'Welcome Call'
-      AND s.details->>'new_status' = 'Welcome Call'
-      AND s.created_at > a.updated_at - interval '5 minutes'
-  );
+WHERE a.status IN ('Welcome Call','Confirmed','Scheduled','Pending')
+  AND a.was_ever_confirmed = true
+  AND a.is_superseded = false
+  AND a.is_reserved_block = false
+HAVING suppressed_webhook_hits >= 2;
 ```
 
-Any rows returned likely also had a suppressed GHL cancel — review case by case.
+We then intersect with **time-block creation windows** (where `is_reserved_block = true AND created_at` is in the same minute as the suppressed webhook hits) to confirm the cause was a block, vs. some other GHL-side cancel.
 
-### Why this is safe
+Output: a per-clinic, per-patient CSV of all affected appointments — VIM + every other project.
 
-- Welcome Call was never meant to be terminal. `handle_appointment_status_completion` (the trigger) already includes `'welcome call'` in its IPC=true completion list, so the IPC bookkeeping is unaffected by this change.
-- The other four protected statuses (`OON`, `Do Not Call`, `Cancelled`, `Canceled`) stay protected — those are explicit terminal decisions made in the portal that GHL should not overwrite.
-- Cancel echo protection: GHL webhooks arriving within the existing 120s debounce window for a portal-set status are still ignored elsewhere in the handler (the `incomingStatus === existingStatus` guard at `isExplicitStatusChange`).
+#### Phase 3: Recovery — re-validate against GHL and reconcile
+
+For each affected appointment from Phase 2:
+
+1. **Query GHL `GET /calendars/events/appointments/{ghl_appointment_id}`** to get the current `appointmentStatus`. (Cheap. We already have the helper in `update-ghl-appointment`.)
+2. **Branch on what GHL says:**
+   - **GHL says `cancelled`** → portal status set to `Cancelled`, `cancellation_reason` set to `"Auto-cancelled by clinic time block on <date> — GHL silently cancelled, was a confirmed/welcome-call appointment"`, internal note attributing the change to the time-block backfill, and **flag in a new `recovery_needed` column or note** so clinic staff see it as needing manual rebooking. **Do not attempt to resurrect in GHL** — the time slot is now legitimately blocked, and a resurrected event would conflict.
+   - **GHL says anything else** (still `confirmed`, `showed`, etc.) → no action; portal already shows the closest-to-truth status.
+3. Generate a Slack-able summary report per project: "X confirmed appointments were silently cancelled by time blocks between <range>. They are now marked Cancelled in the portal. Please rebook these patients."
+
+This is reversible — if a clinic insists on resurrecting a patient in GHL, we do it case-by-case with `update-ghl-appointment` (which already uses `ignoreFreeSlotValidation: true`).
+
+#### Phase 4: Defense-in-depth (so this can never recur)
+
+- Already in place (yesterday's fix): GHL → portal Welcome Call no longer blocks status sync.
+- Already in place (Apr 23): hard-conflict scan stops the block dialog when ANY confirmed-tier appointment overlaps.
+- Add (this PR): the `was_ever_confirmed`-promotion-to-hard described in Phase 1.
+- Add (this PR): in `cancelConflictingAppointments` (the auto-cancel path inside `ReserveTimeBlockDialog`), refuse to operate on any conflict that is NOT in soft tier — even if it's somehow passed in. Belt and suspenders.
+- Add (this PR): server-side guard in `create-ghl-appointment` (the function that posts the block to GHL): before calling GHL's block endpoint, re-run the same overlap query the client ran, and **abort with a 409 if any non-terminal/`was_ever_confirmed` patient appointments overlap**, regardless of what the client sent. This is the canonical safeguard: even a stale frontend or an external script can no longer accidentally trigger this.
 
 ### Files touched
 
 | File | Change |
 |---|---|
-| `supabase/functions/ghl-webhook-handler/index.ts` | Remove `'welcome call'` from `portalOnlyTerminalStatuses` (line 634) and `portalOnlyStatuses` (line 692). Add an internal-note insert when a Welcome Call row gets its status changed by a GHL webhook. |
-| One-time SQL via migration | Set Oralia Miller's appointment to Cancelled + internal note. Run audit query for similar suppressed-cancel cases and report results. |
-| `mem://integrations/ghl-webhook-sync-logic-v3` | Update memory: Welcome Call is **not** a portal-only terminal status; it does not block GHL status sync. |
+| `src/components/appointments/blockConflictScan.ts` | Promote `was_ever_confirmed` soft conflicts to hard. ~5 lines. |
+| `src/components/appointments/ReserveTimeBlockDialog.tsx` | In `cancelConflictingAppointments`, double-check each conflict is soft tier; skip + log otherwise. ~10 lines. |
+| `supabase/functions/create-ghl-appointment/index.ts` | Server-side overlap re-scan when `is_reserved_block = true`; abort with 409 if confirmed-tier overlap found. ~40 lines. |
+| New edge function `audit-time-block-cancellations` | One-off audit + recovery worker. Pulls candidates, queries GHL for each, updates portal records, writes internal notes, returns CSV summary. Triggered manually. |
+| One-time SQL via migration | Run audit query above, export results, then update each affected portal row to `Cancelled` with attribution note and `recovery_needed` flag. |
+| `mem://features/bulk-calendar-blocking` | Update memory: confirmed-tier appointments are protected from block creation; backend re-validates. |
 
 ### Risk
 
-Low. We are removing one mistakenly-included status from two protection lists. After the change, Welcome Call behaves like Confirmed/Pending with respect to GHL sync — which is the original design intent. No schema changes.
+- **Phase 2 (audit)** is read-only. Zero risk.
+- **Phase 3 (reconciliation)** changes portal statuses to match what GHL already says. Reversible (we have the prior status in `security_audit_log` and `appointment_history`). It does NOT cancel anything in GHL — it only mirrors GHL's existing state into the portal.
+- **Phase 4 (server-side guard)** could theoretically reject legitimate block creation if the re-scan disagrees with the client. We mitigate by returning the conflict list in the 409 response so the UI can show it.
+
+### What this does NOT do
+
+- Does **not** silently re-create cancelled GHL events. Restoring an event in a now-blocked slot would re-trigger the same GHL cancel cascade and cause more confusion. We surface the affected patients to clinic staff for manual rebooking instead.
+- Does **not** touch terminal-status appointments (Cancelled, Showed, OON, etc.) — those are correctly settled.
 
 ### Approve to proceed
-Approve and I'll switch to default mode, ship the handler fix, run the reconciliation for Oralia, run the audit query for similar cases, and report counts back.
 
+On approval I'll switch to default mode and execute in this order:
+1. Ship code changes (Phase 1 + 4 client + server guards).
+2. Deploy `audit-time-block-cancellations` edge function.
+3. Run audit; share the per-clinic count + CSV before any data is mutated.
+4. After you OK the audit results, run the reconciliation; report counts back per clinic.
+5. Update memory.
