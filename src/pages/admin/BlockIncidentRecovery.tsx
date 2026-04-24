@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, AlertTriangle, Download, ShieldCheck, Play } from 'lucide-react';
+import { Loader2, AlertTriangle, Download, ShieldCheck, Play, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -56,6 +56,44 @@ const BlockIncidentRecovery = () => {
   const [executing, setExecuting] = useState(false);
   const [confirmCount, setConfirmCount] = useState('');
   const [executeResult, setExecuteResult] = useState<RestoreResp | null>(null);
+
+  // Single-appointment restore (Eugene Schneeberger prefilled)
+  const [singleId, setSingleId] = useState('1ac1175c-be6a-40f0-b40f-11454e229f5e');
+  const [singleDry, setSingleDry] = useState(false);
+  const [singleExec, setSingleExec] = useState(false);
+  const [singleDryResult, setSingleDryResult] = useState<RestoreResp | null>(null);
+  const [singleExecResult, setSingleExecResult] = useState<RestoreResp | null>(null);
+
+  const runSingle = async (mode: 'dry_run' | 'execute') => {
+    if (!singleId.trim()) {
+      toast({ title: 'Missing ID', description: 'Enter an appointment UUID.', variant: 'destructive' });
+      return;
+    }
+    const setLoading = mode === 'dry_run' ? setSingleDry : setSingleExec;
+    const setResult = mode === 'dry_run' ? setSingleDryResult : setSingleExecResult;
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('restore-block-incident-appointments', {
+        body: {
+          mode,
+          appointment_ids: [singleId.trim()],
+          dnd_suppress: dndSuppress,
+          dnd_window_hours: dndHours,
+        },
+      });
+      if (error) throw error;
+      setResult(data as RestoreResp);
+      toast({
+        title: mode === 'dry_run' ? 'Dry-run complete' : 'Restoration complete',
+        description: `${data.total} appointment(s): ${JSON.stringify(data.summary)}`,
+      });
+    } catch (e: any) {
+      toast({ title: `${mode} failed`, description: e.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const runAudit = async () => {
     setAuditing(true);
