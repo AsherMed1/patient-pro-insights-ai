@@ -100,23 +100,41 @@ const BlockIncidentRecovery = () => {
     }
   };
 
-  const runAudit = async () => {
-    setAuditing(true);
+  const [verifying, setVerifying] = useState(false);
+
+  const runAudit = async (withGhl: boolean) => {
+    if (withGhl) setVerifying(true); else setAuditing(true);
     setAudit(null);
     try {
       const { data, error } = await supabase.functions.invoke('audit-time-block-cancellations', {
         body: {
           project_name: projectFilter || undefined,
-          check_ghl: true,
+          check_ghl: withGhl,
         },
       });
       if (error) throw error;
-      setAudit(data as AuditResp);
-      toast({ title: 'Audit complete', description: `${data.total_suspects} suspect appointments found.` });
+      const resp = data as AuditResp;
+      if (resp.success === false) {
+        toast({
+          title: 'Audit failed',
+          description: `${resp.phase || 'unknown phase'}: ${resp.error}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      setAudit(resp);
+      const ghlNote = withGhl
+        ? ` · GHL-checked ${resp.ghl_checked || 0}${resp.ghl_truncated ? ' (truncated — filter by project)' : ''}`
+        : '';
+      toast({
+        title: withGhl ? 'GHL verification complete' : 'Audit complete',
+        description: `${resp.total_suspects} suspect appointments found${ghlNote}.`,
+      });
     } catch (e: any) {
       toast({ title: 'Audit failed', description: e.message, variant: 'destructive' });
     } finally {
       setAuditing(false);
+      setVerifying(false);
     }
   };
 
