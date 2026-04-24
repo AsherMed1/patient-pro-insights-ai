@@ -14,6 +14,7 @@ import AgentClaim from "./pages/AgentClaim";
 import ApiDocs from "./pages/ApiDocs";
 import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
+import BlockIncidentRecovery from "./pages/admin/BlockIncidentRecovery";
 import NotFound from "./pages/NotFound";
 import { retriggerCathTestParsing } from "./utils/retriggerCathTestParsing";
 
@@ -61,6 +62,11 @@ const App = () => {
               </AuthGuard>
             } />
             <Route path="/project/:projectName" element={<ProjectPortalWithAuth />} />
+            <Route path="/admin/block-incident-recovery" element={
+              <AuthGuard requiredRole="admin">
+                <BlockIncidentRecovery />
+              </AuthGuard>
+            } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
