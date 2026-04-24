@@ -21,9 +21,14 @@ type Suspect = {
 };
 
 type AuditResp = {
+  success?: boolean;
+  error?: string;
+  phase?: string;
   total_suspects: number;
   signature_a_count: number;
   signature_b_count: number;
+  ghl_checked?: number;
+  ghl_truncated?: boolean;
   per_project: Record<string, { suspect: number; ghl_cancelled: number; ghl_deleted: number }>;
   suspects: Suspect[];
 };
@@ -95,23 +100,41 @@ const BlockIncidentRecovery = () => {
     }
   };
 
-  const runAudit = async () => {
-    setAuditing(true);
+  const [verifying, setVerifying] = useState(false);
+
+  const runAudit = async (withGhl: boolean) => {
+    if (withGhl) setVerifying(true); else setAuditing(true);
     setAudit(null);
     try {
       const { data, error } = await supabase.functions.invoke('audit-time-block-cancellations', {
         body: {
           project_name: projectFilter || undefined,
-          check_ghl: true,
+          check_ghl: withGhl,
         },
       });
       if (error) throw error;
-      setAudit(data as AuditResp);
-      toast({ title: 'Audit complete', description: `${data.total_suspects} suspect appointments found.` });
+      const resp = data as AuditResp;
+      if (resp.success === false) {
+        toast({
+          title: 'Audit failed',
+          description: `${resp.phase || 'unknown phase'}: ${resp.error}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      setAudit(resp);
+      const ghlNote = withGhl
+        ? ` · GHL-checked ${resp.ghl_checked || 0}${resp.ghl_truncated ? ' (truncated — filter by project)' : ''}`
+        : '';
+      toast({
+        title: withGhl ? 'GHL verification complete' : 'Audit complete',
+        description: `${resp.total_suspects} suspect appointments found${ghlNote}.`,
+      });
     } catch (e: any) {
       toast({ title: 'Audit failed', description: e.message, variant: 'destructive' });
     } finally {
       setAuditing(false);
+      setVerifying(false);
     }
   };
 
@@ -324,13 +347,21 @@ const BlockIncidentRecovery = () => {
       <Card>
         <CardHeader>
           <CardTitle>1. Audit</CardTitle>
-          <CardDescription>Read-only. Identifies suspects and checks GHL ground-truth status.</CardDescription>
+          <CardDescription>
+            Read-only. "Run audit" identifies suspects from the database (fast). "Verify against GHL" then checks
+            ground-truth status in GoHighLevel for each suspect (slower; capped at 500 per call — filter by project
+            if you have more).
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Button onClick={runAudit} disabled={auditing}>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => runAudit(false)} disabled={auditing || verifying}>
               {auditing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Run audit
+              Run audit (fast)
+            </Button>
+            <Button variant="secondary" onClick={() => runAudit(true)} disabled={auditing || verifying}>
+              {verifying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Verify against GHL
             </Button>
             <Button variant="outline" onClick={downloadCsv} disabled={!audit}>
               <Download className="h-4 w-4 mr-2" /> Download CSV
@@ -338,10 +369,16 @@ const BlockIncidentRecovery = () => {
           </div>
           {audit && (
             <div className="space-y-2">
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-wrap gap-2 text-sm">
                 <Badge variant="secondary">Total: {audit.total_suspects}</Badge>
                 <Badge variant="outline">Signature A: {audit.signature_a_count}</Badge>
                 <Badge variant="outline">Signature B: {audit.signature_b_count}</Badge>
+                {audit.ghl_checked !== undefined && audit.ghl_checked > 0 && (
+                  <Badge variant="outline">GHL-checked: {audit.ghl_checked}</Badge>
+                )}
+                {audit.ghl_truncated && (
+                  <Badge variant="destructive">Truncated — filter by project</Badge>
+                )}
               </div>
               <div className="text-sm border rounded-md divide-y max-h-72 overflow-auto">
                 {Object.entries(audit.per_project).map(([proj, c]) => (
