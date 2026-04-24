@@ -21,9 +21,14 @@ type Suspect = {
 };
 
 type AuditResp = {
+  success?: boolean;
+  error?: string;
+  phase?: string;
   total_suspects: number;
   signature_a_count: number;
   signature_b_count: number;
+  ghl_checked?: number;
+  ghl_truncated?: boolean;
   per_project: Record<string, { suspect: number; ghl_cancelled: number; ghl_deleted: number }>;
   suspects: Suspect[];
 };
