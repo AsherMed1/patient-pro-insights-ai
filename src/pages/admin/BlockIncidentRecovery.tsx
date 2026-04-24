@@ -241,6 +241,86 @@ const BlockIncidentRecovery = () => {
         </CardContent>
       </Card>
 
+      <Card className="border-primary/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" /> Single appointment restore
+          </CardTitle>
+          <CardDescription>
+            Restore one specific appointment by UUID. Uses the same pipeline as the bulk flow but scoped to a single
+            row — ideal for validating a known case (e.g. Eugene Schneeberger) before any bulk run. DND/window settings
+            from the Filters card above apply.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="single-id">Appointment UUID</Label>
+            <Input
+              id="single-id"
+              value={singleId}
+              onChange={(e) => setSingleId(e.target.value)}
+              placeholder="00000000-0000-0000-0000-000000000000"
+              className="font-mono"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => runSingle('dry_run')} disabled={singleDry || singleExec}>
+              {singleDry && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Dry-run this one
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => runSingle('execute')}
+              disabled={singleDry || singleExec || !singleDryResult}
+            >
+              {singleExec ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+              Execute this one
+            </Button>
+          </div>
+          {!singleDryResult && (
+            <p className="text-xs text-muted-foreground">
+              Run the dry-run first. Execute is disabled until a dry-run has been performed for this id.
+            </p>
+          )}
+          {[singleDryResult, singleExecResult].map((res, i) =>
+            res ? (
+              <div key={i} className="text-sm border rounded-md p-3 space-y-2 bg-muted/30">
+                <div className="font-medium">{i === 0 ? 'Dry-run result' : 'Execute result'}</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(res.summary).map(([action, count]) => (
+                    <Badge
+                      key={action}
+                      variant={action === 'error' || action === 'slot_taken' ? 'destructive' : 'outline'}
+                    >
+                      {action}: {count}
+                    </Badge>
+                  ))}
+                </div>
+                {res.results.map((r) => (
+                  <div key={r.appointment_id} className="text-xs">
+                    <div className="font-medium">{r.lead_name} — {r.project_name}</div>
+                    <div className="text-muted-foreground">
+                      <span className="font-mono">{r.action}</span>
+                      {r.detail ? <> · {r.detail}</> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null
+          )}
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Before executing</AlertTitle>
+            <AlertDescription className="text-xs">
+              Confirm the project's GHL reschedule workflow has the filter{' '}
+              <em>Contact tag does not contain</em>{' '}
+              <code className="text-xs bg-muted px-1 rounded">lovable_block_incident_restored</code>. Without it the
+              patient may still receive in-flight reschedule SMS/email even after restoration.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>1. Audit</CardTitle>
