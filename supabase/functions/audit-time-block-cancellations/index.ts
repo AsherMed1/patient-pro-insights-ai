@@ -85,7 +85,7 @@ async function fetchAllCandidates(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Signature A — single security_audit_log scan, joined in memory
+// Signature A — chunked lookup keyed by candidate appointment_id
 // ────────────────────────────────────────────────────────────────────────────
 async function findSignatureA(
   supabase: ReturnType<typeof createClient>,
@@ -95,36 +95,30 @@ async function findSignatureA(
   const out = new Map<string, { row: any; hits: number }>();
   if (candidates.length === 0) return out;
 
-  // Pull all auto-completed events in the window in one paginated read
-  const PAGE = 1000;
-  const events: any[] = [];
-  let from = 0;
-  while (true) {
+  const candById = new Map(candidates.map((c) => [c.id, c]));
+  const ids = Array.from(candById.keys());
+  const CHUNK = 200;
+  const hitsById = new Map<string, number>();
+
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    // PostgREST: filter the JSONB key directly. Pull up to 5000 rows per chunk.
     const { data, error } = await supabase
       .from('security_audit_log')
-      .select('id, created_at, details')
+      .select('details')
       .eq('event_type', 'appointment_auto_completed')
       .gte('created_at', windowStart)
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`audit-log fetch: ${error.message}`);
-    if (!data || data.length === 0) break;
-    events.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
+      .in('details->>appointment_id', slice)
+      .limit(5000);
+    if (error) throw new Error(`audit-log fetch chunk ${i}: ${error.message}`);
+    for (const e of (data || []) as any[]) {
+      const d = e.details || {};
+      if (!d.appointment_id || !d.old_status || !d.new_status) continue;
+      if (String(d.old_status).toLowerCase() !== String(d.new_status).toLowerCase()) continue;
+      hitsById.set(d.appointment_id, (hitsById.get(d.appointment_id) || 0) + 1);
+    }
   }
 
-  // Group hits by appointment id where old_status === new_status
-  const hitsById = new Map<string, number>();
-  for (const e of events) {
-    const d = (e as any).details || {};
-    if (!d.appointment_id) continue;
-    if (!d.old_status || !d.new_status) continue;
-    if (String(d.old_status).toLowerCase() !== String(d.new_status).toLowerCase()) continue;
-    hitsById.set(d.appointment_id, (hitsById.get(d.appointment_id) || 0) + 1);
-  }
-
-  // Match against candidates whose current status equals the suppressed status
-  const candById = new Map(candidates.map((c) => [c.id, c]));
   for (const [apptId, hits] of hitsById.entries()) {
     if (hits < 2) continue;
     const cand = candById.get(apptId);
