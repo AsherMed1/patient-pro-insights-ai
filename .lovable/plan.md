@@ -1,113 +1,149 @@
-## Time Blocks Silently Cancelling Confirmed Appointments — Containment, Audit & Recovery
+## Bulk Remediation Plan — Auto-Cancelled Appointments from Time-Block Incident
 
-### What happened
+### Goal
 
-The 13 affected patients all share the **exact same fingerprint** in our audit log:
+For every appointment that was silently cancelled in GHL by a clinic time block (and pushed into reschedule comms), do three things in one operator-controlled batch run:
 
-1. Originally `Confirmed` (GHL status synced to portal)
-2. Manually moved to `Welcome Call` in the portal (front-desk reached out)
-3. On **Apr 21, 2026 between 13:05–13:20 UTC**, bulk time-block creation ran for VIM (Flint + Owosso GAE calendars) for Apr 27, 28, 30, May 7, 19, 20, June 10
-4. GHL silently cancelled every overlapping appointment (this is GHL's documented behavior when a calendar block is posted over an active event)
-5. The GHL "Cancelled" webhook arrived back at the portal (visible in `security_audit_log`) — but was silently dropped because of the `Welcome Call` guard bug
-6. Portal still shows `Welcome Call` while GHL shows `Cancelled` and patients are now getting cancellation SMS
+1. **Restore** the appointment in GHL to `confirmed` status (and re-attach to the original calendar/slot if GHL deleted the event).
+2. **Suppress reschedule comms** so the patient doesn't get a second wave of conflicting messages.
+3. **Mirror status back into the portal** as `Confirmed` and add an internal note explaining what happened, so clinic staff know to call/verify the patient.
 
-This is **the exact same root cause** as the Oralia Miller case from yesterday — but the time-block flow is what mass-triggered it.
+A separate audit pass identifies the population system-wide (not just VIM) and produces a CSV before any writes happen, so we run a scoped dry-run first and only execute after a human signs off.
 
-### Two bugs combined to cause this
+---
 
-**Bug 1 — already fixed yesterday:** `ghl-webhook-handler` had `'welcome call'` in `portalOnlyStatuses`, so GHL → portal cancellation sync was suppressed for any appointment in Welcome Call. Patched and deployed.
+### Identifying the impacted population (system-wide)
 
-**Bug 2 — partially fixed Apr 23, full audit needed now:** Before Apr 23 18:23 UTC, `blockConflictScan.ts` only treated `''` and `'pending'` as conflicts. Welcome Call, Confirmed, Scheduled, and any non-pending status were **invisible** to the conflict-detection scan, so the dialog showed "no conflicts" and the user proceeded straight to GHL block creation. The current scan (Apr 23) correctly flags Welcome Call/Confirmed/Scheduled as **hard conflicts** and refuses to create the block. So new blocks are protected — only retroactive cleanup remains.
+Three independent signatures indicate an appointment was a victim of the bug. We union them so we don't miss cases that don't fit just one:
 
-### Plan — 4 phases
+| Signature | Source of truth | Catches |
+|---|---|---|
+| **A. Suppressed-webhook signature** | `security_audit_log` rows where `event_type='appointment_auto_completed'` and `details.old_status === details.new_status` (the existing audit fn already detects this) | Welcome Call rows on Apr 21+ |
+| **B. Time-block overlap signature** | Any appointment with `was_ever_confirmed=true` whose `(date_of_appointment, requested_time)` overlaps a `is_reserved_block=true` row in the same `project_name`+`calendar_name` created Apr 13–23 | Confirmed/Pending rows that the old `blockConflictScan` swept up |
+| **C. GHL ground truth** | For every candidate from A or B, fetch `appointmentStatus` from `services.leadconnectorhq.com/calendars/events/appointments/{id}` — if GHL says `cancelled` but portal still says active-tier, it's a confirmed victim | The actual remediation list |
 
-#### Phase 1: Hard-conflict scan covers ALL confirmed-tier statuses (verify + extend)
+The audit function from the previous turn already does A + C. We extend it to also do B, and we add the option to scope by `since` / `project_name` / `created_within_block_window` for a system-wide sweep.
 
-Verify the current `blockConflictScan.ts` correctly treats any of these as hard conflicts:
-- `Confirmed`, `Welcome Call`, `Scheduled`, `Pending` (when `was_ever_confirmed = true`), and any non-terminal status
+Output: a single `audit_report.json` + `audit_report.csv` written to storage, with one row per suspect appointment, columns: `project_name, lead_name, lead_phone, date_of_appointment, requested_time, calendar_name, ghl_appointment_id, ghl_contact_id, portal_status, ghl_status, signature (A|B|both), suppressed_webhook_hits, block_overlap_id`.
 
-The current logic (in repo) does this implicitly — anything not in `TERMINAL_STATUSES` and not in `SOFT_STATUSES` becomes hard. Plus we already pull `was_ever_confirmed` and surface it on the conflict object. Add one extra safeguard: **promote any `''` or `'pending'` row with `was_ever_confirmed = true` from soft → hard**, so a once-confirmed-but-currently-pending row is also protected. This is the only gap.
+This CSV is what the team reviews before approving the bulk write.
 
-#### Phase 2: Full historical audit across ALL clinics
+---
 
-Run a single SQL audit to identify every row with the same fingerprint as the 13 VIM patients. The fingerprint:
+### Restoring in GHL
 
+There are two cases per appointment, determined by the GHL fetch:
+
+- **Case 1 — GHL event still exists, status `cancelled`**: PATCH `services.leadconnectorhq.com/calendars/events/appointments/{ghl_appointment_id}` with `{ appointmentStatus: 'confirmed' }`. Keep the original `startTime`, `endTime`, `calendarId`, `assignedUserId` — do NOT pass new times so we don't accidentally reschedule.
+- **Case 2 — GHL event was deleted (404)**: Recreate using `create-ghl-appointment` with the original `calendar_id`, `assignedUserId`, `startTime`, `endTime`, `contactId`, `title` from the portal row. New `ghl_appointment_id` is written back to `all_appointments.ghl_appointment_id`.
+
+Both paths use the per-project `ghl_api_key` already stored on `projects` (same lookup the audit fn uses).
+
+If the original slot is no longer free in GHL (e.g., another patient was booked into it after cancellation), the row is **not auto-restored** — it's flagged in the report as `slot_taken` for manual handling. We do NOT bump anyone else's appointment.
+
+---
+
+### Suppressing reschedule workflows
+
+GHL's reschedule comms are workflow-triggered off the contact, not the appointment, so simply re-confirming the appointment doesn't stop the next scheduled SMS/email. Two-layer suppression:
+
+1. **Tag the contact** with `lovable_block_incident_restored` via `PUT /contacts/{contactId}` (tags array). Clinic ops adds a workflow filter (`Contact does NOT have tag X`) to the existing reschedule workflow — one-time setup. From that point on, any in-flight reschedule sequence skips these patients.
+2. **Temporarily enable DND** on the contact for the duration of the cleanup window (default: 24h) using the existing `update-ghl-contact-dnd` edge function with `enable_dnd=true`, then a scheduled re-enable to `false` after the window. This is a hard stop on outbound while staff manually call each patient. (The DND toggle is reversible and per-channel — we leave Call enabled so the clinic can still phone them, only SMS/Email are suppressed.)
+
+Both actions are idempotent. The tag stays forever as a permanent marker; DND is auto-released.
+
+For projects where the user prefers NOT to touch DND, the `dnd_suppress` flag in the request body can be set to `false` and only the tag is applied.
+
+---
+
+### Mirroring back into the portal
+
+For each successfully restored appointment:
+
+- `status` → `Confirmed`
+- `cancellation_reason` → cleared
+- `was_ever_confirmed` stays `true`
+- Insert an `appointment_notes` row: *"[Block-incident restoration {date}] This appointment was auto-cancelled by GHL when a clinic time block was created over the slot, and a reschedule workflow was triggered. Both have been reversed. Patient may have received reschedule SMS/email — please call to reconfirm the original appointment time."*
+- Insert a `security_audit_log` row with `event_type='time_block_restoration'` and full before/after details for compliance.
+
+Portal-side, this triggers the existing `mark_superseded_on_change` and `handle_appointment_status_completion` flows correctly because the row is moving back into a non-terminal state.
+
+---
+
+### Operator workflow (what the team actually clicks)
+
+A new admin-only page `/admin/block-incident-recovery` with three buttons:
+
+1. **Run audit** → invokes `audit-time-block-cancellations` in `mode=audit`, system-wide, downloads CSV. No writes.
+2. **Dry-run restore** → invokes new `restore-block-incident-appointments` in `mode=dry_run`. For each row, returns what *would* happen (PATCH vs CREATE vs slot_taken vs already_confirmed). No writes.
+3. **Execute restore** → same fn in `mode=execute`. Requires typing the suspect count from the dry-run as confirmation. Processes in batches of 25 with a progress UI; per-row result is logged.
+
+Page also shows last run summary: total restored, slot_taken, errors, per-clinic breakdown.
+
+---
+
+### Technical details (for engineers)
+
+**New edge function**: `restore-block-incident-appointments`
+- Input: `{ mode: 'dry_run'|'execute', project_name?, appointment_ids?, since?, dnd_suppress?: boolean, dnd_window_hours?: number }`
+- For each suspect:
+  1. Fetch GHL appointment by ID
+  2. If `appointmentStatus !== 'cancelled'`, skip (`already_active`)
+  3. PATCH status back to `confirmed` (or recreate if 404). Capture new ID if recreated.
+  4. PUT contact tag `lovable_block_incident_restored`
+  5. If `dnd_suppress`, call `update-ghl-contact-dnd` with `enable_dnd=true` and schedule a follow-up record in a new lightweight `pending_dnd_releases` table (`contact_id`, `project_name`, `release_at`)
+  6. Update `all_appointments` row + write note + audit log
+- Returns per-row result array
+- Concurrency: 5 GHL calls in flight max (existing rate-limit pattern in other GHL fns)
+
+**Extend `audit-time-block-cancellations`**:
+- Add signature B (block-overlap join). Pure SQL, no new fetches needed.
+- Add `format=csv` query param that returns CSV instead of JSON.
+- Remove the `'Welcome Call' status` filter so it catches Confirmed/Pending victims of signature B.
+
+**New scheduled fn**: `release-block-incident-dnd` — runs every 15 min via pg_cron, finds rows in `pending_dnd_releases` where `release_at <= now()`, calls `update-ghl-contact-dnd` with `enable_dnd=false`, deletes the row.
+
+**New table**:
 ```sql
--- Appointments where:
---   (a) status is currently a "still active in portal" tier
---   (b) was_ever_confirmed = true
---   (c) is_superseded = false
---   (d) updated_at is in a window where security_audit_log shows
---       multiple consecutive same-status writes (the GHL-cancel-suppressed signature)
-SELECT a.project_name, a.id, a.lead_name, a.date_of_appointment,
-       a.requested_time, a.status, a.calendar_name, a.ghl_appointment_id,
-       a.updated_at,
-       (SELECT count(*) FROM security_audit_log s
-         WHERE s.event_type = 'appointment_auto_completed'
-           AND s.details->>'appointment_id' = a.id::text
-           AND s.details->>'old_status' = s.details->>'new_status'
-           AND s.created_at BETWEEN a.updated_at - interval '5 minutes'
-                                AND a.updated_at + interval '5 minutes'
-       ) AS suppressed_webhook_hits
-FROM all_appointments a
-WHERE a.status IN ('Welcome Call','Confirmed','Scheduled','Pending')
-  AND a.was_ever_confirmed = true
-  AND a.is_superseded = false
-  AND a.is_reserved_block = false
-HAVING suppressed_webhook_hits >= 2;
+create table public.pending_dnd_releases (
+  id uuid primary key default gen_random_uuid(),
+  ghl_contact_id text not null,
+  project_name text not null,
+  release_at timestamptz not null,
+  released_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index on public.pending_dnd_releases (release_at) where released_at is null;
 ```
+RLS: admin-only.
 
-We then intersect with **time-block creation windows** (where `is_reserved_block = true AND created_at` is in the same minute as the suppressed webhook hits) to confirm the cause was a block, vs. some other GHL-side cancel.
+**Frontend**: new route `src/pages/admin/BlockIncidentRecovery.tsx` gated by `has_role(uid, 'admin')`. Calls the three edge functions, shows progress, downloads CSV.
 
-Output: a per-clinic, per-patient CSV of all affected appointments — VIM + every other project.
+**Reschedule workflow filter (manual one-time op task, NOT code)**: in GHL, edit each clinic's reschedule workflow → add filter "Contact tag does not contain `lovable_block_incident_restored`". This is the only manual step required. The edge function adds the tag; the workflow filter is what makes the tag mean something.
 
-#### Phase 3: Recovery — re-validate against GHL and reconcile
+---
 
-For each affected appointment from Phase 2:
+### Safety / rollback
 
-1. **Query GHL `GET /calendars/events/appointments/{ghl_appointment_id}`** to get the current `appointmentStatus`. (Cheap. We already have the helper in `update-ghl-appointment`.)
-2. **Branch on what GHL says:**
-   - **GHL says `cancelled`** → portal status set to `Cancelled`, `cancellation_reason` set to `"Auto-cancelled by clinic time block on <date> — GHL silently cancelled, was a confirmed/welcome-call appointment"`, internal note attributing the change to the time-block backfill, and **flag in a new `recovery_needed` column or note** so clinic staff see it as needing manual rebooking. **Do not attempt to resurrect in GHL** — the time slot is now legitimately blocked, and a resurrected event would conflict.
-   - **GHL says anything else** (still `confirmed`, `showed`, etc.) → no action; portal already shows the closest-to-truth status.
-3. Generate a Slack-able summary report per project: "X confirmed appointments were silently cancelled by time blocks between <range>. They are now marked Cancelled in the portal. Please rebook these patients."
+- All writes are gated behind `mode=execute` + typed count confirmation.
+- Every change is logged in `security_audit_log` with full before/after, so a `mode=rollback` can be added later that reverses any specific batch.
+- DND is the only "side effect" with a TTL — the auto-release function ensures patients aren't permanently muted even if the team forgets.
+- If GHL is rate-limiting, the function exits cleanly with a partial result and can be re-invoked to resume (idempotent: it skips rows already restored).
 
-This is reversible — if a clinic insists on resurrecting a patient in GHL, we do it case-by-case with `update-ghl-appointment` (which already uses `ignoreFreeSlotValidation: true`).
+---
 
-#### Phase 4: Defense-in-depth (so this can never recur)
+### Out of scope for this plan
 
-- Already in place (yesterday's fix): GHL → portal Welcome Call no longer blocks status sync.
-- Already in place (Apr 23): hard-conflict scan stops the block dialog when ANY confirmed-tier appointment overlaps.
-- Add (this PR): the `was_ever_confirmed`-promotion-to-hard described in Phase 1.
-- Add (this PR): in `cancelConflictingAppointments` (the auto-cancel path inside `ReserveTimeBlockDialog`), refuse to operate on any conflict that is NOT in soft tier — even if it's somehow passed in. Belt and suspenders.
-- Add (this PR): server-side guard in `create-ghl-appointment` (the function that posts the block to GHL): before calling GHL's block endpoint, re-run the same overlap query the client ran, and **abort with a 409 if any non-terminal/`was_ever_confirmed` patient appointments overlap**, regardless of what the client sent. This is the canonical safeguard: even a stale frontend or an external script can no longer accidentally trigger this.
+- Sending an apology SMS/email to affected patients (clinic comms decision, not a code change).
+- Rebuilding the time blocks themselves — they remain as-is on the calendar; we only restore the patient appointments. If a real conflict still exists, that surfaces on the calendar UI for the clinic to resolve.
 
-### Files touched
-
-| File | Change |
-|---|---|
-| `src/components/appointments/blockConflictScan.ts` | Promote `was_ever_confirmed` soft conflicts to hard. ~5 lines. |
-| `src/components/appointments/ReserveTimeBlockDialog.tsx` | In `cancelConflictingAppointments`, double-check each conflict is soft tier; skip + log otherwise. ~10 lines. |
-| `supabase/functions/create-ghl-appointment/index.ts` | Server-side overlap re-scan when `is_reserved_block = true`; abort with 409 if confirmed-tier overlap found. ~40 lines. |
-| New edge function `audit-time-block-cancellations` | One-off audit + recovery worker. Pulls candidates, queries GHL for each, updates portal records, writes internal notes, returns CSV summary. Triggered manually. |
-| One-time SQL via migration | Run audit query above, export results, then update each affected portal row to `Cancelled` with attribution note and `recovery_needed` flag. |
-| `mem://features/bulk-calendar-blocking` | Update memory: confirmed-tier appointments are protected from block creation; backend re-validates. |
-
-### Risk
-
-- **Phase 2 (audit)** is read-only. Zero risk.
-- **Phase 3 (reconciliation)** changes portal statuses to match what GHL already says. Reversible (we have the prior status in `security_audit_log` and `appointment_history`). It does NOT cancel anything in GHL — it only mirrors GHL's existing state into the portal.
-- **Phase 4 (server-side guard)** could theoretically reject legitimate block creation if the re-scan disagrees with the client. We mitigate by returning the conflict list in the 409 response so the UI can show it.
-
-### What this does NOT do
-
-- Does **not** silently re-create cancelled GHL events. Restoring an event in a now-blocked slot would re-trigger the same GHL cancel cascade and cause more confusion. We surface the affected patients to clinic staff for manual rebooking instead.
-- Does **not** touch terminal-status appointments (Cancelled, Showed, OON, etc.) — those are correctly settled.
+---
 
 ### Approve to proceed
 
-On approval I'll switch to default mode and execute in this order:
-1. Ship code changes (Phase 1 + 4 client + server guards).
-2. Deploy `audit-time-block-cancellations` edge function.
-3. Run audit; share the per-clinic count + CSV before any data is mutated.
-4. After you OK the audit results, run the reconciliation; report counts back per clinic.
-5. Update memory.
+On approval I'll:
+1. Extend the audit fn (signature B + CSV)
+2. Build `restore-block-incident-appointments` (dry-run + execute)
+3. Add `pending_dnd_releases` table + `release-block-incident-dnd` cron fn
+4. Build the `/admin/block-incident-recovery` UI
+5. Run system-wide audit, share the CSV, then run dry-run scoped to VIM first for sign-off before executing.
