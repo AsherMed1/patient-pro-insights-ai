@@ -404,8 +404,27 @@ export function ReserveTimeBlockDialog({
     toCancel: BlockConflict[],
     successfulCalendarNames: string[]
   ) => {
+    // Belt-and-suspenders: refuse to auto-cancel anything that is not in the soft tier.
+    // The dialog should never pass hard conflicts here, but if a stale UI ever does,
+    // we drop them on the floor instead of silently cancelling a real patient.
+    // (Incident: VIM 2026-04-21 — confirmed/welcome-call rows were silently cancelled.)
+    const SOFT_TIER = new Set(['', 'pending']);
+    const softOnly = toCancel.filter((c) => {
+      const s = (c.status || '').toString().trim().toLowerCase();
+      const isSoft = SOFT_TIER.has(s);
+      const wasConfirmed = c.was_ever_confirmed === true;
+      if (!isSoft || wasConfirmed) {
+        console.warn(
+          '[ReserveTimeBlock] Refusing to auto-cancel non-soft conflict:',
+          { id: c.id, lead: c.lead_name, status: c.status, was_ever_confirmed: wasConfirmed }
+        );
+        return false;
+      }
+      return true;
+    });
+
     // Only cancel conflicts on calendars where the block actually succeeded
-    const eligible = toCancel.filter((c) =>
+    const eligible = softOnly.filter((c) =>
       c.calendar_name && successfulCalendarNames.includes(c.calendar_name)
     );
 

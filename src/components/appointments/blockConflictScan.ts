@@ -142,8 +142,15 @@ export async function scanBlockConflicts(params: {
     };
 
     if (SOFT_STATUSES.has(status)) {
-      // Truly unconfirmed → existing auto-cancel flow is fine
-      softConflicts.push(conflict);
+      // Truly unconfirmed → existing auto-cancel flow is fine.
+      // EXCEPT: if this row was ever confirmed before being moved back to pending,
+      // it represents a real patient that GHL would silently cancel. Promote to hard.
+      // (See incident: VIM time-block cancellations 2026-04-21.)
+      if (conflict.was_ever_confirmed) {
+        hardConflicts.push(conflict);
+      } else {
+        softConflicts.push(conflict);
+      }
     } else {
       // Confirmed, Welcome Call, Scheduled, or anything else non-terminal
       // → GHL will silently cancel these. Hard block.

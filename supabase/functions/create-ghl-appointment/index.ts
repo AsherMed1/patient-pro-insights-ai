@@ -233,6 +233,100 @@ serve(async (req) => {
       );
     }
 
+    // ────────────────────────────────────────────────────────────────────
+    // Server-side overlap guard. Re-runs the same check as the client-side
+    // blockConflictScan, but here on the server we cannot be bypassed by a
+    // stale UI, an external caller, or a manual API call. If any
+    // confirmed-tier patient appointment overlaps the proposed block,
+    // we abort with 409 instead of letting GHL silently cancel it.
+    // (Incident: VIM 2026-04-21 — see plan.md.)
+    // ────────────────────────────────────────────────────────────────────
+    if (create_local_record && calendar_name) {
+      const TERMINAL = new Set([
+        'cancelled','canceled','no show','noshow','no-show',
+        'showed','won','oon','do not call','donotcall','rescheduled',
+      ]);
+
+      const dateStr = start_time.split('T')[0];
+      const startMin = (() => {
+        const t = start_time.substring(11, 16);
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+      })();
+      const endMin = (() => {
+        const t = end_time.substring(11, 16);
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+      })();
+
+      const { data: candidates, error: scanErr } = await supabase
+        .from('all_appointments')
+        .select('id, lead_name, status, requested_time, calendar_name, was_ever_confirmed, is_reserved_block, is_superseded')
+        .eq('project_name', project_name)
+        .eq('calendar_name', calendar_name)
+        .gte('date_of_appointment', `${dateStr}T00:00:00`)
+        .lte('date_of_appointment', `${dateStr}T23:59:59`);
+
+      if (scanErr) {
+        console.error('[CREATE-GHL-BLOCK-SLOT] Server overlap scan failed:', scanErr);
+      } else if (candidates) {
+        const blocking = candidates.filter((row: any) => {
+          if (row.is_reserved_block === true) return false;
+          if (row.is_superseded === true) return false;
+          const status = (row.status || '').toString().trim().toLowerCase();
+          if (TERMINAL.has(status)) return false;
+          // Confirmed-tier OR ever-confirmed pending → would be silently cancelled by GHL
+          const isConfirmedTier =
+            !['', 'pending'].includes(status) || row.was_ever_confirmed === true;
+          if (!isConfirmedTier) return false;
+
+          const t = (row.requested_time || '').toString().trim();
+          const m = /^(\d{1,2}):(\d{2})/.exec(t);
+          if (!m) return false;
+          const apptMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+          return apptMin >= startMin && apptMin < endMin;
+        });
+
+        if (blocking.length > 0) {
+          console.error('[CREATE-GHL-BLOCK-SLOT] Server-side guard tripped — refusing block. Overlapping:',
+            blocking.map((b: any) => ({ id: b.id, lead: b.lead_name, status: b.status, time: b.requested_time }))
+          );
+
+          await supabase.from('security_audit_log').insert({
+            event_type: 'block_creation_blocked_server_guard',
+            user_id: user_id || null,
+            details: {
+              project_name,
+              calendar_id,
+              calendar_name,
+              start_time,
+              end_time,
+              attempted_by: user_name || 'Unknown',
+              blocking_appointments: blocking.map((b: any) => ({
+                id: b.id, lead_name: b.lead_name, status: b.status,
+                requested_time: b.requested_time, was_ever_confirmed: b.was_ever_confirmed,
+              })),
+              note: 'Server-side overlap guard refused block creation to prevent silent GHL cancellation.',
+              timestamp: new Date().toISOString(),
+            },
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Block would silently cancel confirmed patient appointments',
+              code: 'CONFIRMED_TIER_OVERLAP',
+              overlapping_appointments: blocking.map((b: any) => ({
+                id: b.id, lead_name: b.lead_name, status: b.status,
+                requested_time: b.requested_time,
+              })),
+            }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     // Step 1: Fetch calendar details to determine type and team members
     let calendarData: CalendarData | null = null;
     let teamMembers: TeamMember[] = [];
