@@ -1,55 +1,66 @@
-## Problem
+## Issue
 
-Clicking "Run audit" returns `Edge Function returned a non-2xx status code`. Edge function logs show the function boots, logs `[audit] project= undefined since= undefined sig= both`, then nothing — it silently times out (Supabase edge functions have a ~150s wall-clock limit).
+Joint & Vascular Institute (and 19 other clinics) have appointments where the **Insurance Group Number is being copied into the Member ID field**, even though GHL has both values correctly.
 
-Why it times out, given current data:
-- **267** reserved blocks in the incident window
-- **1,907** candidate appointments (`was_ever_confirmed=true`, active status)
-- Signature A loops 1,907 candidates and runs a `security_audit_log` query per candidate (~1,907 sequential queries)
-- Signature B loops 267 blocks and runs a candidate query per block (~267 sequential queries)
-- GHL ground-truth check then does **one HTTP call per suspect, sequentially** (could be hundreds of calls × ~300ms each)
+## Root Cause
 
-Together this exceeds the timeout, so the function never returns and the client sees a generic non-2xx error.
+The auto-parse-intake-notes edge function has two parsing paths:
+1. **Primary**: OpenAI structured extraction (works correctly).
+2. **Fallback**: Regex-based extraction, used when OpenAI returns 429 (rate-limited) or fails.
 
-For Eugene specifically the single-appointment restore card does not depend on this audit — it can already be exercised. But the audit itself is broken at scale and needs to be fixed for the bulk remediation to be usable.
+This weekend OpenAI was rate-limited frequently, so the fallback ran. The fallback has two bugs in `fallbackRegexParsing()`:
+
+- **Line 370 bug**: When a Group Number is found, the code writes the same value into BOTH `insurance_group_number` AND `insurance_id_number`:
+  ```ts
+  result.insurance_info.insurance_group_number = match[1].trim();
+  result.insurance_info.insurance_id_number = match[1].trim();  // ← bug
+  ```
+- **Missing extraction**: The fallback has no regex for "Insurance ID Number" / "Member ID", so even without the line-370 overwrite the Member ID would never be populated by the fallback.
+
+Confirmed example — Stacy Abron (Joint & Vascular):
+- GHL notes say: `Insurance Group Number: JNY123M717` and `Insurance ID Number: ZTO7001795DK`
+- Portal stored both as `JNY123M717`
+
+Confirmed in logs: `[AUTO-PARSE] OpenAI rate limited (429), using regex fallback ...`
+
+## Scope of Damage
+
+- **127 of 221** appointments created since 2026-04-24 have `detected_insurance_id` equal to the parsed group number (very likely all wrong).
+- Top affected: Richmond Vascular (14), NG Vascular (11), Texas Vascular (11), VSNC (10), Buffalo (8), Painless Center (8), Fayette (6), Joint & Vascular (3), and others.
 
 ## Plan
 
-Rewrite `audit-time-block-cancellations` to be timeout-safe and observable.
+### 1. Fix the parser (`supabase/functions/auto-parse-intake-notes/index.ts`)
 
-### 1. Replace per-row queries with batched joins
+- Remove line 370 — do not assign group number to `insurance_id_number`.
+- Add a Member ID regex block alongside the Group block:
+  ```ts
+  const memberIdPatterns = [
+    /Insurance ID Number:\s*([^\n|]+)/i,
+    /Member ID[#:]*\s*([^\n|]+)/i,
+    /Member Number:\s*([^\n|]+)/i,
+    /Insurance ID[#:]*\s*([^\n|]+)/i,
+    /Subscriber ID:\s*([^\n|]+)/i,
+    /Policy (?:Number|ID):\s*([^\n|]+)/i,
+  ];
+  ```
+  Assign only to `insurance_info.insurance_id_number`.
+- Order matters: extract Member ID before Group so the more-specific "Insurance ID Number" pattern wins; keep group regex anchored to "Group" tokens only.
 
-- **Signature A**: do a single `security_audit_log` query in the candidate window, grouped by `details->>appointment_id`, and join in memory against the candidate set instead of querying per-row. Falls from ~1,907 round-trips to 2.
-- **Signature B**: pull all 267 blocks once, then one `all_appointments` query with `.in()` over the unique `(project_name, calendar_name, date_of_appointment)` triples — or a single SQL RPC that does the overlap join server-side. Falls from ~267 round-trips to 1.
+### 2. Re-parse affected appointments
 
-### 2. Parallelize the GHL ground-truth check
+Run `reparse-specific-appointments` for the 127 weekend records where `detected_insurance_id = parsed_insurance_info->>'insurance_group_number'` and `date_appointment_created >= 2026-04-24`. The function already has OpenAI quota-retry logic, so duplicated bad data will be replaced with correct GHL values (or with the now-fixed fallback if OpenAI is still throttled).
 
-- Run GHL fetches with a concurrency pool of ~8 (Promise pool), per-request 8s timeout via `AbortController`, and skip the check entirely if `check_ghl=false`.
-- Default `check_ghl` to **false** for the dashboard "Run audit" button, and add a separate "Verify against GHL" button that runs the GHL pass on the already-fetched suspect list.
+### 3. Verify
 
-### 3. Add safety rails
+- Spot-check Stacy Abron, Walter Par, Belinda Porras, Pierre Labounty after re-parse — confirm `detected_insurance_id` matches GHL "Insurance ID Number" and `group_number` matches GHL "Insurance Group Number" independently.
+- Re-run the duplication SQL count; expect it to drop near zero.
 
-- Hard cap the suspect set processed for GHL at 500 per call; return `truncated: true` if exceeded so the UI can paginate.
-- Wrap the handler in try/catch around each phase and log `[audit] phase=A done in Xms` / `phase=B done in Xms` / `phase=ghl done in Xms` so future timeouts are diagnosable from logs.
-- Ensure all error paths return JSON 200 with `success: false, error, phase` instead of crashing — that way the UI shows the real error string instead of "non-2xx".
+### 4. Optional follow-up (not in this change unless requested)
 
-### 4. Dashboard tweaks (`src/pages/admin/BlockIncidentRecovery.tsx`)
+- Add a structured-log alert when fallback parser runs more than N times/hour so we know when OpenAI quota issues recur.
 
-- Add a **"Verify against GHL"** button next to "Run audit"; default audit run no longer hits GHL.
-- Show the `truncated` flag and a hint to filter by project if so.
-- Surface the server-side `error` field in the toast when `success: false`.
+## Files Changed
 
-### 5. No DB schema changes
-
-The fix is entirely in the edge function and the dashboard. No migration needed.
-
-## Files
-
-- `supabase/functions/audit-time-block-cancellations/index.ts` — rewrite Signature A/B queries to be batched; add concurrency-limited GHL check; phase timing logs; structured error responses.
-- `src/pages/admin/BlockIncidentRecovery.tsx` — split audit into "Run audit (fast)" + "Verify against GHL"; show truncation + server error.
-
-## Expected outcome
-
-- "Run audit" returns in a few seconds with the suspect counts (no GHL check).
-- "Verify against GHL" then runs the ground-truth pass with parallelism, completes in well under the timeout for the current ~hundreds-of-suspects volume, and reports per-project `ghl_cancelled` / `ghl_deleted` counts.
-- Single-appointment restore for Eugene Schneeberger remains independently usable and is unaffected by this change.
+- `supabase/functions/auto-parse-intake-notes/index.ts` (edit fallback regex section, ~lines 359–374).
+- One-shot data fix via existing `reparse-specific-appointments` edge function (no schema change).

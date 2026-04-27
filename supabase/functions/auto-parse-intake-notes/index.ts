@@ -356,18 +356,38 @@ function fallbackRegexParsing(intakeNotes: string): any {
     }
   }
 
-  // Extract Group Number
-  const groupPatterns = [
-    /Group #:\s*([^\n|]+)/i,
-    /group number:\s*([^\n|]+)/i,
-    /group:\s*([^\n|]+)/i
+  // Extract Member ID / Insurance ID Number FIRST so the more-specific
+  // "Insurance ID Number" pattern wins before the Group regex runs.
+  const memberIdPatterns = [
+    /Insurance ID Number:\s*([^\n|]+)/i,
+    /Member ID\s*[#:]*\s*([^\n|]+)/i,
+    /Member Number:\s*([^\n|]+)/i,
+    /Insurance ID\s*[#:]+\s*([^\n|]+)/i,
+    /Subscriber ID:\s*([^\n|]+)/i,
+    /Policy (?:Number|ID|#):\s*([^\n|]+)/i,
   ];
-  
+
+  for (const pattern of memberIdPatterns) {
+    const match = intakeNotes.match(pattern);
+    if (match && match[1]) {
+      result.insurance_info.insurance_id_number = match[1].trim();
+      console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_id_number: ${match[1].trim()}`);
+      break;
+    }
+  }
+
+  // Extract Group Number (does NOT touch insurance_id_number anymore)
+  const groupPatterns = [
+    /Insurance Group Number:\s*([^\n|]+)/i,
+    /Group #:\s*([^\n|]+)/i,
+    /Group Number:\s*([^\n|]+)/i,
+    /Group:\s*([^\n|]+)/i
+  ];
+
   for (const pattern of groupPatterns) {
     const match = intakeNotes.match(pattern);
     if (match && match[1]) {
       result.insurance_info.insurance_group_number = match[1].trim();
-      result.insurance_info.insurance_id_number = match[1].trim();
       console.log(`[AUTO-PARSE FALLBACK] Extracted group_number: ${match[1].trim()}`);
       break;
     }
