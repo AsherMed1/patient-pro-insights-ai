@@ -1,66 +1,39 @@
-## Issue
+# Strip Leaked AI Bot Prompts From Symptoms Field
 
-Joint & Vascular Institute (and 19 other clinics) have appointments where the **Insurance Group Number is being copied into the Member ID field**, even though GHL has both values correctly.
+## What's wrong
+The "Symptoms" field on the Medical Information card is showing AI booking-bot instructions (Booking Rule, Booking Steps, Challenger Sale, Natural Language Suggestions, "Reference this data and ask them a relevant question…"). This text is part of a prompt template that was placed inside a GHL custom field and accidentally got captured into the patient intake payload. From there it flowed into `patient_intake_notes` and then our AI parser extracted it as `parsed_pathology_info.symptoms`.
 
-## Root Cause
+This is the same class of issue that the existing sanitizer already blocks for the **Imaging Details** field — we just never extended that protection to **Symptoms**.
 
-The auto-parse-intake-notes edge function has two parsing paths:
-1. **Primary**: OpenAI structured extraction (works correctly).
-2. **Fallback**: Regex-based extraction, used when OpenAI returns 429 (rate-limited) or fails.
+## Scope
+- 128 appointments across 23 projects currently show corrupted symptoms.
+- For VES (Vascular and Embolization Specialists) specifically, the two patients you're seeing are almost certainly **Anderson Williams** and **William Olivieri** (a third older one, Chris Duplantis, is also affected).
 
-This weekend OpenAI was rate-limited frequently, so the fallback ran. The fallback has two bugs in `fallbackRegexParsing()`:
+## Fix — three parts
 
-- **Line 370 bug**: When a Group Number is found, the code writes the same value into BOTH `insurance_group_number` AND `insurance_id_number`:
-  ```ts
-  result.insurance_info.insurance_group_number = match[1].trim();
-  result.insurance_info.insurance_id_number = match[1].trim();  // ← bug
-  ```
-- **Missing extraction**: The fallback has no regex for "Insurance ID Number" / "Member ID", so even without the line-370 overwrite the Member ID would never be populated by the fallback.
+### 1. Backfill clean-up (one-time)
+For all 128 affected appointments, detect bot-prompt signatures in `parsed_pathology_info.symptoms` and clear the field (set to empty string or null). Signatures to match (case-insensitive):
+- "Reference this data"
+- "Booking Rule"
+- "Booking Step"
+- "Challenger Sale"
+- "Natural Language Suggestions"
+- Symptoms strings longer than ~400 chars (real symptoms are short comma-lists like "Sharp Pain, Swelling, Stiffness")
 
-Confirmed example — Stacy Abron (Joint & Vascular):
-- GHL notes say: `Insurance Group Number: JNY123M717` and `Insurance ID Number: ZTO7001795DK`
-- Portal stored both as `JNY123M717`
+Done as a SQL migration that updates the JSONB in place.
 
-Confirmed in logs: `[AUTO-PARSE] OpenAI rate limited (429), using regex fallback ...`
+### 2. Extend the sanitizer to the Symptoms field
+In `supabase/functions/auto-parse-intake-notes/index.ts`, the existing GHL prompt sanitizer (currently scoped to imaging details per project memory) gets extended so that after the AI parse returns:
+- If `parsed_pathology_info.symptoms` contains any of the bot-prompt signatures above, OR exceeds ~400 chars, OR contains URL/quote-heavy patterns typical of prompts, the symptoms value is wiped before saving.
+- Also strip the same patterns from the raw `patient_intake_notes` text *before* sending to the AI, so the parser never sees them in the first place.
 
-## Scope of Damage
+### 3. UI defensive render
+In the Medical Information card (where Symptoms displays), add a final client-side guard: if symptoms still contains any of the signature phrases, hide the field entirely rather than render a wall of bot text. Belt-and-suspenders for any future prompt variants we haven't catalogued.
 
-- **127 of 221** appointments created since 2026-04-24 have `detected_insurance_id` equal to the parsed group number (very likely all wrong).
-- Top affected: Richmond Vascular (14), NG Vascular (11), Texas Vascular (11), VSNC (10), Buffalo (8), Painless Center (8), Fayette (6), Joint & Vascular (3), and others.
+## What you'll see after
+- The Williams and Olivieri (and Duplantis) cards in VES will no longer show the bot-prompt blob; the Symptoms row will simply be empty.
+- The other 125 affected patients across the 22 other projects get cleaned up in the same migration.
+- New appointments synced from GHL with similar prompt leakage will be sanitized automatically and never display the bot text.
 
-## Plan
-
-### 1. Fix the parser (`supabase/functions/auto-parse-intake-notes/index.ts`)
-
-- Remove line 370 — do not assign group number to `insurance_id_number`.
-- Add a Member ID regex block alongside the Group block:
-  ```ts
-  const memberIdPatterns = [
-    /Insurance ID Number:\s*([^\n|]+)/i,
-    /Member ID[#:]*\s*([^\n|]+)/i,
-    /Member Number:\s*([^\n|]+)/i,
-    /Insurance ID[#:]*\s*([^\n|]+)/i,
-    /Subscriber ID:\s*([^\n|]+)/i,
-    /Policy (?:Number|ID):\s*([^\n|]+)/i,
-  ];
-  ```
-  Assign only to `insurance_info.insurance_id_number`.
-- Order matters: extract Member ID before Group so the more-specific "Insurance ID Number" pattern wins; keep group regex anchored to "Group" tokens only.
-
-### 2. Re-parse affected appointments
-
-Run `reparse-specific-appointments` for the 127 weekend records where `detected_insurance_id = parsed_insurance_info->>'insurance_group_number'` and `date_appointment_created >= 2026-04-24`. The function already has OpenAI quota-retry logic, so duplicated bad data will be replaced with correct GHL values (or with the now-fixed fallback if OpenAI is still throttled).
-
-### 3. Verify
-
-- Spot-check Stacy Abron, Walter Par, Belinda Porras, Pierre Labounty after re-parse — confirm `detected_insurance_id` matches GHL "Insurance ID Number" and `group_number` matches GHL "Insurance Group Number" independently.
-- Re-run the duplication SQL count; expect it to drop near zero.
-
-### 4. Optional follow-up (not in this change unless requested)
-
-- Add a structured-log alert when fallback parser runs more than N times/hour so we know when OpenAI quota issues recur.
-
-## Files Changed
-
-- `supabase/functions/auto-parse-intake-notes/index.ts` (edit fallback regex section, ~lines 359–374).
-- One-shot data fix via existing `reparse-specific-appointments` edge function (no schema change).
+## What this does NOT do
+- It does not fix the upstream GHL configuration that keeps injecting the prompt into intake payloads. That is a config change that has to be made inside the GHL sub-account (likely a workflow or custom-field default value containing the bot system prompt). Recommend flagging this to whoever owns the GHL automations so the source can be cleaned up — our portal sanitizer is a safety net, not a replacement for fixing the source.
