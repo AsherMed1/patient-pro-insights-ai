@@ -1691,6 +1691,19 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         // This catches anything the AI parser might have missed
         parsedData = enrichWithCriticalFields(parsedData, record.patient_intake_notes);
 
+        // Sanitize symptoms field to strip leaked AI bot prompt instructions
+        // (See: GHL custom field bot prompts leaking into intake payload)
+        if (parsedData.pathology_info?.symptoms) {
+          const sym = String(parsedData.pathology_info.symptoms);
+          const isBotPrompt =
+            sym.length > 400 ||
+            /Reference this data|Booking Rule|Booking Step|Challenger Sale|Natural Language Suggestions|Preferred Times:/i.test(sym);
+          if (isBotPrompt) {
+            console.log(`[AUTO-PARSE SANITIZE] Stripped bot prompt from symptoms: ${sym.substring(0, 80)}...`);
+            parsedData.pathology_info.symptoms = null;
+          }
+        }
+
         // Extract urologist info from raw intake notes (fallback if not found in GHL or AI)
         const urologistFromText = extractUrologistFromText(record.patient_intake_notes);
         if (!parsedData.medical_info) {
