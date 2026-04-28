@@ -19,6 +19,7 @@ import { EmrProcessingQueue } from "@/components/EmrProcessingQueue";
 import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import CallTeamTab from "@/components/callteam/CallTeamTab";
 import ProjectCallSummaryTable from "@/components/dashboard/ProjectCallSummaryTable";
+import RecaptureDashboard from "@/components/dashboard/RecaptureDashboard";
 import UserManagement from "@/components/UserManagement";
 import TeamMessagesManager from "@/components/TeamMessagesManager";
 import SupportQueueManager from "@/components/SupportQueueManager";
