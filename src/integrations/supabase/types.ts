@@ -251,6 +251,8 @@ export type Database = {
           procedure_ordered: boolean | null
           procedure_status: string | null
           project_name: string
+          recapture_detected_at: string | null
+          recaptured_from_appointment_id: string | null
           requested_time: string | null
           reschedule_history: Json | null
           reserved_end_time: string | null
@@ -304,6 +306,8 @@ export type Database = {
           procedure_ordered?: boolean | null
           procedure_status?: string | null
           project_name: string
+          recapture_detected_at?: string | null
+          recaptured_from_appointment_id?: string | null
           requested_time?: string | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
@@ -357,6 +361,8 @@ export type Database = {
           procedure_ordered?: boolean | null
           procedure_status?: string | null
           project_name?: string
+          recapture_detected_at?: string | null
+          recaptured_from_appointment_id?: string | null
           requested_time?: string | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
@@ -365,7 +371,29 @@ export type Database = {
           updated_at?: string
           was_ever_confirmed?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "all_appointments_recaptured_from_appointment_id_fkey"
+            columns: ["recaptured_from_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "all_appointments_recaptured_from_appointment_id_fkey"
+            columns: ["recaptured_from_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "all_appointments_recaptured_from_appointment_id_fkey"
+            columns: ["recaptured_from_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
       }
       all_calls: {
         Row: {
@@ -484,6 +512,20 @@ export type Database = {
             referencedRelation: "all_appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_appointment_notes_appointment_id"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "fk_appointment_notes_appointment_id"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
         ]
       }
       appointment_reschedules: {
@@ -564,6 +606,20 @@ export type Database = {
             referencedRelation: "all_appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "appointment_reschedules_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "appointment_reschedules_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
         ]
       }
       appointment_tags: {
@@ -592,6 +648,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "all_appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_appointment_tags_appointment_id"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "fk_appointment_tags_appointment_id"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
           },
           {
             foreignKeyName: "fk_appointment_tags_project_tag_id"
@@ -1489,6 +1559,20 @@ export type Database = {
             referencedRelation: "all_appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "emr_processing_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "emr_processing_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
         ]
       }
       expense_categories: {
@@ -2175,6 +2259,20 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "all_appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insurance_fetch_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "insurance_fetch_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
           },
         ]
       }
@@ -3148,6 +3246,20 @@ export type Database = {
             referencedRelation: "all_appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "short_notice_alerts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "short_notice_alerts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
         ]
       }
       speed_to_lead_stats: {
@@ -3714,7 +3826,24 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      recapture_events: {
+        Row: {
+          days_to_recapture: number | null
+          lost_appointment_id: string | null
+          lost_created_at: string | null
+          lost_date: string | null
+          lost_status: string | null
+          patient_name: string | null
+          project_name: string | null
+          recapture_appointment_id: string | null
+          recapture_created_at: string | null
+          recapture_date: string | null
+          recapture_outcome: string | null
+          recapture_procedure_ordered: boolean | null
+          recapture_status: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       bulk_sync_patient_intake_notes: {
