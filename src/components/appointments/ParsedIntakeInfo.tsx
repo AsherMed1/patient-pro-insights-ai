@@ -799,12 +799,20 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </Badge>
                   </div>
                 )}
-                {formatValue(parsedPathologyInfo.symptoms) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Symptoms:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.symptoms}</span>
-                  </div>
-                )}
+                {formatValue(parsedPathologyInfo.symptoms) && (() => {
+                  const sym = String(parsedPathologyInfo.symptoms);
+                  // Defensive guard: hide leaked AI bot prompt instructions
+                  const isBotPrompt =
+                    sym.length > 400 ||
+                    /Reference this data|Booking Rule|Booking Step|Challenger Sale|Natural Language Suggestions|Preferred Times:/i.test(sym);
+                  if (isBotPrompt) return null;
+                  return (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Symptoms:</span>{" "}
+                      <span className="font-medium">{sym}</span>
+                    </div>
+                  );
+                })()}
                 {formatValue(parsedPathologyInfo.previous_treatments) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Treatments Tried:</span>{" "}
