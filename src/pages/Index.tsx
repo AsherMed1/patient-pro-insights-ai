@@ -305,6 +305,7 @@ const Index = () => {
 
           <TabsContent value="reporting" className="space-y-6">
             <ProjectCallSummaryTable />
+            <RecaptureDashboard />
           </TabsContent>
 
           <TabsContent value="leads" className="space-y-6">
