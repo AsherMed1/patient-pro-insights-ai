@@ -515,6 +515,8 @@ const UserManagement = () => {
         return 'destructive';
       case 'agent':
         return 'default';
+      case 'va':
+        return 'default';
       case 'project_user':
         return 'secondary';
       default:
@@ -598,6 +600,7 @@ const UserManagement = () => {
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="agent">Agent</SelectItem>
+                          <SelectItem value="va">VA</SelectItem>
                           <SelectItem value="project_user">Project User</SelectItem>
                         </SelectContent>
                       </Select>
@@ -649,6 +652,7 @@ const UserManagement = () => {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="va">VA</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
@@ -856,6 +860,7 @@ const UserManagement = () => {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="va">VA</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
