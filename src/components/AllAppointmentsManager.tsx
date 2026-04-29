@@ -1404,12 +1404,20 @@ const AllAppointmentsManager = ({
                 {projectFilter && ` for ${projectFilter}`}
               </CardDescription>
             </div>
-            <Button
+             <Button
               variant="outline"
               size="sm"
               onClick={async () => {
+                const tabLabelMap: Record<string, string> = {
+                  all: 'All',
+                  new: 'New',
+                  'needs-review': 'Needs Review',
+                  future: 'Upcoming',
+                  past: 'Completed',
+                };
+                const tabLabel = tabLabelMap[activeTab] || 'All';
                 try {
-                  toast({ title: "Preparing export...", description: "Fetching all filtered appointments." });
+                  toast({ title: `Exporting ${tabLabel} appointments…`, description: "Fetching all filtered appointments." });
                   const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
                   let query = supabase.from('all_appointments').select('*').or('is_reserved_block.is.null,is_reserved_block.eq.false');
                   const activeProject = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
@@ -1438,15 +1446,56 @@ const AllAppointmentsManager = ({
                     if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
                     else query = query.ilike('calendar_name', `%${serviceFilter}%`);
                   }
+
+                  // Apply tab-based filters to mirror the on-screen list
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const todayString = format(today, 'yyyy-MM-dd');
+                  if (activeTab === 'new') {
+                    query = query
+                      .or('internal_process_complete.is.null,internal_process_complete.eq.false')
+                      .not('status', 'ilike', 'pending')
+                      .not('status', 'ilike', 'do not call')
+                      .or('is_superseded.is.null,is_superseded.eq.false');
+                  } else if (activeTab === 'needs-review') {
+                    query = query
+                      .or(`status.ilike.pending,date_of_appointment.is.null,date_of_appointment.lt.${todayString}`)
+                      .not('status', 'ilike', 'cancelled')
+                      .not('status', 'ilike', 'no show')
+                      .not('status', 'ilike', 'noshow')
+                      .not('status', 'ilike', 'showed')
+                      .not('status', 'ilike', 'won')
+                      .not('status', 'ilike', 'oon')
+                      .not('status', 'ilike', 'do not call')
+                      .not('status', 'ilike', 'rescheduled')
+                      .or('is_superseded.is.null,is_superseded.eq.false');
+                  } else if (activeTab === 'future') {
+                    query = query
+                      .eq('internal_process_complete', true)
+                      .not('date_of_appointment', 'is', null)
+                      .gte('date_of_appointment', todayString)
+                      .not('status', 'ilike', 'cancelled')
+                      .not('status', 'ilike', 'no show')
+                      .not('status', 'ilike', 'noshow')
+                      .not('status', 'ilike', 'showed')
+                      .not('status', 'ilike', 'won')
+                      .not('status', 'ilike', 'oon')
+                      .not('status', 'ilike', 'do not call')
+                      .not('status', 'ilike', 'rescheduled')
+                      .or('is_superseded.is.null,is_superseded.eq.false');
+                  } else if (activeTab === 'past') {
+                    query = query.or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
+                  }
+
                   query = query.order('date_appointment_created', { ascending: false });
                   const { data, error } = await query;
                   if (error) throw error;
                   if (!data || data.length === 0) {
-                    toast({ title: "No data to export", variant: "destructive" });
+                    toast({ title: "No data to export", description: `No ${tabLabel} appointments matched the current filters.`, variant: "destructive" });
                     return;
                   }
                   exportAppointmentsToExcel(data);
-                  toast({ title: "Export complete", description: `${data.length} appointments exported.` });
+                  toast({ title: "Export complete", description: `${data.length} ${tabLabel} appointment${data.length !== 1 ? 's' : ''} exported.` });
                 } catch (e: any) {
                   toast({ title: "Export failed", description: e.message, variant: "destructive" });
                 }
