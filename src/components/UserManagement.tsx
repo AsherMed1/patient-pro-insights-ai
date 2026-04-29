@@ -515,6 +515,8 @@ const UserManagement = () => {
         return 'destructive';
       case 'agent':
         return 'default';
+      case 'va':
+        return 'default';
       case 'project_user':
         return 'secondary';
       default:
