@@ -9,6 +9,8 @@ interface AppointmentNote {
   created_by: string;
   created_at: string;
   updated_at: string;
+  last_edited_by?: string | null;
+  last_edited_at?: string | null;
 }
 
 export const useAppointmentNotes = (appointmentId: string) => {
