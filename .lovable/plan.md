@@ -1,36 +1,55 @@
-# Tab-Aware Excel Export
+## Add VA (Virtual Assistant) Role
 
-## Problem
-The user (sachin.yadav, AVA Vascular) wants to export only **Needs Review** cases to Excel. Today the "Export to Excel" button in `AllAppointmentsManager.tsx` honors project, date, search, status, procedure, location, and service filters — but it ignores the **active tab** (New / Needs Review / Upcoming / Completed / All). So clicking Export from the Needs Review tab dumps every appointment, not just Needs Review.
+A new "VA" role scoped to appointment notes only. VAs can view, edit, and delete any note (including notes other users created). Only admins can assign the role.
 
-Yes, this is fully possible — it's a small, contained change.
+### 1. Database (migration)
 
-## Fix
-Apply the same tab-based filter conditions used by the on-screen list query (lines 303–344) to the export query as well. The export will then mirror exactly what the user sees in the current tab.
+- Add `'va'` to the `app_role` enum.
+- Update RLS on `public.appointment_notes`:
+  - Add SELECT policy granting VAs read access to all notes.
+  - Add UPDATE policy: `has_role(auth.uid(), 'va')` for both USING and WITH CHECK.
+  - Add DELETE policy: `has_role(auth.uid(), 'va')`.
+  - Existing admin/agent ALL policies remain (they already cover edit/delete).
+- Optional: add a trigger or column `edited_by` / `edited_at` on `appointment_notes` to record who last modified a note (helps audit). New columns: `last_edited_by text`, `last_edited_at timestamptz`. Hook updates from the UI to populate them.
+- Log every edit/delete to `audit_logs` via `log_audit_event(...)` from the client (entity `appointment_note`, action `note_edited` / `note_deleted`).
 
-Specifically, when building the export query in the button handler (around line 1414), branch on `activeTab` and add:
+### 2. Frontend role plumbing
 
-- **new** — `internal_process_complete` is null/false, status not Pending/Do Not Call, not superseded
-- **needs-review** — Pending status OR null/past `date_of_appointment`, excluding terminal statuses (Cancelled, No Show, Showed, Won, OON, Do Not Call, Rescheduled), not superseded
-- **future** — `internal_process_complete = true`, future date, no terminal statuses
-- **past** — only terminal statuses
-- **all** — no extra tab filter (current behavior)
+- `src/hooks/useRole.tsx`: extend `UserRole` union with `'va'`. Add `isVA()` helper. Treat VA as a non-management role (NOT in `hasManagementAccess`). VAs do not get blanket project access — they reach notes via the appointments they can already view, OR we grant them read access to all appointments (decision below).
+- VA scope = "Notes-only": VAs do not need to see the full app. Simplest path: route them to a dedicated lightweight page, OR allow appointment list access read-only. Plan picks the minimal change: VAs get the same view as agents (so they can find notes in context), but their edit/delete UI is limited to notes. We'll restrict any other edit buttons by checking `hasManagementAccess()` (already used in many places).
+- `AuthGuard`: no change needed since VA passes auth; route protection unchanged.
 
-This reuses the exact same predicates already proven correct for the list view, so Needs Review export = Needs Review tab contents (subject to any other filters the user has set).
+### 3. UI changes — `AppointmentNotes.tsx`
 
-## UX touch
-Update the toast and button label to reflect the scoped export, e.g.:
-- Button: keep "Export to Excel"
-- Toast title on click: "Exporting {tabLabel} appointments…"
-- Success toast: "{n} {tabLabel} appointments exported."
+- Surface Edit + Delete buttons on each note card when the current role is `admin`, `agent`, or `va`.
+- Edit: inline textarea + Save/Cancel. Calls `updateNote(id, text)`.
+- Delete: confirm dialog → `deleteNote(id)`.
+- Hide buttons for system-generated notes (`created_by === 'System'`) to avoid breaking attribution chains, OR allow only for admins. Plan: allow edit/delete on all notes for these three roles.
 
-Where `tabLabel` is "Needs Review", "New", "Upcoming", "Completed", or "All".
+### 4. Hook — `useAppointmentNotes.tsx`
 
-## Files Touched
-- `src/components/AllAppointmentsManager.tsx` — extend the export button's `onClick` handler (lines ~1410–1453) to apply `activeTab` filters to the Supabase query before fetching.
+- Add `updateNote(noteId, newText)`: updates `note_text`, sets `last_edited_by` = current `userName`, `last_edited_at = now()`. Optimistic local update + audit log.
+- Add `deleteNote(noteId)`: deletes row, removes locally, audit log.
 
-No DB migration, no new component, no edge function. Single-file change.
+### 5. User Management — `UserManagement.tsx`
 
-## Out of Scope
-- Per-tab column customization (export columns stay as defined in `exportAppointmentsToExcel.ts`).
-- A separate "Export Needs Review" button — the existing button becomes context-aware instead.
+- Add `<SelectItem value="va">VA</SelectItem>` to:
+  - Create-user role dropdown
+  - Edit-user role dropdown
+  - Role filter dropdown
+- Add badge variant for `va` (e.g. `outline` or a new color).
+- Edge function `create-user-with-role` already accepts arbitrary role strings since they're passed straight to `user_roles` insert (verify, no change expected).
+
+### 6. Memory
+
+- Add `mem://auth/va-role` describing the new role and its permissions; update `mem://index.md` Memories list.
+
+### Technical notes
+
+- Enum addition requires its own migration committed before any policy referencing `'va'::app_role` runs.
+- `has_role` SECURITY DEFINER function already supports the new enum value automatically.
+- No changes to existing policies needed (additive only), so admins/agents keep current behavior.
+
+### Open question (will use defaults if not specified)
+
+You picked "Notes-only VA" but didn't answer the UI buttons question. Default: edit/delete buttons visible to **VA + Admin + Agent** (Admin/Agent already have DB permission via the existing ALL policy, so exposing the UI for them too is consistent and harmless).
