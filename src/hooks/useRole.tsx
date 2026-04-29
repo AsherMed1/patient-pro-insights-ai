@@ -134,8 +134,8 @@ export const useRole = () => {
   const hasProjectAccess = (projectName: string) => {
     if (!role) return false;
     
-    // Admin and agents have access to all projects
-    if (role === 'admin' || role === 'agent') return true;
+    // Admin, agents, and VAs have access to all projects
+    if (role === 'admin' || role === 'agent' || role === 'va') return true;
     
     // Project users only have access to assigned projects
     return accessibleProjects.includes(projectName);
@@ -144,7 +144,9 @@ export const useRole = () => {
   const isAdmin = () => hasRole('admin');
   const isAgent = () => hasRole('agent');
   const isProjectUser = () => hasRole('project_user');
+  const isVA = () => hasRole('va');
   const hasManagementAccess = () => hasRole(['admin', 'agent']);
+  const canEditNotes = () => hasRole(['admin', 'agent', 'va']);
 
   return {
     role,
@@ -155,6 +157,8 @@ export const useRole = () => {
     isAdmin,
     isAgent,
     isProjectUser,
-    hasManagementAccess
+    isVA,
+    hasManagementAccess,
+    canEditNotes
   };
 };
