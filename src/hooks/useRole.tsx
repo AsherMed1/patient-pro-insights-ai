@@ -84,8 +84,8 @@ export const useRole = () => {
             console.log('📁 [useRole] Accessible projects:', projects);
             setAccessibleProjects(projects);
           }
-        } else if (userRole === 'admin' || userRole === 'agent') {
-          console.log('👑 [useRole] Fetching all projects for admin/agent');
+        } else if (userRole === 'admin' || userRole === 'agent' || userRole === 'va') {
+          console.log('👑 [useRole] Fetching all projects for admin/agent/va');
           // Admin and agents have access to all projects
           const { data: allProjects, error: projectsError } = await supabase
             .from('projects')
