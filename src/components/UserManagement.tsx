@@ -860,6 +860,7 @@ const UserManagement = () => {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="va">VA</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
