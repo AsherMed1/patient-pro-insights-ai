@@ -196,7 +196,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
-  const { isAdmin } = useRole();
+  const { isAdmin, isVA } = useRole();
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
