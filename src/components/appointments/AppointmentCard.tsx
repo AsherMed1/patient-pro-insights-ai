@@ -676,7 +676,7 @@ const AppointmentCard = ({
         }
       }
 
-      // For "no reschedule" reasons, enable DND to stop outreach
+      // For "no reschedule" reasons, enable DND + add do-not-reschedule tag to stop outreach
       const shouldEnableDND = NO_RESCHEDULE_REASONS.includes(cancelReason);
       if (shouldEnableDND) {
         try {
@@ -696,6 +696,21 @@ const AppointmentCard = ({
                 body: { ghl_contact_id: appointmentData.ghl_id, ghl_api_key: projectData.ghl_api_key, enable_dnd: true }
               });
               console.log('✅ DND enabled for no-reschedule cancellation reason:', cancelReason);
+
+              // Also add 'do-not-reschedule' tag — GHL workflows filter on tags more reliably than DND
+              try {
+                await supabase.functions.invoke('update-ghl-contact-tags', {
+                  body: {
+                    ghl_contact_id: appointmentData.ghl_id,
+                    ghl_api_key: projectData.ghl_api_key,
+                    tags: ['do-not-reschedule'],
+                    action: 'add',
+                  }
+                });
+                console.log('✅ do-not-reschedule tag added');
+              } catch (tagErr) {
+                console.error('Tag add failed (non-critical):', tagErr);
+              }
             }
           }
         } catch (dndErr) {
