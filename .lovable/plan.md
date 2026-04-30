@@ -1,62 +1,50 @@
-## Issues identified
+## Status: Partially resolved — code path is in place, but Toshana's case reveals a gap
 
-Gloria reported:
-1. **An update made in GoHighLevel did not flow back to the portal.**
-2. **The GHL link (orange external-link icon) is not visible from the portal.**
+### What's confirmed working in the deployed code
 
-### Root causes
+`AppointmentCard.tsx` (line 612) and `DetailedAppointmentView.tsx` define `NO_RESCHEDULE_REASONS`. **"Not Interested Anymore"** is on that list. When a user selects it, the code:
 
-**Issue #1 — Inbound updates are silently dropped.**
-The `ghl-webhook-handler` function supports two formats:
-- **Workflow Webhook** — fired by GHL workflows when a new appointment is booked. This is what every CHVC/Ozark/AVA log entry today is.
-- **Standard Event Webhook** (`AppointmentCreate`, `AppointmentUpdate`) — would carry status changes, reschedules, and contact edits made directly inside GHL.
+1. Saves `cancellation_reason = 'Not Interested Anymore'` to `all_appointments`.
+2. Logs an internal note.
+3. Sets the appointment to Cancelled and syncs that to GHL.
+4. Calls `update-ghl-contact-dnd` to flip the GHL contact's DND flag to `true` across Call/Email/SMS/WhatsApp/GMB/FB.
 
-Inspecting the last 24 h of `ghl-webhook-handler` logs shows zero `AppointmentUpdate` / Standard Event payloads — every CHVC inbound is the workflow trigger only. So when Gloria changes a status (or any field) inside GHL, nothing reaches the portal. Only outbound portal→GHL sync works today.
+Toshana McDonald's record (`bZuGibzUeB7NvwtanzMZ`, Ventra) confirms the portal saved `cancellation_reason = 'Not Interested Anymore'` and Cancelled status on Apr 24.
 
-**Issue #2 — GHL link is admin-only.**
-`AppointmentCard.tsx` line 1143 and `DetailedAppointmentView.tsx` line ~727 gate the GHL contact link behind `isAdmin()`. Gloria has the `va` role, so the icon is hidden for her even though `ghl_id` and `ghl_location_id` are present on the record.
+### Where the gap is
 
-## Proposed fix
+I queried `update-ghl-contact-dnd` edge function logs for both her GHL contact ID and her name — **zero log entries for that function for her contact**. Two possibilities:
 
-### 1. Make the GHL link visible to Virtual Assistants
-Update the visibility check in both card components from `isAdmin()` to `isAdmin() || isVA()` (or equivalent role check that matches the existing VA role helper). This matches the recently-added VA permissions for notes, viewing, and editing.
+1. The DND call ran before logs rotated out of retention (Apr 24 → today), so we can't prove it fired.
+2. The DND call fired and succeeded, but the **GHL "reschedule pipeline" workflow on the Ventra sub-account does not check the contact's DND flag before enrolling the lead**. GHL workflows only respect DND if the workflow is explicitly configured with "Don't enroll DND contacts" or has a DND filter step.
 
-Files affected:
-- `src/components/appointments/AppointmentCard.tsx` (~line 1143)
-- `src/components/appointments/DetailedAppointmentView.tsx` (~line 727)
+The portal does its job (flips DND on the GHL contact). The reschedule pipeline still pulled her in because the GHL workflow doesn't gate on DND.
 
-Verify the `useRole` hook exposes a VA check (or add a small `isVA()` helper there).
+### Proposed fix — two layers
 
-### 2. Enable two-way sync from GHL → Portal for appointment updates
-Two complementary parts; both should be done.
+**Layer 1 (code, portal-side reinforcement):** in addition to setting DND on the contact, also **add a GHL tag** like `do-not-reschedule` to the contact whenever a `NO_RESCHEDULE_REASONS` cancellation is submitted. Tags are the standard GHL primitive workflows filter on, and they're more reliable than DND for reschedule-pipeline gating.
 
-**a) GHL configuration (one-time, done by user/admin in GHL):**
-For every sub-account that needs two-way sync (start with CHVC + Ozark Regional), add a Workflow that fires on **Appointment Status Change** and **Appointment Updated** triggers, posting to the same `ghl-webhook-handler` URL. The handler already detects and routes Workflow payloads — but the workflow needs to pass enough context (appointmentId, status, startTime, endTime). We will document the exact field mapping the handler expects.
+- New edge function `update-ghl-contact-tags` (or extend `update-ghl-contact-dnd`) that POSTs to `https://services.leadconnectorhq.com/contacts/{id}/tags` with `{ tags: ['do-not-reschedule'] }`.
+- Call it from `handleCancelSubmit` in `AppointmentCard.tsx` and the equivalent block in `DetailedAppointmentView.tsx` whenever `NO_RESCHEDULE_REASONS.includes(cancelReason)`.
+- Also remove the tag if the user later changes the reason to an `ALLOW_RESCHEDULE_REASONS` value (defensive).
 
-**b) Handler hardening (code change):**
-Extend `ghl-webhook-handler` so a Workflow payload that targets an existing `ghl_appointment_id` performs a status/time update path (not a create-or-skip path). Today the function's "is this an update?" branch only triggers if a matching record is found AND the call is a Standard Event Webhook. We will:
-- When a Workflow Webhook arrives and `ghl_appointment_id` already exists in `all_appointments`, treat it as an update (sync `status`, `requested_time`, `date_of_appointment`, `calendar_name`, contact edits) instead of returning early.
-- Continue honoring the existing terminal-status protection (OON, Do Not Call, portal Cancelled cannot be overwritten by GHL) and the 120 s echo-back debounce.
-- Log the update reason for traceability.
+**Layer 2 (GHL config, one-time per sub-account):** the Ventra reschedule workflow needs a filter step that **excludes contacts with the `do-not-reschedule` tag** (and/or with DND = true). This must be done in GHL by the admin — code cannot reach into the workflow definition.
 
-### 3. Communicate to the team
-Once the workflow is in place, Slack/Loom note to clinic operators explaining: status changes inside GHL now reflect in the portal within ~2 minutes; portal-side terminal statuses (OON, Do Not Call, Cancelled set in portal) still take precedence over GHL.
+**One-off cleanup for Toshana:** push the `do-not-reschedule` tag to her GHL contact now and re-run the DND PUT so her record is correctly flagged in GHL going forward. The portal record itself is already correct.
 
-## Out of scope / not changing
+### Out of scope
 
-- The portal→GHL push (already works via `update-ghl-appointment`).
-- Adding a polling/reconciliation job — webhooks are sufficient if the GHL workflow is configured.
-- Christa Hagemeier's record specifically — her appointment is already correctly Cancelled in the portal; the fix prevents the next occurrence.
+- No DB migration.
+- No change to `cancellation_reason` field structure.
+- The duplicate appointment row (No Show, id `5106…`) is unrelated to this issue and stays as-is.
 
-## Technical summary
+### Technical summary
 
-| Change | File / Location | Type |
+| Change | Where | Type |
 |---|---|---|
-| Show GHL link to VAs | `AppointmentCard.tsx` ~L1143 | UI gate |
-| Show GHL link to VAs | `DetailedAppointmentView.tsx` ~L727 | UI gate |
-| Treat workflow payload with existing `ghl_appointment_id` as update | `supabase/functions/ghl-webhook-handler/index.ts` | Edge function |
-| Add VA helper if missing | `src/hooks/useRole.tsx` | Hook |
+| New edge function `update-ghl-contact-tags` | `supabase/functions/update-ghl-contact-tags/index.ts` | New |
+| Call tag function on no-reschedule cancellations | `AppointmentCard.tsx` ~L680, `DetailedAppointmentView.tsx` ~L1347 | Edit |
+| One-off: tag + DND for Toshana's GHL contact | Direct GHL API call via edge function | One-off |
+| GHL workflow filter on `do-not-reschedule` tag | GHL admin UI, Ventra sub-account | Manual (out of code) |
 
-No DB migration required.
-
-Approve to proceed?
+Approve to proceed with the code changes + one-off cleanup, plus a Slack-ready note for the GHL admin describing the workflow filter to add?
