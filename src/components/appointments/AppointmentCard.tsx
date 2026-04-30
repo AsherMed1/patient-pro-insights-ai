@@ -105,7 +105,7 @@ const AppointmentCard = ({
   projectLocationMap,
   onDataRefresh
 }: AppointmentCardProps) => {
-  const { hasManagementAccess, isAdmin } = useRole();
+  const { hasManagementAccess, isAdmin, isVA } = useRole();
   const [fetchedLocationId, setFetchedLocationId] = useState<string | null>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
@@ -1140,7 +1140,7 @@ const AppointmentCard = ({
                 <>
                   <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
                   <span className="text-xs text-muted-foreground ml-2">ID: {appointment.id.substring(0, 8)}</span>
-                  {isAdmin() && appointment.ghl_id && (appointment.ghl_location_id || projectLocationMap?.[appointment.project_name] || fetchedLocationId) && (
+                  {(isAdmin() || isVA()) && appointment.ghl_id && (appointment.ghl_location_id || projectLocationMap?.[appointment.project_name] || fetchedLocationId) && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>

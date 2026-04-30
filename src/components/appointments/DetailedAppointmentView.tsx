@@ -196,7 +196,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
-  const { isAdmin } = useRole();
+  const { isAdmin, isVA } = useRole();
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -722,7 +722,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                           <div className="flex items-center space-x-2 cursor-default">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span>{appointment.lead_name}</span>
-                            {isAdmin() && appointment.ghl_id && effectiveLocationId && (
+                            {(isAdmin() || isVA()) && appointment.ghl_id && effectiveLocationId && (
                               <a
                                 href={`https://app.gohighlevel.com/v2/location/${effectiveLocationId}/contacts/detail/${appointment.ghl_id}`}
                                 target="_blank"
