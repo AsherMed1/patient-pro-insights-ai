@@ -105,7 +105,7 @@ const AppointmentCard = ({
   projectLocationMap,
   onDataRefresh
 }: AppointmentCardProps) => {
-  const { hasManagementAccess, isAdmin } = useRole();
+  const { hasManagementAccess, isAdmin, isVA } = useRole();
   const [fetchedLocationId, setFetchedLocationId] = useState<string | null>(null);
   const [showLeadDetails, setShowLeadDetails] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
