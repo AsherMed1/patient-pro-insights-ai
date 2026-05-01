@@ -769,7 +769,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   </div>
                 )}
                 {formatValue(parsedPathologyInfo.oa_tkr_diagnosed) && 
-                 parsedPathologyInfo.procedure?.toUpperCase() === 'GAE' && (
+                 (parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() === 'GAE' && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">OA or TKR Diagnosed:</span>{" "}
                     <Badge variant={parsedPathologyInfo.oa_tkr_diagnosed === "YES" ? "default" : "secondary"}>
