@@ -801,6 +801,89 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // === GAE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // These extract from "GAE STEP 1 | ..." / "GAE STEP 2 | ..." lines that the AI parser commonly misses
+  const yesNoFromVal = (s: string): string | null => {
+    const v = s.toLowerCase().trim();
+    if (v.startsWith('yes') || v.includes('☑️ yes')) return 'YES';
+    if (v.startsWith('no') || v.includes('☐ no')) return 'NO';
+    return null;
+  };
+
+  // OA / TKR diagnosis
+  if (!parsedData.pathology_info.oa_tkr_diagnosed) {
+    const m = intakeNotes.match(/diagnosed with knee osteoarthritis[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      const yn = yesNoFromVal(m[1]);
+      if (yn) {
+        parsedData.pathology_info.oa_tkr_diagnosed = yn;
+        console.log(`[AUTO-PARSE ENRICH] Extracted oa_tkr_diagnosed via regex: ${yn}`);
+      }
+    }
+  }
+
+  // Trauma-related onset
+  if (!parsedData.pathology_info.trauma_related_onset) {
+    const m = intakeNotes.match(/symptoms? begin after.*?(?:trauma|injury)[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      const yn = yesNoFromVal(m[1]);
+      if (yn) {
+        parsedData.pathology_info.trauma_related_onset = yn;
+        console.log(`[AUTO-PARSE ENRICH] Extracted trauma_related_onset via regex: ${yn}`);
+      }
+    }
+  }
+
+  // Previous treatments tried
+  if (!parsedData.pathology_info.previous_treatments) {
+    const m = intakeNotes.match(/what treatments? have you tried[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      parsedData.pathology_info.previous_treatments = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted previous_treatments via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // Age range ("How old are you?")
+  if (!parsedData.pathology_info.age_range) {
+    const m = intakeNotes.match(/how old are you[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      parsedData.pathology_info.age_range = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted age_range via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // Pain level (1-10 scale)
+  if (!parsedData.pathology_info.pain_level) {
+    const m = intakeNotes.match(/scale of 1[\s-]*to?[\s-]*10.*?pain[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      const num = m[1].match(/\d+/);
+      if (num) {
+        parsedData.pathology_info.pain_level = num[0];
+        console.log(`[AUTO-PARSE ENRICH] Extracted pain_level via regex: ${num[0]}`);
+      }
+    }
+  }
+
+  // Symptoms description — override if AI got just "☑️ YES" or similar checkbox noise
+  const currentSymptoms = String(parsedData.pathology_info.symptoms || '').trim();
+  const isJustCheckbox = /^(☑️\s*yes|☐\s*no|yes|no)$/i.test(currentSymptoms);
+  if (!currentSymptoms || isJustCheckbox) {
+    const m = intakeNotes.match(/describe the symptoms[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1] && m[1].trim().length > 5) {
+      parsedData.pathology_info.symptoms = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Replaced symptoms via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // How long experiencing pain → duration
+  if (!parsedData.pathology_info.duration) {
+    const m = intakeNotes.match(/how long have you been experiencing[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      parsedData.pathology_info.duration = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted duration via regex: ${m[1].trim()}`);
+    }
+  }
+
   return parsedData;
 }
 
