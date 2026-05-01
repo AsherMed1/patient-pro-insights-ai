@@ -801,6 +801,89 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // === GAE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // These extract from "GAE STEP 1 | ..." / "GAE STEP 2 | ..." lines that the AI parser commonly misses
+  const yesNoFromVal = (s: string): string | null => {
+    const v = s.toLowerCase().trim();
+    if (v.startsWith('yes') || v.includes('☑️ yes')) return 'YES';
+    if (v.startsWith('no') || v.includes('☐ no')) return 'NO';
+    return null;
+  };
+
+  // OA / TKR diagnosis
+  if (!parsedData.pathology_info.oa_tkr_diagnosed) {
+    const m = intakeNotes.match(/diagnosed with knee osteoarthritis[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      const yn = yesNoFromVal(m[1]);
+      if (yn) {
+        parsedData.pathology_info.oa_tkr_diagnosed = yn;
+        console.log(`[AUTO-PARSE ENRICH] Extracted oa_tkr_diagnosed via regex: ${yn}`);
+      }
+    }
+  }
+
+  // Trauma-related onset
+  if (!parsedData.pathology_info.trauma_related_onset) {
+    const m = intakeNotes.match(/symptoms? begin after.*?(?:trauma|injury)[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      const yn = yesNoFromVal(m[1]);
+      if (yn) {
+        parsedData.pathology_info.trauma_related_onset = yn;
+        console.log(`[AUTO-PARSE ENRICH] Extracted trauma_related_onset via regex: ${yn}`);
+      }
+    }
+  }
+
+  // Previous treatments tried
+  if (!parsedData.pathology_info.previous_treatments) {
+    const m = intakeNotes.match(/what treatments? have you tried[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      parsedData.pathology_info.previous_treatments = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted previous_treatments via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // Age range ("How old are you?")
+  if (!parsedData.pathology_info.age_range) {
+    const m = intakeNotes.match(/how old are you[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      parsedData.pathology_info.age_range = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted age_range via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // Pain level (1-10 scale)
+  if (!parsedData.pathology_info.pain_level) {
+    const m = intakeNotes.match(/scale of 1[\s-]*to?[\s-]*10.*?pain[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      const num = m[1].match(/\d+/);
+      if (num) {
+        parsedData.pathology_info.pain_level = num[0];
+        console.log(`[AUTO-PARSE ENRICH] Extracted pain_level via regex: ${num[0]}`);
+      }
+    }
+  }
+
+  // Symptoms description — override if AI got just "☑️ YES" or similar checkbox noise
+  const currentSymptoms = String(parsedData.pathology_info.symptoms || '').trim();
+  const isJustCheckbox = /^(☑️\s*yes|☐\s*no|yes|no)$/i.test(currentSymptoms);
+  if (!currentSymptoms || isJustCheckbox) {
+    const m = intakeNotes.match(/describe the symptoms[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1] && m[1].trim().length > 5) {
+      parsedData.pathology_info.symptoms = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Replaced symptoms via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // How long experiencing pain → duration
+  if (!parsedData.pathology_info.duration) {
+    const m = intakeNotes.match(/how long have you been experiencing[^:?]*\??:\s*([^\n]+)/i);
+    if (m && m[1]) {
+      parsedData.pathology_info.duration = m[1].trim();
+      console.log(`[AUTO-PARSE ENRICH] Extracted duration via regex: ${m[1].trim()}`);
+    }
+  }
+
   return parsedData;
 }
 
@@ -926,28 +1009,42 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // Track STEP fields for the target procedure (indicates structured GHL data)
     if (rawKey.toUpperCase().includes('STEP') && (!fieldProcedure || fieldProcedure === targetProcedure)) {
       stepFieldCount++;
-      // Extract structured data from STEP fields
-      if (key.includes('pain') || key.includes('frequency') || key.includes('symptom')) {
-        result.pathology_info.symptoms = result.pathology_info.symptoms 
-          ? `${result.pathology_info.symptoms} | ${value}` 
-          : value;
+      const valStr = String(value);
+      const lowerVal = valStr.toLowerCase();
+      // Normalize checkbox YES/NO answers
+      const yesNo = (lowerVal.includes('☑️ yes') || lowerVal.startsWith('yes'))
+        ? 'YES'
+        : (lowerVal.includes('☐ no') || lowerVal.startsWith('no'))
+          ? 'NO'
+          : null;
+
+      // OA / TKR diagnosis (GAE) — must come BEFORE generic pain/symptom matching
+      if (key.includes('osteoarthritis') || key.includes(' tkr') || key.includes('tkr ') || (key.includes('diagnosed') && key.includes('knee'))) {
+        if (yesNo) (result.pathology_info as any).oa_tkr_diagnosed = yesNo;
       }
-      if (key.includes('level') && !result.pathology_info.pain_level) {
-        const painMatch = value.match(/\d+/);
+      // Trauma / injury onset (GAE)
+      else if (key.includes('trauma') || (key.includes('injury') && (key.includes('begin') || key.includes('onset') || key.includes('after')))) {
+        if (yesNo) (result.pathology_info as any).trauma_related_onset = yesNo;
+      }
+      // Pain level / severity scale
+      else if ((key.includes('scale') || key.includes('severe')) && key.includes('pain')) {
+        const painMatch = valStr.match(/\d+/);
         if (painMatch) result.pathology_info.pain_level = painMatch[0];
       }
-      // Duration / how long
-      if (key.includes('duration') || key.includes('how long') || key.includes('how_long')) {
-        (result.pathology_info as any).duration = String(value);
+      // Symptoms description (explicit "describe" or "symptoms you")
+      else if (key.includes('describe') && key.includes('symptom')) {
+        result.pathology_info.symptoms = valStr;
+      }
+      else if (key.includes('symptoms you') || key.includes('symptoms_you')) {
+        result.pathology_info.symptoms = valStr;
       }
       // Treatments tried
-      if (key.includes('treatment') || key.includes('tried')) {
-        (result.pathology_info as any).previous_treatments = String(value);
+      else if (key.includes('treatment') || (key.includes('tried') && !key.includes('symptom'))) {
+        (result.pathology_info as any).previous_treatments = valStr;
       }
       // Imaging - smart parse compound responses
-      if (key.includes('imaging') || key.includes('x-ray') || key.includes('mri')) {
-        const imgValue = String(value);
-        const lowerVal = imgValue.toLowerCase();
+      else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || key.includes('mri') || key.includes(' ct')) {
+        const imgValue = valStr;
         if (lowerVal.startsWith('yes') || lowerVal.includes('☑️ yes')) {
           (result.pathology_info as any).imaging_done = 'YES';
         } else if (lowerVal.startsWith('no') || lowerVal.includes('☐ no')) {
@@ -958,9 +1055,19 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         result.medical_info.imaging_details = imgValue;
         parseCompoundImagingResponse(imgValue, result);
       }
-      // Age range
-      if (key.includes('how old') || key.includes('age') || key.includes('age_range')) {
-        (result.pathology_info as any).age_range = String(value);
+      // Duration / how long
+      else if (key.includes('how long') || key.includes('how_long') || key.includes('duration')) {
+        (result.pathology_info as any).duration = valStr;
+      }
+      // Age range (tightened: only "how old" or explicit "age range")
+      else if (key.includes('how old') || key.includes('age range') || key.includes('age_range')) {
+        (result.pathology_info as any).age_range = valStr;
+      }
+      // Frequency (fall-through symptom hint, not Yes/No)
+      else if (key.includes('frequency')) {
+        result.pathology_info.symptoms = result.pathology_info.symptoms
+          ? `${result.pathology_info.symptoms} | ${valStr}`
+          : valStr;
       }
     }
 

@@ -1,50 +1,52 @@
-## Status: Partially resolved — code path is in place, but Toshana's case reveals a gap
+# Fix Medical Information showing limited data (GAE intake parsing)
 
-### What's confirmed working in the deployed code
+## Problem
 
-`AppointmentCard.tsx` (line 612) and `DetailedAppointmentView.tsx` define `NO_RESCHEDULE_REASONS`. **"Not Interested Anymore"** is on that list. When a user selects it, the code:
+For DONOTCONTACT TESTLEAD (Everest Vascular), the raw GHL intake notes contain the full GAE workup, but the parser stored mostly nulls. Result: the Medical Information card only shows Pathology, Duration, Pain Level, a garbled Symptoms value (`☑️ YES`), and a stray duration row.
 
-1. Saves `cancellation_reason = 'Not Interested Anymore'` to `all_appointments`.
-2. Logs an internal note.
-3. Sets the appointment to Cancelled and syncs that to GHL.
-4. Calls `update-ghl-contact-dnd` to flip the GHL contact's DND flag to `true` across Call/Email/SMS/WhatsApp/GMB/FB.
+Confirmed from DB:
+- `oa_tkr_diagnosed`: null (raw note: "diagnosed with knee osteoarthritis: ☑️ YES")
+- `trauma_related_onset`: null (raw note: "symptoms begin after a recent trauma/injury: ☑️ YES")
+- `previous_treatments`: null (raw note: "Injections, Physical therapy, Knee replacement, Medications/pain pills")
+- `age_range`: null (raw note: "How old are you?: 56 and above")
+- `symptoms`: `☑️ YES` (wrong — should be "Dull Ache, Sharp Pain, Swelling, Stiffness, Grinding sensation, Instability or weakness")
+- `affected_area`: null
 
-Toshana McDonald's record (`bZuGibzUeB7NvwtanzMZ`, Ventra) confirms the portal saved `cancellation_reason = 'Not Interested Anymore'` and Cancelled status on Apr 24.
+## Root Cause
 
-### Where the gap is
+In `supabase/functions/auto-parse-intake-notes/index.ts` (the GHL STEP-field branch around lines 927–965):
 
-I queried `update-ghl-contact-dnd` edge function logs for both her GHL contact ID and her name — **zero log entries for that function for her contact**. Two possibilities:
+1. **Symptoms overwritten** — the condition `key.includes('pain') || key.includes('frequency') || key.includes('symptom')` matches many GAE STEP 1/2 keys (anything containing the word "pain"), so the symptoms field gets clobbered by unrelated answers (the "knee osteoarthritis" Yes/No or trauma Yes/No ends up landing there). The actual "Describe the symptoms you're experiencing" field gets overwritten.
+2. **OA/TKR diagnosis not captured** — no branch matches "diagnosed with knee osteoarthritis".
+3. **Trauma onset not captured** — no branch matches "trauma" / "injury".
+4. **Treatments rule too narrow** — `key.includes('treatment')` works but the Yes/No "knee replacement" answer can also leak in via the symptoms pain-match before reaching this branch.
+5. **Age range too greedy** — `key.includes('age')` will also match "manage", "stage", etc. Should be tightened.
 
-1. The DND call ran before logs rotated out of retention (Apr 24 → today), so we can't prove it fired.
-2. The DND call fired and succeeded, but the **GHL "reschedule pipeline" workflow on the Ventra sub-account does not check the contact's DND flag before enrolling the lead**. GHL workflows only respect DND if the workflow is explicitly configured with "Don't enroll DND contacts" or has a DND filter step.
+## Changes
 
-The portal does its job (flips DND on the GHL contact). The reschedule pipeline still pulled her in because the GHL workflow doesn't gate on DND.
+### 1. `supabase/functions/auto-parse-intake-notes/index.ts`
+Rework the STEP-field extractor (~lines 927–965) so each GAE question maps to the correct target field:
 
-### Proposed fix — two layers
+- **Symptoms**: only when key matches `describe the symptoms` / `symptoms you` / explicit `symptom` (not "pain")
+- **Pain level**: key contains `scale` or `severe` + `pain`, extract digit
+- **Duration**: key contains `how long` / `duration`
+- **OA/TKR diagnosis**: key contains `osteoarthritis` or `tkr` or (`diagnosed` + `knee`) → set `oa_tkr_diagnosed` to YES/NO
+- **Trauma onset**: key contains `trauma` or `injury` → set `trauma_related_onset` to YES/NO
+- **Treatments**: key contains `treatment` or `tried`
+- **Imaging**: keep existing (`x-ray`, `mri`, `imaging`)
+- **Age range**: tighten to `how old` or `age range` / `age_range` (not bare `age`)
+- Normalize `☑️ YES` / `☐ NO` checkbox values to `YES`/`NO`
 
-**Layer 1 (code, portal-side reinforcement):** in addition to setting DND on the contact, also **add a GHL tag** like `do-not-reschedule` to the contact whenever a `NO_RESCHEDULE_REASONS` cancellation is submitted. Tags are the standard GHL primitive workflows filter on, and they're more reliable than DND for reschedule-pipeline gating.
+Use `else if` chains so a single key only feeds one field.
 
-- New edge function `update-ghl-contact-tags` (or extend `update-ghl-contact-dnd`) that POSTs to `https://services.leadconnectorhq.com/contacts/{id}/tags` with `{ tags: ['do-not-reschedule'] }`.
-- Call it from `handleCancelSubmit` in `AppointmentCard.tsx` and the equivalent block in `DetailedAppointmentView.tsx` whenever `NO_RESCHEDULE_REASONS.includes(cancelReason)`.
-- Also remove the tag if the user later changes the reason to an `ALLOW_RESCHEDULE_REASONS` value (defensive).
+### 2. Reparse the affected record
+Invoke `reparse-specific-appointments` for appointment id `35a8fa25-c995-483c-b55c-55067c7d6748` so the Medical Information card immediately reflects the fix.
 
-**Layer 2 (GHL config, one-time per sub-account):** the Ventra reschedule workflow needs a filter step that **excludes contacts with the `do-not-reschedule` tag** (and/or with DND = true). This must be done in GHL by the admin — code cannot reach into the workflow definition.
+### 3. Optional sanity backfill
+Run `bulk-parse-all-intake-notes` against Everest Vascular only, so other GAE records with the same parser gap get corrected. (Confirm with you before running broadly.)
 
-**One-off cleanup for Toshana:** push the `do-not-reschedule` tag to her GHL contact now and re-run the DND PUT so her record is correctly flagged in GHL going forward. The portal record itself is already correct.
+## Out of scope
+- UI changes — the previous fix (`procedure_type` gate) is already deployed and correct.
+- Schema changes — only JSONB content is affected.
 
-### Out of scope
-
-- No DB migration.
-- No change to `cancellation_reason` field structure.
-- The duplicate appointment row (No Show, id `5106…`) is unrelated to this issue and stays as-is.
-
-### Technical summary
-
-| Change | Where | Type |
-|---|---|---|
-| New edge function `update-ghl-contact-tags` | `supabase/functions/update-ghl-contact-tags/index.ts` | New |
-| Call tag function on no-reschedule cancellations | `AppointmentCard.tsx` ~L680, `DetailedAppointmentView.tsx` ~L1347 | Edit |
-| One-off: tag + DND for Toshana's GHL contact | Direct GHL API call via edge function | One-off |
-| GHL workflow filter on `do-not-reschedule` tag | GHL admin UI, Ventra sub-account | Manual (out of code) |
-
-Approve to proceed with the code changes + one-off cleanup, plus a Slack-ready note for the GHL admin describing the workflow filter to add?
+Approve to proceed with the parser fix and the targeted reparse for DONOTCONTACT TESTLEAD?
