@@ -926,28 +926,42 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // Track STEP fields for the target procedure (indicates structured GHL data)
     if (rawKey.toUpperCase().includes('STEP') && (!fieldProcedure || fieldProcedure === targetProcedure)) {
       stepFieldCount++;
-      // Extract structured data from STEP fields
-      if (key.includes('pain') || key.includes('frequency') || key.includes('symptom')) {
-        result.pathology_info.symptoms = result.pathology_info.symptoms 
-          ? `${result.pathology_info.symptoms} | ${value}` 
-          : value;
+      const valStr = String(value);
+      const lowerVal = valStr.toLowerCase();
+      // Normalize checkbox YES/NO answers
+      const yesNo = (lowerVal.includes('☑️ yes') || lowerVal.startsWith('yes'))
+        ? 'YES'
+        : (lowerVal.includes('☐ no') || lowerVal.startsWith('no'))
+          ? 'NO'
+          : null;
+
+      // OA / TKR diagnosis (GAE) — must come BEFORE generic pain/symptom matching
+      if (key.includes('osteoarthritis') || key.includes(' tkr') || key.includes('tkr ') || (key.includes('diagnosed') && key.includes('knee'))) {
+        if (yesNo) (result.pathology_info as any).oa_tkr_diagnosed = yesNo;
       }
-      if (key.includes('level') && !result.pathology_info.pain_level) {
-        const painMatch = value.match(/\d+/);
+      // Trauma / injury onset (GAE)
+      else if (key.includes('trauma') || (key.includes('injury') && (key.includes('begin') || key.includes('onset') || key.includes('after')))) {
+        if (yesNo) (result.pathology_info as any).trauma_related_onset = yesNo;
+      }
+      // Pain level / severity scale
+      else if ((key.includes('scale') || key.includes('severe')) && key.includes('pain')) {
+        const painMatch = valStr.match(/\d+/);
         if (painMatch) result.pathology_info.pain_level = painMatch[0];
       }
-      // Duration / how long
-      if (key.includes('duration') || key.includes('how long') || key.includes('how_long')) {
-        (result.pathology_info as any).duration = String(value);
+      // Symptoms description (explicit "describe" or "symptoms you")
+      else if (key.includes('describe') && key.includes('symptom')) {
+        result.pathology_info.symptoms = valStr;
+      }
+      else if (key.includes('symptoms you') || key.includes('symptoms_you')) {
+        result.pathology_info.symptoms = valStr;
       }
       // Treatments tried
-      if (key.includes('treatment') || key.includes('tried')) {
-        (result.pathology_info as any).previous_treatments = String(value);
+      else if (key.includes('treatment') || (key.includes('tried') && !key.includes('symptom'))) {
+        (result.pathology_info as any).previous_treatments = valStr;
       }
       // Imaging - smart parse compound responses
-      if (key.includes('imaging') || key.includes('x-ray') || key.includes('mri')) {
-        const imgValue = String(value);
-        const lowerVal = imgValue.toLowerCase();
+      else if (key.includes('imaging') || key.includes('x-ray') || key.includes('xray') || key.includes('mri') || key.includes(' ct')) {
+        const imgValue = valStr;
         if (lowerVal.startsWith('yes') || lowerVal.includes('☑️ yes')) {
           (result.pathology_info as any).imaging_done = 'YES';
         } else if (lowerVal.startsWith('no') || lowerVal.includes('☐ no')) {
@@ -958,9 +972,19 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
         result.medical_info.imaging_details = imgValue;
         parseCompoundImagingResponse(imgValue, result);
       }
-      // Age range
-      if (key.includes('how old') || key.includes('age') || key.includes('age_range')) {
-        (result.pathology_info as any).age_range = String(value);
+      // Duration / how long
+      else if (key.includes('how long') || key.includes('how_long') || key.includes('duration')) {
+        (result.pathology_info as any).duration = valStr;
+      }
+      // Age range (tightened: only "how old" or explicit "age range")
+      else if (key.includes('how old') || key.includes('age range') || key.includes('age_range')) {
+        (result.pathology_info as any).age_range = valStr;
+      }
+      // Frequency (fall-through symptom hint, not Yes/No)
+      else if (key.includes('frequency')) {
+        result.pathology_info.symptoms = result.pathology_info.symptoms
+          ? `${result.pathology_info.symptoms} | ${valStr}`
+          : valStr;
       }
     }
 
