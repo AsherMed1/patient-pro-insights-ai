@@ -810,45 +810,72 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     return null;
   };
 
-  // OA / TKR diagnosis
-  if (!parsedData.pathology_info.oa_tkr_diagnosed) {
+  // Helpers to detect "default/garbage" values that should be overwritten by regex truth from raw notes
+  const isJunkYesNo = (v: any): boolean => {
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    if (!s) return true;
+    // Keep only clean YES/NO; anything else (e.g. "☑️ YES", "Yes - knee", checkbox noise) is junk
+    return !/^(YES|NO)$/.test(s);
+  };
+  const isJunkText = (v: any): boolean => {
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    if (!s) return true;
+    // Treat short checkbox-like answers and bare yes/no as junk for free-text fields
+    if (/^(☑️?\s*yes|☐?\s*no|yes|no|n\/a|none|unknown)$/i.test(s)) return true;
+    return false;
+  };
+
+  // OA / TKR diagnosis — force-overwrite when raw notes give a clean YES/NO
+  {
     const m = intakeNotes.match(/diagnosed with knee osteoarthritis[^:?]*\??:\s*([^\n]+)/i);
     if (m && m[1]) {
       const yn = yesNoFromVal(m[1]);
-      if (yn) {
+      if (yn && (isJunkYesNo(parsedData.pathology_info.oa_tkr_diagnosed) || parsedData.pathology_info.oa_tkr_diagnosed !== yn)) {
+        const prev = parsedData.pathology_info.oa_tkr_diagnosed;
         parsedData.pathology_info.oa_tkr_diagnosed = yn;
-        console.log(`[AUTO-PARSE ENRICH] Extracted oa_tkr_diagnosed via regex: ${yn}`);
+        console.log(`[AUTO-PARSE ENRICH] Force-overwrote oa_tkr_diagnosed: ${prev} → ${yn}`);
       }
     }
   }
 
-  // Trauma-related onset
-  if (!parsedData.pathology_info.trauma_related_onset) {
+  // Trauma-related onset — force-overwrite when raw notes give a clean YES/NO
+  {
     const m = intakeNotes.match(/symptoms? begin after.*?(?:trauma|injury)[^:?]*\??:\s*([^\n]+)/i);
     if (m && m[1]) {
       const yn = yesNoFromVal(m[1]);
-      if (yn) {
+      if (yn && (isJunkYesNo(parsedData.pathology_info.trauma_related_onset) || parsedData.pathology_info.trauma_related_onset !== yn)) {
+        const prev = parsedData.pathology_info.trauma_related_onset;
         parsedData.pathology_info.trauma_related_onset = yn;
-        console.log(`[AUTO-PARSE ENRICH] Extracted trauma_related_onset via regex: ${yn}`);
+        console.log(`[AUTO-PARSE ENRICH] Force-overwrote trauma_related_onset: ${prev} → ${yn}`);
       }
     }
   }
 
-  // Previous treatments tried
-  if (!parsedData.pathology_info.previous_treatments) {
+  // Previous treatments tried — force-overwrite when current value is junk/checkbox noise
+  {
     const m = intakeNotes.match(/what treatments? have you tried[^:?]*\??:\s*([^\n]+)/i);
     if (m && m[1]) {
-      parsedData.pathology_info.previous_treatments = m[1].trim();
-      console.log(`[AUTO-PARSE ENRICH] Extracted previous_treatments via regex: ${m[1].trim()}`);
+      const extracted = m[1].trim();
+      if (extracted.length > 2 && (isJunkText(parsedData.pathology_info.previous_treatments) || /☑️|☐/.test(String(parsedData.pathology_info.previous_treatments || '')))) {
+        const prev = parsedData.pathology_info.previous_treatments;
+        parsedData.pathology_info.previous_treatments = extracted;
+        console.log(`[AUTO-PARSE ENRICH] Force-overwrote previous_treatments: ${prev} → ${extracted}`);
+      }
     }
   }
 
-  // Age range ("How old are you?")
-  if (!parsedData.pathology_info.age_range) {
+  // Age range — force-overwrite when current value is junk
+  {
     const m = intakeNotes.match(/how old are you[^:?]*\??:\s*([^\n]+)/i);
     if (m && m[1]) {
-      parsedData.pathology_info.age_range = m[1].trim();
-      console.log(`[AUTO-PARSE ENRICH] Extracted age_range via regex: ${m[1].trim()}`);
+      const extracted = m[1].trim();
+      if (extracted.length > 1 && (isJunkText(parsedData.pathology_info.age_range) || /☑️|☐/.test(String(parsedData.pathology_info.age_range || '')))) {
+        const prev = parsedData.pathology_info.age_range;
+        parsedData.pathology_info.age_range = extracted;
+        console.log(`[AUTO-PARSE ENRICH] Force-overwrote age_range: ${prev} → ${extracted}`);
+      }
     }
   }
 
