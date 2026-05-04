@@ -1108,9 +1108,20 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       }
     }
 
-    // Insurance fields
-    if (key.includes('insurance') && key.includes('provider')) {
+    // Insurance fields - distinguish real carrier from screening question.
+    // Screening keys look like "Please select your GAE insurance provider" — used to bucket leads.
+    // Real key is "Insurance Provider" / "insurance_provider". Real wins; screening only fills if real is empty.
+    const isScreeningProvider = key.includes('insurance') && key.includes('provider') &&
+      (key.includes('select') || key.includes('please') || /\byour\b/.test(key));
+    const isRealProvider = key.includes('insurance') && key.includes('provider') && !isScreeningProvider;
+
+    if (isRealProvider) {
       result.insurance_info.insurance_provider = value;
+    } else if (isScreeningProvider) {
+      if (!result.insurance_info.insurance_provider) {
+        result.insurance_info.insurance_provider = value;
+        console.log(`[AUTO-PARSE GHL] Using screening field "${rawKey}" as fallback insurance_provider`);
+      }
     } else if (key.includes('insurance') && key.includes('plan')) {
       result.insurance_info.insurance_plan = value;
     } else if ((key.includes('member') && key.includes('id')) || key.includes('insurance_id')) {
