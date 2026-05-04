@@ -628,7 +628,7 @@ function getUpdateableFields(
   
   // For UPDATE - selective fields only
   const updateFields: Record<string, any> = {}
-  let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string } | undefined
+  let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string } | undefined
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   
   // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
