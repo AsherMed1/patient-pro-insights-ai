@@ -1,23 +1,34 @@
-## Why this happened
+# Fix the OON Reschedule Guard
 
-When I ran the data-repair migration yesterday for Christa Hagemeier's appointment, I inserted a note with `created_by = 'Lovable Support'` and the text "Status restored to 'Confirmed' by Lovable Support…". That phrasing leaked the internal tooling name into the client portal, which violates the rule that "Lovable" must never appear anywhere a clinic user can see.
+## Problem
+The webhook guard in `ghl-webhook-handler` currently treats OON, Do Not Call, and Cancelled as fully sealed. When a patient is rescheduled in GHL, the new date/time arrives but the guard blocks both the date update and the status reset — leaving recovered appointments stuck in terminal tabs with stale dates.
 
-The note ID is `e9ff8741-3520-45cb-a550-afc69709db92` on appointment `3c5afa52-5b06-4421-98f7-37f0598098df`.
+## Fix
+Distinguish a true reschedule (new `date_of_appointment` and/or `requested_time`) from a bare status echo. Honor reschedules even when the existing status is portal-only terminal; keep blocking status-only echoes.
 
-## Plan
+## Changes — `supabase/functions/ghl-webhook-handler/index.ts`
 
-1. **Rewrite the existing note** via migration:
-   - `created_by` → `System`
-   - `note_text` → `Status restored to "Confirmed" by Support — prior status updates were silently blocked by a permissions gap that has now been fixed.`
+1. **Reschedule branch (~lines 648–688)**
+   - Remove the `isPortalOnlyTerminal` early-return on date changes.
+   - When existing status is OON / Do Not Call / Cancelled AND the date actually changed:
+     - Apply the date/time update.
+     - Push to `reschedule_history` with `previous_status` captured (already does this).
+     - Set `status = 'Confirmed'`, `internal_process_complete = false`, `was_ever_confirmed = true`.
+     - Mark `recoveredFromTerminal = true` and the prior status, pass it through `rescheduleNoteData`.
 
-2. **Audit and scrub the codebase** for any other client-visible "Lovable" strings:
-   - `supabase/functions/support-ai-chat/index.ts:60` — only a server-side `console.log("…Lovable AI Gateway…")`, not user-visible. Leave as-is (internal log).
-   - Confirm no other UI strings, toasts, email templates, or notes contain "Lovable".
+2. **Reschedule audit note**
+   - When `recoveredFromTerminal`, format the note as:
+     `Rescheduled from {prior status} → Confirmed via GoHighLevel — {fromDateTime} → {toDateTime} ({timestamp ET})`
+   - Otherwise keep the existing reschedule note format.
+   - `created_by: 'GoHighLevel'` (no "Lovable" string anywhere).
 
-3. **Save a project memory rule** at `mem://constraints/no-lovable-branding`: never use the word "Lovable" in any client-visible surface (notes, toasts, emails, UI copy). Internal tool/system attribution should use "System" or "Support". Add a one-liner to `mem://index.md` Core so it's always in context for future repairs.
+3. **Status echo branch (~lines 703–724)** — leave as-is. Status-only updates from GHL still cannot overwrite OON/DNC/Cancelled.
 
-## Technical details
+4. **Debounce (120s)** — leave as-is. Reschedules within the debounce window are still skipped to prevent echo loops; recovery happens on the next genuine webhook.
 
-- Single SQL `UPDATE appointment_notes SET created_by='System', note_text='…' WHERE id='e9ff8741-3520-45cb-a550-afc69709db92';`
-- No schema changes, no RLS changes.
-- Memory file write + index.md update.
+## Memory update
+Update `mem://integrations/ghl-webhook-sync-logic-v3`: clarify that status-only GHL webhooks cannot overwrite portal-terminal statuses, but a GHL webhook carrying a new appointment date IS treated as a reschedule and resets the appointment to Confirmed with a recovery note attached.
+
+## Out of scope
+- The earlier "log every GHL status change as a note" proposal is not included here.
+- No schema changes.
