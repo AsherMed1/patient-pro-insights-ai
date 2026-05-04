@@ -339,20 +339,30 @@ function fallbackRegexParsing(intakeNotes: string): any {
   }
 
   // Extract insurance provider
-  const insuranceProviderPatterns = [
-    /Please select your insurance provider:\s*([^\n|]+)/i,
-    /insurance provider:\s*([^\n|]+)/i,
-    /insurance:\s*([^\n|]+)/i,
-    /Plan:\s*([^\n|]+)/i
-  ];
-  
-  for (const pattern of insuranceProviderPatterns) {
-    const match = intakeNotes.match(pattern);
-    if (match && match[1]) {
-      result.insurance_info.insurance_provider = match[1].trim();
-      result.insurance_info.insurance_plan = match[1].trim();
-      console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider: ${match[1].trim()}`);
-      break;
+  // PRIORITY 1: explicit "Insurance Provider:" line (real carrier from intake form)
+  // Skip lines that are screening questions like "Please select your GAE insurance provider:"
+  const realProviderMatch = intakeNotes.match(/^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im);
+  if (realProviderMatch && realProviderMatch[1]) {
+    const val = realProviderMatch[1].trim();
+    result.insurance_info.insurance_provider = val;
+    result.insurance_info.insurance_plan = val;
+    console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
+  } else {
+    // PRIORITY 2: fall back to screening / generic patterns
+    const insuranceProviderPatterns = [
+      /Please select your[^:\n]*insurance provider:\s*([^\n|]+)/i,
+      /insurance provider:\s*([^\n|]+)/i,
+      /insurance:\s*([^\n|]+)/i,
+      /Plan:\s*([^\n|]+)/i
+    ];
+    for (const pattern of insuranceProviderPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        result.insurance_info.insurance_provider = match[1].trim();
+        result.insurance_info.insurance_plan = match[1].trim();
+        console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${match[1].trim()}`);
+        break;
+      }
     }
   }
 
@@ -1098,9 +1108,20 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       }
     }
 
-    // Insurance fields
-    if (key.includes('insurance') && key.includes('provider')) {
+    // Insurance fields - distinguish real carrier from screening question.
+    // Screening keys look like "Please select your GAE insurance provider" — used to bucket leads.
+    // Real key is "Insurance Provider" / "insurance_provider". Real wins; screening only fills if real is empty.
+    const isScreeningProvider = key.includes('insurance') && key.includes('provider') &&
+      (key.includes('select') || key.includes('please') || /\byour\b/.test(key));
+    const isRealProvider = key.includes('insurance') && key.includes('provider') && !isScreeningProvider;
+
+    if (isRealProvider) {
       result.insurance_info.insurance_provider = value;
+    } else if (isScreeningProvider) {
+      if (!result.insurance_info.insurance_provider) {
+        result.insurance_info.insurance_provider = value;
+        console.log(`[AUTO-PARSE GHL] Using screening field "${rawKey}" as fallback insurance_provider`);
+      }
     } else if (key.includes('insurance') && key.includes('plan')) {
       result.insurance_info.insurance_plan = value;
     } else if ((key.includes('member') && key.includes('id')) || key.includes('insurance_id')) {
