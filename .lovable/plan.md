@@ -1,52 +1,89 @@
-# Fix Medical Information showing limited data (GAE intake parsing)
+## Root cause
 
-## Problem
+For Christa Hagemeier (Ozark, appointment `3c5afa52…`), every "Cancelled → Confirmed" change Ivy S made was logged as a note but the actual appointment row never changed:
 
-For DONOTCONTACT TESTLEAD (Everest Vascular), the raw GHL intake notes contain the full GAE workup, but the parser stored mostly nulls. Result: the Medical Information card only shows Pathology, Duration, Pain Level, a garbled Symptoms value (`☑️ YES`), and a stray duration row.
+- `all_appointments.updated_at` is stuck at **Apr 30 12:23**, before Ivy's three Apr 30 attempts and the May 3 attempt.
+- `security_audit_log` (written by the `handle_appointment_status_completion` trigger on every status update) shows the last real status change was **Apr 29 14:30 Confirmed → Cancelled**. Nothing after that.
+- Ivy S has only the `va` role.
+- RLS on `all_appointments`:
+  - VAs have a SELECT policy (`VA view all appointments`).
+  - VAs have **no UPDATE policy**. Admin/agent/project_user policies all exclude VAs.
+- RLS on `appointment_notes`: VAs have full insert/update/delete (`VA_insert_appointment_notes`, etc.).
 
-Confirmed from DB:
-- `oa_tkr_diagnosed`: null (raw note: "diagnosed with knee osteoarthritis: ☑️ YES")
-- `trauma_related_onset`: null (raw note: "symptoms begin after a recent trauma/injury: ☑️ YES")
-- `previous_treatments`: null (raw note: "Injections, Physical therapy, Knee replacement, Medications/pain pills")
-- `age_range`: null (raw note: "How old are you?: 56 and above")
-- `symptoms`: `☑️ YES` (wrong — should be "Dull Ache, Sharp Pain, Swelling, Stiffness, Grinding sensation, Instability or weakness")
-- `affected_area`: null
+So the UI's `supabase.from('all_appointments').update({status: 'Confirmed'})` returns success with **0 rows affected** (PostgREST does not error on RLS-filtered no-ops), the toast looks fine, the system note insert succeeds, but the row is unchanged. On the next refetch the UI reverts to "Cancelled". This will silently affect every VA on every clinic, not just Ozark/Christa.
 
-## Root Cause
+This also conflicts with the existing memory rule that VAs can manage appointment notes across all projects — note management implicitly assumes they can manage the appointments those notes belong to.
 
-In `supabase/functions/auto-parse-intake-notes/index.ts` (the GHL STEP-field branch around lines 927–965):
+## Fix
 
-1. **Symptoms overwritten** — the condition `key.includes('pain') || key.includes('frequency') || key.includes('symptom')` matches many GAE STEP 1/2 keys (anything containing the word "pain"), so the symptoms field gets clobbered by unrelated answers (the "knee osteoarthritis" Yes/No or trauma Yes/No ends up landing there). The actual "Describe the symptoms you're experiencing" field gets overwritten.
-2. **OA/TKR diagnosis not captured** — no branch matches "diagnosed with knee osteoarthritis".
-3. **Trauma onset not captured** — no branch matches "trauma" / "injury".
-4. **Treatments rule too narrow** — `key.includes('treatment')` works but the Yes/No "knee replacement" answer can also leak in via the symptoms pain-match before reaching this branch.
-5. **Age range too greedy** — `key.includes('age')` will also match "manage", "stage", etc. Should be tightened.
+### 1. Add VA RLS policies on `all_appointments` (migration)
 
-## Changes
+Mirror the existing VA pattern (full access, since VAs already see every appointment):
 
-### 1. `supabase/functions/auto-parse-intake-notes/index.ts`
-Rework the STEP-field extractor (~lines 927–965) so each GAE question maps to the correct target field:
+```sql
+CREATE POLICY "VA update all appointments"
+  ON public.all_appointments
+  FOR UPDATE
+  USING (public.has_role(auth.uid(), 'va'))
+  WITH CHECK (public.has_role(auth.uid(), 'va'));
 
-- **Symptoms**: only when key matches `describe the symptoms` / `symptoms you` / explicit `symptom` (not "pain")
-- **Pain level**: key contains `scale` or `severe` + `pain`, extract digit
-- **Duration**: key contains `how long` / `duration`
-- **OA/TKR diagnosis**: key contains `osteoarthritis` or `tkr` or (`diagnosed` + `knee`) → set `oa_tkr_diagnosed` to YES/NO
-- **Trauma onset**: key contains `trauma` or `injury` → set `trauma_related_onset` to YES/NO
-- **Treatments**: key contains `treatment` or `tried`
-- **Imaging**: keep existing (`x-ray`, `mri`, `imaging`)
-- **Age range**: tighten to `how old` or `age range` / `age_range` (not bare `age`)
-- Normalize `☑️ YES` / `☐ NO` checkbox values to `YES`/`NO`
+CREATE POLICY "VA insert all appointments"
+  ON public.all_appointments
+  FOR INSERT
+  WITH CHECK (public.has_role(auth.uid(), 'va'));
 
-Use `else if` chains so a single key only feeds one field.
+CREATE POLICY "VA delete all appointments"
+  ON public.all_appointments
+  FOR DELETE
+  USING (public.has_role(auth.uid(), 'va'));
+```
 
-### 2. Reparse the affected record
-Invoke `reparse-specific-appointments` for appointment id `35a8fa25-c995-483c-b55c-55067c7d6748` so the Medical Information card immediately reflects the fix.
+(Insert/delete added so VAs can use the same flows as agents — e.g. cancel-as-delete, manual entry. If you'd prefer update-only, say so and I'll trim.)
 
-### 3. Optional sanity backfill
-Run `bulk-parse-all-intake-notes` against Everest Vascular only, so other GAE records with the same parser gap get corrected. (Confirm with you before running broadly.)
+### 2. Repair Christa Hagemeier's record
 
-## Out of scope
-- UI changes — the previous fix (`procedure_type` gate) is already deployed and correct.
-- Schema changes — only JSONB content is affected.
+Set status back to `Confirmed`, clear `internal_process_complete` and `procedure_ordered`, sync to GHL, and log a system note attributing the fix to support.
 
-Approve to proceed with the parser fix and the targeted reparse for DONOTCONTACT TESTLEAD?
+```sql
+UPDATE public.all_appointments
+SET status = 'Confirmed'
+WHERE id = '3c5afa52-5b06-4421-98f7-37f0598098df';
+```
+
+The `handle_appointment_status_completion` trigger will reset `internal_process_complete = false` and `procedure_ordered = NULL` automatically. We'll also call `update-ghl-appointment` to push the status to GHL (the GHL appt is already Confirmed per Ivy, so this is a safety no-op) and insert an attribution note.
+
+### 3. Harden the UI so this can't fail silently again
+
+In `src/components/AllAppointmentsManager.tsx` (`handleStatusChange`, around line 696), change the update to request the row back and treat `0 rows returned` as an error:
+
+```ts
+const { data: updated, error } = await supabase
+  .from('all_appointments')
+  .update(updateData)
+  .eq('id', appointmentId)
+  .select('id, status')
+  .maybeSingle();
+
+if (error) throw error;
+if (!updated) {
+  toast({
+    title: "Status update blocked",
+    description: "You don't have permission to change this appointment's status. Contact an admin.",
+    variant: "destructive",
+  });
+  return; // skip note insert, GHL sync, etc.
+}
+```
+
+This prevents the "note logged, row unchanged, UI reverts" trap for any future RLS gap.
+
+## Verification
+
+1. As Ivy S (VA), open Christa Hagemeier in Ozark, change status to Confirmed → row stays Confirmed across refresh.
+2. `security_audit_log` shows a new `appointment_auto_completed` entry with `old_status: Cancelled`, `new_status: Confirmed`.
+3. GHL appointment remains Confirmed (no regression).
+4. As a hypothetical user with no update rights, attempting a status change shows the new "Status update blocked" toast instead of silently reverting.
+
+## Memory update
+
+Update `mem://auth/va-role` to record that VAs have full read/insert/update/delete on `all_appointments` (not just notes), so this isn't reintroduced.
