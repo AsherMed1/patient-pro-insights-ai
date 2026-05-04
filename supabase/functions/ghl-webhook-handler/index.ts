@@ -643,14 +643,16 @@ function getUpdateableFields(
     // Accept date/time changes (rescheduling) only if outside debounce window
     if (webhookData.date_of_appointment !== undefined) {
       updateFields.date_of_appointment = webhookData.date_of_appointment
-      
-      // Reset IPC and status if date actually changed (reschedule detected)
-      // Guard: Skip reschedule logic if existing status is a portal-only terminal status
-      const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-      const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
-      const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
-      
-      if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && !isPortalOnlyTerminal) {
+
+      // Reset IPC and status if date actually changed (reschedule detected).
+      // Date-driven reschedules ARE honored even when existing status is portal-only terminal
+      // (OON, Do Not Call, Cancelled) — a new appointment date from GHL means the patient
+      // was rebooked and should be recovered from the terminal tab.
+      if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
+        const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
+        const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
+        const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
+
         // Record reschedule history before overwriting
         const existingHistory = existingAppointment.reschedule_history || []
         existingHistory.push({
@@ -659,13 +661,18 @@ function getUpdateableFields(
           new_date: webhookData.date_of_appointment,
           new_time: webhookData.requested_time,
           changed_at: new Date().toISOString(),
-          previous_status: existingAppointment.status
+          previous_status: existingAppointment.status,
+          recovered_from_terminal: isPortalOnlyTerminal || undefined,
         })
         updateFields.reschedule_history = existingHistory
 
         updateFields.internal_process_complete = false
         updateFields.status = 'Confirmed'
         updateFields.was_ever_confirmed = true
+
+        if (isPortalOnlyTerminal) {
+          console.log(`[WEBHOOK] Recovering from portal-terminal status "${existingAppointment.status}" via GHL date change`)
+        }
 
         // Capture reschedule note data to be inserted by the async caller
         const fromDateTime = [
@@ -682,9 +689,8 @@ function getUpdateableFields(
           fromDateTime: fromDateTime || 'Unknown',
           toDateTime,
           appointmentId: existingAppointment.id,
+          recoveredFromStatus: isPortalOnlyTerminal ? existingAppointment.status : undefined,
         }
-      } else if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment && isPortalOnlyTerminal) {
-        console.log(`[WEBHOOK] Skipping reschedule logic for portal-only terminal status: existing="${existingAppointment.status}"`)
       }
     }
     if (webhookData.requested_time !== undefined) {
