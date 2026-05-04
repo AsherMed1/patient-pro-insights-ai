@@ -195,12 +195,15 @@ serve(async (req) => {
     // Insert reschedule audit note now that we're in an async context
     if (rescheduleNote) {
       try {
+        const noteText = rescheduleNote.recoveredFromStatus
+          ? `Rescheduled from "${rescheduleNote.recoveredFromStatus}" → Confirmed via GoHighLevel | FROM: ${rescheduleNote.fromDateTime} | TO: ${rescheduleNote.toDateTime}`
+          : `Rescheduled | FROM: ${rescheduleNote.fromDateTime} | TO: ${rescheduleNote.toDateTime} | By: GoHighLevel`
         await supabase.from('appointment_notes').insert({
           appointment_id: rescheduleNote.appointmentId,
-          note_text: `Rescheduled | FROM: ${rescheduleNote.fromDateTime} | TO: ${rescheduleNote.toDateTime} | By: GoHighLevel`,
+          note_text: noteText,
           created_by: 'GoHighLevel',
         })
-        console.log(`[${requestId}] GHL reschedule audit note created`)
+        console.log(`[${requestId}] GHL reschedule audit note created${rescheduleNote.recoveredFromStatus ? ' (recovery)' : ''}`)
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create GHL reschedule audit note:`, noteErr)
       }
