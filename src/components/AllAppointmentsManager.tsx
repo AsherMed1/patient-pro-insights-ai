@@ -693,14 +693,26 @@ const AllAppointmentsManager = ({
       }
       
       console.log('📡 Making API call with updateData:', updateData);
-      const { error } = await supabase
+      const { data: updatedRow, error } = await supabase
         .from('all_appointments')
         .update(updateData)
-        .eq('id', appointmentId);
+        .eq('id', appointmentId)
+        .select('id, status')
+        .maybeSingle();
 
       if (error) {
         console.error('❌ API error:', error);
         throw error;
+      }
+
+      if (!updatedRow) {
+        console.error('❌ Status update affected 0 rows (likely RLS). appointmentId:', appointmentId);
+        toast({
+          title: "Status update blocked",
+          description: "You don't have permission to change this appointment's status. Contact an admin.",
+          variant: "destructive",
+        });
+        return;
       }
 
       console.log('✅ API call successful');
