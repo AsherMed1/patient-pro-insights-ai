@@ -10,6 +10,18 @@ const corsHeaders = {
 // Generate a unique request ID for tracking
 const generateRequestId = () => crypto.randomUUID()
 
+// Sanitize an ID-like string from GHL payloads. GHL workflow webhooks frequently
+// send the literal string "null" or "undefined" instead of an actual null,
+// which previously caused cross-project record collisions when the matcher
+// treated "null" as a valid ghl_appointment_id and matched the first DB row
+// also containing "null". Returns null for any unusable value.
+const sanitizeId = (v: any): string | null => {
+  if (v === null || v === undefined) return null
+  const s = String(v).trim()
+  if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return null
+  return s
+}
+
 serve(async (req) => {
   const requestId = generateRequestId()
   
@@ -113,6 +125,7 @@ serve(async (req) => {
       webhookData.ghl_appointment_id, 
       webhookData.ghl_id,
       webhookData.lead_name,
+      webhookData.project_name,
       requestId
     )
 
@@ -416,9 +429,9 @@ function extractStandardEventFormat(payload: any) {
   const projectName = locationName || extractProjectFromCalendar(calendarName)
   
   return {
-    ghl_appointment_id: apt.id || apt.appointmentId,
-    ghl_id: apt.contactId || contact.id,
-    ghl_location_id: payload.location?.id || null,
+    ghl_appointment_id: sanitizeId(apt.id || apt.appointmentId),
+    ghl_id: sanitizeId(apt.contactId || contact.id),
+    ghl_location_id: sanitizeId(payload.location?.id),
     status: normalizeStatus(apt.appointmentStatus || apt.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
@@ -428,7 +441,7 @@ function extractStandardEventFormat(payload: any) {
     lead_phone_number: contact.phone,
     lead_email: contact.email,
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
-    calendar_name: calendarName,
+    calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
   }
@@ -466,9 +479,9 @@ function extractWorkflowFormat(payload: any) {
   const projectName = locationName || extractProjectFromCalendar(calendarName)
   
   return {
-    ghl_appointment_id: calendar.appointmentId || payload.appointment_id,
-    ghl_id: payload.contact_id || payload.contactId,
-    ghl_location_id: payload.location?.id || null,
+    ghl_appointment_id: sanitizeId(calendar.appointmentId || payload.appointment_id),
+    ghl_id: sanitizeId(payload.contact_id || payload.contactId),
+    ghl_location_id: sanitizeId(payload.location?.id),
     status: normalizeStatus(calendar.status || payload.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
@@ -478,7 +491,7 @@ function extractWorkflowFormat(payload: any) {
     lead_phone_number: payload.phone || payload.phone_number,
     lead_email: payload.email,
     dob: normalizeDob(payload.date_of_birth || payload.dob),
-    calendar_name: calendarName,
+    calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(payload.customFields || customFieldsObj),
   }
@@ -895,39 +908,43 @@ async function findExistingAppointment(
   ghlAppointmentId: string | null, 
   ghlId: string | null,
   leadName: string,
+  projectName: string,
   requestId: string
 ) {
-  console.log(`[${requestId}] Searching for existing appointment...`)
-  
-  // Try by GHL appointment ID first
-  if (ghlAppointmentId) {
+  console.log(`[${requestId}] Searching for existing appointment in project: ${projectName}`)
+
+  // Defensive: sanitize again in case caller passed unsanitized values.
+  ghlAppointmentId = sanitizeId(ghlAppointmentId)
+  ghlId = sanitizeId(ghlId)
+
+  // CRITICAL: All ID-based lookups MUST be scoped to the same project_name.
+  // GHL contact/appointment IDs are unique only WITHIN a sub-account, so a
+  // global match across projects can hijack records from other clients.
+
+  // Try by GHL appointment ID first (project-scoped)
+  if (ghlAppointmentId && projectName) {
     const { data } = await supabase
       .from('all_appointments')
-      .select('*')  // Full record for field comparison
+      .select('*')
       .eq('ghl_appointment_id', ghlAppointmentId)
+      .eq('project_name', projectName)
       .maybeSingle()
     
     if (data) {
-      console.log(`[${requestId}] Found by ghl_appointment_id: ${data.id}`)
+      console.log(`[${requestId}] Found by ghl_appointment_id (project-scoped): ${data.id}`)
       return data
     }
   }
   
-  // If a specific ghl_appointment_id was provided but not found, attempt a
-  // narrow REACTIVATION lookup before giving up. This catches the GHL pattern of
-  // cancelling an appointment and immediately creating a new event for the same
-  // patient (e.g. after a patient uploads insurance post-cancel) which previously
-  // produced duplicate rows. We only reactivate a row that is:
-  //   - same contact (ghl_id) + same project
-  //   - in a terminal status (cancelled / no show / rescheduled)
-  //   - was NEVER confirmed (was_ever_confirmed = false) — protects real history
-  //   - created within the last 60 days (avoid reviving very old records)
-  if (ghlAppointmentId && ghlId) {
+  // REACTIVATION lookup: same contact + same project, terminal status, never confirmed,
+  // created within the last 60 days. Reuse cancelled/no-show row instead of duplicating.
+  if (ghlAppointmentId && ghlId && projectName) {
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
     const { data: candidates } = await supabase
       .from('all_appointments')
       .select('*')
       .eq('ghl_id', ghlId)
+      .eq('project_name', projectName)
       .gte('created_at', sixtyDaysAgo)
       .eq('was_ever_confirmed', false)
       .order('created_at', { ascending: false })
@@ -941,7 +958,6 @@ async function findExistingAppointment(
 
     if (reactivationTarget) {
       console.log(`[${requestId}] 🔄 REACTIVATION: Reusing terminal-status row ${reactivationTarget.id} (status: ${reactivationTarget.status}) for new ghl_appointment_id ${ghlAppointmentId}`)
-      // Append a reschedule_history entry for traceability
       const history = Array.isArray(reactivationTarget.reschedule_history) ? reactivationTarget.reschedule_history : []
       history.push({
         type: 'reactivation',
@@ -951,13 +967,11 @@ async function findExistingAppointment(
         to_ghl_appointment_id: ghlAppointmentId,
         source: 'ghl-webhook-handler',
       })
-      // Persist reschedule_history immediately (the main upsert will overwrite other fields)
       await supabase
         .from('all_appointments')
         .update({ reschedule_history: history })
         .eq('id', reactivationTarget.id)
 
-      // Drop an internal note for the audit log
       try {
         await supabase.from('appointment_notes').insert({
           appointment_id: reactivationTarget.id,
@@ -971,45 +985,48 @@ async function findExistingAppointment(
       return reactivationTarget
     }
 
-    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found and no reactivation candidate — creating new row`)
+    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found in project '${projectName}' and no reactivation candidate — creating new row`)
     return null
   }
 
   if (ghlAppointmentId) {
-    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found and no ghl_id provided — creating new row`)
+    console.log(`[${requestId}] ghl_appointment_id '${ghlAppointmentId}' not found in project '${projectName}' and no ghl_id provided — creating new row`)
     return null
   }
   
-  // Only fall back to GHL contact ID matching when no ghl_appointment_id was provided
-  if (ghlId) {
+  // Fall back to GHL contact ID matching only when no ghl_appointment_id was provided.
+  // ALWAYS scoped to project_name to prevent cross-tenant collisions.
+  if (ghlId && projectName) {
     const { data: records } = await supabase
       .from('all_appointments')
       .select('*')
       .eq('ghl_id', ghlId)
+      .eq('project_name', projectName)
       .eq('lead_name', leadName)
       .order('created_at', { ascending: true })
       .limit(1)
     
     if (records && records.length > 0) {
-      console.log(`[${requestId}] Found by ghl_id + name (no appointment ID provided): ${records[0].id}`)
+      console.log(`[${requestId}] Found by ghl_id + name + project: ${records[0].id}`)
       return records[0]
     }
     
-    // Fallback: try ghl_id only (in case name changed)
+    // Fallback: ghl_id within project (in case name changed)
     const { data: byContactOnly } = await supabase
       .from('all_appointments')
       .select('*')
       .eq('ghl_id', ghlId)
+      .eq('project_name', projectName)
       .order('created_at', { ascending: true })
       .limit(1)
     
     if (byContactOnly && byContactOnly.length > 0) {
-      console.log(`[${requestId}] Found by ghl_id only (no appointment ID provided): ${byContactOnly[0].id}`)
+      console.log(`[${requestId}] Found by ghl_id + project: ${byContactOnly[0].id}`)
       return byContactOnly[0]
     }
   }
   
-  console.log(`[${requestId}] No existing appointment found`)
+  console.log(`[${requestId}] No existing appointment found in project '${projectName}'`)
   return null
 }
 
