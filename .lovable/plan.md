@@ -1,76 +1,26 @@
-# Fix: Patient Pro Insights not auto-populating from GHL custom fields
+## Problem
 
-## Root cause (confirmed via edge logs)
+For Premier Vascular leads, `time_preference` is set at webhook insert time from the initial (sparse) intake notes — usually defaulting to `no_preference`. The richer custom-field data (`Time Preference: Morning`) only arrives later via `fetch-ghl-contact-data`, but that function never updates the `time_preference` column.
 
-The Premier Vascular GHL workflow webhook is sending the literal string `"null"` for nearly every clinical field:
+Result: test lead `9806c839…` shows `time_preference = no_preference` while its enriched notes clearly say `Time Preference: Morning`.
 
-```json
-"customFields": {
-  "insurance_provider": "null",
-  "insurance_member_id": "null",
-  "insurance_id_link": "null",
-  "primary_complaint": "null",
-  "symptoms": "null",
-  "address": "17856 W Summerhaven Dr",
-  "city": "Goodyear",
-  ...
-}
-```
+## Fix
 
-Our handler correctly drops `"null"` strings (line 472 filter), so only `address/city/state/zip` survive — that's why the saved record shows only a Contact section. The clinical fields (Pathology, Insurance, Medical, Demographics) are blank because the webhook never delivered them.
+### 1. `supabase/functions/fetch-ghl-contact-data/index.ts`
+- Add a small `extractTimePreference(notes)` helper (same logic as in webhook handler — match `Time Preference:` / `Preferred Time:` / `Best time to call:` then keywords morning/afternoon/evening/no_preference).
+- Also accept the raw GHL custom-field value directly (look for a field whose name matches `/time\s*preference|preferred\s*time|best\s*time/i`) before falling back to notes regex.
+- When the appointment's `project_name` is Premier Vascular (and `is_unscheduled` is true), include `time_preference` in the `.update({…})` call only if a non-null value is extracted (don't overwrite an existing meaningful value with null).
 
-The actual values **do exist on the GHL contact** — they're just not being included in the workflow's webhook payload mapping. We can fetch them ourselves via the GHL Contacts API right after the row is created.
+### 2. `supabase/functions/ghl-webhook-handler/index.ts`
+- Tighten `extractTimePreference`: when the initial notes don't actually contain a recognizable preference, return `null` instead of letting the caller default to `'no_preference'`. Keep the `|| 'no_preference'` fallback at insert time so the column is never null on create, but ensure the auto-enrichment path can later overwrite a `no_preference` placeholder with the real value (treat `no_preference` as "unset" for the purpose of the enrichment update).
 
-A second, smaller bug: `date_of_birth` arrived as `"Feb 16th 1943"`-style strings for other contacts. For the Premier test it apparently produced `2026-05-01` (future date → age 0). `normalizeDob` doesn't handle the "Mon Nth YYYY" format and has no future-date guard.
+### 3. Backfill (DB migration / one-off update)
+For the existing Premier test lead `9806c839-6d0b-4518-97b8-595d721e59c7`:
+- `UPDATE all_appointments SET time_preference = 'morning' WHERE id = '9806c839-6d0b-4518-97b8-595d721e59c7' AND time_preference IN ('no_preference', NULL);`
 
-## Plan
+## Files
+- `supabase/functions/fetch-ghl-contact-data/index.ts` — extract + update `time_preference`
+- `supabase/functions/ghl-webhook-handler/index.ts` — allow enrichment to overwrite the `no_preference` placeholder
+- New migration to backfill the test lead
 
-### 1. Auto-enrich after insert (`ghl-webhook-handler/index.ts`)
-
-After a new appointment row is inserted (and right after we kick off `auto-parse-intake-notes`), if `ghl_id` is present and patient_intake_notes is empty/Contact-only, fire a non-blocking call to the existing `fetch-ghl-contact-data` edge function:
-
-```ts
-EdgeRuntime.waitUntil(
-  supabase.functions.invoke('fetch-ghl-contact-data', {
-    body: { appointmentId: newRow.id }
-  })
-)
-```
-
-`fetch-ghl-contact-data` already:
-- Looks up the project's GHL API key + location
-- Pulls the full contact with custom field **definitions** (mapping field IDs → human names)
-- Categorizes fields into Contact / Insurance / Pathology / Medical sections
-- Appends formatted text to `patient_intake_notes`
-
-That update will then re-trigger `trigger_auto_ai_parsing` (clears `parsing_completed_at`, etc.), which fires `auto-parse-intake-notes` and produces the structured `parsed_pathology_info` / `parsed_insurance_info` / `parsed_demographics` JSON the UI reads.
-
-### 2. Sanitize "null" strings deeper
-
-In `formatCustomFieldsToNotes` (and the workflow extractor), also reject `'null'`, `'undefined'`, `'n/a'`, `'none'`, `''` (case-insensitive, trimmed) as values — not just at the top-level filter. This prevents `"insurance_provider: null"` from ever leaking into notes if the field arrives via a different path.
-
-### 3. Fix DOB normalization (`normalizeDob`)
-
-- Add support for `"Feb 16th 1943"` / `"May 13th 1958"` style strings (strip `st|nd|rd|th`, then `Date.parse`).
-- Reject any parsed date in the future → return `null` instead.
-- Apply the same future-date guard wherever `dob` is written so we never store `2026-05-01` and compute age = 0.
-
-### 4. Backfill the existing Premier test row
-
-For appointment `9806c839-6d0b-4518-97b8-595d721e59c7` (DONOTCONTACT TESTLEAD, ghl_id `j4WFc81DrwZCrEUU2feL`):
-- Null out the bogus `dob = 2026-05-01` and the derived `parsed_demographics.age = 0`.
-- Invoke `fetch-ghl-contact-data` once for that appointment so the UI immediately shows whatever custom-field data actually lives on the GHL contact.
-
-### 5. Verification
-
-After deploy:
-- Confirm the Premier test row's `patient_intake_notes` gets populated with Insurance/Pathology/Medical sections (assuming GHL has those values on the contact).
-- Confirm `parsed_pathology_info` and `parsed_insurance_info` get filled by the auto-parser within ~30s.
-- Confirm DOB no longer renders as `2026-05-01` / age 0.
-- Re-fire the GHL workflow → new row should auto-enrich without manual action.
-
-## Out of scope
-- Changing the GHL workflow itself (that's a config fix on the user's side — recommend it, but we'll work around it in code).
-- Schema changes.
-
-Approve to implement.
+Approve to implement?
