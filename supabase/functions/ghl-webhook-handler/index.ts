@@ -125,6 +125,7 @@ serve(async (req) => {
       webhookData.ghl_appointment_id, 
       webhookData.ghl_id,
       webhookData.lead_name,
+      webhookData.project_name,
       requestId
     )
 
