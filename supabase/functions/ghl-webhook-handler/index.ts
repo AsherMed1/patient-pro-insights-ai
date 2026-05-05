@@ -608,23 +608,31 @@ function getUpdateableFields(
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
+    // Premier Vascular: capture lead without booking — store time preference only.
+    const isPremierVascular = (webhookData.project_name || '').trim().toLowerCase() === 'premier vascular';
+    const timePreference = isPremierVascular
+      ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
+      : null;
+
     return {
       fields: {
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
         lead_name: webhookData.lead_name,
         project_name: webhookData.project_name,
-        date_of_appointment: webhookData.date_of_appointment,
-        requested_time: webhookData.requested_time,
+        date_of_appointment: isPremierVascular ? null : webhookData.date_of_appointment,
+        requested_time: isPremierVascular ? null : webhookData.requested_time,
         lead_email: webhookData.lead_email,
         lead_phone_number: webhookData.lead_phone_number,
         calendar_name: webhookData.calendar_name,
         ghl_id: webhookData.ghl_id,
-        ghl_appointment_id: webhookData.ghl_appointment_id,
+        ghl_appointment_id: isPremierVascular ? null : webhookData.ghl_appointment_id,
         ghl_location_id: webhookData.ghl_location_id,
-        status: 'Confirmed', // Always force Confirmed on new appointments
+        status: isPremierVascular ? 'Pending' : 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
-        was_ever_confirmed: true,
+        was_ever_confirmed: !isPremierVascular,
+        time_preference: timePreference,
+        is_unscheduled: isPremierVascular,
       }
     }
   }
