@@ -1,40 +1,52 @@
-## Issue
+## Premier Vascular: Lead Capture Without Appointment
 
-Ally Vascular intake forms include TWO insurance fields from GHL:
+### Goal
+For Premier Vascular only, accept GHL/webhook lead data and store a **time-of-day preference** (Morning / Afternoon / Evening / No Preference) instead of creating a booked appointment with a date/time. All other projects continue to behave exactly as today.
 
-1. A screening question: `Please select your GAE insurance provider: Medicare` (a category bucket — used to qualify the lead)
-2. The actual carrier: `Insurance Provider: HealthSpring` (or Humana, Mutual of Omaha, UHC, etc.)
+### Scope Guarantee (no global impact)
+Every change is gated by `project_name === 'Premier Vascular'` (with the existing project normalization). No shared code paths are altered for other clients — we add branches, not replace logic.
 
-The parser is choosing the screening answer (Medicare) and overwriting the real carrier. Confirmed in DB — many Ally appointments show `detected_insurance_provider = "Medicare"` while `parsed_insurance_plan` holds the real plan name (e.g. Pam Youngblood → Medicare / Mutual of Omaha Plan N; Wilma Gonzales → Medicare / United Healthcare; Dean Gutierrez → Medicare / Humana PPO).
+---
 
-## Root cause (`supabase/functions/auto-parse-intake-notes/index.ts`)
+### Changes
 
-Two code paths both pick the screening field:
+**1. Database (additive, nullable)**
+- Add `time_preference TEXT` to `all_appointments` (nullable). Allowed values via validation trigger: `morning`, `afternoon`, `evening`, `no_preference`, or NULL.
+- Add `is_unscheduled BOOLEAN DEFAULT false` to flag Premier records captured without a booked slot.
+- No changes to existing columns; existing rows unaffected.
 
-1. **Regex fallback (~line 343)** — pattern `/insurance provider:\s*([^\n|]+)/i` returns the FIRST match in the notes. The screening line "...select your GAE insurance provider: Medicare" appears before "Insurance Provider: HealthSpring", so Medicare wins.
-2. **GHL field iterator (~line 1102)** — condition `key.includes('insurance') && key.includes('provider')` matches both fields with no priority, so order-of-iteration determines the winner and the screening field can clobber the real one.
+**2. Intake API (`supabase/functions/all-appointments-api/index.ts`)**
+- If incoming payload's `project_name` resolves to **Premier Vascular**:
+  - Skip requiring `date_of_appointment` / `requested_time`.
+  - Read `time_preference` from payload (accept `morning|afternoon|evening|no_preference`; normalize case; default `no_preference`).
+  - Set `is_unscheduled = true`, `status = 'Pending'`, leave date/time NULL.
+- All other projects: unchanged validation and behavior.
 
-## Fix
+**3. GHL Webhook (`supabase/functions/ghl-webhook-handler/index.ts`)**
+- Same Premier-only branch: detect time preference from GHL custom field (e.g. "Time Preference" / "Preferred Time"); if absent, default `no_preference`.
+- Do not create GHL calendar event linkage; keep `ghl_appointment_id` NULL.
+- Continue lead matching, demographics, intake parsing as normal.
 
-Edit `supabase/functions/auto-parse-intake-notes/index.ts`:
+**4. Routing & UI**
+- Premier unscheduled records (NULL date) already route to **Needs Review** per existing rule — no change needed.
+- In the appointment card (Premier only): replace the date/time row with a **"Time Preference"** badge (Morning / Afternoon / Evening / No Preference). Editable via dropdown.
+- Excel export: add `Time Preference` column populated only for Premier rows.
 
-**A. Regex fallback for `insurance_provider`**
-- Add a high-priority pass first: match a line that starts with `Insurance Provider:` (anchored, not preceded by "select" / "please" / "GAE" / "PAE" / "UFE" / "HAE" / "PAD" / "neuropathy"). Use this when present.
-- Only fall back to the generic `/insurance provider:/i` and `/Please select your insurance provider:/i` patterns when no explicit "Insurance Provider:" line exists.
-- Same precedence applied to `insurance_plan` (real plan label > screening category).
+**5. Memory**
+- New memory `mem://projects/premier-vascular/unscheduled-capture`: documents that Premier captures leads without booking, stores `time_preference`, and is excluded from booking-flow logic (short-notice alerts, EMR queue auto-confirm, GHL availability checks).
 
-**B. GHL field iterator**
-- Detect screening keys: keys containing `select` AND (`insurance` AND `provider`), or matching `your <procedure> insurance provider`. Treat these as low-priority "screening" hints — only assign if no real `Insurance Provider` field has been seen.
-- Real key (exact `insurance provider` / `insurance_provider` without "select"/"please"/"your") always wins, regardless of iteration order.
-- Mirror the same logic for `insurance_plan`.
+---
 
-**C. Backfill existing records**
-- One-time data fix: for `all_appointments` where `project_name ILIKE '%ally%'` AND `detected_insurance_provider ILIKE 'medicare'` AND `parsed_insurance_plan` contains a different real carrier (Humana, UHC/United, Mutual of Omaha, HealthSpring, Cigna, Aetna, BCBS, Wellcare, etc.), re-parse via `reparse-specific-appointments` so the corrected logic populates the real carrier into `detected_insurance_provider` / `parsed_insurance_info.insurance_provider`.
-- Only touches Ally records; ~20 appointments identified above plus any others matching the pattern.
+### Technical Details
 
-## Out of scope
+- **Short-notice alerts**: skipped automatically since `date_of_appointment` is NULL.
+- **EMR auto-queue trigger**: only fires on `status='confirmed'`; Premier defaults to `Pending`, so no EMR rows created until a human confirms.
+- **Reschedule / 2-phase booking flow**: untouched; only date-bearing rows enter that flow.
+- **Status workflow trigger** (`handle_appointment_status_completion`): unchanged — still applies if a Premier record is later marked terminal.
+- **GHL outbound sync**: Premier branch skips outbound calendar event creation/update; status sync continues.
 
-- No schema changes.
-- No UI changes — the display chain (`appointment.parsed_insurance_info.insurance_provider → detected_insurance_provider → lead`) is correct; only the source value is wrong.
+### Out of Scope
+- No changes to other clients' intake, booking, or UI.
+- No removal of existing Premier appointments — only new captures use unscheduled flow.
 
 Approve to implement.
