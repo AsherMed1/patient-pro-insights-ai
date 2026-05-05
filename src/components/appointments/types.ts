@@ -46,6 +46,8 @@ export interface AllAppointment {
   reschedule_history?: any;
   cancellation_reason?: string | null;
   is_superseded?: boolean;
+  time_preference?: string | null;
+  is_unscheduled?: boolean | null;
 }
 
 export interface AllAppointmentsManagerProps {
