@@ -1519,6 +1519,45 @@ const AppointmentCard = ({
           
           {/* Date Info - More compact on mobile */}
           <div className="space-y-1">
+            {/* Premier Vascular: time-of-day preference (no booked appointment) */}
+            {appointment.project_name === 'Premier Vascular' && (
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm text-gray-600">Time Preference:</span>
+                {hasManagementAccess() ? (
+                  <Select
+                    value={appointment.time_preference || 'no_preference'}
+                    onValueChange={async (val) => {
+                      const { error } = await supabase
+                        .from('all_appointments')
+                        .update({ time_preference: val, is_unscheduled: true })
+                        .eq('id', appointment.id);
+                      if (error) {
+                        toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+                      } else {
+                        toast({ title: 'Time preference updated' });
+                        onDataRefresh?.();
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-40 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="morning">Morning</SelectItem>
+                      <SelectItem value="afternoon">Afternoon</SelectItem>
+                      <SelectItem value="evening">Evening</SelectItem>
+                      <SelectItem value="no_preference">No Preference</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="secondary" className="text-xs capitalize">
+                    {(appointment.time_preference || 'no_preference').replace('_', ' ')}
+                  </Badge>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center space-x-2">
               <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="text-sm text-gray-600">
