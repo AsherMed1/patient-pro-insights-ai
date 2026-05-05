@@ -179,23 +179,38 @@ serve(async (req) => {
 
     const normalizedDob = normalizeDateOnly(body.dob || body.date_of_birth || body.birth_date || null);
 
+    // Premier Vascular: capture leads without booking a specific time slot.
+    // Store a time-of-day preference instead of date_of_appointment/requested_time.
+    const isPremierVascular = (body.project_name || '').trim().toLowerCase() === 'premier vascular';
+    const normalizeTimePreference = (val: unknown): string | null => {
+      if (!val || typeof val !== 'string') return null;
+      const v = val.trim().toLowerCase().replace(/\s+/g, '_');
+      if (['morning', 'afternoon', 'evening'].includes(v)) return v;
+      if (['no_preference', 'none', 'any', 'no preference', 'anytime'].includes(v)) return 'no_preference';
+      return null;
+    };
+    const timePreference = isPremierVascular
+      ? (normalizeTimePreference(body.time_preference || body.preferred_time) || 'no_preference')
+      : null;
+
     // Prepare appointment data
-    const appointmentData = {
+    const appointmentData: any = {
       date_appointment_created: body.date_appointment_created,
       lead_name: body.lead_name,
       project_name: body.project_name,
-      date_of_appointment: body.date_of_appointment || null,
+      // Premier: never store a booked date/time — only a preference
+      date_of_appointment: isPremierVascular ? null : (body.date_of_appointment || null),
       lead_email: body.lead_email || null,
       lead_phone_number: body.lead_phone_number || null,
       calendar_name: body.calendar_name || null,
-      requested_time: body.requested_time || null,
+      requested_time: isPremierVascular ? null : (body.requested_time || null),
       stage_booked: body.stage_booked || null,
       agent: body.agent || null,
       agent_number: body.agent_number || null,
       ghl_id: body.ghl_id || null,
-      ghl_appointment_id: body.ghl_appointment_id || null,
+      ghl_appointment_id: isPremierVascular ? null : (body.ghl_appointment_id || null),
       confirmed_number: body.confirmed_number || null,
-      status: body.status || null,
+      status: isPremierVascular ? 'Pending' : (body.status || null),
       patient_intake_notes: formatWebhookPayload(body),
       insurance_id_link: body.insurance_id_link || null,
       // Set procedure_ordered to false if status is cancelled or no show
@@ -203,8 +218,9 @@ serve(async (req) => {
         ['cancelled', 'canceled', 'no show'].includes(body.status.toLowerCase().trim()) 
         ? false 
         : null,
-      // Newly supported field
       dob: normalizedDob,
+      time_preference: timePreference,
+      is_unscheduled: isPremierVascular,
     }
 
     // Check if appointment already exists based on ghl_appointment_id or ghl_id
