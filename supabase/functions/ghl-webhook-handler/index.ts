@@ -776,6 +776,20 @@ function getUpdateableFields(
   return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote }
 }
 
+// Extract time-of-day preference from intake notes (Premier Vascular)
+function extractTimePreference(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const text = notes.toLowerCase();
+  // Look for explicit "time preference" / "preferred time" custom field values first
+  const fieldMatch = text.match(/(?:time\s*preference|preferred\s*time|best\s*time(?:\s*to\s*call)?)[^\n]*?[:=]\s*([^\n|]{1,40})/i);
+  const candidate = fieldMatch ? fieldMatch[1] : text;
+  if (/\b(no\s*preference|anytime|any\s*time|either)\b/.test(candidate)) return 'no_preference';
+  if (/\bmorning\b|\bam\b/.test(candidate)) return 'morning';
+  if (/\bafternoon\b/.test(candidate)) return 'afternoon';
+  if (/\bevening\b|\bnight\b|\bpm\b/.test(candidate)) return 'evening';
+  return null;
+}
+
 // Normalize DOB to YYYY-MM-DD
 function normalizeDob(dob: any): string | null {
   if (!dob) return null
