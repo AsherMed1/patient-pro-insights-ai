@@ -10,6 +10,18 @@ const corsHeaders = {
 // Generate a unique request ID for tracking
 const generateRequestId = () => crypto.randomUUID()
 
+// Sanitize an ID-like string from GHL payloads. GHL workflow webhooks frequently
+// send the literal string "null" or "undefined" instead of an actual null,
+// which previously caused cross-project record collisions when the matcher
+// treated "null" as a valid ghl_appointment_id and matched the first DB row
+// also containing "null". Returns null for any unusable value.
+const sanitizeId = (v: any): string | null => {
+  if (v === null || v === undefined) return null
+  const s = String(v).trim()
+  if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return null
+  return s
+}
+
 serve(async (req) => {
   const requestId = generateRequestId()
   
