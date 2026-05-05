@@ -252,6 +252,21 @@ Deno.serve(async (req) => {
 
     const formattedNotes = formatCustomFieldsToText(customFields);
 
+    // Extract time_preference from GHL custom fields (Premier Vascular unscheduled leads)
+    const normalizeTimePref = (raw: string | null | undefined): string | null => {
+      if (!raw) return null;
+      const v = String(raw).toLowerCase().trim();
+      if (/no[\s_-]?preference|anytime|any\s*time|either/.test(v)) return 'no_preference';
+      if (/morning|\bam\b/.test(v)) return 'morning';
+      if (/afternoon/.test(v)) return 'afternoon';
+      if (/evening|night|\bpm\b/.test(v)) return 'evening';
+      return null;
+    };
+    const timePrefField = customFields.find((f: any) =>
+      f.key && /time\s*preference|preferred\s*time|best\s*time/i.test(f.key)
+    );
+    const extractedTimePref = normalizeTimePref(timePrefField?.value);
+
     // Get current patient intake notes
     const currentNotes = appointment.patient_intake_notes || '';
     
@@ -267,6 +282,7 @@ Deno.serve(async (req) => {
         patient_intake_notes: updatedNotes,
         ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
         ...(contact.email ? { lead_email: contact.email } : {}),
+        ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
         updated_at: new Date().toISOString()
       })
       .eq('id', appointmentId);
