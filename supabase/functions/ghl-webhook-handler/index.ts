@@ -478,9 +478,9 @@ function extractWorkflowFormat(payload: any) {
   const projectName = locationName || extractProjectFromCalendar(calendarName)
   
   return {
-    ghl_appointment_id: calendar.appointmentId || payload.appointment_id,
-    ghl_id: payload.contact_id || payload.contactId,
-    ghl_location_id: payload.location?.id || null,
+    ghl_appointment_id: sanitizeId(calendar.appointmentId || payload.appointment_id),
+    ghl_id: sanitizeId(payload.contact_id || payload.contactId),
+    ghl_location_id: sanitizeId(payload.location?.id),
     status: normalizeStatus(calendar.status || payload.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
@@ -490,7 +490,7 @@ function extractWorkflowFormat(payload: any) {
     lead_phone_number: payload.phone || payload.phone_number,
     lead_email: payload.email,
     dob: normalizeDob(payload.date_of_birth || payload.dob),
-    calendar_name: calendarName,
+    calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(payload.customFields || customFieldsObj),
   }
