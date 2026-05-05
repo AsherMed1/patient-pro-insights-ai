@@ -232,6 +232,7 @@ export type Database = {
           internal_process_complete: boolean
           is_reserved_block: boolean | null
           is_superseded: boolean
+          is_unscheduled: boolean
           is_viewed: boolean | null
           last_ghl_sync_at: string | null
           last_ghl_sync_error: string | null
@@ -258,6 +259,7 @@ export type Database = {
           reserved_end_time: string | null
           stage_booked: string | null
           status: string | null
+          time_preference: string | null
           updated_at: string
           was_ever_confirmed: boolean
         }
@@ -287,6 +289,7 @@ export type Database = {
           internal_process_complete?: boolean
           is_reserved_block?: boolean | null
           is_superseded?: boolean
+          is_unscheduled?: boolean
           is_viewed?: boolean | null
           last_ghl_sync_at?: string | null
           last_ghl_sync_error?: string | null
@@ -313,6 +316,7 @@ export type Database = {
           reserved_end_time?: string | null
           stage_booked?: string | null
           status?: string | null
+          time_preference?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
         }
@@ -342,6 +346,7 @@ export type Database = {
           internal_process_complete?: boolean
           is_reserved_block?: boolean | null
           is_superseded?: boolean
+          is_unscheduled?: boolean
           is_viewed?: boolean | null
           last_ghl_sync_at?: string | null
           last_ghl_sync_error?: string | null
@@ -368,6 +373,7 @@ export type Database = {
           reserved_end_time?: string | null
           stage_booked?: string | null
           status?: string | null
+          time_preference?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
         }
