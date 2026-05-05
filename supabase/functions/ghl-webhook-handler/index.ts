@@ -468,8 +468,13 @@ function extractWorkflowFormat(payload: any) {
   
   // Format patient intake notes from customFields object (NOT root-level custom_ fields)
   const customFieldsObj = payload.customFields || {}
+  const isMeaningful = (v: any) => {
+    if (v === null || v === undefined) return false
+    const s = String(v).trim().toLowerCase()
+    return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== 'na' && s !== 'none'
+  }
   const customFields = Object.entries(customFieldsObj)
-    .filter(([key, value]) => value && value !== 'null' && value !== 'undefined')
+    .filter(([_, value]) => isMeaningful(value))
     .map(([key, value]) => ({ key, value }))
   const patientIntakeNotes = formatCustomFieldsToNotes(customFields)
   
