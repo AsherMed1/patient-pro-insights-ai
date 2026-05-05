@@ -428,9 +428,9 @@ function extractStandardEventFormat(payload: any) {
   const projectName = locationName || extractProjectFromCalendar(calendarName)
   
   return {
-    ghl_appointment_id: apt.id || apt.appointmentId,
-    ghl_id: apt.contactId || contact.id,
-    ghl_location_id: payload.location?.id || null,
+    ghl_appointment_id: sanitizeId(apt.id || apt.appointmentId),
+    ghl_id: sanitizeId(apt.contactId || contact.id),
+    ghl_location_id: sanitizeId(payload.location?.id),
     status: normalizeStatus(apt.appointmentStatus || apt.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
@@ -440,7 +440,7 @@ function extractStandardEventFormat(payload: any) {
     lead_phone_number: contact.phone,
     lead_email: contact.email,
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
-    calendar_name: calendarName,
+    calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
   }
