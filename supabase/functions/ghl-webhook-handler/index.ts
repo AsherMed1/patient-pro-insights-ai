@@ -468,8 +468,13 @@ function extractWorkflowFormat(payload: any) {
   
   // Format patient intake notes from customFields object (NOT root-level custom_ fields)
   const customFieldsObj = payload.customFields || {}
+  const isMeaningful = (v: any) => {
+    if (v === null || v === undefined) return false
+    const s = String(v).trim().toLowerCase()
+    return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== 'na' && s !== 'none'
+  }
   const customFields = Object.entries(customFieldsObj)
-    .filter(([key, value]) => value && value !== 'null' && value !== 'undefined')
+    .filter(([_, value]) => isMeaningful(value))
     .map(([key, value]) => ({ key, value }))
   const patientIntakeNotes = formatCustomFieldsToNotes(customFields)
   
@@ -803,28 +808,36 @@ function extractTimePreference(notes: string | null | undefined): string | null 
   return null;
 }
 
-// Normalize DOB to YYYY-MM-DD
+// Normalize DOB to YYYY-MM-DD. Rejects future dates and obviously bogus years.
 function normalizeDob(dob: any): string | null {
   if (!dob) return null
-  
+
+  const guard = (iso: string | null): string | null => {
+    if (!iso) return null
+    const d = new Date(iso + 'T00:00:00Z')
+    if (isNaN(d.getTime())) return null
+    const year = d.getUTCFullYear()
+    const today = new Date()
+    if (d.getTime() > today.getTime()) return null // future date — invalid DOB
+    if (year < 1900 || year > today.getUTCFullYear()) return null
+    return iso
+  }
+
   if (typeof dob === 'string') {
     const s = dob.trim()
-    // Already YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-    
-    // ISO timestamp
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return guard(s)
+
     if (s.includes('T')) {
       const d = new Date(s)
-      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10)
+      if (!isNaN(d.getTime())) return guard(d.toISOString().slice(0, 10))
     }
-    
-    // MM/DD/YYYY
+
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
       const [m, d, y] = s.split('/').map(Number)
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      return guard(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
     }
-    
-    // Month DDth YYYY (e.g., "Aug 18th 2022")
+
+    // Month DDth YYYY (e.g., "Aug 18th 2022", "Feb 16th 1943")
     const monthMatch = s.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(\d{4})$/i)
     if (monthMatch) {
       const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
@@ -832,15 +845,15 @@ function normalizeDob(dob: any): string | null {
       if (monthIndex >= 0) {
         const day = parseInt(monthMatch[2], 10)
         const year = parseInt(monthMatch[3], 10)
-        return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        return guard(`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
       }
     }
   }
-  
+
   if (dob instanceof Date && !isNaN(dob.getTime())) {
-    return dob.toISOString().slice(0, 10)
+    return guard(dob.toISOString().slice(0, 10))
   }
-  
+
   return null
 }
 
