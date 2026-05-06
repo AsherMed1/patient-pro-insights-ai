@@ -114,6 +114,85 @@ Deno.serve(async (req) => {
         }
         contactId = extractedContactId;
       }
+
+      // Reconcile appointment date/time with GHL startTime
+      const ghlStartTime = appt?.startTime || appt?.start_time;
+      if (ghlStartTime) {
+        try {
+          const projectTz = projectData.timezone || 'America/Chicago';
+          const startDate = new Date(ghlStartTime);
+          if (!isNaN(startDate.getTime())) {
+            // Format date_of_appointment (YYYY-MM-DD) and requested_time (HH:mm:ss) in project tz
+            const dateFmt = new Intl.DateTimeFormat('en-CA', {
+              timeZone: projectTz,
+              year: 'numeric', month: '2-digit', day: '2-digit',
+            });
+            const timeFmt = new Intl.DateTimeFormat('en-GB', {
+              timeZone: projectTz,
+              hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+            });
+            const newDate = dateFmt.format(startDate); // YYYY-MM-DD
+            const newTime = timeFmt.format(startDate); // HH:mm:ss
+
+            const oldDate = appointment.date_of_appointment
+              ? String(appointment.date_of_appointment).slice(0, 10)
+              : null;
+            const oldTime = appointment.requested_time
+              ? String(appointment.requested_time).slice(0, 8)
+              : null;
+
+            if (oldDate !== newDate || oldTime !== newTime) {
+              console.log(`[REFRESH-RESCHEDULE] ${oldDate} ${oldTime} → ${newDate} ${newTime} (tz=${projectTz})`);
+
+              const existingHistory = Array.isArray(appointment.reschedule_history)
+                ? appointment.reschedule_history
+                : [];
+              existingHistory.push({
+                previous_date: oldDate,
+                previous_time: oldTime,
+                new_date: newDate,
+                new_time: newTime,
+                changed_at: new Date().toISOString(),
+                previous_status: appointment.status,
+                source: 'ghl_refresh',
+              });
+
+              const { error: rescheduleErr } = await supabase
+                .from('all_appointments')
+                .update({
+                  date_of_appointment: newDate,
+                  requested_time: newTime,
+                  status: 'Confirmed',
+                  internal_process_complete: false,
+                  was_ever_confirmed: true,
+                  reschedule_history: existingHistory,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', appointmentId);
+
+              if (rescheduleErr) {
+                console.error('[REFRESH-RESCHEDULE] Failed to update appointment:', rescheduleErr);
+              } else {
+                // Audit note
+                const fromStr = [oldDate, oldTime].filter(Boolean).join(' ') || 'Unknown';
+                const toStr = `${newDate} ${newTime}`;
+                await supabase.from('appointment_notes').insert({
+                  appointment_id: appointmentId,
+                  note_text: `Rescheduled | FROM: ${fromStr} | TO: ${toStr} | By: GoHighLevel (manual refresh)`,
+                  created_by: 'GoHighLevel',
+                });
+                // Refresh local copies so subsequent update doesn't clobber
+                appointment.date_of_appointment = newDate;
+                appointment.requested_time = newTime;
+                appointment.status = 'Confirmed';
+                console.log('[REFRESH-RESCHEDULE] Reconciled date/time and wrote audit note');
+              }
+            }
+          }
+        } catch (rescheduleErr) {
+          console.error('[REFRESH-RESCHEDULE] Error reconciling startTime (non-critical):', rescheduleErr);
+        }
+      }
     }
 
     if (!contactId) {
