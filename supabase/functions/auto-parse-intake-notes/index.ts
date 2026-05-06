@@ -10,6 +10,17 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Reject conversational/status text masquerading as group number
+function isInvalidGroupNumber(v: string | null | undefined): boolean {
+  if (!v) return false;
+  const s = String(v).trim();
+  if (s.length === 0) return false;
+  if (s.length > 40) return true;
+  if (/insurance type:|appointment status:|appointment details:|\bscheduled\b|\bnot scheduled\b|\bunknown\b/i.test(s)) return true;
+  if (/^missing\b/i.test(s)) return true;
+  return false;
+}
+
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
   ghlId: string,
@@ -345,7 +356,6 @@ function fallbackRegexParsing(intakeNotes: string): any {
   if (realProviderMatch && realProviderMatch[1]) {
     const val = realProviderMatch[1].trim();
     result.insurance_info.insurance_provider = val;
-    result.insurance_info.insurance_plan = val;
     console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
   } else {
     // PRIORITY 2: fall back to screening / generic patterns
@@ -353,17 +363,22 @@ function fallbackRegexParsing(intakeNotes: string): any {
       /Please select your[^:\n]*insurance provider:\s*([^\n|]+)/i,
       /insurance provider:\s*([^\n|]+)/i,
       /insurance:\s*([^\n|]+)/i,
-      /Plan:\s*([^\n|]+)/i
     ];
     for (const pattern of insuranceProviderPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
         result.insurance_info.insurance_provider = match[1].trim();
-        result.insurance_info.insurance_plan = match[1].trim();
         console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${match[1].trim()}`);
         break;
       }
     }
+  }
+
+  // Extract Insurance Plan separately - never copy provider into plan
+  const planMatch = intakeNotes.match(/^[ \t]*Insurance Plan\s*:\s*([^\n|]+)/im);
+  if (planMatch && planMatch[1]) {
+    result.insurance_info.insurance_plan = planMatch[1].trim();
+    console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_plan: ${planMatch[1].trim()}`);
   }
 
   // Extract Member ID / Insurance ID Number FIRST so the more-specific
@@ -397,8 +412,13 @@ function fallbackRegexParsing(intakeNotes: string): any {
   for (const pattern of groupPatterns) {
     const match = intakeNotes.match(pattern);
     if (match && match[1]) {
-      result.insurance_info.insurance_group_number = match[1].trim();
-      console.log(`[AUTO-PARSE FALLBACK] Extracted group_number: ${match[1].trim()}`);
+      const candidate = match[1].trim();
+      if (!isInvalidGroupNumber(candidate)) {
+        result.insurance_info.insurance_group_number = candidate;
+        console.log(`[AUTO-PARSE FALLBACK] Extracted group_number: ${candidate}`);
+      } else {
+        console.log(`[AUTO-PARSE FALLBACK] Rejected invalid group_number candidate: ${candidate}`);
+      }
       break;
     }
   }
@@ -1127,7 +1147,11 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     } else if ((key.includes('member') && key.includes('id')) || key.includes('insurance_id')) {
       result.insurance_info.insurance_id_number = value;
     } else if (key.includes('group') || key.includes('grp')) {
-      result.insurance_info.insurance_group_number = value;
+      if (!isInvalidGroupNumber(value)) {
+        result.insurance_info.insurance_group_number = value;
+      } else {
+        console.log(`[AUTO-PARSE GHL] Rejected invalid group_number from field "${rawKey}": ${value}`);
+      }
     } else if (key.includes('insurance') && key.includes('note')) {
       result.insurance_info.insurance_notes = value;
     } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
@@ -1679,10 +1703,10 @@ serve(async (req) => {
 Parse the following patient intake notes and return a JSON object with these exact fields:
 {
   "insurance_info": {
-    "insurance_provider": "string or null",
-    "insurance_plan": "string or null",
+    "insurance_provider": "string or null - The carrier/company name (e.g., 'PHYSICIAN MUTUAL', 'Aetna', 'BCBS'). Never copy plan names here.",
+    "insurance_plan": "string or null - The plan/product name from the card or GHL 'Insurance Plan' field (e.g., 'Medicare Supplement Plan G', 'PPO', 'HMO Gold'). NEVER copy the provider/carrier name into this field.",
     "insurance_id_number": "string or null",
-    "insurance_group_number": "string or null",
+    "insurance_group_number": "string or null - ONLY the alphanumeric group/plan number printed on the insurance card. Must be a short identifier. NEVER copy conversation summaries, appointment statuses, dates, words like 'scheduled', 'unknown', 'missing', or anything containing 'Insurance Type:' / 'Appointment Status:' / 'Appointment Details:'. Return null if not explicitly labeled as a group number.",
     "insurance_notes": "string or null - Any additional notes from the intake form, including fields labeled 'Notes', 'Notes (Example: Imaging, Secondary, etc.)', secondary insurance info, VA coverage, Medicaid/Medicare notes, or clinical observations documented by the caller. Always extract any generic 'Notes' field value here."
   },
   "contact_info": {
@@ -1964,7 +1988,12 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             updateData.insurance_id = parsedData.insurance_info.insurance_id_number;
           }
           if (parsedData.insurance_info?.insurance_group_number) {
-            updateData.group_number = parsedData.insurance_info.insurance_group_number;
+            if (!isInvalidGroupNumber(parsedData.insurance_info.insurance_group_number)) {
+              updateData.group_number = parsedData.insurance_info.insurance_group_number;
+            } else {
+              console.log(`[AUTO-PARSE] Rejected invalid AI group_number: ${parsedData.insurance_info.insurance_group_number}`);
+              parsedData.insurance_info.insurance_group_number = null;
+            }
           }
         }
 
