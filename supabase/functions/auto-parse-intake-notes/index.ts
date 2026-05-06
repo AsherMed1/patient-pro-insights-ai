@@ -401,8 +401,13 @@ function fallbackRegexParsing(intakeNotes: string): any {
   for (const pattern of groupPatterns) {
     const match = intakeNotes.match(pattern);
     if (match && match[1]) {
-      result.insurance_info.insurance_group_number = match[1].trim();
-      console.log(`[AUTO-PARSE FALLBACK] Extracted group_number: ${match[1].trim()}`);
+      const candidate = match[1].trim();
+      if (!isInvalidGroupNumber(candidate)) {
+        result.insurance_info.insurance_group_number = candidate;
+        console.log(`[AUTO-PARSE FALLBACK] Extracted group_number: ${candidate}`);
+      } else {
+        console.log(`[AUTO-PARSE FALLBACK] Rejected invalid group_number candidate: ${candidate}`);
+      }
       break;
     }
   }
