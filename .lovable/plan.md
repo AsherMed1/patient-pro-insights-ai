@@ -1,50 +1,33 @@
-# Add GHL Status-Change Audit Notes
+# Sync GHL Appointment Time on Refresh
 
-## Problem
-When GHL pushes a status change (e.g. Confirmed → Cancelled) via webhook, the portal updates the appointment status but does not write a note to the patient record. Today, `ghl-webhook-handler` only writes notes for **reschedules** (date change) and **Welcome Call transitions** — generic status changes are silent.
+## Root cause
+GHL only fires its outbound webhook reliably for status changes — pure time edits (2PM → 1PM) for Lenora M Graham (`odxVhlK48fu6lg5YFDNH`) never hit `ghl-webhook-handler` (no logs found). The portal's per-appointment "Refresh from GHL" button (`fetch-ghl-contact-data`) already pulls the live GHL appointment object to derive `contactId`/`locationId`, but throws away `startTime` — so even a manual refresh can't recover the new time.
 
-## Fix
-Edit `supabase/functions/ghl-webhook-handler/index.ts`:
+## Changes
 
-1. In `getUpdateableFields(...)` extend the return type to include an optional `statusChangeNote: { appointmentId, fromStatus, toStatus }`.
+### 1. `supabase/functions/fetch-ghl-contact-data/index.ts`
+After the existing GHL appointment fetch (lines ~76–117), also extract `startTime`, convert to the project's timezone, and reconcile against the portal:
 
-2. In the existing status-update branch (around line 740-758), when an explicit GHL status change is accepted (i.e. not a portal-only-terminal preserve, and not the Welcome Call branch which already records its own note), capture:
-   ```ts
-   statusChangeNote = {
-     appointmentId: existingAppointment.id,
-     fromStatus: existingAppointment.status || 'Unknown',
-     toStatus: webhookData.status,
-   }
-   ```
-   Skip if `fromStatus === toStatus` (no real change).
+- Load `projects.timezone` along with the API key/location.
+- Parse GHL `appt.startTime` → derive new `date_of_appointment` (YYYY-MM-DD) and `requested_time` (HH:mm:ss) in project timezone.
+- If either differs from the existing appointment row:
+  - Append a `reschedule_history` entry (previous_date/time, new_date/time, changed_at, previous_status, source: `ghl_refresh`).
+  - Set `status = 'Confirmed'`, `internal_process_complete = false`, `was_ever_confirmed = true` (mirrors webhook reschedule path; honors recovery from portal-only terminal).
+  - Insert an `appointment_notes` row: `Rescheduled | FROM: <old date+time> | TO: <new date+time> | By: GoHighLevel (manual refresh)` with `created_by = 'GoHighLevel'`.
+- Apply these together with the existing notes/phone/email update (single update call).
 
-3. Return `statusChangeNote` alongside the other note payloads.
+### 2. One-off correction for Lenora M Graham (data write)
+Migration / insert tool:
+- Update `all_appointments` id `79d230e6-07f9-49f7-88e2-f3258f92f8eb`: `requested_time` → `13:00:00`, append reschedule_history entry (2PM → 1PM, source: `manual_correction`).
+- Insert `appointment_notes` row documenting the correction (`By: System`).
 
-4. In the main `serve` handler (right after the `welcomeCallTransitionNote` insert block, ~line 238), add a parallel insert:
-   ```ts
-   if (statusChangeNote) {
-     const ts = new Date().toLocaleString('en-US', {
-       timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short'
-     });
-     await supabase.from('appointment_notes').insert({
-       appointment_id: statusChangeNote.appointmentId,
-       note_text: `Status changed from "${statusChangeNote.fromStatus}" to "${statusChangeNote.toStatus}" via GoHighLevel — ${ts}`,
-       created_by: 'GoHighLevel',
-     });
-   }
-   ```
+### 3. Memory update
+Extend `mem://integrations/ghl-refresh-pipeline` to note the Refresh button now also reconciles `date_of_appointment`/`requested_time` with the same audit + reschedule semantics as the webhook handler.
 
-5. Destructure `statusChangeNote` from the `getUpdateableFields` call (line 163).
-
-## Guardrails (already in place, preserved)
-- Reschedules continue to use the existing reschedule note (no double-note — date-change branch sets status to "Confirmed" but the reschedule note covers it; we skip the new note when `rescheduleNote` exists for the same appointment).
-- Welcome Call transitions continue to use their own note (skip new note when `welcomeCallTransitionNote` exists).
-- Portal-only terminal preserves (OON / Do Not Call / Cancelled) are NOT logged because the status was not actually changed.
-
-## Memory update
-Add a memory entry under `mem://integrations/ghl-webhook-status-change-notes` documenting that all accepted GHL status changes write a `appointment_notes` row attributed to "GoHighLevel".
+## Out of scope (call out to client)
+True automatic sync requires NGV to enable a GHL outbound webhook on Appointment **Update** (not just Status Change). The Refresh button is the manual recovery path until that's configured.
 
 ## Files
-- `supabase/functions/ghl-webhook-handler/index.ts` (edit)
-- `mem://integrations/ghl-webhook-status-change-notes` (new)
-- `mem://index.md` (append memory reference)
+- Edit: `supabase/functions/fetch-ghl-contact-data/index.ts`
+- Edit: `mem://integrations/ghl-refresh-pipeline`
+- New migration: data-only update for Lenora Graham + audit note
