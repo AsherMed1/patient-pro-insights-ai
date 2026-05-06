@@ -1988,7 +1988,12 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             updateData.insurance_id = parsedData.insurance_info.insurance_id_number;
           }
           if (parsedData.insurance_info?.insurance_group_number) {
-            updateData.group_number = parsedData.insurance_info.insurance_group_number;
+            if (!isInvalidGroupNumber(parsedData.insurance_info.insurance_group_number)) {
+              updateData.group_number = parsedData.insurance_info.insurance_group_number;
+            } else {
+              console.log(`[AUTO-PARSE] Rejected invalid AI group_number: ${parsedData.insurance_info.insurance_group_number}`);
+              parsedData.insurance_info.insurance_group_number = null;
+            }
           }
         }
 
