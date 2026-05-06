@@ -1703,10 +1703,10 @@ serve(async (req) => {
 Parse the following patient intake notes and return a JSON object with these exact fields:
 {
   "insurance_info": {
-    "insurance_provider": "string or null",
-    "insurance_plan": "string or null",
+    "insurance_provider": "string or null - The carrier/company name (e.g., 'PHYSICIAN MUTUAL', 'Aetna', 'BCBS'). Never copy plan names here.",
+    "insurance_plan": "string or null - The plan/product name from the card or GHL 'Insurance Plan' field (e.g., 'Medicare Supplement Plan G', 'PPO', 'HMO Gold'). NEVER copy the provider/carrier name into this field.",
     "insurance_id_number": "string or null",
-    "insurance_group_number": "string or null",
+    "insurance_group_number": "string or null - ONLY the alphanumeric group/plan number printed on the insurance card. Must be a short identifier. NEVER copy conversation summaries, appointment statuses, dates, words like 'scheduled', 'unknown', 'missing', or anything containing 'Insurance Type:' / 'Appointment Status:' / 'Appointment Details:'. Return null if not explicitly labeled as a group number.",
     "insurance_notes": "string or null - Any additional notes from the intake form, including fields labeled 'Notes', 'Notes (Example: Imaging, Secondary, etc.)', secondary insurance info, VA coverage, Medicaid/Medicare notes, or clinical observations documented by the caller. Always extract any generic 'Notes' field value here."
   },
   "contact_info": {
