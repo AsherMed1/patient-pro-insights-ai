@@ -10,6 +10,17 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Reject conversational/status text masquerading as group number
+function isInvalidGroupNumber(v: string | null | undefined): boolean {
+  if (!v) return false;
+  const s = String(v).trim();
+  if (s.length === 0) return false;
+  if (s.length > 40) return true;
+  if (/insurance type:|appointment status:|appointment details:|\bscheduled\b|\bnot scheduled\b|\bunknown\b/i.test(s)) return true;
+  if (/^missing\b/i.test(s)) return true;
+  return false;
+}
+
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
   ghlId: string,
