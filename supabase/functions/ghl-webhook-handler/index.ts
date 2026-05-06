@@ -801,7 +801,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote }
 }
 
 // Extract time-of-day preference from intake notes (Premier Vascular)
