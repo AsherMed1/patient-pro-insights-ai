@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     // Get appointment details
     const { data: appointment, error: apptError } = await supabase
       .from('all_appointments')
-      .select('id, ghl_appointment_id, ghl_id, project_name, lead_name, patient_intake_notes')
+      .select('id, ghl_appointment_id, ghl_id, project_name, lead_name, patient_intake_notes, date_of_appointment, requested_time, status, reschedule_history, was_ever_confirmed')
       .eq('id', appointmentId)
       .single();
 
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // First, we need to get the custom field definitions to map IDs to keys
     const { data: projectData, error: projectError } = await supabase
       .from('projects')
-      .select('ghl_api_key, ghl_location_id')
+      .select('ghl_api_key, ghl_location_id, timezone')
       .eq('project_name', appointment.project_name)
       .single();
 
