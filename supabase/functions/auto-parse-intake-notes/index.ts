@@ -345,7 +345,6 @@ function fallbackRegexParsing(intakeNotes: string): any {
   if (realProviderMatch && realProviderMatch[1]) {
     const val = realProviderMatch[1].trim();
     result.insurance_info.insurance_provider = val;
-    result.insurance_info.insurance_plan = val;
     console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
   } else {
     // PRIORITY 2: fall back to screening / generic patterns
@@ -353,17 +352,22 @@ function fallbackRegexParsing(intakeNotes: string): any {
       /Please select your[^:\n]*insurance provider:\s*([^\n|]+)/i,
       /insurance provider:\s*([^\n|]+)/i,
       /insurance:\s*([^\n|]+)/i,
-      /Plan:\s*([^\n|]+)/i
     ];
     for (const pattern of insuranceProviderPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
         result.insurance_info.insurance_provider = match[1].trim();
-        result.insurance_info.insurance_plan = match[1].trim();
         console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${match[1].trim()}`);
         break;
       }
     }
+  }
+
+  // Extract Insurance Plan separately - never copy provider into plan
+  const planMatch = intakeNotes.match(/^[ \t]*Insurance Plan\s*:\s*([^\n|]+)/im);
+  if (planMatch && planMatch[1]) {
+    result.insurance_info.insurance_plan = planMatch[1].trim();
+    console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_plan: ${planMatch[1].trim()}`);
   }
 
   // Extract Member ID / Insurance ID Number FIRST so the more-specific
