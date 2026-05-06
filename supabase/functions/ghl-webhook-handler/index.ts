@@ -755,6 +755,15 @@ function getUpdateableFields(
           fromStatus: existingAppointment.status,
           toStatus: webhookData.status,
         }
+      } else if (
+        (existingAppointment.status || '').trim().toLowerCase() !== (webhookData.status || '').trim().toLowerCase()
+      ) {
+        // Generic GHL-driven status change — log audit note (skipped for Welcome Call which has its own note)
+        statusChangeNote = {
+          appointmentId: existingAppointment.id,
+          fromStatus: existingAppointment.status || 'Unknown',
+          toStatus: webhookData.status,
+        }
       }
     }
   }
