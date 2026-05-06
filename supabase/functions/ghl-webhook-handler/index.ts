@@ -237,6 +237,21 @@ serve(async (req) => {
       }
     }
 
+    // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
+    if (statusChangeNote) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: statusChangeNote.appointmentId,
+          note_text: `Status changed from "${statusChangeNote.fromStatus}" to "${statusChangeNote.toStatus}" via GoHighLevel — ${ts}`,
+          created_by: 'GoHighLevel',
+        })
+        console.log(`[${requestId}] GHL status-change audit note created (${statusChangeNote.fromStatus} → ${statusChangeNote.toStatus})`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create GHL status-change audit note:`, noteErr)
+      }
+    }
+
       // Enrich all appointments with full GHL contact data (if ghl_id available)
       if (appointmentRecord && webhookData.ghl_id) {
         console.log(`[${requestId}] Enriching appointment with full GHL contact data`)
