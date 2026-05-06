@@ -160,7 +160,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote } = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
@@ -234,6 +234,21 @@ serve(async (req) => {
         console.log(`[${requestId}] Welcome Call transition note created`)
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create Welcome Call transition note:`, noteErr)
+      }
+    }
+
+    // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
+    if (statusChangeNote) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: statusChangeNote.appointmentId,
+          note_text: `Status changed from "${statusChangeNote.fromStatus}" to "${statusChangeNote.toStatus}" via GoHighLevel — ${ts}`,
+          created_by: 'GoHighLevel',
+        })
+        console.log(`[${requestId}] GHL status-change audit note created (${statusChangeNote.fromStatus} → ${statusChangeNote.toStatus})`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create GHL status-change audit note:`, noteErr)
       }
     }
 
@@ -620,7 +635,7 @@ function normalizeStatus(status: string | null | undefined): string {
 function getUpdateableFields(
   webhookData: any, 
   existingAppointment: any | null
-): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string } } {
+): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string } } {
   // For CREATE - use all webhook data
   // CRITICAL: Per project rule, ALL new appointments from GHL webhooks MUST default to "Confirmed",
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
@@ -659,6 +674,7 @@ function getUpdateableFields(
   const updateFields: Record<string, any> = {}
   let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string } | undefined
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
+  let statusChangeNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   
   // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
   const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
@@ -754,6 +770,15 @@ function getUpdateableFields(
           fromStatus: existingAppointment.status,
           toStatus: webhookData.status,
         }
+      } else if (
+        (existingAppointment.status || '').trim().toLowerCase() !== (webhookData.status || '').trim().toLowerCase()
+      ) {
+        // Generic GHL-driven status change — log audit note (skipped for Welcome Call which has its own note)
+        statusChangeNote = {
+          appointmentId: existingAppointment.id,
+          fromStatus: existingAppointment.status || 'Unknown',
+          toStatus: webhookData.status,
+        }
       }
     }
   }
@@ -791,7 +816,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote }
 }
 
 // Extract time-of-day preference from intake notes (Premier Vascular)

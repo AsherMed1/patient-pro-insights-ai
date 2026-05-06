@@ -1,29 +1,50 @@
-## Fix insurance parsing for Ally Vascular (Travis Long et al.)
+# Add GHL Status-Change Audit Notes
 
-### Bugs
-1. **Plan = Provider:** Regex fallback in `auto-parse-intake-notes/index.ts` (lines 344–366) sets `insurance_plan = insurance_provider` when it sees "Insurance Provider:". Travis's real plan ("MEDICARE SUPPLEMENT PLAN G") is overwritten by "PHYSICIAN MUTUAL".
-2. **Garbage group number:** AI/regex is dumping conversational summaries (`missing Insurance Type: unknown Appointment Status: scheduled Appointment Details: May 2nd at 2 PM`) into `insurance_group_number`. Affects 9+ Ally patients.
+## Problem
+When GHL pushes a status change (e.g. Confirmed → Cancelled) via webhook, the portal updates the appointment status but does not write a note to the patient record. Today, `ghl-webhook-handler` only writes notes for **reschedules** (date change) and **Welcome Call transitions** — generic status changes are silent.
 
-### Changes
+## Fix
+Edit `supabase/functions/ghl-webhook-handler/index.ts`:
 
-**1. `supabase/functions/auto-parse-intake-notes/index.ts`**
-- Stop assigning `insurance_plan = provider` in regex fallback.
-- Add explicit `Insurance Plan:` regex extractor.
-- Add `isInvalidGroupNumber()` sanitizer (rejects values with `Insurance Type:`, `Appointment Status:`, `Appointment Details:`, `scheduled`, `unknown`, `missing`-prefix, or >40 chars). Apply after regex, GHL field extraction, and AI output.
-- Tighten AI system prompt for `insurance_group_number`: "Only the alphanumeric group/plan number from the insurance card. Never copy conversation summaries, statuses, dates."
-- Tighten AI prompt for `insurance_plan`: "Plan name from card or GHL Insurance Plan field. Never copy provider name."
+1. In `getUpdateableFields(...)` extend the return type to include an optional `statusChangeNote: { appointmentId, fromStatus, toStatus }`.
 
-**2. Backfill bad data**
-```sql
-UPDATE all_appointments
-SET group_number = NULL,
-    parsed_insurance_info = parsed_insurance_info - 'insurance_group_number',
-    parsing_completed_at = NULL,
-    updated_at = now()
-WHERE parsed_insurance_info->>'insurance_group_number' ~* 
-  '(insurance type:|appointment status:|appointment details:|scheduled)';
-```
-Then trigger `auto-parse-intake-notes` to re-process the queue with corrected logic.
+2. In the existing status-update branch (around line 740-758), when an explicit GHL status change is accepted (i.e. not a portal-only-terminal preserve, and not the Welcome Call branch which already records its own note), capture:
+   ```ts
+   statusChangeNote = {
+     appointmentId: existingAppointment.id,
+     fromStatus: existingAppointment.status || 'Unknown',
+     toStatus: webhookData.status,
+   }
+   ```
+   Skip if `fromStatus === toStatus` (no real change).
 
-**3. Verify**
-After re-parse, Travis Long should show: Provider=PHYSICIAN MUTUAL, Plan=MEDICARE SUPPLEMENT PLAN G, Member ID=8750012453, Group#=blank.
+3. Return `statusChangeNote` alongside the other note payloads.
+
+4. In the main `serve` handler (right after the `welcomeCallTransitionNote` insert block, ~line 238), add a parallel insert:
+   ```ts
+   if (statusChangeNote) {
+     const ts = new Date().toLocaleString('en-US', {
+       timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short'
+     });
+     await supabase.from('appointment_notes').insert({
+       appointment_id: statusChangeNote.appointmentId,
+       note_text: `Status changed from "${statusChangeNote.fromStatus}" to "${statusChangeNote.toStatus}" via GoHighLevel — ${ts}`,
+       created_by: 'GoHighLevel',
+     });
+   }
+   ```
+
+5. Destructure `statusChangeNote` from the `getUpdateableFields` call (line 163).
+
+## Guardrails (already in place, preserved)
+- Reschedules continue to use the existing reschedule note (no double-note — date-change branch sets status to "Confirmed" but the reschedule note covers it; we skip the new note when `rescheduleNote` exists for the same appointment).
+- Welcome Call transitions continue to use their own note (skip new note when `welcomeCallTransitionNote` exists).
+- Portal-only terminal preserves (OON / Do Not Call / Cancelled) are NOT logged because the status was not actually changed.
+
+## Memory update
+Add a memory entry under `mem://integrations/ghl-webhook-status-change-notes` documenting that all accepted GHL status changes write a `appointment_notes` row attributed to "GoHighLevel".
+
+## Files
+- `supabase/functions/ghl-webhook-handler/index.ts` (edit)
+- `mem://integrations/ghl-webhook-status-change-notes` (new)
+- `mem://index.md` (append memory reference)
