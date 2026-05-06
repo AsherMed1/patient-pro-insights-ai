@@ -1147,7 +1147,11 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     } else if ((key.includes('member') && key.includes('id')) || key.includes('insurance_id')) {
       result.insurance_info.insurance_id_number = value;
     } else if (key.includes('group') || key.includes('grp')) {
-      result.insurance_info.insurance_group_number = value;
+      if (!isInvalidGroupNumber(value)) {
+        result.insurance_info.insurance_group_number = value;
+      } else {
+        console.log(`[AUTO-PARSE GHL] Rejected invalid group_number from field "${rawKey}": ${value}`);
+      }
     } else if (key.includes('insurance') && key.includes('note')) {
       result.insurance_info.insurance_notes = value;
     } else if ((key === 'notes' || key.startsWith('notes ') || key.startsWith('notes_') || key.startsWith('notes(')) && 
