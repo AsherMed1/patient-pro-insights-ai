@@ -918,6 +918,18 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </Badge>
                   </div>
                 )}
+                {formatValue(parsedPathologyInfo.open_wounds) && (() => {
+                  const ow = String(parsedPathologyInfo.open_wounds).trim();
+                  const positive = ow && !/^(no|none|n\/a|false|0)$/i.test(ow);
+                  return (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Open Wounds:</span>{" "}
+                      <Badge variant={positive ? "destructive" : "secondary"}>
+                        {ow}
+                      </Badge>
+                    </div>
+                  );
+                })()}
                 {formatValue(parsedPathologyInfo.vascular_provider) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Vascular Provider:</span>{" "}
