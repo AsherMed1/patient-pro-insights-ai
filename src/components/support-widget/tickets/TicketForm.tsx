@@ -19,6 +19,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('general');
+  const [serviceAffected, setServiceAffected] = useState('none');
   const [priority, setPriority] = useState('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
