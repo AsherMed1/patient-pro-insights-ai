@@ -44,7 +44,8 @@ export const TicketForm: React.FC<TicketFormProps> = ({
           category,
           priority,
           created_by_email: user.email,
-          created_by_name: user.email.split('@')[0]
+          created_by_name: user.email.split('@')[0],
+          metadata: { service_affected: serviceAffected }
         })
         .select('ticket_number')
         .single();
