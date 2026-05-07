@@ -156,6 +156,31 @@ export const TicketForm: React.FC<TicketFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">
+            Which service is affected?
+          </label>
+          <select
+            value={serviceAffected}
+            onChange={(e) => setServiceAffected(e.target.value)}
+            className={cn(
+              "w-full px-3 py-2 text-sm rounded-lg",
+              "bg-background border border-border",
+              "focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            )}
+          >
+            <option value="none">N/A — Not service specific</option>
+            <option value="PAE">PAE</option>
+            <option value="UFE">UFE</option>
+            <option value="GAE">GAE</option>
+            <option value="HAE">HAE</option>
+            <option value="PAD">PAD</option>
+            <option value="FSE">FSE</option>
+            <option value="TAE">TAE</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
             Priority
           </label>
           <div className="grid grid-cols-4 gap-2">
