@@ -106,14 +106,17 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
     
     // Check if status is Pending (needs special routing)
     const isPendingStatus = normalizedStatus === 'pending';
+    // Premier-style unscheduled captures (is_unscheduled=true) are brand-new leads that
+    // arrive as Pending by design — they should appear in the "New" tab, not Needs Review.
+    const isUnscheduledLead = appointment.is_unscheduled === true;
     
     switch (filterType) {
       case 'new':
-        // New: Appointments where internal_process_complete is NOT true (false or null) - BUT NOT cancelled AND NOT Pending
-        return !isCompleted && !isPendingStatus && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
+        // New: IPC not true AND not terminal AND (not Pending OR is an unscheduled lead)
+        return !isCompleted && (!isPendingStatus || isUnscheduledLead) && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
       case 'needs-review':
-        // Needs Review: Pending status OR (past/null date + not updated) - BUT NOT cancelled
-        return !isCompleted && (isPendingStatus || isInPast || !appointment.date_of_appointment) && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || isPendingStatus);
+        // Needs Review: Pending status OR (past/null date + not updated) - BUT NOT cancelled, NOT unscheduled-lead
+        return !isCompleted && !isUnscheduledLead && (isPendingStatus || isInPast || !appointment.date_of_appointment) && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || isPendingStatus);
       case 'future':
         // Future: appointment in the future + internal_process_complete is TRUE (two-point trigger) - BUT NOT cancelled
         return !isCompleted && isInFuture && appointment.internal_process_complete === true;
