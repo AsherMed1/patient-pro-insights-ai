@@ -19,6 +19,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('general');
+  const [serviceAffected, setServiceAffected] = useState('none');
   const [priority, setPriority] = useState('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -43,7 +44,8 @@ export const TicketForm: React.FC<TicketFormProps> = ({
           category,
           priority,
           created_by_email: user.email,
-          created_by_name: user.email.split('@')[0]
+          created_by_name: user.email.split('@')[0],
+          metadata: { service_affected: serviceAffected }
         })
         .select('ticket_number')
         .single();
@@ -149,6 +151,31 @@ export const TicketForm: React.FC<TicketFormProps> = ({
             <option value="technical">Technical Issue</option>
             <option value="billing">Billing</option>
             <option value="feature">Feature Request</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Which service is affected?
+          </label>
+          <select
+            value={serviceAffected}
+            onChange={(e) => setServiceAffected(e.target.value)}
+            className={cn(
+              "w-full px-3 py-2 text-sm rounded-lg",
+              "bg-background border border-border",
+              "focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            )}
+          >
+            <option value="none">N/A — Not service specific</option>
+            <option value="PAE">PAE</option>
+            <option value="UFE">UFE</option>
+            <option value="GAE">GAE</option>
+            <option value="HAE">HAE</option>
+            <option value="PAD">PAD</option>
+            <option value="FSE">FSE</option>
+            <option value="TAE">TAE</option>
+            <option value="other">Other</option>
           </select>
         </div>
 

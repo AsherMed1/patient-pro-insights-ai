@@ -1,44 +1,37 @@
-# Premier Vascular — New Patients Not Showing in "New" Tab
+## Plan: PAD Wound Indicator + Ticket Service Field
 
-## Root cause
+### Part 1 — PAD Wound Indicator on Patient Record
 
-Premier Vascular intakes from GHL are intentionally created with `status = 'Pending'` and `is_unscheduled = true` (no date booked — leads choose a time preference instead). This is by design per the Premier capture rule.
+**Where it shows up:** Status/badge row of `AppointmentCard.tsx` (next to the Confirmed/Procedure badges), so the clinic sees it immediately when scanning the New / Needs Review tabs without expanding the card. Also surface it in the expanded Pathology section of `ParsedIntakeInfo.tsx`.
 
-However, the appointments tab filter (`src/components/appointments/utils.ts → filterAppointments`) routes ANY `Pending` status to the **Needs Review** tab and explicitly excludes it from **New**:
+**Trigger condition:**
+- Procedure is PAD (calendar name contains "PAD" OR `parsed_pathology_info.procedure_type === 'PAD'`).
+- AND the wound is positive. We treat any of these as "wound = yes":
+  - `parsed_pathology_info.open_wounds` value contains "YES" / "yes" / "open" / a free-text wound description (i.e. value is present and not "NO" / "None" / empty).
+  - OR `parsed_pathology_info.symptoms` contains "open wound" / "wound" / "sore" / "ulcer".
 
-```
-case 'new':
-  return ... && !isPendingStatus && ...
-case 'needs-review':
-  return ... && (isPendingStatus || isInPast || !date_of_appointment) ...
-```
+**Visual:** Red destructive badge with an AlertTriangle icon labeled `Wound +`. Tooltip shows the raw `open_wounds` text so the clinic can read the wound details on hover. Inside `ParsedIntakeInfo`, add a dedicated row "Open Wounds" displaying the value with the same red treatment.
 
-So every brand-new Premier lead lands silently in "Needs Review", which is why the client sees the "new patient" email but the New tab is empty until they manually flip the status to Confirmed.
+**No DB changes** — the data already lives in `parsed_pathology_info.open_wounds` (the auto-parser already extracts it; see `auto-parse-intake-notes/index.ts` lines 778-783, 1230-1234).
 
-DB confirms: 2 Premier records currently sitting as Pending / is_unscheduled=true / internal_process_complete=false (Priscilla Butler today). Other Premier records that have been manually moved show up correctly.
+### Part 2 — Add Service field to Support Ticket Form
 
-## Fix
+**Where:** `src/components/support-widget/tickets/TicketForm.tsx`. Add a new required dropdown labeled **"Which service is affected?"** between Category and Priority.
 
-Treat Premier-style **unscheduled Pending** records (`is_unscheduled === true`) as "new" so they appear in the **New** tab on first arrival, while still keeping the existing "needs review" behavior for genuinely stuck appointments (past date, missing date with no `is_unscheduled` flag, etc.) on other projects.
+**Options:** PAE, UFE, GAE, HAE, PAD, FSE, TAE, Other / N/A.
+(Adds the three requested — PAD, FSE, TAE — alongside the existing service lines so the form stays useful across all clinics.)
 
-### Changes
+**Storage:** Save the selection into the existing `support_tickets.metadata` JSONB column as `{ service_affected: "PAD" }`. No schema migration required.
 
-1. **`src/components/appointments/utils.ts`** — update `filterAppointments`:
-   - `new` tab: include records when `is_unscheduled === true` AND not in a terminal status AND `internal_process_complete !== true`, even if status is Pending.
-   - `needs-review` tab: exclude `is_unscheduled === true` Pending records (they belong in New now). Keep Pending routing to Needs Review for non-unscheduled records (so other projects unaffected).
+**Display:** Update `SupportQueueManager` (admin ticket list) to render the service tag next to the category badge so Ops can filter/scan tickets by service.
 
-2. **Tab counts** in `AppointmentsTabs.tsx` already derive from the filtered list, so no separate change needed.
+### Files to change
 
-3. **Memory update** — revise `mem://projects/premier-vascular/unscheduled-capture`: change "Records route to Needs Review tab automatically" → "Records route to New tab (is_unscheduled=true overrides Pending → Needs Review routing)".
+- `src/components/appointments/AppointmentCard.tsx` — add wound badge in the status row (PAD + wound=yes).
+- `src/components/appointments/ParsedIntakeInfo.tsx` — render Open Wounds row in pathology section.
+- `src/components/support-widget/tickets/TicketForm.tsx` — add Service dropdown, persist to `metadata`.
+- `src/components/SupportQueueManager.tsx` — show `metadata.service_affected` in ticket list.
 
-### What is NOT changing
-
-- Webhook still writes `status = 'Pending'`, `is_unscheduled = true` for Premier (preserves Premier's unscheduled-capture intent and keeps EMR auto-queue / short-notice alerts dormant).
-- All other projects: Pending continues to route to Needs Review.
-- Terminal-status routing, completed tab, and Future tab logic untouched.
-
-## Verification after deploy
-
-- Premier "Priscilla Butler" Pending record should appear in **New** tab on the Premier portal.
-- Confirm a non-Premier Pending record (if any) still appears in **Needs Review**.
-- New webhook-created Premier lead → lands in New tab without manual status change.
+### Out of scope
+- No GHL / parser changes (open_wounds extraction already works).
+- No new DB columns; reuse existing `parsed_pathology_info.open_wounds` and `support_tickets.metadata`.

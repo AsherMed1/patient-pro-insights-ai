@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle, MapPin } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle, MapPin, AlertTriangle } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatDateTime, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -1633,6 +1633,38 @@ const AppointmentCard = ({
               {appointment.procedure_ordered ? 'Procedure Ordered' : 'No Procedure'}
             </Badge>
           )}
+
+          {(() => {
+            const path: any = appointment.parsed_pathology_info || {};
+            const calName = (appointment.calendar_name || '').toUpperCase();
+            const procType = String(path.procedure_type || path.procedure || '').toUpperCase();
+            const isPad = /\bPAD\b/.test(calName) || procType === 'PAD';
+            if (!isPad) return null;
+            const ow = path.open_wounds ? String(path.open_wounds).trim() : '';
+            const symptoms = String(path.symptoms || '').toLowerCase();
+            const owPositive = ow && !/^(no|none|n\/a|false|0)$/i.test(ow);
+            const symptomPositive = /open\s*wound|wound|sore|ulcer/.test(symptoms);
+            if (!owPositive && !symptomPositive) return null;
+            const tooltipText = ow || 'Wound indicators detected in symptoms';
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Wound +
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <div className="text-xs">
+                      <div className="font-semibold mb-1">PAD Wound Indicator</div>
+                      <div>{tooltipText}</div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          })()}
           
           {appointment.agent && (
             <Badge variant="outline">
