@@ -391,7 +391,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
     if (open) {
       fetchLocationAndServiceOptions();
     }
-  }, [open]);
+  }, [open, serviceFilter]);
 
   // Auto-reconciliation removed - use manual CSV sync via Google Sheets webhook instead
 
