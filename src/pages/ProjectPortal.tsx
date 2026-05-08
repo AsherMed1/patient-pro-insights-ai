@@ -642,6 +642,7 @@ const ProjectPortal = () => {
                    <LocationLegend
                     projectName={project.project_name}
                     selectedLocations={selectedLocations}
+                    activeEventTypes={selectedEventTypes.length > 0 ? selectedEventTypes : undefined}
                     onToggleLocation={(loc) => {
                       setSelectedLocations(prev =>
                         prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]

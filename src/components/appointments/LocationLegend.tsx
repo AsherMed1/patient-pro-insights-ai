@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { MapPin } from 'lucide-react';
+import { getEventTypeFromCalendar } from './calendarUtils';
 
 const LOCATION_COLORS = [
   'bg-slate-500',
@@ -54,11 +55,12 @@ interface LocationLegendProps {
   projectName: string;
   selectedLocations: string[];
   onToggleLocation: (location: string) => void;
+  activeEventTypes?: string[];
 }
 
 export { extractLocationFromCalendarName };
 
-export function LocationLegend({ projectName, selectedLocations, onToggleLocation }: LocationLegendProps) {
+export function LocationLegend({ projectName, selectedLocations, onToggleLocation, activeEventTypes }: LocationLegendProps) {
   const [locations, setLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,18 +69,36 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
       try {
         const { data, error } = await supabase
           .from('all_appointments')
-          .select('calendar_name')
+          .select('calendar_name, patient_intake_notes, parsed_pathology_info')
           .eq('project_name', projectName)
           .not('calendar_name', 'is', null);
 
         if (error) throw error;
 
         const uniqueLocations = new Set<string>();
-        data?.forEach(row => {
-          const loc = extractLocationFromCalendarName(row.calendar_name);
-          if (loc && !LEGACY_LOCATIONS.some(legacy => loc.includes(legacy))) {
-            uniqueLocations.add(loc);
+        const isVSNC = projectName === 'Vascular Surgery Center of Excellence';
+        const hasNeuroFilter = activeEventTypes?.some(t => t.toLowerCase() === 'neuropathy');
+
+        data?.forEach((row: any) => {
+          // If event type filtering is active, only include locations for matching event types
+          if (activeEventTypes && activeEventTypes.length > 0) {
+            const fallback = row.parsed_pathology_info?.procedure || row.patient_intake_notes;
+            const eventType = getEventTypeFromCalendar(row.calendar_name, false, fallback);
+            if (!activeEventTypes.includes(eventType.type)) {
+              return;
+            }
           }
+
+          const loc = extractLocationFromCalendarName(row.calendar_name);
+          if (!loc) return;
+          if (LEGACY_LOCATIONS.some(legacy => loc.includes(legacy))) return;
+
+          // Exclude Virtual for VSNC project, or when Neuro is explicitly filtered
+          if (loc === 'Virtual' && (isVSNC || hasNeuroFilter)) {
+            return;
+          }
+
+          uniqueLocations.add(loc);
         });
 
         setLocations(Array.from(uniqueLocations).sort());
@@ -90,7 +110,7 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
     };
 
     if (projectName) fetchLocations();
-  }, [projectName]);
+  }, [projectName, activeEventTypes]);
 
   if (loading || locations.length < 2) return null;
 
