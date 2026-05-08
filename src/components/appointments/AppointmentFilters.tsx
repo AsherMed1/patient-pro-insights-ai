@@ -121,13 +121,18 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       if (data) {
         const locations = new Set<string>();
         const services = new Set<string>();
+        const isVSNC = projectFilter === 'Vascular Surgery Center of Excellence';
+        const isNeuroService = serviceFilter?.toLowerCase() === 'neuropathy' || serviceFilter?.toLowerCase() === 'neuro';
         
         data.forEach(item => {
           if (item.calendar_name) {
             // Extract location
             if (/virtual\s+consultation/i.test(item.calendar_name)) {
               // "Virtual Consultation" → treat "Virtual" as a location
-              locations.add('Virtual');
+              // Skip Virtual for VSNC project or when Neuro service is selected
+              if (!isVSNC && !isNeuroService) {
+                locations.add('Virtual');
+              }
             } else {
               // Try parenthesized format: "(San Antonio, TX – Knee Pain Treatment)"
               const parenMatch = item.calendar_name.match(/\(([^)]+)\)/);
