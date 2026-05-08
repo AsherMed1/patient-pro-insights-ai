@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { MapPin } from 'lucide-react';
+import { getEventTypeFromCalendar } from './calendarUtils';
 
 const LOCATION_COLORS = [
   'bg-slate-500',
@@ -15,6 +16,9 @@ const LOCATION_COLORS = [
 ];
 
 const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
+
+// Projects where Virtual should not appear as a location option
+const NO_VIRTUAL_PROJECTS = ['Vascular Surgery Center of Excellence'];
 
 function extractLocationFromCalendarName(calendarName: string): string | null {
   // Handle "Virtual Consultation" as a location
@@ -54,11 +58,12 @@ interface LocationLegendProps {
   projectName: string;
   selectedLocations: string[];
   onToggleLocation: (location: string) => void;
+  activeEventTypes?: string[];
 }
 
 export { extractLocationFromCalendarName };
 
-export function LocationLegend({ projectName, selectedLocations, onToggleLocation }: LocationLegendProps) {
+export function LocationLegend({ projectName, selectedLocations, onToggleLocation, activeEventTypes }: LocationLegendProps) {
   const [locations, setLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
