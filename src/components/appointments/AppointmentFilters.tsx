@@ -80,7 +80,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     fetchProjects();
     fetchStatusOptions();
     fetchLocationAndServiceOptions();
-  }, [projectFilter]);
+  }, [projectFilter, serviceFilter]);
   const fetchProjects = async () => {
     try {
       const {
