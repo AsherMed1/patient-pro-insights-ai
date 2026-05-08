@@ -1,37 +1,34 @@
-## Plan: PAD Wound Indicator + Ticket Service Field
+## Problem
 
-### Part 1 — PAD Wound Indicator on Patient Record
+Premier Vascular lead `DONOTCONTACT2 TESTLEAD2` (id `b476b619…`) has `Time Preference: Morning` in GHL but the row stored `time_preference = 'no_preference'`.
 
-**Where it shows up:** Status/badge row of `AppointmentCard.tsx` (next to the Confirmed/Procedure badges), so the clinic sees it immediately when scanning the New / Needs Review tabs without expanding the card. Also surface it in the expanded Pathology section of `ParsedIntakeInfo.tsx`.
+## Root cause
 
-**Trigger condition:**
-- Procedure is PAD (calendar name contains "PAD" OR `parsed_pathology_info.procedure_type === 'PAD'`).
-- AND the wound is positive. We treat any of these as "wound = yes":
-  - `parsed_pathology_info.open_wounds` value contains "YES" / "yes" / "open" / a free-text wound description (i.e. value is present and not "NO" / "None" / empty).
-  - OR `parsed_pathology_info.symptoms` contains "open wound" / "wound" / "sore" / "ulcer".
+In `supabase/functions/ghl-webhook-handler/index.ts`:
 
-**Visual:** Red destructive badge with an AlertTriangle icon labeled `Wound +`. Tooltip shows the raw `open_wounds` text so the clinic can read the wound details on hover. Inside `ParsedIntakeInfo`, add a dedicated row "Open Wounds" displaying the value with the same red treatment.
+- Line 647 — on **INSERT**, `time_preference` is extracted from `webhookData.patient_intake_notes`, the raw webhook payload. That payload does not yet contain the "Time Preference" custom-field line, so `extractTimePreference()` returns null and the value defaults to `'no_preference'`.
+- Lines 1180-1311 — the function then fetches the **full GHL contact** (including the `Time Preference` custom field), appends it to `patient_intake_notes` as `=== GHL Contact Data (Full) ===`, but **never re-extracts or updates the `time_preference` column**.
 
-**No DB changes** — the data already lives in `parsed_pathology_info.open_wounds` (the auto-parser already extracts it; see `auto-parse-intake-notes/index.ts` lines 778-783, 1230-1234).
+So the column is permanently stuck on the initial fallback even when GHL clearly has a value.
 
-### Part 2 — Add Service field to Support Ticket Form
+## Fix
 
-**Where:** `src/components/support-widget/tickets/TicketForm.tsx`. Add a new required dropdown labeled **"Which service is affected?"** between Category and Priority.
+In the GHL contact enrichment block of `ghl-webhook-handler/index.ts` (around line 1251 where `customFields` are iterated for Premier Vascular):
 
-**Options:** PAE, UFE, GAE, HAE, PAD, FSE, TAE, Other / N/A.
-(Adds the three requested — PAD, FSE, TAE — alongside the existing service lines so the form stays useful across all clinics.)
+1. While walking `customFields`, look for a field whose key matches `/time\s*preference|preferred\s*time|best\s*time/i`.
+2. Normalize its value with the same logic as `extractTimePreference()` (morning / afternoon / evening / no_preference).
+3. When the existing appointment is Premier Vascular, include `time_preference` in the post-enrichment `update` call alongside `patient_intake_notes` — but only when a valid value was extracted (don't clobber an existing real preference with null).
 
-**Storage:** Save the selection into the existing `support_tickets.metadata` JSONB column as `{ service_affected: "PAD" }`. No schema migration required.
+### Backfill the affected row
 
-**Display:** Update `SupportQueueManager` (admin ticket list) to render the service tag next to the category badge so Ops can filter/scan tickets by service.
+Run a one-off update for `b476b619-eb61-4db8-bd3e-7a3f1733f53a` to set `time_preference = 'morning'` (also re-run for any other Premier Vascular leads where notes contain "Time Preference: Morning|Afternoon|Evening" but column is `no_preference`). Done via migration.
 
-### Files to change
+## Files
 
-- `src/components/appointments/AppointmentCard.tsx` — add wound badge in the status row (PAD + wound=yes).
-- `src/components/appointments/ParsedIntakeInfo.tsx` — render Open Wounds row in pathology section.
-- `src/components/support-widget/tickets/TicketForm.tsx` — add Service dropdown, persist to `metadata`.
-- `src/components/SupportQueueManager.tsx` — show `metadata.service_affected` in ticket list.
+- `supabase/functions/ghl-webhook-handler/index.ts` — add custom-field-based time_preference re-extraction in the enrichment block.
+- New migration — backfill existing mis-stored Premier Vascular `time_preference` rows from their `patient_intake_notes`.
 
-### Out of scope
-- No GHL / parser changes (open_wounds extraction already works).
-- No new DB columns; reuse existing `parsed_pathology_info.open_wounds` and `support_tickets.metadata`.
+## Out of scope
+
+- `fetch-ghl-contact-data` already handles this correctly (line 334-346); no change needed there.
+- No UI / frontend changes.

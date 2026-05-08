@@ -1335,6 +1335,28 @@ async function enrichAppointmentWithGHLData(
       }
     }
     
+    // Re-extract time_preference from GHL custom fields (Premier Vascular unscheduled leads).
+    // The initial INSERT only sees the raw webhook payload, which usually lacks the
+    // "Time Preference" custom field, so the column ends up defaulting to 'no_preference'.
+    // Now that we have the full contact, normalize the actual value if present.
+    const normalizeTimePref = (raw: any): string | null => {
+      if (raw === null || raw === undefined) return null;
+      const v = String(Array.isArray(raw) ? raw[0] : raw).toLowerCase().trim();
+      if (!v) return null;
+      if (/no[\s_-]?preference|anytime|any\s*time|either/.test(v)) return 'no_preference';
+      if (/\bmorning\b|\bam\b/.test(v)) return 'morning';
+      if (/\bafternoon\b/.test(v)) return 'afternoon';
+      if (/\bevening\b|\bnight\b|\bpm\b/.test(v)) return 'evening';
+      return null;
+    };
+    const timePrefField = customFields.find((f: any) =>
+      f.key && /time\s*preference|preferred\s*time|best\s*time/i.test(f.key)
+    );
+    const extractedTimePref = normalizeTimePref(timePrefField?.value);
+    if (timePrefField) {
+      console.log(`[${requestId}] Found Time Preference custom field "${timePrefField.key}"=${JSON.stringify(timePrefField.value)} → ${extractedTimePref}`);
+    }
+
     // Prepare parsed fields from root-level contact data
     const parsedContactInfo = {
       name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
@@ -1360,6 +1382,7 @@ async function enrichAppointmentWithGHLData(
         dob: contact.dateOfBirth || null,
         ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
         ...(contact.email ? { lead_email: contact.email } : {}),
+        ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
         updated_at: new Date().toISOString()
       })
       .eq('id', appointmentId)
