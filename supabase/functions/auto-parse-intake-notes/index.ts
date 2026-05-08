@@ -585,7 +585,9 @@ function fallbackRegexParsing(intakeNotes: string): any {
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
-  if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
+  if (upperNotes.includes('TAE') || upperNotes.includes('THYROID')) {
+    result.pathology_info.procedure_type = 'TAE';
+  } else if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
     result.pathology_info.procedure_type = 'HAE';
   } else if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
     result.pathology_info.procedure_type = 'GAE';
@@ -947,6 +949,9 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
+  if (upperKey.includes('TAE') || upperKey.includes('THYROID')) {
+    return 'TAE';
+  }
   if (upperKey.includes('HAE') || upperKey.includes('HEMORRHOID')) {
     return 'HAE';
   }
@@ -1204,7 +1209,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     else if (key.includes('prefer') || key.includes('non-surgical') || key.includes('nonsurgical') || 
              key.includes('treatment') || key.includes('procedure') || key.includes('surgical')) {
       // Extract procedure type from key if present
-      const procedureMatch = key.match(/\b(pae|ufe|gae)\b/i);
+      const procedureMatch = key.match(/\b(pae|ufe|gae|tae|hae|pad|fse|pfe)\b/i);
       if (procedureMatch) {
         result.pathology_info.primary_complaint = `${procedureMatch[1].toUpperCase()} Consultation`;
       }
@@ -1282,6 +1287,33 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     }
     else if (key.includes('diagnosed') && key.includes('following')) {
       (result.pathology_info as any).diagnosis = String(value);
+    }
+    // TAE-specific survey fields (Thyroid Artery Embolization)
+    else if (key.includes('thyroid') || key.includes('goiter') || key.includes('tae')) {
+      const lowerVal = String(value).toLowerCase();
+      result.pathology_info.primary_complaint = 'TAE Consultation';
+      (result.pathology_info as any).affected_area = 'Thyroid';
+      if (key.includes('nodule') || key.includes('goiter')) {
+        (result.pathology_info as any).diagnosis = String(value);
+      } else if (key.includes('avoiding surgery') || key.includes('avoid surgery') || key.includes('minimally invasive')) {
+        (result.pathology_info as any).notes = (result.pathology_info as any).notes
+          ? `${(result.pathology_info as any).notes} | ${String(value)}` : String(value);
+      } else if (key.includes('recommended') && (key.includes('surgery') || key.includes('following'))) {
+        result.pathology_info.previous_treatments = result.pathology_info.previous_treatments
+          ? `${result.pathology_info.previous_treatments}, ${String(value)}` : String(value);
+      } else if (key.includes('experiencing') || key.includes('lump') || key.includes('swelling') || key.includes('neck')) {
+        result.pathology_info.symptoms = result.pathology_info.symptoms
+          ? `${result.pathology_info.symptoms}, ${String(value)}` : String(value);
+      } else if (key.includes('imaging') && (key.includes('thyroid') || key.includes('ultrasound') || key.includes('ct') || key.includes('mri'))) {
+        if (lowerVal.includes('yes')) {
+          result.pathology_info.imaging_done = 'YES';
+        } else if (lowerVal.includes('no')) {
+          result.pathology_info.imaging_done = 'NO';
+        }
+      } else if (key.includes('cosmetic')) {
+        (result.pathology_info as any).notes = (result.pathology_info as any).notes
+          ? `${(result.pathology_info as any).notes} | Cosmetic concerns: ${String(value)}` : `Cosmetic concerns: ${String(value)}`;
+      }
     }
     // HAE-specific survey fields
     else if (key.includes('hemorrhoid') || (key.includes('rectal') && key.includes('bleeding'))) {
@@ -1480,6 +1512,9 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (!calendarName) return null;
   const name = calendarName.toLowerCase();
   
+  if (name.includes('tae') || name.includes('thyroid')) {
+    return 'TAE';
+  }
   if (name.includes('ufe') || name.includes('fibroid') || name.includes('uterine')) {
     return 'UFE';
   }
