@@ -1288,6 +1288,33 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     else if (key.includes('diagnosed') && key.includes('following')) {
       (result.pathology_info as any).diagnosis = String(value);
     }
+    // TAE-specific survey fields (Thyroid Artery Embolization)
+    else if (key.includes('thyroid') || key.includes('goiter') || key.includes('tae')) {
+      const lowerVal = String(value).toLowerCase();
+      result.pathology_info.primary_complaint = 'TAE Consultation';
+      (result.pathology_info as any).affected_area = 'Thyroid';
+      if (key.includes('nodule') || key.includes('goiter')) {
+        (result.pathology_info as any).diagnosis = String(value);
+      } else if (key.includes('avoiding surgery') || key.includes('avoid surgery') || key.includes('minimally invasive')) {
+        (result.pathology_info as any).notes = (result.pathology_info as any).notes
+          ? `${(result.pathology_info as any).notes} | ${String(value)}` : String(value);
+      } else if (key.includes('recommended') && (key.includes('surgery') || key.includes('following'))) {
+        result.pathology_info.previous_treatments = result.pathology_info.previous_treatments
+          ? `${result.pathology_info.previous_treatments}, ${String(value)}` : String(value);
+      } else if (key.includes('experiencing') || key.includes('lump') || key.includes('swelling') || key.includes('neck')) {
+        result.pathology_info.symptoms = result.pathology_info.symptoms
+          ? `${result.pathology_info.symptoms}, ${String(value)}` : String(value);
+      } else if (key.includes('imaging') && (key.includes('thyroid') || key.includes('ultrasound') || key.includes('ct') || key.includes('mri'))) {
+        if (lowerVal.includes('yes')) {
+          result.pathology_info.imaging_done = 'YES';
+        } else if (lowerVal.includes('no')) {
+          result.pathology_info.imaging_done = 'NO';
+        }
+      } else if (key.includes('cosmetic')) {
+        (result.pathology_info as any).notes = (result.pathology_info as any).notes
+          ? `${(result.pathology_info as any).notes} | Cosmetic concerns: ${String(value)}` : `Cosmetic concerns: ${String(value)}`;
+      }
+    }
     // HAE-specific survey fields
     else if (key.includes('hemorrhoid') || (key.includes('rectal') && key.includes('bleeding'))) {
       result.pathology_info.primary_complaint = result.pathology_info.primary_complaint 
