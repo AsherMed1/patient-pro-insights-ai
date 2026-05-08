@@ -1,34 +1,48 @@
-## Problem
+# Add TAE procedure support to intake parser
 
-Premier Vascular lead `DONOTCONTACT2 TESTLEAD2` (id `b476b619…`) has `Time Preference: Morning` in GHL but the row stored `time_preference = 'no_preference'`.
+## Why
 
-## Root cause
+`DONOTCONTACT TESTLEAD` (id `6d1820be…`, Joint & Vascular Institute) parsed successfully but `parsed_pathology_info` is entirely null. GHL has 7 TAE pathology fields on the contact (TAE STEP 1/2 — thyroid nodule, surgery recommended, neck swelling, imaging done, cosmetic concerns, etc.), but the parser does not know what TAE is, so every TAE field is skipped.
 
-In `supabase/functions/ghl-webhook-handler/index.ts`:
+Contact, demographics, insurance, and PCP name parsed correctly — only pathology is missing, and only because of unknown-procedure handling.
 
-- Line 647 — on **INSERT**, `time_preference` is extracted from `webhookData.patient_intake_notes`, the raw webhook payload. That payload does not yet contain the "Time Preference" custom-field line, so `extractTimePreference()` returns null and the value defaults to `'no_preference'`.
-- Lines 1180-1311 — the function then fetches the **full GHL contact** (including the `Time Preference` custom field), appends it to `patient_intake_notes` as `=== GHL Contact Data (Full) ===`, but **never re-extracts or updates the `time_preference` column**.
+## Scope
 
-So the column is permanently stuck on the initial fallback even when GHL clearly has a value.
+Single file: `supabase/functions/auto-parse-intake-notes/index.ts`. Plus a one-off reparse of the affected lead.
 
-## Fix
+## Changes
 
-In the GHL contact enrichment block of `ghl-webhook-handler/index.ts` (around line 1251 where `customFields` are iterated for Premier Vascular):
+1. **`detectProcedureFromCalendar`** (~line 1478) — add a branch that returns `'TAE'` when the calendar name contains `TAE` or `thyroid`.
 
-1. While walking `customFields`, look for a field whose key matches `/time\s*preference|preferred\s*time|best\s*time/i`.
-2. Normalize its value with the same logic as `extractTimePreference()` (morning / afternoon / evening / no_preference).
-3. When the existing appointment is Premier Vascular, include `time_preference` in the post-enrichment `update` call alongside `patient_intake_notes` — but only when a valid value was extracted (don't clobber an existing real preference with null).
+2. **`detectProcedureFromKey`** (~line 947) — add `if (upperKey.includes('TAE') || upperKey.includes('THYROID')) return 'TAE';` ahead of the generic branches so `TAE STEP 1 | …` keys bucket correctly and aren't filtered out by the wrong-procedure guard at ~line 1060.
 
-### Backfill the affected row
+3. **Fallback procedure detection** (~line 588) — add a TAE branch (`upperNotes.includes('TAE')` or `THYROID` or `THYROID NODULE`) to the if/else chain that sets `result.pathology_info.procedure_type`.
 
-Run a one-off update for `b476b619-eb61-4db8-bd3e-7a3f1733f53a` to set `time_preference = 'morning'` (also re-run for any other Premier Vascular leads where notes contain "Time Preference: Morning|Afternoon|Evening" but column is `no_preference`). Done via migration.
+4. **TAE custom-field handling** in the GHL custom-field loop (~line 1229–1310, alongside PAD/FSE/HAE blocks). Map the known TAE STEP fields into `parsed_pathology_info`:
+   - "diagnosed with a thyroid nodule or goiter" → `oa_tkr_diagnosed`-equivalent slot (reuse `primary_complaint = 'TAE Consultation'` and write the answer to `notes`/`symptoms` as we do for HAE)
+   - "interested in avoiding surgery" → append to `notes`
+   - "doctor recommended … Surgery" → `previous_treatments`
+   - "experiencing any of the following … Lump or swelling in the neck" → `symptoms`
+   - "open to a minimally invasive … treatment" → append to `notes`
+   - "imaging of your thyroid" → `imaging_done`
+   - "cosmetic concerns about your neck" → append to `symptoms`/`notes`
+   Set `primary_complaint = 'TAE Consultation'`.
 
-## Files
+5. **Procedure-type label in `primary_complaint` regex** (~line 1207) — extend `/\b(pae|ufe|gae)\b/i` to include `tae`.
 
-- `supabase/functions/ghl-webhook-handler/index.ts` — add custom-field-based time_preference re-extraction in the enrichment block.
-- New migration — backfill existing mis-stored Premier Vascular `time_preference` rows from their `patient_intake_notes`.
+6. **Reparse the affected lead** by calling the existing `reparse-specific-appointments` edge function (or nullifying `parsing_completed_at` and letting the auto-parser re-run) for `id = 6d1820be-640b-46c4-8af2-0f9e767828e7`. Same approach used for the recent Premier Vascular backfill.
 
 ## Out of scope
 
-- `fetch-ghl-contact-data` already handles this correctly (line 334-346); no change needed there.
-- No UI / frontend changes.
+- No UI changes — `ParsedIntakeInfo.tsx` already renders whatever lands in `parsed_pathology_info`.
+- No new procedure-aware field-visibility tweaks (TAE just reuses the generic pathology section for now).
+- No webhook changes — the issue is purely in the parser, not in `ghl-webhook-handler`.
+- Other null fields on this record (gender, age, pcp_phone, imaging) are not parser bugs — they are absent from the GHL contact.
+
+## Verification
+
+After deploy + reparse:
+- `parsed_pathology_info.procedure_type = 'TAE'`
+- `parsed_pathology_info.primary_complaint = 'TAE Consultation'`
+- `symptoms`, `imaging_done`, `previous_treatments`, `notes` populated from the TAE STEP answers
+- Patient Pro Insights panel for this lead shows the TAE pathology block instead of an empty section.
