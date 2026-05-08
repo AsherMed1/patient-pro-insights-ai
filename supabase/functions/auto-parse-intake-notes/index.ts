@@ -648,11 +648,11 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
   // Extract imaging details if not already populated
   if (!parsedData.medical_info.imaging_details) {
     const imagingPatterns = [
-      /had_imaging_before:\s*([^\n|]+)/i,
-      /have you had.*?imaging.*?:\s*([^\n|]+)/i,
-      /had imaging before:\s*([^\n|]+)/i,
-      /previous imaging:\s*([^\n|]+)/i,
-      /imaging_done:\s*([^\n|]+)/i
+      /had_imaging_before\s*\??\s*:\s*([^\n|]+)/i,
+      /have you had.*?imaging.*?\??\s*:\s*([^\n|]+)/i,
+      /had imaging before\s*\??\s*:\s*([^\n|]+)/i,
+      /previous imaging\s*\??\s*:\s*([^\n|]+)/i,
+      /imaging_done\s*\??\s*:\s*([^\n|]+)/i
     ];
     
     for (const pattern of imagingPatterns) {
