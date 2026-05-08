@@ -585,7 +585,9 @@ function fallbackRegexParsing(intakeNotes: string): any {
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
-  if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
+  if (upperNotes.includes('TAE') || upperNotes.includes('THYROID')) {
+    result.pathology_info.procedure_type = 'TAE';
+  } else if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
     result.pathology_info.procedure_type = 'HAE';
   } else if (upperNotes.includes('GAE') || upperNotes.includes('KNEE')) {
     result.pathology_info.procedure_type = 'GAE';
@@ -947,6 +949,9 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
+  if (upperKey.includes('TAE') || upperKey.includes('THYROID')) {
+    return 'TAE';
+  }
   if (upperKey.includes('HAE') || upperKey.includes('HEMORRHOID')) {
     return 'HAE';
   }
@@ -1204,7 +1209,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     else if (key.includes('prefer') || key.includes('non-surgical') || key.includes('nonsurgical') || 
              key.includes('treatment') || key.includes('procedure') || key.includes('surgical')) {
       // Extract procedure type from key if present
-      const procedureMatch = key.match(/\b(pae|ufe|gae)\b/i);
+      const procedureMatch = key.match(/\b(pae|ufe|gae|tae|hae|pad|fse|pfe)\b/i);
       if (procedureMatch) {
         result.pathology_info.primary_complaint = `${procedureMatch[1].toUpperCase()} Consultation`;
       }
@@ -1480,6 +1485,9 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (!calendarName) return null;
   const name = calendarName.toLowerCase();
   
+  if (name.includes('tae') || name.includes('thyroid')) {
+    return 'TAE';
+  }
   if (name.includes('ufe') || name.includes('fibroid') || name.includes('uterine')) {
     return 'UFE';
   }
