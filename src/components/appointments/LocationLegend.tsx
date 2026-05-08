@@ -17,9 +17,6 @@ const LOCATION_COLORS = [
 
 const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
 
-// Projects where Virtual should not appear as a location option
-const NO_VIRTUAL_PROJECTS = ['Vascular Surgery Center of Excellence'];
-
 function extractLocationFromCalendarName(calendarName: string): string | null {
   // Handle "Virtual Consultation" as a location
   if (/virtual\s+consultation/i.test(calendarName)) {
