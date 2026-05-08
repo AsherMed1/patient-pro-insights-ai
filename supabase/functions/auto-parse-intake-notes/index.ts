@@ -833,6 +833,68 @@ function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
     }
   }
   
+  // === TAE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // For Joint & Vascular Institute TAE intake; runs even when GHL custom field defs are unavailable
+  if (/TAE STEP|thyroid nodule|thyroid artery embolization/i.test(intakeNotes)) {
+    parsedData.pathology_info.procedure_type = 'TAE';
+    if (!parsedData.pathology_info.primary_complaint) {
+      parsedData.pathology_info.primary_complaint = 'TAE Consultation';
+    }
+    if (!parsedData.pathology_info.affected_area) {
+      parsedData.pathology_info.affected_area = 'Thyroid';
+    }
+
+    // Diagnosis: thyroid nodule / goiter
+    const diagMatch = intakeNotes.match(/diagnosed with a thyroid nodule or goiter\s*\??\s*:\s*([^\n]+)/i);
+    if (diagMatch && diagMatch[1] && !parsedData.pathology_info.diagnosis) {
+      const v = diagMatch[1].trim();
+      parsedData.pathology_info.diagnosis = /^yes/i.test(v) ? 'Thyroid nodule or goiter' : v;
+      console.log(`[AUTO-PARSE TAE] Extracted diagnosis: ${parsedData.pathology_info.diagnosis}`);
+    }
+
+    // Previous treatments: doctor recommended …
+    const recMatch = intakeNotes.match(/Has a doctor recommended any of the following\s*\??\s*:\s*([^\n]+)/i);
+    if (recMatch && recMatch[1] && !parsedData.pathology_info.previous_treatments) {
+      parsedData.pathology_info.previous_treatments = recMatch[1].trim();
+      console.log(`[AUTO-PARSE TAE] Extracted previous_treatments: ${recMatch[1].trim()}`);
+    }
+
+    // Symptoms: experiencing any of the following
+    const sxMatch = intakeNotes.match(/Are you experiencing any of the following\s*\??\s*:\s*([^\n]+)/i);
+    if (sxMatch && sxMatch[1]) {
+      const sx = sxMatch[1].trim();
+      if (!parsedData.pathology_info.symptoms || /^(yes|no)$/i.test(parsedData.pathology_info.symptoms)) {
+        parsedData.pathology_info.symptoms = sx;
+        console.log(`[AUTO-PARSE TAE] Extracted symptoms: ${sx}`);
+      }
+    }
+
+    // Imaging done (TAE STEP 2)
+    const imgMatch = intakeNotes.match(/Do you have any imaging of your thyroid[^:]*:\s*([^\n]+)/i);
+    if (imgMatch && imgMatch[1]) {
+      const v = imgMatch[1].trim().toLowerCase();
+      if (v.startsWith('yes')) parsedData.pathology_info.imaging_done = 'YES';
+      else if (v.startsWith('no')) parsedData.pathology_info.imaging_done = 'NO';
+      console.log(`[AUTO-PARSE TAE] Extracted imaging_done: ${parsedData.pathology_info.imaging_done}`);
+    }
+
+    // Notes: avoid surgery / minimally invasive / cosmetic concerns
+    const noteParts: string[] = [];
+    const avoidMatch = intakeNotes.match(/How interested are you in avoiding surgery\s*\??\s*:\s*([^\n]+)/i);
+    if (avoidMatch && avoidMatch[1]) noteParts.push(`Avoiding surgery: ${avoidMatch[1].trim()}`);
+    const miniMatch = intakeNotes.match(/open to a minimally invasive[^:]*:\s*([^\n]+)/i);
+    if (miniMatch && miniMatch[1]) noteParts.push(`Open to minimally invasive treatment: ${miniMatch[1].trim()}`);
+    const cosmMatch = intakeNotes.match(/cosmetic concerns about your neck\s*\??\s*:\s*([^\n]+)/i);
+    if (cosmMatch && cosmMatch[1]) noteParts.push(`Cosmetic concerns: ${cosmMatch[1].trim()}`);
+    if (noteParts.length > 0) {
+      const joined = noteParts.join(' | ');
+      parsedData.pathology_info.other_notes = parsedData.pathology_info.other_notes
+        ? `${parsedData.pathology_info.other_notes} | ${joined}`
+        : joined;
+      console.log(`[AUTO-PARSE TAE] Extracted other_notes: ${joined}`);
+    }
+  }
+
   // === GAE STEP-specific field extraction (deterministic regex on raw notes) ===
   // These extract from "GAE STEP 1 | ..." / "GAE STEP 2 | ..." lines that the AI parser commonly misses
   const yesNoFromVal = (s: string): string | null => {
