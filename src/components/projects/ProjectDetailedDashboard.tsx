@@ -110,6 +110,8 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       if (data) {
         const locations = new Set<string>();
         const services = new Set<string>();
+        const isVSNC = project.project_name === 'Vascular Surgery Center of Excellence';
+        const isNeuroFilter = serviceFilter?.toLowerCase() === 'neuropathy' || serviceFilter?.toLowerCase() === 'neuro';
         
         data.forEach(item => {
           if (item.calendar_name) {
@@ -118,7 +120,10 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
             if (isVirtual) {
               // Virtual is an exclusive location — do NOT also extract a physical location
-              locations.add('Virtual');
+              // Skip Virtual for VSNC project or when Neuro service is filtered
+              if (!isVSNC && !isNeuroFilter) {
+                locations.add('Virtual');
+              }
             } else {
               // Extract location from parenthesized format: "(City, ST – Description)"
               const parenMatch = calName.match(/\(([^)]+)\)/);
@@ -156,7 +161,8 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               if (service.toLowerCase() === 'virtual' || service === '') {
                 // Bare "Virtual Consultation" — no specific service token in calendar name.
                 // Surface as "Virtual (Unspecified)" so these appointments remain filterable.
-                if (isVirtual) {
+                // Skip for VSNC project
+                if (isVirtual && !isVSNC) {
                   services.add('Virtual (Unspecified)');
                 }
               } else {
