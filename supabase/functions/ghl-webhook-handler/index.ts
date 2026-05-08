@@ -660,10 +660,10 @@ function getUpdateableFields(
         ghl_id: webhookData.ghl_id,
         ghl_appointment_id: isPremierVascular ? null : webhookData.ghl_appointment_id,
         ghl_location_id: webhookData.ghl_location_id,
-        status: isPremierVascular ? 'Pending' : 'Confirmed',
+        status: 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
-        was_ever_confirmed: !isPremierVascular,
+        was_ever_confirmed: true,
         time_preference: timePreference,
         is_unscheduled: isPremierVascular,
       }
