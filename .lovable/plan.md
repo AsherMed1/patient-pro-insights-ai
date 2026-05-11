@@ -1,48 +1,39 @@
-# Add TAE procedure support to intake parser
+## Problem
 
-## Why
+Ventra Medical patient **Daisy Andrew** (appt `5b31849b-77e2-4a99-b51b-0454fb65a12e`) is tagged as **GAE** in Patient Pro Insights, but her intake clearly indicates **UFE** (calendar Service Name = "UFE", every pathology field is "UFE STEP 1/2 | …").
 
-`DONOTCONTACT TESTLEAD` (id `6d1820be…`, Joint & Vascular Institute) parsed successfully but `parsed_pathology_info` is entirely null. GHL has 7 TAE pathology fields on the contact (TAE STEP 1/2 — thyroid nodule, surgery recommended, neck swelling, imaging done, cosmetic concerns, etc.), but the parser does not know what TAE is, so every TAE field is skipped.
+### Root cause
+- Calendar name is generic — `"Request Your Virtual Consultation at Great Neck, NY"` — so `detectProcedureFromCalendar()` returns `null`.
+- With no calendar hint, the AI parser is free to guess and mis-classified her as GAE (likely picking up generic "duration" / "symptoms" wording).
+- There is no project-level guardrail telling the parser that Ventra only offers **UFE** and **HAE**.
 
-Contact, demographics, insurance, and PCP name parsed correctly — only pathology is missing, and only because of unknown-procedure handling.
+## Fix
 
-## Scope
+### 1. `supabase/functions/auto-parse-intake-notes/index.ts`
+Add a Ventra-specific procedure constraint in the parsing pipeline (applied before the AI call and after the regex fallback):
 
-Single file: `supabase/functions/auto-parse-intake-notes/index.ts`. Plus a one-off reparse of the affected lead.
+- Detect Ventra by `project_name` matching `/ventra/i`.
+- For Ventra records, restrict the allowed `procedure_type` set to `['UFE', 'HAE']`.
+- When the calendar name does not yield a procedure, sniff the intake notes for `"UFE STEP"` / `"Pathology (UFE)"` → `UFE`, or `"HAE STEP"` / `"Pathology (HAE)"` / `"hemorrhoid"` → `HAE`. Default to `UFE` when ambiguous (Ventra's primary service).
+- Pass this constraint into the AI `procedureContext`: explicitly instruct the model that for Ventra, `procedure_type` MUST be either `UFE` or `HAE` and to ignore any GAE/PAE/PAD/FSE/TAE clues.
+- After the AI returns, if `parsed_pathology_info.procedure_type` is anything other than `UFE`/`HAE` for a Ventra record, override it with the sniffed value (defaulting to `UFE`).
+- Mirror the same restriction in the regex fallback block (lines ~586-602) so Ventra records can never be tagged GAE/PAE/etc.
 
-## Changes
+### 2. Migration — re-parse the affected record
+Single migration that nullifies `parsing_completed_at` for Daisy Andrew so the auto-parser picks her up on the next cron run (and any other Ventra appointments currently tagged with a non-UFE/HAE procedure):
 
-1. **`detectProcedureFromCalendar`** (~line 1478) — add a branch that returns `'TAE'` when the calendar name contains `TAE` or `thyroid`.
+```sql
+UPDATE all_appointments
+SET parsing_completed_at = NULL,
+    updated_at = now()
+WHERE project_name ILIKE '%ventra%'
+  AND (parsed_pathology_info->>'procedure_type') NOT IN ('UFE', 'HAE');
+```
 
-2. **`detectProcedureFromKey`** (~line 947) — add `if (upperKey.includes('TAE') || upperKey.includes('THYROID')) return 'TAE';` ahead of the generic branches so `TAE STEP 1 | …` keys bucket correctly and aren't filtered out by the wrong-procedure guard at ~line 1060.
-
-3. **Fallback procedure detection** (~line 588) — add a TAE branch (`upperNotes.includes('TAE')` or `THYROID` or `THYROID NODULE`) to the if/else chain that sets `result.pathology_info.procedure_type`.
-
-4. **TAE custom-field handling** in the GHL custom-field loop (~line 1229–1310, alongside PAD/FSE/HAE blocks). Map the known TAE STEP fields into `parsed_pathology_info`:
-   - "diagnosed with a thyroid nodule or goiter" → `oa_tkr_diagnosed`-equivalent slot (reuse `primary_complaint = 'TAE Consultation'` and write the answer to `notes`/`symptoms` as we do for HAE)
-   - "interested in avoiding surgery" → append to `notes`
-   - "doctor recommended … Surgery" → `previous_treatments`
-   - "experiencing any of the following … Lump or swelling in the neck" → `symptoms`
-   - "open to a minimally invasive … treatment" → append to `notes`
-   - "imaging of your thyroid" → `imaging_done`
-   - "cosmetic concerns about your neck" → append to `symptoms`/`notes`
-   Set `primary_complaint = 'TAE Consultation'`.
-
-5. **Procedure-type label in `primary_complaint` regex** (~line 1207) — extend `/\b(pae|ufe|gae)\b/i` to include `tae`.
-
-6. **Reparse the affected lead** by calling the existing `reparse-specific-appointments` edge function (or nullifying `parsing_completed_at` and letting the auto-parser re-run) for `id = 6d1820be-640b-46c4-8af2-0f9e767828e7`. Same approach used for the recent Premier Vascular backfill.
+### 3. Memory
+Add a project memory note `mem://projects/ventra/procedure-scope` recording that Ventra Medical only offers UFE and HAE, so future parser/UI work respects this constraint.
 
 ## Out of scope
-
-- No UI changes — `ParsedIntakeInfo.tsx` already renders whatever lands in `parsed_pathology_info`.
-- No new procedure-aware field-visibility tweaks (TAE just reuses the generic pathology section for now).
-- No webhook changes — the issue is purely in the parser, not in `ghl-webhook-handler`.
-- Other null fields on this record (gender, age, pcp_phone, imaging) are not parser bugs — they are absent from the GHL contact.
-
-## Verification
-
-After deploy + reparse:
-- `parsed_pathology_info.procedure_type = 'TAE'`
-- `parsed_pathology_info.primary_complaint = 'TAE Consultation'`
-- `symptoms`, `imaging_done`, `previous_treatments`, `notes` populated from the TAE STEP answers
-- Patient Pro Insights panel for this lead shows the TAE pathology block instead of an empty section.
+- No UI changes — Patient Pro Insights will refresh automatically once the record is re-parsed.
+- No GHL webhook changes.
+- No changes to other projects' procedure detection.
