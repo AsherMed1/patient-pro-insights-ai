@@ -1753,6 +1753,46 @@ serve(async (req) => {
             console.log(`[AUTO-PARSE] Detected ${calendarProcedure} procedure from calendar: ${record.calendar_name}`);
           }
         }
+
+        // Project-level procedure constraint (e.g., Ventra Medical only offers UFE & HAE)
+        const projectName = (record.project_name || '').toLowerCase();
+        const isVentra = /ventra/.test(projectName);
+        const allowedProcedures: string[] | null = isVentra ? ['UFE', 'HAE'] : null;
+
+        // Sniff intake notes for procedure when calendar didn't yield one,
+        // or when the calendar-detected procedure violates the project constraint.
+        const sniffProcedureFromNotes = (notes: string | null | undefined, allowed: string[] | null): string | null => {
+          if (!notes) return null;
+          const upper = notes.toUpperCase();
+          const candidates: Array<[string, RegExp]> = [
+            ['UFE', /UFE STEP|PATHOLOGY\s*\(UFE\)|UTERINE FIBROID|FIBROID/],
+            ['HAE', /HAE STEP|PATHOLOGY\s*\(HAE\)|HEMORRHOID/],
+            ['PAE', /PAE STEP|PATHOLOGY\s*\(PAE\)|PROSTATIC ARTERY/],
+            ['GAE', /GAE STEP|PATHOLOGY\s*\(GAE\)|GENICULAR ARTERY/],
+            ['PFE', /PFE STEP|PLANTAR FASCIITIS/],
+            ['PAD', /PAD STEP|PERIPHERAL ARTERY/],
+            ['FSE', /FSE STEP|FROZEN SHOULDER/],
+            ['TAE', /TAE STEP|THYROID ARTERY/],
+          ];
+          for (const [proc, rx] of candidates) {
+            if (allowed && !allowed.includes(proc)) continue;
+            if (rx.test(upper)) return proc;
+          }
+          return null;
+        };
+
+        if (allowedProcedures) {
+          const sniffed = sniffProcedureFromNotes(record.patient_intake_notes, allowedProcedures);
+          if (!calendarProcedure || !allowedProcedures.includes(calendarProcedure)) {
+            const constrained = sniffed || allowedProcedures[0];
+            if (calendarProcedure && calendarProcedure !== constrained) {
+              console.log(`[AUTO-PARSE] Project "${record.project_name}" only offers ${allowedProcedures.join('/')} — overriding calendar procedure ${calendarProcedure} → ${constrained}`);
+            } else {
+              console.log(`[AUTO-PARSE] Project "${record.project_name}" only offers ${allowedProcedures.join('/')} — using ${constrained} (sniffed=${sniffed || 'none'})`);
+            }
+            calendarProcedure = constrained;
+          }
+        }
         
         // If appointment has ghl_id, try to fetch GHL custom fields
         if (record.table === 'all_appointments' && record.ghl_id) {
@@ -1961,6 +2001,18 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // Ensure procedure_type is set from calendar if known
           if (calendarProcedure && parsedData.pathology_info) {
             parsedData.pathology_info.procedure_type = calendarProcedure;
+          }
+        }
+
+        // Enforce project-level procedure constraint after AI parse
+        if (allowedProcedures && parsedData?.pathology_info) {
+          const current = parsedData.pathology_info.procedure_type;
+          if (!current || !allowedProcedures.includes(current)) {
+            const fallback = calendarProcedure && allowedProcedures.includes(calendarProcedure)
+              ? calendarProcedure
+              : allowedProcedures[0];
+            console.log(`[AUTO-PARSE] Enforcing project constraint for "${record.project_name}": ${current || 'null'} → ${fallback}`);
+            parsedData.pathology_info.procedure_type = fallback;
           }
         }
 
