@@ -2004,6 +2004,18 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           }
         }
 
+        // Enforce project-level procedure constraint after AI parse
+        if (allowedProcedures && parsedData?.pathology_info) {
+          const current = parsedData.pathology_info.procedure_type;
+          if (!current || !allowedProcedures.includes(current)) {
+            const fallback = calendarProcedure && allowedProcedures.includes(calendarProcedure)
+              ? calendarProcedure
+              : allowedProcedures[0];
+            console.log(`[AUTO-PARSE] Enforcing project constraint for "${record.project_name}": ${current || 'null'} → ${fallback}`);
+            parsedData.pathology_info.procedure_type = fallback;
+          }
+        }
+
         // Post-AI enrichment: Always run regex extraction for critical fields
         // This catches anything the AI parser might have missed
         parsedData = enrichWithCriticalFields(parsedData, record.patient_intake_notes);
