@@ -21,6 +21,19 @@ function isInvalidGroupNumber(v: string | null | undefined): boolean {
   return false;
 }
 
+// Reject leaked GHL "Patient Intake Summary" blob fragments masquerading as
+// insurance provider/plan/id values (e.g. "Insurance Phone:   Insurance ID: OOP  ...").
+function isInvalidInsuranceValue(v: string | null | undefined): boolean {
+  if (!v) return false;
+  const s = String(v).trim();
+  if (!s) return false;
+  if (s.length > 80) return true;
+  if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
+  if (/No fields found in your shared list/i.test(s)) return true;
+  if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(s)) return true;
+  return false;
+}
+
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
   ghlId: string,
