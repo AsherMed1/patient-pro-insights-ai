@@ -127,6 +127,18 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     return String(value);
   };
 
+  // Filter out leaked GHL "Patient Intake Summary" blob fragments that may still
+  // be sitting in detected_* columns or stale parsed_insurance_info entries.
+  const sanitizeInsuranceValue = (value: any): string | null => {
+    const v = formatValue(value);
+    if (!v) return null;
+    if (v.length > 80) return null;
+    if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(v)) return null;
+    if (/No fields found in your shared list/i.test(v)) return null;
+    if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(v)) return null;
+    return v;
+  };
+
   const formatDOB = (dob: any) => {
     if (!dob || dob === "null" || dob === "") return null;
     try {
