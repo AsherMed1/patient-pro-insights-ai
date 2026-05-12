@@ -270,8 +270,24 @@ function parseCompoundImagingResponse(value: string, result: any): void {
   }
 }
 
-function fallbackRegexParsing(intakeNotes: string): any {
+// Strip GHL "Patient Intake Summary" blob — a single-line concatenation of every
+// procedure template (GAE Info / PAE Info / UFE Info / PFE Info / etc.) with no
+// newlines or pipes between fields. Without this, fallback regexes like
+// /Duration:\s*([^\n|]+)/i greedily slurp every subsequent label, dumping garbage
+// like "Over 1 year  OA Diagnosis: ☑️ YES  Age: ... PFE Info Morning Pain:..."
+// into Duration, Symptoms, and Insurance fields. The structured "Pathology
+// Information:" / "Insurance Information:" sections above the blob already
+// contain the same data in a parser-friendly format, so removing the blob
+// loses no information.
+function stripPatientIntakeSummary(intakeNotes: string): string {
+  if (!intakeNotes) return intakeNotes;
+  // Match the entire "Patient Intake Summary:" line (single-line blob).
+  return intakeNotes.replace(/Patient Intake Summary:[^\n]*/gi, 'Patient Intake Summary: [stripped]');
+}
+
+function fallbackRegexParsing(rawIntakeNotes: string): any {
   console.log('[AUTO-PARSE FALLBACK] Using regex-based fallback parsing...');
+  const intakeNotes = stripPatientIntakeSummary(rawIntakeNotes);
   
   const result = {
     insurance_info: {
