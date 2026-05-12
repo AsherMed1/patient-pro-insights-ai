@@ -641,8 +641,9 @@ function getUpdateableFields(
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
-    // Premier Vascular: capture lead without booking — store time preference only.
-    const isPremierVascular = (webhookData.project_name || '').trim().toLowerCase() === 'premier vascular';
+    // Unscheduled-capture projects: capture lead without booking — store time preference only.
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical']);
+    const isPremierVascular = UNSCHEDULED_PROJECTS.has((webhookData.project_name || '').trim().toLowerCase());
     const timePreference = isPremierVascular
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
