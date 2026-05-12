@@ -1942,7 +1942,8 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
 `;
         }
 
-        const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${record.patient_intake_notes}`;
+        const sanitizedNotesForAI = stripPatientIntakeSummary(record.patient_intake_notes || '');
+        const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${sanitizedNotesForAI}`;
 
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
