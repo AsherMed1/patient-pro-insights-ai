@@ -1,74 +1,22 @@
-## Problem
+## Plan
 
-In TVI (and other projects using GHL's "Patient Intake Summary" custom field), the Medical Information and Insurance sections are filled with raw template field labels like:
+1. **Clean the still-visible corrupted insurance field**
+   - Add a database migration that clears only obviously corrupted `detected_insurance_provider` values containing leaked GHL summary text like `GAE Info`, `PFE Info`, `UFE Info`, `PAE Info`, or `No fields found in your shared list`.
+   - Keep valid parsed insurance data intact (`insurance_plan`, `insurance_id_number`, notes, card links, etc.).
+   - This directly fixes the screenshot case: Roshanda Spears has clean `parsed_insurance_info`, but stale corrupted `detected_insurance_provider` is still being used as the display fallback.
 
-> "Over 1 year OA Diagnosis: ☑️ YES Age: 46 to 55 ... PAE Info No fields found... UFE Info Period Length: ... PFE Info Morning Pain: ❌ NO ..."
+2. **Stop future stale fallback values from resurfacing**
+   - Update `auto-parse-intake-notes` so appointment updates explicitly set top-level insurance columns from the cleaned parsed values, including setting `detected_insurance_provider` to `null` when no valid provider exists instead of leaving the old corrupted value in place.
+   - Add an insurance-provider sanitizer similar to the existing group-number guard, rejecting values that contain procedure template text, appointment summaries, or long multi-label blobs.
 
-Confirmed for Anita Hartford (PFE) and Roshanda Spears (GAE), and **128 appointments project-wide** have the same corruption.
+3. **Use sanitized intake notes for AI parsing too**
+   - The current `Patient Intake Summary` stripping is applied to fallback regex parsing and enrichment, but the AI prompt still receives the raw unstripped notes.
+   - Change the AI prompt input to use the stripped notes so the AI cannot re-extract the single-line GHL summary blob into insurance/provider fields.
 
-## Root cause
+4. **Add a UI safety net for insurance display**
+   - In `ParsedIntakeInfo`, filter provider/plan/member/group display values through a small “is corrupted blob” guard before rendering.
+   - This prevents existing bad top-level values from appearing even if a future record slips through before cleanup.
 
-GHL sends a custom field named **"Patient Intake Summary"** that is a single-line concatenation of every procedure's template (GAE Info / PAE Info / UFE Info / PFE Info / etc.), with double-space separators and no newlines or pipes. Empty fields render as `Label:` with no value, immediately followed by the next label.
-
-The fallback regexes in `auto-parse-intake-notes/index.ts` are:
-- `/Duration:\s*([^\n|]+)/i` (line 557)
-- `/Symptoms:\s*([^\n]+)/i` (line 573)
-- `Insurance Phone:`, `Insurance ID:`, etc.
-
-Because the blob has no `\n` or `|`, these patterns greedily slurp the rest of the line — pulling every subsequent label/value pair into a single field. The structured `Pathology Information:` section above (with proper `PFE STEP 1 | ...` lines) has the correct data, but the fallback overwrites it with garbage.
-
-Result:
-- `parsed_pathology_info.duration` = "Over 1 year  OA Diagnosis: ☑️ YES  Age: ... PFE Info Morning Pain: ..."
-- `parsed_pathology_info.symptoms` = "Constipation:   Intercourse Pain: ... PFE Info ..."
-- `parsed_insurance_info.insurance_provider` = "  Insurance Phone:   Insurance ID: OOP  Group Number: ..."
-
-## Fix
-
-### 1. Sanitize intake notes before fallback regex parsing
-
-In `supabase/functions/auto-parse-intake-notes/index.ts`, add a sanitizer that strips the `Patient Intake Summary: ...` blob from the intake notes string before fallback regex extraction runs. The structured `Pathology Information:` and `Insurance Information:` sections above the blob already contain the same data in a parser-friendly format (one field per line, with proper STEP labels), so removing the blob loses no information.
-
-Strip pattern: from `Patient Intake Summary:` up to the next known field label on a new line (e.g., `Booked Tag Added Date:`, `Date Appt Booked For:`, or end of "Additional Information" block) — or simpler, remove from `Patient Intake Summary:` to the next `\n  [A-Z][^:]*:` (next two-space-indented GHL field).
-
-### 2. Tighten the fallback regexes as defense-in-depth
-
-Update Duration / Symptoms / Insurance fallback patterns so they stop at:
-- Newline (existing)
-- Pipe (existing for Duration)
-- Two-or-more consecutive spaces followed by a capitalized label (`\s{2,}[A-Z][A-Za-z ]{0,30}:`)
-
-This way, even if a similar blob appears in the future, fields stay scoped.
-
-### 3. Sanitize already-corrupted parsed JSON on display (optional safety net)
-
-Add a quick sanitizer in the `AppointmentCard` Medical Information render that, if a value contains tokens like `OA Diagnosis:`, `PAE Info`, `UFE Info`, `PFE Info`, `Morning Pain:`, truncates at the first such marker. Keeps the UI clean even before re-parse completes.
-
-### 4. Reparse the 128 affected appointments
-
-After deploying the fix, invoke the existing `reparse-specific-appointments` edge function (or equivalent) for the 128 appointments matching:
-
-```sql
-patient_intake_notes ILIKE '%Patient Intake Summary:%'
-AND (
-  parsed_pathology_info->>'duration' ILIKE '%OA Diagnosis%'
-  OR parsed_pathology_info->>'symptoms' ILIKE '%Info%'
-  OR parsed_insurance_info->>'insurance_provider' ILIKE '%Insurance Phone%'
-)
-```
-
-This will rebuild `parsed_pathology_info` and `parsed_insurance_info` from the structured Pathology/Insurance sections.
-
-## Files to change
-
-- `supabase/functions/auto-parse-intake-notes/index.ts` — add `stripPatientIntakeSummary()` helper, call it at the top of fallback regex extraction; tighten Duration/Symptoms/Insurance regexes.
-- `src/components/appointments/AppointmentCard.tsx` (or whichever sub-component renders Medical Information / Insurance values) — optional display-time sanitizer.
-- New migration / one-off invocation — trigger reparse for the 128 affected rows.
-
-## Memory updates
-
-Add a memory entry under `mem://integrations/ghl-patient-intake-summary-blob-sanitization` documenting that the GHL "Patient Intake Summary" custom field is a flat blob containing every procedure template and must be stripped before fallback regex parsing.
-
-## Out of scope
-
-- No changes to the AI/structured-STEP parsing path (already correct).
-- No changes to GHL ingestion logic — the field still imports, just gets neutralized before regex fallback.
+5. **Validate with the affected patient**
+   - Query Roshanda Spears and the affected-count query again to confirm the corrupted provider text is gone.
+   - Check the portal display path so the Insurance section falls back to clean values only, showing plan/member ID and hiding provider when no real carrier was supplied.
