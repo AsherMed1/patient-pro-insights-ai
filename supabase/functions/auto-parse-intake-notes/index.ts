@@ -21,6 +21,19 @@ function isInvalidGroupNumber(v: string | null | undefined): boolean {
   return false;
 }
 
+// Reject leaked GHL "Patient Intake Summary" blob fragments masquerading as
+// insurance provider/plan/id values (e.g. "Insurance Phone:   Insurance ID: OOP  ...").
+function isInvalidInsuranceValue(v: string | null | undefined): boolean {
+  if (!v) return false;
+  const s = String(v).trim();
+  if (!s) return false;
+  if (s.length > 80) return true;
+  if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
+  if (/No fields found in your shared list/i.test(s)) return true;
+  if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(s)) return true;
+  return false;
+}
+
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
   ghlId: string,
@@ -1929,7 +1942,8 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
 `;
         }
 
-        const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${record.patient_intake_notes}`;
+        const sanitizedNotesForAI = stripPatientIntakeSummary(record.patient_intake_notes || '');
+        const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${sanitizedNotesForAI}`;
 
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -2113,15 +2127,27 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             updateData.dob = finalDob;
           }
 
-          // Sync insurance info to main columns
-          if (parsedData.insurance_info?.insurance_provider) {
-            updateData.detected_insurance_provider = parsedData.insurance_info.insurance_provider;
-          }
-          if (parsedData.insurance_info?.insurance_plan) {
-            updateData.detected_insurance_plan = parsedData.insurance_info.insurance_plan;
-          }
-          if (parsedData.insurance_info?.insurance_id_number) {
-            updateData.detected_insurance_id = parsedData.insurance_info.insurance_id_number;
+          // Sync insurance info to main columns. Always set explicitly (even to null)
+          // so stale corrupted values don't linger after a re-parse.
+          {
+            const provider = parsedData.insurance_info?.insurance_provider;
+            const plan = parsedData.insurance_info?.insurance_plan;
+            const memberId = parsedData.insurance_info?.insurance_id_number;
+            if (isInvalidInsuranceValue(provider)) {
+              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_provider: ${String(provider).substring(0, 60)}...`);
+              parsedData.insurance_info.insurance_provider = null;
+            }
+            if (isInvalidInsuranceValue(plan)) {
+              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_plan: ${String(plan).substring(0, 60)}...`);
+              parsedData.insurance_info.insurance_plan = null;
+            }
+            if (isInvalidInsuranceValue(memberId)) {
+              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_id: ${String(memberId).substring(0, 60)}...`);
+              parsedData.insurance_info.insurance_id_number = null;
+            }
+            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || null;
+            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || null;
+            updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || null;
           }
           
           // Update insurance_id_link with fallback chain:

@@ -127,6 +127,18 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     return String(value);
   };
 
+  // Filter out leaked GHL "Patient Intake Summary" blob fragments that may still
+  // be sitting in detected_* columns or stale parsed_insurance_info entries.
+  const sanitizeInsuranceValue = (value: any): string | null => {
+    const v = formatValue(value);
+    if (!v) return null;
+    if (v.length > 80) return null;
+    if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(v)) return null;
+    if (/No fields found in your shared list/i.test(v)) return null;
+    if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(v)) return null;
+    return v;
+  };
+
   const formatDOB = (dob: any) => {
     if (!dob || dob === "null" || dob === "") return null;
     try {
@@ -664,36 +676,40 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   </div>
                 ) : (
                   <>
-                    {(formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider) && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Provider:</span>{" "}
-                        <span className="font-medium">
-                          {formatValue(parsedInsuranceInfo?.insurance_provider) || detectedInsuranceProvider}
-                        </span>
-                      </div>
-                    )}
-                    {(formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan) && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Plan:</span>{" "}
-                        <span className="font-medium">
-                          {formatValue(parsedInsuranceInfo?.insurance_plan) || detectedInsurancePlan}
-                        </span>
-                      </div>
-                    )}
-                    {(formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId) && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Member ID:</span>{" "}
-                        <span className="font-medium">
-                          {formatValue(parsedInsuranceInfo?.insurance_id_number) || detectedInsuranceId}
-                        </span>
-                      </div>
-                    )}
-                    {formatValue(parsedInsuranceInfo?.insurance_group_number) && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Group Number:</span>{" "}
-                        <span className="font-medium">{parsedInsuranceInfo.insurance_group_number}</span>
-                      </div>
-                    )}
+                {(() => {
+                  const provider = sanitizeInsuranceValue(parsedInsuranceInfo?.insurance_provider) || sanitizeInsuranceValue(detectedInsuranceProvider);
+                  const plan = sanitizeInsuranceValue(parsedInsuranceInfo?.insurance_plan) || sanitizeInsuranceValue(detectedInsurancePlan);
+                  const memberId = sanitizeInsuranceValue(parsedInsuranceInfo?.insurance_id_number) || sanitizeInsuranceValue(detectedInsuranceId);
+                  const groupNumber = sanitizeInsuranceValue(parsedInsuranceInfo?.insurance_group_number);
+                  return (
+                    <>
+                      {provider && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Provider:</span>{" "}
+                          <span className="font-medium">{provider}</span>
+                        </div>
+                      )}
+                      {plan && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Plan:</span>{" "}
+                          <span className="font-medium">{plan}</span>
+                        </div>
+                      )}
+                      {memberId && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Member ID:</span>{" "}
+                          <span className="font-medium">{memberId}</span>
+                        </div>
+                      )}
+                      {groupNumber && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Group Number:</span>{" "}
+                          <span className="font-medium">{groupNumber}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                   </>
                 )}
                 {(insuranceIdLink || insuranceBackLink) && !isEditingInsurance && (
