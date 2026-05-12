@@ -179,9 +179,10 @@ serve(async (req) => {
 
     const normalizedDob = normalizeDateOnly(body.dob || body.date_of_birth || body.birth_date || null);
 
-    // Premier Vascular: capture leads without booking a specific time slot.
+    // Unscheduled-capture projects: capture leads without booking a specific time slot.
     // Store a time-of-day preference instead of date_of_appointment/requested_time.
-    const isPremierVascular = (body.project_name || '').trim().toLowerCase() === 'premier vascular';
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical']);
+    const isPremierVascular = UNSCHEDULED_PROJECTS.has((body.project_name || '').trim().toLowerCase());
     const normalizeTimePreference = (val: unknown): string | null => {
       if (!val || typeof val !== 'string') return null;
       const v = val.trim().toLowerCase().replace(/\s+/g, '_');
