@@ -2127,15 +2127,27 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             updateData.dob = finalDob;
           }
 
-          // Sync insurance info to main columns
-          if (parsedData.insurance_info?.insurance_provider) {
-            updateData.detected_insurance_provider = parsedData.insurance_info.insurance_provider;
-          }
-          if (parsedData.insurance_info?.insurance_plan) {
-            updateData.detected_insurance_plan = parsedData.insurance_info.insurance_plan;
-          }
-          if (parsedData.insurance_info?.insurance_id_number) {
-            updateData.detected_insurance_id = parsedData.insurance_info.insurance_id_number;
+          // Sync insurance info to main columns. Always set explicitly (even to null)
+          // so stale corrupted values don't linger after a re-parse.
+          {
+            const provider = parsedData.insurance_info?.insurance_provider;
+            const plan = parsedData.insurance_info?.insurance_plan;
+            const memberId = parsedData.insurance_info?.insurance_id_number;
+            if (isInvalidInsuranceValue(provider)) {
+              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_provider: ${String(provider).substring(0, 60)}...`);
+              parsedData.insurance_info.insurance_provider = null;
+            }
+            if (isInvalidInsuranceValue(plan)) {
+              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_plan: ${String(plan).substring(0, 60)}...`);
+              parsedData.insurance_info.insurance_plan = null;
+            }
+            if (isInvalidInsuranceValue(memberId)) {
+              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_id: ${String(memberId).substring(0, 60)}...`);
+              parsedData.insurance_info.insurance_id_number = null;
+            }
+            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || null;
+            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || null;
+            updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || null;
           }
           
           // Update insurance_id_link with fallback chain:
