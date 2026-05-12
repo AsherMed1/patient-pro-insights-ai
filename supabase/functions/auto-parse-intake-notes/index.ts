@@ -653,8 +653,9 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
 
 // Post-AI enrichment: Always run regex extraction for critical fields
 // This catches anything the AI parser might have missed (e.g., imaging_details)
-function enrichWithCriticalFields(parsedData: any, intakeNotes: string): any {
-  if (!intakeNotes) return parsedData;
+function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any {
+  if (!rawIntakeNotes) return parsedData;
+  const intakeNotes = stripPatientIntakeSummary(rawIntakeNotes);
   
   // Ensure medical_info exists
   if (!parsedData.medical_info) {
