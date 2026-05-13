@@ -1634,6 +1634,33 @@ const AppointmentCard = ({
             </Badge>
           )}
 
+          {/* Procedure type tag — sourced from parsed pathology, falls back to calendar name */}
+          {(() => {
+            const path: any = appointment.parsed_pathology_info || {};
+            const calName = (appointment.calendar_name || '').toUpperCase();
+            const fromPath = String(path.procedure_type || path.procedure || '').toUpperCase().trim();
+            const calMatch = calName.match(/\b(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)\b/);
+            const proc = (fromPath && /^(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)$/.test(fromPath))
+              ? fromPath
+              : (calMatch ? calMatch[1] : '');
+            if (!proc) return null;
+            const colorMap: Record<string, string> = {
+              GAE: 'bg-orange-100 text-orange-800 border-orange-300',
+              PFE: 'bg-blue-100 text-blue-800 border-blue-300',
+              UFE: 'bg-teal-100 text-teal-800 border-teal-300',
+              PAE: 'bg-purple-100 text-purple-800 border-purple-300',
+              HAE: 'bg-pink-100 text-pink-800 border-pink-300',
+              PAD: 'bg-red-100 text-red-800 border-red-300',
+              FSE: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+              TAE: 'bg-amber-100 text-amber-800 border-amber-300',
+            };
+            return (
+              <Badge variant="outline" className={cn('font-semibold', colorMap[proc])}>
+                {proc}
+              </Badge>
+            );
+          })()}
+
           {(() => {
             const path: any = appointment.parsed_pathology_info || {};
             const calName = (appointment.calendar_name || '').toUpperCase();
