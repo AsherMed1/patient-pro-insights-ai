@@ -55,6 +55,23 @@ const ReviewQueue: React.FC = () => {
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
   const [actionNotes, setActionNotes] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
+  const [detailLoading, setDetailLoading] = useState<string | null>(null);
+
+  const openDetail = async (id: string) => {
+    setDetailLoading(id);
+    const { data, error } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('id', id)
+      .single();
+    setDetailLoading(null);
+    if (error || !data) {
+      toast({ title: 'Could not load appointment', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    setDetailAppt(data as unknown as AllAppointment);
+  };
 
   const fetch = useCallback(async () => {
     setLoading(true);
