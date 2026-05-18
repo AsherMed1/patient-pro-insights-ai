@@ -263,6 +263,14 @@ const Index = () => {
             <TabsList className="inline-flex w-auto min-w-full whitespace-nowrap gap-1 h-auto p-1">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
+            {(hasManagementAccess() || role === 'va') && (
+              <TabsTrigger value="review-queue">
+                Review Queue
+                {reviewPendingCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">{reviewPendingCount}</Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
