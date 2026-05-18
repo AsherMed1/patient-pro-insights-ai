@@ -25,6 +25,7 @@ import TeamMessagesManager from "@/components/TeamMessagesManager";
 import SupportQueueManager from "@/components/SupportQueueManager";
 import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
 import HelpVideoManager from "@/components/HelpVideoManager";
+import ReviewQueue from "@/components/admin/ReviewQueue";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +34,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [unreadCount, setUnreadCount] = useState(0);
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
+  const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const { user, signOut } = useAuth();
   const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
@@ -111,6 +113,21 @@ const Index = () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Fetch review queue pending count (admins/agents/VAs only)
+  useEffect(() => {
+    if (!hasManagementAccess() && role !== 'va') return;
+    const fetchReviewCount = async () => {
+      const { count } = await supabase
+        .from('all_appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('review_status', 'pending');
+      setReviewPendingCount(count || 0);
+    };
+    fetchReviewCount();
+    const i = setInterval(fetchReviewCount, 30000);
+    return () => clearInterval(i);
+  }, [role]);
 
   if (roleLoading) {
     return (
@@ -246,6 +263,14 @@ const Index = () => {
             <TabsList className="inline-flex w-auto min-w-full whitespace-nowrap gap-1 h-auto p-1">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
+            {(hasManagementAccess() || role === 'va') && (
+              <TabsTrigger value="review-queue">
+                Review Queue
+                {reviewPendingCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">{reviewPendingCount}</Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
@@ -290,6 +315,12 @@ const Index = () => {
             <InsuranceQueueTrigger />
             <AllAppointmentsManager />
           </TabsContent>
+
+          {(hasManagementAccess() || role === 'va') && (
+            <TabsContent value="review-queue" className="space-y-6">
+              <ReviewQueue />
+            </TabsContent>
+          )}
 
           <TabsContent value="emr-queue" className="space-y-6">
             <EmrProcessingQueue />
