@@ -109,13 +109,6 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
           }
 
           uniqueLocations.add(loc);
-
-          // Exclude Virtual for VSNC project, or when Neuro is explicitly filtered
-          if (loc === 'Virtual' && (isVSNC || hasNeuroFilter)) {
-            return;
-          }
-
-          uniqueLocations.add(loc);
         });
 
         setLocations(Array.from(uniqueLocations).sort());
