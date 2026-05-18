@@ -16,6 +16,8 @@ import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
+import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
+import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
 
 interface ReviewAppointment {
@@ -53,6 +55,23 @@ const ReviewQueue: React.FC = () => {
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
   const [actionNotes, setActionNotes] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
+  const [detailLoading, setDetailLoading] = useState<string | null>(null);
+
+  const openDetail = async (id: string) => {
+    setDetailLoading(id);
+    const { data, error } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('id', id)
+      .single();
+    setDetailLoading(null);
+    if (error || !data) {
+      toast({ title: 'Could not load appointment', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    setDetailAppt(data as unknown as AllAppointment);
+  };
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -299,13 +318,22 @@ const ReviewQueue: React.FC = () => {
                       className="cursor-pointer"
                     />
                     <div>
-                      <button
-                        onClick={() => toggleExpand(row.id)}
-                        className="flex items-center gap-1 font-medium hover:underline text-left"
-                      >
-                        {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        {row.lead_name}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => toggleExpand(row.id)}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="Toggle inline details"
+                        >
+                          {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                        <button
+                          onClick={() => openDetail(row.id)}
+                          className="font-medium hover:underline text-left text-primary"
+                          disabled={detailLoading === row.id}
+                        >
+                          {row.lead_name}{detailLoading === row.id ? '…' : ''}
+                        </button>
+                      </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                     </div>
                     <div className="text-xs">{row.project_name}</div>
@@ -413,6 +441,16 @@ const ReviewQueue: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {detailAppt && (
+          <DetailedAppointmentView
+            appointment={detailAppt}
+            isOpen={!!detailAppt}
+            onClose={() => setDetailAppt(null)}
+            onDataRefresh={() => { fetch(); }}
+            onDeleted={() => { setDetailAppt(null); fetch(); }}
+          />
+        )}
       </CardContent>
     </Card>
   );
