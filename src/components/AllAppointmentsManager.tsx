@@ -352,7 +352,8 @@ const AllAppointmentsManager = ({
       // Now build the data query with the same filters
       let appointmentsQuery = supabase
         .from('all_appointments')
-        .select('*');
+        .select('*')
+        .in('review_status', ['approved', 'oon']);
 
       // Exclude reserved time blocks from appointment management
       appointmentsQuery = appointmentsQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
