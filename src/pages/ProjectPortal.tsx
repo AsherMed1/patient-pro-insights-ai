@@ -238,7 +238,8 @@ const ProjectPortal = () => {
       const decodedName = decodeURIComponent(projectName!);
       let query = supabase
         .from('all_appointments')
-        .select('procedure_ordered, date_appointment_created, status, date_of_appointment, was_ever_confirmed');
+        .select('procedure_ordered, date_appointment_created, status, date_of_appointment, was_ever_confirmed')
+        .in('review_status', ['approved', 'oon']);
       
       if (decodedName.trim() !== decodedName) {
         query = query.or(`project_name.eq.${decodedName},project_name.eq.${decodedName.trim()}`);
