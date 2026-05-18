@@ -324,6 +324,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
     },
     pathology_info: {
       procedure_type: null as string | null,
+      location: null as string | null,
       primary_complaint: null as string | null,
       symptoms: null as string | null,
       pain_level: null as string | null,
@@ -673,6 +674,39 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   // Ensure medical_info exists
   if (!parsedData.medical_info) {
     parsedData.medical_info = {};
+  }
+  if (!parsedData.pathology_info) {
+    parsedData.pathology_info = {};
+  }
+
+  // === Location Picker (GHL custom field) — sets location for unscheduled leads (ECCO, Premier, etc.)
+  if (!parsedData.pathology_info.location) {
+    const locMatch = rawIntakeNotes.match(/Location Picker\s*:\s*([^\n|]+)/i);
+    if (locMatch && locMatch[1]) {
+      const loc = locMatch[1].trim();
+      if (loc && !/^(unknown|n\/a|none)$/i.test(loc)) {
+        parsedData.pathology_info.location = loc;
+        console.log(`[AUTO-PARSE ENRICH] Extracted Location Picker: ${loc}`);
+      }
+    }
+  }
+
+  // === Service Name (GHL custom field) — high-priority override for procedure_type
+  const serviceMatch = rawIntakeNotes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE)\b/i);
+  if (serviceMatch && serviceMatch[1]) {
+    const svc = serviceMatch[1].toUpperCase();
+    if (parsedData.pathology_info.procedure_type !== svc) {
+      console.log(`[AUTO-PARSE ENRICH] Service Name override: ${parsedData.pathology_info.procedure_type || 'null'} → ${svc}`);
+      parsedData.pathology_info.procedure_type = svc;
+    }
+  }
+
+  // === PFE keyword fallback (plantar fasciitis) when no procedure_type detected
+  if (!parsedData.pathology_info.procedure_type) {
+    if (/\b(plantar\s+fasciitis|plantar|heel\s+pain|pfe)\b/i.test(intakeNotes)) {
+      parsedData.pathology_info.procedure_type = 'PFE';
+      console.log(`[AUTO-PARSE ENRICH] PFE keyword fallback applied`);
+    }
   }
   
   // Extract imaging details if not already populated
