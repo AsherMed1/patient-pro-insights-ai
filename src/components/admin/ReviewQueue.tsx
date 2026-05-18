@@ -441,6 +441,16 @@ const ReviewQueue: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {detailAppt && (
+          <DetailedAppointmentView
+            appointment={detailAppt}
+            isOpen={!!detailAppt}
+            onClose={() => setDetailAppt(null)}
+            onDataRefresh={() => { fetch(); }}
+            onDeleted={() => { setDetailAppt(null); fetch(); }}
+          />
+        )}
       </CardContent>
     </Card>
   );
