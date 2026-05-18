@@ -34,6 +34,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [unreadCount, setUnreadCount] = useState(0);
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
+  const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const { user, signOut } = useAuth();
   const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
