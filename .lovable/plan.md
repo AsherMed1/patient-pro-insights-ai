@@ -1,78 +1,62 @@
+## Goal
+Post a Slack message to **#appt-booked-verification** every time a new appointment lands in the Admin Review Queue (`review_status = 'pending'`), so verifiers get pinged in real time.
 
-# Admin Review Queue
+## Message format
+```
+🔔 Appointment Verification Required
 
-Every new appointment (from GHL webhook, all-appointments-api, or CSV import) lands in an admin-only review queue. It is hidden from all client project portals until an admin acts on it.
+Account:  {project_name}
+Patient:  {lead_name}
+Email:    {lead_email}
+Phone:    {lead_phone_number}
+Calendar: {calendar_name}
+Status:   {status}
 
-## Admin actions
+🔗 Open in Review Queue → https://patientproclients.com/?tab=review-queue&appt={id}
 
-- **Approve** — releases the appointment to its project portal as normal.
-- **Decline** — soft-hides the record; it stays in DB but is filtered out of all client portals and reports.
-- **Mark as OON** — sets `status = 'OON'`, releases to portal, fires existing OON Slack alert.
+Setter Instructions:
+Review details and take action — Approve if verified, Decline if duplicate/spam/test/wrong project, Mark as OON if insurance is out of network.
+```
+Rendered with Slack Block Kit (header + fields + button linking to the Review Queue), matching the look of the existing OON / short-notice alerts.
 
-## Data model
+## Implementation
 
-Add three columns to `all_appointments`:
+1. **New edge function** `supabase/functions/notify-slack-review-queue/index.ts`
+   - Same shape as `notify-slack-oon` (incoming webhook, no JWT).
+   - Reads `SLACK_REVIEW_QUEUE_WEBHOOK_URL` secret.
+   - Accepts: `appointmentId, projectName, leadName, leadEmail, phone, calendarName, status`.
+   - Posts Block Kit payload with an "Open Review Queue" button → deep link to the app.
 
-- `review_status` text — `pending` (default) | `approved` | `declined` | `oon`
-- `reviewed_by` uuid (nullable) — admin who acted
-- `reviewed_at` timestamptz (nullable)
+2. **Trigger points** — fire-and-forget invoke after every new pending insert:
+   - `supabase/functions/ghl-webhook-handler/index.ts` — after the insert path that sets `review_status='pending'`.
+   - `supabase/functions/all-appointments-api/index.ts` — after the insert branch (skip on update).
+   - CSV import path (`AppointmentsCsvImport.tsx` / its server route) — same hook.
+   Use `supabase.functions.invoke('notify-slack-review-queue', { body: {...} })` without `await` blocking the response (consistent with how short-notice alert is fired today).
 
-New table `appointment_review_history` for an immutable audit trail (appointment_id, action, actor, timestamp, prior_status, notes).
+3. **Deep link** — Review Queue tab in `src/pages/Index.tsx` already accepts a tab key; we'll pass `?tab=review-queue&appt={id}` and have `ReviewQueue.tsx` auto-open the matching row's detail modal on mount if the param is present (small, additive).
 
-Backfill: every existing row → `review_status = 'approved'` so nothing currently visible disappears.
+4. **Secret** — user adds an Incoming Webhook in Slack for `#appt-booked-verification`, we store as `SLACK_REVIEW_QUEUE_WEBHOOK_URL` (same pattern as `SLACK_OON_WEBHOOK_URL`).
 
-## Visibility enforcement
+5. **Guards**
+   - Only fire on **new** inserts where `review_status = 'pending'` (skip updates, skip CSV bulk re-imports of existing rows).
+   - Try/catch around the invoke — never block appointment creation if Slack fails.
+   - No dedupe needed beyond the "insert only" guard; the review queue is one notification per new row.
 
-Single source of truth = `review_status = 'approved' OR review_status = 'oon'`. Applied in three places:
+## Setup steps for the user
+1. In Slack: **Apps → Incoming Webhooks → Add to #appt-booked-verification** → copy webhook URL.
+2. Paste it when I prompt for the `SLACK_REVIEW_QUEUE_WEBHOOK_URL` secret.
+3. I deploy the function and wire the three insert points.
 
-1. **Client-portal queries** in `AllAppointmentsManager`, dashboard widgets, reporting, calendar, EMR queue, recapture dashboard, exports — add `.in('review_status', ['approved','oon'])`.
-2. **RLS policy** on `all_appointments` for the `project_user` role — require approved/oon. Admin/agent/VA bypass.
-3. **Edge functions** that surface data to portals (`get_dashboard_data`, `get_project_call_summary`, etc.) get the same filter.
-
-Triggers that fire on insert (auto-parse, insurance fetch queue, EMR queue, short-notice Slack) keep running — review only gates *visibility*, not enrichment. Short-notice Slack will be suppressed until Approved (single guard).
-
-## Ingestion changes
-
-- `ghl-webhook-handler` and `all-appointments-api`: new rows insert with `review_status = 'pending'` (no other change).
-- GHL status updates on a still-pending row: update the row but keep `pending`.
-
-## Admin UI
-
-New top-level tab **"Review Queue"** (admin + agent + VA only), pinned next to existing admin tools:
-
-- Counter badge with pending count, polled every 30s.
-- Table grouped by project, sorted by `created_at` desc.
-- Each row expands inline to show full parsed intake (demographics, insurance, pathology, location, procedure_type, calendar_name, raw notes) — the same `AppointmentCard` detail body, read-only.
-- Three action buttons per row: **Approve** (green), **Decline** (red, opens reason textarea), **Mark as OON** (orange, requires confirm).
-- Bulk select + bulk Approve / Decline.
-- Filters: project, date range, search by name/phone.
-- Every action writes an `appointment_review_history` row and an `audit_logs` entry "Approved/Declined/OON'd {lead_name} by {userName}".
-
-## Reporting impact
-
-Declined rows are excluded from every count, conversion %, CPL calc, and export. Admin reports get an optional "Include declined" toggle for QA.
-
-## Files to touch
-
-```text
-supabase/migrations/                       (new — columns, RLS, backfill, history table)
-supabase/functions/ghl-webhook-handler/    (insert review_status=pending)
-supabase/functions/all-appointments-api/   (insert review_status=pending)
-supabase/functions/notify-slack-short-notice/  (skip if not approved)
-src/components/admin/ReviewQueue.tsx       (new tab + table)
-src/components/admin/ReviewQueueRow.tsx    (new expandable row)
-src/components/AllAppointmentsManager.tsx  (filter approved/oon)
-src/hooks/useCalendarAppointments.tsx      (filter)
-src/components/dashboard/*                 (filter)
-src/components/EmrProcessingQueue.tsx      (filter)
-src/components/dashboard/RecaptureDashboard.tsx (filter)
-src/utils/exportAppointmentsToExcel.ts     (filter)
-src/pages/ProjectPortal.tsx                (route + filter)
-src/App.tsx                                (route)
-mem://features/admin-review-queue          (new memory)
+## Files touched
+```
+supabase/functions/notify-slack-review-queue/index.ts   (new)
+supabase/functions/ghl-webhook-handler/index.ts         (invoke after pending insert)
+supabase/functions/all-appointments-api/index.ts        (invoke after insert)
+src/components/AppointmentsCsvImport.tsx                (invoke per imported row)
+src/components/admin/ReviewQueue.tsx                    (auto-open ?appt= param)
+src/pages/Index.tsx                                     (honor ?tab=review-queue)
+mem://features/admin-review-queue                       (note Slack hook)
 ```
 
-## Open follow-ups (will confirm during build)
-
-- Reason taxonomy for Decline (duplicate / spam / wrong project / test / other) — using free-text first, will add presets if you want them.
-- Auto-approve allow-list for trusted projects, if any should bypass review.
+## Open question
+- Want a single message per appointment, or also re-ping if the row gets a meaningful GHL update while still pending (e.g., status flips Pending → Confirmed)? Default = single message on insert only.
