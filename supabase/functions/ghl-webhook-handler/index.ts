@@ -189,10 +189,10 @@ serve(async (req) => {
       if (error) throw error
       appointmentRecord = data
     } else {
-      console.log(`[${requestId}] Creating new appointment`)
+      console.log(`[${requestId}] Creating new appointment (review_status=pending)`)
       const { data, error } = await supabase
         .from('all_appointments')
-        .insert([appointmentData])
+        .insert([{ ...appointmentData, review_status: 'pending' }])
         .select()
         .single()
       
