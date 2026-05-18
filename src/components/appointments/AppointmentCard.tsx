@@ -1363,7 +1363,7 @@ const AppointmentCard = ({
                               <span>{transferringCalendar ? 'Transferring...' : 'Loading...'}</span>
                             </div>
                           ) : (
-                            <span className="truncate">{appointment.calendar_name || 'Select location'}</span>
+                            <span className="truncate">{(appointment.calendar_name && appointment.calendar_name !== 'Unknown') ? appointment.calendar_name : ((appointment.parsed_pathology_info as any)?.location || 'Select location')}</span>
                           )}
                         </SelectTrigger>
                         <SelectContent className="bg-background z-50" align="start">
