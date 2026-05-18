@@ -91,7 +91,7 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
     }
     if (selectedLocations?.length) {
       result = result.filter(apt => {
-        const loc = extractLocationFromCalendarName(apt.calendar_name || '');
+        const loc = extractLocationFromCalendarName(apt.calendar_name || '', (apt as any).parsed_pathology_info?.location);
         return !loc || selectedLocations.includes(loc);
       });
     }
