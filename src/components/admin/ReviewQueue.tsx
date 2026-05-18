@@ -16,6 +16,8 @@ import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
+import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
+import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
 
 interface ReviewAppointment {
