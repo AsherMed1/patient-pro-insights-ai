@@ -268,6 +268,25 @@ serve(async (req) => {
         .select()
       data = insertResult.data;
       error = insertResult.error;
+
+      // Notify Slack review queue on new insert (fire-and-forget)
+      if (!error && data && data[0]) {
+        try {
+          supabase.functions.invoke('notify-slack-review-queue', {
+            body: {
+              appointmentId: data[0].id,
+              projectName: data[0].project_name,
+              leadName: data[0].lead_name,
+              leadEmail: data[0].lead_email,
+              phone: data[0].lead_phone_number,
+              calendarName: data[0].calendar_name,
+              status: data[0].status,
+            },
+          }).catch((e) => console.error('review-queue Slack invoke failed:', e));
+        } catch (e) {
+          console.error('review-queue Slack invoke threw:', e);
+        }
+      }
     }
 
     if (error) {

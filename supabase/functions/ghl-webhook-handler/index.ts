@@ -198,6 +198,23 @@ serve(async (req) => {
       
       if (error) throw error
       appointmentRecord = data
+
+      // Notify Slack review queue (fire-and-forget)
+      try {
+        supabase.functions.invoke('notify-slack-review-queue', {
+          body: {
+            appointmentId: appointmentRecord.id,
+            projectName: appointmentRecord.project_name,
+            leadName: appointmentRecord.lead_name,
+            leadEmail: appointmentRecord.lead_email,
+            phone: appointmentRecord.lead_phone_number,
+            calendarName: appointmentRecord.calendar_name,
+            status: appointmentRecord.status,
+          },
+        }).catch((e) => console.error(`[${requestId}] review-queue Slack invoke failed:`, e));
+      } catch (e) {
+        console.error(`[${requestId}] review-queue Slack invoke threw:`, e);
+      }
     }
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
