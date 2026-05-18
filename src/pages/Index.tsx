@@ -316,6 +316,12 @@ const Index = () => {
             <AllAppointmentsManager />
           </TabsContent>
 
+          {(hasManagementAccess() || role === 'va') && (
+            <TabsContent value="review-queue" className="space-y-6">
+              <ReviewQueue />
+            </TabsContent>
+          )}
+
           <TabsContent value="emr-queue" className="space-y-6">
             <EmrProcessingQueue />
           </TabsContent>
