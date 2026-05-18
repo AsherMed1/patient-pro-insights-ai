@@ -514,7 +514,8 @@ const AllAppointmentsManager = ({
     try {
       // Base query filters (project and date range)
       const getBaseQuery = () => {
-        let query = supabase.from('all_appointments').select('*', { count: 'exact', head: true });
+        let query = supabase.from('all_appointments').select('*', { count: 'exact', head: true })
+          .in('review_status', ['approved', 'oon']);
         
         // Exclude reserved time blocks from appointment management
         query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
