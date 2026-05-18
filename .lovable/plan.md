@@ -1,38 +1,49 @@
-## Diagnosis
+## Confirmed from the data
 
-Pulled the actual records from the database to compare what's stored vs. what should render.
+The GHL payload already carries both pieces in the intake notes blob:
 
-**What's in the database is fine:**
-- Premier Vascular unscheduled records (Arthur J Dwight, Holli Lee, Rebecca Mayer, Priscilla Butler) all have `parsed_pathology_info` populated with `procedure_type: GAE`, symptoms, pain level, etc., and `parsing_completed_at` is set.
-- ECCO Medical has **zero** rows with `is_unscheduled = true` so far — every ECCO record is still being booked with a `date_of_appointment`. Their unscheduled flow is wired in `ghl-webhook-handler` and `all-appointments-api` but no GHL webhook has actually fired with the unscheduled payload yet.
+```
+Additional Information:
+  Location Picker: Lone Tree
+Contact Information:
+  Service Name: GAE
+```
 
-**Why no procedure tag shows at the top of the card:**
-The appointment card header only renders these badges: Status, Procedure Ordered, Wound+, Agent, GHL Sync. There is **no procedure-type tag** (GAE/PFE/UFE/etc.) anywhere at the top of the card today. The only "Pathology:" label lives inside the amber Medical Information block far down the card, which is easy to miss and is also gated on `parsing_completed_at`. For Premier unscheduled records that come in via a contact-only webhook (`calendar_name = "Unknown"`), the in-card "Procedure" select also has nothing to anchor to visually.
+Nothing in our parser, webhook, or UI reads `Location Picker` — that's why ECCO rows show "Unknown" location and reports under-count GAE/PFE.
 
-**Why ECCO still has no unscheduled rows:**
-ECCO Medical is included in `UNSCHEDULED_PROJECTS` in both edge functions, but the GHL sub-account is still pushing booked appointments. We need to confirm with the client whether their GHL form/calendar has actually been switched to the unscheduled-capture flow on ECCO's side.
+## Fix plan
 
-## Plan
+### 1. Parser — `supabase/functions/auto-parse-intake-notes/index.ts`
+Add two regex extractions before AI parsing:
+- `Location Picker:\s*(.+)` → write to `parsed_pathology_info.location` (Lone Tree / Pueblo / Virtual / Denver).
+- `Service Name:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE)` → set `parsed_pathology_info.procedure_type` as a high-priority override before calendar-name keywords.
+- Add a PFE keyword fallback (plantar / heel / foot) for cases like Tonja Spencer where neither field is present.
 
-1. **Add a procedure-type tag to the top of the appointment card.**
-   - In `AppointmentCard.tsx`, next to the existing Status / Procedure Ordered badges, render a "Procedure" badge sourced from (in order): `parsed_pathology_info.procedure_type` → calendar-name keyword (GAE/PAE/UFE/PFE/HAE/PAD/FSE/TAE) → `null`.
-   - Use the existing procedure color tokens from the Calendar View Colors memory (Orange/GAE, Blue/PFE, Teal/UFE, Purple/PAE, Pink/HAE, Red/PAD).
-   - Render the badge for **all** appointments, not just unscheduled — so it solves the "I can't see what they're scheduled for" problem at a glance for every project.
+### 2. Webhook — `supabase/functions/ghl-webhook-handler/index.ts`
+- Persist `Location Picker` and `Service Name` to the row at webhook time so location/procedure are correct even before AI parsing runs.
+- Dedupe: when a row already exists for a `ghl_id` and the incoming `calendar_name` is non-Unknown, update the existing row instead of inserting a duplicate (kills the Unknown twin that fires ~2s after every ECCO unscheduled lead).
 
-2. **Don't gate the procedure tag on `parsing_completed_at`.**
-   - The amber Medical Information section can stay gated, but the top-of-card procedure badge should fall back to calendar-name detection when AI parsing hasn't run yet, so it never appears blank.
+### 3. UI — `AppointmentCard.tsx` + `LocationLegend.tsx`
+- Extend the procedure-badge fallback chain at the top of the card: `parsed_pathology_info.procedure_type` → Service Name regex from notes → calendar-name keyword → plantar/knee keyword scan.
+- In `extractLocationFromCalendarName`, add a fallback that reads `parsed_pathology_info.location` (Location Picker) when calendar name is "Unknown", so unscheduled rows appear under the correct location filter and the May report reconciles.
 
-3. **For unscheduled Premier/ECCO records with `calendar_name = "Unknown"`, surface the procedure from parsed pathology.**
-   - These records are coming through a contact-level webhook that has no calendar payload, so `calendar_name` is "Unknown" and the badge would otherwise be empty. Reading `parsed_pathology_info.procedure_type` (already populated by the AI parser from the intake notes) covers this case.
+### 4. One-off backfill (SQL migration)
+- For all ECCO rows where `calendar_name = 'Unknown'`: regex-extract `Location Picker:` and `Service Name:` from `patient_intake_notes`, write to `parsed_pathology_info.location` / `procedure_type`.
+- Merge orphan Unknown twins into their real sibling by `ghl_id` (delete the Unknown twin, keep the one with the real calendar name).
+- Re-queue the ~6–7 ECCO rows still showing `procedure_type: null` through `reparse-specific-appointments`.
 
-4. **Confirm ECCO's unscheduled webhook is actually being sent.**
-   - Tell the user that ECCO has zero `is_unscheduled = true` rows so far, so the code path is ready but GHL on ECCO's side may still need to switch the form/calendar to the unscheduled flow before any leads come through that way.
+### Outcome for the May report
+- Every ECCO row gets a real location (Lone Tree / Pueblo / etc.) — no more "Unknown".
+- Every row gets a GAE / PFE service tag.
+- Total May count = GAE + PFE counts (no leakage from untagged rows).
 
-5. **Verify after deploy.**
-   - Reload Premier Vascular project → Arthur J Dwight, Holli Lee, Rebecca Mayer should now show a colored procedure badge ("GAE") at the top of their cards. Once ECCO starts sending unscheduled leads, the same badge will appear there.
+## Files touched
+- `supabase/functions/auto-parse-intake-notes/index.ts`
+- `supabase/functions/ghl-webhook-handler/index.ts`
+- `src/components/appointments/AppointmentCard.tsx`
+- `src/components/appointments/LocationLegend.tsx`
+- new migration: backfill + dedupe
 
-## Files to change
+No schema changes.
 
-- `src/components/appointments/AppointmentCard.tsx` — add the procedure-type badge in the existing badge row (~line 1626-1635), with the resolution + color logic.
-
-No backend, database, or edge-function changes required — the data is already correct.
+Approve and I'll implement.
