@@ -114,6 +114,21 @@ const Index = () => {
     };
   }, []);
 
+  // Fetch review queue pending count (admins/agents/VAs only)
+  useEffect(() => {
+    if (!hasManagementAccess() && role !== 'va') return;
+    const fetchReviewCount = async () => {
+      const { count } = await supabase
+        .from('all_appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('review_status', 'pending');
+      setReviewPendingCount(count || 0);
+    };
+    fetchReviewCount();
+    const i = setInterval(fetchReviewCount, 30000);
+    return () => clearInterval(i);
+  }, [role]);
+
   if (roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
