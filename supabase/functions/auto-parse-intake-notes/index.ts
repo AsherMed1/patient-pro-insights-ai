@@ -324,6 +324,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
     },
     pathology_info: {
       procedure_type: null as string | null,
+      location: null as string | null,
       primary_complaint: null as string | null,
       symptoms: null as string | null,
       pain_level: null as string | null,
