@@ -257,6 +257,10 @@ export type Database = {
           requested_time: string | null
           reschedule_history: Json | null
           reserved_end_time: string | null
+          review_notes: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           stage_booked: string | null
           status: string | null
           time_preference: string | null
@@ -314,6 +318,10 @@ export type Database = {
           requested_time?: string | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
+          review_notes?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           stage_booked?: string | null
           status?: string | null
           time_preference?: string | null
@@ -371,6 +379,10 @@ export type Database = {
           requested_time?: string | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
+          review_notes?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           stage_booked?: string | null
           status?: string | null
           time_preference?: string | null
@@ -627,6 +639,61 @@ export type Database = {
           },
           {
             foreignKeyName: "appointment_reschedules_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
+      appointment_review_history: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          appointment_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          prior_status: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          appointment_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          prior_status?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          prior_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_review_history_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_review_history_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "appointment_review_history_appointment_id_fkey"
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "recapture_events"
