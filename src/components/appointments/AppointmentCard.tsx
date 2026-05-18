@@ -1640,9 +1640,16 @@ const AppointmentCard = ({
             const calName = (appointment.calendar_name || '').toUpperCase();
             const fromPath = String(path.procedure_type || path.procedure || '').toUpperCase().trim();
             const calMatch = calName.match(/\b(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)\b/);
+            const notes = String(appointment.patient_intake_notes || '');
+            const svcMatch = notes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE)\b/i);
+            const notesKwMatch = !calMatch && !svcMatch
+              ? notes.match(/\b(plantar\s+fasciitis|plantar|heel\s+pain)\b/i) ? 'PFE'
+                : notes.match(/\b(knee\s+pain|osteoarthritis)\b/i) ? 'GAE'
+                : ''
+              : '';
             const proc = (fromPath && /^(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)$/.test(fromPath))
               ? fromPath
-              : (calMatch ? calMatch[1] : '');
+              : (calMatch ? calMatch[1] : (svcMatch ? svcMatch[1].toUpperCase() : notesKwMatch));
             if (!proc) return null;
             const colorMap: Record<string, string> = {
               GAE: 'bg-orange-100 text-orange-800 border-orange-300',
