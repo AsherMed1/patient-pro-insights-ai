@@ -212,7 +212,8 @@ const AllAppointmentsManager = ({
       // Build the base query for counting
       let countQuery = supabase
         .from('all_appointments')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true })
+        .in('review_status', ['approved', 'oon']);
 
       // Exclude reserved time blocks from appointment management
       countQuery = countQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
