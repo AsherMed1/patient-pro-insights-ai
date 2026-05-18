@@ -17,7 +17,14 @@ const LOCATION_COLORS = [
 
 const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
 
-function extractLocationFromCalendarName(calendarName: string): string | null {
+function extractLocationFromCalendarName(calendarName: string, parsedLocationFallback?: string | null): string | null {
+  const fallback = parsedLocationFallback && parsedLocationFallback.trim() && !/^unknown$/i.test(parsedLocationFallback.trim())
+    ? parsedLocationFallback.trim().replace(/\s+Office$/i, '')
+    : null;
+  // If calendar_name is missing or literally "Unknown", use parsed Location Picker fallback
+  if (!calendarName || /^unknown$/i.test(calendarName.trim())) {
+    return fallback;
+  }
   // Handle "Virtual Consultation" as a location
   if (/virtual\s+consultation/i.test(calendarName)) {
     return 'Virtual';
@@ -27,7 +34,7 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
   if (parenMatch) {
     const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
     const loc = inner.replace(/,\s*[A-Z]{2}$/, '').trim();
-    return loc ? loc.replace(/\s+Office$/i, '').trim() : null;
+    return loc ? loc.replace(/\s+Office$/i, '').trim() : fallback;
   }
   const atMatch = calendarName.match(/at\s+(.+)$/i);
   if (atMatch) {
@@ -45,10 +52,10 @@ function extractLocationFromCalendarName(calendarName: string): string | null {
   const consultMatch = calendarName.match(/Consultation\s+(.+)$/i);
   if (consultMatch) {
     const loc = consultMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '');
-    if (/^for\s+/i.test(loc)) return null;
+    if (/^for\s+/i.test(loc)) return fallback;
     return loc.replace(/\s+Office$/i, '').trim();
   }
-  return null;
+  return fallback;
 }
 
 interface LocationLegendProps {
