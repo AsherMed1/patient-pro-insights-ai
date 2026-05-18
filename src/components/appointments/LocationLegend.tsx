@@ -96,9 +96,19 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
             }
           }
 
-          const loc = extractLocationFromCalendarName(row.calendar_name);
+          const loc = extractLocationFromCalendarName(
+            row.calendar_name,
+            row.parsed_pathology_info?.location
+          );
           if (!loc) return;
           if (LEGACY_LOCATIONS.some(legacy => loc.includes(legacy))) return;
+
+          // Exclude Virtual for VSNC project, or when Neuro is explicitly filtered
+          if (loc === 'Virtual' && (isVSNC || hasNeuroFilter)) {
+            return;
+          }
+
+          uniqueLocations.add(loc);
 
           // Exclude Virtual for VSNC project, or when Neuro is explicitly filtered
           if (loc === 'Virtual' && (isVSNC || hasNeuroFilter)) {
