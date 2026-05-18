@@ -1393,7 +1393,7 @@ const AppointmentCard = ({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className="text-sm text-gray-600 break-words">{appointment.calendar_name}</span>
+                      <span className="text-sm text-gray-600 break-words">{(appointment.calendar_name && appointment.calendar_name !== 'Unknown') ? appointment.calendar_name : ((appointment.parsed_pathology_info as any)?.location || appointment.calendar_name)}</span>
                     )}
                   </div>
                 </TooltipTrigger>
