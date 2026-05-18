@@ -318,13 +318,22 @@ const ReviewQueue: React.FC = () => {
                       className="cursor-pointer"
                     />
                     <div>
-                      <button
-                        onClick={() => toggleExpand(row.id)}
-                        className="flex items-center gap-1 font-medium hover:underline text-left"
-                      >
-                        {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        {row.lead_name}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => toggleExpand(row.id)}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="Toggle inline details"
+                        >
+                          {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                        <button
+                          onClick={() => openDetail(row.id)}
+                          className="font-medium hover:underline text-left text-primary"
+                          disabled={detailLoading === row.id}
+                        >
+                          {row.lead_name}{detailLoading === row.id ? '…' : ''}
+                        </button>
+                      </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                     </div>
                     <div className="text-xs">{row.project_name}</div>
