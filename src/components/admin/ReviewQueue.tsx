@@ -310,7 +310,7 @@ const ReviewQueue: React.FC = () => {
               const demo = row.parsed_demographics || {};
               return (
                 <div key={row.id} className="hover:bg-muted/20">
-                  <div className="grid grid-cols-[28px_1fr_1fr_1fr_1fr_auto] gap-3 p-3 items-center text-sm">
+                  <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_300px] gap-3 p-3 items-center text-sm">
                     <input
                       type="checkbox"
                       checked={selected.has(row.id)}
