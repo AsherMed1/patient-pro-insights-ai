@@ -121,7 +121,9 @@ const Index = () => {
       const { count } = await supabase
         .from('all_appointments')
         .select('*', { count: 'exact', head: true })
-        .eq('review_status', 'pending');
+        .eq('review_status', 'pending')
+        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+        .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")');
       setReviewPendingCount(count || 0);
     };
     fetchReviewCount();

@@ -1,21 +1,22 @@
-## Goal
-Exempt ECCO Medical and Premier Vascular from the Review Queue, since these projects capture time preferences instead of real booked appointments and don't need verification.
+# Fix Review Queue badge showing phantom pending count
 
-## Changes
+## Problem
 
-### 1. Webhook intake — `supabase/functions/ghl-webhook-handler/index.ts`
-When inserting a new appointment, if `project_name` matches `ECCO Medical` or `Premier Vascular`, set `review_status = 'approved'` (auto-approve) instead of `'pending'`, and skip the Slack notification to `#appt-booked-verification`.
+The Review Queue tab badge says **12 pending** but only **1 row** is visible. The badge and the list are using different queries:
 
-### 2. API intake — `supabase/functions/all-appointments-api/index.ts`
-Same rule: on new insert for these two projects, default `review_status = 'approved'` and skip the Slack notify call.
+- **Tab badge** (`src/pages/Index.tsx` line 121-124): counts ALL `all_appointments` where `review_status = 'pending'`.
+- **Queue list** (`src/components/admin/ReviewQueue.tsx`): excludes the exempt projects (ECCO Medical, Premier Vascular, Premier Vascular Surgery) and reserved blocks.
 
-### 3. UI safety net — `src/components/admin/ReviewQueue.tsx`
-Add a `.not('project_name', 'in', '("ECCO Medical","Premier Vascular")')` filter to the fetch query so any historical pending rows for these projects are hidden from the queue.
+The 11 "missing" rows are pending appointments for the exempt projects (and possibly reserved blocks) that the list correctly hides but the badge still counts. The previously proposed backfill migration either hasn't run or new exempt-project rows have come in since.
 
-### 4. Backfill (data update via insert tool)
-Update existing `all_appointments` rows where `project_name IN ('ECCO Medical','Premier Vascular')` and `review_status = 'pending'` → set to `'approved'` so the queue clears.
+## Fix
 
-## Notes
-- Exact project name strings should match what's in the DB. I'll verify against `projects` table before writing (Premier Vascular memory mentions exact name "Premier Vascular"; ECCO memory mentions "ECCO Medical"). If they differ, I'll adjust the constant list.
-- Centralize the exempt list as a small constant in each edge function for easy future additions.
-- No schema migration needed.
+1. **`src/pages/Index.tsx`** — Update the badge query to mirror the list filter so the two numbers match:
+   - Add `.not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")')`
+   - Add `.or('is_reserved_block.is.null,is_reserved_block.eq.false')`
+
+2. **Backfill** — Run a one-time SQL update to set `review_status = 'approved'` for any existing `pending` rows whose `project_name` is in the exempt list, so they stop polluting any other counts/queries. (The migration was drafted previously; re-confirm it has applied. If not, apply it.)
+
+## Out of scope
+
+No UI redesign. No changes to the queue list itself — it's already correct.
