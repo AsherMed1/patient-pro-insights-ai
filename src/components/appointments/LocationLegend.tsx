@@ -83,7 +83,6 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
         if (error) throw error;
 
         const uniqueLocations = new Set<string>();
-        const isVSNC = projectName === 'Vascular Surgery Center of Excellence';
         const hasNeuroFilter = activeEventTypes?.some(t => t.toLowerCase() === 'neuropathy');
 
         data?.forEach((row: any) => {
@@ -103,10 +102,11 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
           if (!loc) return;
           if (LEGACY_LOCATIONS.some(legacy => loc.includes(legacy))) return;
 
-          // Exclude Virtual for VSNC project, or when Neuro is explicitly filtered
-          if (loc === 'Virtual' && (isVSNC || hasNeuroFilter)) {
+          // Exclude Virtual only when Neuro is explicitly filtered (VSNC now treats Virtual as a real location)
+          if (loc === 'Virtual' && hasNeuroFilter) {
             return;
           }
+
 
           uniqueLocations.add(loc);
         });
