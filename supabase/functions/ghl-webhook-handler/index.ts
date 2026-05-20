@@ -1134,10 +1134,10 @@ async function findExistingAppointment(
 }
 
 // Trigger auto-parse in background (don't await)
-function triggerAutoParse(supabase: any, appointmentId: string, requestId: string) {
+function triggerAutoParse(supabase: any, appointmentId: string, requestId: string): Promise<void> {
   console.log(`[${requestId}] Triggering auto-parse for appointment: ${appointmentId}`)
-  
-  supabase.functions.invoke('auto-parse-intake-notes', {
+
+  return supabase.functions.invoke('auto-parse-intake-notes', {
     body: { trigger: 'immediate', appointment_id: appointmentId }
   }).then(({ data, error }: any) => {
     if (error) {
@@ -1147,6 +1147,7 @@ function triggerAutoParse(supabase: any, appointmentId: string, requestId: strin
     }
   })
 }
+
 
 // Fetch and update insurance card in background (don't await)
 async function fetchAndUpdateInsuranceCard(
