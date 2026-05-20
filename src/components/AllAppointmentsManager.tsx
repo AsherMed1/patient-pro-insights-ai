@@ -1477,7 +1477,10 @@ const AllAppointmentsManager = ({
                     if (procedureOrderFilter === 'null') query = query.is('procedure_status', null);
                     else query = query.eq('procedure_status', procedureOrderFilter);
                   }
-                  if (locationFilter !== 'ALL') query = query.ilike('calendar_name', `%${locationFilter}%`);
+                  if (locationFilter !== 'ALL') {
+                    if (locationFilter === 'Virtual') query = query.ilike('calendar_name', '%Virtual%');
+                    else query = query.ilike('calendar_name', `%${locationFilter}%`).not('calendar_name', 'ilike', '%Virtual%');
+                  }
                   if (serviceFilter !== 'ALL') {
                     if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
                     else query = query.ilike('calendar_name', `%${serviceFilter}%`);
