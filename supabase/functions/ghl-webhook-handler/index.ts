@@ -314,28 +314,33 @@ serve(async (req) => {
       // Enrich all appointments with full GHL contact data (if ghl_id available)
       if (appointmentRecord && webhookData.ghl_id) {
         console.log(`[${requestId}] Enriching appointment with full GHL contact data`)
-        enrichAppointmentWithGHLData(
+        keepAlive(
+          enrichAppointmentWithGHLData(
+            supabase,
+            appointmentRecord.id,
+            webhookData.ghl_id,
+            webhookData.project_name,
+            requestId
+          )
+        )
+      } else if (appointmentRecord && appointmentData.patient_intake_notes) {
+        // Only trigger basic auto-parsing if no ghl_id (can't fetch from GHL)
+        keepAlive(triggerAutoParse(supabase, appointmentRecord.id, requestId))
+      }
+
+    // Fetch insurance card in background
+    if (appointmentRecord && webhookData.ghl_id && !appointmentData.insurance_id_link) {
+      keepAlive(
+        fetchAndUpdateInsuranceCard(
           supabase,
           appointmentRecord.id,
           webhookData.ghl_id,
           webhookData.project_name,
           requestId
         )
-      } else if (appointmentRecord && appointmentData.patient_intake_notes) {
-        // Only trigger basic auto-parsing if no ghl_id (can't fetch from GHL)
-        triggerAutoParse(supabase, appointmentRecord.id, requestId)
-      }
-
-    // Fetch insurance card in background
-    if (appointmentRecord && webhookData.ghl_id && !appointmentData.insurance_id_link) {
-      fetchAndUpdateInsuranceCard(
-        supabase, 
-        appointmentRecord.id, 
-        webhookData.ghl_id, 
-        webhookData.project_name,
-        requestId
       )
     }
+
 
     return new Response(
       JSON.stringify({ 
