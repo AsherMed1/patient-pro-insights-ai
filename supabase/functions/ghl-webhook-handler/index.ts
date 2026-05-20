@@ -1461,7 +1461,7 @@ async function enrichAppointmentWithGHLData(
     console.log(`[${requestId}] ✅ Successfully enriched appointment with ${customFields.length} custom fields`)
     
     // Trigger auto-parsing to populate Patient Pro Insights
-    triggerAutoParse(supabase, appointmentId, requestId)
+    await triggerAutoParse(supabase, appointmentId, requestId)
     
   } catch (error) {
     console.error(`[${requestId}] Enrichment failed:`, error)
