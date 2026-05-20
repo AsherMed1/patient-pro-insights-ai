@@ -1,37 +1,55 @@
-# AVA / Cory Hammond — GHL reschedule didn't reach the portal
+# AVA Insurance Not Syncing to Portal — Root Cause & Fix
 
-## Diagnosis
+## What's actually happening
 
-Looked up the appointment by GHL contact `nGoWKhmsINAiHGUk2Zv0`:
+Insurance data **is** being captured correctly in the database for AVA appointments. I verified Darlene Taylor (Vascular Surgery Associates — same code path) and the last 8 AVA appointments. All have `parsed_insurance_info.insurance_provider`, `insurance_plan`, and `insurance_id_number` populated, plus matching `detected_insurance_*` columns. The portal UI reads those fields correctly.
 
-- DB row: `id=fcbd47d0-8c6b-4c5b-a661-53fc5a75e6fb`, AVA Vascular, status **Confirmed**, date **2026-05-11 @ 16:00**, ghl_appointment_id `PFE6lf5xGCeRUslZULkh`.
-- `last_ghl_sync_at`, `last_sync_source`, `last_sync_timestamp` are all NULL — this record has not been touched by any GHL sync since it was created on Apr 16.
-- Searched `ghl-webhook-handler` logs for `PFE6lf5xGCeRUslZULkh`, `nGoWKhmsINAiHGUk2Zv0`, `pdt30sKeaaBubLsO1OM3`, and "Cory Hammond" — **zero hits**. Other AVA-adjacent webhooks (e.g. Apex Vascular) are arriving normally, so the handler itself is healthy.
-- The most recent `appointment_update` audit entry on this row (2026-05-18 22:28) is a no-op write from our side — the new_values still show `date_of_appointment: 2026-05-11`. No payload from GHL ever landed.
+The problem is **timing / reliability of background enrichment**, not field mapping.
 
-Conclusion: GHL never sent us an Appointment Update webhook for this reschedule. The portal is correct given the events it received. This is a GHL workflow/automation gap on the AVA sub-account (`pdt30sKeaaBubLsO1OM3`), not a portal sync bug.
+### Smoking gun
+`Eric Kilpatrick` (AVA): created `2026-05-16 18:44`, but `parsing_completed_at = 2026-05-18 15:30`. That's a 2-day gap — meaning the insurance card stayed empty in the portal for two days until somebody manually re-ran parsing. Most appointments parse in ~3 seconds; a subset never parse until manually retriggered. That matches what Jenny is seeing.
 
-## What needs to happen
+### Why it happens
 
-This isn't really a code change — it's a data fix plus an upstream workflow check. Two parallel actions:
+`supabase/functions/ghl-webhook-handler/index.ts` does the heavy work in fire-and-forget background tasks that are **not** wrapped in `EdgeRuntime.waitUntil()`:
 
-### 1. Fix this specific appointment
+- Line 303: `enrichAppointmentWithGHLData(...)` — fetches full GHL contact (insurance fields live here), writes `patient_intake_notes`, then calls `triggerAutoParse` which populates `parsed_insurance_info`.
+- Line 317: `fetchAndUpdateInsuranceCard(...)` — fetches `insurance_id_link`.
+- Line 1121 / 1444: `triggerAutoParse(...)` — invokes `auto-parse-intake-notes`.
 
-The date has passed and the client wants to follow up with the clinic. Options (need user to pick):
+The webhook returns its 201 immediately. The Supabase Edge Runtime is free to terminate the worker as soon as the response is sent, killing any unfinished promise. When that race is lost, enrichment never completes → `parsed_insurance_info` stays null → portal shows the empty Insurance card Jenny screenshotted. This violates the project's existing rule (memory: "Use `EdgeRuntime.waitUntil()` … for tasks exceeding 60s timeout") — but the rule needs to apply to **any** background promise we want guaranteed, regardless of duration.
 
-- **A. Apply the reschedule retroactively**: update the row to `date_of_appointment = 2026-05-18`, `requested_time = 14:00`, append a reschedule_history entry attributed to "System (manual GHL reconciliation)", and set status appropriately (Showed / No Show / Cancelled per what the clinic reports). This will move it out of New/Needs Review.
-- **B. Mark as Rescheduled** (terminal): close out the May 11 record, leave a note explaining GHL was updated but webhook never fired, then let the clinic create a fresh entry if they want one.
-- **C. Leave as-is and let the agent call the clinic first**, then come back to fix once we know the outcome.
+## The fix
 
-### 2. Verify AVA's GHL Appointment Update workflow
+Edit only `supabase/functions/ghl-webhook-handler/index.ts`:
 
-In GHL → AVA sub-account → Automation, confirm there is a workflow with trigger **Appointment Status Updated / Appointment Updated** that posts to our `ghl-webhook-handler` URL. If it's missing or paused, every AVA reschedule will silently drift. This has to be checked in GHL by someone with admin access — we can't fix it from code.
+1. Wrap the three background calls so the runtime keeps the worker alive until they resolve:
+   ```ts
+   // line ~303
+   EdgeRuntime.waitUntil(
+     enrichAppointmentWithGHLData(supabase, appointmentRecord.id, webhookData.ghl_id, webhookData.project_name, requestId)
+   )
+   // line ~312
+   EdgeRuntime.waitUntil(triggerAutoParse(supabase, appointmentRecord.id, requestId))
+   // line ~317
+   EdgeRuntime.waitUntil(
+     fetchAndUpdateInsuranceCard(supabase, appointmentRecord.id, webhookData.ghl_id, webhookData.project_name, requestId)
+   )
+   ```
+2. Inside `enrichAppointmentWithGHLData`, change the trailing `triggerAutoParse(...)` (line 1444) to `await triggerAutoParse(...)` (and make `triggerAutoParse` return its promise) so the enrichment task as a whole only resolves once parsing has actually been kicked off.
+3. Add a thin `declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };` shim at the top of the file to keep TypeScript happy (Deno Deploy provides it at runtime).
 
-## Out of scope
+No DB schema changes. No UI changes. No changes to `auto-parse-intake-notes` or `fetch-ghl-contact-data`.
 
-- No portal code changes proposed. The handler, webhook guard, and 120s debounce all behaved correctly for the (non-)events received.
-- No migration. This is a single-row fix or a workflow correction in GHL.
+## Backfill for already-affected AVA appointments
 
-## Question for the user
+A short, separate one-shot script after the deploy: find AVA `all_appointments` rows where `parsing_completed_at IS NULL` or `parsed_insurance_info IS NULL` and `ghl_id IS NOT NULL`, and invoke `fetch-ghl-contact-data` + `auto-parse-intake-notes` for each. I'll list the affected rows for your review before running anything.
 
-Which path for option 1 — **A (apply reschedule now)**, **B (mark Rescheduled)**, or **C (wait)** — and do you want me to also flag the GHL workflow check to the team?
+## What you'll see after the fix
+
+- New GHL appointments: insurance Provider / Plan / Member ID / Group Number appear in the portal within seconds of the appointment being created, every time.
+- No more "ghost" empty insurance cards that only populate after a manual refresh.
+
+## Reply with "go" to implement
+
+Or tell me if you'd rather I also (a) add an alert when an appointment has `patient_intake_notes` but no `parsing_completed_at` after 5 minutes, and/or (b) run the backfill across **all** projects, not just AVA.

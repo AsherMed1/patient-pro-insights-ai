@@ -2,6 +2,20 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { fetchInsuranceCardUrl } from '../_shared/ghl-client.ts'
 
+// Deno Deploy provides EdgeRuntime.waitUntil at runtime; declare for TS.
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
+const keepAlive = (p: Promise<unknown>) => {
+  try {
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      EdgeRuntime.waitUntil(p);
+      return;
+    }
+  } catch (_) { /* fall through */ }
+  // Fallback: at least attach a catch so unhandled rejections are logged.
+  p.catch((e) => console.error('[keepAlive] background task failed:', e));
+};
+
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -300,28 +314,33 @@ serve(async (req) => {
       // Enrich all appointments with full GHL contact data (if ghl_id available)
       if (appointmentRecord && webhookData.ghl_id) {
         console.log(`[${requestId}] Enriching appointment with full GHL contact data`)
-        enrichAppointmentWithGHLData(
+        keepAlive(
+          enrichAppointmentWithGHLData(
+            supabase,
+            appointmentRecord.id,
+            webhookData.ghl_id,
+            webhookData.project_name,
+            requestId
+          )
+        )
+      } else if (appointmentRecord && appointmentData.patient_intake_notes) {
+        // Only trigger basic auto-parsing if no ghl_id (can't fetch from GHL)
+        keepAlive(triggerAutoParse(supabase, appointmentRecord.id, requestId))
+      }
+
+    // Fetch insurance card in background
+    if (appointmentRecord && webhookData.ghl_id && !appointmentData.insurance_id_link) {
+      keepAlive(
+        fetchAndUpdateInsuranceCard(
           supabase,
           appointmentRecord.id,
           webhookData.ghl_id,
           webhookData.project_name,
           requestId
         )
-      } else if (appointmentRecord && appointmentData.patient_intake_notes) {
-        // Only trigger basic auto-parsing if no ghl_id (can't fetch from GHL)
-        triggerAutoParse(supabase, appointmentRecord.id, requestId)
-      }
-
-    // Fetch insurance card in background
-    if (appointmentRecord && webhookData.ghl_id && !appointmentData.insurance_id_link) {
-      fetchAndUpdateInsuranceCard(
-        supabase, 
-        appointmentRecord.id, 
-        webhookData.ghl_id, 
-        webhookData.project_name,
-        requestId
       )
     }
+
 
     return new Response(
       JSON.stringify({ 
@@ -1115,10 +1134,10 @@ async function findExistingAppointment(
 }
 
 // Trigger auto-parse in background (don't await)
-function triggerAutoParse(supabase: any, appointmentId: string, requestId: string) {
+function triggerAutoParse(supabase: any, appointmentId: string, requestId: string): Promise<void> {
   console.log(`[${requestId}] Triggering auto-parse for appointment: ${appointmentId}`)
-  
-  supabase.functions.invoke('auto-parse-intake-notes', {
+
+  return supabase.functions.invoke('auto-parse-intake-notes', {
     body: { trigger: 'immediate', appointment_id: appointmentId }
   }).then(({ data, error }: any) => {
     if (error) {
@@ -1128,6 +1147,7 @@ function triggerAutoParse(supabase: any, appointmentId: string, requestId: strin
     }
   })
 }
+
 
 // Fetch and update insurance card in background (don't await)
 async function fetchAndUpdateInsuranceCard(
@@ -1441,7 +1461,7 @@ async function enrichAppointmentWithGHLData(
     console.log(`[${requestId}] ✅ Successfully enriched appointment with ${customFields.length} custom fields`)
     
     // Trigger auto-parsing to populate Patient Pro Insights
-    triggerAutoParse(supabase, appointmentId, requestId)
+    await triggerAutoParse(supabase, appointmentId, requestId)
     
   } catch (error) {
     console.error(`[${requestId}] Enrichment failed:`, error)
