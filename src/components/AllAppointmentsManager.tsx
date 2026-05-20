@@ -283,8 +283,15 @@ const AllAppointmentsManager = ({
 
       // Apply location filter (extracted from calendar_name)
       if (locationFilter !== 'ALL') {
-        countQuery = countQuery.ilike('calendar_name', `%${locationFilter}%`);
+        if (locationFilter === 'Virtual') {
+          countQuery = countQuery.ilike('calendar_name', '%Virtual%');
+        } else {
+          countQuery = countQuery
+            .ilike('calendar_name', `%${locationFilter}%`)
+            .not('calendar_name', 'ilike', '%Virtual%');
+        }
       }
+
 
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
@@ -429,8 +436,15 @@ const AllAppointmentsManager = ({
 
       // Apply location filter (extracted from calendar_name)
       if (locationFilter !== 'ALL') {
-        appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${locationFilter}%`);
+        if (locationFilter === 'Virtual') {
+          appointmentsQuery = appointmentsQuery.ilike('calendar_name', '%Virtual%');
+        } else {
+          appointmentsQuery = appointmentsQuery
+            .ilike('calendar_name', `%${locationFilter}%`)
+            .not('calendar_name', 'ilike', '%Virtual%');
+        }
       }
+
 
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
@@ -577,8 +591,15 @@ const AllAppointmentsManager = ({
 
         // Apply location filter (extracted from calendar_name)
         if (locationFilter !== 'ALL') {
-          query = query.ilike('calendar_name', `%${locationFilter}%`);
+          if (locationFilter === 'Virtual') {
+            query = query.ilike('calendar_name', '%Virtual%');
+          } else {
+            query = query
+              .ilike('calendar_name', `%${locationFilter}%`)
+              .not('calendar_name', 'ilike', '%Virtual%');
+          }
         }
+
 
         // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
@@ -1456,7 +1477,10 @@ const AllAppointmentsManager = ({
                     if (procedureOrderFilter === 'null') query = query.is('procedure_status', null);
                     else query = query.eq('procedure_status', procedureOrderFilter);
                   }
-                  if (locationFilter !== 'ALL') query = query.ilike('calendar_name', `%${locationFilter}%`);
+                  if (locationFilter !== 'ALL') {
+                    if (locationFilter === 'Virtual') query = query.ilike('calendar_name', '%Virtual%');
+                    else query = query.ilike('calendar_name', `%${locationFilter}%`).not('calendar_name', 'ilike', '%Virtual%');
+                  }
                   if (serviceFilter !== 'ALL') {
                     if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
                     else query = query.ilike('calendar_name', `%${serviceFilter}%`);
