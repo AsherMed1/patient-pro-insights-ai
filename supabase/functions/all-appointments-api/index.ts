@@ -236,7 +236,21 @@ serve(async (req) => {
         .maybeSingle()
       existingAppointment = data;
     }
-    
+
+    // Exempt unscheduled projects (ECCO/Premier): dedupe strictly on (project_name, ghl_id).
+    // These projects never carry a ghl_appointment_id, and the partial unique index enforces
+    // one unscheduled row per contact per project.
+    if (!existingAppointment && isPremierVascular && appointmentData.ghl_id) {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('id')
+        .eq('ghl_id', appointmentData.ghl_id)
+        .eq('project_name', appointmentData.project_name)
+        .eq('is_unscheduled', true)
+        .maybeSingle()
+      existingAppointment = data;
+    }
+
     if (!existingAppointment && appointmentData.ghl_id) {
       const { data } = await supabase
         .from('all_appointments')
@@ -262,10 +276,30 @@ serve(async (req) => {
       error = updateResult.error;
     } else {
       // Insert new appointment
-      const insertResult = await supabase
+      let insertResult = await supabase
         .from('all_appointments')
         .insert([appointmentData])
         .select()
+      // Race-condition recovery: if a concurrent webhook just inserted the same
+      // unscheduled lead, the partial unique index will reject this insert.
+      // Fall back to an UPDATE on the row that won the race.
+      if (insertResult.error && (insertResult.error as any).code === '23505' && isPremierVascular && appointmentData.ghl_id) {
+        console.warn('[all-appointments-api] Unique violation on insert — recovering as update for', appointmentData.ghl_id);
+        const { data: winner } = await supabase
+          .from('all_appointments')
+          .select('id')
+          .eq('ghl_id', appointmentData.ghl_id)
+          .eq('project_name', appointmentData.project_name)
+          .eq('is_unscheduled', true)
+          .maybeSingle();
+        if (winner) {
+          insertResult = await supabase
+            .from('all_appointments')
+            .update(appointmentData)
+            .eq('id', winner.id)
+            .select();
+        }
+      }
       data = insertResult.data;
       error = insertResult.error;
 
