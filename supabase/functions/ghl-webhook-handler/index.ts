@@ -194,12 +194,36 @@ serve(async (req) => {
       const isExempt = REVIEW_QUEUE_EXEMPT.includes(appointmentData.project_name);
       const reviewStatus = isExempt ? 'approved' : 'pending';
       console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus})`)
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('all_appointments')
         .insert([{ ...appointmentData, review_status: reviewStatus }])
         .select()
         .single()
-      
+
+      // Race-condition recovery: concurrent webhook may have just inserted the same
+      // unscheduled lead. Partial unique index on (project_name, ghl_id) for the
+      // exempt projects rejects the second insert — recover by updating the winner.
+      if (error && (error as any).code === '23505' && isExempt && appointmentData.ghl_id && appointmentData.is_unscheduled) {
+        console.warn(`[${requestId}] Unique violation — recovering as update for ghl_id=${appointmentData.ghl_id}`)
+        const { data: winner } = await supabase
+          .from('all_appointments')
+          .select('id')
+          .eq('ghl_id', appointmentData.ghl_id)
+          .eq('project_name', appointmentData.project_name)
+          .eq('is_unscheduled', true)
+          .maybeSingle()
+        if (winner) {
+          const updateResult = await supabase
+            .from('all_appointments')
+            .update(appointmentData)
+            .eq('id', winner.id)
+            .select()
+            .single()
+          data = updateResult.data
+          error = updateResult.error
+        }
+      }
+
       if (error) throw error
       appointmentRecord = data
 
