@@ -121,16 +121,14 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       if (data) {
         const locations = new Set<string>();
         const services = new Set<string>();
-        const isVSNC = projectFilter === 'Vascular Surgery Center of Excellence';
         const isNeuroService = serviceFilter?.toLowerCase() === 'neuropathy' || serviceFilter?.toLowerCase() === 'neuro';
         
         data.forEach(item => {
           if (item.calendar_name) {
-            // Extract location
-            if (/virtual\s+consultation/i.test(item.calendar_name)) {
-              // "Virtual Consultation" → treat "Virtual" as a location
-              // Skip Virtual for VSNC project or when Neuro service is selected
-              if (!isVSNC && !isNeuroService) {
+            // Extract location — "Virtual" is treated as a location across all projects (incl. VSNC)
+            if (/\bvirtual\b/i.test(item.calendar_name)) {
+              // Skip Virtual only when Neuro service is selected (UX preference for non-VSNC)
+              if (!isNeuroService) {
                 locations.add('Virtual');
               }
             } else {
