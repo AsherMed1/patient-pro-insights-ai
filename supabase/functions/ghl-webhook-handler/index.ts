@@ -2,6 +2,20 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { fetchInsuranceCardUrl } from '../_shared/ghl-client.ts'
 
+// Deno Deploy provides EdgeRuntime.waitUntil at runtime; declare for TS.
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
+const keepAlive = (p: Promise<unknown>) => {
+  try {
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      EdgeRuntime.waitUntil(p);
+      return;
+    }
+  } catch (_) { /* fall through */ }
+  // Fallback: at least attach a catch so unhandled rejections are logged.
+  p.catch((e) => console.error('[keepAlive] background task failed:', e));
+};
+
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
