@@ -1,52 +1,37 @@
-# VSNC: Virtual as a Location, Not a Service
+# AVA / Cory Hammond — GHL reschedule didn't reach the portal
 
-## Problem
+## Diagnosis
 
-For Vascular Surgery Center of Excellence (VSNC), GHL calendar names like "Virtual GAE Consultation" and "Virtual Neuropathy Consultation" are currently surfacing as separate services ("Virtual GAE" vs "GAE"). They also are *not* exposed as a "Virtual" location, because we explicitly suppress Virtual from VSNC's location list. Result: virtual visits get split off in reporting and can't be filtered by location.
+Looked up the appointment by GHL contact `nGoWKhmsINAiHGUk2Zv0`:
 
-The rest of the codebase already strips "Virtual" out of service labels and treats "Virtual" as a location elsewhere — VSNC was the lone exception.
+- DB row: `id=fcbd47d0-8c6b-4c5b-a661-53fc5a75e6fb`, AVA Vascular, status **Confirmed**, date **2026-05-11 @ 16:00**, ghl_appointment_id `PFE6lf5xGCeRUslZULkh`.
+- `last_ghl_sync_at`, `last_sync_source`, `last_sync_timestamp` are all NULL — this record has not been touched by any GHL sync since it was created on Apr 16.
+- Searched `ghl-webhook-handler` logs for `PFE6lf5xGCeRUslZULkh`, `nGoWKhmsINAiHGUk2Zv0`, `pdt30sKeaaBubLsO1OM3`, and "Cory Hammond" — **zero hits**. Other AVA-adjacent webhooks (e.g. Apex Vascular) are arriving normally, so the handler itself is healthy.
+- The most recent `appointment_update` audit entry on this row (2026-05-18 22:28) is a no-op write from our side — the new_values still show `date_of_appointment: 2026-05-11`. No payload from GHL ever landed.
 
-## Goal
+Conclusion: GHL never sent us an Appointment Update webhook for this reschedule. The portal is correct given the events it received. This is a GHL workflow/automation gap on the AVA sub-account (`pdt30sKeaaBubLsO1OM3`), not a portal sync bug.
 
-For VSNC:
-- Services in the dropdown: only the underlying types (e.g. GAE, Neuropathy) — no "Virtual ___" variants.
-- Locations in the dropdown: the 4 physical clinics **plus** "Virtual" as the 5th option.
-- Filtering by GAE returns both in-person and virtual GAE; filtering by "Virtual" returns all virtual visits across services.
+## What needs to happen
 
-## Changes
+This isn't really a code change — it's a data fix plus an upstream workflow check. Two parallel actions:
 
-### 1. Stop excluding "Virtual" from VSNC's location list
+### 1. Fix this specific appointment
 
-Three files have an `isVSNC` guard that currently skips adding "Virtual" to the location set. Remove just the VSNC exclusion (keep the Neuropathy-filter exclusion where it exists, since that one is intentional UX for non-VSNC projects):
+The date has passed and the client wants to follow up with the clinic. Options (need user to pick):
 
-- `src/components/appointments/AppointmentFilters.tsx` (around line 124–135): drop `isVSNC` from the skip condition for adding the "Virtual" location.
-- `src/components/appointments/LocationLegend.tsx` (around line 86–109): drop `isVSNC` from the Virtual-exclusion check.
-- `src/components/projects/ProjectDetailedDashboard.tsx` (around line 113–126): drop `isVSNC` from the Virtual-exclusion check.
+- **A. Apply the reschedule retroactively**: update the row to `date_of_appointment = 2026-05-18`, `requested_time = 14:00`, append a reschedule_history entry attributed to "System (manual GHL reconciliation)", and set status appropriately (Showed / No Show / Cancelled per what the clinic reports). This will move it out of New/Needs Review.
+- **B. Mark as Rescheduled** (terminal): close out the May 11 record, leave a note explaining GHL was updated but webhook never fired, then let the clinic create a fresh entry if they want one.
+- **C. Leave as-is and let the agent call the clinic first**, then come back to fix once we know the outcome.
 
-### 2. Service list — already correct, verify
+### 2. Verify AVA's GHL Appointment Update workflow
 
-The service extractor in all three files already strips a leading or trailing `Virtual` token from the service name and merges `In-person` into `GAE`. After the location change above, VSNC's service dropdown will naturally collapse to `GAE` and `Neuropathy` (plus anything else legitimately on their calendars). No new code needed here — just confirm by reading the existing regex paths.
-
-### 3. Physical-location filter must exclude Virtual calendars
-
-When the user picks a physical city for VSNC, virtual calendars that happen to mention the same city must not double-count. `ProjectDetailedDashboard.tsx` already does this. Mirror it in `src/components/AllAppointmentsManager.tsx` at the three places that apply `locationFilter` (count query ~line 285, list query ~line 431, export query ~line 579, plus the inline export at ~line 1459): when `locationFilter !== 'ALL' && locationFilter !== 'Virtual'`, add `.not('calendar_name', 'ilike', '%Virtual%')`. When it is `'Virtual'`, the existing `ilike '%Virtual%'` already does the right thing.
-
-### 4. Memory
-
-Add a small project-scoped memory note at `mem://projects/vsce/virtual-as-location` capturing the rule: "VSNC: Virtual is a location (5th option alongside the 4 physical clinics), never a service. GAE / Neuropathy filters include virtual visits."
+In GHL → AVA sub-account → Automation, confirm there is a workflow with trigger **Appointment Status Updated / Appointment Updated** that posts to our `ghl-webhook-handler` URL. If it's missing or paused, every AVA reschedule will silently drift. This has to be checked in GHL by someone with admin access — we can't fix it from code.
 
 ## Out of scope
 
-- No DB migration. Calendar names in GHL stay as-is; the UI handles the categorization.
-- No changes to other projects' Virtual handling.
-- No changes to event-type / procedure color tokens.
+- No portal code changes proposed. The handler, webhook guard, and 120s debounce all behaved correctly for the (non-)events received.
+- No migration. This is a single-row fix or a workflow correction in GHL.
 
-## Verification
+## Question for the user
 
-- Open the VSNC project portal → Appointments tab. Confirm:
-  - Service dropdown shows GAE and Neuropathy (no "Virtual GAE" / "Virtual Neuropathy").
-  - Location dropdown shows the 4 physical clinics + "Virtual".
-  - Filter GAE → returns both virtual and in-person GAE appointments.
-  - Filter Location = Virtual → returns all virtual visits, both GAE and Neuropathy.
-  - Filter Location = one physical clinic → excludes virtual visits even if the city name appears in the virtual calendar.
-- Repeat on the Project Detailed Dashboard tab.
+Which path for option 1 — **A (apply reschedule now)**, **B (mark Rescheduled)**, or **C (wait)** — and do you want me to also flag the GHL workflow check to the team?
