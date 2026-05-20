@@ -1582,7 +1582,7 @@ const AppointmentCard = ({
                   No appointment date/time set
                 </span>
               )}
-              {hasManagementAccess() && (
+              {(hasManagementAccess() || appointment.is_unscheduled) && (
                 <Popover open={dateTimePopoverOpen} onOpenChange={(open) => {
                   // Only allow opening via trigger; closing is handled by Cancel/Confirm buttons only
                   if (open) setDateTimePopoverOpen(true);
@@ -1605,11 +1605,24 @@ const AppointmentCard = ({
                       calendars={calendars}
                       projectGhlCredentials={projectGhlCredentials}
                       projectTimezone={projectTimezone}
-                      onConfirm={(date, time) => {
+                      onConfirm={async (date, time) => {
                         setSelectedDate(date);
                         setTimeValue(time);
                         onUpdateDate(appointment.id, date ? formatDateFns(date, 'yyyy-MM-dd') : null);
                         onUpdateTime(appointment.id, time || null);
+                        // Unscheduled lead → real booking: flip is_unscheduled so it
+                        // routes/filters as a scheduled appointment from now on.
+                        if (appointment.is_unscheduled && date && time) {
+                          const { error: flipError } = await supabase
+                            .from('all_appointments')
+                            .update({ is_unscheduled: false })
+                            .eq('id', appointment.id);
+                          if (flipError) {
+                            console.error('Failed to flip is_unscheduled:', flipError);
+                          } else {
+                            onDataRefresh?.();
+                          }
+                        }
                         setDateTimePopoverOpen(false);
                       }}
                       onClose={() => setDateTimePopoverOpen(false)}
