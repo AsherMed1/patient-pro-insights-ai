@@ -161,10 +161,10 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               if (service.toLowerCase() === 'virtual' || service === '') {
                 // Bare "Virtual Consultation" — no specific service token in calendar name.
                 // Surface as "Virtual (Unspecified)" so these appointments remain filterable.
-                // Skip for VSNC project
-                if (isVirtual && !isVSNC) {
+                if (isVirtual) {
                   services.add('Virtual (Unspecified)');
                 }
+
               } else {
                 services.add(service);
               }
