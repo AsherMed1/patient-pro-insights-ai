@@ -17,6 +17,7 @@ import { useRole } from '@/hooks/useRole';
 const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
   'Texas Vascular Institute': ['GAE', 'PAD', 'PFE', 'UFE'],
   'Champion Heart and Vascular Center': ['GAE', 'HAE', 'PAE', 'PFE', 'UFE'],
+  'ECCO Medical': ['GAE', 'PAE', 'PFE'],
 };
 interface DateRange {
   from: Date | undefined;
@@ -160,19 +161,16 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             }
             
             // Extract service: text between quotes or after "your " and before " Consultation"
-            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
+            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
             if (serviceMatch && serviceMatch[1]) {
               let service = serviceMatch[1].trim();
-              // Strip " Virtual" suffix — virtual is a location mode, not a service
-              service = service.replace(/\s+Virtual$/i, '').trim();
-              // Merge In-person with GAE - they are the same service type
-              if (service.toLowerCase() === 'in-person') {
-                service = 'GAE';
-              }
-              // "Virtual" is a location, not a service
-              if (service.toLowerCase() === 'virtual') {
-                // skip
-              } else {
+              // Strip modality modifiers (Virtual / In-Person / In Person) from either end
+              service = service
+                .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
+                .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
+                .trim();
+              // Skip if nothing meaningful remains (pure modality)
+              if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
                 services.add(service);
               }
             }
