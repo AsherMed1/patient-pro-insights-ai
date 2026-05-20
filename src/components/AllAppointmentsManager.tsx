@@ -283,8 +283,15 @@ const AllAppointmentsManager = ({
 
       // Apply location filter (extracted from calendar_name)
       if (locationFilter !== 'ALL') {
-        countQuery = countQuery.ilike('calendar_name', `%${locationFilter}%`);
+        if (locationFilter === 'Virtual') {
+          countQuery = countQuery.ilike('calendar_name', '%Virtual%');
+        } else {
+          countQuery = countQuery
+            .ilike('calendar_name', `%${locationFilter}%`)
+            .not('calendar_name', 'ilike', '%Virtual%');
+        }
       }
+
 
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
