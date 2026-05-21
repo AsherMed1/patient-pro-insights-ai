@@ -1,28 +1,30 @@
-## Add "Pending Test Results" Procedure Option
+## Root cause
 
-Add a new selectable value to the procedure status dropdown so you can track patients waiting on test results before any procedure is ordered.
+Mary Braxton's appointment was marked OON via the **Review Queue**, but that path doesn't fire the same side effects as the appointment-card status dropdown.
 
-### Changes
+`src/components/admin/ReviewQueue.tsx` `performAction()`:
+1. Sets `status = 'OON'` in the DB — works.
+2. Calls `notify-slack-status-change` — **this edge function does not exist** (only `notify-slack-oon`, `notify-slack-review-queue`, etc.). The Slack alert silently fails.
+3. **Does NOT call `appointment-status-webhook`** — this is the function that POSTs to the project's `appointment_webhook_url`, which is what triggers the GHL OON workflow on the contact/opportunity.
 
-1. **Dropdown options** (in `AppointmentCard.tsx` and `DetailedAppointmentView.tsx`):
-   - Add `<SelectItem value="pending_test_results">Pending Test Results</SelectItem>` to the procedure status select alongside Imaging Ordered / No Procedure Ordered / Procedure Not Covered.
+So when OON is set from the queue: DB is updated, but no Slack alert fires and no outbound webhook hits GHL → opportunity is not updated and the OON workflow never runs.
 
-2. **Filter dropdown** (in `AppointmentFilters.tsx`):
-   - Add a matching `Pending Test Results` option in the "All Procedures" filter so you can filter the appointment list to just these patients.
+The appointment-card dropdown path (`AllAppointmentsManager.updateStatus`) does both correctly (lines 838–869 fire `notify-slack-oon`, lines 872+ fire `appointment-status-webhook`).
 
-3. **Color/style chip** (`AppointmentCard.tsx` `getProcedureTriggerClass`):
-   - Style this status with a distinct color (purple — `bg-purple-50 border-purple-200 hover:bg-purple-100`) so it's visually separable from the existing blue (Imaging Ordered), red, green, and gray states.
+## Fix
 
-4. **Save mapping** (`AllAppointmentsManager.tsx` `updateProcedureOrdered`):
-   - Treat `pending_test_results` like `imaging_ordered`: leaves `procedure_ordered` as `null` (not a terminal yes/no), only sets the `procedure_status` text column.
+Update `ReviewQueue.performAction()` so the `action === 'oon'` branch mirrors the appointment-card OON path:
 
-### Technical notes
+1. Replace the broken `notify-slack-status-change` invocation with `notify-slack-oon`, passing the payload it expects (`firstName`, `lastName`, `phone`, `calendarName`, `projectName`, `appointmentId`). Fetch the missing fields (`lead_phone_number`, `calendar_name`) alongside the existing `priorRow` select.
+2. After the DB update, fire-and-forget `appointment-status-webhook` with `{ appointment_id: id, old_status: priorRow.status, new_status: 'OON' }` so the GHL OON workflow runs.
+3. Also write a system note to `appointment_notes` (`Status changed from "<old>" to "OON" by <user>`) so the queue path leaves the same audit trail as the dropdown path.
 
-- `procedure_status` is a free-text column, so no DB migration is required.
-- Existing memory rule "Procedure Status Workflow" lists supported values (`ordered`, `no_procedure`, `not_covered`, `imaging_ordered`); after this change I will update that memory to include `pending_test_results`.
-- No effect on EMR queue / IPC logic — non-terminal status leaves `internal_process_complete` untouched, same behavior as `imaging_ordered`.
+## Backfill Mary Braxton
 
-### Out of scope
+After the fix, manually re-trigger the workflow for the existing record (appointment id `93b05469-58e4-4c86-8304-09f0a9133f20`) by invoking `appointment-status-webhook` once with `old_status: 'Confirmed'`, `new_status: 'OON'`, and re-firing `notify-slack-oon`. I'll do this from the chat after you approve.
 
-- No reporting/dashboard changes.
-- No automation tied to this status (e.g. reminders) — can add later if you want.
+## Files to change
+
+- `src/components/admin/ReviewQueue.tsx` — rewrite the OON side-effect block in `performAction`.
+
+No DB migration, no new edge functions.
