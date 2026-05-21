@@ -224,6 +224,8 @@ const AppointmentCard = ({
       return `${baseClass} bg-red-50 border-red-200 hover:bg-red-100`;
     } else if (procedureStatus === 'imaging_ordered') {
       return `${baseClass} bg-blue-50 border-blue-200 hover:bg-blue-100`;
+    } else if (procedureStatus === 'pending_test_results') {
+      return `${baseClass} bg-purple-50 border-purple-200 hover:bg-purple-100`;
     } else if (procedureStatus === 'no_procedure') {
       return `${baseClass} bg-gray-50 border-gray-200 hover:bg-gray-100`;
     } else {
