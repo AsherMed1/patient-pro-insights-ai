@@ -113,7 +113,7 @@ const ReviewQueue: React.FC = () => {
     try {
       const { data: priorRow } = await supabase
         .from('all_appointments')
-        .select('review_status, lead_name, project_name, status')
+        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status')
         .eq('id', id)
         .single();
 
@@ -159,22 +159,50 @@ const ReviewQueue: React.FC = () => {
         console.warn('audit log failed', e);
       }
 
-      // Fire OON Slack alert
+      // OON side effects: mirror the appointment-card dropdown path so the
+      // GHL OON workflow runs and the Slack alert fires.
       if (action === 'oon' && priorRow) {
+        const oldStatus = priorRow.status || 'Pending';
+        const utcTimestamp = new Date().toISOString();
+
+        // System note for status-change audit trail
         try {
-          await supabase.functions.invoke('notify-slack-status-change', {
+          await supabase.from('appointment_notes').insert({
+            appointment_id: id,
+            note_text: `Status changed from "${oldStatus}" to "OON" by ${userName || 'Review Queue'} - [[timestamp:${utcTimestamp}]]`,
+            created_by: userName || 'Review Queue',
+          });
+        } catch (e) {
+          console.warn('System note insert failed', e);
+        }
+
+        // Slack OON alert
+        try {
+          const nameParts = (priorRow.lead_name || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          await supabase.functions.invoke('notify-slack-oon', {
             body: {
-              appointmentId: id,
-              leadName: priorRow.lead_name,
+              firstName,
+              lastName,
+              phone: priorRow.lead_phone_number || '',
+              calendarName: priorRow.calendar_name || '',
               projectName: priorRow.project_name,
-              newStatus: 'OON',
-              oldStatus: priorRow.status,
-              changedBy: userName || 'Review Queue',
+              appointmentId: id,
             },
           });
         } catch (e) {
-          console.warn('Slack notification failed', e);
+          console.warn('Slack OON notification failed', e);
         }
+
+        // Outbound status webhook -> triggers GHL OON workflow
+        supabase.functions.invoke('appointment-status-webhook', {
+          body: {
+            appointment_id: id,
+            old_status: oldStatus,
+            new_status: 'OON',
+          },
+        }).catch((err) => console.error('appointment-status-webhook failed:', err));
       }
     } catch (e: any) {
       toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
