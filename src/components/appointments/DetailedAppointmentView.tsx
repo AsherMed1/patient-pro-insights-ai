@@ -966,6 +966,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     <SelectItem value="not_set">Not Set</SelectItem>
                     <SelectItem value="ordered">Procedure Ordered</SelectItem>
                     <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
+                    <SelectItem value="pending_test_results">Pending Test Results</SelectItem>
                     <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                     <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
                   </SelectContent>

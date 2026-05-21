@@ -1,33 +1,28 @@
-# ECCO Service Filter Cleanup
+## Add "Pending Test Results" Procedure Option
 
-## Problem
-ECCO's GHL calendar names embed both modality and service:
-- `Request Your Virtual GAE Consultation`
-- `Request Your In-Person GAE Consultation at Lone Tree`
-- `Request Your In-Person PAE Consultation at Lone Tree, CO`
-- `Request Your Virtual PFE Consultation`
-- etc.
+Add a new selectable value to the procedure status dropdown so you can track patients waiting on test results before any procedure is ordered.
 
-`AppointmentFilters.tsx` extracts the text between `your` and `Consultation`, then only strips a *trailing* "Virtual" and converts `In-Person` → `GAE`. For ECCO this yields six service rows ("Virtual GAE", "In-Person GAE", "Virtual PFE", "Virtual PAE", "In-Person PAE", "In-Person PFE") and treats modality as a service.
+### Changes
 
-## Fix
-File: `src/components/appointments/AppointmentFilters.tsx`
+1. **Dropdown options** (in `AppointmentCard.tsx` and `DetailedAppointmentView.tsx`):
+   - Add `<SelectItem value="pending_test_results">Pending Test Results</SelectItem>` to the procedure status select alongside Imaging Ordered / No Procedure Ordered / Procedure Not Covered.
 
-1. Replace the service post-processing (lines ~165-178) with a modality-stripping pass:
-   - Remove leading/trailing `Virtual` and `In-Person` (and `In Person`) tokens from the extracted service string.
-   - Drop the special-case `in-person` → `GAE` remap (it was a hack that won't generalize to PAE/PFE/UFE).
-   - Skip empty/`virtual`/`in-person`-only results.
-2. Add ECCO to `KNOWN_PROJECT_SERVICES` so its dropdown is stable even before all calendars are seen:
-   ```ts
-   'ECCO Medical': ['GAE', 'PAE', 'PFE'],
-   ```
+2. **Filter dropdown** (in `AppointmentFilters.tsx`):
+   - Add a matching `Pending Test Results` option in the "All Procedures" filter so you can filter the appointment list to just these patients.
 
-Location extraction already adds `Virtual` when the calendar name contains "virtual" and parses `Lone Tree` / `Pueblo` from the `at ...` / `, CO` suffix, so locations need no change.
+3. **Color/style chip** (`AppointmentCard.tsx` `getProcedureTriggerClass`):
+   - Style this status with a distinct color (purple — `bg-purple-50 border-purple-200 hover:bg-purple-100`) so it's visually separable from the existing blue (Imaging Ordered), red, green, and gray states.
 
-## Service-matching for results
-`appointments` filter logic matches service via `getEventTypeFromCalendar` (keyword match on `GAE`/`PAE`/`PFE`), which already returns the correct service regardless of `Virtual`/`In-Person` prefix. So once the dropdown is cleaned up, filtering by `GAE` will return all GAE rows across Lone Tree, Pueblo, and Virtual without further changes.
+4. **Save mapping** (`AllAppointmentsManager.tsx` `updateProcedureOrdered`):
+   - Treat `pending_test_results` like `imaging_ordered`: leaves `procedure_ordered` as `null` (not a terminal yes/no), only sets the `procedure_status` text column.
 
-## Out of scope
-- No DB / migration changes.
-- No edits to `LocationLegend.tsx` (Virtual-as-location already works for ECCO).
-- No changes to Ventra/VSNC (their calendar names don't carry the modality prefix).
+### Technical notes
+
+- `procedure_status` is a free-text column, so no DB migration is required.
+- Existing memory rule "Procedure Status Workflow" lists supported values (`ordered`, `no_procedure`, `not_covered`, `imaging_ordered`); after this change I will update that memory to include `pending_test_results`.
+- No effect on EMR queue / IPC logic — non-terminal status leaves `internal_process_complete` untouched, same behavior as `imaging_ordered`.
+
+### Out of scope
+
+- No reporting/dashboard changes.
+- No automation tied to this status (e.g. reminders) — can add later if you want.
