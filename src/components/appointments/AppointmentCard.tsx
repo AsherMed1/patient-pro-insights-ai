@@ -1522,7 +1522,7 @@ const AppointmentCard = ({
           {/* Date Info - More compact on mobile */}
           <div className="space-y-1">
             {/* Unscheduled-capture projects: time-of-day preference (no booked appointment) */}
-            {['Premier Vascular', 'ECCO Medical'].includes(appointment.project_name) && (
+            {['Premier Vascular', 'ECCO Medical', 'Davis Vein & Vascular'].includes(appointment.project_name) && (
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm text-gray-600">Time Preference:</span>
