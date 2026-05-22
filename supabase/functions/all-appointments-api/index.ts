@@ -181,7 +181,7 @@ serve(async (req) => {
 
     // Unscheduled-capture projects: capture leads without booking a specific time slot.
     // Store a time-of-day preference instead of date_of_appointment/requested_time.
-    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical']);
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular']);
     const isPremierVascular = UNSCHEDULED_PROJECTS.has((body.project_name || '').trim().toLowerCase());
     const normalizeTimePreference = (val: unknown): string | null => {
       if (!val || typeof val !== 'string') return null;
@@ -222,7 +222,7 @@ serve(async (req) => {
       dob: normalizedDob,
       time_preference: timePreference,
       is_unscheduled: isPremierVascular,
-      review_status: ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery'].includes(body.project_name) ? 'approved' : 'pending',
+      review_status: ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'].includes(body.project_name) ? 'approved' : 'pending',
     }
 
     // Check if appointment already exists based on ghl_appointment_id or ghl_id
@@ -304,7 +304,7 @@ serve(async (req) => {
       error = insertResult.error;
 
       // Notify Slack review queue on new insert (fire-and-forget) — skip exempt projects
-      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery'];
+      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
       if (!error && data && data[0] && !REVIEW_QUEUE_EXEMPT.includes(data[0].project_name)) {
         try {
           supabase.functions.invoke('notify-slack-review-queue', {
