@@ -204,7 +204,7 @@ serve(async (req) => {
       appointmentRecord = data
     } else {
       // Projects exempt from Review Queue (time-preference-only intake, not real bookings)
-      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery'];
+      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
       const isExempt = REVIEW_QUEUE_EXEMPT.includes(appointmentData.project_name);
       const reviewStatus = isExempt ? 'approved' : 'pending';
       console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus})`)
