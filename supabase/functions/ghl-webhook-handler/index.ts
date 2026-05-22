@@ -706,7 +706,7 @@ function getUpdateableFields(
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
     // Unscheduled-capture projects: capture lead without booking — store time preference only.
-    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical']);
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular']);
     const isPremierVascular = UNSCHEDULED_PROJECTS.has((webhookData.project_name || '').trim().toLowerCase());
     const timePreference = isPremierVascular
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
