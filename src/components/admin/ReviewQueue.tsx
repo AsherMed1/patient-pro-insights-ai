@@ -176,12 +176,38 @@ const ReviewQueue: React.FC = () => {
           console.warn('System note insert failed', e);
         }
 
-        // Slack OON alert
+        // Outbound status webhook -> triggers GHL OON workflow (awaited; surface failures)
+        try {
+          const { data: whData, error: whErr } = await supabase.functions.invoke('appointment-status-webhook', {
+            body: {
+              appointment_id: id,
+              old_status: oldStatus,
+              new_status: 'OON',
+            },
+          });
+          if (whErr || (whData && whData.success === false)) {
+            console.error('appointment-status-webhook failed:', whErr || whData);
+            toast({
+              title: 'OON saved, but GHL workflow did not fire',
+              description: 'Status was updated, but the outbound webhook to GHL failed. Contact engineering.',
+              variant: 'destructive',
+            });
+          }
+        } catch (err) {
+          console.error('appointment-status-webhook threw:', err);
+          toast({
+            title: 'OON saved, but GHL workflow did not fire',
+            description: 'The outbound webhook to GHL threw an error. Contact engineering.',
+            variant: 'destructive',
+          });
+        }
+
+        // Slack OON alert (awaited; surface failures)
         try {
           const nameParts = (priorRow.lead_name || '').split(' ');
           const firstName = nameParts[0] || '';
           const lastName = nameParts.slice(1).join(' ') || '';
-          await supabase.functions.invoke('notify-slack-oon', {
+          const { error: slackErr } = await supabase.functions.invoke('notify-slack-oon', {
             body: {
               firstName,
               lastName,
@@ -191,18 +217,22 @@ const ReviewQueue: React.FC = () => {
               appointmentId: id,
             },
           });
-        } catch (e) {
-          console.warn('Slack OON notification failed', e);
+          if (slackErr) {
+            console.error('notify-slack-oon failed:', slackErr);
+            toast({
+              title: 'Slack OON alert failed',
+              description: 'OON status was saved, but the Slack alert did not deliver. The webhook URL may be stale.',
+              variant: 'destructive',
+            });
+          }
+        } catch (err) {
+          console.error('notify-slack-oon threw:', err);
+          toast({
+            title: 'Slack OON alert failed',
+            description: 'OON status was saved, but the Slack alert threw an error.',
+            variant: 'destructive',
+          });
         }
-
-        // Outbound status webhook -> triggers GHL OON workflow
-        supabase.functions.invoke('appointment-status-webhook', {
-          body: {
-            appointment_id: id,
-            old_status: oldStatus,
-            new_status: 'OON',
-          },
-        }).catch((err) => console.error('appointment-status-webhook failed:', err));
       }
     } catch (e: any) {
       toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
