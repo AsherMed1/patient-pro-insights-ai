@@ -304,7 +304,7 @@ serve(async (req) => {
       error = insertResult.error;
 
       // Notify Slack review queue on new insert (fire-and-forget) — skip exempt projects
-      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery'];
+      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
       if (!error && data && data[0] && !REVIEW_QUEUE_EXEMPT.includes(data[0].project_name)) {
         try {
           supabase.functions.invoke('notify-slack-review-queue', {
