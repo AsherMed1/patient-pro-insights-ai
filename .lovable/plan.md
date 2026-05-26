@@ -1,58 +1,60 @@
-# Import Missing Leads + Backfill from GHL
+# Fix: UFE intake answers not populating + stale prior-service questions
 
-Import 37 patients listed in `Missing leads report - Sheet1.csv` into `all_appointments`, mapped to their project, then enrich each from GHL using the embedded contact ID.
+## The problem (TEH TEST, id 77fe4b24)
 
-## Approach
+The patient's GHL contact has these UFE funnel answers in Pathology:
+- "UFE STEP 1 | How heavy are your periods?: Heavy..."
+- "UFE STEP 1 | How often do you experience pelvic pain..."
+- "UFE STEP 1 | Which best describes your menstrual cycle?: ..."
 
-For each row I extract:
-- **project_name** — from the section header above the row (e.g. "Buffalo Vascular Associates")
-- **ghl_contact_id** — last path segment of the URL (e.g. `0uAhuVefotgbDnBVaHyr`)
-- **ghl_location_id** — from `/location/{id}/` in the URL (used to verify project mapping)
-- **lead_name / phone / email** — for fallback when GHL lookup fails
+But `parsed_pathology_info` shows `symptoms: null, duration: null, pain_level: null` — only `procedure_type: UFE` was set. The parser has explicit extraction for GAE/PFE/PAD/TAE/HAE fields but **no extraction rules for UFE STEP 1 questions**, so the UI Pathology section has nothing to display.
 
-## Steps
+Additionally, the same contact still carries a leftover `Neuropathy Step 2` answer from a prior GAE/Neuropathy opt-in, which clutters the raw intake notes and (under the wrong service) could mislead reviewers.
 
-1. **One-off Node script (`/tmp/import-missing-leads.ts`)** — parses the CSV, builds the rows, and POSTs them in one batch to a new edge function. Not added to the app codebase.
+## Fix scope
 
-2. **New edge function `import-missing-leads-from-ghl`** — accepts `[{ project_name, ghl_contact_id, fallback_name, fallback_phone, fallback_email }]`. For each entry:
-   - **a.** Verify project exists in `projects` table; skip + report if not.
-   - **b.** Check `all_appointments` for an existing row with this `ghl_id` in the same project — if present, skip (don't duplicate); just trigger backfill on the existing row.
-   - **c.** Fetch contact from GHL `/contacts/{contactId}` → name, phone, email, DOB, custom fields, tags.
-   - **d.** Fetch most recent appointment from GHL `/contacts/{contactId}/appointments` (sorted desc, take latest).
-   - **e.** Insert a single `all_appointments` row using the latest appointment's date/time/calendar if found; otherwise insert a Needs-Review shell (NULL date, status Confirmed) per the unscheduled-capture pattern.
-   - **f.** Populate `lead_name`, `lead_phone_number`, `lead_email`, `ghl_id`, `ghl_appointment_id`, `ghl_location_id`, `patient_intake_notes` (raw GHL notes string), and `review_status='pending'` (auto-approved for Davis/Premier/ECCO per existing exempt list).
-   - **g.** Existing DB triggers handle the rest: `trigger_auto_ai_parsing` re-parses intake notes, `queue_insurance_card_fetch` queues card fetch, `auto_queue_confirmed_appointment` adds to EMR if Confirmed.
+Two coordinated changes, both inside the intake parsing pipeline + UI surfacing — no schema changes.
 
-3. **Run script once**, capture per-row result (created / skipped / failed + reason), return a summary report in chat.
+### 1. Extract UFE-specific funnel answers (`auto-parse-intake-notes`)
 
-## Project → Location ID map (from CSV)
+Add a UFE block to the regex enrichment phase (same place GAE/PAD/TAE blocks live):
+- `period_heaviness` ← `UFE STEP 1 | How heavy are your periods?: …`
+- `pelvic_pain_frequency` ← `UFE STEP 1 | How often do you experience pelvic pain…?: …`
+- `menstrual_cycle` ← `UFE STEP 1 | Which best describes your menstrual cycle?: …`
+- `period_length` ← `UFE STEP 1 | …Period Length…: …` (already seen in multi-procedure notes)
+- Backfill `primary_complaint = 'UFE / Fibroids'` and `symptoms` as a joined summary of the above when individual fields hit, so existing UI that reads `symptoms` shows something useful.
 
-```text
-Buffalo Vascular Associates           Tgwbq3sMoEBSLmJ0jGr5
-Apex Vascular                         9qcQctq3qbKJfJgtB6xL
-AVA Vascular                          pdt30sKeaaBubLsO1OM3
-Champion Heart and Vascular Center    VUmKpmdD5cOoSIG1jOSQ
-Davis Vein & Vascular                 Rhq64PurLbK4SsNZanNp
-Fayette Surgical Associates           2A5UhxHUqmsuusZKU8gM
-Joint & Vascular Institute            C6etkGtlZEebh0Qgedph + vqEsznRbFztYT5bEZ8RM
-NG Vascular and Vein Center           mmheMRxy3nM6H9lrGuKp
-Ozark Regional Vein and Artery Ctr    pzCgnwarB1NRazmiwoWN
-Prospero Vascular & Interventional    0O8mFySgFECC6Jt3S6Pt
-Vascular and Embolization Specialists ZhwNNKRbMYbj6sktNVYC
-Vascular Solutions of North Carolina  Natyl1sRTZCGu7VXrgAz
-Vascular Institute of Michigan        TNqlJFl1yDyS7eIXWtlf
-Georgia Endovascular                  dyGrPEmrXkU8KSU6mDwJ
-Texas Endovascular                    xsuXmHIi89R30MIMlxtM
-```
+Run only when `pathology_info.procedure_type === 'UFE'` (set earlier in the same function, line ~624).
 
-## Open questions
+### 2. Strip stale prior-service STEP answers on procedure switch
 
-1. **Rows 54–57 (Bernardo Estrada, Jose Carrazana, Michael Paul Strassel, Lakisha Williams)** all use location `R7WRMPd1zyAxkp8WCZZo`, with no project header above them in the CSV. Which project do these belong to?
-2. **Diana Washington (row 51) + Michael Velez (row 52)** have `"Patient Pro Marketing"` in the URL column instead of a GHL link — no contact ID available. Should I (a) skip them, (b) create unscheduled shells under VSNC using only the name/phone/email, or (c) search GHL by phone within VSNC's location?
-3. **Empty-URL entries** — Terri Keyes (Apex), Michael Strassel, Penny Scott, Horace Jackson, Mike Sutton, Troy Varner — only have a GHL URL but no phone/email in the CSV. The contact ID is still in the URL, so the GHL lookup will fill those fields. Confirm OK to proceed for these as-is.
+When the resolved `procedure_type` differs from the procedure implied by a STEP question, drop that line before persisting `patient_intake_notes` and before AI parsing:
+- Detect pattern `^\s*(GAE|UFE|PAE|HAE|PAD|FSE|TAE|PFE|Neuropathy) STEP \d+ \|`.
+- Keep only lines whose STEP prefix matches the current procedure (or has no STEP prefix).
+- Re-write the cleaned block back to `patient_intake_notes` so the raw notes view (per the `procedure-aware-pathology-notes-display` memory) and the parser both see only relevant answers.
+
+This handles the GAE→UFE re-opt-in case the user described: when the calendar / Service Name is UFE, the lingering `Neuropathy Step 2` / `GAE STEP n` answers are removed from this appointment's intake snapshot. (We do NOT mutate the GHL contact — only our stored snapshot.)
+
+### 3. Display in UI (`ParsedIntakeInfo.tsx`)
+
+Add a UFE conditional block in the Pathology section (mirroring the GAE knee / PAD blocks) that renders any of `period_heaviness`, `menstrual_cycle`, `pelvic_pain_frequency`, `period_length` when `procedure_type === 'UFE'`. Falls back gracefully if any field is null.
+
+### 4. Backfill this record + any affected siblings
+
+After deploy, call `reparse-specific-appointments` for:
+- `77fe4b24-7e2a-45c0-b8fc-6c533a01ac9e` (TEH TEST)
+- All `Texas Endovascular - Houston Vein Clinic` UFE appointments whose `parsed_pathology_info->>symptoms` is null but `patient_intake_notes` contains `UFE STEP 1`.
+
+## Out of scope
+
+- Two-way write back to GHL to actually delete the stale custom field on the contact (would need a GHL custom-field DELETE call per service; flag for future work if user wants it).
+- Adding new DB columns — everything fits inside the existing `parsed_pathology_info` JSONB.
 
 ## Technical notes
 
-- Uses existing `GHL_API_KEY` secret; same auth pattern as `fetch-ghl-contact-data`.
-- Edge function is one-time-use but kept in `supabase/functions/` for re-runs; safe-by-design (skips duplicates by `ghl_id`).
-- No schema changes. No memory updates needed.
+Files touched:
+- `supabase/functions/auto-parse-intake-notes/index.ts` — add UFE regex block (~line 870, after PAD block) and a `stripStaleStepLines(notes, procedure)` helper called before persisting notes.
+- `src/components/appointments/ParsedIntakeInfo.tsx` — add UFE pathology rendering block.
+- One-shot reparse trigger via existing `reparse-specific-appointments` edge function (no new code).
+
+No migrations. No RLS changes. No new secrets.
