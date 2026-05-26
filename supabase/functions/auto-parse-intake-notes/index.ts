@@ -34,6 +34,34 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   return false;
 }
 
+// Strip pathology STEP question lines from prior services when the current
+// procedure differs. Patients sometimes re-opt-in for a different service
+// (e.g. GAE → UFE) and the prior funnel answers linger on the GHL contact.
+// We keep only STEP lines tagged with the current procedure (or untagged lines).
+function stripStaleStepLines(notes: string | null | undefined, currentProc: string | null | undefined): string {
+  if (!notes) return notes || '';
+  if (!currentProc) return notes;
+  const proc = String(currentProc).toUpperCase();
+  const stepRe = /^\s*(GAE|UFE|PAE|HAE|PAD|FSE|TAE|PFE|NEUROPATHY)\s+STEP\s+\d+\s*\|/i;
+  const lines = notes.split(/\r?\n/);
+  let stripped = 0;
+  const kept = lines.filter((line) => {
+    const m = line.match(stepRe);
+    if (!m) return true;
+    const linePrefix = m[1].toUpperCase();
+    // Treat Neuropathy as belonging to GAE workflow only
+    const matchesCurrent =
+      linePrefix === proc ||
+      (linePrefix === 'NEUROPATHY' && proc === 'GAE');
+    if (!matchesCurrent) stripped++;
+    return matchesCurrent;
+  });
+  if (stripped > 0) {
+    console.log(`[AUTO-PARSE STEP-STRIP] Removed ${stripped} stale STEP line(s) for current procedure ${proc}`);
+  }
+  return kept.join('\n');
+}
+
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
   ghlId: string,
@@ -847,7 +875,62 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     if (owMatch && owMatch[1]) {
       parsedData.pathology_info.open_wounds = owMatch[1].trim();
       console.log(`[AUTO-PARSE ENRICH] Extracted open_wounds via regex: ${parsedData.pathology_info.open_wounds}`);
+  }
+
+  // === UFE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // Captures the UFE intake funnel answers (period heaviness, pelvic pain, menstrual cycle, period length).
+  const isUFE =
+    parsedData.pathology_info.procedure_type === 'UFE' ||
+    /UFE STEP\s*\d+\s*\|/i.test(intakeNotes);
+  if (isUFE) {
+    parsedData.pathology_info.procedure_type = 'UFE';
+    if (!parsedData.pathology_info.primary_complaint) {
+      parsedData.pathology_info.primary_complaint = 'UFE / Fibroids';
     }
+    if (!parsedData.pathology_info.affected_area) {
+      parsedData.pathology_info.affected_area = 'Uterus';
+    }
+
+    const ufeFields: Array<[string, RegExp]> = [
+      ['period_heaviness', /UFE STEP\s*\d+\s*\|\s*How heavy are your periods\s*\??\s*:\s*([^\n]+)/i],
+      ['pelvic_pain_frequency', /UFE STEP\s*\d+\s*\|\s*How often do you experience pelvic pain[^:]*:\s*([^\n]+)/i],
+      ['menstrual_cycle', /UFE STEP\s*\d+\s*\|\s*Which best describes your menstrual cycle\s*\??\s*:\s*([^\n]+)/i],
+      ['period_length', /UFE STEP\s*\d+\s*\|\s*[^|\n:]*Period Length[^:]*:\s*([^\n]+)/i],
+    ];
+
+    const captured: Record<string, string> = {};
+    for (const [field, re] of ufeFields) {
+      if (parsedData.pathology_info[field]) {
+        captured[field] = String(parsedData.pathology_info[field]);
+        continue;
+      }
+      const m = intakeNotes.match(re);
+      if (m && m[1]) {
+        const val = m[1].trim().replace(/\s+/g, ' ');
+        parsedData.pathology_info[field] = val;
+        captured[field] = val;
+        console.log(`[AUTO-PARSE UFE] Extracted ${field}: ${val}`);
+      }
+    }
+
+    // Backfill `symptoms` as a friendly joined summary so existing UI shows context
+    if (Object.keys(captured).length > 0) {
+      const labelMap: Record<string, string> = {
+        period_heaviness: 'Period heaviness',
+        pelvic_pain_frequency: 'Pelvic pain frequency',
+        menstrual_cycle: 'Menstrual cycle',
+        period_length: 'Period length',
+      };
+      const summary = Object.entries(captured)
+        .map(([k, v]) => `${labelMap[k] || k}: ${v}`)
+        .join(' | ');
+      const existing = parsedData.pathology_info.symptoms;
+      if (!existing || /^(yes|no)$/i.test(String(existing)) || String(existing).length < summary.length) {
+        parsedData.pathology_info.symptoms = summary;
+        console.log(`[AUTO-PARSE UFE] Backfilled symptoms summary: ${summary}`);
+      }
+    }
+  }
   }
   
   // Numbness/cold feet
@@ -2155,6 +2238,17 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           updateData.parsed_insurance_info = parsedData.insurance_info;
           updateData.parsed_pathology_info = parsedData.pathology_info;
           updateData.parsed_medical_info = parsedData.medical_info;
+
+          // Strip stale STEP question lines from prior services (e.g. GAE → UFE re-opt-in)
+          // so the raw intake notes view doesn't show leftover funnel answers from the
+          // wrong procedure.
+          {
+            const currentProc = parsedData.pathology_info?.procedure_type;
+            const cleanedNotes = stripStaleStepLines(record.patient_intake_notes, currentProc);
+            if (cleanedNotes && cleanedNotes !== record.patient_intake_notes) {
+              updateData.patient_intake_notes = cleanedNotes;
+            }
+          }
 
           // Sync DOB to main column if we have one
           if (finalDob) {
