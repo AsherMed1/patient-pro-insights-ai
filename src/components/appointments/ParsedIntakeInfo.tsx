@@ -864,20 +864,20 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   <>
                     {formatValue(parsedPathologyInfo.period_heaviness) && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Period Heaviness:</span>{" "}
+                        <span className="text-muted-foreground">How heavy are your periods?</span>{" "}
                         <span className="font-medium">{parsedPathologyInfo.period_heaviness}</span>
-                      </div>
-                    )}
-                    {formatValue(parsedPathologyInfo.menstrual_cycle) && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Menstrual Cycle:</span>{" "}
-                        <span className="font-medium">{parsedPathologyInfo.menstrual_cycle}</span>
                       </div>
                     )}
                     {formatValue(parsedPathologyInfo.pelvic_pain_frequency) && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Pelvic Pain Frequency:</span>{" "}
+                        <span className="text-muted-foreground">How often do you experience pelvic pain or cramping, even when you're not on your period?</span>{" "}
                         <span className="font-medium">{parsedPathologyInfo.pelvic_pain_frequency}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.menstrual_cycle) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Which best describes your menstrual cycle?</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.menstrual_cycle}</span>
                       </div>
                     )}
                     {formatValue(parsedPathologyInfo.period_length) && (
