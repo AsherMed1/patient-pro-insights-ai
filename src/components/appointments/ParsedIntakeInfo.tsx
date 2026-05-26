@@ -859,6 +859,35 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.primary_complaint}</span>
                   </div>
                 )}
+                {/* UFE-specific funnel answers */}
+                {(parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() === 'UFE' && (
+                  <>
+                    {formatValue(parsedPathologyInfo.period_heaviness) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Period Heaviness:</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.period_heaviness}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.menstrual_cycle) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Menstrual Cycle:</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.menstrual_cycle}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.pelvic_pain_frequency) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Pelvic Pain Frequency:</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.pelvic_pain_frequency}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.period_length) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Period Length:</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.period_length}</span>
+                      </div>
+                    )}
+                  </>
+                )}
                 {formatValue(parsedPathologyInfo.affected_area) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Affected Area:</span>{" "}
