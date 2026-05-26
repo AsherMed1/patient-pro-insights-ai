@@ -233,24 +233,11 @@ Deno.serve(async (req) => {
           .single();
 
         if (insErr) {
-          // Retry without source_of_import column if it doesn't exist
-          if (String(insErr.message || '').includes('source_of_import')) {
-            delete insertPayload.source_of_import;
-            const retry = await supabase
-              .from('all_appointments')
-              .insert(insertPayload)
-              .select('id')
-              .single();
-            if (retry.error) { result.error = `insert: ${retry.error.message}`; results.push(result); continue; }
-            result.appointment_id = retry.data!.id;
-          } else {
-            result.error = `insert: ${insErr.message}`;
-            results.push(result);
-            continue;
-          }
-        } else {
-          result.appointment_id = inserted!.id;
+          result.error = `insert: ${insErr.message}`;
+          results.push(result);
+          continue;
         }
+        result.appointment_id = inserted!.id;
 
         result.status = 'created';
         result.most_recent_appointment_date = dateOfAppt;
