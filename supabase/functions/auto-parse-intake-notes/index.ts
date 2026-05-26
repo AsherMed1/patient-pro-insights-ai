@@ -34,6 +34,34 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   return false;
 }
 
+// Strip pathology STEP question lines from prior services when the current
+// procedure differs. Patients sometimes re-opt-in for a different service
+// (e.g. GAE → UFE) and the prior funnel answers linger on the GHL contact.
+// We keep only STEP lines tagged with the current procedure (or untagged lines).
+function stripStaleStepLines(notes: string | null | undefined, currentProc: string | null | undefined): string {
+  if (!notes) return notes || '';
+  if (!currentProc) return notes;
+  const proc = String(currentProc).toUpperCase();
+  const stepRe = /^\s*(GAE|UFE|PAE|HAE|PAD|FSE|TAE|PFE|NEUROPATHY)\s+STEP\s+\d+\s*\|/i;
+  const lines = notes.split(/\r?\n/);
+  let stripped = 0;
+  const kept = lines.filter((line) => {
+    const m = line.match(stepRe);
+    if (!m) return true;
+    const linePrefix = m[1].toUpperCase();
+    // Treat Neuropathy as belonging to GAE workflow only
+    const matchesCurrent =
+      linePrefix === proc ||
+      (linePrefix === 'NEUROPATHY' && proc === 'GAE');
+    if (!matchesCurrent) stripped++;
+    return matchesCurrent;
+  });
+  if (stripped > 0) {
+    console.log(`[AUTO-PARSE STEP-STRIP] Removed ${stripped} stale STEP line(s) for current procedure ${proc}`);
+  }
+  return kept.join('\n');
+}
+
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
   ghlId: string,
