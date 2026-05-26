@@ -2239,6 +2239,17 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           updateData.parsed_pathology_info = parsedData.pathology_info;
           updateData.parsed_medical_info = parsedData.medical_info;
 
+          // Strip stale STEP question lines from prior services (e.g. GAE → UFE re-opt-in)
+          // so the raw intake notes view doesn't show leftover funnel answers from the
+          // wrong procedure.
+          {
+            const currentProc = parsedData.pathology_info?.procedure_type;
+            const cleanedNotes = stripStaleStepLines(record.patient_intake_notes, currentProc);
+            if (cleanedNotes && cleanedNotes !== record.patient_intake_notes) {
+              updateData.patient_intake_notes = cleanedNotes;
+            }
+          }
+
           // Sync DOB to main column if we have one
           if (finalDob) {
             updateData.dob = finalDob;
