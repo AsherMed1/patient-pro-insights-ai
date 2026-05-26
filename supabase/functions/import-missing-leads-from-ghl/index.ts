@@ -224,7 +224,6 @@ Deno.serve(async (req) => {
           review_status: reviewStatus,
           internal_process_complete: false,
           date_appointment_created: new Date().toISOString().slice(0, 10),
-          source_of_import: 'missing_leads_csv_backfill',
         };
 
         const { data: inserted, error: insErr } = await supabase
