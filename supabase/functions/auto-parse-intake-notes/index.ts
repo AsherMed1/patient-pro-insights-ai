@@ -875,7 +875,62 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     if (owMatch && owMatch[1]) {
       parsedData.pathology_info.open_wounds = owMatch[1].trim();
       console.log(`[AUTO-PARSE ENRICH] Extracted open_wounds via regex: ${parsedData.pathology_info.open_wounds}`);
+  }
+
+  // === UFE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // Captures the UFE intake funnel answers (period heaviness, pelvic pain, menstrual cycle, period length).
+  const isUFE =
+    parsedData.pathology_info.procedure_type === 'UFE' ||
+    /UFE STEP\s*\d+\s*\|/i.test(intakeNotes);
+  if (isUFE) {
+    parsedData.pathology_info.procedure_type = 'UFE';
+    if (!parsedData.pathology_info.primary_complaint) {
+      parsedData.pathology_info.primary_complaint = 'UFE / Fibroids';
     }
+    if (!parsedData.pathology_info.affected_area) {
+      parsedData.pathology_info.affected_area = 'Uterus';
+    }
+
+    const ufeFields: Array<[string, RegExp]> = [
+      ['period_heaviness', /UFE STEP\s*\d+\s*\|\s*How heavy are your periods\s*\??\s*:\s*([^\n]+)/i],
+      ['pelvic_pain_frequency', /UFE STEP\s*\d+\s*\|\s*How often do you experience pelvic pain[^:]*:\s*([^\n]+)/i],
+      ['menstrual_cycle', /UFE STEP\s*\d+\s*\|\s*Which best describes your menstrual cycle\s*\??\s*:\s*([^\n]+)/i],
+      ['period_length', /UFE STEP\s*\d+\s*\|\s*[^|\n:]*Period Length[^:]*:\s*([^\n]+)/i],
+    ];
+
+    const captured: Record<string, string> = {};
+    for (const [field, re] of ufeFields) {
+      if (parsedData.pathology_info[field]) {
+        captured[field] = String(parsedData.pathology_info[field]);
+        continue;
+      }
+      const m = intakeNotes.match(re);
+      if (m && m[1]) {
+        const val = m[1].trim().replace(/\s+/g, ' ');
+        parsedData.pathology_info[field] = val;
+        captured[field] = val;
+        console.log(`[AUTO-PARSE UFE] Extracted ${field}: ${val}`);
+      }
+    }
+
+    // Backfill `symptoms` as a friendly joined summary so existing UI shows context
+    if (Object.keys(captured).length > 0) {
+      const labelMap: Record<string, string> = {
+        period_heaviness: 'Period heaviness',
+        pelvic_pain_frequency: 'Pelvic pain frequency',
+        menstrual_cycle: 'Menstrual cycle',
+        period_length: 'Period length',
+      };
+      const summary = Object.entries(captured)
+        .map(([k, v]) => `${labelMap[k] || k}: ${v}`)
+        .join(' | ');
+      const existing = parsedData.pathology_info.symptoms;
+      if (!existing || /^(yes|no)$/i.test(String(existing)) || String(existing).length < summary.length) {
+        parsedData.pathology_info.symptoms = summary;
+        console.log(`[AUTO-PARSE UFE] Backfilled symptoms summary: ${summary}`);
+      }
+    }
+  }
   }
   
   // Numbness/cold feet
