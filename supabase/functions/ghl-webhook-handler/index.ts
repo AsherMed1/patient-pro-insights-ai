@@ -764,71 +764,93 @@ function getUpdateableFields(
   let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string } | undefined
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let statusChangeNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
-  
-  // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
-  const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
-  const nowTime = new Date()
-  const secondsSinceUpdate = updatedAt ? (nowTime.getTime() - updatedAt.getTime()) / 1000 : Infinity
 
-  if (secondsSinceUpdate < 120) {
-    console.log(`[WEBHOOK] Skipping date/time update — appointment updated ${Math.round(secondsSinceUpdate)}s ago (debounce guard, threshold: 120s)`)
-    // Still allow non-date fields to update below, just skip date_of_appointment and requested_time
+  // Unscheduled-capture projects (Premier Vascular, ECCO Medical, Davis Vein & Vascular) NEVER
+  // store a booked date/time — only a time-of-day preference. If a later GHL webhook tries to
+  // attach an actual calendar slot, force the row back to unscheduled state instead of accepting
+  // date_of_appointment / requested_time. See mem://projects/premier-vascular/unscheduled-capture.
+  const UNSCHEDULED_PROJECTS_UPDATE = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular'])
+  const projectNameForUnscheduled = (webhookData.project_name || existingAppointment.project_name || '').trim().toLowerCase()
+  const isUnscheduledProject = UNSCHEDULED_PROJECTS_UPDATE.has(projectNameForUnscheduled)
+
+  if (isUnscheduledProject) {
+    updateFields.date_of_appointment = null
+    updateFields.requested_time = null
+    updateFields.ghl_appointment_id = null
+    updateFields.is_unscheduled = true
+
+    // Refresh time_preference from incoming intake notes only when extraction yields a value —
+    // never overwrite an existing preference with null.
+    const extractedPref = extractTimePreference(webhookData.patient_intake_notes)
+    if (extractedPref) {
+      updateFields.time_preference = extractedPref
+    }
   } else {
-    // Accept date/time changes (rescheduling) only if outside debounce window
-    if (webhookData.date_of_appointment !== undefined) {
-      updateFields.date_of_appointment = webhookData.date_of_appointment
+    // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
+    const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
+    const nowTime = new Date()
+    const secondsSinceUpdate = updatedAt ? (nowTime.getTime() - updatedAt.getTime()) / 1000 : Infinity
 
-      // Reset IPC and status if date actually changed (reschedule detected).
-      // Date-driven reschedules ARE honored even when existing status is portal-only terminal
-      // (OON, Do Not Call, Cancelled) — a new appointment date from GHL means the patient
-      // was rebooked and should be recovered from the terminal tab.
-      if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
-        const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-        const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
-        const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
+    if (secondsSinceUpdate < 120) {
+      console.log(`[WEBHOOK] Skipping date/time update — appointment updated ${Math.round(secondsSinceUpdate)}s ago (debounce guard, threshold: 120s)`)
+      // Still allow non-date fields to update below, just skip date_of_appointment and requested_time
+    } else {
+      // Accept date/time changes (rescheduling) only if outside debounce window
+      if (webhookData.date_of_appointment !== undefined) {
+        updateFields.date_of_appointment = webhookData.date_of_appointment
 
-        // Record reschedule history before overwriting
-        const existingHistory = existingAppointment.reschedule_history || []
-        existingHistory.push({
-          previous_date: existingAppointment.date_of_appointment,
-          previous_time: existingAppointment.requested_time,
-          new_date: webhookData.date_of_appointment,
-          new_time: webhookData.requested_time,
-          changed_at: new Date().toISOString(),
-          previous_status: existingAppointment.status,
-          recovered_from_terminal: isPortalOnlyTerminal || undefined,
-        })
-        updateFields.reschedule_history = existingHistory
+        // Reset IPC and status if date actually changed (reschedule detected).
+        // Date-driven reschedules ARE honored even when existing status is portal-only terminal
+        // (OON, Do Not Call, Cancelled) — a new appointment date from GHL means the patient
+        // was rebooked and should be recovered from the terminal tab.
+        if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
+          const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
+          const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
+          const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
 
-        updateFields.internal_process_complete = false
-        updateFields.status = 'Confirmed'
-        updateFields.was_ever_confirmed = true
+          // Record reschedule history before overwriting
+          const existingHistory = existingAppointment.reschedule_history || []
+          existingHistory.push({
+            previous_date: existingAppointment.date_of_appointment,
+            previous_time: existingAppointment.requested_time,
+            new_date: webhookData.date_of_appointment,
+            new_time: webhookData.requested_time,
+            changed_at: new Date().toISOString(),
+            previous_status: existingAppointment.status,
+            recovered_from_terminal: isPortalOnlyTerminal || undefined,
+          })
+          updateFields.reschedule_history = existingHistory
 
-        if (isPortalOnlyTerminal) {
-          console.log(`[WEBHOOK] Recovering from portal-terminal status "${existingAppointment.status}" via GHL date change`)
-        }
+          updateFields.internal_process_complete = false
+          updateFields.status = 'Confirmed'
+          updateFields.was_ever_confirmed = true
 
-        // Capture reschedule note data to be inserted by the async caller
-        const fromDateTime = [
-          existingAppointment.date_of_appointment,
-          existingAppointment.requested_time
-        ].filter(Boolean).join(' ')
+          if (isPortalOnlyTerminal) {
+            console.log(`[WEBHOOK] Recovering from portal-terminal status "${existingAppointment.status}" via GHL date change`)
+          }
 
-        const toDateTime = [
-          webhookData.date_of_appointment,
-          webhookData.requested_time
-        ].filter(Boolean).join(' ')
+          // Capture reschedule note data to be inserted by the async caller
+          const fromDateTime = [
+            existingAppointment.date_of_appointment,
+            existingAppointment.requested_time
+          ].filter(Boolean).join(' ')
 
-        rescheduleNoteData = {
-          fromDateTime: fromDateTime || 'Unknown',
-          toDateTime,
-          appointmentId: existingAppointment.id,
-          recoveredFromStatus: isPortalOnlyTerminal ? existingAppointment.status : undefined,
+          const toDateTime = [
+            webhookData.date_of_appointment,
+            webhookData.requested_time
+          ].filter(Boolean).join(' ')
+
+          rescheduleNoteData = {
+            fromDateTime: fromDateTime || 'Unknown',
+            toDateTime,
+            appointmentId: existingAppointment.id,
+            recoveredFromStatus: isPortalOnlyTerminal ? existingAppointment.status : undefined,
+          }
         }
       }
-    }
-    if (webhookData.requested_time !== undefined) {
-      updateFields.requested_time = webhookData.requested_time
+      if (webhookData.requested_time !== undefined) {
+        updateFields.requested_time = webhookData.requested_time
+      }
     }
   }
   
