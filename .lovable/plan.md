@@ -1,37 +1,36 @@
-## What's wrong
+## Problem
 
-Horace Jackson's appointment in GHL is **Jun 10, 2026 10:00 AM ET**. In the portal it shows **6:00 AM** — exactly a 4-hour shift (EDT offset).
+Gerald Ellison (Premier Vascular) shows `Dec 30, 2025 1:00 PM` in the portal even though Premier is an unscheduled-capture project that should only carry a `time_preference`. His row already has `time_preference='afternoon'`, but `date_of_appointment`, `requested_time`, and `is_unscheduled=false` got written on top.
 
-The record was created on May 26 by the `import-missing-leads-from-ghl` edge function that I ran when adding the 31 missing CSV patients. That function calls GHL's contact-appointments API, takes the `startTime`, and converts it into the project's timezone (America/New_York for Georgia Endovascular).
+## Root cause
 
-The bug: GHL's contact-appointments endpoint returns `startTime` as a naive local string like `"2026-06-10T10:00:00"` (no offset). `new Date(...)` parses that as UTC = 10:00 UTC. We then format it in `America/New_York` and get `06:00`. That's how 10 AM ET became 6 AM ET in our DB.
+`supabase/functions/ghl-webhook-handler/index.ts` enforces the unscheduled rule (no booked date/time, `is_unscheduled=true`) only on **insert** (lines 731‑759). The **update** path (lines 776‑833) accepts whatever `date_of_appointment` / `requested_time` GHL sends. So when GHL later booked Gerald into a real calendar slot, the webhook overwrote his unscheduled state.
 
-The regular GHL webhook (`ghl-webhook-handler`) has a different but related issue — it uses `toLocaleTimeString` without `timeZone`, so it formats in the Deno server's UTC. For Horace this didn't apply because the import created the row, not a webhook.
+## Changes
 
-## Fix
+### 1. Data fix — Gerald Ellison only
 
-**1. `supabase/functions/import-missing-leads-from-ghl/index.ts` (lines 185-195)**
+Migration on the single row `60da9f6d-ab63-47fe-b7c0-af8c18fe1d1d`:
 
-Treat GHL's `startTime` as already being in the project's local timezone, not UTC. Parse the wall-clock components directly from the string instead of going through `new Date()` + timezone conversion.
+- `date_of_appointment` → `NULL`
+- `requested_time` → `NULL`
+- `ghl_appointment_id` → `NULL`
+- `is_unscheduled` → `true`
+- keep `time_preference='afternoon'`, `status='Confirmed'`
 
-Approach:
-- If `startTime` matches `YYYY-MM-DDTHH:mm:ss` with no `Z` and no `±HH:mm` offset → take the date and time parts verbatim (this is the GHL contact API's behavior).
-- If it has an explicit offset/`Z` → keep the current `Intl.DateTimeFormat` conversion into project tz (that path is already correct).
+### 2. Future-proof the webhook UPDATE path
 
-**2. Backfill the affected rows**
+`supabase/functions/ghl-webhook-handler/index.ts` — in `getUpdateableFields`, before the date/time merge block (around line 776):
 
-Re-run a one-shot script (or a small SQL update) to correct `requested_time` for the rows created by the May 26 import. I'll generate a list of impacted IDs first (the 27 approved + 4 newly-approved patients from the CSV) and adjust each by `+4h` (or whatever each project's tz offset is on the appointment date) only where the GHL value still disagrees. We'll verify Horace Jackson goes from `06:00` → `10:00` before applying broadly.
+- Compute `isUnscheduledProject` from `webhookData.project_name` using the existing `UNSCHEDULED_PROJECTS` set.
+- If true:
+  - Force `updateFields.date_of_appointment = null`, `updateFields.requested_time = null`, `updateFields.ghl_appointment_id = null`, `updateFields.is_unscheduled = true`.
+  - Skip the entire reschedule-detection / `reschedule_history` branch (lines 778‑832) — there is no booking to reschedule.
+  - Re-extract `time_preference` from incoming `patient_intake_notes` via the existing `extractTimePreference` helper; only overwrite when extraction returns a real value (don't clobber an existing preference with null).
 
-**3. (Recommended, separate) `ghl-webhook-handler` extract functions (lines 490-499 and 536-545)**
+This leaves the insert path and all other projects untouched, and matches the existing memory rules for Premier / ECCO / Davis unscheduled capture.
 
-Pass `timeZone: project.timezone` to `toLocaleTimeString`, or look up project timezone before formatting. This isn't what broke Horace, but it's the same class of bug and will bite us on future webhook-created appointments. I'd like to do this in the same PR — confirm if you want it included.
+### 3. Out of scope
 
-## Verification
-
-- Re-query Horace Jackson: `requested_time` should be `10:00:00`, UI should show `10:00 AM`.
-- Spot-check 2-3 other CSV patients across different timezones (Texas Endovascular = America/Chicago, Vascular Institute of Michigan = America/Detroit, etc.).
-- Confirm no double-shift on records whose `startTime` did include an offset.
-
-## Question before I build
-
-Do you want me to also fix the `ghl-webhook-handler` timezone bug in this same change (item 3), or scope this PR strictly to the import path + backfill?
+- Not touching the other ~1,186 historical Premier/ECCO/Davis rows that currently carry a booked date. Per your choice, only Gerald gets cleaned up.
+- No UI changes — the portal already renders `Time Preference: Afternoon` from `time_preference`; clearing the date will simply hide the "Appointment: …" line.
