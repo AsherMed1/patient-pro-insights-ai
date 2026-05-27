@@ -182,15 +182,27 @@ Deno.serve(async (req) => {
         const tz = project.timezone || 'America/Chicago';
         let dateOfAppt: string | null = null;
         let requestedTime: string | null = null;
-        if (mostRecent?.startTime || mostRecent?.start_time) {
-          const start = new Date(mostRecent.startTime || mostRecent.start_time);
-          if (!isNaN(start.getTime())) {
-            dateOfAppt = new Intl.DateTimeFormat('en-CA', {
-              timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-            }).format(start);
-            requestedTime = new Intl.DateTimeFormat('en-GB', {
-              timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-            }).format(start);
+        const rawStart: string | undefined = mostRecent?.startTime || mostRecent?.start_time;
+        if (rawStart) {
+          // GHL's contact-appointments endpoint returns startTime as a NAIVE local-time
+          // string in the location's timezone (no offset, e.g. "2026-06-10T10:00:00").
+          // Treat such strings as wall-clock time and use the date/time components verbatim
+          // instead of parsing them through Date() (which would assume UTC and shift hours).
+          const naiveMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(rawStart);
+          if (naiveMatch) {
+            dateOfAppt = naiveMatch[1];
+            requestedTime = `${naiveMatch[2]}:${naiveMatch[3]}:${naiveMatch[4] || '00'}`;
+          } else {
+            // Has explicit offset / Z — parse as instant and convert into project TZ.
+            const start = new Date(rawStart);
+            if (!isNaN(start.getTime())) {
+              dateOfAppt = new Intl.DateTimeFormat('en-CA', {
+                timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+              }).format(start);
+              requestedTime = new Intl.DateTimeFormat('en-GB', {
+                timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+              }).format(start);
+            }
           }
         }
 
