@@ -485,17 +485,31 @@ function extractStandardEventFormat(payload: any) {
   const contact = apt.contact || {}
   
   // Parse appointment start time
+  // GHL often sends startTime as a naive local-time string (no offset) in the
+  // location's timezone, e.g. "2026-06-10T10:00:00". Treat such strings as
+  // wall-clock time and use the components verbatim, otherwise Date() parses
+  // them as UTC and shifts the hour by the project's offset.
   let dateOfAppointment = null
   let requestedTime = null
   if (apt.startTime) {
-    const startDate = new Date(apt.startTime)
-    if (!isNaN(startDate.getTime())) {
-      dateOfAppointment = startDate.toISOString().split('T')[0] // YYYY-MM-DD
-      requestedTime = startDate.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      })
+    const naive = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(apt.startTime)
+    if (naive) {
+      dateOfAppointment = naive[1]
+      const hour = parseInt(naive[2], 10)
+      const minute = naive[3]
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const h12 = ((hour + 11) % 12) + 1
+      requestedTime = `${String(h12).padStart(2, '0')}:${minute} ${ampm}`
+    } else {
+      const startDate = new Date(apt.startTime)
+      if (!isNaN(startDate.getTime())) {
+        dateOfAppointment = startDate.toISOString().split('T')[0] // YYYY-MM-DD
+        requestedTime = startDate.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
+      }
     }
   }
   
@@ -530,18 +544,28 @@ function extractStandardEventFormat(payload: any) {
 function extractWorkflowFormat(payload: any) {
   const calendar = payload.calendar || {}
   
-  // Parse appointment start time
+  // Parse appointment start time (see extractStandardEventFormat for rationale)
   let dateOfAppointment = null
   let requestedTime = null
   if (calendar.startTime) {
-    const startDate = new Date(calendar.startTime)
-    if (!isNaN(startDate.getTime())) {
-      dateOfAppointment = startDate.toISOString().split('T')[0]
-      requestedTime = startDate.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      })
+    const naive = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(calendar.startTime)
+    if (naive) {
+      dateOfAppointment = naive[1]
+      const hour = parseInt(naive[2], 10)
+      const minute = naive[3]
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const h12 = ((hour + 11) % 12) + 1
+      requestedTime = `${String(h12).padStart(2, '0')}:${minute} ${ampm}`
+    } else {
+      const startDate = new Date(calendar.startTime)
+      if (!isNaN(startDate.getTime())) {
+        dateOfAppointment = startDate.toISOString().split('T')[0]
+        requestedTime = startDate.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
+      }
     }
   }
   

@@ -1,60 +1,37 @@
-# Fix: UFE intake answers not populating + stale prior-service questions
+## What's wrong
 
-## The problem (TEH TEST, id 77fe4b24)
+Horace Jackson's appointment in GHL is **Jun 10, 2026 10:00 AM ET**. In the portal it shows **6:00 AM** — exactly a 4-hour shift (EDT offset).
 
-The patient's GHL contact has these UFE funnel answers in Pathology:
-- "UFE STEP 1 | How heavy are your periods?: Heavy..."
-- "UFE STEP 1 | How often do you experience pelvic pain..."
-- "UFE STEP 1 | Which best describes your menstrual cycle?: ..."
+The record was created on May 26 by the `import-missing-leads-from-ghl` edge function that I ran when adding the 31 missing CSV patients. That function calls GHL's contact-appointments API, takes the `startTime`, and converts it into the project's timezone (America/New_York for Georgia Endovascular).
 
-But `parsed_pathology_info` shows `symptoms: null, duration: null, pain_level: null` — only `procedure_type: UFE` was set. The parser has explicit extraction for GAE/PFE/PAD/TAE/HAE fields but **no extraction rules for UFE STEP 1 questions**, so the UI Pathology section has nothing to display.
+The bug: GHL's contact-appointments endpoint returns `startTime` as a naive local string like `"2026-06-10T10:00:00"` (no offset). `new Date(...)` parses that as UTC = 10:00 UTC. We then format it in `America/New_York` and get `06:00`. That's how 10 AM ET became 6 AM ET in our DB.
 
-Additionally, the same contact still carries a leftover `Neuropathy Step 2` answer from a prior GAE/Neuropathy opt-in, which clutters the raw intake notes and (under the wrong service) could mislead reviewers.
+The regular GHL webhook (`ghl-webhook-handler`) has a different but related issue — it uses `toLocaleTimeString` without `timeZone`, so it formats in the Deno server's UTC. For Horace this didn't apply because the import created the row, not a webhook.
 
-## Fix scope
+## Fix
 
-Two coordinated changes, both inside the intake parsing pipeline + UI surfacing — no schema changes.
+**1. `supabase/functions/import-missing-leads-from-ghl/index.ts` (lines 185-195)**
 
-### 1. Extract UFE-specific funnel answers (`auto-parse-intake-notes`)
+Treat GHL's `startTime` as already being in the project's local timezone, not UTC. Parse the wall-clock components directly from the string instead of going through `new Date()` + timezone conversion.
 
-Add a UFE block to the regex enrichment phase (same place GAE/PAD/TAE blocks live):
-- `period_heaviness` ← `UFE STEP 1 | How heavy are your periods?: …`
-- `pelvic_pain_frequency` ← `UFE STEP 1 | How often do you experience pelvic pain…?: …`
-- `menstrual_cycle` ← `UFE STEP 1 | Which best describes your menstrual cycle?: …`
-- `period_length` ← `UFE STEP 1 | …Period Length…: …` (already seen in multi-procedure notes)
-- Backfill `primary_complaint = 'UFE / Fibroids'` and `symptoms` as a joined summary of the above when individual fields hit, so existing UI that reads `symptoms` shows something useful.
+Approach:
+- If `startTime` matches `YYYY-MM-DDTHH:mm:ss` with no `Z` and no `±HH:mm` offset → take the date and time parts verbatim (this is the GHL contact API's behavior).
+- If it has an explicit offset/`Z` → keep the current `Intl.DateTimeFormat` conversion into project tz (that path is already correct).
 
-Run only when `pathology_info.procedure_type === 'UFE'` (set earlier in the same function, line ~624).
+**2. Backfill the affected rows**
 
-### 2. Strip stale prior-service STEP answers on procedure switch
+Re-run a one-shot script (or a small SQL update) to correct `requested_time` for the rows created by the May 26 import. I'll generate a list of impacted IDs first (the 27 approved + 4 newly-approved patients from the CSV) and adjust each by `+4h` (or whatever each project's tz offset is on the appointment date) only where the GHL value still disagrees. We'll verify Horace Jackson goes from `06:00` → `10:00` before applying broadly.
 
-When the resolved `procedure_type` differs from the procedure implied by a STEP question, drop that line before persisting `patient_intake_notes` and before AI parsing:
-- Detect pattern `^\s*(GAE|UFE|PAE|HAE|PAD|FSE|TAE|PFE|Neuropathy) STEP \d+ \|`.
-- Keep only lines whose STEP prefix matches the current procedure (or has no STEP prefix).
-- Re-write the cleaned block back to `patient_intake_notes` so the raw notes view (per the `procedure-aware-pathology-notes-display` memory) and the parser both see only relevant answers.
+**3. (Recommended, separate) `ghl-webhook-handler` extract functions (lines 490-499 and 536-545)**
 
-This handles the GAE→UFE re-opt-in case the user described: when the calendar / Service Name is UFE, the lingering `Neuropathy Step 2` / `GAE STEP n` answers are removed from this appointment's intake snapshot. (We do NOT mutate the GHL contact — only our stored snapshot.)
+Pass `timeZone: project.timezone` to `toLocaleTimeString`, or look up project timezone before formatting. This isn't what broke Horace, but it's the same class of bug and will bite us on future webhook-created appointments. I'd like to do this in the same PR — confirm if you want it included.
 
-### 3. Display in UI (`ParsedIntakeInfo.tsx`)
+## Verification
 
-Add a UFE conditional block in the Pathology section (mirroring the GAE knee / PAD blocks) that renders any of `period_heaviness`, `menstrual_cycle`, `pelvic_pain_frequency`, `period_length` when `procedure_type === 'UFE'`. Falls back gracefully if any field is null.
+- Re-query Horace Jackson: `requested_time` should be `10:00:00`, UI should show `10:00 AM`.
+- Spot-check 2-3 other CSV patients across different timezones (Texas Endovascular = America/Chicago, Vascular Institute of Michigan = America/Detroit, etc.).
+- Confirm no double-shift on records whose `startTime` did include an offset.
 
-### 4. Backfill this record + any affected siblings
+## Question before I build
 
-After deploy, call `reparse-specific-appointments` for:
-- `77fe4b24-7e2a-45c0-b8fc-6c533a01ac9e` (TEH TEST)
-- All `Texas Endovascular - Houston Vein Clinic` UFE appointments whose `parsed_pathology_info->>symptoms` is null but `patient_intake_notes` contains `UFE STEP 1`.
-
-## Out of scope
-
-- Two-way write back to GHL to actually delete the stale custom field on the contact (would need a GHL custom-field DELETE call per service; flag for future work if user wants it).
-- Adding new DB columns — everything fits inside the existing `parsed_pathology_info` JSONB.
-
-## Technical notes
-
-Files touched:
-- `supabase/functions/auto-parse-intake-notes/index.ts` — add UFE regex block (~line 870, after PAD block) and a `stripStaleStepLines(notes, procedure)` helper called before persisting notes.
-- `src/components/appointments/ParsedIntakeInfo.tsx` — add UFE pathology rendering block.
-- One-shot reparse trigger via existing `reparse-specific-appointments` edge function (no new code).
-
-No migrations. No RLS changes. No new secrets.
+Do you want me to also fix the `ghl-webhook-handler` timezone bug in this same change (item 3), or scope this PR strictly to the import path + backfill?
