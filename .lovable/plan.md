@@ -1,36 +1,20 @@
-## Problem
+## Plan: Re-pull Fernando Gordillo from GHL
 
-Gerald Ellison (Premier Vascular) shows `Dec 30, 2025 1:00 PM` in the portal even though Premier is an unscheduled-capture project that should only carry a `time_preference`. His row already has `time_preference='afternoon'`, but `date_of_appointment`, `requested_time`, and `is_unscheduled=false` got written on top.
+**Target:** appointment `1deec937-371a-409b-9da2-8593cb9e3b4a` (Fernando Gordillo, Vascular and Embolization Specialists, ghl_id `cg2JZQ5dybL7qu0nH3oj`).
 
-## Root cause
+### Steps
 
-`supabase/functions/ghl-webhook-handler/index.ts` enforces the unscheduled rule (no booked date/time, `is_unscheduled=true`) only on **insert** (lines 731‑759). The **update** path (lines 776‑833) accepts whatever `date_of_appointment` / `requested_time` GHL sends. So when GHL later booked Gerald into a real calendar slot, the webhook overwrote his unscheduled state.
+1. **Refresh GHL contact data** — invoke `fetch-ghl-contact-data` with `{ appointmentId: '1deec937-371a-409b-9da2-8593cb9e3b4a' }`. This re-pulls all custom fields from GHL, re-appends them to `patient_intake_notes`, and updates phone/email/time_preference.
 
-## Changes
+2. **Force re-parse** — clear `parsing_completed_at` so the auto-parse trigger re-runs and rebuilds `parsed_insurance_info` / `parsed_medical_info` / `parsed_pathology_info` / `parsed_demographics` / `parsed_contact_info` from the freshly pulled notes.
 
-### 1. Data fix — Gerald Ellison only
+3. **Queue insurance card fetch** — clear `insurance_id_link` on the row to (re)trigger the `queue_insurance_card_fetch` trigger, which enqueues an `insurance_fetch_queue` job. Then invoke the insurance-card processor edge function to pull the card image from GHL if one exists there.
 
-Migration on the single row `60da9f6d-ab63-47fe-b7c0-af8c18fe1d1d`:
+4. **Verify** — re-query the row and confirm:
+   - `parsed_insurance_info` has provider/plan/ID/group
+   - `parsed_medical_info` has pcp_name (and pcp_phone/address if GHL now has them)
+   - `insurance_id_link` is populated (or confirm GHL has no card uploaded for this contact, in which case there's nothing to sync)
 
-- `date_of_appointment` → `NULL`
-- `requested_time` → `NULL`
-- `ghl_appointment_id` → `NULL`
-- `is_unscheduled` → `true`
-- keep `time_preference='afternoon'`, `status='Confirmed'`
-
-### 2. Future-proof the webhook UPDATE path
-
-`supabase/functions/ghl-webhook-handler/index.ts` — in `getUpdateableFields`, before the date/time merge block (around line 776):
-
-- Compute `isUnscheduledProject` from `webhookData.project_name` using the existing `UNSCHEDULED_PROJECTS` set.
-- If true:
-  - Force `updateFields.date_of_appointment = null`, `updateFields.requested_time = null`, `updateFields.ghl_appointment_id = null`, `updateFields.is_unscheduled = true`.
-  - Skip the entire reschedule-detection / `reschedule_history` branch (lines 778‑832) — there is no booking to reschedule.
-  - Re-extract `time_preference` from incoming `patient_intake_notes` via the existing `extractTimePreference` helper; only overwrite when extraction returns a real value (don't clobber an existing preference with null).
-
-This leaves the insert path and all other projects untouched, and matches the existing memory rules for Premier / ECCO / Davis unscheduled capture.
-
-### 3. Out of scope
-
-- Not touching the other ~1,186 historical Premier/ECCO/Davis rows that currently carry a booked date. Per your choice, only Gerald gets cleaned up.
-- No UI changes — the portal already renders `Time Preference: Afternoon` from `time_preference`; clearing the date will simply hide the "Appointment: …" line.
+### Out of scope
+- No code changes — the renderer already displays every populated field for VES; this is purely a data-refresh operation for one contact.
+- If after refresh PCP phone/address are still null, that means the GHL intake form didn't collect them (the form only has a single "Primary Care Doctor's Name and Phone" field, which the patient filled with name only). Nothing to fix on our side in that case.
