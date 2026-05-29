@@ -161,7 +161,7 @@ const ReviewQueue: React.FC = () => {
     try {
       const { data: priorRow } = await supabase
         .from('all_appointments')
-        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status')
+        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id')
         .eq('id', id)
         .single();
 
