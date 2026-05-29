@@ -65,7 +65,7 @@ serve(async (req) => {
       const record = {
         id: a.id,
         lead_name: a.lead_name,
-        ghl_id: a.ghl_id,
+        ghl_appointment_id: a.ghl_appointment_id,
         old: `${a.date_of_appointment} ${a.requested_time}`,
         new: `${newDate} ${newTime}`,
       };
@@ -85,7 +85,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            ghl_appointment_id: a.ghl_id,
+            ghl_appointment_id: a.ghl_appointment_id,
             new_date: newDate,
             new_time: newTime.slice(0, 5),
             timezone: TIMEZONE,
