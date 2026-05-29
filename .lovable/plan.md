@@ -1,20 +1,26 @@
-## Plan: Re-pull Fernando Gordillo from GHL
+# Sortable Review Queue Columns
 
-**Target:** appointment `1deec937-371a-409b-9da2-8593cb9e3b4a` (Fernando Gordillo, Vascular and Embolization Specialists, ghl_id `cg2JZQ5dybL7qu0nH3oj`).
+Make the **Patient**, **Project**, **Service / Calendar**, and **Appointment** column headers in the Review Queue clickable to sort the list.
 
-### Steps
+## Behavior
 
-1. **Refresh GHL contact data** — invoke `fetch-ghl-contact-data` with `{ appointmentId: '1deec937-371a-409b-9da2-8593cb9e3b4a' }`. This re-pulls all custom fields from GHL, re-appends them to `patient_intake_notes`, and updates phone/email/time_preference.
+- Click a header → sort ascending (A–Z, or earliest date first for Appointment).
+- Click the same header again → sort descending (Z–A, or latest date first).
+- Active column shows an up/down arrow icon next to the label; inactive columns show a faint neutral sort icon to hint they are clickable.
+- Default sort stays as it is today (newest `created_at` first) until the user picks a column.
+- Only one column sorts at a time. Sorting is client-side over the already-loaded rows (no extra DB calls).
 
-2. **Force re-parse** — clear `parsing_completed_at` so the auto-parse trigger re-runs and rebuilds `parsed_insurance_info` / `parsed_medical_info` / `parsed_pathology_info` / `parsed_demographics` / `parsed_contact_info` from the freshly pulled notes.
+## Sort keys
 
-3. **Queue insurance card fetch** — clear `insurance_id_link` on the row to (re)trigger the `queue_insurance_card_fetch` trigger, which enqueues an `insurance_fetch_queue` job. Then invoke the insurance-card processor edge function to pull the card image from GHL if one exists there.
+| Header | Sort by |
+|---|---|
+| Patient | `lead_name` (case-insensitive) |
+| Project | `project_name` (case-insensitive) |
+| Service / Calendar | `parsed_pathology_info.procedure_type`, then `calendar_name` |
+| Appointment | `date_of_appointment` + `requested_time` (nulls last) |
 
-4. **Verify** — re-query the row and confirm:
-   - `parsed_insurance_info` has provider/plan/ID/group
-   - `parsed_medical_info` has pcp_name (and pcp_phone/address if GHL now has them)
-   - `insurance_id_link` is populated (or confirm GHL has no card uploaded for this contact, in which case there's nothing to sync)
+## Files
 
-### Out of scope
-- No code changes — the renderer already displays every populated field for VES; this is purely a data-refresh operation for one contact.
-- If after refresh PCP phone/address are still null, that means the GHL intake form didn't collect them (the form only has a single "Primary Care Doctor's Name and Phone" field, which the patient filled with name only). Nothing to fix on our side in that case.
+- `src/components/admin/ReviewQueue.tsx` — add `sortKey` / `sortDir` state, turn the four header cells into buttons with chevron icons, and apply a `useMemo` sorted view of `rows` before rendering.
+
+No backend, schema, or business-logic changes.
