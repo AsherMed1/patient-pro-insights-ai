@@ -42,6 +42,8 @@ interface ReviewAppointment {
 }
 
 type ActionType = 'approved' | 'declined' | 'oon';
+type SortKey = 'patient' | 'project' | 'service' | 'appointment';
+type SortDir = 'asc' | 'desc';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
