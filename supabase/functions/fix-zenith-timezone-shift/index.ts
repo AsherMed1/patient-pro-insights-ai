@@ -37,11 +37,12 @@ serve(async (req) => {
 
     const { data: appts, error } = await supabase
       .from('all_appointments')
-      .select('id, lead_name, date_of_appointment, requested_time, ghl_id, status')
+      .select('id, lead_name, date_of_appointment, requested_time, ghl_appointment_id, status')
       .eq('project_name', PROJECT_NAME)
       .eq('status', 'Confirmed')
       .gte('date_of_appointment', new Date().toISOString().slice(0, 10))
-      .not('ghl_id', 'is', null);
+      .not('ghl_appointment_id', 'is', null);
+
 
     if (error) throw error;
 
