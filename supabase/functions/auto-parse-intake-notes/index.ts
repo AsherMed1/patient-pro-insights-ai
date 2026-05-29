@@ -818,31 +818,49 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
   
-  // Extract imaging details if not already populated
-  if (!parsedData.medical_info.imaging_details) {
+  // Extract imaging details — always check regex sources because the AI often
+  // returns a truncated value like "Yes, MRI" while a richer free-text field
+  // (e.g. "Had Imaging Before?: MRI 2 weeks ago in May at Vascular Surgery
+  // Associates clinic in Ellicott") exists in the raw notes. Prefer the
+  // longer/richer value so imaging_when / imaging_location / imaging_facility
+  // can be extracted downstream.
+  {
     const imagingPatterns = [
+      /had imaging before\s*\??\s*:\s*([^\n|]+)/i,
       /had_imaging_before\s*\??\s*:\s*([^\n|]+)/i,
       /have you had.*?imaging.*?\??\s*:\s*([^\n|]+)/i,
-      /had imaging before\s*\??\s*:\s*([^\n|]+)/i,
       /previous imaging\s*\??\s*:\s*([^\n|]+)/i,
       /imaging_done\s*\??\s*:\s*([^\n|]+)/i
     ];
-    
+
+    let bestValue: string | null = parsedData.medical_info.imaging_details || null;
     for (const pattern of imagingPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
         const value = match[1].trim();
-        parsedData.medical_info.imaging_details = value;
-        // Smart parsing of compound imaging responses
-        parseCompoundImagingResponse(value, {
-          pathology_info: parsedData.pathology_info || {},
-          medical_info: parsedData.medical_info
-        });
-        console.log(`[AUTO-PARSE ENRICH] Extracted imaging_details via regex: ${value}`);
-        break;
+        // Prefer this value if we don't have one yet, or if it's meaningfully
+        // richer than the current value (length > current + 5 chars).
+        if (!bestValue || value.length > (bestValue.length + 5)) {
+          bestValue = value;
+        }
       }
     }
+
+    if (bestValue && bestValue !== parsedData.medical_info.imaging_details) {
+      parsedData.medical_info.imaging_details = bestValue;
+      console.log(`[AUTO-PARSE ENRICH] Upgraded imaging_details via regex: ${bestValue}`);
+    }
+    if (bestValue) {
+      // Always re-run compound parsing on the richest value so imaging_type,
+      // imaging_location, imaging_when get populated even when the AI parser
+      // produced a short imaging_details string.
+      parseCompoundImagingResponse(bestValue, {
+        pathology_info: parsedData.pathology_info || {},
+        medical_info: parsedData.medical_info
+      });
+    }
   }
+
   
   // Extract PCP info if not already populated
   if (!parsedData.medical_info.pcp_name) {
