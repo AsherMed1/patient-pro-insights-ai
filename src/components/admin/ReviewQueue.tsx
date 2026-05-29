@@ -59,6 +59,52 @@ const ReviewQueue: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ k }: { k: SortKey }) => {
+    if (sortKey !== k) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const getVal = (r: ReviewAppointment): string | number => {
+      switch (sortKey) {
+        case 'patient':
+          return (r.lead_name || '').toLowerCase();
+        case 'project':
+          return (r.project_name || '').toLowerCase();
+        case 'service': {
+          const proc = (r.parsed_pathology_info?.procedure_type || '').toString().toLowerCase();
+          const cal = (r.calendar_name || '').toLowerCase();
+          return `${proc}|${cal}`;
+        }
+        case 'appointment': {
+          if (!r.date_of_appointment) return Number.POSITIVE_INFINITY;
+          const t = r.requested_time || '00:00:00';
+          return new Date(`${r.date_of_appointment}T${t}`).getTime() || Number.POSITIVE_INFINITY;
+        }
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const av = getVal(a);
+      const bv = getVal(b);
+      if (av === bv) return 0;
+      return av > bv ? dir : -dir;
+    });
+  }, [rows, sortKey, sortDir]);
+
 
   const openDetail = async (id: string) => {
     setDetailLoading(id);
