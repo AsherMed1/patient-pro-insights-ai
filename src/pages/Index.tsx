@@ -36,7 +36,7 @@ const Index = () => {
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const { user, signOut } = useAuth();
-  const { role, hasManagementAccess, isProjectUser, accessibleProjects, loading: roleLoading } = useRole();
+  const { role, hasManagementAccess, isProjectUser, isReviewOnly, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
   
   // Initialize automatic intake notes parsing
@@ -114,9 +114,9 @@ const Index = () => {
     };
   }, []);
 
-  // Fetch review queue pending count (admins/agents/VAs only)
+  // Fetch review queue pending count (admins/agents/VAs/review_only)
   useEffect(() => {
-    if (!hasManagementAccess() && role !== 'va') return;
+    if (!hasManagementAccess() && role !== 'va' && role !== 'review_only') return;
     const fetchReviewCount = async () => {
       const { count } = await supabase
         .from('all_appointments')
