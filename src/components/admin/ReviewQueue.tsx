@@ -207,6 +207,29 @@ const ReviewQueue: React.FC = () => {
         console.warn('audit log failed', e);
       }
 
+      // Approved side effect: add 'approved' tag to GHL contact
+      if (action === 'approved' && priorRow?.ghl_id) {
+        try {
+          const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+            body: {
+              ghl_contact_id: priorRow.ghl_id,
+              tags: ['approved'],
+              action: 'add',
+            },
+          });
+          if (tagErr) {
+            console.error('update-ghl-contact-tags failed:', tagErr);
+            toast({
+              title: 'Approved, but GHL tag not added',
+              description: 'Review status was saved, but adding the "approved" tag in GHL failed.',
+              variant: 'destructive',
+            });
+          }
+        } catch (err) {
+          console.error('update-ghl-contact-tags threw:', err);
+        }
+      }
+
       // OON side effects: mirror the appointment-card dropdown path so the
       // GHL OON workflow runs and the Slack alert fires.
       if (action === 'oon' && priorRow) {
