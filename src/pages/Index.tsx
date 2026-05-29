@@ -159,6 +159,44 @@ const Index = () => {
     );
   }
 
+  // Review-only users: stripped dashboard showing only the Review Queue
+  if (isReviewOnly()) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+        <div className="max-w-7xl mx-auto space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <img src={patientProLogo} alt="Patient Pro Logo" className="h-8 w-auto" />
+              <div>
+                <h1 className="text-lg font-semibold leading-none">Patient Pro Client Portal</h1>
+                <p className="text-sm text-muted-foreground">Review Queue</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
+                <User className="h-3.5 w-3.5" />
+                {user?.email} ({role})
+              </span>
+              <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
+                <Settings className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={handleSignOut}>
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-1">
+            <h2 className="text-base font-semibold">Review Queue</h2>
+            {reviewPendingCount > 0 && (
+              <Badge variant="destructive">{reviewPendingCount}</Badge>
+            )}
+          </div>
+          <ReviewQueue />
+        </div>
+      </div>
+    );
+  }
+
   // Project users with multiple projects see a project selection dashboard
   if (isProjectUser()) {
     return (
