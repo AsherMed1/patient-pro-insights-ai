@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
@@ -42,6 +42,8 @@ interface ReviewAppointment {
 }
 
 type ActionType = 'approved' | 'declined' | 'oon';
+type SortKey = 'patient' | 'project' | 'service' | 'appointment';
+type SortDir = 'asc' | 'desc';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
@@ -57,6 +59,52 @@ const ReviewQueue: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ k }: { k: SortKey }) => {
+    if (sortKey !== k) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const getVal = (r: ReviewAppointment): string | number => {
+      switch (sortKey) {
+        case 'patient':
+          return (r.lead_name || '').toLowerCase();
+        case 'project':
+          return (r.project_name || '').toLowerCase();
+        case 'service': {
+          const proc = (r.parsed_pathology_info?.procedure_type || '').toString().toLowerCase();
+          const cal = (r.calendar_name || '').toLowerCase();
+          return `${proc}|${cal}`;
+        }
+        case 'appointment': {
+          if (!r.date_of_appointment) return Number.POSITIVE_INFINITY;
+          const t = r.requested_time || '00:00:00';
+          return new Date(`${r.date_of_appointment}T${t}`).getTime() || Number.POSITIVE_INFINITY;
+        }
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const av = getVal(a);
+      const bv = getVal(b);
+      if (av === bv) return 0;
+      return av > bv ? dir : -dir;
+    });
+  }, [rows, sortKey, sortDir]);
+
 
   const openDetail = async (id: string) => {
     setDetailLoading(id);
@@ -356,13 +404,21 @@ const ReviewQueue: React.FC = () => {
                 onChange={selectAll}
                 className="cursor-pointer"
               />
-              <div className="text-left">Patient</div>
-              <div className="text-left">Project</div>
-              <div className="text-left">Service / Calendar</div>
-              <div className="text-left">Appointment</div>
+              <button onClick={() => toggleSort('patient')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Patient <SortIcon k="patient" />
+              </button>
+              <button onClick={() => toggleSort('project')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Project <SortIcon k="project" />
+              </button>
+              <button onClick={() => toggleSort('service')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Service / Calendar <SortIcon k="service" />
+              </button>
+              <button onClick={() => toggleSort('appointment')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Appointment <SortIcon k="appointment" />
+              </button>
               <div className="text-right">Actions</div>
             </div>
-            {rows.map(row => {
+            {sortedRows.map(row => {
               const isOpen = expanded[row.id];
               const path = row.parsed_pathology_info || {};
               const ins = row.parsed_insurance_info || {};
