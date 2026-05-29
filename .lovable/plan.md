@@ -1,48 +1,32 @@
-# Fix Zenith Vascular & Fibroid Center Time Zone Shift
+## Issues
 
-## Problem
-GHL location timezone was switched from ET → CT at Zenith. Existing appointments were stored as wall-clock times that now read 1 hour earlier in CT (e.g., Edward Stephens shows 7:00 AM CDT in GHL but should be 8:00 AM CDT). Reminders are about to be turned on and must show the correct local time.
+**1. Duplicate "Duration" in Medical Information**
+`src/components/appointments/ParsedIntakeInfo.tsx` renders `parsedPathologyInfo.duration` twice:
+- Line 781 (top of section, always shown)
+- Line 940 (further down, also always shown — originally intended for a different procedure branch but not gated)
 
-## Scope
-- Project: **Zenith Vascular & Fibroid Center**
-- Only **upcoming appointments** (date_of_appointment >= today)
-- Only **Confirmed** status (per Kathryn's confirmation — exclude Welcome Call, Cancelled, Rescheduled, etc.)
-- Shift each appointment **+1 hour** in:
-  1. `all_appointments` (date_of_appointment / time fields)
-  2. GHL (via `update-ghl-appointment` edge function, which reschedules the GHL event)
+Result: PFE (and any other procedure) shows Duration twice.
 
-Current count from query: ~15 Confirmed upcoming Zenith appointments (Jun 3 – later).
+**2. Imaging info missing the rich free-text field**
+The intake notes for VSA TEST contain two imaging fields:
+- `PFE STEP 2 | Have you had any imaging or tests...: Yes, MRI` → parsed as `imaging_details = "Yes, MRI"`
+- `Had Imaging Before?: MRI 2 weeks ago in May at Vascular Surgery Associates clinic in Ellicott` → **ignored**
 
-## Implementation
+The parser (`supabase/functions/auto-parse-intake-notes`) only looks at the STEP question, so `imaging_when`, `imaging_location`, and `imaging_facility` are never populated, and the UI shows the truncated "Yes, MRI" instead of the full description.
 
-Create a one-off backfill edge function `fix-zenith-timezone-shift`:
+## Fix
 
-1. Query `all_appointments` where:
-   - `project_name = 'Zenith Vascular & Fibroid Center'`
-   - `status = 'Confirmed'`
-   - `date_of_appointment >= CURRENT_DATE`
-   - `ghl_id IS NOT NULL`
-2. For each row:
-   - Compute new datetime = existing appointment datetime + 1 hour
-   - Call existing `update-ghl-appointment` with `new_date`, `new_time`, `timezone='America/Chicago'`, `project_name`, `ghl_appointment_id=ghl_id`
-   - On success, update `all_appointments` with shifted date/time + add an `appointment_notes` audit row ("System: Time zone correction +1h applied after GHL location TZ change")
-   - Set a flag to suppress the GHL webhook echo-back (the function already debounces, but log clearly)
-3. Return summary `{ updated: [...], failed: [...] }`
+### Frontend — `src/components/appointments/ParsedIntakeInfo.tsx`
+- Remove the duplicate Duration block at lines 940–945. Keep the original at lines 781–785.
 
-Trigger via an admin-only button OR a single `curl` invocation. Given it's a one-shot, run via `supabase--curl_edge_functions` after deploy and report results.
+### Parser — `supabase/functions/auto-parse-intake-notes/index.ts`
+- Add `Had Imaging Before?:\s*([^\n|]+)` to the regex/imaging patterns and to the OpenAI prompt as a high-priority source for `imaging_details`.
+- Prefer the longer/richer of the two values when both exist (i.e., when "Had Imaging Before?" has more than ~15 chars, use it as `imaging_details` and run `parseCompoundImagingResponse` on it to extract `imaging_type`, `imaging_location`, `imaging_when`).
+- The existing compound regex already handles "at Vascular Surgery Associates clinic" (matches `Associates`) and date phrases like "2 weeks ago" / "in May".
 
-## Safeguards
-- Dry-run mode (`?dryRun=true`) first — log the planned new times, no writes
-- Process sequentially with 500ms delay (avoid GHL rate limits)
-- Skip any appointment whose date is in the past by the time it runs
-- Do NOT touch Welcome Call / terminal statuses
-
-## Deliverable
-- New edge function `supabase/functions/fix-zenith-timezone-shift/index.ts`
-- Run dry-run, share preview list, then run live after your confirmation
-- Final report listing each patient with old time → new time and GHL update status
+### Reparse VSA TEST
+- Invoke `reparse-specific-appointments` for appointment id `a897f0dd-6215-49ca-aa9d-05cf829b21f1` so the Medical & PCP card immediately shows: Imaging Type MRI, Imaging When "2 weeks ago in May", Imaging Location "Vascular Surgery Associates clinic", Imaging Details full sentence.
 
 ## Out of scope
-- Reminder enablement (Kathryn will toggle in GHL)
-- Welcome Call / pending appointments
-- Other clinics
+- No DB schema changes.
+- No changes to other procedures' field visibility.
