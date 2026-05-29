@@ -404,13 +404,21 @@ const ReviewQueue: React.FC = () => {
                 onChange={selectAll}
                 className="cursor-pointer"
               />
-              <div className="text-left">Patient</div>
-              <div className="text-left">Project</div>
-              <div className="text-left">Service / Calendar</div>
-              <div className="text-left">Appointment</div>
+              <button onClick={() => toggleSort('patient')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Patient <SortIcon k="patient" />
+              </button>
+              <button onClick={() => toggleSort('project')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Project <SortIcon k="project" />
+              </button>
+              <button onClick={() => toggleSort('service')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Service / Calendar <SortIcon k="service" />
+              </button>
+              <button onClick={() => toggleSort('appointment')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
+                Appointment <SortIcon k="appointment" />
+              </button>
               <div className="text-right">Actions</div>
             </div>
-            {rows.map(row => {
+            {sortedRows.map(row => {
               const isOpen = expanded[row.id];
               const path = row.parsed_pathology_info || {};
               const ins = row.parsed_insurance_info || {};
