@@ -28,6 +28,8 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   const s = String(v).trim();
   if (!s) return false;
   if (s.length > 80) return true;
+  // Reject stub values (e.g. "B", "A", "X") — usually a placeholder from a half-filled intake.
+  if (s.replace(/[^A-Za-z]/g, '').length < 3) return true;
   if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
   if (/No fields found in your shared list/i.test(s)) return true;
   if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(s)) return true;
