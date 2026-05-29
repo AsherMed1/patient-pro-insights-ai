@@ -1,59 +1,48 @@
-# Insurance not syncing — root cause + fix
+# Fix Zenith Vascular & Fibroid Center Time Zone Shift
 
-## What the data actually shows
+## Problem
+GHL location timezone was switched from ET → CT at Zenith. Existing appointments were stored as wall-clock times that now read 1 hour earlier in CT (e.g., Edward Stephens shows 7:00 AM CDT in GHL but should be 8:00 AM CDT). Reminders are about to be turned on and must show the correct local time.
 
-I pulled all 4 reported appointments. Three of four already have insurance parsed and stored:
+## Scope
+- Project: **Zenith Vascular & Fibroid Center**
+- Only **upcoming appointments** (date_of_appointment >= today)
+- Only **Confirmed** status (per Kathryn's confirmation — exclude Welcome Call, Cancelled, Rescheduled, etc.)
+- Shift each appointment **+1 hour** in:
+  1. `all_appointments` (date_of_appointment / time fields)
+  2. GHL (via `update-ghl-appointment` edge function, which reschedules the GHL event)
 
-| Patient | Project | `detected_insurance_provider` | `parsed_insurance_info.insurance_provider` | Insurance card |
-|---|---|---|---|---|
-| Danielle Jones | FSA | Anthem Commercial (requires referral) | Anthem Commercial | — |
-| Sam Johnson | STC | BCBS of Tennessee | BCBS of Tennessee | — |
-| LaBerrick Williams | STC | BCBS | BCBS | — |
-| **Samuel Lambert** | **STC** | **null** | **null (all fields null)** | link present |
+Current count from query: ~15 Confirmed upcoming Zenith appointments (Jun 3 – later).
 
-So Sam, LaBerrick, and Danielle should already be rendering in the portal (the portal reads `parsed_insurance_info.insurance_provider` then falls back to `detected_insurance_provider`, both populated). If the user refreshes they should appear. The only truly broken record is **Samuel Lambert**.
+## Implementation
 
-## Why Samuel Lambert failed (and why this is a GAE‑STC pattern)
+Create a one-off backfill edge function `fix-zenith-timezone-shift`:
 
-His intake text uses a different separator than the other STC GAE leads:
+1. Query `all_appointments` where:
+   - `project_name = 'Zenith Vascular & Fibroid Center'`
+   - `status = 'Confirmed'`
+   - `date_of_appointment >= CURRENT_DATE`
+   - `ghl_id IS NOT NULL`
+2. For each row:
+   - Compute new datetime = existing appointment datetime + 1 hour
+   - Call existing `update-ghl-appointment` with `new_date`, `new_time`, `timezone='America/Chicago'`, `project_name`, `ghl_appointment_id=ghl_id`
+   - On success, update `all_appointments` with shifted date/time + add an `appointment_notes` audit row ("System: Time zone correction +1h applied after GHL location TZ change")
+   - Set a flag to suppress the GHL webhook echo-back (the function already debounces, but log clearly)
+3. Return summary `{ updated: [...], failed: [...] }`
 
-- LaBerrick:  `Insurance: Plan BCBS; Group#: 7NUS00; Alt Selection BCBS`
-- Sam J:      `Insurance: Plan BCBS of Tennessee; Group #80860; Alt Selection BCBS`
-- **Samuel L:** `Insurance: Plan=B; Group#=125000; Upload=...; Alt Selection=BlueCare`
+Trigger via an admin-only button OR a single `curl` invocation. Given it's a one-shot, run via `supabase--curl_edge_functions` after deploy and report results.
 
-Two problems hit at once:
-1. `Plan=B` parses to a 1‑character provider — the parser stores it and never tries `Alt Selection`.
-2. The `=` separator variant isn't covered by the same regexes the space‑separated form is, so the real provider ("BlueCare") in `Alt Selection=BlueCare` is dropped.
+## Safeguards
+- Dry-run mode (`?dryRun=true`) first — log the planned new times, no writes
+- Process sequentially with 500ms delay (avoid GHL rate limits)
+- Skip any appointment whose date is in the past by the time it runs
+- Do NOT touch Welcome Call / terminal statuses
 
-This is the GAE/STC tie the user is sensing: STC's GAE intake form occasionally emits the `Key=Value` variant, and any record where `Plan` is a stub falls through with no provider.
+## Deliverable
+- New edge function `supabase/functions/fix-zenith-timezone-shift/index.ts`
+- Run dry-run, share preview list, then run live after your confirmation
+- Final report listing each patient with old time → new time and GHL update status
 
-## Fix
-
-### 1. Parser — `supabase/functions/auto-parse-intake-notes/index.ts` (fallback regex block)
-
-Extend the insurance fallback so it:
-- Accepts both `Plan: X`, `Plan X`, and `Plan=X` (same for `Group#`, `Alt Selection`, `Upload`).
-- Treats `Plan` values shorter than 3 chars or that are a single non‑alpha token (e.g. `B`) as missing.
-- When `provider` ends up empty/garbage, promotes `Alt Selection` to `insurance_provider` AND `insurance_plan` (current behavior already uses Alt Selection as a fallback for some projects; widen it to STC GAE and to the `=` format).
-- Strips a trailing `Upload=https://...` block out of the insurance segment before regexing the remaining fields.
-
-No AI prompt changes needed; this is pure regex hardening in the fallback path.
-
-### 2. Backfill the 4 reported patients
-
-Run `reparse-specific-appointments` (existing edge function) against:
-- `3PKQ25hxXM7XPrO3mZU3` (Samuel Lambert) — will pick up BlueCare via the new Alt Selection promotion.
-- `QUMYzX17sL240uX3EBZr` (Danielle Jones), `VFAqCpJEOgr5aZmb5k1b` (Sam Johnson), `LYFI6Axku9AMQvR1ZVPl` (LaBerrick Williams) — sanity re‑run so the portal cache shows fresh data and confirms the user that the records are healed.
-
-### 3. Preventive sweep for the STC GAE backlog
-
-One-shot SQL scan (read-only) for STC confirmed GAE appointments where `detected_insurance_provider IS NULL` AND `patient_intake_notes ILIKE '%Plan=%'`, then queue them through `reparse-specific-appointments` in a single batch. This catches any other Samuel‑Lambert‑shaped records without changing live behavior.
-
-## What this is NOT
-
-- Not a GHL → portal sync bug. The GHL webhook already delivered the intake notes; the failure is downstream in the regex fallback when OpenAI is rate‑limited (which it currently is — see recent edge logs: `429 insufficient_quota`).
-- Not a procedure routing bug. `procedure_type=GAE` is being set correctly from the calendar name for all four.
-
-## Out of scope (flagging only)
-
-OpenAI quota is exhausted right now, which is why the regex fallback is doing all the work and exposing this gap. Worth topping up `OPENAI_API_KEY` billing separately — but the parser fix above means we no longer depend on the AI path for plain insurance fields.
+## Out of scope
+- Reminder enablement (Kathryn will toggle in GHL)
+- Welcome Call / pending appointments
+- Other clinics
