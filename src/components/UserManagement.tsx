@@ -517,6 +517,8 @@ const UserManagement = () => {
         return 'default';
       case 'va':
         return 'default';
+      case 'review_only':
+        return 'outline';
       case 'project_user':
         return 'secondary';
       default:
@@ -601,6 +603,7 @@ const UserManagement = () => {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="agent">Agent</SelectItem>
                           <SelectItem value="va">VA</SelectItem>
+                          <SelectItem value="review_only">Review Queue Only</SelectItem>
                           <SelectItem value="project_user">Project User</SelectItem>
                         </SelectContent>
                       </Select>
@@ -653,6 +656,7 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
+                  <SelectItem value="review_only">Review Queue Only</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
@@ -861,6 +865,7 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
+                  <SelectItem value="review_only">Review Queue Only</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
