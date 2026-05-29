@@ -28,6 +28,8 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   const s = String(v).trim();
   if (!s) return false;
   if (s.length > 80) return true;
+  // Reject stub values (e.g. "B", "A", "X") — usually a placeholder from a half-filled intake.
+  if (s.replace(/[^A-Za-z]/g, '').length < 3) return true;
   if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
   if (/No fields found in your shared list/i.test(s)) return true;
   if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(s)) return true;
@@ -480,6 +482,85 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       break;
     }
   }
+
+  // ============================================================
+  // STC-style "Insurance: Plan=X; Group#=Y; Upload=...; Alt Selection=Z" segment
+  // Some intake forms (notably STC GAE) emit either `Key=Value` or `Key Value`
+  // separators inside a single "Insurance: ..." line. The generic patterns above
+  // either miss them or capture the entire blob into insurance_provider.
+  // This block runs AFTER the generic patterns and:
+  //   - Promotes Alt Selection -> provider/plan when Plan is missing or garbage (e.g. "B")
+  //   - Fills group_number from `Group#=...`
+  //   - Strips Upload=https://... from being mistaken as provider
+  // It NEVER overwrites a value that was already cleanly extracted above.
+  {
+    // Isolate the Insurance segment: between "Insurance:" / "Insurance " and
+    // the next /n marker, "Pathology", or end of string.
+    const segMatch = intakeNotes.match(/Insurance\s*:\s*([\s\S]+?)(?:\/n|\bPathology\b|$)/i);
+    if (segMatch && segMatch[1]) {
+      const segment = segMatch[1].trim();
+      // Token-split by ; (the consistent delimiter in these forms)
+      const tokens = segment.split(/;+/).map(t => t.trim()).filter(Boolean);
+      let segPlan: string | null = null;
+      let segGroup: string | null = null;
+      let segAlt: string | null = null;
+      for (const tok of tokens) {
+        // Accept both `Key=Value` and `Key Value` and `Key: Value`
+        const kv = tok.match(/^(Plan|Group\s*#?|Upload|Alt(?:ernate)?\s*Selection|Notes)\b\s*[:=]?\s*(.+)$/i);
+        if (!kv) continue;
+        const keyRaw = kv[1].toLowerCase().replace(/\s+/g, ' ').trim();
+        const val = kv[2].trim();
+        if (!val) continue;
+        if (keyRaw === 'plan') segPlan = val;
+        else if (keyRaw.startsWith('group')) segGroup = val;
+        else if (keyRaw.startsWith('alt')) segAlt = val;
+        // Upload / Notes intentionally ignored here (Upload handled elsewhere)
+      }
+
+      // Helper: treat single-char or non-alpha values like "B" as missing
+      const isUsableProvider = (v: string | null) => {
+        if (!v) return false;
+        const cleaned = v.replace(/[^A-Za-z]/g, '');
+        return cleaned.length >= 3;
+      };
+
+      // If existing provider is empty OR was wrongly grabbed (contains '=' or
+      // 'Group#' or 'Upload=' from the blob fallback), reset it before re-deriving.
+      const existing = result.insurance_info.insurance_provider;
+      if (existing && /(Plan\s*[:=]|Group\s*#|Upload\s*[:=]|\/n)/i.test(existing)) {
+        console.log(`[AUTO-PARSE FALLBACK] Discarding blob-captured provider: ${existing.substring(0, 60)}`);
+        result.insurance_info.insurance_provider = null;
+      }
+
+      // Provider/plan promotion:
+      //   1. Use Plan value if it's a usable carrier name
+      //   2. Otherwise fall back to Alt Selection (real carrier in STC GAE forms)
+      if (!result.insurance_info.insurance_provider) {
+        if (isUsableProvider(segPlan)) {
+          result.insurance_info.insurance_provider = segPlan;
+          console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider from Plan segment: ${segPlan}`);
+        } else if (isUsableProvider(segAlt)) {
+          result.insurance_info.insurance_provider = segAlt;
+          console.log(`[AUTO-PARSE FALLBACK] Promoted Alt Selection to insurance_provider: ${segAlt}`);
+        }
+      }
+      if (!result.insurance_info.insurance_plan) {
+        if (isUsableProvider(segPlan)) {
+          result.insurance_info.insurance_plan = segPlan;
+          console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_plan from Plan segment: ${segPlan}`);
+        } else if (isUsableProvider(segAlt)) {
+          result.insurance_info.insurance_plan = segAlt;
+          console.log(`[AUTO-PARSE FALLBACK] Promoted Alt Selection to insurance_plan: ${segAlt}`);
+        }
+      }
+      if (!result.insurance_info.insurance_group_number && segGroup && !isInvalidGroupNumber(segGroup)) {
+        result.insurance_info.insurance_group_number = segGroup;
+        console.log(`[AUTO-PARSE FALLBACK] Extracted group_number from segment: ${segGroup}`);
+      }
+    }
+  }
+
+
 
   // Extract DOB
   const dobPatterns = [
@@ -2268,6 +2349,11 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             if (isInvalidInsuranceValue(plan)) {
               console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_plan: ${String(plan).substring(0, 60)}...`);
               parsedData.insurance_info.insurance_plan = null;
+            }
+            // If plan was wiped but provider is valid, mirror provider into plan so the
+            // portal's Plan field isn't blank when the intake form only captured one name.
+            if (!parsedData.insurance_info.insurance_plan && parsedData.insurance_info.insurance_provider) {
+              parsedData.insurance_info.insurance_plan = parsedData.insurance_info.insurance_provider;
             }
             if (isInvalidInsuranceValue(memberId)) {
               console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_id: ${String(memberId).substring(0, 60)}...`);
