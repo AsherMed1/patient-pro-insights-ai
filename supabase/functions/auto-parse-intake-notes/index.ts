@@ -2350,6 +2350,11 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
               console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_plan: ${String(plan).substring(0, 60)}...`);
               parsedData.insurance_info.insurance_plan = null;
             }
+            // If plan was wiped but provider is valid, mirror provider into plan so the
+            // portal's Plan field isn't blank when the intake form only captured one name.
+            if (!parsedData.insurance_info.insurance_plan && parsedData.insurance_info.insurance_provider) {
+              parsedData.insurance_info.insurance_plan = parsedData.insurance_info.insurance_provider;
+            }
             if (isInvalidInsuranceValue(memberId)) {
               console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_id: ${String(memberId).substring(0, 60)}...`);
               parsedData.insurance_info.insurance_id_number = null;
