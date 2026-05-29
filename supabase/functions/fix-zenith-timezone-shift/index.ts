@@ -37,11 +37,12 @@ serve(async (req) => {
 
     const { data: appts, error } = await supabase
       .from('all_appointments')
-      .select('id, lead_name, date_of_appointment, requested_time, ghl_id, status')
+      .select('id, lead_name, date_of_appointment, requested_time, ghl_appointment_id, status')
       .eq('project_name', PROJECT_NAME)
       .eq('status', 'Confirmed')
       .gte('date_of_appointment', new Date().toISOString().slice(0, 10))
-      .not('ghl_id', 'is', null);
+      .not('ghl_appointment_id', 'is', null);
+
 
     if (error) throw error;
 
@@ -64,7 +65,7 @@ serve(async (req) => {
       const record = {
         id: a.id,
         lead_name: a.lead_name,
-        ghl_id: a.ghl_id,
+        ghl_appointment_id: a.ghl_appointment_id,
         old: `${a.date_of_appointment} ${a.requested_time}`,
         new: `${newDate} ${newTime}`,
       };
@@ -84,7 +85,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            ghl_appointment_id: a.ghl_id,
+            ghl_appointment_id: a.ghl_appointment_id,
             new_date: newDate,
             new_time: newTime.slice(0, 5),
             timezone: TIMEZONE,
