@@ -161,7 +161,7 @@ const ReviewQueue: React.FC = () => {
     try {
       const { data: priorRow } = await supabase
         .from('all_appointments')
-        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status')
+        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id')
         .eq('id', id)
         .single();
 
@@ -205,6 +205,29 @@ const ReviewQueue: React.FC = () => {
         });
       } catch (e) {
         console.warn('audit log failed', e);
+      }
+
+      // Approved side effect: add 'approved' tag to GHL contact
+      if (action === 'approved' && priorRow?.ghl_id) {
+        try {
+          const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+            body: {
+              ghl_contact_id: priorRow.ghl_id,
+              tags: ['approved'],
+              action: 'add',
+            },
+          });
+          if (tagErr) {
+            console.error('update-ghl-contact-tags failed:', tagErr);
+            toast({
+              title: 'Approved, but GHL tag not added',
+              description: 'Review status was saved, but adding the "approved" tag in GHL failed.',
+              variant: 'destructive',
+            });
+          }
+        } catch (err) {
+          console.error('update-ghl-contact-tags threw:', err);
+        }
       }
 
       // OON side effects: mirror the appointment-card dropdown path so the
