@@ -217,9 +217,17 @@ const ReviewQueue: React.FC = () => {
           });
         } else {
           try {
+            // Look up the project's GHL API key so we hit the correct sub-account
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', priorRow.project_name)
+              .maybeSingle();
+
             const { data: tagData, error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
                 tags: ['approved'],
                 action: 'add',
               },
