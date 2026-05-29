@@ -208,25 +208,39 @@ const ReviewQueue: React.FC = () => {
       }
 
       // Approved side effect: add 'approved' tag to GHL contact
-      if (action === 'approved' && priorRow?.ghl_id) {
-        try {
-          const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
-            body: {
-              ghl_contact_id: priorRow.ghl_id,
-              tags: ['approved'],
-              action: 'add',
-            },
+      if (action === 'approved') {
+        if (!priorRow?.ghl_id) {
+          console.warn('Approve: no ghl_id on appointment; skipping GHL tag');
+          toast({
+            title: 'Approved — GHL tag skipped',
+            description: 'This appointment has no linked GHL contact, so the "approved" tag was not added.',
           });
-          if (tagErr) {
-            console.error('update-ghl-contact-tags failed:', tagErr);
+        } else {
+          try {
+            const { data: tagData, error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: priorRow.ghl_id,
+                tags: ['approved'],
+                action: 'add',
+              },
+            });
+            console.log('update-ghl-contact-tags response:', { tagData, tagErr });
+            if (tagErr) {
+              console.error('update-ghl-contact-tags failed:', tagErr);
+              toast({
+                title: 'Approved, but GHL tag not added',
+                description: 'Review status was saved, but adding the "approved" tag in GHL failed.',
+                variant: 'destructive',
+              });
+            }
+          } catch (err) {
+            console.error('update-ghl-contact-tags threw:', err);
             toast({
               title: 'Approved, but GHL tag not added',
-              description: 'Review status was saved, but adding the "approved" tag in GHL failed.',
+              description: (err as Error)?.message || 'Unknown error invoking GHL tag function.',
               variant: 'destructive',
             });
           }
-        } catch (err) {
-          console.error('update-ghl-contact-tags threw:', err);
         }
       }
 

@@ -138,6 +138,10 @@ verify_jwt = false
 [functions.delete-ghl-appointment]
 verify_jwt = false
 
+[functions.update-ghl-contact-tags]
+verify_jwt = false
+# Add/remove tags on a GHL contact (e.g. 'approved' tag from Review Queue)
+
 [functions.backfill-ally-insurance]
 verify_jwt = false
 # One-time function to re-parse Ally Vascular appointments for insurance extraction

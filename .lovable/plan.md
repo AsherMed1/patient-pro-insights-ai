@@ -1,32 +1,21 @@
-## Issues
+## What I found
 
-**1. Duplicate "Duration" in Medical Information**
-`src/components/appointments/ParsedIntakeInfo.tsx` renders `parsedPathologyInfo.duration` twice:
-- Line 781 (top of section, always shown)
-- Line 940 (further down, also always shown — originally intended for a different procedure branch but not gated)
+The `update-ghl-contact-tags` edge function has **zero invocation logs** — it was never actually called when you approved the appointment. Two likely causes:
 
-Result: PFE (and any other procedure) shows Duration twice.
+1. **The function isn't registered in `supabase/config.toml`.** Every other edge function in this project has an explicit `[functions.<name>]` block with `verify_jwt = false`. `update-ghl-contact-tags` is missing, so the deployed function may be rejecting the request before any code runs (no logs are produced for pre-auth rejections).
+2. **The appointment row had no `ghl_id`.** The `ReviewQueue` approve handler only fires the tag call when `priorRow?.ghl_id` is truthy. If the appointment was created without a GHL contact ID (some legacy/manually-created rows), the side effect is silently skipped.
 
-**2. Imaging info missing the rich free-text field**
-The intake notes for VSA TEST contain two imaging fields:
-- `PFE STEP 2 | Have you had any imaging or tests...: Yes, MRI` → parsed as `imaging_details = "Yes, MRI"`
-- `Had Imaging Before?: MRI 2 weeks ago in May at Vascular Surgery Associates clinic in Ellicott` → **ignored**
+## Plan
 
-The parser (`supabase/functions/auto-parse-intake-notes`) only looks at the STEP question, so `imaging_when`, `imaging_location`, and `imaging_facility` are never populated, and the UI shows the truncated "Yes, MRI" instead of the full description.
+1. **Register the function** in `supabase/config.toml`:
+   ```
+   [functions.update-ghl-contact-tags]
+   verify_jwt = false
+   ```
+2. **Make the silent skip visible** in `src/components/admin/ReviewQueue.tsx`: when `action === 'approved'` and `priorRow.ghl_id` is missing, show a warning toast ("Approved — no GHL contact linked, tag not added") instead of doing nothing. This way future failures are obvious.
+3. **Add a log line in the edge function** confirming receipt + the contact ID, so we can see invocations in logs going forward.
+4. **Backfill the missed appointment(s)**: tell me which patient/appointment you just approved (or I can query the most recent `appointment_review_history` rows with `action='approved'`), check whether `ghl_id` exists, and if so call `update-ghl-contact-tags` directly to add the `approved` tag retroactively.
 
-## Fix
+## Question
 
-### Frontend — `src/components/appointments/ParsedIntakeInfo.tsx`
-- Remove the duplicate Duration block at lines 940–945. Keep the original at lines 781–785.
-
-### Parser — `supabase/functions/auto-parse-intake-notes/index.ts`
-- Add `Had Imaging Before?:\s*([^\n|]+)` to the regex/imaging patterns and to the OpenAI prompt as a high-priority source for `imaging_details`.
-- Prefer the longer/richer of the two values when both exist (i.e., when "Had Imaging Before?" has more than ~15 chars, use it as `imaging_details` and run `parseCompoundImagingResponse` on it to extract `imaging_type`, `imaging_location`, `imaging_when`).
-- The existing compound regex already handles "at Vascular Surgery Associates clinic" (matches `Associates`) and date phrases like "2 weeks ago" / "in May".
-
-### Reparse VSA TEST
-- Invoke `reparse-specific-appointments` for appointment id `a897f0dd-6215-49ca-aa9d-05cf829b21f1` so the Medical & PCP card immediately shows: Imaging Type MRI, Imaging When "2 weeks ago in May", Imaging Location "Vascular Surgery Associates clinic", Imaging Details full sentence.
-
-## Out of scope
-- No DB schema changes.
-- No changes to other procedures' field visibility.
+Do you know the patient name / approval time of the one that didn't get tagged? If not, I'll pull the most recent approvals and check each one's `ghl_id` after switching to build mode.
