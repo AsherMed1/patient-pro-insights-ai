@@ -29,20 +29,28 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const dryRun = url.searchParams.get('dryRun') === 'true';
+    let idsFilter: string[] | null = null;
+    let shiftHours = SHIFT_HOURS;
+    if (req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      if (Array.isArray(body?.ids) && body.ids.length) idsFilter = body.ids;
+      if (typeof body?.shiftHours === 'number') shiftHours = body.shiftHours;
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { data: appts, error } = await supabase
+    let q = supabase
       .from('all_appointments')
       .select('id, lead_name, date_of_appointment, requested_time, ghl_appointment_id, status')
       .eq('project_name', PROJECT_NAME)
-      .eq('status', 'Confirmed')
+      .not('status', 'in', '("Cancelled","No Show","Showed","Won","Do Not Call","Rescheduled","OON")')
       .gte('date_of_appointment', new Date().toISOString().slice(0, 10))
       .not('ghl_appointment_id', 'is', null);
-
+    if (idsFilter) q = q.in('id', idsFilter);
+    const { data: appts, error } = await q;
 
     if (error) throw error;
 
@@ -59,7 +67,7 @@ serve(async (req) => {
       const { newDate, newTime } = shiftDateTime(
         a.date_of_appointment,
         a.requested_time,
-        SHIFT_HOURS
+        shiftHours
       );
 
       const record = {
