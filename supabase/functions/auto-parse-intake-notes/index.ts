@@ -911,6 +911,53 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       }
     }
   }
+
+  // Backfill insurance_id_number from raw notes when the AI parser missed it.
+  // Many GHL intakes ship "Insurance ID Number: 12345" verbatim, but the AI
+  // occasionally drops the field. Without this fallback the Member ID never
+  // syncs to the portal until a setter edits the record manually in the
+  // Review Queue (reported by BVC for Stephen Domagala, etc.).
+  if (!parsedData.insurance_info.insurance_id_number) {
+    const idPatterns = [
+      /Insurance ID Number:\s*([^\n|]+)/i,
+      /Member ID\s*[#:]*\s*([^\n|]+)/i,
+      /Member Number:\s*([^\n|]+)/i,
+      /Insurance ID\s*[#:]+\s*([^\n|]+)/i,
+      /Subscriber ID:\s*([^\n|]+)/i,
+      /Policy (?:Number|ID|#):\s*([^\n|]+)/i,
+    ];
+    for (const pattern of idPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        const v = match[1].trim();
+        if (v && v.length < 80) {
+          parsedData.insurance_info.insurance_id_number = v;
+          console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_id_number via regex: ${v}`);
+        }
+        break;
+      }
+    }
+  }
+
+  // Backfill insurance_group_number similarly when AI missed it.
+  if (!parsedData.insurance_info.insurance_group_number) {
+    const groupPatterns = [
+      /Insurance Group Number:\s*([^\n|]+)/i,
+      /Group #:\s*([^\n|]+)/i,
+      /Group Number:\s*([^\n|]+)/i,
+    ];
+    for (const pattern of groupPatterns) {
+      const match = intakeNotes.match(pattern);
+      if (match && match[1]) {
+        const v = match[1].trim();
+        if (v && v.length < 80) {
+          parsedData.insurance_info.insurance_group_number = v;
+          console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_group_number via regex: ${v}`);
+        }
+        break;
+      }
+    }
+  }
   
   // Ensure pathology_info exists
   if (!parsedData.pathology_info) {
