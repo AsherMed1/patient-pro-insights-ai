@@ -30,9 +30,11 @@ serve(async (req) => {
     const url = new URL(req.url);
     const dryRun = url.searchParams.get('dryRun') === 'true';
     let idsFilter: string[] | null = null;
+    let shiftHours = SHIFT_HOURS;
     if (req.method === 'POST') {
       const body = await req.json().catch(() => ({}));
       if (Array.isArray(body?.ids) && body.ids.length) idsFilter = body.ids;
+      if (typeof body?.shiftHours === 'number') shiftHours = body.shiftHours;
     }
 
     const supabase = createClient(
