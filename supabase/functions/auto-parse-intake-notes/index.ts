@@ -2425,9 +2425,20 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             if (!parsedData.insurance_info.insurance_plan && parsedData.insurance_info.insurance_provider) {
               parsedData.insurance_info.insurance_plan = parsedData.insurance_info.insurance_provider;
             }
-            if (isInvalidInsuranceValue(memberId)) {
-              console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_id: ${String(memberId).substring(0, 60)}...`);
-              parsedData.insurance_info.insurance_id_number = null;
+            // Member IDs are validated with a dedicated rule: reject obvious
+            // garbage (corrupted GHL prompt fragments, blob slurps >80 chars)
+            // but allow all-numeric IDs like "350244934014".
+            if (memberId) {
+              const m = String(memberId).trim();
+              const looksCorrupted =
+                m.length > 80 ||
+                /(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(m) ||
+                /(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(m) ||
+                m.length < 3;
+              if (looksCorrupted) {
+                console.log(`[AUTO-PARSE SANITIZE] Rejecting corrupted insurance_id: ${m.substring(0, 60)}...`);
+                parsedData.insurance_info.insurance_id_number = null;
+              }
             }
             updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || null;
             updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || null;
