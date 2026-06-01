@@ -607,7 +607,20 @@ const ReviewQueue: React.FC = () => {
             appointment={detailAppt}
             isOpen={!!detailAppt}
             onClose={() => setDetailAppt(null)}
-            onDataRefresh={() => { fetch(); }}
+            onDataRefresh={async () => {
+              fetch();
+              // Re-fetch the open appointment so edits made inside the
+              // modal (insurance, PCP, demographics, etc.) appear
+              // immediately instead of showing the pre-edit snapshot.
+              if (detailAppt?.id) {
+                const { data } = await supabase
+                  .from('all_appointments')
+                  .select('*')
+                  .eq('id', detailAppt.id)
+                  .single();
+                if (data) setDetailAppt(data as unknown as AllAppointment);
+              }
+            }}
             onDeleted={() => { setDetailAppt(null); fetch(); }}
           />
         )}
