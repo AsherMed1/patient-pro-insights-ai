@@ -39,7 +39,7 @@ serve(async (req) => {
       .from('all_appointments')
       .select('id, lead_name, date_of_appointment, requested_time, ghl_appointment_id, status')
       .eq('project_name', PROJECT_NAME)
-      .eq('status', 'Confirmed')
+      .not('status', 'in', '("Cancelled","No Show","Showed","Won","Do Not Call","Rescheduled","OON")')
       .gte('date_of_appointment', new Date().toISOString().slice(0, 10))
       .not('ghl_appointment_id', 'is', null);
 
