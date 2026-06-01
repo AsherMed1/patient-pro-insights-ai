@@ -67,7 +67,7 @@ serve(async (req) => {
       const { newDate, newTime } = shiftDateTime(
         a.date_of_appointment,
         a.requested_time,
-        SHIFT_HOURS
+        shiftHours
       );
 
       const record = {
