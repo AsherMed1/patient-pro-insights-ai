@@ -28,11 +28,12 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   const s = String(v).trim();
   if (!s) return false;
   if (s.length > 80) return true;
-  // Reject single-letter / 2-char stubs (e.g. "B", "A", "X") — usually a
-  // placeholder from a half-filled intake. Keep numeric Member IDs intact
-  // (insurance_id_number values like "350244934014" or "Y2H000013245" are
-  // legitimate even though they have 0–2 alphabetic characters).
-  if (s.length < 3) return true;
+  // Reject stub values (e.g. "B", "A", "X") — usually a placeholder from a
+  // half-filled intake. NOTE: this check is appropriate for provider/plan
+  // names but is intentionally NOT applied to insurance_id_number, which can
+  // legitimately be all-numeric (e.g. "350244934014").
+  if (s.replace(/[^A-Za-z]/g, '').length < 3) return true;
+
 
   if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
   if (/No fields found in your shared list/i.test(s)) return true;
