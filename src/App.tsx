@@ -15,6 +15,7 @@ import ApiDocs from "./pages/ApiDocs";
 import ProjectPortal from "./pages/ProjectPortal";
 import UserSettings from "./pages/UserSettings";
 import BlockIncidentRecovery from "./pages/admin/BlockIncidentRecovery";
+import AccountPerformanceHeatmap from "./pages/admin/AccountPerformanceHeatmap";
 import NotFound from "./pages/NotFound";
 import { retriggerCathTestParsing } from "./utils/retriggerCathTestParsing";
 
@@ -67,6 +68,12 @@ const App = () => {
                 <BlockIncidentRecovery />
               </AuthGuard>
             } />
+            <Route path="/admin/account-performance" element={
+              <AuthGuard requiredRole="admin">
+                <AccountPerformanceHeatmap />
+              </AuthGuard>
+            } />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
