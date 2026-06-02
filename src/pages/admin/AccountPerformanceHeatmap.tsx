@@ -63,46 +63,22 @@ const AccountPerformanceHeatmap = () => {
     const load = async () => {
       setLoading(true);
 
-      const { data: projects } = await supabase
-        .from("projects")
-        .select("project_name")
-        .eq("active", true)
-        .neq("project_name", "PPM - Test Account")
-        .order("project_name");
+      const { data, error } = await supabase.functions.invoke(
+        "account-performance-metrics",
+        { body: { start: dateStartStr, end: dateEndStr } }
+      );
 
-      const { data: leads } = await supabase
-        .from("new_leads")
-        .select("project_name")
-        .gte("date", dateStartStr)
-        .lte("date", dateEndStr)
-        .neq("project_name", "PPM - Test Account")
-        .limit(50000);
+      if (error) {
+        console.error("account-performance-metrics error", error);
+        setRows([]);
+        setLoading(false);
+        return;
+      }
 
-      const { data: appts } = await supabase
-        .from("all_appointments")
-        .select("project_name,is_reserved_block")
-        .gte("date_appointment_created", dateStartStr)
-        .lte("date_appointment_created", dateEndStr)
-        .neq("project_name", "PPM - Test Account")
-        .limit(50000);
-
-      const leadCounts = new Map<string, number>();
-      (leads || []).forEach((l: any) => {
-        if (!l.project_name) return;
-        leadCounts.set(l.project_name, (leadCounts.get(l.project_name) || 0) + 1);
-      });
-
-      const bookingCounts = new Map<string, number>();
-      (appts || []).forEach((a: any) => {
-        if (!a.project_name) return;
-        if (a.is_reserved_block) return;
-        bookingCounts.set(a.project_name, (bookingCounts.get(a.project_name) || 0) + 1);
-      });
-
-      const merged: AccountRow[] = (projects || []).map((p: any) => ({
-        project_name: p.project_name,
-        leads_count: leadCounts.get(p.project_name) || 0,
-        bookings_count: bookingCounts.get(p.project_name) || 0,
+      const merged: AccountRow[] = (data?.rows || []).map((r: any) => ({
+        project_name: r.project_name,
+        leads_count: r.leads_count || 0,
+        bookings_count: r.bookings_count || 0,
       }));
 
       setRows(merged);
