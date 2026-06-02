@@ -1499,7 +1499,7 @@ const AllAppointmentsManager = ({
                       .or('is_superseded.is.null,is_superseded.eq.false');
                   } else if (activeTab === 'needs-review') {
                     query = query
-                      .or(`status.ilike.pending,date_of_appointment.is.null,date_of_appointment.lt.${todayString}`)
+                      .or(`status.ilike.pending,date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
                       .not('status', 'ilike', 'cancelled')
                       .not('status', 'ilike', 'no show')
                       .not('status', 'ilike', 'noshow')
