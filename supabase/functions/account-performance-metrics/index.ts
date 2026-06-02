@@ -27,8 +27,21 @@ async function fetchGhlLeadsCount(
   locationId: string,
   startISO: string,
   endISO: string,
+  projectName: string,
 ): Promise<{ total: number; error?: string }> {
   try {
+    const body = {
+      locationId,
+      pageLimit: 1,
+      page: 1,
+      filters: [
+        {
+          field: 'dateAdded',
+          operator: 'between',
+          value: [startISO, endISO],
+        },
+      ],
+    }
     const res = await fetch('https://services.leadconnectorhq.com/contacts/search', {
       method: 'POST',
       headers: {
@@ -37,29 +50,21 @@ async function fetchGhlLeadsCount(
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({
-        locationId,
-        pageLimit: 1,
-        page: 1,
-        filters: [
-          {
-            field: 'dateAdded',
-            operator: 'between',
-            value: [startISO, endISO],
-          },
-        ],
-      }),
+      body: JSON.stringify(body),
     })
 
+    const txt = await res.text()
     if (!res.ok) {
-      const txt = await res.text()
+      console.error(`[GHL ${projectName}] HTTP ${res.status}:`, txt.slice(0, 400))
       return { total: 0, error: `HTTP ${res.status}: ${txt.slice(0, 200)}` }
     }
-
-    const data = await res.json()
+    let data: any = {}
+    try { data = JSON.parse(txt) } catch {}
     const total = data?.total ?? data?.meta?.total ?? data?.contacts?.length ?? 0
+    console.log(`[GHL ${projectName}] keys=${Object.keys(data).join(',')} total=${total}`)
     return { total: Number(total) || 0 }
   } catch (e) {
+    console.error(`[GHL ${projectName}] exception:`, (e as Error).message)
     return { total: 0, error: (e as Error).message }
   }
 }
@@ -175,6 +180,7 @@ Deno.serve(async (req) => {
           p.ghl_location_id,
           startISO,
           endISO,
+          p.project_name,
         )
         results.push({
           project_name: p.project_name,
