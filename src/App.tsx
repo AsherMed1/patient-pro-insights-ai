@@ -68,6 +68,12 @@ const App = () => {
                 <BlockIncidentRecovery />
               </AuthGuard>
             } />
+            <Route path="/admin/account-performance" element={
+              <AuthGuard requiredRole="admin">
+                <AccountPerformanceHeatmap />
+              </AuthGuard>
+            } />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
