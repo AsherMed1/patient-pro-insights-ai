@@ -320,7 +320,7 @@ const AllAppointmentsManager = ({
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending status OR past/null date appointments that don't have completed status
         countQuery = countQuery
-          .or(`status.ilike.pending,date_of_appointment.is.null,date_of_appointment.lt.${todayString}`)
+          .or(`status.ilike.pending,date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
