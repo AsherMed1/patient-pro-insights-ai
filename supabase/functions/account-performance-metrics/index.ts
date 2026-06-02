@@ -180,6 +180,7 @@ Deno.serve(async (req) => {
           p.ghl_location_id,
           startISO,
           endISO,
+          p.project_name,
         )
         results.push({
           project_name: p.project_name,
