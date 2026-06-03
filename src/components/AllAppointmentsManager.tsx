@@ -604,10 +604,9 @@ const AllAppointmentsManager = ({
         // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          // GAE and In-person are the same service type
-          query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+          query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
         } else {
-          query = query.ilike('calendar_name', `%${serviceFilter}%`);
+          query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
         }
       }
         
