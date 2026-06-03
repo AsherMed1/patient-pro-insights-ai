@@ -206,8 +206,11 @@ serve(async (req) => {
       // Projects exempt from Review Queue (time-preference-only intake, not real bookings)
       const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
       const isExempt = REVIEW_QUEUE_EXEMPT.includes(appointmentData.project_name);
-      const reviewStatus = isExempt ? 'approved' : 'pending';
-      console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus})`)
+      // Setter-submitted insurance forms bypass the review queue and go straight to the portal.
+      const isSetterSubmitted = webhookData.insurance_intake_source === 'setter_submitted';
+      const reviewStatus = (isExempt || isSetterSubmitted) ? 'approved' : 'pending';
+      const bypassReason = isExempt ? 'exempt_project' : (isSetterSubmitted ? 'setter_submitted' : 'none');
+      console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus}, bypass=${bypassReason}, intake_source=${webhookData.insurance_intake_source || 'unspecified'})`)
       let { data, error } = await supabase
         .from('all_appointments')
         .insert([{ ...appointmentData, review_status: reviewStatus }])
@@ -241,9 +244,9 @@ serve(async (req) => {
       if (error) throw error
       appointmentRecord = data
 
-      // Notify Slack review queue (fire-and-forget) — skip for exempt projects
+      // Notify Slack review queue (fire-and-forget) — skip for exempt projects and setter-submitted bypasses
       try {
-        if (!isExempt) supabase.functions.invoke('notify-slack-review-queue', {
+        if (!isExempt && !isSetterSubmitted) supabase.functions.invoke('notify-slack-review-queue', {
           body: {
             appointmentId: appointmentRecord.id,
             projectName: appointmentRecord.project_name,
@@ -537,6 +540,7 @@ function extractStandardEventFormat(payload: any) {
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
+    insurance_intake_source: extractInsuranceIntakeSource(contact.customFields || apt.customFields || payload.customFields),
   }
 }
 
@@ -602,6 +606,7 @@ function extractWorkflowFormat(payload: any) {
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(payload.customFields || customFieldsObj),
+    insurance_intake_source: extractInsuranceIntakeSource(payload.customFields || customFieldsObj),
   }
 }
 
@@ -654,6 +659,29 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
   if (sections.medical.length > 0) notes += `**Medical:** ${sections.medical.join(' | ')}`
   
   return notes.trim() || null
+}
+
+// Extract "Insurance Intake Source" custom field. Returns normalized value:
+// 'setter_submitted' | 'patient_submitted' | null
+// Accepts either an array of {key, value|field_value} or a plain object {key: value}.
+function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | 'patient_submitted' | null {
+  if (!customFields) return null;
+  const matchesKey = (k: string) => /insurance[\s_-]*intake[\s_-]*source/i.test(k || '');
+  let raw: any = null;
+  if (Array.isArray(customFields)) {
+    const f = customFields.find((x: any) => matchesKey(x?.key));
+    if (f) raw = f.value ?? f.field_value;
+  } else if (typeof customFields === 'object') {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (matchesKey(k)) { raw = v; break; }
+    }
+  }
+  if (raw === null || raw === undefined) return null;
+  const s = String(Array.isArray(raw) ? raw[0] : raw).toLowerCase().trim();
+  if (!s) return null;
+  if (s.includes('setter')) return 'setter_submitted';
+  if (s.includes('patient')) return 'patient_submitted';
+  return null;
 }
 
 // Extract project name from calendar name
