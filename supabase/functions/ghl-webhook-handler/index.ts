@@ -656,6 +656,29 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
   return notes.trim() || null
 }
 
+// Extract "Insurance Intake Source" custom field. Returns normalized value:
+// 'setter_submitted' | 'patient_submitted' | null
+// Accepts either an array of {key, value|field_value} or a plain object {key: value}.
+function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | 'patient_submitted' | null {
+  if (!customFields) return null;
+  const matchesKey = (k: string) => /insurance[\s_-]*intake[\s_-]*source/i.test(k || '');
+  let raw: any = null;
+  if (Array.isArray(customFields)) {
+    const f = customFields.find((x: any) => matchesKey(x?.key));
+    if (f) raw = f.value ?? f.field_value;
+  } else if (typeof customFields === 'object') {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (matchesKey(k)) { raw = v; break; }
+    }
+  }
+  if (raw === null || raw === undefined) return null;
+  const s = String(Array.isArray(raw) ? raw[0] : raw).toLowerCase().trim();
+  if (!s) return null;
+  if (s.includes('setter')) return 'setter_submitted';
+  if (s.includes('patient')) return 'patient_submitted';
+  return null;
+}
+
 // Extract project name from calendar name
 function extractProjectFromCalendar(calendarName: string): string {
   if (!calendarName) return 'Unknown'
