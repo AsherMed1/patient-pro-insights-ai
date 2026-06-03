@@ -603,6 +603,7 @@ function extractWorkflowFormat(payload: any) {
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(payload.customFields || customFieldsObj),
+    insurance_intake_source: extractInsuranceIntakeSource(payload.customFields || customFieldsObj),
   }
 }
 
