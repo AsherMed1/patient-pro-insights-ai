@@ -537,6 +537,7 @@ function extractStandardEventFormat(payload: any) {
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
+    insurance_intake_source: extractInsuranceIntakeSource(contact.customFields || apt.customFields || payload.customFields),
   }
 }
 
