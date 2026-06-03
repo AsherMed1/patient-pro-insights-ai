@@ -1482,8 +1482,8 @@ const AllAppointmentsManager = ({
                     else query = query.ilike('calendar_name', `%${locationFilter}%`).not('calendar_name', 'ilike', '%Virtual%');
                   }
                   if (serviceFilter !== 'ALL') {
-                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
-                    else query = query.ilike('calendar_name', `%${serviceFilter}%`);
+                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
+                    else query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
                   }
 
                   // Apply tab-based filters to mirror the on-screen list
