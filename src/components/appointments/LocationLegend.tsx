@@ -25,8 +25,8 @@ function extractLocationFromCalendarName(calendarName: string, parsedLocationFal
   if (!calendarName || /^unknown$/i.test(calendarName.trim())) {
     return fallback;
   }
-  // Handle "Virtual Consultation" as a location
-  if (/virtual\s+consultation/i.test(calendarName)) {
+  // Any calendar mentioning "virtual" is the Virtual location (e.g., "Virtual Consultation at Great Neck, NY")
+  if (/\bvirtual\b/i.test(calendarName)) {
     return 'Virtual';
   }
   // Handle parenthesized format: "(San Antonio, TX – Knee Pain Treatment)"

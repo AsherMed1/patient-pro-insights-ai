@@ -296,10 +296,11 @@ const AllAppointmentsManager = ({
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          // GAE and In-person are the same service type
-          countQuery = countQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+          // GAE and In-person are the same service type; also match parsed pathology procedure
+          countQuery = countQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
         } else {
-          countQuery = countQuery.ilike('calendar_name', `%${serviceFilter}%`);
+          // Match calendar name OR parsed pathology procedure (covers bare "Virtual Consultation" calendars)
+          countQuery = countQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
         }
       }
       
@@ -449,10 +450,9 @@ const AllAppointmentsManager = ({
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          // GAE and In-person are the same service type
-          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
         } else {
-          appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+          appointmentsQuery = appointmentsQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
         }
       }
       
@@ -604,10 +604,9 @@ const AllAppointmentsManager = ({
         // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          // GAE and In-person are the same service type
-          query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+          query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
         } else {
-          query = query.ilike('calendar_name', `%${serviceFilter}%`);
+          query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
         }
       }
         
@@ -1483,8 +1482,8 @@ const AllAppointmentsManager = ({
                     else query = query.ilike('calendar_name', `%${locationFilter}%`).not('calendar_name', 'ilike', '%Virtual%');
                   }
                   if (serviceFilter !== 'ALL') {
-                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
-                    else query = query.ilike('calendar_name', `%${serviceFilter}%`);
+                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
+                    else query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
                   }
 
                   // Apply tab-based filters to mirror the on-screen list
