@@ -1,40 +1,72 @@
 ## Issue
 
-Haig Nurse (LJV, GHL `fIZXZbZSOTcbLAFKpYKt`) was rescheduled in GHL from 6/1 → 6/8. After the GHL webhook ran, the row was bumped out of **Upcoming** into **New** and the status was clobbered from **Welcome Call → Confirmed**.
+For Ventra, two filtering bugs cause virtual appointments to be double-counted (under both Virtual and the physical city) and to disappear from procedure filters:
 
-## Root cause
+1. **Location extraction treats "Virtual at Great Neck" as Great Neck.** `extractLocationFromCalendarName` (used by the calendar views, `LocationLegend`, and `UpcomingEventsPanel`) only short-circuits to `Virtual` when the calendar name is literally "Virtual Consultation". For Ventra's calendar `Request Your Virtual Consultation at Great Neck, NY`, the `at (.+)` branch fires and returns `Great Neck` — so the row gets counted as a physical Great Neck appointment on the calendar/location legend.
 
-In `supabase/functions/ghl-webhook-handler/index.ts` (~lines 802–860), when a date change is detected the handler unconditionally:
+2. **Service filter relies only on calendar_name.** Ventra's bare virtual calendar `Request Your Virtual Consultation at Great Neck, NY` contains no `UFE` token. The backend filter in `AllAppointmentsManager` and `ProjectDetailedDashboard` is `calendar_name ilike '%UFE%'`, so virtual UFE patients are excluded from the UFE filter even though `parsed_pathology_info.procedure = 'UFE'`.
 
-1. Sets `internal_process_complete = false` → row falls out of the Upcoming tab filter (which requires IPC=true) and lands in the New tab.
-2. Overwrites `status = 'Confirmed'` → wipes portal-only statuses like **Welcome Call** that were set by the team.
+The list-page location filter (`AllAppointmentsManager`) already excludes Virtual rows correctly with `.not('calendar_name','ilike','%Virtual%')`, so #1 is purely a calendar/legend/upcoming-panel bug. The dashboard option builder is also fine.
 
-This happens even when the existing row is already a fully-vetted, post-confirmation appointment (Confirmed / Welcome Call) — so a routine reschedule incorrectly demotes it back to the New queue.
+## Plan
 
-A separate but related issue: **Welcome Call** is not listed in the portal-only-status guard (~line 880) alongside OON / Do Not Call / Cancelled, so any GHL status echo can overwrite it.
+### 1. Treat any "virtual" calendar as Virtual location everywhere
 
-## Current state of Haig
+`src/components/appointments/LocationLegend.tsx` — change `extractLocationFromCalendarName` so the very first check is:
 
-- `status = 'Welcome Call'`, `IPC = true`, `date = 2026-06-08`, `review_status = approved`.
-- This row already satisfies the Upcoming filter, so after a hard refresh it should appear there. No data fix needed for this record — Natalie's manual status change back to Welcome Call also flipped IPC back to true.
-
-## Proposed fix (code only)
-
-Edit `supabase/functions/ghl-webhook-handler/index.ts`:
-
-1. **Preserve IPC on reschedule of post-confirmation rows.** Inside the date-change branch (~line 824), only set `internal_process_complete = false` when the existing status is `Pending`, blank, or a portal-only terminal status being recovered (OON / DND / Cancelled). For rows already in `Confirmed`, `Welcome Call`, `Showed`, `No Show`, `Won`, keep IPC as-is so the row stays in Upcoming.
-2. **Don't overwrite status with "Confirmed" on reschedule when existing status is `Welcome Call`.** Treat Welcome Call the same as the portal-only guard: keep the existing status, just update date/time. Still record the reschedule audit note.
-3. **Add `'welcome call'` to the portal-only-status guard list (~line 880)** so any subsequent GHL status echo cannot clobber it.
-
-No frontend or migration changes required. The current Haig row already reads correctly; only future reschedules need the patch.
-
-```text
-Date-change branch decision table (new)
-existing.status        → IPC after reschedule   status after reschedule
-─────────────────────────────────────────────────────────────────────
-Confirmed              → keep (true)            keep "Confirmed"
-Welcome Call           → keep (true)            keep "Welcome Call"
-Showed / No Show / Won → keep                   keep
-OON / DND / Cancelled  → false (re-open)        "Confirmed" (recovery)
-Pending / blank / new  → false                  "Confirmed"
+```ts
+if (calendarName && /\bvirtual\b/i.test(calendarName)) return 'Virtual';
 ```
+
+This makes the function consistent with how `AppointmentFilters` and `ProjectDetailedDashboard` already build their location dropdowns. As a result:
+
+- `LocationLegend` no longer shows Great Neck for virtual rows.
+- `UpcomingEventsPanel` location filter routes virtual rows to `Virtual` only.
+- All calendar views (Day/Week/Month/Detail) inherit the same behavior since they share this helper.
+
+### 2. Service filter falls back to `parsed_pathology_info.procedure`
+
+Change the procedure-based filters so a service token matches either the calendar name or the parsed pathology procedure.
+
+Files / spots to update (all currently use `ilike('calendar_name','%SVC%')`):
+
+- `src/components/AllAppointmentsManager.tsx` — count query (~line 297), list query (~line 450), calendar-view query (~line 605), and CSV export query (~line 1485).
+- `src/components/projects/ProjectDetailedDashboard.tsx` — stats query (~line 234).
+
+For a non-GAE service `SVC`, replace:
+
+```ts
+query = query.ilike('calendar_name', `%${SVC}%`);
+```
+
+with:
+
+```ts
+query = query.or(
+  `calendar_name.ilike.%${SVC}%,parsed_pathology_info->>procedure.eq.${SVC}`
+);
+```
+
+For the `GAE` branch, extend the existing OR:
+
+```ts
+query = query.or(
+  'calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE'
+);
+```
+
+Leave the `Virtual (Unspecified)` branch unchanged — that intentionally targets rows with no procedure token at all.
+
+### 3. No changes to
+
+- Location filter SQL — it already excludes Virtual when a physical city is selected.
+- The dropdown option builders — they already collapse virtual rows to `Virtual`.
+- `calendarUtils.getEventTypeFromCalendar` — already accepts a pathology fallback for color/badge classification.
+
+### Verification
+
+- Open Ventra portal, filter by `Great Neck` → virtual rows no longer appear.
+- Filter by `Virtual` → only virtual rows appear (no duplicates under Great Neck).
+- Filter by `UFE` → bare `Virtual Consultation` Ventra patients whose `parsed_pathology_info.procedure = 'UFE'` now show up.
+- Calendar Day/Week/Month and the Upcoming Events panel show virtual rows under the Virtual location chip, not under Great Neck.
+- Spot-check a non-Ventra project (e.g., VSNC, where Virtual is already a real location) to confirm no regression.
