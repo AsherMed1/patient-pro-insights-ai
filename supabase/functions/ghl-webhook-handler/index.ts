@@ -807,6 +807,10 @@ function getUpdateableFields(
           const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
           const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
           const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
+          // Post-confirmation statuses: a reschedule should NOT demote these back to New
+          // nor overwrite the team-set status with "Confirmed".
+          const postConfirmationStatuses = ['confirmed', 'welcome call', 'showed', 'no show', 'noshow', 'won']
+          const isPostConfirmation = postConfirmationStatuses.includes(existingStatusForReschedule)
 
           // Record reschedule history before overwriting
           const existingHistory = existingAppointment.reschedule_history || []
@@ -821,9 +825,14 @@ function getUpdateableFields(
           })
           updateFields.reschedule_history = existingHistory
 
-          updateFields.internal_process_complete = false
-          updateFields.status = 'Confirmed'
-          updateFields.was_ever_confirmed = true
+          if (isPostConfirmation) {
+            // Keep IPC and status as-is so the row stays in Upcoming and Welcome Call is preserved
+            console.log(`[WEBHOOK] Preserving IPC + status "${existingAppointment.status}" on reschedule (post-confirmation row)`)
+          } else {
+            updateFields.internal_process_complete = false
+            updateFields.status = 'Confirmed'
+            updateFields.was_ever_confirmed = true
+          }
 
           // Re-open into Review Queue if the row was previously declined/oon.
           // A new GHL date means the patient was rebooked and admins should re-review.
