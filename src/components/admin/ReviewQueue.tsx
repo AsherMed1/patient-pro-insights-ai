@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
@@ -39,11 +39,15 @@ interface ReviewAppointment {
   ghl_id: string | null;
   review_status: string;
   created_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_notes?: string | null;
 }
 
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
+type QueueView = 'pending' | 'declined';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
@@ -61,6 +65,10 @@ const ReviewQueue: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [queueView, setQueueView] = useState<QueueView>('pending');
+  const [pendingCount, setPendingCount] = useState(0);
+  const [declinedCount, setDeclinedCount] = useState(0);
+  const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -125,12 +133,17 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at')
-      .eq('review_status', 'pending')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes')
+      .eq('review_status', queueView)
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")')
-      .order('created_at', { ascending: false })
       .limit(500);
+
+    if (queueView === 'declined') {
+      q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
+    } else {
+      q = q.order('created_at', { ascending: false });
+    }
 
     if (projectFilter !== 'ALL') q = q.eq('project_name', projectFilter);
     if (search.trim()) {
@@ -143,16 +156,45 @@ const ReviewQueue: React.FC = () => {
       toast({ title: 'Error loading queue', description: error.message, variant: 'destructive' });
       setRows([]);
     } else {
-      setRows((data || []) as ReviewAppointment[]);
+      const list = (data || []) as ReviewAppointment[];
+      setRows(list);
+
+      // Fetch reviewer names for declined view
+      if (queueView === 'declined') {
+        const reviewerIds = Array.from(new Set(list.map(r => r.reviewed_by).filter(Boolean))) as string[];
+        if (reviewerIds.length > 0) {
+          const { data: profs } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', reviewerIds);
+          const map: Record<string, string> = {};
+          (profs || []).forEach((p: any) => { map[p.id] = p.full_name || p.email || p.id; });
+          setReviewerNames(map);
+        }
+      }
     }
     setLoading(false);
-  }, [projectFilter, search, toast]);
+  }, [projectFilter, search, toast, queueView]);
+
+  const fetchCounts = useCallback(async () => {
+    const base = (status: string) =>
+      supabase
+        .from('all_appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('review_status', status)
+        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+        .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")');
+    const [{ count: pc }, { count: dc }] = await Promise.all([base('pending'), base('declined')]);
+    setPendingCount(pc || 0);
+    setDeclinedCount(dc || 0);
+  }, []);
 
   useEffect(() => {
     fetch();
-    const i = setInterval(fetch, 30000);
+    fetchCounts();
+    const i = setInterval(() => { fetch(); fetchCounts(); }, 30000);
     return () => clearInterval(i);
-  }, [fetch]);
+  }, [fetch, fetchCounts]);
 
   const projects = Array.from(new Set(rows.map(r => r.project_name))).sort();
 
@@ -217,7 +259,6 @@ const ReviewQueue: React.FC = () => {
           });
         } else {
           try {
-            // Look up the project's GHL API key so we hit the correct sub-account
             const { data: projectData } = await supabase
               .from('projects')
               .select('ghl_api_key')
@@ -252,13 +293,11 @@ const ReviewQueue: React.FC = () => {
         }
       }
 
-      // OON side effects: mirror the appointment-card dropdown path so the
-      // GHL OON workflow runs and the Slack alert fires.
+      // OON side effects
       if (action === 'oon' && priorRow) {
         const oldStatus = priorRow.status || 'Pending';
         const utcTimestamp = new Date().toISOString();
 
-        // System note for status-change audit trail
         try {
           await supabase.from('appointment_notes').insert({
             appointment_id: id,
@@ -269,7 +308,6 @@ const ReviewQueue: React.FC = () => {
           console.warn('System note insert failed', e);
         }
 
-        // Outbound status webhook -> triggers GHL OON workflow (awaited; surface failures)
         try {
           const { data: whData, error: whErr } = await supabase.functions.invoke('appointment-status-webhook', {
             body: {
@@ -295,7 +333,6 @@ const ReviewQueue: React.FC = () => {
           });
         }
 
-        // Slack OON alert (awaited; surface failures)
         try {
           const nameParts = (priorRow.lead_name || '').split(' ');
           const firstName = nameParts[0] || '';
@@ -343,6 +380,53 @@ const ReviewQueue: React.FC = () => {
       setRows(prev => prev.filter(r => r.id !== id));
       setActionRow(null);
       setActionNotes('');
+      fetchCounts();
+    }
+  };
+
+  const handleRestore = async (row: ReviewAppointment) => {
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          review_status: 'pending',
+          reviewed_at: null,
+          reviewed_by: null,
+          review_notes: null,
+        })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      await supabase.from('appointment_review_history').insert({
+        appointment_id: row.id,
+        action: 'restored',
+        prior_status: 'declined',
+        actor_id: user?.id ?? null,
+        actor_name: userName || user?.email || 'Unknown',
+        notes: null,
+      });
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_restored',
+          p_description: `Restored to Review Queue: ${row.lead_name} by ${userName || 'Unknown'}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_id: row.id, project_name: row.project_name },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Restored to Review Queue', description: row.lead_name });
+      setRows(prev => prev.filter(r => r.id !== row.id));
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Restore failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -357,6 +441,7 @@ const ReviewQueue: React.FC = () => {
     toast({ title: `${ok} of ${ids.length} ${action === 'oon' ? 'marked OON' : action}` });
     setRows(prev => prev.filter(r => !selected.has(r.id)));
     setSelected(new Set());
+    fetchCounts();
   };
 
   const toggleExpand = (id: string) =>
@@ -375,6 +460,8 @@ const ReviewQueue: React.FC = () => {
     else setSelected(new Set(rows.map(r => r.id)));
   };
 
+  const isDeclinedView = queueView === 'declined';
+
   return (
     <Card>
       <CardHeader>
@@ -382,15 +469,32 @@ const ReviewQueue: React.FC = () => {
           <div>
             <CardTitle className="flex items-center gap-2">
               Review Queue
-              <Badge variant="secondary">{rows.length} pending</Badge>
             </CardTitle>
             <CardDescription>
-              New appointments wait here until you Approve, Decline, or mark them as OON. Client portals only see appointments that have been Approved (or marked OON).
+              New appointments wait here until you Approve, Decline, or mark them as OON. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={fetch} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => { fetch(); fetchCounts(); }} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
+          </Button>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <Button
+            variant={queueView === 'pending' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setQueueView('pending'); setSelected(new Set()); }}
+          >
+            Pending Review
+            <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
+          </Button>
+          <Button
+            variant={queueView === 'declined' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setQueueView('declined'); setSelected(new Set()); }}
+          >
+            Declined
+            <Badge variant="secondary" className="ml-2">{declinedCount}</Badge>
           </Button>
         </div>
       </CardHeader>
@@ -417,8 +521,8 @@ const ReviewQueue: React.FC = () => {
           </Select>
         </div>
 
-        {/* Bulk actions */}
-        {selected.size > 0 && (
+        {/* Bulk actions (pending only) */}
+        {!isDeclinedView && selected.size > 0 && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted">
             <span className="text-sm font-medium mr-2">{selected.size} selected</span>
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
@@ -438,17 +542,21 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            🎉 No appointments waiting for review.
+            {isDeclinedView ? 'No declined appointments.' : '🎉 No appointments waiting for review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
             <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_300px] gap-3 p-3 text-xs font-medium text-muted-foreground bg-muted/40 items-center">
-              <input
-                type="checkbox"
-                checked={selected.size === rows.length && rows.length > 0}
-                onChange={selectAll}
-                className="cursor-pointer"
-              />
+              {isDeclinedView ? (
+                <div />
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={selected.size === rows.length && rows.length > 0}
+                  onChange={selectAll}
+                  className="cursor-pointer"
+                />
+              )}
               <button onClick={() => toggleSort('patient')} className="flex items-center gap-1 text-left hover:text-foreground transition-colors">
                 Patient <SortIcon k="patient" />
               </button>
@@ -468,15 +576,20 @@ const ReviewQueue: React.FC = () => {
               const path = row.parsed_pathology_info || {};
               const ins = row.parsed_insurance_info || {};
               const demo = row.parsed_demographics || {};
+              const reviewerLabel = row.reviewed_by ? (reviewerNames[row.reviewed_by] || 'Unknown') : 'Unknown';
               return (
                 <div key={row.id} className="hover:bg-muted/20">
                   <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_300px] gap-3 p-3 items-center text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.id)}
-                      onChange={() => toggleSelect(row.id)}
-                      className="cursor-pointer"
-                    />
+                    {isDeclinedView ? (
+                      <div />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(row.id)}
+                        onChange={() => toggleSelect(row.id)}
+                        className="cursor-pointer"
+                      />
+                    )}
                     <div>
                       <div className="flex items-center gap-1">
                         <button
@@ -495,6 +608,11 @@ const ReviewQueue: React.FC = () => {
                         </button>
                       </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
+                      {isDeclinedView && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Declined {row.reviewed_at ? formatDate(row.reviewed_at) : '—'} by {reviewerLabel}
+                        </div>
+                      )}
                     </div>
                     <div className="text-xs">{row.project_name}</div>
                     <div className="text-xs">
@@ -506,32 +624,46 @@ const ReviewQueue: React.FC = () => {
                       <div className="text-muted-foreground">{formatTime(row.requested_time)}</div>
                     </div>
                     <div className="flex gap-1 justify-end">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => handleSingleAction(row.id, 'approved')}
-                        disabled={processing}
-                      >
-                        <Check className="h-3.5 w-3.5 mr-1" /> Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                        onClick={() => { setActionRow({ id: row.id, action: 'oon' }); setActionNotes(''); }}
-                        disabled={processing}
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5 mr-1" /> OON
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); }}
-                        disabled={processing}
-                      >
-                        <X className="h-3.5 w-3.5 mr-1" /> Decline
-                      </Button>
+                      {isDeclinedView ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-primary/40 text-primary hover:bg-primary/10"
+                          onClick={() => handleRestore(row)}
+                          disabled={processing}
+                        >
+                          <Undo2 className="h-3.5 w-3.5 mr-1" /> Restore to Review Queue
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => handleSingleAction(row.id, 'approved')}
+                            disabled={processing}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                            onClick={() => { setActionRow({ id: row.id, action: 'oon' }); setActionNotes(''); }}
+                            disabled={processing}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> OON
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); }}
+                            disabled={processing}
+                          >
+                            <X className="h-3.5 w-3.5 mr-1" /> Decline
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                   {isOpen && (
@@ -554,6 +686,14 @@ const ReviewQueue: React.FC = () => {
                           <div>{ins.provider || ins.plan || '—'}</div>
                         </div>
                       </div>
+                      {isDeclinedView && row.review_notes && (
+                        <div>
+                          <div className="font-medium text-muted-foreground mb-1">Decline reason</div>
+                          <div className="whitespace-pre-wrap bg-background p-2 rounded border">
+                            {row.review_notes}
+                          </div>
+                        </div>
+                      )}
                       {row.patient_intake_notes && (
                         <div>
                           <div className="font-medium text-muted-foreground mb-1">Intake notes</div>
@@ -580,7 +720,7 @@ const ReviewQueue: React.FC = () => {
               <DialogDescription>
                 {actionRow?.action === 'oon'
                   ? 'Sets status to OON, releases the appointment to the project portal, and fires the OON Slack alert.'
-                  : 'Hides this appointment from the client portal and reports. The record stays in the database for audit.'}
+                  : 'Hides this appointment from the client portal and reports. The record stays in the database for audit and can be restored from the Declined tab.'}
               </DialogDescription>
             </DialogHeader>
             <Textarea
@@ -609,9 +749,6 @@ const ReviewQueue: React.FC = () => {
             onClose={() => setDetailAppt(null)}
             onDataRefresh={async () => {
               fetch();
-              // Re-fetch the open appointment so edits made inside the
-              // modal (insurance, PCP, demographics, etc.) appear
-              // immediately instead of showing the pre-edit snapshot.
               if (detailAppt?.id) {
                 const { data } = await supabase
                   .from('all_appointments')
