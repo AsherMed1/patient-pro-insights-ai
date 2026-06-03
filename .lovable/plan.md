@@ -1,56 +1,40 @@
-## Problem
+## Issue
 
-You renamed the `projects` row from **Vascular Solutions of North Carolina** → **Rao Clinic**, but only the parent `projects` table was updated. Every child table still references the old name as a string, so the portal at `/project/Rao%20Clinic` has zero linked data (appointments, calls, leads, notes, etc. are orphaned under the old name).
+Haig Nurse (LJV, GHL `fIZXZbZSOTcbLAFKpYKt`) was rescheduled in GHL from 6/1 → 6/8. After the GHL webhook ran, the row was bumped out of **Upcoming** into **New** and the status was clobbered from **Welcome Call → Confirmed**.
 
-Counts still on the old name:
-- all_appointments: 630
-- appointment_notes (via appts): 1,235
-- new_leads: 1,026
-- all_calls: 1,264
-- speed_to_lead_stats: 124
-- short_notice_alerts: 4
-- project_messages: 0
+## Root cause
 
-Code references to "VSNC" in `AppointmentFilters.tsx`, `LocationLegend.tsx`, `ProjectDetailedDashboard.tsx` are all comments — no behavior depends on the name. No `.ts` utility hardcodes the old string.
+In `supabase/functions/ghl-webhook-handler/index.ts` (~lines 802–860), when a date change is detected the handler unconditionally:
 
-## Fix
+1. Sets `internal_process_complete = false` → row falls out of the Upcoming tab filter (which requires IPC=true) and lands in the New tab.
+2. Overwrites `status = 'Confirmed'` → wipes portal-only statuses like **Welcome Call** that were set by the team.
 
-**1. SQL migration** — rename the string across every table that carries `project_name` (and a few related columns), in a single transaction:
+This happens even when the existing row is already a fully-vetted, post-confirmation appointment (Confirmed / Welcome Call) — so a routine reschedule incorrectly demotes it back to the New queue.
 
-```sql
-UPDATE all_appointments       SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE new_leads              SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE all_calls              SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE speed_to_lead_stats    SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE short_notice_alerts    SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE project_messages       SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE appointment_reschedules SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE emr_processing_queue   SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE insurance_fetch_queue  SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE support_tickets        SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE support_conversations  SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE pending_dnd_releases   SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE patient_data_access    SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE help_videos            SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE help_articles          SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE facebook_ad_spend      SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE creative_projects      SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE call_sync_cursors      SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE ghl_subaccounts        SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
-UPDATE recapture_events       SET project_name='Rao Clinic' WHERE project_name='Vascular Solutions of North Carolina';
--- agent_performance_stats and csv_import_history don't have project_name column; skip
+A separate but related issue: **Welcome Call** is not listed in the portal-only-status guard (~line 880) alongside OON / Do Not Call / Cancelled, so any GHL status echo can overwrite it.
+
+## Current state of Haig
+
+- `status = 'Welcome Call'`, `IPC = true`, `date = 2026-06-08`, `review_status = approved`.
+- This row already satisfies the Upcoming filter, so after a hard refresh it should appear there. No data fix needed for this record — Natalie's manual status change back to Welcome Call also flipped IPC back to true.
+
+## Proposed fix (code only)
+
+Edit `supabase/functions/ghl-webhook-handler/index.ts`:
+
+1. **Preserve IPC on reschedule of post-confirmation rows.** Inside the date-change branch (~line 824), only set `internal_process_complete = false` when the existing status is `Pending`, blank, or a portal-only terminal status being recovered (OON / DND / Cancelled). For rows already in `Confirmed`, `Welcome Call`, `Showed`, `No Show`, `Won`, keep IPC as-is so the row stays in Upcoming.
+2. **Don't overwrite status with "Confirmed" on reschedule when existing status is `Welcome Call`.** Treat Welcome Call the same as the portal-only guard: keep the existing status, just update date/time. Still record the reschedule audit note.
+3. **Add `'welcome call'` to the portal-only-status guard list (~line 880)** so any subsequent GHL status echo cannot clobber it.
+
+No frontend or migration changes required. The current Haig row already reads correctly; only future reschedules need the patch.
+
+```text
+Date-change branch decision table (new)
+existing.status        → IPC after reschedule   status after reschedule
+─────────────────────────────────────────────────────────────────────
+Confirmed              → keep (true)            keep "Confirmed"
+Welcome Call           → keep (true)            keep "Welcome Call"
+Showed / No Show / Won → keep                   keep
+OON / DND / Cancelled  → false (re-open)        "Confirmed" (recovery)
+Pending / blank / new  → false                  "Confirmed"
 ```
-
-Also check tables that reference by other keys/columns: `project_user_access`, `project_forms`, `project_tags`, `project_id` lookups — these use `project_id` UUID, not the name, so they remain intact automatically.
-
-**2. Memory updates** — two memory files reference VSNC by the old branding. Rename them to "Rao Clinic" so future agents use the correct label:
-- `mem://projects/vsce/virtual-as-location` (VSNC Virtual Location rule)
-- Index entry: "VSNC Virtual Location"
-
-**3. Code comments (optional cleanup)** — update VSNC mentions in three comments to "Rao Clinic" for clarity. No functional change.
-
-## Verification
-
-After migration:
-- Reload `/project/Rao%20Clinic` — appointments, leads, calls, dashboards should populate.
-- Confirm GHL webhook keeps mapping correctly: `ghl_location_id=Natyl1sRTZCGu7VXrgAz` → "Rao Clinic" (already correct in `projects` table, so future inbound syncs write the new name).
