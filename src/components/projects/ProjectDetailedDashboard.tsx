@@ -233,8 +233,8 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
       // Apply service filter
       if (serviceFilter && serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          // GAE and In-person are the same service type
-          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%');
+          // GAE and In-person are the same service type; also match parsed pathology
+          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
         } else if (serviceFilter === 'Virtual (Unspecified)') {
           // Bare "Virtual Consultation" calendars with no service token (UFE/HAE/GAE/PAE/PFE/Neuropathy/PAD)
           appointmentsQuery = appointmentsQuery
@@ -247,7 +247,8 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
             .not('calendar_name', 'ilike', '%PAD%')
             .not('calendar_name', 'ilike', '%Neuropathy%');
         } else {
-          appointmentsQuery = appointmentsQuery.ilike('calendar_name', `%${serviceFilter}%`);
+          // Match calendar name OR parsed pathology procedure
+          appointmentsQuery = appointmentsQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
         }
       }
 
