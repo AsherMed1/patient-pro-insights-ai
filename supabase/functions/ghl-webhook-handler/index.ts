@@ -686,6 +686,66 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
   return notes.trim() || null
 }
 
+// Fallback: fetch the GHL contact directly and extract Insurance Intake Source
+// from its customFields when the workflow webhook didn't include the field.
+async function fetchIntakeSourceFromContact(
+  supabase: any,
+  contactId: string,
+  projectName: string,
+  requestId: string
+): Promise<'setter_submitted' | 'patient_submitted' | null> {
+  const { data: project, error } = await supabase
+    .from('projects')
+    .select('ghl_api_key, ghl_location_id')
+    .eq('project_name', projectName)
+    .maybeSingle();
+  if (error || !project?.ghl_api_key) {
+    console.log(`[${requestId}] intake-source fallback: missing GHL credentials for ${projectName}`);
+    return null;
+  }
+
+  const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
+  const GHL_API_VERSION = '2021-07-28';
+
+  // Load custom field definitions so we can resolve {id -> name}
+  const defsRes = await fetch(`${GHL_BASE_URL}/locations/${project.ghl_location_id}/customFields`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${project.ghl_api_key}`,
+      'Version': GHL_API_VERSION,
+      'Content-Type': 'application/json',
+    },
+  });
+  const defsMap: Record<string, string> = {};
+  if (defsRes.ok) {
+    const defsData = await defsRes.json();
+    for (const d of (defsData.customFields || [])) {
+      if (d?.id && d?.name) defsMap[d.id] = d.name;
+    }
+  }
+
+  const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${project.ghl_api_key}`,
+      'Version': GHL_API_VERSION,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!contactRes.ok) {
+    console.log(`[${requestId}] intake-source fallback: contact fetch failed ${contactRes.status}`);
+    return null;
+  }
+  const contactData = await contactRes.json();
+  const contact = contactData.contact ?? contactData;
+  const rawFields = contact?.customFields || [];
+  const normalized = rawFields.map((f: any) => ({
+    key: defsMap[f.id] || f.key || f.name || '',
+    value: f.field_value ?? f.value,
+  }));
+  return extractInsuranceIntakeSource(normalized);
+}
+
 // Extract "Insurance Intake Source" custom field. Returns normalized value:
 // 'setter_submitted' | 'patient_submitted' | null
 // Accepts either an array of {key, value|field_value} or a plain object {key: value}.
