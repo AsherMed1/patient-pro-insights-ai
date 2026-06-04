@@ -667,15 +667,26 @@ const ReviewQueue: React.FC = () => {
                     </div>
                     <div className="flex gap-1 justify-end">
                       {isDeclinedView ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-primary/40 text-primary hover:bg-primary/10"
-                          onClick={() => handleRestore(row)}
-                          disabled={processing}
-                        >
-                          <Undo2 className="h-3.5 w-3.5 mr-1" /> Restore to Review Queue
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-primary/40 text-primary hover:bg-primary/10"
+                            onClick={() => handleRestore(row)}
+                            disabled={processing}
+                          >
+                            <Undo2 className="h-3.5 w-3.5 mr-1" /> Restore
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDismiss(row)}
+                            disabled={processing}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Dismiss
+                          </Button>
+                        </>
                       ) : (
                         <>
                           <Button
