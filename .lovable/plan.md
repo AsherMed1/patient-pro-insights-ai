@@ -1,52 +1,33 @@
-## Root cause
+## Issue
 
-The bypass logic in `ghl-webhook-handler/index.ts` (lines 210–213, 543, 609, 667–685) is wired correctly. The problem is upstream in GHL: the **Workflow webhook is not sending the "Insurance Intake Source" custom field** at all.
+Duzoan Jackson (NG Vascular and Vein Center) has two active "Scheduled" rows with the same `ghl_id` (`mKkz8fUikNs9SYcJ12Vx`) but different `ghl_appointment_id`s:
 
-Inspecting the most recent payloads in edge function logs, every `customFields` object looks like this:
+| Row | Created | Appt Date/Time | Status | ghl_appointment_id |
+|---|---|---|---|---|
+| Old | Jun 1 | Jun 19 @ 3:00 PM | Scheduled | `FeHFn2CQftJLSzcD7beN` |
+| New | Jun 3 | Jun 26 @ 2:30 PM | Scheduled | `Xn67oaU9HSieOUrEYP0i` |
 
-```json
-"customFields": {
-  "insurance_provider": "...",
-  "insurance_member_id": "...",
-  "insurance_id_link": "...",
-  "primary_complaint": "...",
-  "symptoms": "...",
-  "address": "...",
-  "city": "...",
-  "state": "...",
-  "zip": "..."
-}
-```
+GHL issued a new appointment ID for the reschedule instead of editing the original, so the webhook created a second row and the existing `mark_superseded_on_change` trigger (which only handles terminal → active) left both rows active.
 
-There is no `insurance_intake_source` (or any variant) key. Result: `extractInsuranceIntakeSource()` returns `null` → handler logs `intake_source=unspecified` → review_status defaults to `pending` (correct fallback behavior per the memory: "unset goes through review").
+## Fix (data-only, no code change)
 
-So nothing in the app is broken — the GHL workflow simply isn't populating the new field into the outbound webhook body.
+Update the old June 19 row only:
+- `status` → `Rescheduled`
+- `is_superseded` → `true`
+- `internal_process_complete` → `true`
+- `updated_at` → `now()`
 
-## Fix (two parts)
+Append an appointment_notes audit entry recording the manual cleanup ("Manually marked as Rescheduled — superseded by appointment on 2026-06-26 (Xn67oaU9HSieOUrEYP0i). by System").
 
-### 1. GHL configuration change (you, not code)
+Leave the new June 26 row untouched.
 
-In every GHL sub-account's workflow that fires the appointment webhook to Lovable, add the **Insurance Intake Source** custom field to the webhook's Custom Data payload. The field must be sent under a key whose name matches `/insurance[\s_-]*intake[\s_-]*source/i` — the simplest is literally `insurance_intake_source`. Value must contain the word "setter" or "patient" (case-insensitive). Examples that work today: `Setter Submitted`, `setter_submitted`, `Patient Submitted`.
+## Verification
 
-Until this is added to the workflow, every appointment will continue to hit the review queue regardless of what's stored on the GHL contact.
+Re-query `all_appointments` for Duzoan Jackson in NGV and confirm:
+- Old row: `status='Rescheduled'`, `is_superseded=true`
+- New row: `status='Scheduled'`, `is_superseded=false`
+- Only the June 26 row appears in active appointment views; the June 19 row routes to Completed.
 
-### 2. Code change — fallback fetch from GHL contact
+## Note
 
-To make this resilient even if a workflow forgets to map the field, update `supabase/functions/ghl-webhook-handler/index.ts` so that when `insurance_intake_source` is `null` after extraction AND we have a `ghl_id` (contact id) + `ghl_location_id`, we fetch the contact from GHL's API (`GET /contacts/{contactId}`, same auth pattern already used elsewhere in the codebase) and re-run `extractInsuranceIntakeSource()` against `contact.customFields`. This is gated to only run when the value is missing, so it adds at most one extra GHL call per pending appointment.
-
-Also add a clearer warning log when the field is missing entirely so future "didn't bypass" reports are immediately diagnosable:
-
-```
-[WARN] Insurance Intake Source not present in webhook payload nor on GHL contact — routing to review queue.
-```
-
-### Files touched
-
-- `supabase/functions/ghl-webhook-handler/index.ts` — add fallback contact lookup right before the `isSetterSubmitted` check (~line 209), plus the warning log.
-
-### Verification
-
-1. Submit an insurance form in GHL with the custom field set to "Setter Submitted" **before** the workflow update → still routes to review (confirms current state).
-2. Add `insurance_intake_source` to the GHL workflow webhook Custom Data → next submission with "Setter Submitted" bypasses review and appears directly in the client portal. Edge function logs show `bypass=setter_submitted`.
-3. Submission with "Patient Submitted" → still routes to review queue.
-4. Submission with the workflow field missing but contact field set → fallback fetch picks it up; logs show `intake_source=setter_submitted (from contact fallback)`.
+Per your direction, no trigger/webhook changes — this is a one-off cleanup. If "GHL issues a new appointment ID on reschedule" keeps happening, we'll need to revisit the long-term fix.
