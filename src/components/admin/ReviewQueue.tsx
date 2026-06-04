@@ -430,6 +430,48 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
+  const handleDismiss = async (row: ReviewAppointment) => {
+    if (!confirm(`Dismiss "${row.lead_name}" permanently? This removes it from both Pending and Declined views. (You can still find it by patient search elsewhere.)`)) return;
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({ review_status: 'dismissed' })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      await supabase.from('appointment_review_history').insert({
+        appointment_id: row.id,
+        action: 'dismissed',
+        prior_status: 'declined',
+        actor_id: user?.id ?? null,
+        actor_name: userName || user?.email || 'Unknown',
+        notes: null,
+      });
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_dismissed',
+          p_description: `Dismissed from Review Queue: ${row.lead_name} by ${userName || 'Unknown'}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_id: row.id, project_name: row.project_name },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Dismissed', description: row.lead_name });
+      setRows(prev => prev.filter(r => r.id !== row.id));
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Dismiss failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleBulk = async (action: ActionType) => {
     if (selected.size === 0) return;
     const ids = Array.from(selected);
