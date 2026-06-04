@@ -729,7 +729,9 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
-  if (upperNotes.includes('TAE') || upperNotes.includes('THYROID')) {
+  if (upperNotes.includes('NEUROPATHY') || upperNotes.includes('NUMBNESS COLD FEET') || upperNotes.includes('NUMBNESS/COLD FEET')) {
+    result.pathology_info.procedure_type = 'Neuropathy';
+  } else if (upperNotes.includes('TAE') || upperNotes.includes('THYROID')) {
     result.pathology_info.procedure_type = 'TAE';
   } else if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
     result.pathology_info.procedure_type = 'HAE';
@@ -744,6 +746,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
   } else if (upperNotes.includes('FSE') || upperNotes.includes('FROZEN SHOULDER') || upperNotes.includes('SHOULDER')) {
     result.pathology_info.procedure_type = 'FSE';
   }
+
 
   // Filter out pathology data from wrong procedures in multi-procedure notes
   // e.g., "Pathology (by procedure): GAE—Age Range 56 and above; UFE—Period Length 3-5 days"
