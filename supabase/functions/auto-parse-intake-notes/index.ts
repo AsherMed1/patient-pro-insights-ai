@@ -56,10 +56,9 @@ function stripStaleStepLines(notes: string | null | undefined, currentProc: stri
     const m = line.match(stepRe);
     if (!m) return true;
     const linePrefix = m[1].toUpperCase();
-    // Treat Neuropathy as belonging to GAE workflow only
-    const matchesCurrent =
-      linePrefix === proc ||
-      (linePrefix === 'NEUROPATHY' && proc === 'GAE');
+    // Neuropathy is its own service (The Painless Center). Keep STEP lines
+    // only when the prefix matches the current procedure exactly.
+    const matchesCurrent = linePrefix === proc;
     if (!matchesCurrent) stripped++;
     return matchesCurrent;
   });
@@ -68,6 +67,7 @@ function stripStaleStepLines(notes: string | null | undefined, currentProc: stri
   }
   return kept.join('\n');
 }
+
 
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
@@ -729,7 +729,9 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
-  if (upperNotes.includes('TAE') || upperNotes.includes('THYROID')) {
+  if (upperNotes.includes('NEUROPATHY') || upperNotes.includes('NUMBNESS COLD FEET') || upperNotes.includes('NUMBNESS/COLD FEET')) {
+    result.pathology_info.procedure_type = 'Neuropathy';
+  } else if (upperNotes.includes('TAE') || upperNotes.includes('THYROID')) {
     result.pathology_info.procedure_type = 'TAE';
   } else if (upperNotes.includes('HAE') || upperNotes.includes('HEMORRHOID ARTERY')) {
     result.pathology_info.procedure_type = 'HAE';
@@ -744,6 +746,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
   } else if (upperNotes.includes('FSE') || upperNotes.includes('FROZEN SHOULDER') || upperNotes.includes('SHOULDER')) {
     result.pathology_info.procedure_type = 'FSE';
   }
+
 
   // Filter out pathology data from wrong procedures in multi-procedure notes
   // e.g., "Pathology (by procedure): GAE—Age Range 56 and above; UFE—Period Length 3-5 days"
@@ -806,14 +809,16 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
 
   // === Service Name (GHL custom field) — high-priority override for procedure_type
-  const serviceMatch = rawIntakeNotes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE)\b/i);
+  const serviceMatch = rawIntakeNotes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE|Neuropathy)\b/i);
   if (serviceMatch && serviceMatch[1]) {
-    const svc = serviceMatch[1].toUpperCase();
+    const raw = serviceMatch[1];
+    const svc = /neuropathy/i.test(raw) ? 'Neuropathy' : raw.toUpperCase();
     if (parsedData.pathology_info.procedure_type !== svc) {
       console.log(`[AUTO-PARSE ENRICH] Service Name override: ${parsedData.pathology_info.procedure_type || 'null'} → ${svc}`);
       parsedData.pathology_info.procedure_type = svc;
     }
   }
+
 
   // === PFE keyword fallback (plantar fasciitis) when no procedure_type detected
   if (!parsedData.pathology_info.procedure_type) {
@@ -1309,6 +1314,9 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
+  if (upperKey.includes('NEUROPATHY')) {
+    return 'Neuropathy';
+  }
   if (upperKey.includes('TAE') || upperKey.includes('THYROID')) {
     return 'TAE';
   }
@@ -1335,6 +1343,7 @@ function detectProcedureFromFieldKey(key: string): string | null {
   }
   return null;
 }
+
 
 // Helper to extract structured data from GHL custom fields with procedure filtering
 function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>, targetProcedure: string | null = null): any {
@@ -1872,6 +1881,11 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (!calendarName) return null;
   const name = calendarName.toLowerCase();
   
+  // Neuropathy must be checked BEFORE GAE/knee — Neuropathy intakes often
+  // share knee-numbness symptoms that would otherwise fall through to GAE.
+  if (name.includes('neuropathy')) {
+    return 'Neuropathy';
+  }
   if (name.includes('tae') || name.includes('thyroid')) {
     return 'TAE';
   }
@@ -1898,6 +1912,7 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   }
   return null;
 }
+
 
 // Normalize DOB string to YYYY-MM-DD format or return null
 function normalizeDob(raw: string | null | undefined): string | null {
@@ -2157,7 +2172,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "dob": "string or null"
   },
   "pathology_info": {
-    "procedure_type": "string or null - The pathology type (e.g., GAE, TKR, etc.). This is NOT the patient complaint.",
+    "procedure_type": "string or null - The pathology/service type. Allowed values: GAE, PAE, UFE, HAE, PAD, FSE, TAE, PFE, Neuropathy. This is NOT the patient complaint.",
     "primary_complaint": "string or null - The patient's chief complaint (e.g., 'knee pain', 'hip pain'), NOT the pathology type.",
     "symptoms": "string or null",
     "pain_level": "string or null",
@@ -2205,6 +2220,7 @@ ${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poo
 ${calendarProcedure === 'FSE' ? 'FSE (Frozen Shoulder Embolization) focuses on: shoulder pain, frozen shoulder, limited range of motion, shoulder stiffness, difficulty raising arm, affected shoulder (left/right). Set procedure_type to "FSE".' : ''}
 ${calendarProcedure === 'HAE' ? 'HAE (Hemorrhoid Artery Embolization) focuses on: rectal bleeding, internal/external hemorrhoids, bowel discomfort, constipation, colonoscopy results, hemorrhoid diagnosis, bleeding duration. Set procedure_type to "HAE".' : ''}
 ${calendarProcedure === 'TAE' ? 'TAE (Thyroid Artery Embolization) focuses on: thyroid nodule or goiter diagnosis, lump or swelling in the neck, pressure or tightness in the throat, difficulty swallowing, cosmetic concerns about the neck, prior thyroid imaging (ultrasound/CT/MRI), interest in avoiding surgery, openness to minimally invasive treatment. Set procedure_type to "TAE", primary_complaint to "TAE Consultation", and affected_area to "Thyroid". Map "TAE STEP 1/2 | Are you experiencing any of the following?" to symptoms; "diagnosed with a thyroid nodule or goiter" to diagnosis; "Has a doctor recommended..." to previous_treatments; "imaging of your thyroid" to imaging_done (YES/NO); "Had Imaging Before" to medical_info.imaging_details.' : ''}
+${calendarProcedure === 'Neuropathy' ? 'Neuropathy (peripheral neuropathy consultation, The Painless Center) focuses on: numbness, tingling, burning, cold feet, balance issues, foot/leg nerve pain, diabetic neuropathy, duration of symptoms. Set procedure_type to "Neuropathy". DO NOT extract knee-specific GAE fields like oa_tkr_diagnosed, affected_knee, or knee imaging — leave them null. primary_complaint should be "Neuropathy" or the patient\\'s described nerve symptom.' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;

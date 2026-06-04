@@ -1647,18 +1647,30 @@ const AppointmentCard = ({
           {(() => {
             const path: any = appointment.parsed_pathology_info || {};
             const calName = (appointment.calendar_name || '').toUpperCase();
-            const fromPath = String(path.procedure_type || path.procedure || '').toUpperCase().trim();
+            const fromPathRaw = String(path.procedure_type || path.procedure || '').trim();
+            const fromPath = fromPathRaw.toUpperCase();
+            const isNeuroFromPath = /^NEUROPATHY$/i.test(fromPathRaw);
+            const calIsNeuro = /NEUROPATHY/.test(calName);
             const calMatch = calName.match(/\b(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)\b/);
             const notes = String(appointment.patient_intake_notes || '');
-            const svcMatch = notes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE)\b/i);
-            const notesKwMatch = !calMatch && !svcMatch
+            const svcMatch = notes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE|Neuropathy)\b/i);
+            const notesKwMatch = !calMatch && !svcMatch && !calIsNeuro && !isNeuroFromPath
               ? notes.match(/\b(plantar\s+fasciitis|plantar|heel\s+pain)\b/i) ? 'PFE'
                 : notes.match(/\b(knee\s+pain|osteoarthritis)\b/i) ? 'GAE'
                 : ''
               : '';
-            const proc = (fromPath && /^(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)$/.test(fromPath))
-              ? fromPath
-              : (calMatch ? calMatch[1] : (svcMatch ? svcMatch[1].toUpperCase() : notesKwMatch));
+            let proc: string = '';
+            if (isNeuroFromPath || calIsNeuro || (svcMatch && /neuropathy/i.test(svcMatch[1]))) {
+              proc = 'Neuropathy';
+            } else if (fromPath && /^(GAE|PAE|UFE|PFE|HAE|PAD|FSE|TAE)$/.test(fromPath)) {
+              proc = fromPath;
+            } else if (calMatch) {
+              proc = calMatch[1];
+            } else if (svcMatch) {
+              proc = svcMatch[1].toUpperCase();
+            } else {
+              proc = notesKwMatch;
+            }
             if (!proc) return null;
             const colorMap: Record<string, string> = {
               GAE: 'bg-orange-100 text-orange-800 border-orange-300',
@@ -1669,6 +1681,7 @@ const AppointmentCard = ({
               PAD: 'bg-red-100 text-red-800 border-red-300',
               FSE: 'bg-emerald-100 text-emerald-800 border-emerald-300',
               TAE: 'bg-amber-100 text-amber-800 border-amber-300',
+              Neuropathy: 'bg-emerald-100 text-emerald-800 border-emerald-300',
             };
             return (
               <Badge variant="outline" className={cn('font-semibold', colorMap[proc])}>
@@ -1676,6 +1689,7 @@ const AppointmentCard = ({
               </Badge>
             );
           })()}
+
 
           {(() => {
             const path: any = appointment.parsed_pathology_info || {};
