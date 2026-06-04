@@ -1,39 +1,43 @@
-## Problem
+## Context
 
-Gary Jones (TVI) was declined in the Review Queue. Once declined, an appointment is hidden from every portal view forever, with no UI to undo it. Admins assume declined rows will "come back" if the setter reschedules in GHL — but that only triggers if the same `ghl_appointment_id` receives a new `date_of_appointment` from GHL. If the setter cancels and re-creates, or simply hasn't rescheduled yet, the declined row stays invisible. The Slack message from Isis describes the same recovery gap.
+Gary Jones (TVI) is a single `all_appointments` row (`a3d51f2f…`) with `ghl_appointment_id = XvS5dqieAlgwSSHOpifP`. The setter did **not** create a new GHL appointment when they "fixed" the booking — they edited the existing one in GHL, so the webhook updated the same row in place (calendar flipped from GAE → PAD). There is only ever one row for this patient.
 
-The existing webhook already re-opens `declined → pending` when GHL sends a new date for the same appointment (`ghl-webhook-handler/index.ts` lines 865–873), so the gap is purely UI — admins have no way to view or restore mistakenly-declined appointments.
+That's why:
+- "The old appointment isn't being overwritten by the new one" — there is no new appointment ID; it's the same row mutated.
+- "When I restore it, the old appointment comes back" — the row that comes back is the same (now-PAD) row, just with stale GAE wording in the calendar title that the setter never fully corrected in GHL.
+- "No way to remove the old appointment" — Declined view only offers Restore today.
+
+The existing review system **is already keyed per `all_appointments.id` (per ghl_appointment_id)**, so a brand-new GHL appointment with a different id would already create a separate review row. The real gaps are: (1) no way to permanently dismiss an obsolete declined row, and (2) when GHL edits an appointment in place after a decline, the declined snapshot is lost because the same row gets mutated and re-opened.
 
 ## Plan
 
-Add a **Declined** view to the Review Queue with a one-click **Restore to Queue** action.
+### 1. Add a "Dismiss permanently" action in the Declined view
+In `src/components/admin/ReviewQueue.tsx`, alongside **Restore to Review Queue**, add a **Dismiss** button (with confirm dialog) for declined rows. It will:
+- Set `all_appointments.review_status = 'dismissed'` (new terminal value), keep `reviewed_at`/`reviewed_by`.
+- Insert `appointment_review_history` with `action = 'dismissed'`, `prior_status = 'declined'`, actor info, optional note.
+- Audit-log `review_dismissed`.
+- Hide the row from both Pending and Declined views (filter `review_status IN ('pending')` and `('declined')` respectively).
 
-### 1. Add a status tab/toggle at the top of `src/components/admin/ReviewQueue.tsx`
-- New local state `queueView: 'pending' | 'declined'` (default `'pending'`).
-- Render two pill buttons / a small `Tabs` next to the existing project filter: **Pending Review** (current behavior) and **Declined**.
-- `fetch()` swaps the `.eq('review_status', ...)` value based on `queueView`. The exempt-project filter and search/project filters remain unchanged.
-- The Declined view sorts by `reviewed_at desc` (most recently declined first) and shows the reviewer name + decline date in the row header.
+No GHL side effects. This gives admins a one-click way to clear obsolete declined rows like Gary's old GAE snapshot.
 
-### 2. Add a Restore action (Declined view only)
-- In each declined row, replace the Approve / Decline / OON buttons with a single **Restore to Review Queue** button (and keep "View details").
-- Clicking it:
-  - Updates `all_appointments`: `review_status = 'pending'`, `reviewed_at = null`, `reviewed_by = null`, `review_notes = null`.
-  - Inserts an `appointment_review_history` row with `action = 'restored'`, `prior_status = 'declined'`, actor info, and optional note.
-  - Logs an audit event `review_restored` with the patient name and actor.
-  - Refreshes the list and toasts "Restored to Review Queue".
-- No GHL side effects (no tag changes, no status flips). Status column is left as-is — if GHL had set it to Cancelled (as in Gary's case), the admin can re-evaluate from the pending queue and approve/decline/OON again.
+### 2. Freeze the declined snapshot so GHL edits don't mutate it
+Update `supabase/functions/ghl-webhook-handler/index.ts` so that when an inbound GHL update matches an `all_appointments` row whose `review_status IN ('declined','dismissed')`:
+- Do **not** mutate the declined row's calendar / date / status / parsed fields.
+- Instead, **insert a new `all_appointments` row** for the same `ghl_appointment_id` + lead (mark the declined one `is_superseded = true`, link via existing supersede pattern), with `review_status = 'pending'` so it appears as a fresh entry in the queue.
+- Exception: if the GHL payload is a pure status flip to `Cancelled`/`No Show`/`Do Not Call` on the declined row, keep current behavior (no new row, no mutation).
 
-### 3. Header counts
-- Show counts for both views (`Pending (N)` / `Declined (N)`) using a lightweight `count: 'exact', head: true` query alongside the main fetch so admins can see at a glance whether anything is sitting in Declined.
+Result: every meaningful GHL change after a decline produces a new queue entry with its own audit trail, while the original declined row stays frozen and history-accurate. This satisfies the user's "decline only the specific appointment ID" requirement — the declined snapshot is now truly immutable per appointment id + revision.
 
-### 4. No backend / schema changes
-- `appointment_review_history.action` is already free-text (the existing code writes `'approved' | 'declined' | 'oon'`), so `'restored'` requires no migration.
-- The webhook's existing auto re-open on GHL reschedule stays untouched.
+### 3. Auto-re-open guard
+The webhook currently re-opens `declined → pending` when GHL sends a new `date_of_appointment` for the same id (lines 865–873). Replace this with the new-row insert from step 2 so re-opens go through the snapshot-then-insert path consistently.
 
 ### Verification
-- Open Review Queue → switch to **Declined** tab → Gary Jones (TVI) appears with reviewer name and decline timestamp.
-- Click **Restore to Review Queue** → row disappears from Declined, reappears in Pending, `appointment_review_history` shows a `restored` entry, audit log shows `review_restored`.
-- Switching back to Pending and approving works exactly as before.
+- Open Declined → Gary Jones row shows **Restore** and **Dismiss**. Dismiss removes it from both tabs; `appointment_review_history` shows `dismissed`.
+- Decline an appointment, then in GHL change its calendar or date → a new pending row appears in Review Queue; the original declined row stays declined with original calendar/date intact and `is_superseded = true`.
+- Decline + cancel in GHL → declined row stays as-is, no duplicate created.
+- Restore still works on rows that have not been superseded.
 
 ### Files touched
-- `src/components/admin/ReviewQueue.tsx` (only file)
+- `src/components/admin/ReviewQueue.tsx` — Dismiss button, action handler, query filter, count.
+- `supabase/functions/ghl-webhook-handler/index.ts` — snapshot-preserving branch when target row is declined/dismissed; replace existing auto re-open block.
+- No schema migration required (`review_status` and `action` are free-text; `is_superseded` already exists).
