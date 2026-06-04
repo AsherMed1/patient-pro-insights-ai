@@ -1,43 +1,52 @@
-## Context
+## Root cause
 
-Gary Jones (TVI) is a single `all_appointments` row (`a3d51f2f…`) with `ghl_appointment_id = XvS5dqieAlgwSSHOpifP`. The setter did **not** create a new GHL appointment when they "fixed" the booking — they edited the existing one in GHL, so the webhook updated the same row in place (calendar flipped from GAE → PAD). There is only ever one row for this patient.
+The bypass logic in `ghl-webhook-handler/index.ts` (lines 210–213, 543, 609, 667–685) is wired correctly. The problem is upstream in GHL: the **Workflow webhook is not sending the "Insurance Intake Source" custom field** at all.
 
-That's why:
-- "The old appointment isn't being overwritten by the new one" — there is no new appointment ID; it's the same row mutated.
-- "When I restore it, the old appointment comes back" — the row that comes back is the same (now-PAD) row, just with stale GAE wording in the calendar title that the setter never fully corrected in GHL.
-- "No way to remove the old appointment" — Declined view only offers Restore today.
+Inspecting the most recent payloads in edge function logs, every `customFields` object looks like this:
 
-The existing review system **is already keyed per `all_appointments.id` (per ghl_appointment_id)**, so a brand-new GHL appointment with a different id would already create a separate review row. The real gaps are: (1) no way to permanently dismiss an obsolete declined row, and (2) when GHL edits an appointment in place after a decline, the declined snapshot is lost because the same row gets mutated and re-opened.
+```json
+"customFields": {
+  "insurance_provider": "...",
+  "insurance_member_id": "...",
+  "insurance_id_link": "...",
+  "primary_complaint": "...",
+  "symptoms": "...",
+  "address": "...",
+  "city": "...",
+  "state": "...",
+  "zip": "..."
+}
+```
 
-## Plan
+There is no `insurance_intake_source` (or any variant) key. Result: `extractInsuranceIntakeSource()` returns `null` → handler logs `intake_source=unspecified` → review_status defaults to `pending` (correct fallback behavior per the memory: "unset goes through review").
 
-### 1. Add a "Dismiss permanently" action in the Declined view
-In `src/components/admin/ReviewQueue.tsx`, alongside **Restore to Review Queue**, add a **Dismiss** button (with confirm dialog) for declined rows. It will:
-- Set `all_appointments.review_status = 'dismissed'` (new terminal value), keep `reviewed_at`/`reviewed_by`.
-- Insert `appointment_review_history` with `action = 'dismissed'`, `prior_status = 'declined'`, actor info, optional note.
-- Audit-log `review_dismissed`.
-- Hide the row from both Pending and Declined views (filter `review_status IN ('pending')` and `('declined')` respectively).
+So nothing in the app is broken — the GHL workflow simply isn't populating the new field into the outbound webhook body.
 
-No GHL side effects. This gives admins a one-click way to clear obsolete declined rows like Gary's old GAE snapshot.
+## Fix (two parts)
 
-### 2. Freeze the declined snapshot so GHL edits don't mutate it
-Update `supabase/functions/ghl-webhook-handler/index.ts` so that when an inbound GHL update matches an `all_appointments` row whose `review_status IN ('declined','dismissed')`:
-- Do **not** mutate the declined row's calendar / date / status / parsed fields.
-- Instead, **insert a new `all_appointments` row** for the same `ghl_appointment_id` + lead (mark the declined one `is_superseded = true`, link via existing supersede pattern), with `review_status = 'pending'` so it appears as a fresh entry in the queue.
-- Exception: if the GHL payload is a pure status flip to `Cancelled`/`No Show`/`Do Not Call` on the declined row, keep current behavior (no new row, no mutation).
+### 1. GHL configuration change (you, not code)
 
-Result: every meaningful GHL change after a decline produces a new queue entry with its own audit trail, while the original declined row stays frozen and history-accurate. This satisfies the user's "decline only the specific appointment ID" requirement — the declined snapshot is now truly immutable per appointment id + revision.
+In every GHL sub-account's workflow that fires the appointment webhook to Lovable, add the **Insurance Intake Source** custom field to the webhook's Custom Data payload. The field must be sent under a key whose name matches `/insurance[\s_-]*intake[\s_-]*source/i` — the simplest is literally `insurance_intake_source`. Value must contain the word "setter" or "patient" (case-insensitive). Examples that work today: `Setter Submitted`, `setter_submitted`, `Patient Submitted`.
 
-### 3. Auto-re-open guard
-The webhook currently re-opens `declined → pending` when GHL sends a new `date_of_appointment` for the same id (lines 865–873). Replace this with the new-row insert from step 2 so re-opens go through the snapshot-then-insert path consistently.
+Until this is added to the workflow, every appointment will continue to hit the review queue regardless of what's stored on the GHL contact.
 
-### Verification
-- Open Declined → Gary Jones row shows **Restore** and **Dismiss**. Dismiss removes it from both tabs; `appointment_review_history` shows `dismissed`.
-- Decline an appointment, then in GHL change its calendar or date → a new pending row appears in Review Queue; the original declined row stays declined with original calendar/date intact and `is_superseded = true`.
-- Decline + cancel in GHL → declined row stays as-is, no duplicate created.
-- Restore still works on rows that have not been superseded.
+### 2. Code change — fallback fetch from GHL contact
+
+To make this resilient even if a workflow forgets to map the field, update `supabase/functions/ghl-webhook-handler/index.ts` so that when `insurance_intake_source` is `null` after extraction AND we have a `ghl_id` (contact id) + `ghl_location_id`, we fetch the contact from GHL's API (`GET /contacts/{contactId}`, same auth pattern already used elsewhere in the codebase) and re-run `extractInsuranceIntakeSource()` against `contact.customFields`. This is gated to only run when the value is missing, so it adds at most one extra GHL call per pending appointment.
+
+Also add a clearer warning log when the field is missing entirely so future "didn't bypass" reports are immediately diagnosable:
+
+```
+[WARN] Insurance Intake Source not present in webhook payload nor on GHL contact — routing to review queue.
+```
 
 ### Files touched
-- `src/components/admin/ReviewQueue.tsx` — Dismiss button, action handler, query filter, count.
-- `supabase/functions/ghl-webhook-handler/index.ts` — snapshot-preserving branch when target row is declined/dismissed; replace existing auto re-open block.
-- No schema migration required (`review_status` and `action` are free-text; `is_superseded` already exists).
+
+- `supabase/functions/ghl-webhook-handler/index.ts` — add fallback contact lookup right before the `isSetterSubmitted` check (~line 209), plus the warning log.
+
+### Verification
+
+1. Submit an insurance form in GHL with the custom field set to "Setter Submitted" **before** the workflow update → still routes to review (confirms current state).
+2. Add `insurance_intake_source` to the GHL workflow webhook Custom Data → next submission with "Setter Submitted" bypasses review and appears directly in the client portal. Edge function logs show `bypass=setter_submitted`.
+3. Submission with "Patient Submitted" → still routes to review queue.
+4. Submission with the workflow field missing but contact field set → fallback fetch picks it up; logs show `intake_source=setter_submitted (from contact fallback)`.
