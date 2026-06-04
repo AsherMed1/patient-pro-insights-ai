@@ -206,11 +206,36 @@ serve(async (req) => {
       // Projects exempt from Review Queue (time-preference-only intake, not real bookings)
       const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
       const isExempt = REVIEW_QUEUE_EXEMPT.includes(appointmentData.project_name);
+
       // Setter-submitted insurance forms bypass the review queue and go straight to the portal.
-      const isSetterSubmitted = webhookData.insurance_intake_source === 'setter_submitted';
+      // If the webhook payload didn't include the custom field, fall back to fetching the
+      // GHL contact directly so a missing workflow mapping doesn't silently break the bypass.
+      let intakeSource = webhookData.insurance_intake_source;
+      let intakeSourceOrigin = intakeSource ? 'webhook' : 'missing';
+      if (!intakeSource && webhookData.ghl_id && appointmentData.project_name) {
+        try {
+          const fallback = await fetchIntakeSourceFromContact(
+            supabase,
+            webhookData.ghl_id,
+            appointmentData.project_name,
+            requestId
+          );
+          if (fallback) {
+            intakeSource = fallback;
+            intakeSourceOrigin = 'contact_fallback';
+          }
+        } catch (e) {
+          console.error(`[${requestId}] intake-source fallback fetch failed:`, e);
+        }
+      }
+      if (intakeSourceOrigin === 'missing') {
+        console.warn(`[${requestId}] [WARN] Insurance Intake Source not present in webhook payload nor on GHL contact — routing to review queue.`);
+      }
+
+      const isSetterSubmitted = intakeSource === 'setter_submitted';
       const reviewStatus = (isExempt || isSetterSubmitted) ? 'approved' : 'pending';
       const bypassReason = isExempt ? 'exempt_project' : (isSetterSubmitted ? 'setter_submitted' : 'none');
-      console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus}, bypass=${bypassReason}, intake_source=${webhookData.insurance_intake_source || 'unspecified'})`)
+      console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus}, bypass=${bypassReason}, intake_source=${intakeSource || 'unspecified'} [${intakeSourceOrigin}])`)
       let { data, error } = await supabase
         .from('all_appointments')
         .insert([{ ...appointmentData, review_status: reviewStatus }])
