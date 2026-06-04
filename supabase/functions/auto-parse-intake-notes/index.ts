@@ -1314,6 +1314,9 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 // Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
+  if (upperKey.includes('NEUROPATHY')) {
+    return 'Neuropathy';
+  }
   if (upperKey.includes('TAE') || upperKey.includes('THYROID')) {
     return 'TAE';
   }
@@ -1340,6 +1343,7 @@ function detectProcedureFromFieldKey(key: string): string | null {
   }
   return null;
 }
+
 
 // Helper to extract structured data from GHL custom fields with procedure filtering
 function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, string>, targetProcedure: string | null = null): any {
