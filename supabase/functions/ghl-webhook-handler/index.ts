@@ -1117,7 +1117,10 @@ async function findExistingAppointment(
   // GHL contact/appointment IDs are unique only WITHIN a sub-account, so a
   // global match across projects can hijack records from other clients.
 
-  // Try by GHL appointment ID first (project-scoped)
+  // Try by GHL appointment ID first (project-scoped).
+  // EXCLUDE rows that were declined or dismissed in the Review Queue — those are
+  // frozen snapshots. Any subsequent GHL edit should produce a new row so the
+  // declined record stays history-accurate and admins get a fresh queue entry.
   if (ghlAppointmentId && projectName) {
     const { data } = await supabase
       .from('all_appointments')
@@ -1125,8 +1128,21 @@ async function findExistingAppointment(
       .eq('ghl_appointment_id', ghlAppointmentId)
       .eq('project_name', projectName)
       .maybeSingle()
-    
+
     if (data) {
+      const rs = (data.review_status || '').toLowerCase().trim()
+      if (rs === 'declined' || rs === 'dismissed') {
+        console.log(`[${requestId}] Found declined/dismissed snapshot ${data.id} for ghl_appointment_id ${ghlAppointmentId} — superseding and creating a new row`)
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({ is_superseded: true })
+            .eq('id', data.id)
+        } catch (e) {
+          console.warn(`[${requestId}] Failed to mark declined snapshot superseded:`, e)
+        }
+        return null
+      }
       console.log(`[${requestId}] Found by ghl_appointment_id (project-scoped): ${data.id}`)
       return data
     }
