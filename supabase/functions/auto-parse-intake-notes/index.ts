@@ -809,14 +809,16 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
 
   // === Service Name (GHL custom field) — high-priority override for procedure_type
-  const serviceMatch = rawIntakeNotes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE)\b/i);
+  const serviceMatch = rawIntakeNotes.match(/Service Name\s*:\s*(GAE|PFE|UFE|PAE|HAE|PAD|FSE|TAE|Neuropathy)\b/i);
   if (serviceMatch && serviceMatch[1]) {
-    const svc = serviceMatch[1].toUpperCase();
+    const raw = serviceMatch[1];
+    const svc = /neuropathy/i.test(raw) ? 'Neuropathy' : raw.toUpperCase();
     if (parsedData.pathology_info.procedure_type !== svc) {
       console.log(`[AUTO-PARSE ENRICH] Service Name override: ${parsedData.pathology_info.procedure_type || 'null'} → ${svc}`);
       parsedData.pathology_info.procedure_type = svc;
     }
   }
+
 
   // === PFE keyword fallback (plantar fasciitis) when no procedure_type detected
   if (!parsedData.pathology_info.procedure_type) {
