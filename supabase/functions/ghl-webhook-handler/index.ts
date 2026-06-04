@@ -862,15 +862,9 @@ function getUpdateableFields(
             updateFields.was_ever_confirmed = true
           }
 
-          // Re-open into Review Queue if the row was previously declined/oon.
-          // A new GHL date means the patient was rebooked and admins should re-review.
-          const existingReviewStatus = existingAppointment.review_status?.toLowerCase()?.trim()
-          if (existingReviewStatus === 'declined' || existingReviewStatus === 'oon') {
-            updateFields.review_status = 'pending'
-            updateFields.reviewed_at = null
-            updateFields.reviewed_by = null
-            console.log(`[WEBHOOK] Re-opening review queue: review_status "${existingAppointment.review_status}" → pending via GHL reschedule`)
-          }
+          // (Declined/dismissed rows are no longer matched here — findExistingAppointment
+          //  supersedes them and forces a new row, so there's nothing to re-open.)
+
 
           if (isPortalOnlyTerminal) {
             console.log(`[WEBHOOK] Recovering from portal-terminal status "${existingAppointment.status}" via GHL date change`)
