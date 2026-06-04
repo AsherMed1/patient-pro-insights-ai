@@ -2172,7 +2172,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "dob": "string or null"
   },
   "pathology_info": {
-    "procedure_type": "string or null - The pathology type (e.g., GAE, TKR, etc.). This is NOT the patient complaint.",
+    "procedure_type": "string or null - The pathology/service type. Allowed values: GAE, PAE, UFE, HAE, PAD, FSE, TAE, PFE, Neuropathy. This is NOT the patient complaint.",
     "primary_complaint": "string or null - The patient's chief complaint (e.g., 'knee pain', 'hip pain'), NOT the pathology type.",
     "symptoms": "string or null",
     "pain_level": "string or null",
