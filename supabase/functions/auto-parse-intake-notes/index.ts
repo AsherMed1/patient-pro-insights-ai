@@ -56,10 +56,9 @@ function stripStaleStepLines(notes: string | null | undefined, currentProc: stri
     const m = line.match(stepRe);
     if (!m) return true;
     const linePrefix = m[1].toUpperCase();
-    // Treat Neuropathy as belonging to GAE workflow only
-    const matchesCurrent =
-      linePrefix === proc ||
-      (linePrefix === 'NEUROPATHY' && proc === 'GAE');
+    // Neuropathy is its own service (The Painless Center). Keep STEP lines
+    // only when the prefix matches the current procedure exactly.
+    const matchesCurrent = linePrefix === proc;
     if (!matchesCurrent) stripped++;
     return matchesCurrent;
   });
@@ -68,6 +67,7 @@ function stripStaleStepLines(notes: string | null | undefined, currentProc: stri
   }
   return kept.join('\n');
 }
+
 
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
