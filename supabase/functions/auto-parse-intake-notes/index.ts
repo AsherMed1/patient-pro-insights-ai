@@ -1881,6 +1881,11 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (!calendarName) return null;
   const name = calendarName.toLowerCase();
   
+  // Neuropathy must be checked BEFORE GAE/knee — Neuropathy intakes often
+  // share knee-numbness symptoms that would otherwise fall through to GAE.
+  if (name.includes('neuropathy')) {
+    return 'Neuropathy';
+  }
   if (name.includes('tae') || name.includes('thyroid')) {
     return 'TAE';
   }
@@ -1907,6 +1912,7 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   }
   return null;
 }
+
 
 // Normalize DOB string to YYYY-MM-DD format or return null
 function normalizeDob(raw: string | null | undefined): string | null {
