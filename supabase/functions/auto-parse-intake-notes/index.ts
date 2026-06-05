@@ -2319,6 +2319,26 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           }
         }
 
+        // Calendar-derived procedure is the source of truth — always override,
+        // even when GHL data wasn't fetched or AI fallback set a wrong value.
+        if (calendarProcedure) {
+          if (!parsedData.pathology_info) parsedData.pathology_info = {};
+          if (parsedData.pathology_info.procedure_type !== calendarProcedure) {
+            console.log(`[AUTO-PARSE] Calendar override: procedure_type ${parsedData.pathology_info.procedure_type || 'null'} → ${calendarProcedure}`);
+            parsedData.pathology_info.procedure_type = calendarProcedure;
+          }
+          // For Neuropathy specifically: clear GAE-only fields that the regex
+          // fallback / GHL STEP extractor may have populated from prior knee data.
+          if (calendarProcedure === 'Neuropathy') {
+            parsedData.pathology_info.oa_tkr_diagnosed = null;
+            parsedData.pathology_info.affected_knee = null;
+            parsedData.pathology_info.trauma_related_onset = null;
+          }
+        }
+
+
+
+
         // Enforce project-level procedure constraint after AI parse
         if (allowedProcedures && parsedData?.pathology_info) {
           const current = parsedData.pathology_info.procedure_type;
