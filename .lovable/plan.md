@@ -1,28 +1,31 @@
-# Fix: Davis "GAE" service filter returns 0 results
+# Add "approved" GHL tag for Setter Submitted auto-approvals
 
-## Root cause
+## Background
 
-The service filter on the appointments list matches rows where either:
-- `calendar_name ILIKE '%GAE%'` (or `%In-person%`), OR
-- `parsed_pathology_info ->> 'procedure' = 'GAE'`
+Admin manual approvals from the Review Queue already add an `approved` tag to the GHL contact via `update-ghl-contact-tags` (see `src/components/admin/ReviewQueue.tsx`, lines 252–292).
 
-All 200 Davis Vein & Vascular appointments currently have `parsed_pathology_info->procedure = NULL`, and 30 of them (the newly imported unscheduled leads) also have `calendar_name = NULL`. So selecting "GAE" in the service filter matches 0 rows — even though the appointment card visually shows a "GAE" tag (the card falls back to keyword‑matching `patient_intake_notes` like "knee pain" / "osteoarthritis", which the database filter does not do).
+The other path that creates an auto-approved appointment — the GHL webhook detecting `Insurance Intake Source = "Setter Submitted"` and inserting with `review_status='approved'` — does NOT currently tag the contact. This plan closes that gap so both approval paths behave the same in GHL.
 
-Davis Vein & Vascular is a GAE-only project (same pattern as Premier Vascular / ECCO Medical), so every Davis appointment should carry `procedure = 'GAE'`.
+Exempt projects (ECCO Medical, Premier Vascular, Premier Vascular Surgery, Davis Vein & Vascular) are also auto-approved by the webhook but are out of scope per the user's answer ("All approvals" = Setter Submitted + admin Approve). Exempt-project auto-approvals will NOT be tagged.
 
-## Fix
+## Change
 
-One-time data backfill on `public.all_appointments` for `project_name = 'Davis Vein & Vascular'`:
+File: `supabase/functions/ghl-webhook-handler/index.ts`
 
-- Set `parsed_pathology_info` to `jsonb_set(coalesce(parsed_pathology_info, '{}'::jsonb), '{procedure}', '"GAE"')` for every Davis row where the procedure key is missing or null.
-- Leaves all other parsed fields intact.
+In the new-appointment branch (around lines 270–287), after the existing Slack notification block, add a fire-and-forget call to the `update-ghl-contact-tags` edge function when:
 
-After the backfill:
-- Selecting "GAE" in the service filter will return all Davis appointments (matched via `parsed_pathology_info->>procedure = 'GAE'`).
-- The "All Services" count and the "GAE" count will agree (both 2 inside the Jun 1–30 window, 200 overall).
+- `isSetterSubmitted === true`, AND
+- `appointmentRecord.ghl_id` is present
 
-No frontend changes are needed — the existing filter logic in `AllAppointmentsManager.tsx` already handles `parsed_pathology_info->>procedure = 'GAE'`.
+Behavior:
 
-## Follow-up (optional, not in this change)
+- Look up the project's `ghl_api_key` from `projects` (same pattern used by ReviewQueue).
+- Invoke `update-ghl-contact-tags` with `{ ghl_contact_id, ghl_api_key, tags: ['approved'], action: 'add' }`.
+- Wrap in try/catch and `.catch()` — must never block the webhook response or fail the insert.
+- Log success / failure with the existing `[${requestId}]` prefix.
 
-To prevent recurrence on future Davis (and Premier / ECCO) unscheduled-lead imports, the lead-insert path for these GAE-only projects should default `parsed_pathology_info = {"procedure": "GAE"}` at insert time. Confirm before I add this.
+No other files change. No DB migration. No frontend changes.
+
+## Memory update
+
+Update `mem://index.md` Core rule for the Review Queue Gate to note: when Setter Submitted bypasses the queue, the contact is also tagged `approved` in GHL (matching the admin manual-approve behavior).
