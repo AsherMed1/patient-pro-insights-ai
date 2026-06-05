@@ -1,46 +1,41 @@
-## Problem
+## Goal
+Import 38 GAE contacts from the uploaded CSV into the **Davis Vein & Vascular** portal as unscheduled `all_appointments` rows (Davis uses `time_preference` capture, not date/time).
 
-The Painless Center's "Request Your Neuropathy Consultation at ..." calendars produce appointments whose `parsed_pathology_info.procedure_type` is `GAE` (and pull GAE-specific intake fields like `oa_tkr_diagnosed`, "knee" symptoms, etc.). The auto-parser has no Neuropathy branch — it falls back to keyword matching ("GAE"/"KNEE" in notes) and incorrectly tags these patients as GAE. A stale rule also coerces Neuropathy STEP fields into the GAE bucket.
+## Source
+`Export_Contacts_GAE_Jun_2026_10_34_AM.csv` — 38 rows. Columns: Contact Id (GHL), First/Last Name, Phone, Created, Date Lead Was Created, Booked/Insurance Received Tag dates, Insurance ID Number, Clinical Summary (free-text with PCP, insurance, preferred location/appointment, complaint).
 
-## Fix
+## De-dup
+8 ghl_ids already exist in `all_appointments` and will be **skipped**:
+Edmundo Chavez, Anthony Alex, Helen Roberson, Michael Daigle, Terron Fontenberry, Loretta Brown Freddie, Abron Johnson, Billy Johnson.
 
-### 1. Calendar detection — recognize Neuropathy
-`supabase/functions/auto-parse-intake-notes/index.ts` → `detectProcedureFromCalendar()` (line ~1871). Add a branch above the GAE one:
-```ts
-if (name.includes('neuropathy') || name.includes('neuro')) {
-  return 'Neuropathy';
-}
-```
-Order matters — must be checked before `gae`/`knee` so it can't fall through.
+→ **30 new rows** will be inserted.
 
-### 2. STEP-line stripping — stop merging Neuropathy into GAE
-Same file, lines 52–67 (`stepRe` + the `linePrefix === 'NEUROPATHY' && proc === 'GAE'` exception). Remove the exception so Neuropathy STEP lines are kept only when `proc === 'Neuropathy'`, and drop the misleading "Treat Neuropathy as belonging to GAE workflow only" comment.
+## What gets inserted (per row)
+- `project_name` = "Davis Vein & Vascular"
+- `ghl_id` = CSV Contact Id
+- `lead_name` = "First Last"
+- `lead_phone_number` = CSV Phone
+- `status` = `Pending`
+- `date_of_appointment` = NULL, `appointment_time` = NULL (Davis unscheduled pattern)
+- `time_preference` = parsed from Clinical Summary ("Appointment Preference: Morning/Afternoon/Evening") → morning / afternoon / evening / no_preference fallback
+- `requested_time` = "Preferred Appointment: …" line if present (raw text)
+- `created_at` = CSV "Created" timestamp
+- `date_appointment_created` = CSV "Date Lead Was Created"
+- `internal_process_complete` = false
+- `review_status` = `approved` (Davis is on the auto-approve exempt list, so it skips the review queue)
+- `patient_intake_notes` = full Clinical Summary verbatim (so auto-parser can populate insurance/PCP/insights)
+- `detected_insurance_provider` / `detected_insurance_plan` = best-effort regex from "Insurance:" / "Provider:" / "Plan:" lines in summary
+- Insurance ID Number column → seed into intake notes block so the parser picks it up
 
-### 3. Keyword fallback — add Neuropathy
-Same file, lines 730–745 (procedure detection on raw notes). Add a `neuropathy` keyword branch that sets `procedure_type = 'Neuropathy'`. Place it before the GAE/knee check so Neuropathy notes don't fall through (knee numbness symptoms are common in Neuropathy intakes).
-
-### 4. AI prompt — let the model emit Neuropathy
-Same file, around line 2196 (prompt template referencing `calendarProcedure`) and any enum list of valid procedure types. Add `Neuropathy` to the allowed `procedure_type` values so the model returns it for Painless Center Neuropathy calendars.
-
-### 5. GHL custom-field procedure filter
-Same file, `detectProcedureFromFieldKey()` (line ~1310) and the Service Name override regex (line ~809). Add `NEUROPATHY` so the per-procedure field filter works for Neuropathy STEP fields.
-
-### 6. UI surface
-- `parsed_pathology_info.procedure_type === 'Neuropathy'` already maps to Emerald per the calendar color memory. Verify the pathology card/tag renders the `Neuropathy` label and hides GAE-only fields (OA/TKR Diagnosed, knee imaging, treatments tried for knee). Reuse the existing procedure-specific field-visibility pattern (see memory: Procedure Field Visibility).
-- Procedure tag dropdown / filter chips: add `Neuropathy` to the canonical list wherever GAE/PAE/etc. are enumerated.
-
-### 7. Re-parse existing rows
-For every `all_appointments` row where:
-- `project_name = 'The Painless Center'`
-- `calendar_name ILIKE '%Neuropathy%'`
-
-Clear `parsed_insurance_info`, `parsed_pathology_info`, `parsed_contact_info`, `parsed_demographics`, `parsing_completed_at` (one UPDATE), then invoke `reparse-specific-appointments` for those IDs in batches so the new calendar-aware parser repopulates them with `procedure_type = 'Neuropathy'`.
-
-## Memory updates after build
-
-- Add a new memory `mem://domain/procedure-definition-neuropathy` describing Neuropathy as a standalone procedure at The Painless Center (calendar keyword `Neuropathy`, pathology focuses on numbness/cold feet, no OA/TKR).
-- Update the existing "Treat Neuropathy as belonging to GAE workflow only" note (currently encoded in code comments and implied in [VSNC Virtual Location]) so future agents don't reintroduce the merge.
+## After insert
+Trigger `auto-parse-intake-notes` for the 30 new appointment ids in batches so `parsed_*` JSONB fields, demographics, and pathology populate in the portal UI.
 
 ## Out of scope
+- No code changes, no schema migrations.
+- Not importing into `new_leads` table (Davis flow uses `all_appointments` with Pending + time_preference, matching the 5 most recent Davis records).
+- Not creating GHL appointments; these are intake/lead records only.
 
-No schema changes — `procedure_type` is a free-text JSON field. No GHL outbound changes.
+## Technical notes
+- Use the `insert` SQL tool for the 30 INSERTs (single multi-row statement).
+- Trigger the parser via `supabase--curl_edge_functions` POST to `/auto-parse-intake-notes` with the list of new ids.
+- Names with apostrophes will be SQL-escaped.
