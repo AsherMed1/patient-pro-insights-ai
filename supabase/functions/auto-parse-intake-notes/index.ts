@@ -2334,6 +2334,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             parsedData.pathology_info.affected_knee = null;
             parsedData.pathology_info.trauma_related_onset = null;
           }
+        }
+
+
 
 
         // Enforce project-level procedure constraint after AI parse
