@@ -285,6 +285,35 @@ serve(async (req) => {
       } catch (e) {
         console.error(`[${requestId}] review-queue Slack invoke threw:`, e);
       }
+
+      // Setter-submitted auto-approve: tag the GHL contact 'approved' to match
+      // the admin manual-approve behavior in the Review Queue UI.
+      if (isSetterSubmitted && appointmentRecord.ghl_id) {
+        try {
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('ghl_api_key')
+            .eq('project_name', appointmentRecord.project_name)
+            .maybeSingle();
+
+          supabase.functions.invoke('update-ghl-contact-tags', {
+            body: {
+              ghl_contact_id: appointmentRecord.ghl_id,
+              ghl_api_key: projectData?.ghl_api_key || undefined,
+              tags: ['approved'],
+              action: 'add',
+            },
+          })
+            .then(({ error: tagErr }) => {
+              if (tagErr) console.error(`[${requestId}] setter-submitted GHL tag failed:`, tagErr);
+              else console.log(`[${requestId}] setter-submitted 'approved' tag added to GHL contact ${appointmentRecord.ghl_id}`);
+            })
+            .catch((e) => console.error(`[${requestId}] setter-submitted GHL tag invoke failed:`, e));
+        } catch (e) {
+          console.error(`[${requestId}] setter-submitted GHL tag block threw:`, e);
+        }
+      }
+
     }
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
