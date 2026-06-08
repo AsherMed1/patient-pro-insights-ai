@@ -69,6 +69,102 @@ const ReviewQueue: React.FC = () => {
   const [pendingCount, setPendingCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEdit = (row: ReviewAppointment) => {
+    setEditingRowId(row.id);
+    setEditName(row.lead_name || '');
+    const demoDob = (row.parsed_demographics && row.parsed_demographics.dob) || '';
+    setEditDob((row.dob || demoDob || '').slice(0, 10));
+  };
+
+  const cancelEdit = () => {
+    setEditingRowId(null);
+    setEditName('');
+    setEditDob('');
+  };
+
+  const calcAge = (dob: string): number | null => {
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+    return age;
+  };
+
+  const handleSaveEdit = async (row: ReviewAppointment) => {
+    const newName = editName.trim();
+    if (!newName) {
+      toast({ title: 'Name required', variant: 'destructive' });
+      return;
+    }
+    const newDob = editDob ? editDob.trim() : null;
+    if (newDob && !/^\d{4}-\d{2}-\d{2}$/.test(newDob)) {
+      toast({ title: 'Invalid DOB', description: 'Use YYYY-MM-DD', variant: 'destructive' });
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const mergedContact = { ...(row as any).parsed_contact_info || {}, name: newName };
+      const newAge = newDob ? calcAge(newDob) : null;
+      const mergedDemo = {
+        ...(row.parsed_demographics || {}),
+        ...(newDob ? { dob: newDob, age: newAge } : {}),
+      };
+      const updatePayload: any = {
+        lead_name: newName,
+        parsed_contact_info: mergedContact,
+        parsed_demographics: mergedDemo,
+        updated_at: new Date().toISOString(),
+      };
+      if (newDob) updatePayload.dob = newDob;
+
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update(updatePayload)
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_edited',
+          p_description: `Updated patient details in Review Queue: name "${row.lead_name}" → "${newName}"${newDob ? `, DOB → ${newDob}` : ''} by ${userName || 'Unknown'}`,
+          p_source: 'review_queue',
+          p_metadata: {
+            appointment_id: row.id,
+            project_name: row.project_name,
+            old_name: row.lead_name,
+            new_name: newName,
+            old_dob: row.dob,
+            new_dob: newDob,
+          },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      setRows(prev => prev.map(r => r.id === row.id ? {
+        ...r,
+        lead_name: newName,
+        dob: newDob ?? r.dob,
+        parsed_demographics: mergedDemo,
+      } : r));
+      toast({ title: 'Saved', description: newName });
+      cancelEdit();
+    } catch (e: any) {
+      toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -721,6 +817,40 @@ const ReviewQueue: React.FC = () => {
                   </div>
                   {isOpen && (
                     <div className="px-3 pb-4 pt-1 bg-muted/10 text-xs space-y-3">
+                      {editingRowId === row.id ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-background p-3 rounded border">
+                          <div>
+                            <div className="font-medium text-muted-foreground mb-1">Patient Name</div>
+                            <Input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              placeholder="Full name"
+                              className="h-8"
+                            />
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground mb-1">DOB</div>
+                            <Input
+                              type="date"
+                              value={editDob}
+                              onChange={(e) => setEditDob(e.target.value)}
+                              className="h-8"
+                            />
+                          </div>
+                          <div className="md:col-span-2 flex gap-2 justify-end">
+                            <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingEdit}>Cancel</Button>
+                            <Button size="sm" onClick={() => handleSaveEdit(row)} disabled={savingEdit}>
+                              {savingEdit ? 'Saving…' : 'Save'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end">
+                          <Button size="sm" variant="outline" className="h-7" onClick={() => startEdit(row)}>
+                            Edit Name / DOB
+                          </Button>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div>
                           <div className="font-medium text-muted-foreground">Email</div>

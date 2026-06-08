@@ -1,31 +1,36 @@
-# Add "approved" GHL tag for Setter Submitted auto-approvals
+# Enable editing Name and DOB in Review Queue
 
-## Background
+## Problem
+In `src/components/admin/ReviewQueue.tsx`, the patient name (line ~649) and DOB (line ~731) render as plain text. There is no UI to update them, so admins can't correct typos or missing DOBs before approving.
 
-Admin manual approvals from the Review Queue already add an `approved` tag to the GHL contact via `update-ghl-contact-tags` (see `src/components/admin/ReviewQueue.tsx`, lines 252–292).
+## Plan
 
-The other path that creates an auto-approved appointment — the GHL webhook detecting `Insurance Intake Source = "Setter Submitted"` and inserting with `review_status='approved'` — does NOT currently tag the contact. This plan closes that gap so both approval paths behave the same in GHL.
+### 1. Add inline edit UI in the expanded row panel
+In the expanded details block (lines ~722–758), replace the static Name/DOB displays with editable fields gated by an "Edit" toggle:
+- **Name**: `Input` (text)
+- **DOB**: `Input type="date"` (ISO `YYYY-MM-DD`)
+- Show **Save** / **Cancel** buttons when in edit mode.
+- Keep the row header (line 649) showing the current `lead_name` for quick scanning.
 
-Exempt projects (ECCO Medical, Premier Vascular, Premier Vascular Surgery, Davis Vein & Vascular) are also auto-approved by the webhook but are out of scope per the user's answer ("All approvals" = Setter Submitted + admin Approve). Exempt-project auto-approvals will NOT be tagged.
+### 2. Save handler
+Add `handleSaveDetails(rowId, { lead_name, dob })` that:
+- Trims inputs; requires non-empty name; validates DOB format if provided.
+- Updates `all_appointments`:
+  - `lead_name` → top-level column
+  - `dob` → top-level column (per memory: `all_appointments.dob` is primary source of truth)
+  - `parsed_contact_info.name` and `parsed_demographics.dob` inside the JSONB blobs (per Core memory: "UI edits must simultaneously update top-level columns AND JSONB `parsed_*` objects"). Merge into existing JSONB to avoid clobbering other fields.
+  - Recalculate `parsed_demographics.age` from the new DOB (per Core memory: "Always recalculate Age when DOB changes").
+- Logs an `audit_logs` entry via `log_audit_event` describing what changed (`"Updated patient name/DOB: <old> → <new> by <userName>"`), matching the attribution pattern already used for Approve/Decline.
+- Refreshes the row in local state and shows a toast.
 
-## Change
+### 3. State
+Add `editingRowId`, `editName`, `editDob` to component state. Reset on cancel/save.
 
-File: `supabase/functions/ghl-webhook-handler/index.ts`
+### 4. Out of scope
+- No outbound GHL contact sync for name/DOB changes in this pass (can be added later via `update-ghl-contact`).
+- No changes to the Declined view edit behavior — edit is only available in the Pending view.
 
-In the new-appointment branch (around lines 270–287), after the existing Slack notification block, add a fire-and-forget call to the `update-ghl-contact-tags` edge function when:
-
-- `isSetterSubmitted === true`, AND
-- `appointmentRecord.ghl_id` is present
-
-Behavior:
-
-- Look up the project's `ghl_api_key` from `projects` (same pattern used by ReviewQueue).
-- Invoke `update-ghl-contact-tags` with `{ ghl_contact_id, ghl_api_key, tags: ['approved'], action: 'add' }`.
-- Wrap in try/catch and `.catch()` — must never block the webhook response or fail the insert.
-- Log success / failure with the existing `[${requestId}]` prefix.
-
-No other files change. No DB migration. No frontend changes.
-
-## Memory update
-
-Update `mem://index.md` Core rule for the Review Queue Gate to note: when Setter Submitted bypasses the queue, the contact is also tagged `approved` in GHL (matching the admin manual-approve behavior).
+## Technical notes
+- Merge JSONB safely: `parsed_contact_info: { ...(row.parsed_contact_info || {}), name }` and same for demographics.
+- Age calc: `floor((today - dob) / 365.25)`; store as integer.
+- Use existing `supabase`, `toast`, `userName`, `user` already imported in the file.
