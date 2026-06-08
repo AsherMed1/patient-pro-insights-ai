@@ -911,6 +911,14 @@ function getUpdateableFields(
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
 
+    // Pre-populate parsed_pathology_info.procedure so the service filter works
+    // immediately for unscheduled-capture leads (no calendar / NULL procedure issue).
+    const inferredProcedure = inferProcedureFromContext(
+      webhookData.project_name,
+      webhookData.calendar_name,
+      webhookData.patient_intake_notes,
+    );
+
     return {
       fields: {
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
@@ -930,6 +938,7 @@ function getUpdateableFields(
         was_ever_confirmed: true,
         time_preference: timePreference,
         is_unscheduled: isPremierVascular,
+        ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
       }
     }
   }
