@@ -15,6 +15,39 @@ const REVIEW_QUEUE_EXEMPT = new Set([
   'Davis Vein & Vascular',
 ]);
 
+// Infer procedure from calendar/intake/project default so unscheduled-capture
+// leads (ECCO/Premier/Davis) populate the service filter correctly at insert time.
+function inferProcedureFromContext(
+  projectName: string | null | undefined,
+  calendarName: string | null | undefined,
+  intakeNotes: string | null | undefined,
+): string | null {
+  const cal = (calendarName || '').toString();
+  if (/\bGAE\b/i.test(cal)) return 'GAE';
+  if (/\bUFE\b/i.test(cal)) return 'UFE';
+  if (/\bPAE\b/i.test(cal)) return 'PAE';
+  if (/\bPFE\b/i.test(cal)) return 'PFE';
+  if (/\bHAE\b/i.test(cal)) return 'HAE';
+  if (/\bTAE\b/i.test(cal)) return 'TAE';
+  if (/\bPAD\b/i.test(cal)) return 'PAD';
+  if (/neuropathy/i.test(cal)) return 'Neuropathy';
+  if (/in[- ]?person/i.test(cal)) return 'GAE';
+  if (/knee/i.test(cal)) return 'GAE';
+
+  const notes = (intakeNotes || '').toString();
+  if (/(knee pain|osteoarthritis|knee replacement)/i.test(notes)) return 'GAE';
+  if (/(fibroid|uterine)/i.test(notes)) return 'UFE';
+  if (/(prostate|\bBPH\b|enlarged prostate)/i.test(notes)) return 'PAE';
+  if (/plantar fasciitis/i.test(notes)) return 'PFE';
+  if (/hemorrhoid/i.test(notes)) return 'HAE';
+
+  const proj = (projectName || '').trim().toLowerCase();
+  if (proj === 'premier vascular' || proj === 'premier vascular surgery') return 'GAE';
+
+  return null;
+}
+
+
 type InputRow = {
   project_name: string;
   ghl_contact_id: string;
