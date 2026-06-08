@@ -817,6 +817,40 @@ const ReviewQueue: React.FC = () => {
                   </div>
                   {isOpen && (
                     <div className="px-3 pb-4 pt-1 bg-muted/10 text-xs space-y-3">
+                      {editingRowId === row.id ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-background p-3 rounded border">
+                          <div>
+                            <div className="font-medium text-muted-foreground mb-1">Patient Name</div>
+                            <Input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              placeholder="Full name"
+                              className="h-8"
+                            />
+                          </div>
+                          <div>
+                            <div className="font-medium text-muted-foreground mb-1">DOB</div>
+                            <Input
+                              type="date"
+                              value={editDob}
+                              onChange={(e) => setEditDob(e.target.value)}
+                              className="h-8"
+                            />
+                          </div>
+                          <div className="md:col-span-2 flex gap-2 justify-end">
+                            <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingEdit}>Cancel</Button>
+                            <Button size="sm" onClick={() => handleSaveEdit(row)} disabled={savingEdit}>
+                              {savingEdit ? 'Saving…' : 'Save'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end">
+                          <Button size="sm" variant="outline" className="h-7" onClick={() => startEdit(row)}>
+                            Edit Name / DOB
+                          </Button>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div>
                           <div className="font-medium text-muted-foreground">Email</div>
