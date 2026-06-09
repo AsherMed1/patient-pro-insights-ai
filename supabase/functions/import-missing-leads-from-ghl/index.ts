@@ -30,6 +30,7 @@ function inferProcedureFromContext(
   if (/\bHAE\b/i.test(cal)) return 'HAE';
   if (/\bTAE\b/i.test(cal)) return 'TAE';
   if (/\bPAD\b/i.test(cal)) return 'PAD';
+  if (/\bFSE\b/i.test(cal)) return 'FSE';
   if (/neuropathy/i.test(cal)) return 'Neuropathy';
   if (/in[- ]?person/i.test(cal)) return 'GAE';
   if (/knee/i.test(cal)) return 'GAE';
@@ -40,6 +41,8 @@ function inferProcedureFromContext(
   if (/(prostate|\bBPH\b|enlarged prostate)/i.test(notes)) return 'PAE';
   if (/plantar fasciitis/i.test(notes)) return 'PFE';
   if (/hemorrhoid/i.test(notes)) return 'HAE';
+  if (/frozen shoulder/i.test(notes)) return 'FSE';
+  if (/peripheral artery/i.test(notes)) return 'PAD';
 
   const proj = (projectName || '').trim().toLowerCase();
   if (proj === 'premier vascular' || proj === 'premier vascular surgery') return 'GAE';
