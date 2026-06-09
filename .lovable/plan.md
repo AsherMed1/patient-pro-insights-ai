@@ -1,24 +1,28 @@
-## Goal
-Ensure newly-arriving intake notes are parsed completely. Skip any retroactive backfill of historical records.
+## Bulk-create 20 review_only users
 
-## Scope
-- Keep the parser improvements already shipped in `supabase/functions/auto-parse-intake-notes/index.ts` (regex enrichment for Insurance Provider/Plan/ID/Group, PCP name/phone, Imaging Details, and PAE w/BPH symptoms/duration/treatments, plus the broadened GPT prompt for `<PROC> STEP N |` style questions).
-- Keep the UI null-safe DOB/Age guard in `src/components/appointments/ParsedIntakeInfo.tsx`.
+Add the listed Patient Pro Marketing emails as new users with the `review_only` role so they can access only the Review Queue.
 
-## What changes vs. prior plan
-1. **Do not run any backfill.** No mass reset of `parsing_completed_at`, no per-project sweeps, no retroactive rewrites of `parsed_*` JSON.
-2. **Delete the backfill edge function** `supabase/functions/backfill-parsed-fields/` so it can't be invoked accidentally.
-3. **No UI trigger or admin button** for backfill.
+### Approach
 
-## Forward-only behavior
-- New appointments created via `ghl-webhook-handler` or `import-missing-leads-from-ghl` continue to set `parsing_completed_at = NULL`, which the existing 30s `useAutoIntakeParsing` cron picks up and runs through the improved parser.
-- Any record already in the DB with incomplete `parsed_*` fields stays as-is unless a user manually triggers reparse on that single record (existing per-record reparse path is unchanged).
+Use a one-off admin-authenticated script that calls the existing `create-user-with-role` edge function once per email. That function already:
+- Creates the auth user (with a generated temp password + `must_change_password: true`)
+- Creates the `profiles` row
+- Inserts a `user_roles` row with the chosen role
+- Logs to `security_audit_log`
 
-## Verification
-- Create or receive one new test appointment with the standard intake template (insurance + PAE w/BPH section).
-- Confirm within ~60s the Patient Pro Insights card shows provider, plan, ID, group, PCP, imaging, and PAE symptoms/duration/treatments populated.
-- Confirm no historical records were touched (spot-check a known-incomplete old record stays unchanged).
+No new tables, RLS, or schema changes needed. No project access is assigned (review_only doesn't need per-project assignment).
 
-## Out of scope
-- Backfilling LeAnthony Hill, TEST DoNotContact, ECCO records, or any other historical rows.
-- Any cron/admin job that scans for incomplete parsed fields.
+### Deduplication
+
+The list contains `jennifer.r@patientpromarketing.com` twice — I'll de-dupe to 20 unique emails before creating.
+
+### Output
+
+A summary table per email: created / already-exists / error, plus the generated temporary password for each newly created user so you can distribute them. Users will be forced to change password on first login.
+
+### Open questions
+
+1. **Welcome email** — should I trigger the existing welcome-email flow for each new user, or just hand you the temp passwords to share manually?
+2. **Password delivery** — do you want one shared temp password for all 20, or a unique random password per user (current edge function default)?
+
+Once you confirm, I'll switch to build mode and run the creation.
