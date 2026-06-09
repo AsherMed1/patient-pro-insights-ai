@@ -968,6 +968,30 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       }
     }
   }
+
+  // Backfill insurance_provider from raw notes when AI missed it.
+  if (!parsedData.insurance_info.insurance_provider) {
+    const m = intakeNotes.match(/^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im);
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (v && v.length < 80 && !/^(none|n\/a|unknown)$/i.test(v)) {
+        parsedData.insurance_info.insurance_provider = v;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_provider via regex: ${v}`);
+      }
+    }
+  }
+
+  // Backfill insurance_plan from raw notes when AI missed it.
+  if (!parsedData.insurance_info.insurance_plan) {
+    const m = intakeNotes.match(/^[ \t]*Insurance Plan\s*:\s*([^\n|]+)/im);
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (v && v.length < 120 && !/^(none|n\/a|unknown)$/i.test(v)) {
+        parsedData.insurance_info.insurance_plan = v;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_plan via regex: ${v}`);
+      }
+    }
+  }
   
   // Ensure pathology_info exists
   if (!parsedData.pathology_info) {
