@@ -1332,10 +1332,58 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // === PAE w/BPH STEP-specific field extraction (deterministic regex on raw notes) ===
+  // PAE intake uses "PAE w/BPH | <question>:" format that GPT often skips.
+  if (/PAE w\/?\s*BPH\s*\||prostate|BPH/i.test(intakeNotes)) {
+    if (!parsedData.pathology_info.primary_complaint) {
+      parsedData.pathology_info.primary_complaint = 'PAE / BPH';
+    }
+
+    const grab = (re: RegExp): string | null => {
+      const m = intakeNotes.match(re);
+      return m && m[1] ? m[1].trim() : null;
+    };
+
+    // Symptoms experienced
+    if (!parsedData.pathology_info.symptoms || /^(yes|no|☑️\s*yes|☐\s*no)$/i.test(String(parsedData.pathology_info.symptoms).trim())) {
+      const sx = grab(/PAE w\/?\s*BPH\s*\|\s*(?:What|Which)[^:?]*symptom[^:?]*\??\s*:\s*([^\n]+)/i)
+        || grab(/symptoms? (?:are you )?experiencing[^:?]*\??\s*:\s*([^\n]+)/i);
+      if (sx && sx.length > 2) {
+        parsedData.pathology_info.symptoms = sx;
+        console.log(`[AUTO-PARSE PAE] Extracted symptoms: ${sx}`);
+      }
+    }
+
+    // Duration
+    if (!parsedData.pathology_info.duration) {
+      const dur = grab(/PAE w\/?\s*BPH\s*\|[^|\n:]*(?:how long|duration)[^:?]*\??\s*:\s*([^\n]+)/i)
+        || grab(/how long have you (?:had|been experiencing)[^:?]*\??\s*:\s*([^\n]+)/i);
+      if (dur) {
+        parsedData.pathology_info.duration = dur;
+        console.log(`[AUTO-PARSE PAE] Extracted duration: ${dur}`);
+      }
+    }
+
+    // Previous treatments
+    if (!parsedData.pathology_info.previous_treatments) {
+      const tx = grab(/PAE w\/?\s*BPH\s*\|[^|\n:]*(?:treatments?|medications?)[^:?]*\??\s*:\s*([^\n]+)/i)
+        || grab(/what treatments? have you tried[^:?]*\??\s*:\s*([^\n]+)/i);
+      if (tx && tx.length > 2) {
+        parsedData.pathology_info.previous_treatments = tx;
+        console.log(`[AUTO-PARSE PAE] Extracted previous_treatments: ${tx}`);
+      }
+    }
+
+    // Urologist surgery recommended → diagnosis/notes
+    const surg = grab(/urologist[^:?]*surger(?:y|ies)[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (surg && !parsedData.pathology_info.other_notes) {
+      parsedData.pathology_info.other_notes = `Urologist surgery recommended: ${surg}`;
+      console.log(`[AUTO-PARSE PAE] Extracted urologist surgery note: ${surg}`);
+    }
+  }
+
   return parsedData;
 }
-
-// Helper: Detect procedure type from a field key name (e.g., "GAE STEP 1 | Pain level" -> "GAE")
 function detectProcedureFromFieldKey(key: string): string | null {
   const upperKey = key.toUpperCase();
   if (upperKey.includes('NEUROPATHY')) {
