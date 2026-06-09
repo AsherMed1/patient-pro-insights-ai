@@ -1,78 +1,55 @@
+## Problem
 
-# Fix GAE service filter returning 0 for ECCO Medical and Premier Vascular
+In the **Texas Endovascular – Houston Vein Clinic** portal, the Appointments list shows the right counts under **Service = All**, but **Service = PAE** returns 0 — same symptom you saw earlier for ECCO / Premier / Davis. Example: Edward Booker (PAE Woodlands, June 26, Confirmed, approved) is in the DB but missing from the PAE-filtered view.
 
-## Root cause (same as the Davis fix from June 5)
+## Root cause
 
-In the client portal, the service filter for "GAE" matches against:
+TEH appointments have `parsed_pathology_info->>'procedure'` = NULL for nearly all rows:
 
-```
-calendar_name ILIKE '%GAE%'
-  OR calendar_name ILIKE '%In-person%'
-  OR parsed_pathology_info->>'procedure' = 'GAE'
-```
+| Project | Total | Procedure NULL |
+|---|---|---|
+| Texas Endovascular - Houston Vein Clinic | 579 | 579 |
+| Texas Endovascular - Dallas Vein Clinic | 193 | 193 |
+| Georgia Endovascular | 1,297 | 1,297 |
 
-For ECCO Medical and Premier Vascular **unscheduled-capture** leads:
+The Service filter ORs `calendar_name ILIKE %PAE%` with `parsed_pathology_info->>'procedure' = 'PAE'`. The calendar-name branch should match — but if any portal surface (stat card, dashboard, export, or a tab path) hits the procedure JSON branch alone, the row is invisible. This is the same class of bug we just fixed for ECCO / Premier / Davis, and TEH is not yet covered.
 
-- Many rows have `calendar_name = 'Unknown'` (or `'Call Back Request …'`), so the calendar match fails.
-- Every unscheduled row has `parsed_pathology_info->>'procedure' = NULL`, so the JSON match fails.
-- The appointment card still **displays** a "GAE" badge because `AppointmentCard.tsx` falls back to keyword-matching `patient_intake_notes` ("knee pain" / "osteoarthritis" → GAE) — but that fallback is UI-only and is not applied to the DB query.
+## Plan
 
-Result: "All Services" shows the rows (with a GAE badge from intake-notes fallback); selecting GAE in the dropdown returns 0.
+### 1. Backfill `parsed_pathology_info.procedure` for TEH + Georgia Endovascular (existing rows)
 
-DB confirms current state (`review_status IN ('approved','oon')`, unscheduled, `IPC=false`):
+Run a one-shot SQL update on `all_appointments` for these 3 projects only, using the same priority chain we used last time:
 
-| Project | Unscheduled new appts | calendar GAE | parsed procedure GAE |
-|---|---|---|---|
-| ECCO Medical | 7 | 0 (all "Unknown" / PFE) | 0 |
-| Premier Vascular | 8 | 4 ("Request your GAE Consultation at Macon, GA") | 0 |
+1. **Calendar name regex** (case-insensitive): `GAE|UFE|PAE|PFE|HAE|TAE|PAD|FSE`. Plus "in-person"/"knee" → GAE; "virtual" stays as-is for type inference but doesn't override an explicit token.
+2. **Intake notes keywords** (case-insensitive fallback): `prostate|BPH` → PAE; `fibroid|uterine` → UFE; `knee pain|osteoarthritis|knee replacement` → GAE; `frozen shoulder` → FSE; `hemorrhoid` → HAE; `plantar fasciitis` → PFE; `peripheral artery` → PAD.
+3. Leave NULL when no signal (rare — TEH calendar names are well-structured).
 
-Plus 164 ECCO and 154 Premier older rows where the calendar doesn't contain a procedure token and `parsed_pathology_info->>procedure` is NULL.
+Updates `parsed_pathology_info` via `jsonb_set` and bumps `updated_at`. Only touches rows where `parsed_pathology_info->>'procedure' IS NULL`.
 
-## Fix
+### 2. Extend new-row inference to TEH + Georgia Endovascular
 
-Mirror the Davis backfill, but procedure-aware (ECCO offers GAE/PAE/PFE; Premier is GAE-dominant but also runs UFE/HAE/etc., so we cannot blanket-set GAE).
+Add these 3 projects to the `inferProcedureFromContext()` helper that already exists in:
 
-### 1. One-time SQL backfill (migration)
-
-For every ECCO Medical, Premier Vascular, and Premier Vascular Surgery row where `parsed_pathology_info->>'procedure'` is NULL, set it from the strongest available signal, in this priority order:
-
-1. **`calendar_name` token** — first match of `\b(GAE|UFE|PAE|PFE|HAE|TAE|PAD|Neuropathy)\b` (case-insensitive). "In-Person" / "In-person" → GAE (per existing portal rule). "Knee" → GAE.
-2. **`patient_intake_notes` keywords** (case-insensitive), first match wins:
-   - `knee pain` / `osteoarthritis` / `knee replacement` → **GAE**
-   - `fibroid` / `uterine` → **UFE**
-   - `prostate` / `BPH` / `enlarged prostate` → **PAE**
-   - `plantar fasciitis` → **PFE**
-   - `hemorrhoid` → **HAE**
-3. **Project default fallback** (only when both signals are silent):
-   - Premier Vascular / Premier Vascular Surgery → **GAE** (Macon practice is GAE-dominant; matches the intake-notes UI default they're already seeing).
-   - ECCO Medical → **leave NULL** (3-procedure shop — never guess; these will continue to show with the existing "Virtual (Unspecified)" / no-service behavior).
-
-Implementation: a single `UPDATE all_appointments SET parsed_pathology_info = jsonb_set(COALESCE(parsed_pathology_info, '{}'::jsonb), '{procedure}', to_jsonb(<inferred>), true), updated_at = now() WHERE …` using a `CASE` expression. Skip rows where the inferred value would be NULL.
-
-Verification after backfill: re-run the same `COUNT(*) FILTER (WHERE parsed_pathology_info->>'procedure' = 'GAE')` query and confirm the GAE filter now returns the expected ECCO/Premier rows in the portal.
-
-### 2. Prevent recurrence on future unscheduled-capture imports
-
-Update the lead-insert path used for ECCO / Premier / Davis unscheduled captures so that on insert it auto-populates `parsed_pathology_info.procedure` using the same priority chain (calendar token → intake keywords → project default). Edit the two functions that create these rows:
-
+- `supabase/functions/ghl-webhook-handler/index.ts`
 - `supabase/functions/import-missing-leads-from-ghl/index.ts`
-- The unscheduled branch of `supabase/functions/ghl-webhook-handler/index.ts` (around the "Unscheduled-capture projects" block referenced in memory).
 
-Both should call a small shared helper `inferProcedureFromContext({ projectName, calendarName, intakeNotes })` that returns the procedure string or `null`, and merge it into the `parsed_pathology_info` JSONB they already write.
+So future inserts pre-populate `parsed_pathology_info.procedure` immediately at insert time (no waiting on AI parse), which keeps the Service filter accurate from the moment the appointment lands.
 
-### 3. No frontend changes
+### 3. Verify
 
-`AllAppointmentsManager.tsx`, `AppointmentFilters.tsx`, and `ProjectDetailedDashboard.tsx` already handle `parsed_pathology_info->>procedure = '<service>'` correctly. Once the data is backfilled, the GAE dropdown will return the right rows for ECCO and Premier without any UI edits.
+After the backfill:
 
-## Technical notes
+```sql
+SELECT project_name, parsed_pathology_info->>'procedure' AS proc, COUNT(*)
+FROM all_appointments
+WHERE project_name LIKE 'Texas Endovascular%' OR project_name = 'Georgia Endovascular'
+GROUP BY 1, 2 ORDER BY 1, 2;
+```
 
-- The backfill is a migration (it's a data UPDATE, not just a read), so it'll go through the migration approval flow.
-- Memory rule already states "UI edits must simultaneously update top-level columns AND JSONB `parsed_*` objects" — this backfill respects that by using `jsonb_set` with `true` for create-if-missing.
-- No change to the `review_status`, `is_unscheduled`, or routing logic — only the `parsed_pathology_info.procedure` field is touched.
-- Premier Vascular Surgery (2 rows, all calendar = GAE) is included for completeness but is already matched by the calendar-name path; the backfill will simply set the JSON value to GAE for consistency.
+Then re-open the TEH Houston portal → Service = PAE and confirm Edward Booker + the other ~131 approved PAE rows appear.
 
 ## Out of scope
 
-- No change to the service dropdown options (KNOWN_PROJECT_SERVICES already lists GAE for ECCO).
-- No change to the GHL outbound sync.
-- No retroactive change to historical Davis rows (already fixed June 5).
+- No changes to the Service filter UI / query logic — it already does the OR fallback correctly.
+- No changes to review-queue exempt-project list (TEH still goes through normal review approval).
+- Not touching projects beyond TEH Houston/Dallas + Georgia Endovascular in this pass; if you want me to also include other vascular projects with NULL procedure, say the word and I'll widen the backfill.
