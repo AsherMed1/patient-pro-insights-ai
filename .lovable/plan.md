@@ -1,55 +1,65 @@
-## Problem
+# Plan: Eliminate Incomplete Patient Pro Insights
 
-In the **Texas Endovascular – Houston Vein Clinic** portal, the Appointments list shows the right counts under **Service = All**, but **Service = PAE** returns 0 — same symptom you saw earlier for ECCO / Premier / Davis. Example: Edward Booker (PAE Woodlands, June 26, Confirmed, approved) is in the DB but missing from the PAE-filtered view.
+Address the 4 failure classes uncovered investigating the TEST DoNotContact lead (and ECCO records) so Patient Pro Insights stops showing blank/garbage fields when the source data actually contains them.
 
-## Root cause
+## 1. Post-AI regex enrichment in `auto-parse-intake-notes`
 
-TEH appointments have `parsed_pathology_info->>'procedure'` = NULL for nearly all rows:
+After the GPT response is parsed, run deterministic regex extractors against `patient_intake_notes` and fill any field GPT left null. Same pattern already used for imaging.
 
-| Project | Total | Procedure NULL |
-|---|---|---|
-| Texas Endovascular - Houston Vein Clinic | 579 | 579 |
-| Texas Endovascular - Dallas Vein Clinic | 193 | 193 |
-| Georgia Endovascular | 1,297 | 1,297 |
+**Insurance (writes to `parsed_insurance_info`):**
+- `Insurance Provider:` → `provider`
+- `Insurance Plan:` → `plan`
+- `Insurance ID Number:` → `insurance_id_number`
+- `Insurance Group Number:` → `group_number`
 
-The Service filter ORs `calendar_name ILIKE %PAE%` with `parsed_pathology_info->>'procedure' = 'PAE'`. The calendar-name branch should match — but if any portal surface (stat card, dashboard, export, or a tab path) hits the procedure JSON branch alone, the row is invisible. This is the same class of bug we just fixed for ECCO / Premier / Davis, and TEH is not yet covered.
+**Medical (writes to `parsed_medical_info`):**
+- `Primary Care Doctor's Name and Phone:` → split into `pcp` and `pcp_phone`
+- `Had Imaging Before ?:` / `Imaging:` → `imaging_details`
 
-## Plan
+Only overwrite when the existing parsed value is null/empty — never clobber a real GPT answer.
 
-### 1. Backfill `parsed_pathology_info.procedure` for TEH + Georgia Endovascular (existing rows)
+## 2. Broaden parser prompt to recognize all procedure-prefix questions
 
-Run a one-shot SQL update on `all_appointments` for these 3 projects only, using the same priority chain we used last time:
+Today the system prompt is tuned to `GAE STEP 1 |`, `GAE STEP 2 |`. Extend the prompt so GPT also maps:
+- `PAE w/BPH | …`
+- `UFE STEP … |`
+- `HAE STEP … |`
+- `PAD STEP … |`
+- `FSE … |`
+- generic `<PROC> | <question>` patterns
 
-1. **Calendar name regex** (case-insensitive): `GAE|UFE|PAE|PFE|HAE|TAE|PAD|FSE`. Plus "in-person"/"knee" → GAE; "virtual" stays as-is for type inference but doesn't override an explicit token.
-2. **Intake notes keywords** (case-insensitive fallback): `prostate|BPH` → PAE; `fibroid|uterine` → UFE; `knee pain|osteoarthritis|knee replacement` → GAE; `frozen shoulder` → FSE; `hemorrhoid` → HAE; `plantar fasciitis` → PFE; `peripheral artery` → PAD.
-3. Leave NULL when no signal (rare — TEH calendar names are well-structured).
+…onto the same target fields (`symptoms`, `duration`, `previous_treatments`, `primary_complaint`, `pain_level`, `treatments_tried`). This is the root cause LeAnthony's PAE BPH answers and the TEST lead's PAE w/BPH answers were dropped.
 
-Updates `parsed_pathology_info` via `jsonb_set` and bumps `updated_at`. Only touches rows where `parsed_pathology_info->>'procedure' IS NULL`.
+## 3. UI null-safe DOB / Age display
 
-### 2. Extend new-row inference to TEH + Georgia Endovascular
+In the Patient Pro Insights card (Demographics row), when:
+- `dob` is null, OR
+- `dob` parses to today's date (test/garbage sentinel), OR
+- computed `age === 0`
 
-Add these 3 projects to the `inferProcedureFromContext()` helper that already exists in:
+…render `—` instead of `06/09/2026 / Age 0`. Keep the existing DOB-source priority (top-level `dob` → `parsed_demographics.dob` → fallback objects) from the existing memory rule.
 
-- `supabase/functions/ghl-webhook-handler/index.ts`
-- `supabase/functions/import-missing-leads-from-ghl/index.ts`
+## 4. Backfill existing affected rows
 
-So future inserts pre-populate `parsed_pathology_info.procedure` immediately at insert time (no waiting on AI parse), which keeps the Service filter accurate from the moment the appointment lands.
+One-shot script (edge function or `supabase--read_query` + update) that:
+1. Selects rows where `parsed_insurance_info->>'insurance_id_number' IS NULL` AND `patient_intake_notes ILIKE '%Insurance ID Number:%'` (and the analogous predicates for the other 5 fields).
+2. Runs the same regex enrichment from step 1 and writes the JSONB updates.
+3. Logs counts per project.
 
-### 3. Verify
-
-After the backfill:
-
-```sql
-SELECT project_name, parsed_pathology_info->>'procedure' AS proc, COUNT(*)
-FROM all_appointments
-WHERE project_name LIKE 'Texas Endovascular%' OR project_name = 'Georgia Endovascular'
-GROUP BY 1, 2 ORDER BY 1, 2;
-```
-
-Then re-open the TEH Houston portal → Service = PAE and confirm Edward Booker + the other ~131 approved PAE rows appear.
+Will retroactively fix LeAnthony Hill, the TEST DoNotContact lead, and the ~24 flagged ECCO records.
 
 ## Out of scope
+- No changes to the `calendar_name = "Unknown"` composer (Class A) — separate plan, already discussed.
+- No fix for genuinely empty GHL source fields (Class B) — requires GHL form changes.
+- No changes to Review Queue, status routing, or sync logic.
 
-- No changes to the Service filter UI / query logic — it already does the OR fallback correctly.
-- No changes to review-queue exempt-project list (TEH still goes through normal review approval).
-- Not touching projects beyond TEH Houston/Dallas + Georgia Endovascular in this pass; if you want me to also include other vascular projects with NULL procedure, say the word and I'll widen the backfill.
+## Files touched
+- `supabase/functions/auto-parse-intake-notes/index.ts` — prompt + post-AI regex (steps 1 + 2)
+- `src/components/appointments/…` Patient Pro Insights demographics row (step 3)
+- New `supabase/functions/backfill-parsed-fields/index.ts` (step 4)
+
+## Verification
+- Re-run parser on TEST DoNotContact: confirm `parsed_insurance_info` has Aetna / Test Plan / 1234 / group, `parsed_pathology_info` has symptoms/duration/previous_treatments, `parsed_medical_info.pcp` = "test doctor".
+- Re-run on LeAnthony Hill: confirm `insurance_id_number = 999604480`.
+- Open Patient Pro Insights for Tori Hamilton: confirm Age/DOB row shows `—` instead of `0 / 06/09/2026`.
+- Run backfill and report per-project enrichment counts.
