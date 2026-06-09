@@ -970,13 +970,21 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
 
   // Backfill insurance_provider from raw notes when AI missed it.
+  // GHL emits either "Insurance Provider:" or "Please select your insurance provider:".
   if (!parsedData.insurance_info.insurance_provider) {
-    const m = intakeNotes.match(/^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im);
-    if (m && m[1]) {
-      const v = m[1].trim();
-      if (v && v.length < 80 && !/^(none|n\/a|unknown)$/i.test(v)) {
-        parsedData.insurance_info.insurance_provider = v;
-        console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_provider via regex: ${v}`);
+    const providerPatterns = [
+      /^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im,
+      /Please select your insurance provider\s*:\s*([^\n|]+)/i,
+    ];
+    for (const p of providerPatterns) {
+      const m = intakeNotes.match(p);
+      if (m && m[1]) {
+        const v = m[1].trim();
+        if (v && v.length < 80 && !/^(none|n\/a|unknown)$/i.test(v)) {
+          parsedData.insurance_info.insurance_provider = v;
+          console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_provider via regex: ${v}`);
+          break;
+        }
       }
     }
   }
@@ -989,6 +997,38 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       if (v && v.length < 120 && !/^(none|n\/a|unknown)$/i.test(v)) {
         parsedData.insurance_info.insurance_plan = v;
         console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_plan via regex: ${v}`);
+      }
+    }
+  }
+
+  // Backfill PCP name/phone from raw notes when AI missed it.
+  // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
+  if (!parsedData.medical_info) parsedData.medical_info = {};
+  if (!parsedData.medical_info.pcp_name) {
+    const m = intakeNotes.match(/Primary Care[^:\n]*:\s*([^\n|]+)/i);
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (v && !/^(none|n\/a|unknown)$/i.test(v)) {
+        const phoneMatch = v.match(/(\d{3}[.\-\s]?\d{3}[.\-\s]?\d{4})/);
+        if (phoneMatch) {
+          parsedData.medical_info.pcp_phone = phoneMatch[1];
+          parsedData.medical_info.pcp_name = v.replace(phoneMatch[1], '').trim().replace(/[,\-\s]+$/, '');
+        } else {
+          parsedData.medical_info.pcp_name = v;
+        }
+        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_name via regex: ${parsedData.medical_info.pcp_name}`);
+      }
+    }
+  }
+
+  // Backfill imaging_details from "Had Imaging Before ?:" when AI missed it.
+  if (!parsedData.medical_info.imaging_details) {
+    const m = intakeNotes.match(/Had Imaging Before\s*\??\s*:\s*([^\n|]+)/i);
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (v && !/^(none|n\/a|unknown|no)$/i.test(v)) {
+        parsedData.medical_info.imaging_details = v;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled imaging_details via regex: ${v}`);
       }
     }
   }
