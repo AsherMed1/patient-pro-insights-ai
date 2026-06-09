@@ -1,28 +1,25 @@
-## Bulk-create 20 review_only users
+## Send welcome emails to the 20 review_only users
 
-Add the listed Patient Pro Marketing emails as new users with the `review_only` role so they can access only the Review Queue.
+Run a one-off edge function that loops through the 20 Patient Pro Marketing review_only accounts and invokes the existing `send-welcome-email` function for each — including their original temp password so they can log in.
 
 ### Approach
 
-Use a one-off admin-authenticated script that calls the existing `create-user-with-role` edge function once per email. That function already:
-- Creates the auth user (with a generated temp password + `must_change_password: true`)
-- Creates the `profiles` row
-- Inserts a `user_roles` row with the chosen role
-- Logs to `security_audit_log`
+1. Create a one-off edge function `bulk-send-welcome-emails` (service role) that:
+   - Holds the same 20 email → temp password map generated during user creation.
+   - For each user: looks up the `profiles.id` by email, then invokes `send-welcome-email` with `{ userId, email, fullName, password }`.
+   - Skips any profile where `welcome_email_sent = true` (the existing function already guards this, but we short-circuit for cleaner output).
+   - Returns a per-email summary (sent / skipped-already-sent / error).
 
-No new tables, RLS, or schema changes needed. No project access is assigned (review_only doesn't need per-project assignment).
+2. Deploy and invoke once.
 
-### Deduplication
+3. Delete the one-off function after the run (same cleanup pattern we used for `bulk-create-review-only`).
 
-The list contains `jennifer.r@patientpromarketing.com` twice — I'll de-dupe to 20 unique emails before creating.
+### Notes / caveats
 
-### Output
+- Uses the existing `send-welcome-email` flow, so it respects sandbox-mode and domain-verification guards. If `RESEND_FROM_EMAIL` is still on `onboarding@resend.dev`, sends will fail for any address other than `RESEND_ALLOWED_TEST_EMAIL`. Confirm the verified sender domain is configured before running, or expect failures for the @patientpromarketing.com recipients.
+- Passwords were generated client-side at creation time and not stored. I'll re-use the same values from that run's output, embedded in the one-off function. If you'd rather rotate to fresh passwords, say so and I'll add an admin password-reset step before the email send.
+- No DB schema changes. No frontend changes.
 
-A summary table per email: created / already-exists / error, plus the generated temporary password for each newly created user so you can distribute them. Users will be forced to change password on first login.
+### Open question
 
-### Open questions
-
-1. **Welcome email** — should I trigger the existing welcome-email flow for each new user, or just hand you the temp passwords to share manually?
-2. **Password delivery** — do you want one shared temp password for all 20, or a unique random password per user (current edge function default)?
-
-Once you confirm, I'll switch to build mode and run the creation.
+Use the **original temp passwords** from the create run, or **reset each user to a new temp password** first and email those instead?
