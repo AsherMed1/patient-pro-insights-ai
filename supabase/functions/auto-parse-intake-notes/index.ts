@@ -968,6 +968,30 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       }
     }
   }
+
+  // Backfill insurance_provider from raw notes when AI missed it.
+  if (!parsedData.insurance_info.insurance_provider) {
+    const m = intakeNotes.match(/^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im);
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (v && v.length < 80 && !/^(none|n\/a|unknown)$/i.test(v)) {
+        parsedData.insurance_info.insurance_provider = v;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_provider via regex: ${v}`);
+      }
+    }
+  }
+
+  // Backfill insurance_plan from raw notes when AI missed it.
+  if (!parsedData.insurance_info.insurance_plan) {
+    const m = intakeNotes.match(/^[ \t]*Insurance Plan\s*:\s*([^\n|]+)/im);
+    if (m && m[1]) {
+      const v = m[1].trim();
+      if (v && v.length < 120 && !/^(none|n\/a|unknown)$/i.test(v)) {
+        parsedData.insurance_info.insurance_plan = v;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled insurance_plan via regex: ${v}`);
+      }
+    }
+  }
   
   // Ensure pathology_info exists
   if (!parsedData.pathology_info) {
@@ -1305,6 +1329,56 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     if (m && m[1]) {
       parsedData.pathology_info.duration = m[1].trim();
       console.log(`[AUTO-PARSE ENRICH] Extracted duration via regex: ${m[1].trim()}`);
+    }
+  }
+
+  // === PAE w/BPH STEP-specific field extraction (deterministic regex on raw notes) ===
+  // PAE intake uses "PAE w/BPH | <question>:" format that GPT often skips.
+  if (/PAE w\/?\s*BPH\s*\||prostate|BPH/i.test(intakeNotes)) {
+    if (!parsedData.pathology_info.primary_complaint) {
+      parsedData.pathology_info.primary_complaint = 'PAE / BPH';
+    }
+
+    const grab = (re: RegExp): string | null => {
+      const m = intakeNotes.match(re);
+      return m && m[1] ? m[1].trim() : null;
+    };
+
+    // Symptoms experienced
+    if (!parsedData.pathology_info.symptoms || /^(yes|no|☑️\s*yes|☐\s*no)$/i.test(String(parsedData.pathology_info.symptoms).trim())) {
+      const sx = grab(/PAE w\/?\s*BPH\s*\|\s*(?:What|Which)[^:?]*symptom[^:?]*\??\s*:\s*([^\n]+)/i)
+        || grab(/symptoms? (?:are you )?experiencing[^:?]*\??\s*:\s*([^\n]+)/i);
+      if (sx && sx.length > 2) {
+        parsedData.pathology_info.symptoms = sx;
+        console.log(`[AUTO-PARSE PAE] Extracted symptoms: ${sx}`);
+      }
+    }
+
+    // Duration
+    if (!parsedData.pathology_info.duration) {
+      const dur = grab(/PAE w\/?\s*BPH\s*\|[^|\n:]*(?:how long|duration)[^:?]*\??\s*:\s*([^\n]+)/i)
+        || grab(/how long have you (?:had|been experiencing)[^:?]*\??\s*:\s*([^\n]+)/i);
+      if (dur) {
+        parsedData.pathology_info.duration = dur;
+        console.log(`[AUTO-PARSE PAE] Extracted duration: ${dur}`);
+      }
+    }
+
+    // Previous treatments
+    if (!parsedData.pathology_info.previous_treatments) {
+      const tx = grab(/PAE w\/?\s*BPH\s*\|[^|\n:]*(?:treatments?|medications?)[^:?]*\??\s*:\s*([^\n]+)/i)
+        || grab(/what treatments? have you tried[^:?]*\??\s*:\s*([^\n]+)/i);
+      if (tx && tx.length > 2) {
+        parsedData.pathology_info.previous_treatments = tx;
+        console.log(`[AUTO-PARSE PAE] Extracted previous_treatments: ${tx}`);
+      }
+    }
+
+    // Urologist surgery recommended → diagnosis/notes
+    const surg = grab(/urologist[^:?]*surger(?:y|ies)[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (surg && !parsedData.pathology_info.other_notes) {
+      parsedData.pathology_info.other_notes = `Urologist surgery recommended: ${surg}`;
+      console.log(`[AUTO-PARSE PAE] Extracted urologist surgery note: ${surg}`);
     }
   }
 
@@ -2213,7 +2287,7 @@ If the notes contain information for MULTIPLE procedures (e.g., both GAE and UFE
 you MUST extract and prioritize the ${calendarProcedure}-specific pathology data.
 
 ${calendarProcedure === 'UFE' ? 'UFE (Uterine Fibroid Embolization) focuses on: pelvic pain, heavy periods, menstrual bleeding issues, urinary symptoms, pain during intercourse, fibroid-related symptoms. Set procedure_type to "UFE".' : ''}
-${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) focuses on: urinary frequency, weak urinary stream, incomplete bladder emptying, nocturia, prostate-related symptoms. Set procedure_type to "PAE".' : ''}
+${calendarProcedure === 'PAE' ? 'PAE (Prostatic Artery Embolization) focuses on: urinary frequency, weak urinary stream, incomplete bladder emptying, nocturia, prostate-related symptoms. Set procedure_type to "PAE". IMPORTANT: PAE intake questions are prefixed "PAE w/BPH | <question>:" — extract those answers into symptoms, duration, previous_treatments, and primary_complaint. Also handle "<PROC> STEP N | <question>:" and "<PROC> w/<SUB> | <question>:" patterns generically.' : ''}
 ${calendarProcedure === 'GAE' ? 'GAE (Genicular Artery Embolization) focuses on: knee pain, osteoarthritis, joint stiffness, swelling, joint instability, knee-related symptoms. Set procedure_type to "GAE".' : ''}
 ${calendarProcedure === 'PFE' ? 'PFE (Plantar Fasciitis Embolization) focuses on: heel pain, plantar fasciitis, sharp pain in the bottom of the heel, foot pain that worsens with first steps in the morning, pain that improves with rest. Set procedure_type to "PFE".' : ''}
 ${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poor circulation, numbness, cold feet, discoloration, open wounds/sores, toe pain, pain that worsens when walking and improves with rest, blood thinners, smoking/tobacco status, medical conditions (diabetes, hypertension, kidney disease). Set procedure_type to "PAD". Map medical conditions to "diagnosis".' : ''}

@@ -458,10 +458,32 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         <CollapsibleContent className="space-y-4 pt-4">
           {/* Demographics Section */}
           {(parsedDemographics || dob || parsedContactInfo?.dob) && (() => {
-            const displayDOB = dob || parsedDemographics?.dob || parsedContactInfo?.dob;
-            const displayAge = displayDOB ? calculateAge(displayDOB)?.toString() : parsedDemographics?.age;
+            const rawDOB = dob || parsedDemographics?.dob || parsedContactInfo?.dob;
+            // Guard against sentinel/garbage DOB values (null, today's date, future dates)
+            const isValidDOB = (() => {
+              if (!rawDOB || rawDOB === "null" || rawDOB === "") return false;
+              try {
+                const d = new Date(String(rawDOB));
+                if (isNaN(d.getTime())) return false;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dCopy = new Date(d);
+                dCopy.setHours(0, 0, 0, 0);
+                // Reject today or any future date (test/garbage sentinel)
+                if (dCopy.getTime() >= today.getTime()) return false;
+                return true;
+              } catch {
+                return false;
+              }
+            })();
+            const displayDOB = isValidDOB ? rawDOB : null;
+            const computedAge = displayDOB ? calculateAge(displayDOB) : null;
+            const fallbackAge = parsedDemographics?.age;
+            const displayAge = computedAge != null && computedAge > 0
+              ? computedAge.toString()
+              : (fallbackAge && String(fallbackAge) !== '0' ? fallbackAge : null);
             const displayGender = parsedDemographics?.gender;
-            
+
             return (
               <Card className="bg-purple-50 border-purple-200">
                 <CardContent className="pt-4 space-y-2">
@@ -469,18 +491,14 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <User className="h-4 w-4 text-purple-600" />
                     <span className="font-medium text-sm text-purple-900">Demographics</span>
                   </div>
-                  {formatValue(displayAge) && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Age:</span>{" "}
-                      <span className="font-medium">{displayAge}</span>
-                    </div>
-                  )}
-                  {formatDOB(displayDOB) && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Date of Birth:</span>{" "}
-                      <span className="font-medium">{formatDOB(displayDOB)}</span>
-                    </div>
-                  )}
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Age:</span>{" "}
+                    <span className="font-medium">{formatValue(displayAge) || "—"}</span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Date of Birth:</span>{" "}
+                    <span className="font-medium">{displayDOB ? formatDOB(displayDOB) : "—"}</span>
+                  </div>
                   {formatValue(displayGender) && (
                     <div className="text-sm">
                       <span className="text-muted-foreground">Gender:</span>{" "}
