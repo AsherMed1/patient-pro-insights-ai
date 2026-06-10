@@ -2140,7 +2140,7 @@ const AppointmentCard = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Mark patient as Out of Network?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will trigger appointment cancellation workflows, patient notifications, and status updates in connected systems (GoHighLevel). This cannot be automatically reversed. Type <strong>CONFIRM</strong> below to proceed.
+              This will trigger appointment cancellation workflows, patient notifications, and status updates in connected systems. This cannot be automatically reversed. Type <strong>CONFIRM</strong> below to proceed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Input
