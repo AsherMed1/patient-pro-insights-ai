@@ -159,6 +159,8 @@ const AppointmentCard = ({
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showOonDialog, setShowOonDialog] = useState(false);
+  const [oonConfirmText, setOonConfirmText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
