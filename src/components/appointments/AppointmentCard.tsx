@@ -159,6 +159,8 @@ const AppointmentCard = ({
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showOonDialog, setShowOonDialog] = useState(false);
+  const [oonConfirmText, setOonConfirmText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
@@ -755,6 +757,9 @@ const AppointmentCard = ({
       setShowRescheduleDialog(true);
     } else if (newStatus.toLowerCase() === 'cancelled' || newStatus.toLowerCase() === 'canceled') {
       setShowCancelDialog(true);
+    } else if (newStatus.toLowerCase() === 'oon') {
+      setOonConfirmText('');
+      setShowOonDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
@@ -2129,6 +2134,37 @@ const AppointmentCard = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showOonDialog} onOpenChange={(open) => { setShowOonDialog(open); if (!open) setOonConfirmText(''); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark patient as Out of Network?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will trigger appointment cancellation workflows, patient notifications, and status updates in connected systems (GoHighLevel). This cannot be automatically reversed. Type <strong>CONFIRM</strong> below to proceed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={oonConfirmText}
+            onChange={(e) => setOonConfirmText(e.target.value)}
+            placeholder="Type CONFIRM"
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={oonConfirmText.trim().toUpperCase() !== 'CONFIRM'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                onUpdateStatus(appointment.id, 'OON');
+                setShowOonDialog(false);
+                setOonConfirmText('');
+              }}
+            >
+              Confirm Out of Network
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>;
   };
 
