@@ -757,6 +757,9 @@ const AppointmentCard = ({
       setShowRescheduleDialog(true);
     } else if (newStatus.toLowerCase() === 'cancelled' || newStatus.toLowerCase() === 'canceled') {
       setShowCancelDialog(true);
+    } else if (newStatus.toLowerCase() === 'oon') {
+      setOonConfirmText('');
+      setShowOonDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
