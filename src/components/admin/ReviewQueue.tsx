@@ -304,6 +304,154 @@ const ReviewQueue: React.FC = () => {
 
   const projects = Array.from(new Set(rows.map(r => r.project_name))).sort();
 
+  // Detect duplicates: existing future, active appts for same patient+project
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setDuplicatesByRowId({});
+        return;
+      }
+      const TERMINAL = ['Cancelled', 'No Show', 'OON', 'Do Not Call', 'Rescheduled', 'Showed', 'Won'];
+      const today = new Date().toISOString().slice(0, 10);
+      const ids = rows.map(r => r.id);
+      const phones = Array.from(new Set(rows.map(r => r.lead_phone_number).filter(Boolean))) as string[];
+      const emails = Array.from(new Set(rows.map(r => r.lead_email).filter(Boolean))) as string[];
+      const projectNames = Array.from(new Set(rows.map(r => r.project_name).filter(Boolean))) as string[];
+      if (phones.length === 0 && emails.length === 0) {
+        setDuplicatesByRowId({});
+        return;
+      }
+      const ors: string[] = [];
+      if (phones.length) ors.push(`lead_phone_number.in.(${phones.map(p => `"${p}"`).join(',')})`);
+      if (emails.length) ors.push(`lead_email.in.(${emails.map(e => `"${e}"`).join(',')})`);
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .select('id, lead_phone_number, lead_email, project_name, date_of_appointment, requested_time, calendar_name, status, review_status')
+        .in('project_name', projectNames)
+        .gte('date_of_appointment', today)
+        .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
+        .or('is_superseded.is.null,is_superseded.eq.false')
+        .or(ors.join(','))
+        .limit(500);
+      if (error) {
+        console.warn('duplicate fetch failed', error);
+        return;
+      }
+      const map: Record<string, DuplicateAppt[]> = {};
+      for (const r of rows) {
+        const matches = (data || []).filter((a: any) =>
+          a.id !== r.id &&
+          a.project_name === r.project_name &&
+          a.review_status !== 'pending' &&
+          a.review_status !== 'declined' &&
+          a.review_status !== 'dismissed' &&
+          ((r.lead_phone_number && a.lead_phone_number === r.lead_phone_number) ||
+           (r.lead_email && a.lead_email === r.lead_email))
+        );
+        if (matches.length) map[r.id] = matches.map((m: any) => ({
+          id: m.id,
+          date_of_appointment: m.date_of_appointment,
+          requested_time: m.requested_time,
+          calendar_name: m.calendar_name,
+          status: m.status,
+        }));
+      }
+      setDuplicatesByRowId(map);
+    };
+    run();
+  }, [rows, queueView]);
+
+  const handleReplaceExisting = async (row: ReviewAppointment) => {
+    const dups = duplicatesByRowId[row.id] || [];
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      // Approve the new row first
+      const ok = await performAction(row.id, 'approved', 'Replaced existing duplicate appointment(s)');
+      if (!ok) { setProcessing(false); return; }
+
+      const newWhen = `${row.date_of_appointment || 'unscheduled'} ${row.requested_time || ''}`.trim();
+      for (const d of dups) {
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({
+              status: 'Cancelled',
+              internal_process_complete: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', d.id);
+
+          const utcTimestamp = new Date().toISOString();
+          await supabase.from('appointment_notes').insert({
+            appointment_id: d.id,
+            note_text: `Superseded by newer appointment ${newWhen} via Review Queue by ${userName || 'Unknown'} - [[timestamp:${utcTimestamp}]]`,
+            created_by: userName || 'Review Queue',
+          });
+        } catch (e) {
+          console.warn('replace-existing per-duplicate failed', e);
+        }
+      }
+
+      toast({ title: 'Replaced existing', description: `Approved new; cancelled ${dups.length} prior appt(s)` });
+      setRows(prev => prev.filter(r => r.id !== row.id));
+      setDupActionRow(null);
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Replace failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleKeepExisting = async (row: ReviewAppointment) => {
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          review_status: 'dismissed',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.id ?? null,
+          review_notes: 'Duplicate of existing appointment kept',
+        })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      await supabase.from('appointment_review_history').insert({
+        appointment_id: row.id,
+        action: 'dismissed',
+        prior_status: 'pending',
+        actor_id: user?.id ?? null,
+        actor_name: userName || user?.email || 'Unknown',
+        notes: 'Duplicate of existing appointment kept',
+      });
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_dismissed',
+          p_description: `Dismissed duplicate from Review Queue (kept existing): ${row.lead_name} by ${userName || 'Unknown'}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_id: row.id, project_name: row.project_name },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Kept existing, dismissed new', description: row.lead_name });
+      setRows(prev => prev.filter(r => r.id !== row.id));
+      setDupActionRow(null);
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+
   const performAction = async (id: string, action: ActionType, notes?: string) => {
     setProcessing(true);
     try {
