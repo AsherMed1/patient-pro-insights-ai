@@ -44,6 +44,14 @@ interface ReviewAppointment {
   review_notes?: string | null;
 }
 
+interface DuplicateAppt {
+  id: string;
+  date_of_appointment: string | null;
+  requested_time: string | null;
+  calendar_name: string | null;
+  status: string | null;
+}
+
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
