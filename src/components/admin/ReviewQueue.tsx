@@ -1280,6 +1280,58 @@ const ReviewQueue: React.FC = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Adopt-slot confirmation dialog */}
+        <Dialog open={!!adoptSlotTarget} onOpenChange={(o) => { if (!o) setAdoptSlotTarget(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Use this slot for the active record?</DialogTitle>
+              <DialogDescription>
+                This will move the date and time onto the active record and permanently delete the duplicate record.
+                The deleted record will NOT trigger any cancellation workflow.
+              </DialogDescription>
+            </DialogHeader>
+            {adoptSlotTarget && (
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="font-medium mb-1">Active record (will receive new slot)</div>
+                  <div className="p-2 rounded border bg-muted/30">
+                    {adoptSlotTarget.row.lead_name}
+                    <div className="text-xs text-muted-foreground">
+                      Current: {formatDate(adoptSlotTarget.row.date_of_appointment) || '—'} {formatTime(adoptSlotTarget.row.requested_time)}
+                    </div>
+                    <div className="text-xs text-amber-700 font-medium mt-1">
+                      New: {formatDate(adoptSlotTarget.source.date_of_appointment) || '—'} {formatTime(adoptSlotTarget.source.requested_time)}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium mb-1">Duplicate record (will be deleted)</div>
+                  <div className="p-2 rounded border bg-destructive/5 text-xs">
+                    <Badge variant="outline" className="text-[10px] mr-2">{adoptSlotTarget.source.status || '—'}</Badge>
+                    {formatDate(adoptSlotTarget.source.date_of_appointment)} {formatTime(adoptSlotTarget.source.requested_time)}
+                    <span className="text-muted-foreground"> · {adoptSlotTarget.source.calendar_name || '—'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAdoptSlotTarget(null)} disabled={processing}>Cancel</Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  if (!adoptSlotTarget) return;
+                  handleAdoptSlot(adoptSlotTarget.row, adoptSlotTarget.source);
+                }}
+                disabled={processing}
+              >
+                Use this slot &amp; delete duplicate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
+
 
         {detailAppt && (
           <DetailedAppointmentView
