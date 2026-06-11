@@ -949,6 +949,30 @@ const ReviewQueue: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          {duplicatesByRowId[row.id]?.length > 0 && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-amber-600 hover:bg-amber-700"
+                                onClick={() => setDupActionRow({ row, action: 'replace' })}
+                                disabled={processing}
+                                title="Approve new appt and cancel the existing duplicate(s)"
+                              >
+                                <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Replace
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-muted-foreground/40"
+                                onClick={() => setDupActionRow({ row, action: 'keep' })}
+                                disabled={processing}
+                                title="Keep existing appt, dismiss this duplicate"
+                              >
+                                <Copy className="h-3.5 w-3.5 mr-1" /> Keep Existing
+                              </Button>
+                            </>
+                          )}
                           <Button
                             size="sm"
                             variant="default"
