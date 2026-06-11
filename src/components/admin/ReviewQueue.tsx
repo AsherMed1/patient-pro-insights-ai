@@ -452,6 +452,86 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
+  const handleAdoptSlot = async (row: ReviewAppointment, source: DuplicateAppt) => {
+    if (row.id === source.id) return;
+    setProcessing(true);
+    try {
+      const prevDate = row.date_of_appointment;
+      const prevTime = row.requested_time;
+      const newDate = source.date_of_appointment;
+      const newTime = source.requested_time;
+
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          date_of_appointment: newDate,
+          requested_time: newTime,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      const fromStr = `${prevDate || 'unscheduled'} ${prevTime || ''}`.trim();
+      const toStr = `${newDate || 'unscheduled'} ${newTime || ''}`.trim();
+      const utcTimestamp = new Date().toISOString();
+      try {
+        await supabase.from('appointment_notes').insert({
+          appointment_id: row.id,
+          note_text: `Adopted slot FROM: ${fromStr} TO: ${toStr} from duplicate record (deleted) by ${userName || 'Unknown'} - [[timestamp:${utcTimestamp}]]`,
+          created_by: userName || 'Review Queue',
+        });
+      } catch (e) {
+        console.warn('adopt-slot note insert failed', e);
+      }
+
+      const { error: delErr } = await supabase
+        .from('all_appointments')
+        .delete()
+        .eq('id', source.id);
+      if (delErr) throw delErr;
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'adopt_slot_from_duplicate',
+          p_description: `${userName || 'Unknown'} adopted slot ${toStr} for ${row.lead_name} from duplicate (deleted)`,
+          p_source: 'review_queue',
+          p_metadata: {
+            adopting_appointment_id: row.id,
+            deleted_appointment_id: source.id,
+            previous_date: prevDate,
+            previous_time: prevTime,
+            new_date: newDate,
+            new_time: newTime,
+            project_name: row.project_name,
+            lead_name: row.lead_name,
+          },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Slot adopted', description: `${row.lead_name} now set to ${toStr}. Duplicate record deleted.` });
+      setAdoptSlotTarget(null);
+      setDuplicatesByRowId(prev => {
+        const copy = { ...prev };
+        Object.keys(copy).forEach(k => { copy[k] = (copy[k] || []).filter(d => d.id !== source.id); });
+        if (copy[row.id]) {
+          copy[row.id] = copy[row.id].filter(d => d.id !== source.id);
+        }
+        return copy;
+      });
+      setRows(prev => prev.map(r => r.id === row.id ? { ...r, date_of_appointment: newDate, requested_time: newTime } : r));
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Adopt slot failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+
+
 
   const performAction = async (id: string, action: ActionType, notes?: string) => {
     setProcessing(true);
