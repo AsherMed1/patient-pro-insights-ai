@@ -1249,7 +1249,7 @@ const ReviewQueue: React.FC = () => {
               </DialogTitle>
               <DialogDescription>
                 {dupActionRow?.action === 'replace'
-                  ? 'This will APPROVE the new appointment and CANCEL the existing duplicate(s) listed below. A note will be added to each cancelled record.'
+                  ? 'This will APPROVE the new appointment and DELETE the existing duplicate(s) listed below. A note will be added to the approved record.'
                   : 'This will DISMISS the new queue item and leave the existing appointment untouched. No cancellation will be triggered.'}
               </DialogDescription>
             </DialogHeader>
@@ -1261,7 +1261,7 @@ const ReviewQueue: React.FC = () => {
                   <div className="text-xs text-muted-foreground">{dupActionRow.row.calendar_name || '—'}</div>
                 </div>
                 <div className="font-medium mt-2">
-                  {dupActionRow.action === 'replace' ? 'Will cancel:' : 'Will keep:'}
+                  {dupActionRow.action === 'replace' ? 'Will delete:' : 'Will keep:'}
                 </div>
                 <div className="space-y-1">
                   {(duplicatesByRowId[dupActionRow.row.id] || []).map(d => (
