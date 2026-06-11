@@ -1098,12 +1098,24 @@ const ReviewQueue: React.FC = () => {
                                 <Badge variant="outline" className="text-[10px]">{d.status || '—'}</Badge>
                                 <span>{formatDate(d.date_of_appointment)} {formatTime(d.requested_time)}</span>
                                 <span className="text-muted-foreground truncate">· {d.calendar_name || '—'}</span>
-                                <button
-                                  className="text-primary hover:underline ml-auto"
-                                  onClick={() => openDetail(d.id)}
-                                >
-                                  View
-                                </button>
+                                <div className="ml-auto flex items-center gap-2">
+                                  {!isDeclinedView && (
+                                    <button
+                                      className="text-amber-700 hover:underline font-medium"
+                                      onClick={() => setAdoptSlotTarget({ row, source: d })}
+                                      disabled={processing}
+                                      title="Copy this date/time onto the active record and delete this duplicate"
+                                    >
+                                      Use this slot
+                                    </button>
+                                  )}
+                                  <button
+                                    className="text-primary hover:underline"
+                                    onClick={() => openDetail(d.id)}
+                                  >
+                                    View
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
