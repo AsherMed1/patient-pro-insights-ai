@@ -1005,6 +1005,29 @@ const ReviewQueue: React.FC = () => {
                   </div>
                   {isOpen && (
                     <div className="px-3 pb-4 pt-1 bg-muted/10 text-xs space-y-3">
+                      {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                          <div className="font-medium text-amber-800 mb-1 flex items-center gap-1">
+                            <Copy className="h-3 w-3" />
+                            Existing active appointment(s) for this patient in {row.project_name}
+                          </div>
+                          <div className="space-y-1">
+                            {duplicatesByRowId[row.id].map(d => (
+                              <div key={d.id} className="flex items-center gap-2 text-xs">
+                                <Badge variant="outline" className="text-[10px]">{d.status || '—'}</Badge>
+                                <span>{formatDate(d.date_of_appointment)} {formatTime(d.requested_time)}</span>
+                                <span className="text-muted-foreground truncate">· {d.calendar_name || '—'}</span>
+                                <button
+                                  className="text-primary hover:underline ml-auto"
+                                  onClick={() => openDetail(d.id)}
+                                >
+                                  View
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {editingRowId === row.id ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-background p-3 rounded border">
                           <div>
