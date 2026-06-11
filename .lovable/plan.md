@@ -1,47 +1,78 @@
-# Duplicate-Aware Review Queue
+# Adopt-Slot from Duplicate (No Cancel Workflow)
 
-When a Review Queue item belongs to a patient who already has another active appointment in the same project on a future date, surface that fact in the row and give the reviewer two new one-click resolutions in addition to the existing Approve / OON / Decline buttons.
+When a record has a duplicate sibling, give reviewers a one-click way to **pull the correct date/time onto the active record** and **delete the duplicate** — instead of cancelling it, which sends setters into the GHL reschedule workflow by mistake.
 
-## What changes (UI-only)
+## Where the action lives
 
-### 1. Duplicate warning badge on each pending row
-- In `src/components/admin/ReviewQueue.tsx`, after `fetch()` returns pending rows, run a single follow-up query against `all_appointments` to find any non-superseded, non-pending appointment that:
-  - shares `project_name` with the queue row,
-  - matches on `lead_phone_number` OR `lead_email` OR `ghl_id` (any),
-  - has `date_of_appointment >= today`,
-  - has `status` NOT in the terminal set (`Cancelled`, `No Show`, `OON`, `Do Not Call`, `Rescheduled`, `Showed`, `Won`) — i.e. Confirmed / Pending only,
-  - is not the queue row itself.
-- Build a `duplicatesByRowId: Record<string, ExistingAppt[]>` map and store in state.
-- For each row with ≥1 match, render an amber badge `Duplicate of existing` next to the patient name, and inside the expanded panel show a compact list of the matched appointment(s): date, time, calendar, status, with a "View" link that opens the existing appointment in `DetailedAppointmentView` (same `openDetail` flow, different id).
+1. **Review Queue → pending row → expanded "Existing active appointment(s)" panel**
+   Each listed duplicate gets a new **"Use this slot"** button next to the existing **View** link.
+2. **Appointment list (AllAppointmentsManager) → AppointmentCard**
+   When the card's appointment has ≥1 active duplicate (same patient + same project + future date, non-superseded, non-terminal), surface a small amber **"Use slot from duplicate"** action in the card menu. Clicking opens a picker listing the duplicate(s); selecting one runs the same flow.
 
-### 2. Two new resolution actions (pending view only)
-Add buttons in the row action cluster, shown only when `duplicatesByRowId[row.id]?.length > 0`:
+In both surfaces the user picks **which appointment is the correct/confirmed one**; that row's slot is copied onto the row they're acting from, and the picked row is deleted.
 
-- **Replace existing** (primary)
-  - Confirmation modal lists the existing appt(s) that will be cancelled.
-  - On confirm:
-    1. Approve the new queue row (reuses `performAction(id, 'approved')` — keeps existing GHL "approved" tag logic).
-    2. For each existing match, set `status='Cancelled'`, `internal_process_complete=true`, write an `appointment_notes` row attributed to the reviewer: `"Superseded by newer appointment {new date/time} via Review Queue — by {userName}"`.
-  - No direct GHL cancel call is added here (status change will flow through the same path the manual status dropdown already uses; out of scope to change that pipeline).
+## What gets copied
 
-- **Keep existing, dismiss new** (outline / muted)
-  - Confirmation modal explains: the new queue row will be dismissed (review_status='dismissed', same as the existing Dismiss action in the Declined tab) and no downstream cancellation will be triggered.
-  - On confirm: update the new row to `review_status='dismissed'`, `reviewed_at`, `reviewed_by`, `review_notes='Duplicate of existing appointment kept'`; insert an `appointment_review_history` row with `action='dismissed'`; log `audit_logs` via `log_audit_event`.
-  - The existing confirmed appointment is left untouched.
+Only the slot fields — nothing else:
+- `date_of_appointment`
+- `requested_time`
 
-Both actions respect the existing `processing` flag and call `fetch() + fetchCounts()` on success.
+No calendar/GHL-id/status changes. The adopting record keeps its own status, calendar, GHL link, intake notes, etc. (Confirmed by the user: just the slot.)
 
-### 3. Wording
-- Badge text: `Duplicate — existing {Confirmed|Pending} appt on {date} {time}`.
-- Modal copy uses "this clinic / patient", no "GHL" / "GoHighLevel" mentions per project rule.
+## What happens to the source (the picked duplicate)
+
+**Hard delete** from `all_appointments` after the slot copy succeeds. This matches the supervisor workflow ("supervisors delete unwanted duplicates") and deliberately avoids `status='Cancelled'`, which is what triggers the GHL reschedule/cancel automations that setters get confused by.
+
+Guardrails on the delete:
+- Only deletable when the source row is **not** the same id as the adopting row.
+- Confirmation modal lists exactly what will happen: *"Move {date} {time} onto {adopting patient name}'s record and permanently delete the duplicate {source date/time} record. The deleted record will NOT trigger any cancellation workflow."*
+- Action is gated to admin / agent / VA roles (same gate as the existing Replace/Decline actions in ReviewQueue). Non-management roles do not see the button.
+
+## Audit
+
+For each adopt-slot action, write:
+1. `appointment_notes` row on the **surviving** appointment:
+   `"Adopted slot {oldDate oldTime → newDate newTime} from duplicate record (deleted) — by {userName}"`
+2. `log_audit_event` entry with `entity='appointment'`, `action='adopt_slot_from_duplicate'`, metadata including `adopting_appointment_id`, `deleted_appointment_id`, `previous_date`, `previous_time`, `new_date`, `new_time`, `project_name`, `lead_name`.
+
+No `reschedule_history` JSONB entry (kept out per the simpler "note + audit" choice).
 
 ## Out of scope
-- No edge function / webhook changes.
-- No automatic GHL cancel API calls beyond what the existing status-change path already does.
-- No change to how duplicates are detected on inbound webhook (that's a separate workflow).
-- No change to the Declined tab actions.
 
-## Files touched
-- `src/components/admin/ReviewQueue.tsx` — duplicate fetch, state, badge, expanded-panel list, two new action buttons + their confirmation dialogs and handlers.
+- No GHL outbound call to cancel/delete the source appointment in GoHighLevel. Supervisors continue to clean up GHL manually (current behavior). If a future request wants the source GHL appointment deleted too, that's an additive edge-function call we can wire up separately.
+- No change to the existing **Replace existing** / **Keep existing** flow already in ReviewQueue — those stay as-is for cases where the new record is the wrong one.
+- No change to inbound GHL webhook duplicate detection.
+- No schema changes.
 
-No schema changes, no new dependencies.
+## Technical details
+
+**Files touched**
+- `src/components/admin/ReviewQueue.tsx` — add `handleAdoptSlot(adoptingRow, sourceDup)`, a confirmation `Dialog`, and a "Use this slot" button in the existing duplicate-list rendering in the expanded panel.
+- `src/components/appointments/AppointmentCard.tsx` — when the parent passes in `duplicates` (see below), render the new menu item and confirmation dialog. Reuse the same handler logic.
+- `src/components/AllAppointmentsManager.tsx` (or whichever parent owns the card list) — extend the existing per-row data fetch to compute `duplicatesByApptId` the same way ReviewQueue does, and pass `duplicates={duplicatesByApptId[appt.id] ?? []}` into `AppointmentCard`. If a single-query fan-out is too heavy, add a lazy fetch when the card menu opens.
+- `src/components/appointments/types.ts` — extend `AppointmentCardProps` with optional `duplicates?: DuplicateAppt[]` and `onAdoptSlot?: (sourceId: string) => Promise<void>`.
+
+**Handler logic (shared)**
+```text
+1. Capture previousValues = { date_of_appointment, requested_time } of adopting row.
+2. UPDATE all_appointments SET date_of_appointment = src.date_of_appointment,
+                                requested_time = src.requested_time,
+                                updated_at = now()
+   WHERE id = adoptingRow.id;
+3. INSERT appointment_notes (appointment_id = adoptingRow.id,
+                             note_text = "Adopted slot … — by {userName}",
+                             created_by = userId);
+4. DELETE FROM all_appointments WHERE id = sourceDup.id;
+5. supabase.rpc('log_audit_event', { p_entity:'appointment',
+                                     p_action:'adopt_slot_from_duplicate', … });
+6. Refresh: fetch() + fetchCounts() in ReviewQueue, or onDataChanged() in AllAppointmentsManager.
+```
+
+All four DB statements are issued sequentially with a `processing` flag and a `try/catch` that toasts on failure and skips the delete if the update or note fails.
+
+**Trigger interactions to be aware of (no code change needed, just confirming behavior)**
+- `handle_appointment_status_completion` — fires on UPDATE. Date/time-only updates don't change status, so it's a no-op.
+- `trigger_auto_ai_parsing` — only resets parsed fields when `patient_intake_notes` changes. Safe.
+- `mark_superseded_on_change` — runs on the surviving row; since the adopting row stays non-terminal, it may mark older terminal siblings superseded (desirable). The source row is deleted, not updated, so this trigger doesn't fire on it.
+- `trigger_hipaa_audit_appointments` — logs both the UPDATE and the DELETE, which is exactly the audit trail we want.
+
