@@ -73,6 +73,8 @@ const ReviewQueue: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editDob, setEditDob] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [duplicatesByRowId, setDuplicatesByRowId] = useState<Record<string, DuplicateAppt[]>>({});
+  const [dupActionRow, setDupActionRow] = useState<{ row: ReviewAppointment; action: 'replace' | 'keep' } | null>(null);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
