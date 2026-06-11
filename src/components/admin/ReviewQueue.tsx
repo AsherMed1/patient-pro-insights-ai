@@ -934,7 +934,7 @@ const ReviewQueue: React.FC = () => {
           </div>
         ) : (
           <div className="border rounded-md divide-y">
-            <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_300px] gap-3 p-3 text-xs font-medium text-muted-foreground bg-muted/40 items-center">
+            <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 text-xs font-medium text-muted-foreground bg-muted/40 items-center">
               {isDeclinedView ? (
                 <div />
               ) : (
@@ -967,7 +967,7 @@ const ReviewQueue: React.FC = () => {
               const reviewerLabel = row.reviewed_by ? (reviewerNames[row.reviewed_by] || 'Unknown') : 'Unknown';
               return (
                 <div key={row.id} className="hover:bg-muted/20">
-                  <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_300px] gap-3 p-3 items-center text-sm">
+                  <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 items-center text-sm">
                     {isDeclinedView ? (
                       <div />
                     ) : (
