@@ -902,6 +902,12 @@ const ReviewQueue: React.FC = () => {
                         >
                           {row.lead_name}{detailLoading === row.id ? '…' : ''}
                         </button>
+                        {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
+                          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px] py-0 h-5">
+                            <Copy className="h-2.5 w-2.5 mr-1" />
+                            Duplicate ({duplicatesByRowId[row.id].length})
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
