@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2 } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
@@ -44,6 +44,14 @@ interface ReviewAppointment {
   review_notes?: string | null;
 }
 
+interface DuplicateAppt {
+  id: string;
+  date_of_appointment: string | null;
+  requested_time: string | null;
+  calendar_name: string | null;
+  status: string | null;
+}
+
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
@@ -73,6 +81,8 @@ const ReviewQueue: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editDob, setEditDob] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [duplicatesByRowId, setDuplicatesByRowId] = useState<Record<string, DuplicateAppt[]>>({});
+  const [dupActionRow, setDupActionRow] = useState<{ row: ReviewAppointment; action: 'replace' | 'keep' } | null>(null);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
@@ -293,6 +303,154 @@ const ReviewQueue: React.FC = () => {
   }, [fetch, fetchCounts]);
 
   const projects = Array.from(new Set(rows.map(r => r.project_name))).sort();
+
+  // Detect duplicates: existing future, active appts for same patient+project
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setDuplicatesByRowId({});
+        return;
+      }
+      const TERMINAL = ['Cancelled', 'No Show', 'OON', 'Do Not Call', 'Rescheduled', 'Showed', 'Won'];
+      const today = new Date().toISOString().slice(0, 10);
+      const ids = rows.map(r => r.id);
+      const phones = Array.from(new Set(rows.map(r => r.lead_phone_number).filter(Boolean))) as string[];
+      const emails = Array.from(new Set(rows.map(r => r.lead_email).filter(Boolean))) as string[];
+      const projectNames = Array.from(new Set(rows.map(r => r.project_name).filter(Boolean))) as string[];
+      if (phones.length === 0 && emails.length === 0) {
+        setDuplicatesByRowId({});
+        return;
+      }
+      const ors: string[] = [];
+      if (phones.length) ors.push(`lead_phone_number.in.(${phones.map(p => `"${p}"`).join(',')})`);
+      if (emails.length) ors.push(`lead_email.in.(${emails.map(e => `"${e}"`).join(',')})`);
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .select('id, lead_phone_number, lead_email, project_name, date_of_appointment, requested_time, calendar_name, status, review_status')
+        .in('project_name', projectNames)
+        .gte('date_of_appointment', today)
+        .not('status', 'in', `(${TERMINAL.map(s => `"${s}"`).join(',')})`)
+        .or('is_superseded.is.null,is_superseded.eq.false')
+        .or(ors.join(','))
+        .limit(500);
+      if (error) {
+        console.warn('duplicate fetch failed', error);
+        return;
+      }
+      const map: Record<string, DuplicateAppt[]> = {};
+      for (const r of rows) {
+        const matches = (data || []).filter((a: any) =>
+          a.id !== r.id &&
+          a.project_name === r.project_name &&
+          a.review_status !== 'pending' &&
+          a.review_status !== 'declined' &&
+          a.review_status !== 'dismissed' &&
+          ((r.lead_phone_number && a.lead_phone_number === r.lead_phone_number) ||
+           (r.lead_email && a.lead_email === r.lead_email))
+        );
+        if (matches.length) map[r.id] = matches.map((m: any) => ({
+          id: m.id,
+          date_of_appointment: m.date_of_appointment,
+          requested_time: m.requested_time,
+          calendar_name: m.calendar_name,
+          status: m.status,
+        }));
+      }
+      setDuplicatesByRowId(map);
+    };
+    run();
+  }, [rows, queueView]);
+
+  const handleReplaceExisting = async (row: ReviewAppointment) => {
+    const dups = duplicatesByRowId[row.id] || [];
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      // Approve the new row first
+      const ok = await performAction(row.id, 'approved', 'Replaced existing duplicate appointment(s)');
+      if (!ok) { setProcessing(false); return; }
+
+      const newWhen = `${row.date_of_appointment || 'unscheduled'} ${row.requested_time || ''}`.trim();
+      for (const d of dups) {
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({
+              status: 'Cancelled',
+              internal_process_complete: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', d.id);
+
+          const utcTimestamp = new Date().toISOString();
+          await supabase.from('appointment_notes').insert({
+            appointment_id: d.id,
+            note_text: `Superseded by newer appointment ${newWhen} via Review Queue by ${userName || 'Unknown'} - [[timestamp:${utcTimestamp}]]`,
+            created_by: userName || 'Review Queue',
+          });
+        } catch (e) {
+          console.warn('replace-existing per-duplicate failed', e);
+        }
+      }
+
+      toast({ title: 'Replaced existing', description: `Approved new; cancelled ${dups.length} prior appt(s)` });
+      setRows(prev => prev.filter(r => r.id !== row.id));
+      setDupActionRow(null);
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Replace failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleKeepExisting = async (row: ReviewAppointment) => {
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          review_status: 'dismissed',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.id ?? null,
+          review_notes: 'Duplicate of existing appointment kept',
+        })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      await supabase.from('appointment_review_history').insert({
+        appointment_id: row.id,
+        action: 'dismissed',
+        prior_status: 'pending',
+        actor_id: user?.id ?? null,
+        actor_name: userName || user?.email || 'Unknown',
+        notes: 'Duplicate of existing appointment kept',
+      });
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_dismissed',
+          p_description: `Dismissed duplicate from Review Queue (kept existing): ${row.lead_name} by ${userName || 'Unknown'}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_id: row.id, project_name: row.project_name },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Kept existing, dismissed new', description: row.lead_name });
+      setRows(prev => prev.filter(r => r.id !== row.id));
+      setDupActionRow(null);
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
 
   const performAction = async (id: string, action: ActionType, notes?: string) => {
     setProcessing(true);
@@ -744,6 +902,12 @@ const ReviewQueue: React.FC = () => {
                         >
                           {row.lead_name}{detailLoading === row.id ? '…' : ''}
                         </button>
+                        {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
+                          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px] py-0 h-5">
+                            <Copy className="h-2.5 w-2.5 mr-1" />
+                            Duplicate ({duplicatesByRowId[row.id].length})
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
@@ -785,6 +949,30 @@ const ReviewQueue: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          {duplicatesByRowId[row.id]?.length > 0 && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-amber-600 hover:bg-amber-700"
+                                onClick={() => setDupActionRow({ row, action: 'replace' })}
+                                disabled={processing}
+                                title="Approve new appt and cancel the existing duplicate(s)"
+                              >
+                                <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Replace
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-muted-foreground/40"
+                                onClick={() => setDupActionRow({ row, action: 'keep' })}
+                                disabled={processing}
+                                title="Keep existing appt, dismiss this duplicate"
+                              >
+                                <Copy className="h-3.5 w-3.5 mr-1" /> Keep Existing
+                              </Button>
+                            </>
+                          )}
                           <Button
                             size="sm"
                             variant="default"
@@ -817,6 +1005,29 @@ const ReviewQueue: React.FC = () => {
                   </div>
                   {isOpen && (
                     <div className="px-3 pb-4 pt-1 bg-muted/10 text-xs space-y-3">
+                      {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                          <div className="font-medium text-amber-800 mb-1 flex items-center gap-1">
+                            <Copy className="h-3 w-3" />
+                            Existing active appointment(s) for this patient in {row.project_name}
+                          </div>
+                          <div className="space-y-1">
+                            {duplicatesByRowId[row.id].map(d => (
+                              <div key={d.id} className="flex items-center gap-2 text-xs">
+                                <Badge variant="outline" className="text-[10px]">{d.status || '—'}</Badge>
+                                <span>{formatDate(d.date_of_appointment)} {formatTime(d.requested_time)}</span>
+                                <span className="text-muted-foreground truncate">· {d.calendar_name || '—'}</span>
+                                <button
+                                  className="text-primary hover:underline ml-auto"
+                                  onClick={() => openDetail(d.id)}
+                                >
+                                  View
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {editingRowId === row.id ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-background p-3 rounded border">
                           <div>
@@ -924,6 +1135,58 @@ const ReviewQueue: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Duplicate action dialog */}
+        <Dialog open={!!dupActionRow} onOpenChange={(o) => { if (!o) setDupActionRow(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {dupActionRow?.action === 'replace' ? 'Replace existing appointment(s)' : 'Keep existing, dismiss new'}
+              </DialogTitle>
+              <DialogDescription>
+                {dupActionRow?.action === 'replace'
+                  ? 'This will APPROVE the new appointment and CANCEL the existing duplicate(s) listed below. A note will be added to each cancelled record.'
+                  : 'This will DISMISS the new queue item and leave the existing appointment untouched. No cancellation will be triggered.'}
+              </DialogDescription>
+            </DialogHeader>
+            {dupActionRow && (
+              <div className="space-y-2 text-sm">
+                <div className="font-medium">New appointment</div>
+                <div className="p-2 rounded border bg-muted/30">
+                  {dupActionRow.row.lead_name} — {formatDate(dupActionRow.row.date_of_appointment)} {formatTime(dupActionRow.row.requested_time)}
+                  <div className="text-xs text-muted-foreground">{dupActionRow.row.calendar_name || '—'}</div>
+                </div>
+                <div className="font-medium mt-2">
+                  {dupActionRow.action === 'replace' ? 'Will cancel:' : 'Will keep:'}
+                </div>
+                <div className="space-y-1">
+                  {(duplicatesByRowId[dupActionRow.row.id] || []).map(d => (
+                    <div key={d.id} className="p-2 rounded border bg-muted/30 text-xs">
+                      <Badge variant="outline" className="text-[10px] mr-2">{d.status || '—'}</Badge>
+                      {formatDate(d.date_of_appointment)} {formatTime(d.requested_time)}
+                      <span className="text-muted-foreground"> · {d.calendar_name || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDupActionRow(null)} disabled={processing}>Cancel</Button>
+              <Button
+                variant={dupActionRow?.action === 'replace' ? 'default' : 'secondary'}
+                onClick={() => {
+                  if (!dupActionRow) return;
+                  if (dupActionRow.action === 'replace') handleReplaceExisting(dupActionRow.row);
+                  else handleKeepExisting(dupActionRow.row);
+                }}
+                disabled={processing}
+              >
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
 
         {detailAppt && (
           <DetailedAppointmentView
