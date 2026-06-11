@@ -83,6 +83,7 @@ const ReviewQueue: React.FC = () => {
   const [savingEdit, setSavingEdit] = useState(false);
   const [duplicatesByRowId, setDuplicatesByRowId] = useState<Record<string, DuplicateAppt[]>>({});
   const [dupActionRow, setDupActionRow] = useState<{ row: ReviewAppointment; action: 'replace' | 'keep' } | null>(null);
+  const [adoptSlotTarget, setAdoptSlotTarget] = useState<{ row: ReviewAppointment; source: DuplicateAppt } | null>(null);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
@@ -450,6 +451,86 @@ const ReviewQueue: React.FC = () => {
       setProcessing(false);
     }
   };
+
+  const handleAdoptSlot = async (row: ReviewAppointment, source: DuplicateAppt) => {
+    if (row.id === source.id) return;
+    setProcessing(true);
+    try {
+      const prevDate = row.date_of_appointment;
+      const prevTime = row.requested_time;
+      const newDate = source.date_of_appointment;
+      const newTime = source.requested_time;
+
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          date_of_appointment: newDate,
+          requested_time: newTime,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      const fromStr = `${prevDate || 'unscheduled'} ${prevTime || ''}`.trim();
+      const toStr = `${newDate || 'unscheduled'} ${newTime || ''}`.trim();
+      const utcTimestamp = new Date().toISOString();
+      try {
+        await supabase.from('appointment_notes').insert({
+          appointment_id: row.id,
+          note_text: `Adopted slot FROM: ${fromStr} TO: ${toStr} from duplicate record (deleted) by ${userName || 'Unknown'} - [[timestamp:${utcTimestamp}]]`,
+          created_by: userName || 'Review Queue',
+        });
+      } catch (e) {
+        console.warn('adopt-slot note insert failed', e);
+      }
+
+      const { error: delErr } = await supabase
+        .from('all_appointments')
+        .delete()
+        .eq('id', source.id);
+      if (delErr) throw delErr;
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'adopt_slot_from_duplicate',
+          p_description: `${userName || 'Unknown'} adopted slot ${toStr} for ${row.lead_name} from duplicate (deleted)`,
+          p_source: 'review_queue',
+          p_metadata: {
+            adopting_appointment_id: row.id,
+            deleted_appointment_id: source.id,
+            previous_date: prevDate,
+            previous_time: prevTime,
+            new_date: newDate,
+            new_time: newTime,
+            project_name: row.project_name,
+            lead_name: row.lead_name,
+          },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Slot adopted', description: `${row.lead_name} now set to ${toStr}. Duplicate record deleted.` });
+      setAdoptSlotTarget(null);
+      setDuplicatesByRowId(prev => {
+        const copy = { ...prev };
+        Object.keys(copy).forEach(k => { copy[k] = (copy[k] || []).filter(d => d.id !== source.id); });
+        if (copy[row.id]) {
+          copy[row.id] = copy[row.id].filter(d => d.id !== source.id);
+        }
+        return copy;
+      });
+      setRows(prev => prev.map(r => r.id === row.id ? { ...r, date_of_appointment: newDate, requested_time: newTime } : r));
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Adopt slot failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+
 
 
   const performAction = async (id: string, action: ActionType, notes?: string) => {
@@ -1017,12 +1098,24 @@ const ReviewQueue: React.FC = () => {
                                 <Badge variant="outline" className="text-[10px]">{d.status || '—'}</Badge>
                                 <span>{formatDate(d.date_of_appointment)} {formatTime(d.requested_time)}</span>
                                 <span className="text-muted-foreground truncate">· {d.calendar_name || '—'}</span>
-                                <button
-                                  className="text-primary hover:underline ml-auto"
-                                  onClick={() => openDetail(d.id)}
-                                >
-                                  View
-                                </button>
+                                <div className="ml-auto flex items-center gap-2">
+                                  {!isDeclinedView && (
+                                    <button
+                                      className="text-amber-700 hover:underline font-medium"
+                                      onClick={() => setAdoptSlotTarget({ row, source: d })}
+                                      disabled={processing}
+                                      title="Copy this date/time onto the active record and delete this duplicate"
+                                    >
+                                      Use this slot
+                                    </button>
+                                  )}
+                                  <button
+                                    className="text-primary hover:underline"
+                                    onClick={() => openDetail(d.id)}
+                                  >
+                                    View
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1186,6 +1279,58 @@ const ReviewQueue: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Adopt-slot confirmation dialog */}
+        <Dialog open={!!adoptSlotTarget} onOpenChange={(o) => { if (!o) setAdoptSlotTarget(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Use this slot for the active record?</DialogTitle>
+              <DialogDescription>
+                This will move the date and time onto the active record and permanently delete the duplicate record.
+                The deleted record will NOT trigger any cancellation workflow.
+              </DialogDescription>
+            </DialogHeader>
+            {adoptSlotTarget && (
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="font-medium mb-1">Active record (will receive new slot)</div>
+                  <div className="p-2 rounded border bg-muted/30">
+                    {adoptSlotTarget.row.lead_name}
+                    <div className="text-xs text-muted-foreground">
+                      Current: {formatDate(adoptSlotTarget.row.date_of_appointment) || '—'} {formatTime(adoptSlotTarget.row.requested_time)}
+                    </div>
+                    <div className="text-xs text-amber-700 font-medium mt-1">
+                      New: {formatDate(adoptSlotTarget.source.date_of_appointment) || '—'} {formatTime(adoptSlotTarget.source.requested_time)}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium mb-1">Duplicate record (will be deleted)</div>
+                  <div className="p-2 rounded border bg-destructive/5 text-xs">
+                    <Badge variant="outline" className="text-[10px] mr-2">{adoptSlotTarget.source.status || '—'}</Badge>
+                    {formatDate(adoptSlotTarget.source.date_of_appointment)} {formatTime(adoptSlotTarget.source.requested_time)}
+                    <span className="text-muted-foreground"> · {adoptSlotTarget.source.calendar_name || '—'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAdoptSlotTarget(null)} disabled={processing}>Cancel</Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  if (!adoptSlotTarget) return;
+                  handleAdoptSlot(adoptSlotTarget.row, adoptSlotTarget.source);
+                }}
+                disabled={processing}
+              >
+                Use this slot &amp; delete duplicate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
 
 
         {detailAppt && (
