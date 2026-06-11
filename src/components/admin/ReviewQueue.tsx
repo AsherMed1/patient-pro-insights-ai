@@ -1136,6 +1136,58 @@ const ReviewQueue: React.FC = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Duplicate action dialog */}
+        <Dialog open={!!dupActionRow} onOpenChange={(o) => { if (!o) setDupActionRow(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {dupActionRow?.action === 'replace' ? 'Replace existing appointment(s)' : 'Keep existing, dismiss new'}
+              </DialogTitle>
+              <DialogDescription>
+                {dupActionRow?.action === 'replace'
+                  ? 'This will APPROVE the new appointment and CANCEL the existing duplicate(s) listed below. A note will be added to each cancelled record.'
+                  : 'This will DISMISS the new queue item and leave the existing appointment untouched. No cancellation will be triggered.'}
+              </DialogDescription>
+            </DialogHeader>
+            {dupActionRow && (
+              <div className="space-y-2 text-sm">
+                <div className="font-medium">New appointment</div>
+                <div className="p-2 rounded border bg-muted/30">
+                  {dupActionRow.row.lead_name} — {formatDate(dupActionRow.row.date_of_appointment)} {formatTime(dupActionRow.row.requested_time)}
+                  <div className="text-xs text-muted-foreground">{dupActionRow.row.calendar_name || '—'}</div>
+                </div>
+                <div className="font-medium mt-2">
+                  {dupActionRow.action === 'replace' ? 'Will cancel:' : 'Will keep:'}
+                </div>
+                <div className="space-y-1">
+                  {(duplicatesByRowId[dupActionRow.row.id] || []).map(d => (
+                    <div key={d.id} className="p-2 rounded border bg-muted/30 text-xs">
+                      <Badge variant="outline" className="text-[10px] mr-2">{d.status || '—'}</Badge>
+                      {formatDate(d.date_of_appointment)} {formatTime(d.requested_time)}
+                      <span className="text-muted-foreground"> · {d.calendar_name || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDupActionRow(null)} disabled={processing}>Cancel</Button>
+              <Button
+                variant={dupActionRow?.action === 'replace' ? 'default' : 'secondary'}
+                onClick={() => {
+                  if (!dupActionRow) return;
+                  if (dupActionRow.action === 'replace') handleReplaceExisting(dupActionRow.row);
+                  else handleKeepExisting(dupActionRow.row);
+                }}
+                disabled={processing}
+              >
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
         {detailAppt && (
           <DetailedAppointmentView
             appointment={detailAppt}
