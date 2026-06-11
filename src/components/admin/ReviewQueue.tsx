@@ -1017,7 +1017,7 @@ const ReviewQueue: React.FC = () => {
                       <div>{formatDate(row.date_of_appointment)}</div>
                       <div className="text-muted-foreground">{formatTime(row.requested_time)}</div>
                     </div>
-                    <div className="flex gap-1 justify-end">
+                    <div className="flex flex-wrap gap-1 justify-end">
                       {isDeclinedView ? (
                         <>
                           <Button
