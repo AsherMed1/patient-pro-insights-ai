@@ -191,7 +191,7 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
           Manage Projects
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Manage Project Access</DialogTitle>
           <p className="text-sm text-muted-foreground">
@@ -204,8 +204,8 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="space-y-3">
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 -mr-1">
               {projects.map((project) => (
                 <div key={project.id} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -238,15 +238,15 @@ const ProjectUserManager: React.FC<ProjectUserManagerProps> = ({ userId, userEma
                   )}
                 </div>
               ))}
+
+              {projects.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No projects available
+                </p>
+              )}
             </div>
 
-            {projects.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No projects available
-              </p>
-            )}
-
-            <div className="flex justify-end space-x-2 pt-4">
+            <div className="flex justify-end space-x-2 pt-4 mt-4 border-t">
               <Button 
                 variant="outline" 
                 onClick={() => setIsOpen(false)}
