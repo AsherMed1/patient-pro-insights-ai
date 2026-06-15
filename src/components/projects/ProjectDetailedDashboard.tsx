@@ -125,12 +125,17 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
               }
 
             } else {
+              // Ally Vascular: hide the ambiguous bare "San Antonio" bucket (real offices are Amber Street / Stonehue)
+              const isAlly = /^ally vascular\s+and pain centers$/i.test((project.project_name || '').trim());
+              const shouldSkipAllySanAntonio = (loc: string) =>
+                isAlly && loc.toLowerCase() === 'san antonio';
+
               // Extract location from parenthesized format: "(City, ST – Description)"
               const parenMatch = calName.match(/\(([^)]+)\)/);
               if (parenMatch) {
                 const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
                 const loc = inner.replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
-                if (loc && !loc.toLowerCase().includes('somerset') && !loc.toLowerCase().includes('milledgeville')) {
+                if (loc && !loc.toLowerCase().includes('somerset') && !loc.toLowerCase().includes('milledgeville') && !shouldSkipAllySanAntonio(loc)) {
                   locations.add(loc);
                 }
               } else {
@@ -141,12 +146,13 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
 
                 if (locationMatch && locationMatch[1]) {
                   const normalizedLocation = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').replace(/\s+Office$/i, '').trim();
-                  if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville')) {
+                  if (!normalizedLocation.toLowerCase().includes('somerset') && !normalizedLocation.toLowerCase().includes('milledgeville') && !shouldSkipAllySanAntonio(normalizedLocation)) {
                     locations.add(normalizedLocation);
                   }
                 }
               }
             }
+
 
             // Extract service — strip "Virtual" prefix AND suffix so "Virtual GAE" / "GAE Virtual" become "GAE"
             const serviceMatch = calName.match(/your\s+["']?([^"']+)["']?\s+Consultation/i);
