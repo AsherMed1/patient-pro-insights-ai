@@ -156,8 +156,13 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 && !/^\(/.test(locationExtracted)) {
                 // Normalize: strip trailing " Office" to prevent duplicates
                 locationExtracted = locationExtracted.replace(/\s+Office$/i, '').trim();
-                locations.add(locationExtracted);
+                // Ally Vascular: hide the ambiguous bare "San Antonio" bucket (real offices are Amber Street / Stonehue)
+                const isAlly = projectFilter && /^ally vascular\s+and pain centers$/i.test(projectFilter.trim());
+                if (!(isAlly && locationExtracted.toLowerCase() === 'san antonio')) {
+                  locations.add(locationExtracted);
+                }
               }
+
             }
             
             // Extract service: text between quotes or after "your " and before " Consultation"

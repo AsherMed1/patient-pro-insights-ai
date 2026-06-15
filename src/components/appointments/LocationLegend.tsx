@@ -102,10 +102,15 @@ export function LocationLegend({ projectName, selectedLocations, onToggleLocatio
           if (!loc) return;
           if (LEGACY_LOCATIONS.some(legacy => loc.includes(legacy))) return;
 
+          // Ally Vascular: hide the ambiguous bare "San Antonio" bucket (real offices are Amber Street / Stonehue)
+          const isAlly = /^ally vascular\s+and pain centers$/i.test((projectName || '').trim());
+          if (isAlly && loc.trim().toLowerCase() === 'san antonio') return;
+
           // Exclude Virtual only when Neuro is explicitly filtered (VSNC now treats Virtual as a real location)
           if (loc === 'Virtual' && hasNeuroFilter) {
             return;
           }
+
 
 
           uniqueLocations.add(loc);
