@@ -26,8 +26,8 @@ interface DateRange {
 interface AppointmentFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
-  searchType: 'name' | 'phone' | 'dob';
-  onSearchTypeChange: (value: 'name' | 'phone' | 'dob') => void;
+  searchType: 'name' | 'phone' | 'dob' | 'email';
+  onSearchTypeChange: (value: 'name' | 'phone' | 'dob' | 'email') => void;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
   onClearFilters: () => void;
