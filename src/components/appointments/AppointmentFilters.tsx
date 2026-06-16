@@ -251,10 +251,12 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               <SelectContent>
                 <SelectItem value="name">Name</SelectItem>
                 <SelectItem value="phone">Phone</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="dob">DOB</SelectItem>
               </SelectContent>
             </Select>
             <Input 
-              placeholder={searchType === 'name' ? "Search patient..." : "Search phone..."}
+              placeholder={searchType === 'name' ? "Search patient..." : searchType === 'phone' ? "Search phone..." : searchType === 'email' ? "Search email..." : "Search DOB..."}
               value={searchTerm} 
               onChange={e => onSearchChange(e.target.value)} 
               className="w-[160px] border-0 shadow-none h-8 text-sm focus-visible:ring-0" 
