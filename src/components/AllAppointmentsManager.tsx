@@ -965,6 +965,70 @@ const AllAppointmentsManager = ({
     }
   };
 
+  // Push a date/time change to GHL. Returns silently if not linked / project missing config.
+  const syncRescheduleToGhl = async (
+    appointmentId: string,
+    ghlAppointmentId: string | null | undefined,
+    projectName: string,
+    newDate: string | null,
+    newTime: string | null
+  ) => {
+    if (!ghlAppointmentId || !newDate || !newTime) return;
+
+    try {
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('timezone, ghl_location_id, ghl_api_key')
+        .eq('project_name', projectName)
+        .single();
+
+      if (projectError) throw projectError;
+      if (!projectData?.ghl_location_id) {
+        // Unscheduled-style projects (Premier/ECCO/Davis) — silently skip
+        return;
+      }
+
+      const normalizedTime = newTime.length === 5 ? `${newTime}:00` : newTime;
+
+      const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+        body: {
+          ghl_appointment_id: ghlAppointmentId,
+          ghl_location_id: projectData.ghl_location_id,
+          new_date: newDate,
+          new_time: normalizedTime,
+          timezone: projectData.timezone || 'America/Chicago',
+          ghl_api_key: projectData.ghl_api_key,
+        },
+      });
+
+      if (ghlError) throw ghlError;
+
+      await supabase
+        .from('all_appointments')
+        .update({
+          last_ghl_sync_status: 'success',
+          last_ghl_sync_at: new Date().toISOString(),
+          last_ghl_sync_error: null,
+        })
+        .eq('id', appointmentId);
+    } catch (ghlError: any) {
+      console.error('GHL reschedule sync failed:', ghlError);
+      await supabase
+        .from('all_appointments')
+        .update({
+          last_ghl_sync_status: 'failed',
+          last_ghl_sync_at: new Date().toISOString(),
+          last_ghl_sync_error: ghlError?.message || String(ghlError),
+        })
+        .eq('id', appointmentId);
+      toast({
+        title: "GHL Sync Warning",
+        description: "Saved locally but failed to sync new date/time to GoHighLevel.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const updateAppointmentDate = async (appointmentId: string, date: string | null) => {
     try {
       // Find the current appointment to get previous values for audit trail
@@ -990,6 +1054,18 @@ const AllAppointmentsManager = ({
           ? { ...appointment, date_of_appointment: date }
           : appointment
       ));
+
+      // Push to GHL when linked
+      if (currentAppointment?.ghl_appointment_id && date) {
+        const timeForGhl = currentAppointment.requested_time || '09:00:00';
+        await syncRescheduleToGhl(
+          appointmentId,
+          currentAppointment.ghl_appointment_id,
+          currentAppointment.project_name,
+          date,
+          timeForGhl
+        );
+      }
 
       toast({
         title: "Success",
