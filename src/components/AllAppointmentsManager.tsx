@@ -529,22 +529,7 @@ const AllAppointmentsManager = ({
         
         // Apply search filter based on search type
         if (searchTerm.trim()) {
-          if (searchType === 'name') {
-            query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
-          } else if (searchType === 'phone') {
-            // Normalize phone: strip non-digits and handle US country code
-            const normalizedPhone = searchTerm.trim().replace(/\D/g, '');
-            const phoneDigits = normalizedPhone.length === 11 && normalizedPhone.startsWith('1')
-              ? normalizedPhone.slice(1)
-              : normalizedPhone;
-            // Search using the last 10 digits to match any format
-            const searchPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
-            query = query.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
-           } else if (searchType === 'dob') {
-             query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
-           } else if (searchType === 'email') {
-             query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
-           }
+          query = applySearchFilter(query, searchType, searchTerm);
         }
         
         // Apply status filter
