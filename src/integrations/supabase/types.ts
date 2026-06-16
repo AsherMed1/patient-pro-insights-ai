@@ -241,6 +241,7 @@ export type Database = {
           last_sync_timestamp: string | null
           lead_email: string | null
           lead_name: string
+          lead_phone_digits: string | null
           lead_phone_number: string | null
           parsed_contact_info: Json | null
           parsed_demographics: Json | null
@@ -302,6 +303,7 @@ export type Database = {
           last_sync_timestamp?: string | null
           lead_email?: string | null
           lead_name: string
+          lead_phone_digits?: string | null
           lead_phone_number?: string | null
           parsed_contact_info?: Json | null
           parsed_demographics?: Json | null
@@ -363,6 +365,7 @@ export type Database = {
           last_sync_timestamp?: string | null
           lead_email?: string | null
           lead_name?: string
+          lead_phone_digits?: string | null
           lead_phone_number?: string | null
           parsed_contact_info?: Json | null
           parsed_demographics?: Json | null

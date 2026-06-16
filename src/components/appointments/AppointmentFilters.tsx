@@ -256,7 +256,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               </SelectContent>
             </Select>
             <Input 
-              placeholder={searchType === 'name' ? "Search patient..." : searchType === 'phone' ? "Search phone..." : searchType === 'email' ? "Search email..." : "Search DOB..."}
+              placeholder={searchType === 'name' ? "Search patient..." : searchType === 'phone' ? "Phone (any digits)..." : searchType === 'email' ? "Search email..." : "YYYY-MM-DD or MM/DD/YYYY"}
               value={searchTerm} 
               onChange={e => onSearchChange(e.target.value)} 
               className="w-[160px] border-0 shadow-none h-8 text-sm focus-visible:ring-0" 

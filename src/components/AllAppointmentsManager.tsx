@@ -20,6 +20,7 @@ import { updateBrigitteWilliamsIntake } from '@/utils/updateBrigitteWilliamsInta
 import { updateAlisaGainousIntake } from '@/utils/updateAlisaGainousIntake';
 import { updateHollyParkerIntake } from '@/utils/updateHollyParkerIntake';
 import { updateEricCareyIntake } from '@/utils/updateEricCareyIntake';
+import { applySearchFilter } from '@/utils/appointmentSearchFilters';
 
 
 interface DateRange {
@@ -246,22 +247,7 @@ const AllAppointmentsManager = ({
       
       // Apply search filter based on search type
       if (searchTerm.trim()) {
-        if (searchType === 'name') {
-          countQuery = countQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
-        } else if (searchType === 'phone') {
-          // Normalize phone: strip non-digits and handle US country code
-          const normalizedPhone = searchTerm.trim().replace(/\D/g, '');
-          const phoneDigits = normalizedPhone.length === 11 && normalizedPhone.startsWith('1')
-            ? normalizedPhone.slice(1)
-            : normalizedPhone;
-          // Search using the last 10 digits to match any format
-          const searchPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
-          countQuery = countQuery.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
-         } else if (searchType === 'dob') {
-           countQuery = countQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
-         } else if (searchType === 'email') {
-           countQuery = countQuery.ilike('lead_email', `%${searchTerm.trim()}%`);
-         }
+        countQuery = applySearchFilter(countQuery, searchType, searchTerm);
       }
       
       // Apply status filter
@@ -402,22 +388,7 @@ const AllAppointmentsManager = ({
       
       // Apply search filter based on search type
       if (searchTerm.trim()) {
-        if (searchType === 'name') {
-          appointmentsQuery = appointmentsQuery.ilike('lead_name', `%${searchTerm.trim()}%`);
-        } else if (searchType === 'phone') {
-          // Normalize phone: strip non-digits and handle US country code
-          const normalizedPhone = searchTerm.trim().replace(/\D/g, '');
-          const phoneDigits = normalizedPhone.length === 11 && normalizedPhone.startsWith('1')
-            ? normalizedPhone.slice(1)
-            : normalizedPhone;
-          // Search using the last 10 digits to match any format
-          const searchPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
-          appointmentsQuery = appointmentsQuery.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
-         } else if (searchType === 'dob') {
-           appointmentsQuery = appointmentsQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
-         } else if (searchType === 'email') {
-           appointmentsQuery = appointmentsQuery.ilike('lead_email', `%${searchTerm.trim()}%`);
-         }
+        appointmentsQuery = applySearchFilter(appointmentsQuery, searchType, searchTerm);
       }
       
       // Apply status filter
@@ -558,22 +529,7 @@ const AllAppointmentsManager = ({
         
         // Apply search filter based on search type
         if (searchTerm.trim()) {
-          if (searchType === 'name') {
-            query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
-          } else if (searchType === 'phone') {
-            // Normalize phone: strip non-digits and handle US country code
-            const normalizedPhone = searchTerm.trim().replace(/\D/g, '');
-            const phoneDigits = normalizedPhone.length === 11 && normalizedPhone.startsWith('1')
-              ? normalizedPhone.slice(1)
-              : normalizedPhone;
-            // Search using the last 10 digits to match any format
-            const searchPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
-            query = query.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
-           } else if (searchType === 'dob') {
-             query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
-           } else if (searchType === 'email') {
-             query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
-           }
+          query = applySearchFilter(query, searchType, searchTerm);
         }
         
         // Apply status filter
@@ -1558,14 +1514,7 @@ const AllAppointmentsManager = ({
                   if (dateRange.from) query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
                   if (dateRange.to) query = query.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
                   if (searchTerm.trim()) {
-                    if (searchType === 'name') query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
-                    else if (searchType === 'phone') {
-                      const nd = searchTerm.trim().replace(/\D/g, '');
-                      const pd = nd.length === 11 && nd.startsWith('1') ? nd.slice(1) : nd;
-                      const sp = pd.length >= 10 ? pd.slice(-10) : pd;
-                      query = query.ilike('lead_phone_number', `%${sp.slice(0,3)}%${sp.slice(3,6)}%${sp.slice(6)}%`);
-                   } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
-                   else if (searchType === 'email') query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
+                    query = applySearchFilter(query, searchType, searchTerm);
                   }
                   if (statusFilter !== 'ALL') {
                     if (statusFilter === 'New') query = query.or(`status.ilike.${statusFilter},status.is.null`);
