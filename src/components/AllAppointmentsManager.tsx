@@ -571,6 +571,8 @@ const AllAppointmentsManager = ({
             query = query.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
            } else if (searchType === 'dob') {
              query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+           } else if (searchType === 'email') {
+             query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
            }
         }
         
