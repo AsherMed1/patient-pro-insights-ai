@@ -64,7 +64,7 @@ const AllAppointmentsManager = ({
   });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState<'name' | 'phone' | 'dob'>('name');
+  const [searchType, setSearchType] = useState<'name' | 'phone' | 'dob' | 'email'>('name');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState(initialProcedureFilter || 'ALL');
@@ -259,6 +259,8 @@ const AllAppointmentsManager = ({
           countQuery = countQuery.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
          } else if (searchType === 'dob') {
            countQuery = countQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
+         } else if (searchType === 'email') {
+           countQuery = countQuery.ilike('lead_email', `%${searchTerm.trim()}%`);
          }
       }
       
@@ -413,6 +415,8 @@ const AllAppointmentsManager = ({
           appointmentsQuery = appointmentsQuery.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
          } else if (searchType === 'dob') {
            appointmentsQuery = appointmentsQuery.ilike('dob::text', `%${searchTerm.trim()}%`);
+         } else if (searchType === 'email') {
+           appointmentsQuery = appointmentsQuery.ilike('lead_email', `%${searchTerm.trim()}%`);
          }
       }
       
@@ -567,6 +571,8 @@ const AllAppointmentsManager = ({
             query = query.ilike('lead_phone_number', `%${searchPhone.slice(0, 3)}%${searchPhone.slice(3, 6)}%${searchPhone.slice(6)}%`);
            } else if (searchType === 'dob') {
              query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+           } else if (searchType === 'email') {
+             query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
            }
         }
         
@@ -1467,7 +1473,8 @@ const AllAppointmentsManager = ({
                       const pd = nd.length === 11 && nd.startsWith('1') ? nd.slice(1) : nd;
                       const sp = pd.length >= 10 ? pd.slice(-10) : pd;
                       query = query.ilike('lead_phone_number', `%${sp.slice(0,3)}%${sp.slice(3,6)}%${sp.slice(6)}%`);
-                    } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+                   } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+                   else if (searchType === 'email') query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
                   }
                   if (statusFilter !== 'ALL') {
                     if (statusFilter === 'New') query = query.or(`status.ilike.${statusFilter},status.is.null`);
