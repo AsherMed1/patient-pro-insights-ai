@@ -1514,14 +1514,7 @@ const AllAppointmentsManager = ({
                   if (dateRange.from) query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
                   if (dateRange.to) query = query.lte(dateColumn, format(dateRange.to, 'yyyy-MM-dd'));
                   if (searchTerm.trim()) {
-                    if (searchType === 'name') query = query.ilike('lead_name', `%${searchTerm.trim()}%`);
-                    else if (searchType === 'phone') {
-                      const nd = searchTerm.trim().replace(/\D/g, '');
-                      const pd = nd.length === 11 && nd.startsWith('1') ? nd.slice(1) : nd;
-                      const sp = pd.length >= 10 ? pd.slice(-10) : pd;
-                      query = query.ilike('lead_phone_number', `%${sp.slice(0,3)}%${sp.slice(3,6)}%${sp.slice(6)}%`);
-                   } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
-                   else if (searchType === 'email') query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
+                    query = applySearchFilter(query, searchType, searchTerm);
                   }
                   if (statusFilter !== 'ALL') {
                     if (statusFilter === 'New') query = query.or(`status.ilike.${statusFilter},status.is.null`);
