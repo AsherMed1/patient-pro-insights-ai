@@ -64,7 +64,7 @@ const AllAppointmentsManager = ({
   });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState<'name' | 'phone' | 'dob'>('name');
+  const [searchType, setSearchType] = useState<'name' | 'phone' | 'dob' | 'email'>('name');
   const [localProjectFilter, setLocalProjectFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
   const [procedureOrderFilter, setProcedureOrderFilter] = useState(initialProcedureFilter || 'ALL');
