@@ -213,7 +213,7 @@ const AllAppointmentsManager = ({
       let countQuery = supabase
         .from('all_appointments')
         .select('*', { count: 'exact', head: true })
-        .in('review_status', ['approved', 'oon']);
+        .eq('review_status', 'approved');
 
       // Exclude reserved time blocks from appointment management
       countQuery = countQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
@@ -361,7 +361,7 @@ const AllAppointmentsManager = ({
       let appointmentsQuery = supabase
         .from('all_appointments')
         .select('*')
-        .in('review_status', ['approved', 'oon']);
+        .eq('review_status', 'approved');
 
       // Exclude reserved time blocks from appointment management
       appointmentsQuery = appointmentsQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
@@ -529,7 +529,7 @@ const AllAppointmentsManager = ({
       // Base query filters (project and date range)
       const getBaseQuery = () => {
         let query = supabase.from('all_appointments').select('*', { count: 'exact', head: true })
-          .in('review_status', ['approved', 'oon']);
+          .eq('review_status', 'approved');
         
         // Exclude reserved time blocks from appointment management
         query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');

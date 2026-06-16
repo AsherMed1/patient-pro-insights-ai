@@ -239,7 +239,7 @@ const ProjectPortal = () => {
       let query = supabase
         .from('all_appointments')
         .select('procedure_ordered, date_appointment_created, status, date_of_appointment, was_ever_confirmed')
-        .in('review_status', ['approved', 'oon']);
+        .eq('review_status', 'approved');
       
       if (decodedName.trim() !== decodedName) {
         query = query.or(`project_name.eq.${decodedName},project_name.eq.${decodedName.trim()}`);
