@@ -20,6 +20,7 @@ import { updateBrigitteWilliamsIntake } from '@/utils/updateBrigitteWilliamsInta
 import { updateAlisaGainousIntake } from '@/utils/updateAlisaGainousIntake';
 import { updateHollyParkerIntake } from '@/utils/updateHollyParkerIntake';
 import { updateEricCareyIntake } from '@/utils/updateEricCareyIntake';
+import { applySearchFilter } from '@/utils/appointmentSearchFilters';
 
 
 interface DateRange {
