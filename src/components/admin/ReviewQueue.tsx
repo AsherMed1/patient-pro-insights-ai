@@ -1217,7 +1217,7 @@ const ReviewQueue: React.FC = () => {
               </DialogTitle>
               <DialogDescription>
                 {actionRow?.action === 'oon'
-                  ? 'Sets status to OON, releases the appointment to the project portal, and fires the OON Slack alert.'
+                  ? 'Sets status to OON, keeps the appointment hidden from the project portal (admin-only via Review Queue → OON tab), and fires the OON Slack alert.'
                   : 'Hides this appointment from the client portal and reports. The record stays in the database for audit and can be restored from the Declined tab.'}
               </DialogDescription>
             </DialogHeader>
