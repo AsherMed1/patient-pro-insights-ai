@@ -1144,6 +1144,21 @@ const AllAppointmentsManager = ({
           : appointment
       ));
 
+      // Push to GHL when linked and we have a date
+      if (
+        currentAppointment?.ghl_appointment_id &&
+        currentAppointment?.date_of_appointment &&
+        normalizedTime
+      ) {
+        await syncRescheduleToGhl(
+          appointmentId,
+          currentAppointment.ghl_appointment_id,
+          currentAppointment.project_name,
+          currentAppointment.date_of_appointment,
+          normalizedTime
+        );
+      }
+
       toast({
         title: "Success",
         description: "Appointment time updated"
