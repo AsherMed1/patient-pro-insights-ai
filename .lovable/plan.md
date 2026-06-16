@@ -1,55 +1,45 @@
+## Issue
 
-## Problem
+Patient **Ruben De La Fuentes** (GHL contact `OMwQgMyoydxHXzkkDX4u`, Ally Vascular and Pain Centers) has a **new Neuropathy Consultation** booked in GHL but it never landed in our portal.
 
-Dean asked whether Phone and DOB search work alongside the new Email search. They are wired into the UI but both have bugs:
+## Root-cause confirmed via GHL API
 
-- **DOB**: every query uses `.ilike('dob::text', ...)` against `all_appointments.dob` (a `date` column). PostgREST treats `dob::text` as a literal column name, so the filter throws / returns nothing.
-- **Phone**: input is digit-stripped then matched as `%XXX%YYY%ZZZZ%` against `lead_phone_number`. Stored values without separators (e.g. `4794148840`, `+14794148840`) won't match because the literal `%` between groups still needs intermediate characters in many rows, and partial searches (e.g. last 4 digits) are not supported.
+GHL returns one active appointment for this contact that we do not have:
 
-Both bugs are reproduced in 4 places inside `src/components/AllAppointmentsManager.tsx`: count query (~248), main list query (~404), legacy list query (~560), and the export query (~1560).
+- GHL appointment ID: `9mE4qNGZIQVjBKLouue9`
+- Title: *Ruben De La Fuentes Neuropathy Consultation*
+- Start: `2026-06-20 07:00` (end `07:15`)
+- Calendar: `6LC4cgaNF54rZ2wPIvQm`
+- Status: `new`
+- Created in GHL: `2026-06-15 16:26:58`
 
-## Fix
+Our DB only has his older `2026-03-28` OON record (`cb1234f0…`) and an unrelated `Ruben Martinez Martinez` row. No row exists for `ghl_appointment_id = 9mE4qNGZIQVjBKLouue9`, and `ghl-webhook-handler` logs have no trace of that ID, contact ID, phone, or "delafuent". The GHL booking webhook simply never reached us (or fired before log retention) — so the appointment is missing, not suppressed by review/superseded logic.
 
-### DOB search
-Accept several user-friendly inputs and translate them to a proper date filter on the `date` column:
+## Plan
 
-- Full date `YYYY-MM-DD` or `MM/DD/YYYY` → `.eq('dob', isoDate)`
-- Year only `YYYY` → range filter: `.gte('dob','YYYY-01-01').lte('dob','YYYY-12-31')`
-- Month+day `MM/DD` or `MM-DD` → use a Postgres expression via `or(`+ `and(`-style filters across all years won't work cleanly in PostgREST; we'll instead require either a year or a full date and show a hint in the input placeholder.
-- Otherwise: no-op (return empty) and show placeholder text "YYYY-MM-DD or MM/DD/YYYY".
+1. **Backfill the missing appointment** via `supabase--insert` into `all_appointments` with:
+   - `project_name`: `Ally Vascular  and Pain Centers`
+   - `ghl_appointment_id`: `9mE4qNGZIQVjBKLouue9`
+   - `ghl_id`: `OMwQgMyoydxHXzkkDX4u` (GHL contact ID — matches how new records key the contact)
+   - `ghl_location_id`: `vRT9AlSvuJsupOjfJekW`
+   - `lead_name`: `Ruben De La Fuentes`
+   - `lead_phone_number`: `+17262318752`
+   - `lead_email`: `delafuentesruben@gmail.com`
+   - `date_of_appointment`: `2026-06-20`
+   - `requested_time`: `07:00:00`
+   - `calendar_name`: matching the GHL calendar (`Request Your Neuropathy Consultation at  Amber Street, San Antonio, TX`, same as his prior row, since calendar `6LC4cgaNF54rZ2wPIvQm` is the Amber Street neuropathy calendar)
+   - `status`: `Confirmed`
+   - `review_status`: `pending` (Ally is not exempt, so it must hit the Review Queue → routes to **New / Needs Review**)
+   - `internal_process_complete`: `false`
+   - `is_superseded`: `false`
+   - `date_appointment_created`: `2026-06-15 16:26:58+00`
 
-Helper `buildDobFilter(searchTerm, query)` returns the mutated query so all four call sites share one implementation.
+2. **Verify** the row appears in the Ally portal's New / Needs Review tab and Review Queue.
 
-### Phone search
-- Strip non-digits from input.
-- Strip non-digits from stored `lead_phone_number` at query time by adding a Postgres-side filter using `or()` on a regex-normalized comparison. PostgREST supports `like` only on raw text, so the simplest reliable approach is: keep the digit-stripped input and match with a plain `%digits%` ilike against `lead_phone_number` AFTER ALSO trying a "spaced" variant. In practice, the cleanest, robust fix is server-side: add a generated column `lead_phone_digits text GENERATED ALWAYS AS (regexp_replace(coalesce(lead_phone_number,''), '\D','','g')) STORED` and an index on it, then filter `.ilike('lead_phone_digits', '%digits%')`.
-- This supports partial searches (any contiguous digit substring, including last-4) and any stored format.
+3. **Out of scope** (flag only, no fix): investigate why the GHL booking webhook was not delivered for this contact. If this is a recurring pattern across Ally we can add a scheduled reconciliation job, but that is a separate task.
 
-### Placeholder & label polish
-Update `AppointmentFilters.tsx` placeholder copy:
-- Phone → "Search phone (any digits)…"
-- DOB → "YYYY-MM-DD or MM/DD/YYYY"
+## Notes
 
-## Technical details
-
-Files:
-- `src/components/AllAppointmentsManager.tsx` — replace 4 search blocks with calls to two helpers (`applyPhoneFilter`, `applyDobFilter`) defined at the top of the file or in a new `src/utils/appointmentSearchFilters.ts`.
-- `src/components/appointments/AppointmentFilters.tsx` — update placeholders.
-- New migration: add generated column + index on `all_appointments`:
-  ```sql
-  ALTER TABLE public.all_appointments
-    ADD COLUMN lead_phone_digits text
-    GENERATED ALWAYS AS (regexp_replace(coalesce(lead_phone_number,''), '\D', '', 'g')) STORED;
-  CREATE INDEX IF NOT EXISTS idx_all_appointments_lead_phone_digits
-    ON public.all_appointments (lead_phone_digits);
-  ```
-  No new RLS / grants needed — generated column inherits table policies. Types regenerate automatically.
-
-Verification:
-- Run targeted reads against `all_appointments` after migration to confirm Thomas L Fite's number `(479) 414-8840` is findable by `4148840`, `4148`, and `+14794148840` searches.
-- Confirm DOB `1944-08-30` is findable via both `1944-08-30` and `08/30/1944`.
-
-## Out of scope
-
-- Email search behavior (already shipping per Luis).
-- Search inside Review Queue / Calendar views (these use different components).
+- No code or migration changes — this is a single targeted data backfill.
+- Will not modify or supersede the existing `cb1234f0…` OON record.
+- Lead name will be stored as `Ruben De La Fuentes` (matches GHL), resolving the earlier "name search misses him" complaint going forward.
