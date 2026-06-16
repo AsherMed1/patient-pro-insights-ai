@@ -1473,7 +1473,8 @@ const AllAppointmentsManager = ({
                       const pd = nd.length === 11 && nd.startsWith('1') ? nd.slice(1) : nd;
                       const sp = pd.length >= 10 ? pd.slice(-10) : pd;
                       query = query.ilike('lead_phone_number', `%${sp.slice(0,3)}%${sp.slice(3,6)}%${sp.slice(6)}%`);
-                    } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+                   } else if (searchType === 'dob') query = query.ilike('dob::text', `%${searchTerm.trim()}%`);
+                   else if (searchType === 'email') query = query.ilike('lead_email', `%${searchTerm.trim()}%`);
                   }
                   if (statusFilter !== 'ALL') {
                     if (statusFilter === 'New') query = query.or(`status.ilike.${statusFilter},status.is.null`);
