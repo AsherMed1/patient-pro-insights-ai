@@ -365,7 +365,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           <div className="flex flex-wrap gap-1.5">
             {searchTerm && (
               <Badge variant="secondary" className="text-xs gap-1 pr-1">
-                {searchType === 'name' ? 'Name' : 'Phone'}: {searchTerm}
+                {searchType === 'name' ? 'Name' : searchType === 'phone' ? 'Phone' : searchType === 'email' ? 'Email' : 'DOB'}: {searchTerm}
                 <button onClick={() => onSearchChange('')} className="ml-0.5 hover:text-foreground"><X className="h-3 w-3" /></button>
               </Badge>
             )}
