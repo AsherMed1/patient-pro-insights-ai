@@ -2057,6 +2057,11 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (name.includes('fse') || name.includes('frozen shoulder')) {
     return 'FSE';
   }
+  // ATE — Achilles Tendinitis Embolization. Match word-boundary "ate" to avoid
+  // false positives on words like "private" or "rate".
+  if (/\bate\b/i.test(calendarName) || name.includes('achilles') || name.includes('tendinitis') || name.includes('tendonitis')) {
+    return 'ATE';
+  }
   return null;
 }
 
