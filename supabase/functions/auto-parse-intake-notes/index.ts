@@ -865,19 +865,21 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   // longer/richer value so imaging_when / imaging_location / imaging_facility
   // can be extracted downstream.
   {
+    // Multi-line aware: capture continuation lines (e.g. GHL stores
+    // "Yes and x-ray.\n24th August 2025 at Joint & Vascular Institute in Rockford"
+    // as a single field value).
     const imagingPatterns = [
-      /had imaging before\s*\??\s*:\s*([^\n|]+)/i,
-      /had_imaging_before\s*\??\s*:\s*([^\n|]+)/i,
-      /have you had.*?imaging.*?\??\s*:\s*([^\n|]+)/i,
-      /previous imaging\s*\??\s*:\s*([^\n|]+)/i,
-      /imaging_done\s*\??\s*:\s*([^\n|]+)/i
+      /^\s*had imaging before\s*\??\s*:\s*(.*)$/i,
+      /^\s*had_imaging_before\s*\??\s*:\s*(.*)$/i,
+      /^\s*have you had.*?imaging.*?\??\s*:\s*(.*)$/i,
+      /^\s*previous imaging\s*\??\s*:\s*(.*)$/i,
+      /^\s*imaging_done\s*\??\s*:\s*(.*)$/i
     ];
 
     let bestValue: string | null = parsedData.medical_info.imaging_details || null;
     for (const pattern of imagingPatterns) {
-      const match = intakeNotes.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
+      const value = extractMultiLineFieldValue(intakeNotes, pattern);
+      if (value) {
         // Prefer this value if we don't have one yet, or if it's meaningfully
         // richer than the current value (length > current + 5 chars).
         if (!bestValue || value.length > (bestValue.length + 5)) {
@@ -885,6 +887,7 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
         }
       }
     }
+
 
     if (bestValue && bestValue !== parsedData.medical_info.imaging_details) {
       parsedData.medical_info.imaging_details = bestValue;
@@ -1053,14 +1056,14 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   // Backfill imaging_details from "Had Imaging Before ?:" when AI missed it.
   if (!parsedData.medical_info.imaging_details) {
-    const m = intakeNotes.match(/Had Imaging Before\s*\??\s*:\s*([^\n|]+)/i);
-    if (m && m[1]) {
-      const v = m[1].trim();
-      if (v && !/^(none|n\/a|unknown|no)$/i.test(v)) {
+    const v = extractMultiLineFieldValue(intakeNotes, /^\s*Had Imaging Before\s*\??\s*:\s*(.*)$/i);
+    if (v) {
+      if (!/^(none|n\/a|unknown|no)$/i.test(v)) {
         parsedData.medical_info.imaging_details = v;
         console.log(`[AUTO-PARSE ENRICH] Backfilled imaging_details via regex: ${v}`);
       }
     }
+
   }
   
   // Ensure pathology_info exists
