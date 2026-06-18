@@ -1,43 +1,45 @@
-# Fix: "Had Imaging Before?" multi-line value truncation
-
-## Bug
-
-GHL field:
-```
-Had Imaging Before ?: Yes and x-ray.
-24th August 2025 at Joint & Vascular Institute in Rockford
-```
-
-Portal shows only `Imaging Details: Yes and x-ray.` — the date/location line is dropped, and `Imaging Type: X-ray` is the only structured field that gets populated. `Imaging When` (24th August 2025) and `Imaging Location` (Joint & Vascular Institute in Rockford) are both empty because the parser never sees the second line.
+# Fix: ATE procedure not detected → Medical Information card empty
 
 ## Root cause
 
-In `supabase/functions/auto-parse-intake-notes/index.ts`, every "Had Imaging Before" extraction uses a single-line regex `[^\n|]+`:
+The Medical Information (amber) card you screenshotted shows only Pain Level because **ATE is not registered as a procedure** anywhere in the parser:
 
-- Line ~1026 backfill: `/Had Imaging Before\s*\??\s*:\s*([^\n|]+)/i`
-- Line ~1885 GHL section parser: same single-line capture
-- Line ~846 enrich pass: same
+1. `detectProcedureFromCalendar` (`supabase/functions/auto-parse-intake-notes/index.ts:2027`) has branches for UFE / PAE / GAE / PFE / PAD / FSE / HAE / TAE / Neuropathy — **no ATE / Achilles**. So a calendar named "Request Your ATE Consultation - Libertyville, IL" returns `null`.
+2. With `calendarProcedure = null`, the AI prompt gets no procedure context, so `procedure_type`, `duration`, `symptoms`, `previous_treatments`, etc. all stay null → the card collapses to just Pain Level + Notes.
+3. JVI's only ATE pathology answers in GHL today are:
+   - `STEP 1 | How would you rate your pain on a scale of 0–10?: 5` → pain_level (already populates)
+   - `STEP 1 | Where is your pain located?: Middle of the Achilles tendon` → not currently mapped to any structured field
 
-GHL embeds the answer's continuation as a literal newline inside the same field, so the regex stops at "Yes and x-ray." and the rest is lost before `parseCompoundImagingResponse` runs.
+(The teal **Medical & PCP Information** card lower on the page is a separate section — that's the one where Imaging Type / Details / When / Location now correctly populate after the prior fix.)
 
 ## Fix
 
-1. **Add a multi-line capture helper** that, on encountering `Had Imaging Before ?:`, grabs the value plus any subsequent indented/non-empty continuation lines until the next `  Field Name:` line, blank line, or next section header (e.g. `Additional Information:`, `=== `).
-2. **Use that helper in all three sites** (backfill on line ~1026, enrich on line ~846, and the GHL section walker on line ~1885) so the richest value is what hits `parseCompoundImagingResponse`.
-3. **Keep existing sanitization** (`sanitizeImagingDetails` / 200-char + bot-keyword reject) intact — apply it to the joined multi-line value.
-4. **Reparse the JVI Test ATE appointment** (id `40a3a211-1468-424c-ab8b-d70b275602ba`) so the user immediately sees the fix in the portal.
+### 1. Register ATE as a procedure (parser)
+File: `supabase/functions/auto-parse-intake-notes/index.ts`
 
-## Expected portal result after fix
+- **`detectProcedureFromCalendar`**: add an ATE branch matching `ate` (word boundary) or `achilles`/`tendinitis`/`tendonitis` so all variants of the calendar name resolve to `'ATE'`.
+- **AI prompt context block (~line 2369)**: add an `ATE` branch describing the procedure (Achilles Tendinitis Embolization — focus on Achilles tendon pain, location of pain, pain level, duration, prior treatments). Map:
+  - `STEP 1 | Where is your pain located?` → `pathology_info.affected_area` (and primary_complaint = "ATE Consultation").
+  - `STEP 1 | How would you rate your pain on a scale of 0–10?` → `pathology_info.pain_level`.
+  - Set `procedure_type = "ATE"`.
+- **Constraints / mapping**: confirm Joint & Vascular Institute has no procedure-restriction list that would override ATE. (Quick scan; will leave alone if it's permissive.)
 
-```
-Imaging Type:      X-ray
-Imaging When:      24th August 2025  (or "August 2025")
-Imaging Location:  Joint & Vascular Institute in Rockford
-Imaging Details:   Yes and x-ray. 24th August 2025 at Joint & Vascular Institute in Rockford
-```
+### 2. UI — surface ATE-recognized fields
+File: `src/components/appointments/ParsedIntakeInfo.tsx`
 
-## Scope
+The amber Medical Information card already renders `procedure_type`, `pain_level`, `affected_area`, `previous_treatments`, `duration`, `primary_complaint` generically — once the parser populates them, they'll appear automatically. **No new render branches needed** for ATE specifically; existing generic rows cover it. (If we later want an "Affected Tendon" badge, that would be additive.)
 
-- One file edited: `supabase/functions/auto-parse-intake-notes/index.ts`
-- One reparse call for the test appointment
-- No DB migration, no UI changes (the UI already renders `imaging_when` / `imaging_location` when present)
+### 3. Reparse the JVI Test record
+After deploying, set `parsing_completed_at = NULL` on `40a3a211-...` and call `auto-parse-intake-notes` so the user can confirm in the portal.
+
+## Out of scope
+
+- "ATE Survey Fields" custom card (slides 1, 6, etc.) — still blocked on you/Marissa mapping the missing slide answers to GHL custom fields. Once GHL sends them, we can add an ATE-specific block similar to UFE's.
+
+## Verification
+
+After deploy + reparse, JVI Test (id `40a3a211-1468-424c-ab8b-d70b275602ba`) should show in Medical Information:
+- Pathology: ATE
+- Primary Complaint: ATE Consultation
+- Pain Level: 5/10
+- Affected Area: Middle of the Achilles tendon
