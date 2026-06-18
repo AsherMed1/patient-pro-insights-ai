@@ -1,0 +1,1 @@
+UPDATE public.all_appointments SET parsing_completed_at = NULL, parsed_pathology_info = NULL WHERE id = '40a3a211-1468-424c-ab8b-d70b275602ba';
