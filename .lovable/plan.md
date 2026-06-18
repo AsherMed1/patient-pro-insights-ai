@@ -1,45 +1,54 @@
-## Issue
+# ATE (Achilles Tendinitis) Survey Capture — Plan
 
-Patient **Ruben De La Fuentes** (GHL contact `OMwQgMyoydxHXzkkDX4u`, Ally Vascular and Pain Centers) has a **new Neuropathy Consultation** booked in GHL but it never landed in our portal.
+## Investigation finding
 
-## Root-cause confirmed via GHL API
+I pulled the most recent JVI ATE intake notes (e.g. `JVI Test`, calendar "Request Your ATE Consultation - Libertyville, IL", 6/17). The full GHL payload our webhook receives contains **only two** pathology fields:
 
-GHL returns one active appointment for this contact that we do not have:
+```
+Pathology Information:
+  STEP 1 | How would you rate your pain on a scale of 0–10?: 5
+  STEP 1 | Where is your pain located?: Middle of the Achilles tendon
+```
 
-- GHL appointment ID: `9mE4qNGZIQVjBKLouue9`
-- Title: *Ruben De La Fuentes Neuropathy Consultation*
-- Start: `2026-06-20 07:00` (end `07:15`)
-- Calendar: `6LC4cgaNF54rZ2wPIvQm`
-- Status: `new`
-- Created in GHL: `2026-06-15 16:26:58`
+These are exactly the two answers from Opt-In 1 slides 3 & 4 (the ones currently showing). **No other slide answers are present in the GHL payload at all** — not in the contact custom fields, not in the appointment notes, nowhere.
 
-Our DB only has his older `2026-03-28` OON record (`cb1234f0…`) and an unrelated `Ruben Martinez Martinez` row. No row exists for `ghl_appointment_id = 9mE4qNGZIQVjBKLouue9`, and `ghl-webhook-handler` logs have no trace of that ID, contact ID, phone, or "delafuent". The GHL booking webhook simply never reached us (or fired before log retention) — so the appointment is missing, not suppressed by review/superseded logic.
+**Root cause: upstream GHL configuration.** The funnel slides for Opt-In 1 (slides 1 & 6) and Opt-In 2 (slides 2, 4, 6) are not mapped to GHL contact custom fields, so GHL never sends them to us. Our parser cannot extract data that does not exist in the inbound payload.
 
-## Plan
+## What needs to happen
 
-1. **Backfill the missing appointment** via `supabase--insert` into `all_appointments` with:
-   - `project_name`: `Ally Vascular  and Pain Centers`
-   - `ghl_appointment_id`: `9mE4qNGZIQVjBKLouue9`
-   - `ghl_id`: `OMwQgMyoydxHXzkkDX4u` (GHL contact ID — matches how new records key the contact)
-   - `ghl_location_id`: `vRT9AlSvuJsupOjfJekW`
-   - `lead_name`: `Ruben De La Fuentes`
-   - `lead_phone_number`: `+17262318752`
-   - `lead_email`: `delafuentesruben@gmail.com`
-   - `date_of_appointment`: `2026-06-20`
-   - `requested_time`: `07:00:00`
-   - `calendar_name`: matching the GHL calendar (`Request Your Neuropathy Consultation at  Amber Street, San Antonio, TX`, same as his prior row, since calendar `6LC4cgaNF54rZ2wPIvQm` is the Amber Street neuropathy calendar)
-   - `status`: `Confirmed`
-   - `review_status`: `pending` (Ally is not exempt, so it must hit the Review Queue → routes to **New / Needs Review**)
-   - `internal_process_complete`: `false`
-   - `is_superseded`: `false`
-   - `date_appointment_created`: `2026-06-15 16:26:58+00`
+### Step 1 — GHL side (user/Marissa, not code)
+For each missing slide, map the funnel form field to a GHL contact custom field. Without this, no parser/UI change on our side will help.
 
-2. **Verify** the row appears in the Ally portal's New / Needs Review tab and Review Queue.
+The slides we know of from your message:
+- Opt-In 1, Slide 1 — ?
+- Opt-In 1, Slide 6 — ?
+- Opt-In 2, Slide 2 — ?
+- Opt-In 2, Slide 4 — ?
+- Opt-In 2, Slide 6 — ?
 
-3. **Out of scope** (flag only, no fix): investigate why the GHL booking webhook was not delivered for this contact. If this is a recurring pattern across Ally we can add a scheduled reconciliation job, but that is a separate task.
+I need the question text and answer options for each so I can match them to existing fields (Duration, Treatments Tried, Imaging, etc.) or recommend new GHL custom field names.
 
-## Notes
+### Step 2 — Our side (code, after Step 1)
+Once GHL is sending the new fields, I will:
 
-- No code or migration changes — this is a single targeted data backfill.
-- Will not modify or supersede the existing `cb1234f0…` OON record.
-- Lead name will be stored as `Ruben De La Fuentes` (matches GHL), resolving the earlier "name search misses him" complaint going forward.
+1. **Extend the ATE parser** in `parse-intake-notes` (or relevant edge function) to extract the new `STEP X | …` lines from `Pathology Information:` / `Medical Information:` / `Additional Information:` sections.
+2. **Persist** them into `parsed_pathology_info` JSONB on `all_appointments` (e.g. `duration`, `treatments_tried`, `imaging_done`, `symptoms`, plus any ATE-specific keys).
+3. **Display** them in two places per your selection ("Medical Information + ATE panel"):
+   - **ATE Survey Fields** card — list each captured slide answer as its own row (matching the existing "STEP 1 | …" pattern in your screenshot).
+   - **Medical Information** card — surface the structured fields that already have homes there (Pain Level is already shown; add Duration, Treatments Tried, Imaging if mapped).
+4. **Reparse** existing JVI ATE appointments so the new fields backfill where the data is present.
+
+## Open questions blocking Step 2
+
+1. What are the actual questions on Opt-In 1 slides 1 & 6 and Opt-In 2 slides 2, 4, 6?
+2. Do you (or the JVI team) want me to reach out about the GHL form field mapping, or will Marissa configure that and ping me when it's live?
+
+## Technical notes
+
+- ATE notes follow the same `=== GHL Contact Data (Full) ===` block pattern as other JVI procedures, so the parser change is small (add the new `STEP X | …` regex keys to the ATE branch and write them to `parsed_pathology_info`).
+- No DB migration needed — `parsed_pathology_info` is JSONB; new keys slot in.
+- UI: extend `ATESurveyFields` (or whatever component renders the screenshot card) to iterate over a known list of step keys instead of hardcoding the two it currently shows.
+
+## Recommended next action
+
+Reply with the slide questions (or a screenshot of each slide), and confirm who owns the GHL form mapping. Once GHL is updated and we see a new test lead arrive with the extra fields, I'll ship the parser + UI changes in one pass.
