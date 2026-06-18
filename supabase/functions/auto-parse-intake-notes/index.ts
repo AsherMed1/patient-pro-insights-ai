@@ -68,6 +68,32 @@ function stripStaleStepLines(notes: string | null | undefined, currentProc: stri
   return kept.join('\n');
 }
 
+// Extract a "Field Name: value" entry from intake notes, including any
+// continuation lines that follow (GHL stores multi-line answers as literal
+// newlines inside a single field value). Stops at a blank line, the next
+// "Field Name:" line, or a section header ("=== ", "---").
+function extractMultiLineFieldValue(notes: string, fieldRegex: RegExp): string | null {
+  if (!notes) return null;
+  const lines = notes.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(fieldRegex);
+    if (m && m[1] !== undefined) {
+      const parts = [m[1].trim()];
+      for (let j = i + 1; j < lines.length; j++) {
+        const next = lines[j];
+        if (!next.trim()) break;
+        // Next "Key:" / "Key ?:" line — typical GHL formatted field
+        if (/^\s{0,6}[A-Za-z][A-Za-z0-9 _'/&\-?().,]*\s*:/.test(next)) break;
+        // Section headers / separators
+        if (/^=== /.test(next) || /^---/.test(next) || /^\*\*/.test(next)) break;
+        parts.push(next.trim());
+      }
+      return parts.join(' ').replace(/\s+/g, ' ').trim();
+    }
+  }
+  return null;
+}
+
 
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
@@ -301,7 +327,11 @@ function parseCompoundImagingResponse(value: string, result: any): void {
   
   // Extract imaging when (date/timeframe references)
   const whenPatterns = [
-    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i,
+    // "24th August 2025" / "24 August 2025"
+    /\b\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i,
+    // "August 24, 2025" / "August 2025"
+    /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/i,
+    /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i,
     /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/,
     /\b\d{4}\b(?=\s|$|,)/,
     /\b(last\s+(?:year|month|week)|(?:\d+)\s+(?:years?|months?|weeks?)\s+ago)\b/i,
