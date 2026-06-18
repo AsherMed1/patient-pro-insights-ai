@@ -2057,6 +2057,11 @@ function detectProcedureFromCalendar(calendarName: string | null): string | null
   if (name.includes('fse') || name.includes('frozen shoulder')) {
     return 'FSE';
   }
+  // ATE — Achilles Tendinitis Embolization. Match word-boundary "ate" to avoid
+  // false positives on words like "private" or "rate".
+  if (/\bate\b/i.test(calendarName) || name.includes('achilles') || name.includes('tendinitis') || name.includes('tendonitis')) {
+    return 'ATE';
+  }
   return null;
 }
 
@@ -2368,6 +2373,7 @@ ${calendarProcedure === 'FSE' ? 'FSE (Frozen Shoulder Embolization) focuses on: 
 ${calendarProcedure === 'HAE' ? 'HAE (Hemorrhoid Artery Embolization) focuses on: rectal bleeding, internal/external hemorrhoids, bowel discomfort, constipation, colonoscopy results, hemorrhoid diagnosis, bleeding duration. Set procedure_type to "HAE".' : ''}
 ${calendarProcedure === 'TAE' ? 'TAE (Thyroid Artery Embolization) focuses on: thyroid nodule or goiter diagnosis, lump or swelling in the neck, pressure or tightness in the throat, difficulty swallowing, cosmetic concerns about the neck, prior thyroid imaging (ultrasound/CT/MRI), interest in avoiding surgery, openness to minimally invasive treatment. Set procedure_type to "TAE", primary_complaint to "TAE Consultation", and affected_area to "Thyroid". Map "TAE STEP 1/2 | Are you experiencing any of the following?" to symptoms; "diagnosed with a thyroid nodule or goiter" to diagnosis; "Has a doctor recommended..." to previous_treatments; "imaging of your thyroid" to imaging_done (YES/NO); "Had Imaging Before" to medical_info.imaging_details.' : ''}
 ${calendarProcedure === 'Neuropathy' ? 'Neuropathy (peripheral neuropathy consultation, The Painless Center) focuses on: numbness, tingling, burning, cold feet, balance issues, foot/leg nerve pain, diabetic neuropathy, duration of symptoms. Set procedure_type to "Neuropathy". DO NOT extract knee-specific GAE fields like oa_tkr_diagnosed, affected_knee, or knee imaging — leave them null. primary_complaint should be "Neuropathy" or the described nerve symptom.' : ''}
+${calendarProcedure === 'ATE' ? 'ATE (Achilles Tendinitis Embolization) focuses on: chronic Achilles tendon pain, location of pain along the Achilles tendon (insertion, mid-tendon, etc.), pain level, duration of symptoms, prior treatments tried (rest, PT, injections, orthotics), prior imaging (X-ray, MRI, ultrasound). Set procedure_type to "ATE", primary_complaint to "ATE Consultation", and affected_area to "Achilles tendon" (or the specific location described). Map "STEP 1 | How would you rate your pain on a scale of 0–10?" to pain_level; "STEP 1 | Where is your pain located?" to affected_area; any "How long have you had..." answers to duration; any prior treatments to previous_treatments. DO NOT extract knee-specific GAE fields (oa_tkr_diagnosed, affected_knee) — leave them null.' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;
