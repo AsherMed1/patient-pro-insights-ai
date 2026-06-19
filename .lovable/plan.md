@@ -1,45 +1,68 @@
-# Fix: ATE procedure not detected → Medical Information card empty
+## Goals
 
-## Root cause
+1. Make the **Medical Information** card render the same rich layout for ATE that UFE uses today, but with ATE intake questions.
+2. Fix the **Imaging Location** mis-mapping that currently produces `"Joint & Vascular Institute July"` instead of `"Joint & Vascular Institute"` (with `July 2025` going to Imaging When).
 
-The Medical Information (amber) card you screenshotted shows only Pain Level because **ATE is not registered as a procedure** anywhere in the parser:
+---
 
-1. `detectProcedureFromCalendar` (`supabase/functions/auto-parse-intake-notes/index.ts:2027`) has branches for UFE / PAE / GAE / PFE / PAD / FSE / HAE / TAE / Neuropathy — **no ATE / Achilles**. So a calendar named "Request Your ATE Consultation - Libertyville, IL" returns `null`.
-2. With `calendarProcedure = null`, the AI prompt gets no procedure context, so `procedure_type`, `duration`, `symptoms`, `previous_treatments`, etc. all stay null → the card collapses to just Pain Level + Notes.
-3. JVI's only ATE pathology answers in GHL today are:
-   - `STEP 1 | How would you rate your pain on a scale of 0–10?: 5` → pain_level (already populates)
-   - `STEP 1 | Where is your pain located?: Middle of the Achilles tendon` → not currently mapped to any structured field
+## 1. ATE Medical Information layout
 
-(The teal **Medical & PCP Information** card lower on the page is a separate section — that's the one where Imaging Type / Details / When / Location now correctly populate after the prior fix.)
+Mirror the UFE block in `src/components/appointments/ParsedIntakeInfo.tsx` (lines ~880–908) with an ATE branch using ATE-specific GHL questions.
 
-## Fix
+**ATE intake questions (from GHL Pathology Info):**
+- `STEP 1 | How would you rate your pain on a scale of 0–10?` → `pain_level` (already rendered above)
+- `STEP 1 | Where is your pain located?` → new field `pain_location`
+- `STEP 2 | Have you tried any treatments for your Achilles pain? (Select all that apply)` → `previous_treatments` (rendered as a question-style row)
 
-### 1. Register ATE as a procedure (parser)
-File: `supabase/functions/auto-parse-intake-notes/index.ts`
+**UI rows added to the Medical Information card when `procedure_type === 'ATE'`:**
+- Pathology: ATE *(existing)*
+- Pain Level: X/10 *(existing)*
+- Duration: ... *(existing generic row)*
+- Primary Complaint: ATE Consultation *(existing)*
+- **Where is your Achilles pain located?** → `pain_location`
+- **Have you tried any treatments for your Achilles pain?** → `previous_treatments`
+- Affected Area *(existing generic row, will show "Achilles tendon" once parsed)*
+- Notes *(existing)*
 
-- **`detectProcedureFromCalendar`**: add an ATE branch matching `ate` (word boundary) or `achilles`/`tendinitis`/`tendonitis` so all variants of the calendar name resolve to `'ATE'`.
-- **AI prompt context block (~line 2369)**: add an `ATE` branch describing the procedure (Achilles Tendinitis Embolization — focus on Achilles tendon pain, location of pain, pain level, duration, prior treatments). Map:
-  - `STEP 1 | Where is your pain located?` → `pathology_info.affected_area` (and primary_complaint = "ATE Consultation").
-  - `STEP 1 | How would you rate your pain on a scale of 0–10?` → `pathology_info.pain_level`.
-  - Set `procedure_type = "ATE"`.
-- **Constraints / mapping**: confirm Joint & Vascular Institute has no procedure-restriction list that would override ATE. (Quick scan; will leave alone if it's permissive.)
+No knee/UFE-specific rows render (already gated by procedure_type).
 
-### 2. UI — surface ATE-recognized fields
-File: `src/components/appointments/ParsedIntakeInfo.tsx`
+**Parser updates** in `supabase/functions/auto-parse-intake-notes/index.ts` ATE branch (~line 2376):
+- Map `STEP 1 | Where is your pain located?` → `pathology_info.pain_location` (new) AND `pathology_info.affected_area` (so the existing Affected Area row also fills).
+- Map `STEP 2 | Have you tried any treatments for your Achilles pain?` → `pathology_info.previous_treatments`.
+- Keep `procedure_type = "ATE"`, `primary_complaint = "ATE Consultation"`.
+- Reparse appointment `7ed90d97-214b-44b0-8168-837636e6f123` to backfill (set `parsing_completed_at = NULL`, invoke `auto-parse-intake-notes`).
 
-The amber Medical Information card already renders `procedure_type`, `pain_level`, `affected_area`, `previous_treatments`, `duration`, `primary_complaint` generically — once the parser populates them, they'll appear automatically. **No new render branches needed** for ATE specifically; existing generic rows cover it. (If we later want an "Affected Tendon" badge, that would be additive.)
+---
 
-### 3. Reparse the JVI Test record
-After deploying, set `parsing_completed_at = NULL` on `40a3a211-...` and call `auto-parse-intake-notes` so the user can confirm in the portal.
+## 2. Fix Imaging Location mis-mapping
+
+**Root cause:** regex at `parseCompoundImagingResponse` (line 319):
+```
+/\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+(?:Hospital|...|Institute)?[A-Za-z\s.&']*)/i
+```
+The trailing `[A-Za-z\s.&']*` after `Institute` keeps eating words, so `"at Joint & Vascular Institute July 2025"` captures `"Joint & Vascular Institute July"` for `imaging_location`.
+
+**Fix:** post-process the captured location:
+- Strip trailing month names (`January…December`) and 4-digit years.
+- Trim trailing whitespace/punctuation again after the strip.
+
+Result for the JVI Test record:
+- `imaging_location` → `"Joint & Vascular Institute"`
+- `imaging_when` → `"July 2025"` (already correct)
+- `imaging_details` → `"yes X-ray at Joint & Vascular Institute July 2025"` (unchanged)
+
+Apply the same trim to the AI-pathway `imaging_location` (line ~898 enrich block) so both code paths stay consistent.
+
+After deploying, reparse the JVI Test appointment.
+
+---
+
+## Files changed
+
+- `supabase/functions/auto-parse-intake-notes/index.ts` — ATE field mapping (`pain_location`, `previous_treatments`, `affected_area`); imaging_location trailing month/year strip.
+- `src/components/appointments/ParsedIntakeInfo.tsx` — ATE-specific question rows in Medical Information card, parallel to UFE block.
+- One-off: reparse JVI Test (`7ed90d97-214b-44b0-8168-837636e6f123`).
 
 ## Out of scope
 
-- "ATE Survey Fields" custom card (slides 1, 6, etc.) — still blocked on you/Marissa mapping the missing slide answers to GHL custom fields. Once GHL sends them, we can add an ATE-specific block similar to UFE's.
-
-## Verification
-
-After deploy + reparse, JVI Test (id `40a3a211-1468-424c-ab8b-d70b275602ba`) should show in Medical Information:
-- Pathology: ATE
-- Primary Complaint: ATE Consultation
-- Pain Level: 5/10
-- Affected Area: Middle of the Achilles tendon
+- ATE Survey Fields custom card (slides 1, 6, etc.) — still blocked on slide-to-GHL mapping from Marissa.
