@@ -906,6 +906,23 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     )}
                   </>
                 )}
+                {/* ATE-specific funnel answers */}
+                {(parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() === 'ATE' && (
+                  <>
+                    {formatValue(parsedPathologyInfo.pain_location) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Where is your Achilles pain located?</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.pain_location}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.previous_treatments) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Have you tried any treatments for your Achilles pain?</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
+                      </div>
+                    )}
+                  </>
+                )}
                 {formatValue(parsedPathologyInfo.affected_area) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Affected Area:</span>{" "}
