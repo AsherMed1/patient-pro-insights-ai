@@ -847,7 +847,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </div>
                   );
                 })()}
-                {formatValue(parsedPathologyInfo.previous_treatments) && (
+                {formatValue(parsedPathologyInfo.previous_treatments) &&
+                 (parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() !== 'ATE' && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Treatments Tried:</span>{" "}
                     <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
