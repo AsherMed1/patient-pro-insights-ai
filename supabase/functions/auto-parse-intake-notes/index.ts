@@ -2338,6 +2338,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "symptoms": "string or null",
     "pain_level": "string or null",
     "affected_area": "string or null",
+    "pain_location": "string or null - Verbatim answer to 'Where is your pain located?' for ATE intakes (e.g., 'Middle of the Achilles tendon', 'Insertion', 'Mid-tendon').",
     "affected_knee": "string or null - Which knee is affected: 'Left', 'Right', or 'Both'. Extract from any mention of specific knee side, bilateral, or left/right knee references.",
     "duration": "string or null",
     "previous_treatments": "string or null",
