@@ -847,7 +847,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </div>
                   );
                 })()}
-                {formatValue(parsedPathologyInfo.previous_treatments) && (
+                {formatValue(parsedPathologyInfo.previous_treatments) &&
+                 (parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() !== 'ATE' && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Treatments Tried:</span>{" "}
                     <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
@@ -902,6 +903,23 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       <div className="text-sm">
                         <span className="text-muted-foreground">Period Length:</span>{" "}
                         <span className="font-medium">{parsedPathologyInfo.period_length}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {/* ATE-specific funnel answers */}
+                {(parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() === 'ATE' && (
+                  <>
+                    {formatValue(parsedPathologyInfo.pain_location) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Where is your Achilles pain located?</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.pain_location}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.previous_treatments) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Have you tried any treatments for your Achilles pain?</span>{" "}
+                        <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
                       </div>
                     )}
                   </>

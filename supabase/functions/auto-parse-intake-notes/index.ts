@@ -318,7 +318,16 @@ function parseCompoundImagingResponse(value: string, result: any): void {
   // Extract imaging location (text after "at" or "from")
   const locationMatch = value.match(/\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+(?:Hospital|Medical|Center|Clinic|Imaging|Radiology|Health|Institute|Associates|Diagnostics)?[A-Za-z\s.&']*)/i);
   if (locationMatch && locationMatch[1]) {
-    const location = locationMatch[1].trim().replace(/[,.\s]+$/, '');
+    let location = locationMatch[1].trim().replace(/[,.\s]+$/, '');
+    // Strip trailing month names and 4-digit years that the broad capture
+    // accidentally slurps in (e.g. "Joint & Vascular Institute July 2025"
+    // → "Joint & Vascular Institute"). The date portion is captured separately
+    // into imaging_when below.
+    location = location
+      .replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)(?:\s+\d{4})?\s*$/i, '')
+      .replace(/\s+\d{4}\s*$/, '')
+      .replace(/[,.\s]+$/, '')
+      .trim();
     if (location.length > 2) {
       result.medical_info.imaging_location = location;
       console.log(`[AUTO-PARSE IMAGING] Extracted imaging_location: ${location}`);
@@ -2373,7 +2382,7 @@ ${calendarProcedure === 'FSE' ? 'FSE (Frozen Shoulder Embolization) focuses on: 
 ${calendarProcedure === 'HAE' ? 'HAE (Hemorrhoid Artery Embolization) focuses on: rectal bleeding, internal/external hemorrhoids, bowel discomfort, constipation, colonoscopy results, hemorrhoid diagnosis, bleeding duration. Set procedure_type to "HAE".' : ''}
 ${calendarProcedure === 'TAE' ? 'TAE (Thyroid Artery Embolization) focuses on: thyroid nodule or goiter diagnosis, lump or swelling in the neck, pressure or tightness in the throat, difficulty swallowing, cosmetic concerns about the neck, prior thyroid imaging (ultrasound/CT/MRI), interest in avoiding surgery, openness to minimally invasive treatment. Set procedure_type to "TAE", primary_complaint to "TAE Consultation", and affected_area to "Thyroid". Map "TAE STEP 1/2 | Are you experiencing any of the following?" to symptoms; "diagnosed with a thyroid nodule or goiter" to diagnosis; "Has a doctor recommended..." to previous_treatments; "imaging of your thyroid" to imaging_done (YES/NO); "Had Imaging Before" to medical_info.imaging_details.' : ''}
 ${calendarProcedure === 'Neuropathy' ? 'Neuropathy (peripheral neuropathy consultation, The Painless Center) focuses on: numbness, tingling, burning, cold feet, balance issues, foot/leg nerve pain, diabetic neuropathy, duration of symptoms. Set procedure_type to "Neuropathy". DO NOT extract knee-specific GAE fields like oa_tkr_diagnosed, affected_knee, or knee imaging — leave them null. primary_complaint should be "Neuropathy" or the described nerve symptom.' : ''}
-${calendarProcedure === 'ATE' ? 'ATE (Achilles Tendinitis Embolization) focuses on: chronic Achilles tendon pain, location of pain along the Achilles tendon (insertion, mid-tendon, etc.), pain level, duration of symptoms, prior treatments tried (rest, PT, injections, orthotics), prior imaging (X-ray, MRI, ultrasound). Set procedure_type to "ATE", primary_complaint to "ATE Consultation", and affected_area to "Achilles tendon" (or the specific location described). Map "STEP 1 | How would you rate your pain on a scale of 0–10?" to pain_level; "STEP 1 | Where is your pain located?" to affected_area; any "How long have you had..." answers to duration; any prior treatments to previous_treatments. DO NOT extract knee-specific GAE fields (oa_tkr_diagnosed, affected_knee) — leave them null.' : ''}
+${calendarProcedure === 'ATE' ? 'ATE (Achilles Tendinitis Embolization) focuses on: chronic Achilles tendon pain, location of pain along the Achilles tendon (insertion, mid-tendon, etc.), pain level, duration of symptoms, prior treatments tried (rest, PT, injections, orthotics), prior imaging (X-ray, MRI, ultrasound). Set procedure_type to "ATE", primary_complaint to "ATE Consultation", and affected_area to "Achilles tendon". Map "STEP 1 | How would you rate your pain on a scale of 0–10?" to pain_level; "STEP 1 | Where is your pain located?" to BOTH pathology_info.pain_location (the verbatim answer, e.g. "Middle of the Achilles tendon") AND affected_area; any "How long have you had..." answers to duration; "STEP 2 | Have you tried any treatments for your Achilles pain?" answers (and any other prior treatment lists) to previous_treatments — preserve the comma-separated list verbatim. DO NOT extract knee-specific GAE fields (oa_tkr_diagnosed, affected_knee) — leave them null.' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;
