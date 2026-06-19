@@ -1464,6 +1464,61 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // === ATE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // ATE intake uses "STEP 1 | Where is your pain located?" / "STEP 2 | Have you tried..." format.
+  // Trigger when the calendar already detected ATE OR the notes mention Achilles/tendinitis.
+  if (/\bATE\b|achilles|tendinitis|tendonitis/i.test(intakeNotes)) {
+    const grab = (re: RegExp): string | null => {
+      const m = intakeNotes.match(re);
+      return m && m[1] ? m[1].trim() : null;
+    };
+
+    // Force procedure_type / primary_complaint / affected_area for ATE
+    if (!parsedData.pathology_info.procedure_type || /^(GAE|UFE|PAE|HAE|PAD|FSE|TAE|PFE|Neuropathy)$/i.test(String(parsedData.pathology_info.procedure_type)) === false) {
+      // already detected; leave alone
+    }
+    if (String(parsedData.pathology_info.procedure_type).toUpperCase() === 'ATE') {
+      if (!parsedData.pathology_info.primary_complaint) {
+        parsedData.pathology_info.primary_complaint = 'ATE Consultation';
+      }
+
+      // Where is your pain located? → pain_location + affected_area
+      const loc = grab(/STEP\s*1\s*\|\s*Where is your pain located\??\s*:\s*([^\n]+)/i)
+        || grab(/Where is your (?:Achilles\s+)?pain located\??\s*:\s*([^\n]+)/i);
+      if (loc && loc.length > 1) {
+        if (!parsedData.pathology_info.pain_location) {
+          parsedData.pathology_info.pain_location = loc;
+          console.log(`[AUTO-PARSE ATE] Extracted pain_location: ${loc}`);
+        }
+        if (!parsedData.pathology_info.affected_area || /achilles tendon/i.test(String(parsedData.pathology_info.affected_area || ''))) {
+          parsedData.pathology_info.affected_area = loc;
+          console.log(`[AUTO-PARSE ATE] Set affected_area from pain_location: ${loc}`);
+        }
+      }
+
+      // Treatments tried for Achilles pain → previous_treatments
+      if (!parsedData.pathology_info.previous_treatments) {
+        const tx = grab(/STEP\s*2\s*\|\s*Have you tried any treatments for your Achilles pain[^:]*:\s*([^\n]+)/i)
+          || grab(/treatments? for your Achilles pain[^:]*:\s*([^\n]+)/i);
+        if (tx && tx.length > 2) {
+          parsedData.pathology_info.previous_treatments = tx;
+          console.log(`[AUTO-PARSE ATE] Extracted previous_treatments: ${tx}`);
+        }
+      }
+
+      // Pain level fallback (in case AI missed)
+      if (!parsedData.pathology_info.pain_level) {
+        const pl = grab(/STEP\s*1\s*\|\s*How would you rate your pain[^:]*:\s*([^\n]+)/i);
+        if (pl) {
+          const num = pl.match(/\d+/);
+          if (num) {
+            parsedData.pathology_info.pain_level = num[0];
+            console.log(`[AUTO-PARSE ATE] Extracted pain_level: ${num[0]}`);
+          }
+        }
+      }
+    }
+
   return parsedData;
 }
 
