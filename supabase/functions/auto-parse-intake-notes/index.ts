@@ -1518,6 +1518,7 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
         }
       }
     }
+  }
 
   return parsedData;
 }
