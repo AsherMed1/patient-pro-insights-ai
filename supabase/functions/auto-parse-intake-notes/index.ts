@@ -318,7 +318,16 @@ function parseCompoundImagingResponse(value: string, result: any): void {
   // Extract imaging location (text after "at" or "from")
   const locationMatch = value.match(/\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+(?:Hospital|Medical|Center|Clinic|Imaging|Radiology|Health|Institute|Associates|Diagnostics)?[A-Za-z\s.&']*)/i);
   if (locationMatch && locationMatch[1]) {
-    const location = locationMatch[1].trim().replace(/[,.\s]+$/, '');
+    let location = locationMatch[1].trim().replace(/[,.\s]+$/, '');
+    // Strip trailing month names and 4-digit years that the broad capture
+    // accidentally slurps in (e.g. "Joint & Vascular Institute July 2025"
+    // → "Joint & Vascular Institute"). The date portion is captured separately
+    // into imaging_when below.
+    location = location
+      .replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)(?:\s+\d{4})?\s*$/i, '')
+      .replace(/\s+\d{4}\s*$/, '')
+      .replace(/[,.\s]+$/, '')
+      .trim();
     if (location.length > 2) {
       result.medical_info.imaging_location = location;
       console.log(`[AUTO-PARSE IMAGING] Extracted imaging_location: ${location}`);
