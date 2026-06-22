@@ -315,20 +315,26 @@ function parseCompoundImagingResponse(value: string, result: any): void {
     console.log(`[AUTO-PARSE IMAGING] Extracted imaging_type: ${result.pathology_info.imaging_type}`);
   }
   
-  // Extract imaging location (text after "at" or "from")
-  const locationMatch = value.match(/\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+(?:Hospital|Medical|Center|Clinic|Imaging|Radiology|Health|Institute|Associates|Diagnostics)?[A-Za-z\s.&']*)/i);
+  // Extract imaging location (text after "at" or "from").
+  // Lazy capture stops before connective prepositions followed by date words
+  // (e.g. "Alliance Vascular in August 2025") so we never slurp the dangling
+  // " in" / " on" into the location.
+  const locationMatch = value.match(
+    /\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+?)(?=\s+(?:in|on|during|around|near)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|\d{4})|\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\s+\d{4}\b|[,.;]|$)/i
+  );
   if (locationMatch && locationMatch[1]) {
     let location = locationMatch[1].trim().replace(/[,.\s]+$/, '');
-    // Strip trailing month names and 4-digit years that the broad capture
-    // accidentally slurps in (e.g. "Joint & Vascular Institute July 2025"
-    // → "Joint & Vascular Institute"). The date portion is captured separately
-    // into imaging_when below.
+    // Belt-and-suspenders cleanup in case the AI phrased things in an
+    // unexpected way and a connective preposition slipped through.
     location = location
       .replace(/\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)(?:\s+\d{4})?\s*$/i, '')
       .replace(/\s+\d{4}\s*$/, '')
+      .replace(/\s+(in|on|at|by|during|around|near)\s*$/i, '')
       .replace(/[,.\s]+$/, '')
       .trim();
-    if (location.length > 2) {
+    // Discard stop-words alone or junk shorter than 3 chars.
+    const stopWords = /^(in|on|at|by|the|a|an|of|and|or|during|around|near)$/i;
+    if (location.length > 2 && !stopWords.test(location)) {
       result.medical_info.imaging_location = location;
       console.log(`[AUTO-PARSE IMAGING] Extracted imaging_location: ${location}`);
     }
