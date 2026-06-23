@@ -1,38 +1,39 @@
-## Diagnosis
+## Reset unscheduled appointment when time_preference changes
 
-Pulled the Alliance Vascular lead (`Alliance Test`, id `1d40aae7…`) and compared raw GHL intake notes vs `parsed_*` columns:
+When `time_preference` is updated on an unscheduled-capture project (Davis Vein & Vascular, ECCO Medical, Premier Vascular, Premier Vascular Surgery), treat it like a reschedule on the same row: refresh the lifecycle so the lead re-enters the active pipeline instead of staying on whatever terminal/completed state it was in.
 
-| Issue in screenshot | Reality in DB now | Root cause |
-|---|---|---|
-| 1. No insurance | `parsed_insurance_info` correctly has Medicare / Medicare / `huh788xu8uxx` + insurance card link | Screenshot taken **before** auto-parse completed. Extraction itself works. |
-| 2. Medical Info shows only "Pathology: PAE" | `parsed_pathology_info` now has `procedure_type: GAE` plus all GAE STEP fields | Same — pre-parse snapshot. Once parsing finishes, GAE rows render. |
-| 3. Imaging Location: "Alliance Vascular **in**" | Real parser bug | `parseCompoundImagingResponse` regex (`supabase/functions/auto-parse-intake-notes/index.ts` ~line 319) captures `at Alliance Vascular in August`, strips `August/2025`, leaves dangling `in`. |
+### What changes on the row when time_preference changes
+- `status` → `Pending`
+- `internal_process_complete` → `false`
+- `procedure_ordered` → `null`
+- `procedure_status` → `null`
+- Append an entry to `reschedule_history` JSONB: `{ at, source: 'ui' | 'ghl_webhook', old_pref, new_pref, by }`
+- `updated_at` → `now()`
+- Leave `review_status` alone (Davis/ECCO/Premier stay `approved` per existing exempt rule)
 
-#1 and #2 are timing artifacts — no code change needed. **#3 is a real parser bug** affecting any AI-generated phrasing like "at <Facility> in <Month> <Year>" or "at <Facility> on <date>".
+### Where the logic lives
+A single DB trigger is the cleanest place because both UI edits and GHL webhook updates already write to `all_appointments.time_preference`. One trigger covers both sources without touching the UI or three edge functions.
 
-## Code Fix (issue #3 only)
+**New trigger:** `handle_unscheduled_time_preference_change` on `all_appointments` BEFORE UPDATE, fires only when:
+- `OLD.is_unscheduled = true` AND
+- `NEW.time_preference IS DISTINCT FROM OLD.time_preference` AND
+- `NEW.project_name` is in the unscheduled-capture set
 
-Edit `parseCompoundImagingResponse` in `supabase/functions/auto-parse-intake-notes/index.ts`:
+Logic mirrors `handle_appointment_status_completion` (which already resets these same fields when status flips to Pending) and appends to `reschedule_history` the way `appointment_reschedules` flow does.
 
-1. Tighten the capture so it stops before connective prepositions followed by date words:
-   ```ts
-   const locationMatch = value.match(
-     /\b(?:at|from)\s+([A-Z][A-Za-z\s.&']+?)(?=\s+(?:in|on|during|around|near)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|\d{4})|\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)|\s+\d{4}|[,.;]|$)/i
-   );
-   ```
-2. Belt-and-suspenders cleanup after the existing month/year strip:
-   ```ts
-   location = location.replace(/\s+(in|on|at|by|during|around|near)\s*$/i, '').trim();
-   ```
-3. Discard if the cleaned result is empty, a stop-word alone, or under 3 chars.
+### UI follow-ups (small)
+- `AppointmentCard.tsx` line 1537-1546: keep the existing `update` call — the trigger handles the rest. Update the toast to "Time preference updated — appointment reset to Pending" so the user knows.
+- Refresh the card after save (already calls `onDataRefresh?.()`).
 
-## What I will NOT change
+### Edge function follow-ups
+None required. `ghl-webhook-handler` and `fetch-ghl-contact-data` already issue plain `update` statements; the trigger runs server-side regardless of caller.
 
-- No data backfill — existing rows stay as-is per your instruction.
-- Insurance extraction (already correct).
-- Pathology/GAE rendering (already correct).
-- Auto-parse trigger timing.
+### Out of scope
+- No new row created — existing row is reset (per your choice).
+- Review queue behavior unchanged (Davis/ECCO/Premier stay auto-approved).
+- No backfill of historical rows.
+- No change for non-unscheduled projects.
 
-## Files touched
-
-- `supabase/functions/auto-parse-intake-notes/index.ts` — ~10 line regex fix, no migration.
+### Files touched
+1. **New migration** — create `handle_unscheduled_time_preference_change()` function + BEFORE UPDATE trigger on `all_appointments`.
+2. **`src/components/appointments/AppointmentCard.tsx`** — toast copy tweak only (~2 lines).
