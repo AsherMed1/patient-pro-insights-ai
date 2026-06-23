@@ -223,6 +223,7 @@ export type Database = {
           detected_insurance_provider: string | null
           dob: string | null
           ghl_appointment_id: string | null
+          ghl_approved_tag_sent_at: string | null
           ghl_id: string | null
           ghl_location_id: string | null
           id: string
@@ -285,6 +286,7 @@ export type Database = {
           detected_insurance_provider?: string | null
           dob?: string | null
           ghl_appointment_id?: string | null
+          ghl_approved_tag_sent_at?: string | null
           ghl_id?: string | null
           ghl_location_id?: string | null
           id?: string
@@ -347,6 +349,7 @@ export type Database = {
           detected_insurance_provider?: string | null
           dob?: string | null
           ghl_appointment_id?: string | null
+          ghl_approved_tag_sent_at?: string | null
           ghl_id?: string | null
           ghl_location_id?: string | null
           id?: string
