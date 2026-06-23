@@ -304,9 +304,16 @@ serve(async (req) => {
               action: 'add',
             },
           })
-            .then(({ error: tagErr }) => {
-              if (tagErr) console.error(`[${requestId}] setter-submitted GHL tag failed:`, tagErr);
-              else console.log(`[${requestId}] setter-submitted 'approved' tag added to GHL contact ${appointmentRecord.ghl_id}`);
+            .then(async ({ error: tagErr }) => {
+              if (tagErr) {
+                console.error(`[${requestId}] setter-submitted GHL tag failed:`, tagErr);
+              } else {
+                console.log(`[${requestId}] setter-submitted 'approved' tag added to GHL contact ${appointmentRecord.ghl_id}`);
+                await supabase
+                  .from('all_appointments')
+                  .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
+                  .eq('id', appointmentRecord.id);
+              }
             })
             .catch((e) => console.error(`[${requestId}] setter-submitted GHL tag invoke failed:`, e));
         } catch (e) {

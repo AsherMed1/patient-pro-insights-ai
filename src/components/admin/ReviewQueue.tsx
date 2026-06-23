@@ -624,9 +624,14 @@ const ReviewQueue: React.FC = () => {
               console.error('update-ghl-contact-tags failed:', tagErr);
               toast({
                 title: 'Approved, but GHL tag not added',
-                description: 'Review status was saved, but adding the "approved" tag in GHL failed.',
+                description: 'Review status was saved, but adding the "approved" tag in GHL failed. It will retry automatically.',
                 variant: 'destructive',
               });
+            } else {
+              await supabase
+                .from('all_appointments')
+                .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
+                .eq('id', id);
             }
           } catch (err) {
             console.error('update-ghl-contact-tags threw:', err);
