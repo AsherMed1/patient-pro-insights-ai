@@ -1541,7 +1541,7 @@ const AppointmentCard = ({
                     if (error) {
                       toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
                     } else {
-                      toast({ title: 'Time preference updated' });
+                      toast({ title: 'Time preference updated', description: 'Appointment reset to Pending.' });
                       onDataRefresh?.();
                     }
                   }}
