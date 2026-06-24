@@ -741,6 +741,59 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     View Insurance Card
                   </Button>
                 )}
+
+                {/* Secondary Insurance */}
+                {!isEditingInsurance && (() => {
+                  const sec = parsedInsuranceInfo || {};
+                  const secProvider = sanitizeInsuranceValue(sec.secondary_provider);
+                  const secPlan = sanitizeInsuranceValue(sec.secondary_plan);
+                  const secId = sanitizeInsuranceValue(sec.secondary_id_number);
+                  const secGroup = sanitizeInsuranceValue(sec.secondary_group_number);
+                  const secCard = sec.secondary_card_url || null;
+                  if (!secProvider && !secPlan && !secId && !secGroup && !secCard) return null;
+                  return (
+                    <div className="mt-3 pt-3 border-t border-green-200 space-y-2">
+                      <div className="text-xs font-semibold text-green-800 uppercase tracking-wide">
+                        Secondary Insurance
+                      </div>
+                      {secProvider && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Provider:</span>{" "}
+                          <span className="font-medium">{secProvider}</span>
+                        </div>
+                      )}
+                      {secPlan && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Plan:</span>{" "}
+                          <span className="font-medium">{secPlan}</span>
+                        </div>
+                      )}
+                      {secId && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Member ID:</span>{" "}
+                          <span className="font-medium">{secId}</span>
+                        </div>
+                      )}
+                      {secGroup && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Group Number:</span>{" "}
+                          <span className="font-medium">{secGroup}</span>
+                        </div>
+                      )}
+                      {secCard && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={() => window.open(secCard, "_blank")}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          View Secondary Insurance Card
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
                 
                 {/* Insurance Card Upload - Collapsible */}
                 {appointmentId && !isEditingInsurance && (
