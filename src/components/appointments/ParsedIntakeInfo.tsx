@@ -1323,12 +1323,13 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                             <span className="font-medium">{parsedPathologyInfo.imaging_type}</span>
                           </div>
                         )}
-                        {formatValue(parsedMedicalInfo?.imaging_details) && String(parsedMedicalInfo.imaging_details).length < 300 && (
+                        {formatValue(parsedMedicalInfo?.imaging_details) && String(parsedMedicalInfo.imaging_details).length < 300 && !/^(yes|no|y|n|true|false|none|n\/a|unknown)$/i.test(String(parsedMedicalInfo.imaging_details).trim()) && (
                           <div className="text-sm">
                             <span className="text-muted-foreground">Imaging Details:</span>{" "}
                             <span className="font-medium">{parsedMedicalInfo.imaging_details}</span>
                           </div>
                         )}
+
                         {formatValue(parsedMedicalInfo?.imaging_location) && (
                           <div className="text-sm">
                             <span className="text-muted-foreground">Imaging Location:</span>{" "}
