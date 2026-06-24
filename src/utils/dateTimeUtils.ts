@@ -78,6 +78,25 @@ export const formatDateTimeForTable = (date: string | Date) => {
 };
 
 /**
+ * Format a date/time in a specific IANA timezone (e.g. project timezone).
+ * Mirrors the existing "MMM dd, yyyy h:mm a" presentation used elsewhere.
+ */
+export const formatDateTimeInTimezone = (
+  date: string | Date | null | undefined,
+  timezone: string,
+  formatString: string = 'MMM dd, yyyy h:mm a',
+) => {
+  if (!date) return 'Not set';
+  try {
+    const baseUTC =
+      isDateOnlyString(date) ? makeUTCFromCTCalendar(date, 'mid') : new Date(date as any);
+    return formatInTimeZone(baseUTC, timezone, formatString);
+  } catch {
+    return typeof date === 'string' ? date : String(date);
+  }
+};
+
+/**
  * Get current time in Central Time Zone
  */
 export const getCurrentCentralTime = () => {
