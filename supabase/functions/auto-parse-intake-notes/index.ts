@@ -1112,6 +1112,20 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // Backfill pcp_phone from a separate "Primary Care ... Phone ..." line when present.
+  if (!parsedData.medical_info.pcp_phone) {
+    const pm = intakeNotes.match(/Primary Care[^:\n]*Phone[^:\n]*:\s*([^\n|]+)/i)
+      || intakeNotes.match(/(?:PCP|Primary Care Doctor)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
+    if (pm && pm[1]) {
+      const pv = pm[1].trim();
+      if (pv && !/^(none|n\/a|unknown)$/i.test(pv)) {
+        parsedData.medical_info.pcp_phone = pv;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_phone via regex: ${pv}`);
+      }
+    }
+  }
+
+
   // Backfill imaging_details from "Had Imaging Before ?:" when AI missed it.
   if (!parsedData.medical_info.imaging_details) {
     const v = extractMultiLineFieldValue(intakeNotes, /^\s*Had Imaging Before\s*\??\s*:\s*(.*)$/i);
