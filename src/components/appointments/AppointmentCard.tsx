@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Calendar as CalendarIcon, User, Building, Phone, Mail, Clock, Info, Sparkles, Loader2, Shield, RefreshCw, ChevronDown, Pencil, Trash2, ExternalLink, CalendarDays, CheckCircle2, XCircle, MapPin, AlertTriangle } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatDateTime, formatTime, getAppointmentStatus, getProcedureOrderedVariant, getStatusOptions } from './utils';
+import { formatDateTimeInTimezone } from '@/utils/dateTimeUtils';
+import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/useRole";
@@ -155,7 +157,18 @@ const AppointmentCard = ({
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [retryingGhlSync, setRetryingGhlSync] = useState(false);
-  const [projectTimezone, setProjectTimezone] = useState<string>('America/Chicago');
+  const [projectTimezone, setProjectTimezone] = useState<string>(
+    () => getCachedProjectTimezone(appointment.project_name) || 'America/Chicago'
+  );
+
+  // Eager-fetch the project's timezone so timestamps (e.g. Created) render to match GHL
+  useEffect(() => {
+    let cancelled = false;
+    fetchProjectTimezone(appointment.project_name).then((tz) => {
+      if (!cancelled) setProjectTimezone(tz);
+    });
+    return () => { cancelled = true; };
+  }, [appointment.project_name]);
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -1562,7 +1575,7 @@ const AppointmentCard = ({
             <div className="flex items-center space-x-2">
               <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <span className="text-sm text-gray-600">
-                Created: {formatDateTime(appointment.created_at)}
+                Created: {formatDateTimeInTimezone(appointment.created_at, projectTimezone)}
               </span>
             </div>
             
