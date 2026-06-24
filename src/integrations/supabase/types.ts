@@ -4184,6 +4184,10 @@ export type Database = {
           total_updated: number
         }[]
       }
+      user_accessible_project_names: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       validate_project_access: {
         Args: { project_name_param: string }
         Returns: boolean
