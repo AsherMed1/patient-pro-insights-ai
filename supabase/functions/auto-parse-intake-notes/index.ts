@@ -1112,6 +1112,20 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // Backfill pcp_phone from a separate "Primary Care ... Phone ..." line when present.
+  if (!parsedData.medical_info.pcp_phone) {
+    const pm = intakeNotes.match(/Primary Care[^:\n]*Phone[^:\n]*:\s*([^\n|]+)/i)
+      || intakeNotes.match(/(?:PCP|Primary Care Doctor)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
+    if (pm && pm[1]) {
+      const pv = pm[1].trim();
+      if (pv && !/^(none|n\/a|unknown)$/i.test(pv)) {
+        parsedData.medical_info.pcp_phone = pv;
+        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_phone via regex: ${pv}`);
+      }
+    }
+  }
+
+
   // Backfill imaging_details from "Had Imaging Before ?:" when AI missed it.
   if (!parsedData.medical_info.imaging_details) {
     const v = extractMultiLineFieldValue(intakeNotes, /^\s*Had Imaging Before\s*\??\s*:\s*(.*)$/i);
@@ -1974,33 +1988,38 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     } else if (key.includes('allerg')) {
       result.medical_info.allergies = value;
     } else if (key.includes('pcp') || key.includes('doctor') || key.includes('physician') || key.includes('primary care')) {
-      // PCP/Primary Care fields - extract name and phone from combined values like "Jones 214-555-5555"
+      // PCP/Primary Care fields - handle separate phone fields vs combined values
       const value_str = String(value);
-      
-      // Try to extract phone number (XXX-XXX-XXXX, (XXX) XXX-XXXX, or 10+ digits)
-      const phonePatterns = [
-        /(\d{3}-\d{3}-\d{4})/,           // 214-555-5555
-        /(\(\d{3}\)\s*\d{3}-\d{4})/,     // (214) 555-5555
-        /(\d{10,})/                       // 2145555555
-      ];
-      
-      let phoneMatch = null;
-      for (const pattern of phonePatterns) {
-        phoneMatch = value_str.match(pattern);
-        if (phoneMatch) break;
-      }
-      
-      if (phoneMatch) {
-        const phone = phoneMatch[1];
-        const name = value_str.replace(phone, '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim();
-        result.medical_info.pcp_name = name || value_str;
-        result.medical_info.pcp_phone = phone;
-        console.log(`[AUTO-PARSE GHL] Extracted PCP from "${key}": name="${result.medical_info.pcp_name}", phone="${phone}"`);
+      const isPhoneField = key.includes('phone') || key.includes('number') || key.includes('tel');
+
+      if (isPhoneField) {
+        result.medical_info.pcp_phone = value_str;
+        console.log(`[AUTO-PARSE GHL] Extracted PCP phone from "${key}": "${value_str}"`);
       } else {
-        result.medical_info.pcp_name = value_str;
-        console.log(`[AUTO-PARSE GHL] Extracted PCP name from "${key}": "${value_str}" (no phone found)`);
+        // Try to extract phone number embedded in name field (e.g. "Jones 214-555-5555")
+        const phonePatterns = [
+          /(\d{3}-\d{3}-\d{4})/,
+          /(\(\d{3}\)\s*\d{3}-\d{4})/,
+          /(\d{10,})/
+        ];
+        let phoneMatch = null;
+        for (const pattern of phonePatterns) {
+          phoneMatch = value_str.match(pattern);
+          if (phoneMatch) break;
+        }
+        if (phoneMatch) {
+          const phone = phoneMatch[1];
+          const name = value_str.replace(phone, '').replace(/^\s*[-,]\s*|\s*[-,]\s*$/g, '').trim();
+          result.medical_info.pcp_name = name || value_str;
+          if (!result.medical_info.pcp_phone) result.medical_info.pcp_phone = phone;
+          console.log(`[AUTO-PARSE GHL] Extracted PCP from "${key}": name="${result.medical_info.pcp_name}", phone="${phone}"`);
+        } else {
+          result.medical_info.pcp_name = value_str;
+          console.log(`[AUTO-PARSE GHL] Extracted PCP name from "${key}": "${value_str}" (no phone found)`);
+        }
       }
     }
+
     // Urologist fields
     else if (key.includes('urologist')) {
       // Try to extract name and phone from value like "dr pen 6272893382"
