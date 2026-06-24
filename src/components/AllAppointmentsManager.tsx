@@ -487,11 +487,19 @@ const AllAppointmentsManager = ({
       console.log('Project filter:', activeProjectFilter);
       console.log('Welcome Call appointments found:', data?.filter(a => a.status?.toLowerCase() === 'welcome call').length || 0);
       setAppointments(data || []);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
+    } catch (error: any) {
+      console.error('Error fetching appointments:', error, {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      });
+      const detail = [error?.code, error?.message, error?.details, error?.hint]
+        .filter(Boolean)
+        .join(' | ');
       toast({
-        title: "Error",
-        description: "Failed to fetch appointments",
+        title: "Failed to fetch appointments",
+        description: detail || 'Unknown error — check browser console for details.',
         variant: "destructive"
       });
     } finally {

@@ -1,40 +1,38 @@
-## Root cause
+# Diagnose & fix "Failed to fetch appointments" for project_user search
 
-All 4 contacts show `ghl_approved_tag_sent_at` populated in our DB, but 3 of them got that timestamp from yesterday's **assumption backfill** — not from a real GHL API call. So the `approved` tag was never actually pushed to GHL, and the workflow stayed in the wait step.
+## What I already verified
+- The two "Hawkins" rows exist in `all_appointments` with `project_name = 'Texas Vascular Institute'`, `review_status = 'approved'`, `is_reserved_block = false`, `is_superseded = false` — so the data is reachable in principle.
+- RLS on `all_appointments` allows `project_user` when there is a matching row in `project_user_access` joined to `projects` on `project_name`.
+- RLS on `projects` allows `project_user` to see only assigned projects (which the EXISTS subquery in the appointments policy depends on).
+- No recent Postgres errors mention `hawkins`, `permission denied`, or `all_appointments`. The unrelated date-parse errors in the logs are from the intake parser, not from this query.
 
-| Patient | Stamp source | Tag actually in GHL? |
-|---|---|---|
-| Ingrid Rivera-Rodriguez | Real call today 19:56 | Likely yes |
-| Mollie Blacknell | Backfill 06-22 | No |
-| Jennifer L Ingle | Backfill 06-22 | No |
-| Calvin Collins | Backfill 06-22 | No |
+So the failure is almost certainly one of:
+1. The signed-in user's `project_user_access` row doesn't actually map to the `projects.project_name = 'Texas Vascular Institute'` (typo, trailing space, wrong project_id, or it was never inserted).
+2. The PostgREST request itself is being rejected (network/400) for a reason we can only see in the browser network tab.
 
-The retry sweep skipped them because the stamp was set — it trusted the timestamp instead of verifying GHL.
+## Information I need from you (one is enough)
+- The **email** of the project_user account you tested with, so I can run `SELECT` against `project_user_access` joined to `projects` and confirm the assignment row exists and the name matches exactly.
+- OR the **failed request response** from the browser: open DevTools → Network → filter `all_appointments` → click the red/failed request → copy the response body (the PostgREST `message` / `code` / `details`).
 
-## Fix
+## Plan once I have that signal
 
-### 1. Immediate — retag the 4 stuck contacts
-- Null out `ghl_approved_tag_sent_at` for these 4 rows (forces them back into the retry queue).
-- Invoke `retry-missing-ghl-approved-tags` once — it will call `update-ghl-contact-tags` with each project's `ghl_api_key`, push `approved`, then re-stamp only on a real 200.
-- Verify by re-reading the rows: each should have a fresh stamp dated today.
+### Case A — Assignment mismatch (most likely)
+- Fix the `project_user_access` row so it points at the correct `projects.id` whose `project_name` is exactly `Texas Vascular Institute`.
+- If a stale project row with a different name exists, consolidate it.
+- Re-test search as the project_user.
 
-### 2. Harden — make the retry sweep verify, not assume
-Update `retry-missing-ghl-approved-tags` so that for every approved row in scope it:
-1. `GET https://services.leadconnectorhq.com/contacts/{ghl_id}` with the project's key.
-2. If `tags` already contains `approved` → stamp `ghl_approved_tag_sent_at` and move on (cheap self-heal for backfilled rows that happened to be tagged through other means).
-3. If not → POST the tag, then stamp only on 2xx.
-4. Broaden the scope of the sweep to also include rows where `ghl_approved_tag_sent_at` IS NOT NULL **but** was written by yesterday's backfill — easiest signal is `ghl_approved_tag_sent_at = updated_at` AND `updated_at < 2026-06-23 19:00 UTC` (the backfill window). Run once, then drop that branch.
-5. Per-row try/catch + small delay so one bad project key doesn't kill the batch.
+### Case B — PostgREST query error
+- Reproduce against the project_user session and read the exact error.
+- Likely culprits to check in `src/components/AllAppointmentsManager.tsx`:
+  - The chained `.or(...)` groups combined with `.not(...)` filters can produce a malformed PostgREST URL when RLS narrows the row set; verify the search path doesn't hit the same condition that's failing for admins silently.
+  - The count query (line ~344) vs. the data query (line ~483) — whichever throws is the one whose `error` should be surfaced; we'll log `error.message`, `error.code`, `error.details`, `error.hint` in the catch and show them in the toast description for this debugging pass.
+- Apply the targeted fix (most often: collapse the multiple `.or()` groups into a single grouped expression, or guard the search-term branch).
 
-### 3. Optional but recommended
-Schedule the hardened sweep on pg_cron every 30 min so any future silent failure (transient network, closed tab on Approve) self-heals without manual triage.
+### Validation
+- As admin: search `hawkins` in Texas Vascular Institute → still shows 2 results.
+- As project_user assigned to Texas Vascular Institute: search `hawkins` → shows the same 2 results, no error toast.
+- As project_user NOT assigned to Texas Vascular Institute: route is blocked by AuthGuard as today.
 
 ## Out of scope
-- No UI changes.
-- No tag-name change (workflow listens for lowercase `approved`, which is what we already send).
-- No edits to the manual Approve path in `ReviewQueue.tsx` — it already stamps only on success; this plan only fixes the backfill blind spot.
-
-## Files touched
-- `supabase/functions/retry-missing-ghl-approved-tags/index.ts` — add GHL verification GET, widen scope, per-row resilience.
-- One data-only SQL run to null the 4 stamps + invoke the sweep.
-- (If you approve step 3) one `supabase--insert` to schedule the cron job.
+- No UI redesign, no RLS rewrite unless Case A reveals a structural problem.
+- No changes to admin/agent/VA behavior.
