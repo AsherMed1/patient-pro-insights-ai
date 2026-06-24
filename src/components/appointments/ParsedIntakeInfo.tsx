@@ -777,9 +777,13 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       </CollapsibleContent>
                     </Collapsible>
                   </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Secondary Insurance Information Section */}
+
           {(() => {
             const sec = parsedInsuranceInfo || {};
             const secProvider = sanitizeInsuranceValue(sec.secondary_provider);
