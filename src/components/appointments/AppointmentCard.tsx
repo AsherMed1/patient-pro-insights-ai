@@ -157,7 +157,18 @@ const AppointmentCard = ({
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [retryingGhlSync, setRetryingGhlSync] = useState(false);
-  const [projectTimezone, setProjectTimezone] = useState<string>('America/Chicago');
+  const [projectTimezone, setProjectTimezone] = useState<string>(
+    () => getCachedProjectTimezone(appointment.project_name) || 'America/Chicago'
+  );
+
+  // Eager-fetch the project's timezone so timestamps (e.g. Created) render to match GHL
+  useEffect(() => {
+    let cancelled = false;
+    fetchProjectTimezone(appointment.project_name).then((tz) => {
+      if (!cancelled) setProjectTimezone(tz);
+    });
+    return () => { cancelled = true; };
+  }, [appointment.project_name]);
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
