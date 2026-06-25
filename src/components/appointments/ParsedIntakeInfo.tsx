@@ -68,6 +68,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   
   // Insurance upload collapsible state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isSecondaryUploadOpen, setIsSecondaryUploadOpen] = useState(false);
   
   // Insurance edit state
   const [isEditingInsurance, setIsEditingInsurance] = useState(false);
