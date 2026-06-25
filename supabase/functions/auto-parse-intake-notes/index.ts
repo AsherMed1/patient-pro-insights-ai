@@ -1084,25 +1084,41 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     const groupVal = cleanVal(secondaryGroup?.[1]);
     const providerVal = cleanVal(secondaryProvider?.[1]);
 
-    // Secondary upload URL — pulled from the JSON blob after the field label.
-    let secondaryCardUrl: string | null = null;
-    const secondaryUploadLine = intakeNotes.match(/Upload A Copy Of Your Insurance Card\s*\(Secondary\)\s*:\s*([^\n]+)/i);
+    // Secondary upload URLs — pulled from the JSON blob after the field label.
+    // GHL stores both front + back as a JSON object keyed by uuid.
+    let secondaryFrontUrl: string | null = null;
+    let secondaryBackUrl: string | null = null;
+    const secondaryUploadLine = intakeNotes.match(/Upload A Copy Of Your Insurance Card\s*\(Secondary\)\s*:\s*(\{[^\n]+\})/i);
     if (secondaryUploadLine && secondaryUploadLine[1]) {
-      const urlMatch = secondaryUploadLine[1].match(/https:\/\/services\.leadconnectorhq\.com\/documents\/download\/[a-zA-Z0-9_-]+/);
-      if (urlMatch) secondaryCardUrl = urlMatch[0];
+      const fb = extractFrontBackFromJsonOrString(secondaryUploadLine[1]);
+      secondaryFrontUrl = fb.front;
+      secondaryBackUrl = fb.back;
+    } else {
+      // Fallback: bare URL on the line
+      const bare = intakeNotes.match(/Upload A Copy Of Your Insurance Card\s*\(Secondary\)\s*:\s*([^\n]+)/i);
+      if (bare && bare[1]) {
+        const urlMatch = bare[1].match(/https:\/\/services\.leadconnectorhq\.com\/documents\/download\/[a-zA-Z0-9_-]+/);
+        if (urlMatch) secondaryFrontUrl = urlMatch[0];
+      }
     }
 
-    if (planVal || idVal || groupVal || providerVal || secondaryCardUrl) {
+    if (planVal || idVal || groupVal || providerVal || secondaryFrontUrl || secondaryBackUrl) {
       if (planVal) parsedData.insurance_info.secondary_plan = planVal;
       if (idVal) parsedData.insurance_info.secondary_id_number = idVal;
       if (groupVal) parsedData.insurance_info.secondary_group_number = groupVal;
       if (providerVal) parsedData.insurance_info.secondary_provider = providerVal;
-      if (secondaryCardUrl) parsedData.insurance_info.secondary_card_url = secondaryCardUrl;
+      if (secondaryFrontUrl) {
+        parsedData.insurance_info.secondary_card_front_url = secondaryFrontUrl;
+        parsedData.insurance_info.secondary_card_url = secondaryFrontUrl; // legacy compat
+      }
+      if (secondaryBackUrl) parsedData.insurance_info.secondary_card_back_url = secondaryBackUrl;
       console.log('[AUTO-PARSE ENRICH] Extracted secondary insurance:', {
-        plan: planVal, id: idVal, group: groupVal, provider: providerVal, card: !!secondaryCardUrl,
+        plan: planVal, id: idVal, group: groupVal, provider: providerVal,
+        front: !!secondaryFrontUrl, back: !!secondaryBackUrl,
       });
     }
   }
+
 
   // Backfill PCP name/phone from raw notes when AI missed it.
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
