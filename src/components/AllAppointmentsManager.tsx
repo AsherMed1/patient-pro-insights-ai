@@ -1548,12 +1548,12 @@ const AllAppointmentsManager = ({
                   if (activeTab === 'new') {
                     query = query
                       .or('internal_process_complete.is.null,internal_process_complete.eq.false')
-                      .not('status', 'ilike', 'pending')
+                      .or('status.not.ilike.pending,is_unscheduled.eq.true')
                       .not('status', 'ilike', 'do not call')
                       .or('is_superseded.is.null,is_superseded.eq.false');
                   } else if (activeTab === 'needs-review') {
                     query = query
-                      .or(`status.ilike.pending,date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
+                      .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
                       .not('status', 'ilike', 'cancelled')
                       .not('status', 'ilike', 'no show')
                       .not('status', 'ilike', 'noshow')
