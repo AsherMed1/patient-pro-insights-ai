@@ -26,17 +26,18 @@ Deno.serve(async (req) => {
 
     let updates = { ...(rawUpdates || {}) };
 
-    // If caller supplied a partial patch for parsed_insurance JSONB, merge into existing row
+    // If caller supplied a partial patch for parsed_insurance_info JSONB, merge into existing row
     // to avoid clobbering sibling keys.
     if (parsedInsurancePatch && typeof parsedInsurancePatch === 'object') {
       const { data: existing } = await supabase
         .from('all_appointments')
-        .select('parsed_insurance')
+        .select('parsed_insurance_info')
         .eq('id', appointmentId)
         .single();
-      const merged = { ...((existing?.parsed_insurance as Record<string, unknown>) || {}), ...parsedInsurancePatch };
-      updates.parsed_insurance = merged;
+      const merged = { ...((existing?.parsed_insurance_info as Record<string, unknown>) || {}), ...parsedInsurancePatch };
+      updates.parsed_insurance_info = merged;
     }
+
 
     console.log(`Updating appointment ${appointmentId} with:`, updates);
     console.log(`User context: userId=${userId}, userName=${userName}, source=${changeSource || 'unknown'}`);
