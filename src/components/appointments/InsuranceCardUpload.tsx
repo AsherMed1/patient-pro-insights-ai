@@ -145,6 +145,13 @@ export const InsuranceCardUpload = ({
   const [isUploadingBack, setIsUploadingBack] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Refs always reflect latest URL — protects against stale-closure overwrites
+  // when front + back saves race.
+  const frontUrlRef = useRef<string | null>(currentFrontUrl || null);
+  const backUrlRef = useRef<string | null>(currentBackUrl || null);
+  useEffect(() => { frontUrlRef.current = frontUrl; }, [frontUrl]);
+  useEffect(() => { backUrlRef.current = backUrl; }, [backUrl]);
+
   const uploadFile = async (file: File, side: "front" | "back"): Promise<string | null> => {
     const setUploading = side === "front" ? setIsUploadingFront : setIsUploadingBack;
     setUploading(true);
@@ -197,11 +204,53 @@ export const InsuranceCardUpload = ({
     }
   };
 
+  const persist = async (patch: { front?: string | null; back?: string | null }) => {
+    const front = patch.front !== undefined ? patch.front : frontUrlRef.current;
+    const back = patch.back !== undefined ? patch.back : backUrlRef.current;
+
+    // Update refs immediately so concurrent calls read fresh values
+    if (patch.front !== undefined) frontUrlRef.current = patch.front;
+    if (patch.back !== undefined) backUrlRef.current = patch.back;
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.functions.invoke("update-appointment-fields", {
+        body: {
+          appointmentId,
+          updates: {
+            insurance_id_link: front,
+            insurance_back_link: back,
+          },
+          userId,
+          userName,
+          changeSource: 'portal'
+        },
+      });
+
+      if (error) throw error;
+
+      onUploadComplete(front, back);
+      toast({
+        title: "Saved",
+        description: "Insurance card updated successfully",
+      });
+    } catch (error) {
+      console.error("Save failed:", error);
+      toast({
+        title: "Save failed",
+        description: "Could not save the insurance card. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleFrontUpload = async (file: File) => {
     const url = await uploadFile(file, "front");
     if (url) {
       setFrontUrl(url);
-      await saveUrls(url, backUrl);
+      await persist({ front: url });
     }
   };
 
@@ -209,19 +258,20 @@ export const InsuranceCardUpload = ({
     const url = await uploadFile(file, "back");
     if (url) {
       setBackUrl(url);
-      await saveUrls(frontUrl, url);
+      await persist({ back: url });
     }
   };
 
   const handleRemoveFront = async () => {
     setFrontUrl(null);
-    await saveUrls(null, backUrl);
+    await persist({ front: null });
   };
 
   const handleRemoveBack = async () => {
     setBackUrl(null);
-    await saveUrls(frontUrl, null);
+    await persist({ back: null });
   };
+
 
   const saveUrls = async (front: string | null, back: string | null) => {
     setIsSaving(true);
