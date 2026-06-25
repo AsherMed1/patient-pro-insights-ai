@@ -242,6 +242,7 @@ const InsuranceViewModal = ({
               <CardPhotos
                 frontUrl={insuranceInfo.secondary_front_link}
                 backUrl={insuranceInfo.secondary_back_link}
+                variant="secondary"
               />
             </>
           )}
