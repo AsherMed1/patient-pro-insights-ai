@@ -15,13 +15,27 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { appointmentId, updates, previousValues, userId, userName, changeSource } = await req.json();
+    const { appointmentId, updates: rawUpdates, previousValues, userId, userName, changeSource, parsedInsurancePatch } = await req.json();
 
     if (!appointmentId) {
       return new Response(
         JSON.stringify({ error: 'appointmentId is required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
+    }
+
+    let updates = { ...(rawUpdates || {}) };
+
+    // If caller supplied a partial patch for parsed_insurance JSONB, merge into existing row
+    // to avoid clobbering sibling keys.
+    if (parsedInsurancePatch && typeof parsedInsurancePatch === 'object') {
+      const { data: existing } = await supabase
+        .from('all_appointments')
+        .select('parsed_insurance')
+        .eq('id', appointmentId)
+        .single();
+      const merged = { ...((existing?.parsed_insurance as Record<string, unknown>) || {}), ...parsedInsurancePatch };
+      updates.parsed_insurance = merged;
     }
 
     console.log(`Updating appointment ${appointmentId} with:`, updates);
