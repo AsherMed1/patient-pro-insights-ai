@@ -601,7 +601,15 @@ const AppointmentCard = ({
                           leadInsuranceData?.insurance_back_link,
       group_number: appointment.parsed_insurance_info?.insurance_group_number || 
                    appointment.parsed_insurance_info?.group_number ||
-                   leadInsuranceData?.group_number
+                   leadInsuranceData?.group_number,
+      secondary_provider: appointment.parsed_insurance_info?.secondary_provider ||
+                          appointment.parsed_insurance_info?.secondary_insurance_provider,
+      secondary_plan: appointment.parsed_insurance_info?.secondary_plan,
+      secondary_id: appointment.parsed_insurance_info?.secondary_id_number,
+      secondary_group_number: appointment.parsed_insurance_info?.secondary_group_number,
+      secondary_front_link: appointment.parsed_insurance_info?.secondary_card_front_url ||
+                            appointment.parsed_insurance_info?.secondary_card_url,
+      secondary_back_link: appointment.parsed_insurance_info?.secondary_card_back_url,
     };
   };
 
