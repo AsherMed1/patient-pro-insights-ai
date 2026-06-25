@@ -2,7 +2,9 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, FileText, User, Calendar, ExternalLink } from 'lucide-react';
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload } from 'lucide-react';
 
 interface InsuranceInfo {
   insurance_provider?: string;
