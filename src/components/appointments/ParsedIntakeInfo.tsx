@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
 import { InsuranceCardUpload } from "./InsuranceCardUpload";
+import { SecondaryInsuranceCardUpload } from "./SecondaryInsuranceCardUpload";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
