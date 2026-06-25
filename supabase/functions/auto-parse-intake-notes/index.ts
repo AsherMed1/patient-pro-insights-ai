@@ -186,39 +186,51 @@ async function fetchGHLCustomFields(
 
 // Helper: Extract URL from JSON format or plain string (GHL file upload format)
 function extractUrlFromJsonOrString(value: any): string | null {
-  if (!value) return null;
-  
-  // If it's already a URL string
-  if (typeof value === 'string' && value.startsWith('http')) {
-    return value;
-  }
-  
-  // If it's a JSON string, try to parse and extract URL
-  if (typeof value === 'string' && value.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(value);
-      // GHL format: {"uuid": {"url": "https://...", ...}}
-      for (const key in parsed) {
-        if (parsed[key]?.url && typeof parsed[key].url === 'string') {
-          return parsed[key].url;
-        }
-      }
-    } catch (e) {
-      // Not valid JSON, ignore
-    }
-  }
-  
-  // If it's already an object with nested url
-  if (typeof value === 'object' && value !== null) {
-    for (const key in value) {
-      if (value[key]?.url && typeof value[key].url === 'string') {
-        return value[key].url;
-      }
-    }
-  }
-  
-  return null;
+  return extractFrontBackFromJsonOrString(value).front;
 }
+
+// Helper: Extract front + back URLs from GHL upload JSON blob.
+// GHL stores multiple uploads as {"uuid": {"url":"...", "meta":{"originalname":"...front.jpg"}}}.
+// We disambiguate by originalname keywords ("front"/"back"). Anything unlabeled fills front, then back.
+function extractFrontBackFromJsonOrString(value: any): { front: string | null; back: string | null } {
+  const out = { front: null as string | null, back: null as string | null };
+  if (!value) return out;
+
+  let parsed: any = value;
+  if (typeof value === 'string') {
+    if (value.startsWith('http')) {
+      out.front = value;
+      return out;
+    }
+    if (value.startsWith('{')) {
+      try { parsed = JSON.parse(value); } catch { return out; }
+    } else {
+      return out;
+    }
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) return out;
+
+  const entries = Object.values(parsed) as any[];
+  const unlabeled: string[] = [];
+  for (const e of entries) {
+    if (!e?.url || typeof e.url !== 'string') continue;
+    const name = String(e?.meta?.originalname || '').toLowerCase();
+    if (name.includes('back')) {
+      if (!out.back) out.back = e.url;
+    } else if (name.includes('front')) {
+      if (!out.front) out.front = e.url;
+    } else {
+      unlabeled.push(e.url);
+    }
+  }
+  for (const u of unlabeled) {
+    if (!out.front) out.front = u;
+    else if (!out.back) out.back = u;
+  }
+  return out;
+}
+
 
 // Helper: Extract insurance card URL from patient_intake_notes text
 function extractInsuranceUrlFromText(text: string | null): string | null {
