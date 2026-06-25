@@ -186,39 +186,51 @@ async function fetchGHLCustomFields(
 
 // Helper: Extract URL from JSON format or plain string (GHL file upload format)
 function extractUrlFromJsonOrString(value: any): string | null {
-  if (!value) return null;
-  
-  // If it's already a URL string
-  if (typeof value === 'string' && value.startsWith('http')) {
-    return value;
-  }
-  
-  // If it's a JSON string, try to parse and extract URL
-  if (typeof value === 'string' && value.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(value);
-      // GHL format: {"uuid": {"url": "https://...", ...}}
-      for (const key in parsed) {
-        if (parsed[key]?.url && typeof parsed[key].url === 'string') {
-          return parsed[key].url;
-        }
-      }
-    } catch (e) {
-      // Not valid JSON, ignore
-    }
-  }
-  
-  // If it's already an object with nested url
-  if (typeof value === 'object' && value !== null) {
-    for (const key in value) {
-      if (value[key]?.url && typeof value[key].url === 'string') {
-        return value[key].url;
-      }
-    }
-  }
-  
-  return null;
+  return extractFrontBackFromJsonOrString(value).front;
 }
+
+// Helper: Extract front + back URLs from GHL upload JSON blob.
+// GHL stores multiple uploads as {"uuid": {"url":"...", "meta":{"originalname":"...front.jpg"}}}.
+// We disambiguate by originalname keywords ("front"/"back"). Anything unlabeled fills front, then back.
+function extractFrontBackFromJsonOrString(value: any): { front: string | null; back: string | null } {
+  const out = { front: null as string | null, back: null as string | null };
+  if (!value) return out;
+
+  let parsed: any = value;
+  if (typeof value === 'string') {
+    if (value.startsWith('http')) {
+      out.front = value;
+      return out;
+    }
+    if (value.startsWith('{')) {
+      try { parsed = JSON.parse(value); } catch { return out; }
+    } else {
+      return out;
+    }
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) return out;
+
+  const entries = Object.values(parsed) as any[];
+  const unlabeled: string[] = [];
+  for (const e of entries) {
+    if (!e?.url || typeof e.url !== 'string') continue;
+    const name = String(e?.meta?.originalname || '').toLowerCase();
+    if (name.includes('back')) {
+      if (!out.back) out.back = e.url;
+    } else if (name.includes('front')) {
+      if (!out.front) out.front = e.url;
+    } else {
+      unlabeled.push(e.url);
+    }
+  }
+  for (const u of unlabeled) {
+    if (!out.front) out.front = u;
+    else if (!out.back) out.back = u;
+  }
+  return out;
+}
+
 
 // Helper: Extract insurance card URL from patient_intake_notes text
 function extractInsuranceUrlFromText(text: string | null): string | null {
@@ -1072,25 +1084,41 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     const groupVal = cleanVal(secondaryGroup?.[1]);
     const providerVal = cleanVal(secondaryProvider?.[1]);
 
-    // Secondary upload URL — pulled from the JSON blob after the field label.
-    let secondaryCardUrl: string | null = null;
-    const secondaryUploadLine = intakeNotes.match(/Upload A Copy Of Your Insurance Card\s*\(Secondary\)\s*:\s*([^\n]+)/i);
+    // Secondary upload URLs — pulled from the JSON blob after the field label.
+    // GHL stores both front + back as a JSON object keyed by uuid.
+    let secondaryFrontUrl: string | null = null;
+    let secondaryBackUrl: string | null = null;
+    const secondaryUploadLine = intakeNotes.match(/Upload A Copy Of Your Insurance Card\s*\(Secondary\)\s*:\s*(\{[^\n]+\})/i);
     if (secondaryUploadLine && secondaryUploadLine[1]) {
-      const urlMatch = secondaryUploadLine[1].match(/https:\/\/services\.leadconnectorhq\.com\/documents\/download\/[a-zA-Z0-9_-]+/);
-      if (urlMatch) secondaryCardUrl = urlMatch[0];
+      const fb = extractFrontBackFromJsonOrString(secondaryUploadLine[1]);
+      secondaryFrontUrl = fb.front;
+      secondaryBackUrl = fb.back;
+    } else {
+      // Fallback: bare URL on the line
+      const bare = intakeNotes.match(/Upload A Copy Of Your Insurance Card\s*\(Secondary\)\s*:\s*([^\n]+)/i);
+      if (bare && bare[1]) {
+        const urlMatch = bare[1].match(/https:\/\/services\.leadconnectorhq\.com\/documents\/download\/[a-zA-Z0-9_-]+/);
+        if (urlMatch) secondaryFrontUrl = urlMatch[0];
+      }
     }
 
-    if (planVal || idVal || groupVal || providerVal || secondaryCardUrl) {
+    if (planVal || idVal || groupVal || providerVal || secondaryFrontUrl || secondaryBackUrl) {
       if (planVal) parsedData.insurance_info.secondary_plan = planVal;
       if (idVal) parsedData.insurance_info.secondary_id_number = idVal;
       if (groupVal) parsedData.insurance_info.secondary_group_number = groupVal;
       if (providerVal) parsedData.insurance_info.secondary_provider = providerVal;
-      if (secondaryCardUrl) parsedData.insurance_info.secondary_card_url = secondaryCardUrl;
+      if (secondaryFrontUrl) {
+        parsedData.insurance_info.secondary_card_front_url = secondaryFrontUrl;
+        parsedData.insurance_info.secondary_card_url = secondaryFrontUrl; // legacy compat
+      }
+      if (secondaryBackUrl) parsedData.insurance_info.secondary_card_back_url = secondaryBackUrl;
       console.log('[AUTO-PARSE ENRICH] Extracted secondary insurance:', {
-        plan: planVal, id: idVal, group: groupVal, provider: providerVal, card: !!secondaryCardUrl,
+        plan: planVal, id: idVal, group: groupVal, provider: providerVal,
+        front: !!secondaryFrontUrl, back: !!secondaryBackUrl,
       });
     }
   }
+
 
   // Backfill PCP name/phone from raw notes when AI missed it.
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
@@ -1663,8 +1691,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       xray_details: null as string | null
     },
     insurance_card_url: null as string | null,
+    insurance_card_back_url: null as string | null,
     hasCompleteStepData: false as boolean
   };
+
 
   // Extract root-level contact data
   if (contact.firstName || contact.lastName) {
@@ -1808,15 +1838,22 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.insurance_info.insurance_notes = value;
       console.log(`[AUTO-PARSE GHL] Captured generic notes field "${rawKey}" as insurance_notes: ${value}`);
     }
-    // Insurance card URL
+    // Insurance card URL (front + back parsed from GHL upload JSON blob)
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
       console.log(`[AUTO-PARSE GHL] Found potential insurance card field "${key}":`, typeof value, value?.substring?.(0, 100) || value);
-      const extractedUrl = extractUrlFromJsonOrString(value);
-      console.log(`[AUTO-PARSE GHL] Extracted URL:`, extractedUrl);
-      if (extractedUrl) {
-        result.insurance_card_url = extractedUrl;
+      const fb = extractFrontBackFromJsonOrString(value);
+      console.log(`[AUTO-PARSE GHL] Extracted front/back:`, fb);
+      const isSecondary = key.includes('secondary') || /\(\s*2\s*\)/.test(key);
+      if (isSecondary) {
+        if (fb.front) result.insurance_info.secondary_card_front_url = fb.front;
+        if (fb.front) result.insurance_info.secondary_card_url = fb.front; // legacy compat
+        if (fb.back) result.insurance_info.secondary_card_back_url = fb.back;
+      } else {
+        if (fb.front) result.insurance_card_url = fb.front;
+        if (fb.back) result.insurance_card_back_url = fb.back;
       }
     }
+
     // Pathology fields - expanded for Vivid Vascular PAE/UFE/GAE patterns
     else if (key.includes('complaint') || key.includes('reason') || key.includes('concern')) {
       result.pathology_info.primary_complaint = value;
@@ -2768,20 +2805,42 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || null;
           }
           
-          // Update insurance_id_link with fallback chain:
-          // 1. GHL custom field URL (highest priority)
-          // 2. Extract from patient_intake_notes text (fallback)
+          // Update insurance_id_link / insurance_back_link with fallback chain:
+          // 1. GHL custom field URL (highest priority) — includes front + back
+          // 2. Extract from patient_intake_notes text (front only fallback)
           if (ghlData?.insurance_card_url) {
             updateData.insurance_id_link = ghlData.insurance_card_url;
             console.log(`[AUTO-PARSE] Setting insurance_id_link from GHL: ${ghlData.insurance_card_url}`);
           } else {
-            // Fallback: extract from intake notes text
-            const extractedUrl = extractInsuranceUrlFromText(record.patient_intake_notes);
-            if (extractedUrl) {
-              updateData.insurance_id_link = extractedUrl;
-              console.log(`[AUTO-PARSE] Setting insurance_id_link from intake notes: ${extractedUrl}`);
+            // Fallback: extract front URL from "Upload A Copy Of Your Insurance Card (Primary)" JSON blob,
+            // then from any URL in the intake notes.
+            const intake = record.patient_intake_notes || '';
+            const primaryBlob = intake.match(/Upload A Copy Of Your Insurance Card\s*\(Primary\)\s*:\s*(\{[^\n]+\})/i);
+            if (primaryBlob && primaryBlob[1]) {
+              const fb = extractFrontBackFromJsonOrString(primaryBlob[1]);
+              if (fb.front) {
+                updateData.insurance_id_link = fb.front;
+                console.log(`[AUTO-PARSE] Setting insurance_id_link from intake (Primary) blob: ${fb.front}`);
+              }
+              if (fb.back) {
+                updateData.insurance_back_link = fb.back;
+                console.log(`[AUTO-PARSE] Setting insurance_back_link from intake (Primary) blob: ${fb.back}`);
+              }
+            } else {
+              const extractedUrl = extractInsuranceUrlFromText(intake);
+              if (extractedUrl) {
+                updateData.insurance_id_link = extractedUrl;
+                console.log(`[AUTO-PARSE] Setting insurance_id_link from intake notes: ${extractedUrl}`);
+              }
             }
           }
+
+          // Primary back URL from GHL custom field (when available)
+          if (ghlData?.insurance_card_back_url) {
+            updateData.insurance_back_link = ghlData.insurance_card_back_url;
+            console.log(`[AUTO-PARSE] Setting insurance_back_link from GHL: ${ghlData.insurance_card_back_url}`);
+          }
+
         } else if (record.table === "new_leads") {
           // For leads: DO NOT include parsed_* fields (they don't exist)
           // Only sync to main columns
