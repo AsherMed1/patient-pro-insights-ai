@@ -503,13 +503,20 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   };
 
   const getInsuranceData = () => {
+    const pi: any = appointment.parsed_insurance_info || {};
     return {
-      insurance_provider: leadDetails?.insurance_provider || appointment.parsed_insurance_info?.provider || appointment.detected_insurance_provider,
-      insurance_plan: leadDetails?.insurance_plan || appointment.parsed_insurance_info?.plan || appointment.detected_insurance_plan,
-      insurance_id: leadDetails?.insurance_id || appointment.parsed_insurance_info?.id || appointment.detected_insurance_id,
+      insurance_provider: leadDetails?.insurance_provider || pi.provider || appointment.detected_insurance_provider,
+      insurance_plan: leadDetails?.insurance_plan || pi.plan || appointment.detected_insurance_plan,
+      insurance_id: leadDetails?.insurance_id || pi.id || appointment.detected_insurance_id,
       insurance_id_link: leadDetails?.insurance_id_link || appointment.insurance_id_link,
       insurance_back_link: leadDetails?.insurance_back_link || appointment.insurance_back_link,
-      group_number: leadDetails?.group_number || appointment.parsed_insurance_info?.group_number
+      group_number: leadDetails?.group_number || pi.group_number,
+      secondary_provider: pi.secondary_provider || pi.secondary_insurance_provider,
+      secondary_plan: pi.secondary_plan,
+      secondary_id: pi.secondary_id_number,
+      secondary_group_number: pi.secondary_group_number,
+      secondary_front_link: pi.secondary_card_front_url || pi.secondary_card_url,
+      secondary_back_link: pi.secondary_card_back_url,
     };
   };
 
