@@ -2805,20 +2805,42 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || null;
           }
           
-          // Update insurance_id_link with fallback chain:
-          // 1. GHL custom field URL (highest priority)
-          // 2. Extract from patient_intake_notes text (fallback)
+          // Update insurance_id_link / insurance_back_link with fallback chain:
+          // 1. GHL custom field URL (highest priority) — includes front + back
+          // 2. Extract from patient_intake_notes text (front only fallback)
           if (ghlData?.insurance_card_url) {
             updateData.insurance_id_link = ghlData.insurance_card_url;
             console.log(`[AUTO-PARSE] Setting insurance_id_link from GHL: ${ghlData.insurance_card_url}`);
           } else {
-            // Fallback: extract from intake notes text
-            const extractedUrl = extractInsuranceUrlFromText(record.patient_intake_notes);
-            if (extractedUrl) {
-              updateData.insurance_id_link = extractedUrl;
-              console.log(`[AUTO-PARSE] Setting insurance_id_link from intake notes: ${extractedUrl}`);
+            // Fallback: extract front URL from "Upload A Copy Of Your Insurance Card (Primary)" JSON blob,
+            // then from any URL in the intake notes.
+            const intake = record.patient_intake_notes || '';
+            const primaryBlob = intake.match(/Upload A Copy Of Your Insurance Card\s*\(Primary\)\s*:\s*(\{[^\n]+\})/i);
+            if (primaryBlob && primaryBlob[1]) {
+              const fb = extractFrontBackFromJsonOrString(primaryBlob[1]);
+              if (fb.front) {
+                updateData.insurance_id_link = fb.front;
+                console.log(`[AUTO-PARSE] Setting insurance_id_link from intake (Primary) blob: ${fb.front}`);
+              }
+              if (fb.back) {
+                updateData.insurance_back_link = fb.back;
+                console.log(`[AUTO-PARSE] Setting insurance_back_link from intake (Primary) blob: ${fb.back}`);
+              }
+            } else {
+              const extractedUrl = extractInsuranceUrlFromText(intake);
+              if (extractedUrl) {
+                updateData.insurance_id_link = extractedUrl;
+                console.log(`[AUTO-PARSE] Setting insurance_id_link from intake notes: ${extractedUrl}`);
+              }
             }
           }
+
+          // Primary back URL from GHL custom field (when available)
+          if (ghlData?.insurance_card_back_url) {
+            updateData.insurance_back_link = ghlData.insurance_card_back_url;
+            console.log(`[AUTO-PARSE] Setting insurance_back_link from GHL: ${ghlData.insurance_card_back_url}`);
+          }
+
         } else if (record.table === "new_leads") {
           // For leads: DO NOT include parsed_* fields (they don't exist)
           // Only sync to main columns
