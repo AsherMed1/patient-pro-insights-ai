@@ -1838,15 +1838,22 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.insurance_info.insurance_notes = value;
       console.log(`[AUTO-PARSE GHL] Captured generic notes field "${rawKey}" as insurance_notes: ${value}`);
     }
-    // Insurance card URL
+    // Insurance card URL (front + back parsed from GHL upload JSON blob)
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
       console.log(`[AUTO-PARSE GHL] Found potential insurance card field "${key}":`, typeof value, value?.substring?.(0, 100) || value);
-      const extractedUrl = extractUrlFromJsonOrString(value);
-      console.log(`[AUTO-PARSE GHL] Extracted URL:`, extractedUrl);
-      if (extractedUrl) {
-        result.insurance_card_url = extractedUrl;
+      const fb = extractFrontBackFromJsonOrString(value);
+      console.log(`[AUTO-PARSE GHL] Extracted front/back:`, fb);
+      const isSecondary = key.includes('secondary') || /\(\s*2\s*\)/.test(key);
+      if (isSecondary) {
+        if (fb.front) result.insurance_info.secondary_card_front_url = fb.front;
+        if (fb.front) result.insurance_info.secondary_card_url = fb.front; // legacy compat
+        if (fb.back) result.insurance_info.secondary_card_back_url = fb.back;
+      } else {
+        if (fb.front) result.insurance_card_url = fb.front;
+        if (fb.back) result.insurance_card_back_url = fb.back;
       }
     }
+
     // Pathology fields - expanded for Vivid Vascular PAE/UFE/GAE patterns
     else if (key.includes('complaint') || key.includes('reason') || key.includes('concern')) {
       result.pathology_info.primary_complaint = value;
