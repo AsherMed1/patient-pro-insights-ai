@@ -273,40 +273,6 @@ export const InsuranceCardUpload = ({
   };
 
 
-  const saveUrls = async (front: string | null, back: string | null) => {
-    setIsSaving(true);
-    try {
-      const { error } = await supabase.functions.invoke("update-appointment-fields", {
-        body: {
-          appointmentId,
-          updates: {
-            insurance_id_link: front,
-            insurance_back_link: back,
-          },
-          userId,
-          userName,
-          changeSource: 'portal'
-        },
-      });
-
-      if (error) throw error;
-
-      onUploadComplete(front, back);
-      toast({
-        title: "Saved",
-        description: "Insurance card updated successfully",
-      });
-    } catch (error) {
-      console.error("Save failed:", error);
-      toast({
-        title: "Save failed",
-        description: "Could not save the insurance card. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
