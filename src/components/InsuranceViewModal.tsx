@@ -2,7 +2,9 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, FileText, User, Calendar, ExternalLink } from 'lucide-react';
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload } from 'lucide-react';
 
 interface InsuranceInfo {
   insurance_provider?: string;
@@ -28,61 +30,70 @@ interface InsuranceViewModalProps {
   patientDob?: string | null;
 }
 
-const CardPhotos = ({ frontUrl, backUrl }: { frontUrl?: string; backUrl?: string }) => {
+const PhotoSide = ({ label, url }: { label: string; url?: string }) => (
+  <div className="flex-1">
+    <div className="text-xs font-medium text-muted-foreground mb-2">{label}</div>
+    {url ? (
+      <>
+        <img
+          src={url}
+          alt={label}
+          className="w-full h-32 object-cover rounded-lg border border-border"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-7 text-xs mt-2"
+          onClick={() => window.open(url, '_blank')}
+        >
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Full Size
+        </Button>
+      </>
+    ) : (
+      <div className="h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+        <ImageIcon className="h-6 w-6 mb-1 opacity-50" />
+        <span className="text-xs">No image</span>
+      </div>
+    )}
+  </div>
+);
+
+const CardPhotos = ({
+  frontUrl,
+  backUrl,
+  variant = 'primary',
+}: {
+  frontUrl?: string;
+  backUrl?: string;
+  variant?: 'primary' | 'secondary';
+}) => {
   if (!frontUrl && !backUrl) return null;
+  const isSecondary = variant === 'secondary';
   return (
-    <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
-      <div className="flex items-center space-x-2 mb-3">
-        <FileText className="h-4 w-4 text-gray-600" />
-        <div className="text-xs font-medium text-gray-700 uppercase tracking-wide">
-          Insurance Card Photos
-        </div>
+    <Card
+      className={cn(
+        "p-4 bg-gradient-to-br border",
+        isSecondary
+          ? "from-emerald-50 to-teal-50 border-emerald-200"
+          : "from-green-50 to-emerald-50 border-green-200"
+      )}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Upload className={cn("h-4 w-4", isSecondary ? "text-emerald-600" : "text-green-600")} />
+        <span className={cn("font-medium text-sm", isSecondary ? "text-emerald-900" : "text-green-900")}>
+          {isSecondary ? "Secondary Insurance Card" : "Insurance Card"}
+        </span>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {frontUrl && (
-          <div className="space-y-2">
-            <div className="text-xs text-center text-muted-foreground font-medium">Front</div>
-            <img
-              src={frontUrl}
-              alt="Insurance Card Front"
-              className="w-full rounded-lg border border-gray-300 shadow-sm"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full h-7 text-xs"
-              onClick={() => window.open(frontUrl, '_blank')}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Full Size
-            </Button>
-          </div>
-        )}
-        {backUrl && (
-          <div className="space-y-2">
-            <div className="text-xs text-center text-muted-foreground font-medium">Back</div>
-            <img
-              src={backUrl}
-              alt="Insurance Card Back"
-              className="w-full rounded-lg border border-gray-300 shadow-sm"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full h-7 text-xs"
-              onClick={() => window.open(backUrl, '_blank')}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Full Size
-            </Button>
-          </div>
-        )}
+      <div className="flex gap-4">
+        <PhotoSide label="Front of Card" url={frontUrl} />
+        <PhotoSide label="Back of Card" url={backUrl} />
       </div>
-    </div>
+    </Card>
   );
 };
+
 
 const InsuranceSection = ({
   label,
@@ -231,6 +242,7 @@ const InsuranceViewModal = ({
               <CardPhotos
                 frontUrl={insuranceInfo.secondary_front_link}
                 backUrl={insuranceInfo.secondary_back_link}
+                variant="secondary"
               />
             </>
           )}
