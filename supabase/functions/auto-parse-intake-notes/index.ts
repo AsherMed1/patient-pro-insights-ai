@@ -1691,8 +1691,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       xray_details: null as string | null
     },
     insurance_card_url: null as string | null,
+    insurance_card_back_url: null as string | null,
     hasCompleteStepData: false as boolean
   };
+
 
   // Extract root-level contact data
   if (contact.firstName || contact.lastName) {
