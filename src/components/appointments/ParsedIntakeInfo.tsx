@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
 import { InsuranceCardUpload } from "./InsuranceCardUpload";
+import { SecondaryInsuranceCardUpload } from "./SecondaryInsuranceCardUpload";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
@@ -67,6 +68,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   
   // Insurance upload collapsible state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isSecondaryUploadOpen, setIsSecondaryUploadOpen] = useState(false);
   
   // Insurance edit state
   const [isEditingInsurance, setIsEditingInsurance] = useState(false);
@@ -790,8 +792,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             const secPlan = sanitizeInsuranceValue(sec.secondary_plan);
             const secId = sanitizeInsuranceValue(sec.secondary_id_number);
             const secGroup = sanitizeInsuranceValue(sec.secondary_group_number);
-            const secCard = sec.secondary_card_url || null;
-            if (!secProvider && !secPlan && !secId && !secGroup && !secCard) return null;
+            const secFront: string | null = sec.secondary_card_front_url || sec.secondary_card_url || null;
+            const secBack: string | null = sec.secondary_card_back_url || null;
+            const hasAnySecondary = !!(secProvider || secPlan || secId || secGroup || secFront || secBack);
+            if (!hasAnySecondary) return null;
             return (
               <Card className="bg-emerald-50 border-emerald-200">
                 <CardContent className="pt-4 space-y-2">
@@ -823,16 +827,50 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       <span className="font-medium">{secGroup}</span>
                     </div>
                   )}
-                  {secCard && (
+                  {secFront && (
                     <Button
                       variant="outline"
                       size="sm"
                       className="w-full mt-2"
-                      onClick={() => window.open(secCard, "_blank")}
+                      onClick={() => window.open(secFront, "_blank")}
                     >
                       <ExternalLink className="h-3 w-3 mr-2" />
                       View Secondary Insurance Card
                     </Button>
+                  )}
+
+                  {/* Secondary Insurance Card Upload - Collapsible */}
+                  {appointmentId && (
+                    <div className="mt-4 pt-4 border-t border-emerald-200">
+                      <Collapsible open={isSecondaryUploadOpen} onOpenChange={setIsSecondaryUploadOpen}>
+                        <CollapsibleTrigger className="w-full">
+                          <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-emerald-100/50 transition-colors -mx-3">
+                            <div className="flex items-center gap-2">
+                              <Upload className="h-4 w-4 text-emerald-600" />
+                              <span className="font-medium text-sm text-emerald-800">
+                                Upload Secondary Insurance Card
+                              </span>
+                            </div>
+                            <ChevronDown
+                              className={cn(
+                                "h-4 w-4 text-emerald-600 transition-transform",
+                                isSecondaryUploadOpen && "rotate-180"
+                              )}
+                            />
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-3">
+                          <SecondaryInsuranceCardUpload
+                            appointmentId={appointmentId}
+                            currentFrontUrl={secFront}
+                            currentBackUrl={secBack}
+                            onUploadComplete={() => onUpdate?.()}
+                            patientName={patientName || "Patient"}
+                            projectName={projectName}
+                          />
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </div>
                   )}
                 </CardContent>
               </Card>

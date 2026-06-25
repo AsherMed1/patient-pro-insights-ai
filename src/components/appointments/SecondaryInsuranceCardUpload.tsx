@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, X, Image, Loader2, Check, Camera } from "lucide-react";
+import { Upload, X, Loader2, Check, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
 import { cn } from "@/lib/utils";
 
-interface InsuranceCardUploadProps {
+interface SecondaryInsuranceCardUploadProps {
   appointmentId: string;
   currentFrontUrl?: string | null;
   currentBackUrl?: string | null;
@@ -38,26 +38,19 @@ const CardUploadArea = ({
     e.preventDefault();
     setIsDragging(true);
   };
-
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
   };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      onFileSelect(file);
-    }
+    if (file && file.type.startsWith("image/")) onFileSelect(file);
   };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      onFileSelect(file);
-    }
+    if (file) onFileSelect(file);
   };
 
   return (
@@ -70,7 +63,6 @@ const CardUploadArea = ({
         onChange={handleFileChange}
         className="hidden"
       />
-      
       {currentUrl ? (
         <div className="relative group">
           <img
@@ -98,7 +90,7 @@ const CardUploadArea = ({
               <X className="h-3 w-3" />
             </Button>
           </div>
-          <div className="absolute bottom-2 right-2 bg-green-500 text-white rounded-full p-1">
+          <div className="absolute bottom-2 right-2 bg-emerald-500 text-white rounded-full p-1">
             <Check className="h-3 w-3" />
           </div>
         </div>
@@ -129,14 +121,14 @@ const CardUploadArea = ({
   );
 };
 
-export const InsuranceCardUpload = ({
+export const SecondaryInsuranceCardUpload = ({
   appointmentId,
   currentFrontUrl,
   currentBackUrl,
   onUploadComplete,
   patientName,
   projectName,
-}: InsuranceCardUploadProps) => {
+}: SecondaryInsuranceCardUploadProps) => {
   const { toast } = useToast();
   const { userId, userName } = useUserAttribution();
   const [frontUrl, setFrontUrl] = useState<string | null>(currentFrontUrl || null);
@@ -145,8 +137,6 @@ export const InsuranceCardUpload = ({
   const [isUploadingBack, setIsUploadingBack] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Refs always reflect latest URL — protects against stale-closure overwrites
-  // when front + back saves race.
   const frontUrlRef = useRef<string | null>(currentFrontUrl || null);
   const backUrlRef = useRef<string | null>(currentBackUrl || null);
   useEffect(() => { frontUrlRef.current = frontUrl; }, [frontUrl]);
@@ -155,49 +145,26 @@ export const InsuranceCardUpload = ({
   const uploadFile = async (file: File, side: "front" | "back"): Promise<string | null> => {
     const setUploading = side === "front" ? setIsUploadingFront : setIsUploadingBack;
     setUploading(true);
-
     try {
-      // Validate file
       if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload an image under 10MB",
-          variant: "destructive",
-        });
+        toast({ title: "File too large", description: "Please upload an image under 10MB", variant: "destructive" });
         return null;
       }
-
-      // Generate unique path
       const fileExt = file.name.split(".").pop() || "jpg";
       const sanitizedProject = (projectName || "unknown").replace(/[^a-zA-Z0-9]/g, "_");
-      const filePath = `${sanitizedProject}/${appointmentId}/${side}_${Date.now()}.${fileExt}`;
+      const filePath = `${sanitizedProject}/${appointmentId}/secondary_${side}_${Date.now()}.${fileExt}`;
 
-      // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from("insurance-cards")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: true,
-        });
+        .upload(filePath, file, { cacheControl: "3600", upsert: true });
 
-      if (error) {
-        console.error("Upload error:", error);
-        throw error;
-      }
+      if (error) throw error;
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("insurance-cards")
-        .getPublicUrl(data.path);
-
+      const { data: urlData } = supabase.storage.from("insurance-cards").getPublicUrl(data.path);
       return urlData.publicUrl;
     } catch (error) {
       console.error("Upload failed:", error);
-      toast({
-        title: "Upload failed",
-        description: "Could not upload the image. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Upload failed", description: "Could not upload the image. Please try again.", variant: "destructive" });
       return null;
     } finally {
       setUploading(false);
@@ -207,8 +174,6 @@ export const InsuranceCardUpload = ({
   const persist = async (patch: { front?: string | null; back?: string | null }) => {
     const front = patch.front !== undefined ? patch.front : frontUrlRef.current;
     const back = patch.back !== undefined ? patch.back : backUrlRef.current;
-
-    // Update refs immediately so concurrent calls read fresh values
     if (patch.front !== undefined) frontUrlRef.current = patch.front;
     if (patch.back !== undefined) backUrlRef.current = patch.back;
 
@@ -217,30 +182,22 @@ export const InsuranceCardUpload = ({
       const { error } = await supabase.functions.invoke("update-appointment-fields", {
         body: {
           appointmentId,
-          updates: {
-            insurance_id_link: front,
-            insurance_back_link: back,
+          updates: {},
+          parsedInsurancePatch: {
+            secondary_card_front_url: front,
+            secondary_card_back_url: back,
           },
           userId,
           userName,
-          changeSource: 'portal'
+          changeSource: 'portal',
         },
       });
-
       if (error) throw error;
-
       onUploadComplete(front, back);
-      toast({
-        title: "Saved",
-        description: "Insurance card updated successfully",
-      });
+      toast({ title: "Saved", description: "Secondary insurance card updated successfully" });
     } catch (error) {
       console.error("Save failed:", error);
-      toast({
-        title: "Save failed",
-        description: "Could not save the insurance card. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Save failed", description: "Could not save the secondary insurance card.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -248,41 +205,24 @@ export const InsuranceCardUpload = ({
 
   const handleFrontUpload = async (file: File) => {
     const url = await uploadFile(file, "front");
-    if (url) {
-      setFrontUrl(url);
-      await persist({ front: url });
-    }
+    if (url) { setFrontUrl(url); await persist({ front: url }); }
   };
-
   const handleBackUpload = async (file: File) => {
     const url = await uploadFile(file, "back");
-    if (url) {
-      setBackUrl(url);
-      await persist({ back: url });
-    }
+    if (url) { setBackUrl(url); await persist({ back: url }); }
   };
-
-  const handleRemoveFront = async () => {
-    setFrontUrl(null);
-    await persist({ front: null });
-  };
-
-  const handleRemoveBack = async () => {
-    setBackUrl(null);
-    await persist({ back: null });
-  };
-
-
+  const handleRemoveFront = async () => { setFrontUrl(null); await persist({ front: null }); };
+  const handleRemoveBack = async () => { setBackUrl(null); await persist({ back: null }); };
 
   return (
-    <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+    <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
       <div className="flex items-center gap-2 mb-3">
-        <Upload className="h-4 w-4 text-green-600" />
-        <span className="font-medium text-sm text-green-900">Insurance Card Upload</span>
-        {isSaving && <Loader2 className="h-3 w-3 animate-spin text-green-600" />}
+        <Upload className="h-4 w-4 text-emerald-600" />
+        <span className="font-medium text-sm text-emerald-900">Secondary Insurance Card Upload</span>
+        {isSaving && <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />}
       </div>
       <p className="text-xs text-muted-foreground mb-4">
-        Upload photos of the insurance card (front and back) for {patientName}
+        Upload photos of the secondary insurance card (front and back) for {patientName}
       </p>
       <div className="flex gap-4">
         <CardUploadArea
@@ -304,4 +244,4 @@ export const InsuranceCardUpload = ({
   );
 };
 
-export default InsuranceCardUpload;
+export default SecondaryInsuranceCardUpload;
