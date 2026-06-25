@@ -963,16 +963,22 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     parsedData.insurance_info = {};
   }
   if (!parsedData.insurance_info.insurance_notes) {
+    // Multi-line capture: grab everything until the next labeled field, an upload/URL line, or end of section.
+    const NEXT_LABEL = String.raw`(?=\n\s*(?:[A-Z][A-Za-z0-9 /&()'\-]{1,60}:|Upload\s|https?:\/\/)|$)`;
     const notesPatterns = [
+      new RegExp(String.raw`Notes\s*\(Example:.*?\).*?:\s*([\s\S]+?)` + NEXT_LABEL, 'i'),
+      new RegExp(String.raw`Notes\s*\(.*?optional.*?\).*?:\s*([\s\S]+?)` + NEXT_LABEL, 'i'),
+      new RegExp(String.raw`(?:^|\n)\s*Notes\s*:\s*([\s\S]+?)` + NEXT_LABEL, 'i'),
+      // Single-line fallbacks (preserve original behavior if multi-line lookahead fails)
       /Notes\s*\(Example:.*?\).*?:\s*([^\n]+)/i,
       /Notes\s*\(.*?optional.*?\).*?:\s*([^\n]+)/i,
       /^  Notes.*?:\s*([^\n]+)/im,
     ];
-    
+
     for (const pattern of notesPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
-        const value = match[1].trim();
+        const value = match[1].replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
         if (value && value.length > 0) {
           parsedData.insurance_info.insurance_notes = value;
           console.log(`[AUTO-PARSE ENRICH] Extracted insurance_notes via regex: ${value}`);

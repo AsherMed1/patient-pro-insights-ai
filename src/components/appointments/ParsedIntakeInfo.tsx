@@ -1143,7 +1143,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   return (
                   <div className="text-sm pt-2 border-t border-amber-200 mt-2">
                     <span className="text-muted-foreground">Notes:</span>{" "}
-                    <span className="font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                    <span className="font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded whitespace-pre-wrap">
                       {cleaned}
                     </span>
                   </div>
