@@ -1,18 +1,24 @@
-# Backfill Muriel Migkins
+## Backfill missing "approved" GHL tags for Richmond Vascular Center
 
-Invoke the existing `backfill-ghl-appointment` edge function to pull Muriel's contact and appointments from GHL into our database.
+Use the existing `retry-missing-ghl-approved-tags` edge function — it was built for exactly this case. It verifies what's actually in GHL first (self-heals the stamp if the tag is already there), then pushes the `approved` tag if missing, then stamps `ghl_approved_tag_sent_at`.
 
-## Call
+## Steps
 
-- Function: `backfill-ghl-appointment`
-- Body: `{ "projectName": "Liberty Joint & Vascular", "contactIds": ["qMyGoxdjqWEE4tzOf3N8"] }`
+1. **Look up the 11 leads** in `all_appointments` by `lead_name` + `project_name = 'Richmond Vascular Center'` with `review_status = 'approved'` to collect their `id`s, `ghl_id`s, and current `ghl_approved_tag_sent_at` stamps. Report any name that doesn't match exactly so we can resolve it before tagging.
 
-The function uses Liberty's stored `ghl_api_key` + `ghl_location_id`, fetches the contact and all their appointments, and replays them through `ghl-webhook-handler` (idempotent — safe to re-run).
+2. **Invoke `retry-missing-ghl-approved-tags`** via `supabase--curl_edge_functions` with:
+   ```json
+   { "force_ids": ["<id1>", "<id2>", ...], "include_backfilled": true }
+   ```
+   - `force_ids` bypasses the "missing stamp" filter so it processes them even if a stamp exists.
+   - `include_backfilled: true` makes it re-verify against GHL rather than trusting the stamp.
 
-## Verify
+3. **Report results**: per-lead outcome — `succeeded` (tag pushed now), `already_tagged` (tag was already in GHL, stamp self-healed), or `failed` (with reason).
 
-After it runs:
-1. Query `new_leads` and `all_appointments` for `contact_id`/`ghl_id = qMyGoxdjqWEE4tzOf3N8` to confirm rows were created.
-2. Report back the appointment(s) created, their status, and review_status (new appointments default to `pending` in the Review Queue per project rules).
+## Names to resolve
+
+Peter Davis, Gordon Tolson, Madeline Lopez Taylor, Antionette Hayes, Melinda Burchett, James Williams, Glendora Johnson, William Slate, Donna Lane, Toni Richerson, Zandra Coleman.
+
+Multiple approved appointments under the same name will all be tagged (same `ghl_id` → idempotent in GHL).
 
 No code or schema changes.
