@@ -623,15 +623,51 @@ const ReviewQueue: React.FC = () => {
             if (tagErr) {
               console.error('update-ghl-contact-tags failed:', tagErr);
               toast({
-                title: 'Approved, but GHL tag not added',
-                description: 'Review status was saved, but adding the "approved" tag in GHL failed. It will retry automatically.',
-                variant: 'destructive',
+                title: 'Approved — GHL tag will retry',
+                description: 'Approval saved. The hourly retry job will add the "approved" tag in GHL.',
               });
             } else {
-              await supabase
-                .from('all_appointments')
-                .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
-                .eq('id', id);
+              // Verify the tag actually landed in GHL before stamping success.
+              // Prevents "we lied about success" rows that the sweep can't see.
+              let verified = false;
+              try {
+                const verifyRes = await fetch(
+                  `https://services.leadconnectorhq.com/contacts/${priorRow.ghl_id}`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${projectData?.ghl_api_key ?? ''}`,
+                      Version: '2021-07-28',
+                      Accept: 'application/json',
+                    },
+                  },
+                );
+                if (verifyRes.ok) {
+                  const verifyJson = await verifyRes.json().catch(() => ({} as any));
+                  const tags: unknown[] = Array.isArray(verifyJson?.contact?.tags)
+                    ? verifyJson.contact.tags
+                    : Array.isArray(verifyJson?.tags)
+                      ? verifyJson.tags
+                      : [];
+                  verified = tags.some((t) => String(t).toLowerCase().trim() === 'approved');
+                } else {
+                  console.warn('GHL verify GET non-OK:', verifyRes.status);
+                }
+              } catch (verifyErr) {
+                console.warn('GHL verify GET threw:', verifyErr);
+              }
+
+              if (verified) {
+                await supabase
+                  .from('all_appointments')
+                  .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
+                  .eq('id', id);
+              } else {
+                console.warn(`Approve: tag push returned OK but verify failed for ${id}; leaving stamp NULL for cron retry`);
+                toast({
+                  title: 'Approved — GHL tag will retry',
+                  description: 'Approval saved. The hourly retry job will confirm the "approved" tag in GHL.',
+                });
+              }
             }
           } catch (err) {
             console.error('update-ghl-contact-tags threw:', err);
