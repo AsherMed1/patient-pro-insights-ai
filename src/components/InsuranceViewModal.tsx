@@ -232,7 +232,7 @@ const InsuranceViewModal = ({
                 </div>
                 <InsuranceSection
                   label="Secondary"
-                  provider={insuranceInfo.secondary_provider}
+                  provider={insuranceInfo.secondary_provider || insuranceInfo.secondary_plan}
                   plan={insuranceInfo.secondary_plan}
                   id={insuranceInfo.secondary_id}
                   groupNumber={insuranceInfo.secondary_group_number}
