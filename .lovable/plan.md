@@ -1,36 +1,35 @@
-## Final step: create the hourly cron safety net
+## Verify and re-tag Bebinia Civil in GHL
 
-Backfill ✅ done. Write-path verification ✅ shipped in both `ReviewQueue.tsx` and `ghl-webhook-handler/index.ts`. Only the cron job remains.
+### What we know
+- DB row: `Bebinia Civil` / Richmond Vascular Center / `ghl_id=yZy7Ei3FxAdAXzlY1PhD` / `review_status=approved` / `ghl_approved_tag_sent_at=2026-06-05`.
+- User reports no `approved` tag on the GHL contact.
+- Stamp is set, so the hourly sweep (which filters `ghl_approved_tag_sent_at IS NULL`) will not touch her. This is exactly the gap the `force_ids` / `include_backfilled` path in `retry-missing-ghl-approved-tags` was built for — it re-verifies via GHL `GET /contacts/:id` and pushes the tag if missing.
 
-### What runs
-
-```sql
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
-select cron.schedule(
-  'retry-missing-ghl-approved-tags-hourly',
-  '7 * * * *',
-  $$
-  select net.http_post(
-    url := 'https://bhabbokbhnqioykjimix.supabase.co/functions/v1/retry-missing-ghl-approved-tags',
-    headers := '{"Content-Type":"application/json","apikey":"<anon>","Authorization":"Bearer <anon>"}'::jsonb,
-    body := '{"batch_size":50}'::jsonb
-  );
-  $$
-);
+### Step 1 — Verify + self-heal Bebinia (one call)
+Invoke `retry-missing-ghl-approved-tags` with:
+```json
+{ "force_ids": ["bc6a518e-899b-413a-9e01-8aa6cfa5bf68"] }
 ```
+Expected outcomes:
+- If GHL already has the tag → `already_tagged: 1` (no write, stamp stays).
+- If missing → function tags via `update-ghl-contact-tags` and refreshes the stamp; result `succeeded: 1`.
+- If GHL `GET` fails (auth/permissions) → `failed: 1` with a clear reason in `failures[]`.
 
-### Safety summary
+### Step 2 — Broader sweep of older "backfilled" approvals
+Since Bebinia's stamp was set during the manual backfill, other Richmond/follow-up leads may be in the same state. Run once:
+```json
+{ "include_backfilled": true, "batch_size": 100 }
+```
+This re-verifies every approved row (not just NULL-stamp ones) and pushes the tag where GHL is actually missing it. Already-tagged rows are no-ops. Filters still exclude ECCO/Premier/Davis.
 
-- Function inherits `verify_jwt = false` → anon key is sufficient.
-- Sweep filter is `ghl_approved_tag_sent_at IS NULL AND review_status='approved'` and excludes ECCO/Premier/Davis. Function verifies in GHL before pushing — no double-tagging.
-- Hourly, batch 50. Typical run touches 0–5 rows.
-- Anon key embedded in `cron.job` table — already public, no new exposure.
-- Fully reversible: `select cron.unschedule('retry-missing-ghl-approved-tags-hourly');`
+### Step 3 — Report back
+Share the function's JSON response: `found / succeeded / already_tagged / failed / failures[]`. If anything fails, surface the GHL status code + reason verbatim so we can diagnose (e.g., expired API key for that project).
 
-### Verify after run
+### Safety
+- No schema/code changes.
+- Function already verifies in GHL before writing → no double-tagging.
+- Reversible: tags can be removed via `update-ghl-contact-tags` with `action: "remove"`.
+- Hourly cron continues to handle any future NULL-stamp rows; this run handles the backfilled-stamp gap.
 
-1. `select jobname, schedule, active from cron.job where jobname = 'retry-missing-ghl-approved-tags-hourly';` → 1 row, active true.
-2. After `:07` of the next hour: `select * from cron.job_run_details order by start_time desc limit 3;` → status `succeeded`.
-3. `retry-missing-ghl-approved-tags` edge function logs show the run with a `found`/`processed` count.
+### Why not just edit the row
+Clearing her stamp to let the cron pick her up would work but is slower (waits until `:07`) and doesn't surface the failure reason if GHL rejects. `force_ids` runs immediately and returns a verifiable result.
