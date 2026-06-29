@@ -307,12 +307,45 @@ serve(async (req) => {
             .then(async ({ error: tagErr }) => {
               if (tagErr) {
                 console.error(`[${requestId}] setter-submitted GHL tag failed:`, tagErr);
-              } else {
-                console.log(`[${requestId}] setter-submitted 'approved' tag added to GHL contact ${appointmentRecord.ghl_id}`);
+                return;
+              }
+              // Verify the tag actually landed in GHL before stamping success.
+              // Hourly cron sweep (NULL-stamp only) will retry if verify fails.
+              let verified = false;
+              try {
+                const verifyRes = await fetch(
+                  `https://services.leadconnectorhq.com/contacts/${appointmentRecord.ghl_id}`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${projectData?.ghl_api_key ?? ''}`,
+                      Version: '2021-07-28',
+                      Accept: 'application/json',
+                    },
+                  },
+                );
+                if (verifyRes.ok) {
+                  const verifyJson: any = await verifyRes.json().catch(() => ({}));
+                  const tags: unknown[] = Array.isArray(verifyJson?.contact?.tags)
+                    ? verifyJson.contact.tags
+                    : Array.isArray(verifyJson?.tags)
+                      ? verifyJson.tags
+                      : [];
+                  verified = tags.some((t) => String(t).toLowerCase().trim() === 'approved');
+                } else {
+                  console.warn(`[${requestId}] setter-submitted GHL verify GET non-OK:`, verifyRes.status);
+                }
+              } catch (verifyErr) {
+                console.warn(`[${requestId}] setter-submitted GHL verify GET threw:`, verifyErr);
+              }
+
+              if (verified) {
+                console.log(`[${requestId}] setter-submitted 'approved' tag verified on GHL contact ${appointmentRecord.ghl_id}`);
                 await supabase
                   .from('all_appointments')
                   .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
                   .eq('id', appointmentRecord.id);
+              } else {
+                console.warn(`[${requestId}] setter-submitted tag push OK but verify failed; leaving stamp NULL for cron retry`);
               }
             })
             .catch((e) => console.error(`[${requestId}] setter-submitted GHL tag invoke failed:`, e));
