@@ -631,7 +631,7 @@ const ReviewQueue: React.FC = () => {
               // Prevents "we lied about success" rows that the sweep can't see.
               let verified = false;
               try {
-                const verifyRes = await fetch(
+                const verifyRes = await window.fetch(
                   `https://services.leadconnectorhq.com/contacts/${priorRow.ghl_id}`,
                   {
                     headers: {
