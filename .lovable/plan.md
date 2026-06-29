@@ -1,20 +1,18 @@
-## Change
+# Backfill Muriel Migkins
 
-In `src/components/InsuranceViewModal.tsx`, update the Secondary Insurance section so the **Insurance Provider** field falls back to the **Insurance Plan** value when no provider is set. Primary Insurance behavior is unchanged.
+Invoke the existing `backfill-ghl-appointment` edge function to pull Muriel's contact and appointments from GHL into our database.
 
-## Implementation
+## Call
 
-In the `InsuranceViewModal` component, when rendering the Secondary `<InsuranceSection>`, pass:
+- Function: `backfill-ghl-appointment`
+- Body: `{ "projectName": "Liberty Joint & Vascular", "contactIds": ["qMyGoxdjqWEE4tzOf3N8"] }`
 
-```ts
-provider={insuranceInfo.secondary_provider || insuranceInfo.secondary_plan}
-```
+The function uses Liberty's stored `ghl_api_key` + `ghl_location_id`, fetches the contact and all their appointments, and replays them through `ghl-webhook-handler` (idempotent — safe to re-run).
 
-instead of just `insuranceInfo.secondary_provider`.
+## Verify
 
-Result:
-- If `secondary_provider` exists → displays as today.
-- If only `secondary_plan` exists → Provider field mirrors the Plan (e.g., both show "BCBS") instead of "Not provided".
-- If neither exists → still shows "Not provided".
+After it runs:
+1. Query `new_leads` and `all_appointments` for `contact_id`/`ghl_id = qMyGoxdjqWEE4tzOf3N8` to confirm rows were created.
+2. Report back the appointment(s) created, their status, and review_status (new appointments default to `pending` in the Review Queue per project rules).
 
-Purely presentational — no DB writes, no changes to parsing, sync, or Primary Insurance.
+No code or schema changes.
