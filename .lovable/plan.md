@@ -1,27 +1,26 @@
-## Goal
-Hide Gail Pereira's stale July 30, 2025 3:30 PM appointment from the Georgia Endovascular portal, while keeping the June 30, 2026 3:30 PM appointment visible.
+## Issue
+Juan Barrientos's intake notes contain full insurance + pathology data from the GHL blob, but `parsed_insurance_info` and `parsed_pathology_info` (and the top-level `detected_insurance_*` columns) are empty — so the portal shows no insurance.
 
-## Rows
-Both rows share the same `ghl_id` (`6O0i963Hr4jGcUOXfdZI`) and lead, different `ghl_appointment_id`s — they are two distinct GHL appointments for the same contact.
+The raw `patient_intake_notes` has it all:
+- Insurance Plan: BCBS OF TX PPO
+- Insurance ID: CQM119605161001
+- Group: CQM363
+- PCP: Dr. Alice Lim, 713-271-0030
+- GAE STEP 1 answers (knee OA, duration, age band)
 
-- KEEP — `d9f2166f-58e9-4891-858f-7b9435e9c0d0` — 2026-06-30 15:30 — status Scheduled, approved
-- HIDE — `a8e7e611-3855-4924-81e8-746f31875681` — 2025-07-30 15:30 — status Scheduled, approved
+Parser ran (`parsing_completed_at` is set) but didn't extract these fields on this one row.
 
-## Change
-One `UPDATE` on `all_appointments` (via the insert tool):
+## Fix
+Re-trigger the AI parser for just this appointment:
 
-```sql
-UPDATE public.all_appointments
-SET is_superseded = true,
-    updated_at = now()
-WHERE id = 'a8e7e611-3855-4924-81e8-746f31875681';
-```
+1. Null out `parsing_completed_at`, `parsed_insurance_info`, `parsed_pathology_info`, `detected_insurance_*` on appointment `2602c409-aee9-4989-b18f-7d105d65dd71` so it's eligible for reparse.
+2. Invoke the `auto-parse-intake-notes` edge function with `{ trigger: 'immediate', appointment_id: '2602c409-aee9-4989-b18f-7d105d65dd71' }` to repopulate the parsed JSON + detected columns from the existing notes.
+3. Verify with a follow-up `SELECT` that `parsed_insurance_info.insurance_plan` = "BCBS OF TX PPO", id = "CQM119605161001", group = "CQM363", and that pathology fields populated.
 
-This is the standard portal "remove" — superseded rows are filtered out of every portal view but preserved for audit. No GHL call (the GHL appointment itself stays untouched, since the clinic only asked to remove it from the portal). No status change (status stays Scheduled, so no spurious Slack/webhook fires).
+No schema changes. No GHL writes. Single-row, fully reversible (the source `patient_intake_notes` text is preserved).
 
 ## Not doing
-- Not deleting the row (recoverable this way, and matches how we've handled the same situation before).
-- Not touching the June 30, 2026 row.
-- Not syncing anything back to GHL.
+- Not touching any other appointments.
+- Not changing the parser itself — this looks like a one-off miss on a row where parsing completed but extracted nothing. If we see the same pattern on more Humble/GAE rows after this, we'll investigate the parser separately.
 
-Confirm and I'll run the update.
+Confirm and I'll run it.
