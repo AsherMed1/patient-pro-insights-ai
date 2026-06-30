@@ -1,35 +1,53 @@
-## Problem
+## What I found
 
-Dismiss fails with:
-`new row for relation "all_appointments" violates check constraint "all_appointments_review_status_check"`
+Meelah Noell (Vivid Vascular, appt `5c7a80e3…`, GHL appt `tgsGLHtI6dsrsXbYCAj5`) is sitting at `status='OON'` in the database — but:
 
-The DB check constraint on `all_appointments.review_status` only allows:
-`'pending', 'approved', 'declined', 'oon'`
+- Zero rows in `appointment_notes` for this appointment (the "Status changed to OON" system note never wrote).
+- Every `security_audit_log` entry for this row shows `old_status: OON → new_status: OON`.
+- No `notify-slack-oon`, `appointment-status-webhook`, or `update-ghl-appointment` logs reference it.
 
-But the app (and the core memory rule) treats `'dismissed'` as a valid value — `ReviewQueue.tsx` writes `review_status: 'dismissed'` in two places (line 426 duplicate-dismiss flow, line 827 plain Dismiss button), and the Declined-tab query at line 348 also filters by it. So every Dismiss click is rejected by Postgres.
+### Root cause
+
+In `AllAppointmentsManager.tsx` `handleStatusChange`, the OON side effects (Slack alert + `appointment-status-webhook` that fires VIVID's GHL workflow + the system note) are **all gated on `oldStatus !== status`** (line 752). The unconditional `update-ghl-appointment` call right above does run, but that only PATCHes `appointmentStatus='cancelled'` on the GHL event — it does NOT fire the workflow that sends the OON SMS/cancellation.
+
+For Meelah the row was already at `OON` before Ivy clicked OON in the portal (most likely an earlier silent set — sheet sync / webhook race / earlier click that failed mid-flight). So every retry just no-ops the side-effects branch. Slack stays silent, the GHL workflow never runs, and from VIVID's POV nothing happens.
+
+This is a class bug — it will keep biting anyone who clicks OON on a row that's somehow already OON, and the UI gives no clue why.
 
 ## Fix
 
-Single migration to widen the check constraint:
+### 1. `src/components/AllAppointmentsManager.tsx` — let OON (and Do Not Call) re-fire
 
-```sql
-ALTER TABLE public.all_appointments
-  DROP CONSTRAINT all_appointments_review_status_check;
+In `handleStatusChange`, pull the **OON block** and the **Do Not Call DND block** and the **`appointment-status-webhook` call** out of the `if (oldStatus !== status)` gate. Keep the system-note write gated (we don't want duplicate "changed from OON to OON" notes), but instead write a "Re-triggered OON workflow by {user}" note on the re-fire path so the audit trail explains why Slack pinged again.
 
-ALTER TABLE public.all_appointments
-  ADD CONSTRAINT all_appointments_review_status_check
-  CHECK (review_status = ANY (ARRAY['pending','approved','declined','oon','dismissed']));
+Concretely:
+
+```text
+if (oldStatus !== status) {
+  write "Status changed from X to Y" system note
+}
+
+// always runs when the user explicitly picks these:
+if (status === 'OON') { fire notify-slack-oon + appointment-status-webhook, write re-fire note if oldStatus===status }
+if (status === 'Do Not Call') { fire DND + write DO NOT CALL note (dedupe if already present) }
 ```
 
-That's it — no code changes. The frontend already uses `'dismissed'` correctly; only the DB constraint is out of sync.
+`update-ghl-appointment` already runs unconditionally — leave it.
 
-## Safety
+### 2. Recover Meelah Noell right now
 
-- Pure constraint widen — no row rewrites, no data loss, instantly reversible by re-adding the narrower check (no current rows use `'dismissed'` yet, since every attempt has been rejected).
-- No effect on existing pending/approved/declined/oon rows.
-- No RLS, grants, triggers, or edge functions touched.
-- Aligns DB with the documented Core rule ("Dismissed rows (`review_status='dismissed'`) are permanently hidden from both queue views").
+After the code fix ships, Ivy can just re-click OON on the row and everything fires. But to unblock her without waiting:
 
-## After migration
+- Invoke `notify-slack-oon` directly with Meelah's payload (firstName=Meelah, lastName=Noell, project=Vivid Vascular, calendar=UFE Aventura, appointmentId=`5c7a80e3-edbc-489c-960f-3c9029b6c998`).
+- Invoke `appointment-status-webhook` with `old_status='Confirmed'`, `new_status='OON'` for the same id — this is the call that hits VIVID's GHL workflow URL (`…/hooks/R7WRMPd1zyAxkp8WCZZo/webhook-trigger/2pTY4eHeBOgdU8Sg5rMr`) and is what actually cancels the appt + sends the OON message in GHL.
+- Write the missing "Status changed to OON by Ivy" note on `appointment_notes` so the row has an audit trail.
 
-You retry Dismiss on Mohsin L — the row should disappear from the Declined tab and stay hidden permanently.
+I'll do this from a one-shot recovery utility (kept under `src/utils/`) that an admin can run once from the browser console, mirroring the pattern of the other one-shot recovery utils already in the project.
+
+## Why not change the DB / Review Queue path
+
+The Review Queue OON flow is already correct (fires Slack + webhook in `ReviewQueue.tsx`). This bug is specific to the All Appointments status dropdown, which is what the user uses on the portal. No schema or RLS changes needed.
+
+## Out of scope
+
+- Why the row reached OON without firing side effects in the first place (likely a separate race — happy to investigate after we recover Meelah and unblock the re-fire path).

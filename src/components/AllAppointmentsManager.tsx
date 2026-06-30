@@ -748,11 +748,11 @@ const AllAppointmentsManager = ({
         });
       }
 
-      // Add system note and side effects only when status actually changed
+      // System note only on actual transitions
       if (oldStatus !== status) {
         const utcTimestamp = new Date().toISOString();
         const systemNote = `Status changed from "${oldStatus}" to "${status}" by ${userName} - [[timestamp:${utcTimestamp}]]`;
-        
+
         await supabase
           .from('appointment_notes')
           .insert({
@@ -760,8 +760,21 @@ const AllAppointmentsManager = ({
             note_text: systemNote,
             created_by: userName
           });
+      }
 
-        if (status === 'Do Not Call') {
+      // Do Not Call: always fire DND + DO NOT CALL note when explicitly selected.
+      // Re-firing on an already-DNC row is safe (idempotent) and the only way to
+      // recover from a prior silent failure.
+      if (status === 'Do Not Call') {
+        if (oldStatus === status) {
+          await supabase
+            .from('appointment_notes')
+            .insert({
+              appointment_id: appointmentId,
+              note_text: `Re-triggered Do Not Call workflow by ${userName} - [[timestamp:${new Date().toISOString()}]]`,
+              created_by: userName
+            });
+        } else {
           await supabase
             .from('appointment_notes')
             .insert({
@@ -769,87 +782,105 @@ const AllAppointmentsManager = ({
               note_text: 'DO NOT CALL',
               created_by: userName
             });
+        }
 
-          try {
-            const { data: appointmentData } = await supabase
-              .from('all_appointments')
-              .select('ghl_id, project_name')
-              .eq('id', appointmentId)
+        try {
+          const { data: appointmentData } = await supabase
+            .from('all_appointments')
+            .select('ghl_id, project_name')
+            .eq('id', appointmentId)
+            .single();
+
+          if (appointmentData?.ghl_id && appointmentData?.project_name) {
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', appointmentData.project_name)
               .single();
 
-            if (appointmentData?.ghl_id && appointmentData?.project_name) {
-              const { data: projectData } = await supabase
-                .from('projects')
-                .select('ghl_api_key')
-                .eq('project_name', appointmentData.project_name)
-                .single();
-
-              if (projectData?.ghl_api_key) {
-                await supabase.functions.invoke('update-ghl-contact-dnd', {
-                  body: {
-                    ghl_contact_id: appointmentData.ghl_id,
-                    ghl_api_key: projectData.ghl_api_key,
-                    enable_dnd: true
-                  }
-                });
-                console.log('✅ DND enabled in GoHighLevel for contact:', appointmentData.ghl_id);
-              } else {
-                console.warn('⚠️ No GHL API key configured for project:', appointmentData.project_name);
-              }
-            } else {
-              console.warn('⚠️ No GHL contact ID found for appointment:', appointmentId);
-            }
-          } catch (dndError) {
-            console.error('⚠️ Failed to enable DND in GoHighLevel (non-critical):', dndError);
-          }
-        }
-
-        if (status === 'OON') {
-          try {
-            let oonData = appointments.find(a => a.id === appointmentId);
-            if (!oonData) {
-              const { data } = await supabase
-                .from('all_appointments')
-                .select('lead_name, lead_phone_number, calendar_name, project_name')
-                .eq('id', appointmentId)
-                .single();
-              oonData = data as any;
-            }
-            if (oonData) {
-              const nameParts = oonData.lead_name.split(' ');
-              const firstName = nameParts[0] || '';
-              const lastName = nameParts.slice(1).join(' ') || '';
-              
-              await supabase.functions.invoke('notify-slack-oon', {
+            if (projectData?.ghl_api_key) {
+              await supabase.functions.invoke('update-ghl-contact-dnd', {
                 body: {
-                  firstName,
-                  lastName,
-                  phone: oonData.lead_phone_number || '',
-                  calendarName: oonData.calendar_name || '',
-                  projectName: oonData.project_name,
-                  appointmentId
+                  ghl_contact_id: appointmentData.ghl_id,
+                  ghl_api_key: projectData.ghl_api_key,
+                  enable_dnd: true
                 }
               });
-              console.log('✅ Slack OON notification sent for:', oonData.lead_name);
+              console.log('✅ DND enabled in GoHighLevel for contact:', appointmentData.ghl_id);
+            } else {
+              console.warn('⚠️ No GHL API key configured for project:', appointmentData.project_name);
             }
-          } catch (oonError) {
-            console.error('⚠️ Failed to send OON Slack notification (non-critical):', oonError);
+          } else {
+            console.warn('⚠️ No GHL contact ID found for appointment:', appointmentId);
           }
+        } catch (dndError) {
+          console.error('⚠️ Failed to enable DND in GoHighLevel (non-critical):', dndError);
+        }
+      }
+
+      // OON: always fire Slack alert + appointment-status-webhook when explicitly
+      // selected, even if the row was already OON. The webhook is what triggers
+      // VIVID's GHL workflow (cancel + OON message); re-firing is the only way to
+      // recover when an earlier set landed silently.
+      if (status === 'OON') {
+        if (oldStatus === status) {
+          await supabase
+            .from('appointment_notes')
+            .insert({
+              appointment_id: appointmentId,
+              note_text: `Re-triggered OON workflow by ${userName} - [[timestamp:${new Date().toISOString()}]]`,
+              created_by: userName
+            });
         }
 
-        // Trigger external webhook (fire-and-forget, non-blocking)
-        supabase.functions.invoke('appointment-status-webhook', {
-          body: {
-            appointment_id: appointmentId,
-            old_status: oldStatus,
-            new_status: status
+        try {
+          let oonData = appointments.find(a => a.id === appointmentId);
+          if (!oonData) {
+            const { data } = await supabase
+              .from('all_appointments')
+              .select('lead_name, lead_phone_number, calendar_name, project_name')
+              .eq('id', appointmentId)
+              .single();
+            oonData = data as any;
           }
-        }).then(() => {
-          console.log('✅ Webhook triggered successfully');
-        }).catch(err => {
-          console.error('⚠️ Webhook failed (non-critical):', err);
-        });
+          if (oonData) {
+            const nameParts = oonData.lead_name.split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            await supabase.functions.invoke('notify-slack-oon', {
+              body: {
+                firstName,
+                lastName,
+                phone: oonData.lead_phone_number || '',
+                calendarName: oonData.calendar_name || '',
+                projectName: oonData.project_name,
+                appointmentId
+              }
+            });
+            console.log('✅ Slack OON notification sent for:', oonData.lead_name);
+          }
+        } catch (oonError) {
+          console.error('⚠️ Failed to send OON Slack notification (non-critical):', oonError);
+        }
       }
+
+      // External webhook fires on every status save (transitions AND re-fires of
+      // the same terminal status). For OON/Cancelled/DNC this is what triggers
+      // the project's GHL workflow.
+      supabase.functions.invoke('appointment-status-webhook', {
+        body: {
+          appointment_id: appointmentId,
+          old_status: oldStatus,
+          new_status: status
+        }
+      }).then(() => {
+        console.log('✅ Webhook triggered successfully');
+      }).catch(err => {
+        console.error('⚠️ Webhook failed (non-critical):', err);
+      });
+
+
 
       // Update local state
       const autoCompleteForLocal = ['welcome call', 'showed', 'won'];
