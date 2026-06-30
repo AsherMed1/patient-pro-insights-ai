@@ -1,26 +1,34 @@
 ## Issue
-Juan Barrientos's intake notes contain full insurance + pathology data from the GHL blob, but `parsed_insurance_info` and `parsed_pathology_info` (and the top-level `detected_insurance_*` columns) are empty — so the portal shows no insurance.
 
-The raw `patient_intake_notes` has it all:
-- Insurance Plan: BCBS OF TX PPO
-- Insurance ID: CQM119605161001
-- Group: CQM363
-- PCP: Dr. Alice Lim, 713-271-0030
-- GAE STEP 1 answers (knee OA, duration, age band)
+Test Johann Insurance Booked (`714f9b9d-2a48-491e-a192-194c69fdc08c`) shows empty Patient Pro Insights because the appointment's `patient_intake_notes` only contains a single line:
 
-Parser ran (`parsing_completed_at` is set) but didn't extract these fields on this one row.
+```
+**Insurance:** insurance_id_link: https://services.leadconnectorhq.com/documents/download/VAw0zyRWa02R8b0M5zNL
+```
+
+The parser ran (`parsing_completed_at` is set) and correctly extracted nothing — there's nothing in the notes to extract. No insurance fields, no PCP, no pathology answers, no demographics beyond DOB. So this isn't a parser miss like Juan Barrientos was; the source data itself is empty on the appointment row.
+
+The contact does exist in GHL (`ghl_id: nbMac8GehMs2tv5slGfo`), so the fix is to pull fresh contact data from GHL and re-parse — same pipeline we use elsewhere (`reparse-specific-appointments`).
 
 ## Fix
-Re-trigger the AI parser for just this appointment:
 
-1. Null out `parsing_completed_at`, `parsed_insurance_info`, `parsed_pathology_info`, `detected_insurance_*` on appointment `2602c409-aee9-4989-b18f-7d105d65dd71` so it's eligible for reparse.
-2. Invoke the `auto-parse-intake-notes` edge function with `{ trigger: 'immediate', appointment_id: '2602c409-aee9-4989-b18f-7d105d65dd71' }` to repopulate the parsed JSON + detected columns from the existing notes.
-3. Verify with a follow-up `SELECT` that `parsed_insurance_info.insurance_plan` = "BCBS OF TX PPO", id = "CQM119605161001", group = "CQM363", and that pathology fields populated.
+Run the standard GHL refresh + reparse for this one appointment:
 
-No schema changes. No GHL writes. Single-row, fully reversible (the source `patient_intake_notes` text is preserved).
+1. Invoke `reparse-specific-appointments` with `{ appointment_ids: ['714f9b9d-2a48-491e-a192-194c69fdc08c'] }`. That edge function will:
+   - Call `fetch-ghl-contact-data` server-to-server to pull the latest custom fields / intake blob from GHL into `patient_intake_notes`.
+   - Null out `parsing_completed_at` on this row.
+   - Trigger `auto-parse-intake-notes` to repopulate `parsed_insurance_info`, `parsed_pathology_info`, `parsed_medical_info`, and `detected_insurance_*`.
+2. Verify with a `SELECT` that the parsed fields are populated.
+
+## Expected outcome
+
+- If the GHL contact actually has insurance / pathology data filled in, the portal will show it after the refresh.
+- If the GHL contact is genuinely empty (this looks like a test booking — name "Test Johann Insurance Booked", DOB 2026-06-01, email `test@insurance.com`), the refresh will be a no-op and we'll report back that there's nothing on the GHL side to pull. In that case nothing more to do — the portal correctly reflects an empty intake.
 
 ## Not doing
+
 - Not touching any other appointments.
-- Not changing the parser itself — this looks like a one-off miss on a row where parsing completed but extracted nothing. If we see the same pattern on more Humble/GAE rows after this, we'll investigate the parser separately.
+- Not changing the parser or the intake form.
+- Not writing anything back to GHL.
 
 Confirm and I'll run it.
