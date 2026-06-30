@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_security_audit_log_appointment_id ON public.security_audit_log ((details->>'appointment_id'));
