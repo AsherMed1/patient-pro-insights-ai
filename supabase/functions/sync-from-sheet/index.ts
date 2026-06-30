@@ -94,7 +94,17 @@ Deno.serve(async (req) => {
       last_sync_timestamp: new Date().toISOString(),
     };
 
-    if (payload.status !== undefined) updates.status = payload.status;
+    if (payload.status !== undefined) {
+      // Forward-only safeguard: OON and Do Not Call are portal-only. Sheets are not
+      // a source of truth for these terminal states — skip the status field rather
+      // than write silently.
+      const blocked = ['oon', 'out of network', 'do not call', 'donotcall']
+      if (blocked.includes(String(payload.status).toLowerCase().trim())) {
+        console.warn(`⚠️ Ignoring sheet-driven portal-only status "${payload.status}" for ${payload.leadName}`)
+      } else {
+        updates.status = payload.status
+      }
+    }
     if (payload.procedureOrdered !== undefined) updates.procedure_ordered = payload.procedureOrdered;
     if (payload.requestedTime !== undefined) updates.requested_time = payload.requestedTime;
     if (payload.phoneNumber !== undefined) updates.phone_number = payload.phoneNumber;
