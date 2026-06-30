@@ -1,27 +1,27 @@
-Forward-only fix so a silent OON like Meelah's cannot recur. No backfill, no historical changes.
+## Goal
+Hide Gail Pereira's stale July 30, 2025 3:30 PM appointment from the Georgia Endovascular portal, while keeping the June 30, 2026 3:30 PM appointment visible.
 
-## Edits
+## Rows
+Both rows share the same `ghl_id` (`6O0i963Hr4jGcUOXfdZI`) and lead, different `ghl_appointment_id`s — they are two distinct GHL appointments for the same contact.
 
-### 1. `supabase/functions/ghl-webhook-handler/index.ts`
-After the existing `statusChangeNote` block (~line 409), add a forward-only side-effect dispatcher: when GHL drives the row to `OON` or `Do Not Call`, fire `notify-slack-oon` (OON only) and `appointment-status-webhook` in the background. Failures are logged, never thrown — DB write is never blocked. The existing portal-only-status guard (line 1108) still prevents GHL from overwriting an already-OON row.
+- KEEP — `d9f2166f-58e9-4891-858f-7b9435e9c0d0` — 2026-06-30 15:30 — status Scheduled, approved
+- HIDE — `a8e7e611-3855-4924-81e8-746f31875681` — 2025-07-30 15:30 — status Scheduled, approved
 
-### 2. `supabase/functions/update-appointment-status/index.ts`
-External REST endpoint. Add a hard 403 reject when incoming `status` normalizes to `OON` or `Do Not Call` — those are portal-only and must not be settable from outside. (Existing guard only blocked overwriting OON; this blocks writing it.)
+## Change
+One `UPDATE` on `all_appointments` (via the insert tool):
 
-### 3. `supabase/functions/sync-from-sheet/index.ts`
-Before applying `payload.status`, drop the field (with a warning log) if it normalizes to `OON` or `Do Not Call`. Sheets are not the source of truth for terminal portal states. All other fields still sync.
+```sql
+UPDATE public.all_appointments
+SET is_superseded = true,
+    updated_at = now()
+WHERE id = 'a8e7e611-3855-4924-81e8-746f31875681';
+```
 
-### 4. `supabase/functions/sync-buffalo-appointment-statuses/index.ts`
-Same skip for `csv_status`. Buffalo-only, hygiene fix.
+This is the standard portal "remove" — superseded rows are filtered out of every portal view but preserved for audit. No GHL call (the GHL appointment itself stays untouched, since the clinic only asked to remove it from the portal). No status change (status stays Scheduled, so no spurious Slack/webhook fires).
 
-### 5. DB migration — audit-log index
-`CREATE INDEX IF NOT EXISTS idx_security_audit_log_appointment_id ON security_audit_log ((details->>'appointment_id'));` — makes future incident lookups instant. Online, non-blocking.
+## Not doing
+- Not deleting the row (recoverable this way, and matches how we've handled the same situation before).
+- Not touching the June 30, 2026 row.
+- Not syncing anything back to GHL.
 
-### 6. Memory — add Core rule to `mem://index.md`
-> **OON/DNC are portal-only terminal states.** Any subsystem that writes `status='OON'` or `'Do Not Call'` to `all_appointments` MUST fire `notify-slack-oon` (OON only) + `appointment-status-webhook` + status-change note — or reject the write. No silent transitions.
-
-## Safety notes
-- All edge function changes are additive or restrictive — no existing legitimate flow regresses.
-- No schema changes to `all_appointments`, no RLS changes, no destructive SQL.
-- Slack/webhook failures are non-fatal (logged, not thrown).
-- Forward-only: existing rows untouched.
+Confirm and I'll run the update.
