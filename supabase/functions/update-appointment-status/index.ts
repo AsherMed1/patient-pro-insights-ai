@@ -135,6 +135,21 @@ serve(async (req) => {
     if (body.status !== undefined) {
       // Normalize status to proper capitalization
       const normalizedStatus = statusNormalization[body.status.toLowerCase()] || body.status
+      // Forward-only safeguard: OON and Do Not Call are portal-only terminal states.
+      // External callers (GHL workflows, integrations) must not be able to set them
+      // here — that bypasses Slack alert + appointment-status-webhook + audit note.
+      const blocked = ['oon', 'out of network', 'do not call', 'donotcall']
+      if (blocked.includes(String(body.status).toLowerCase().trim()) || blocked.includes(normalizedStatus.toLowerCase().trim())) {
+        console.warn(`[${requestId}] Rejected external write of portal-only status "${body.status}"`)
+        return new Response(
+          JSON.stringify({
+            error: 'Forbidden status',
+            message: 'OON and Do Not Call are portal-only statuses and cannot be set via this endpoint. Use the portal UI so Slack + GHL workflow + audit note all fire.',
+            requestId,
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
       updateData.status = normalizedStatus
       console.log(`Status normalized: "${body.status}" -> "${normalizedStatus}"`)
     }

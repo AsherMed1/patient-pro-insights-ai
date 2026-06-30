@@ -66,6 +66,21 @@ Deno.serve(async (req) => {
 
         // Update the appointment status
         const appointment = appointments[0];
+
+        // Forward-only safeguard: OON / Do Not Call are portal-only terminal states.
+        // Buffalo CSV sync must not silently set them — skip with a warning instead.
+        const blockedStatuses = ['oon', 'out of network', 'do not call', 'donotcall'];
+        if (blockedStatuses.includes(String(update.csv_status || '').toLowerCase().trim())) {
+          console.warn(`⚠️ Skipping Buffalo CSV portal-only status "${update.csv_status}" for ${update.lead_name}`);
+          results.errors.push({
+            lead_name: update.lead_name,
+            date: update.date,
+            error: `Skipped portal-only status "${update.csv_status}" — must be set via portal UI`,
+          });
+          results.failed++;
+          continue;
+        }
+
         const { error: updateError } = await supabase
           .from('all_appointments')
           .update({ status: update.csv_status })

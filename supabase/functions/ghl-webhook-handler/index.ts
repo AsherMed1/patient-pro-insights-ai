@@ -406,6 +406,46 @@ serve(async (req) => {
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create GHL status-change audit note:`, noteErr)
       }
+
+      // Forward-only safeguard: when GHL drives the row to OON or Do Not Call, fire the
+      // same side-effects the portal UI fires — Slack alert (OON only) and the external
+      // appointment-status-webhook (which triggers the client's GHL OON/DNC workflow).
+      // Without this, a GHL workflow that flips appointmentStatus to "oon" lands silently
+      // (see Meelah Noell incident, VIVID Vascular, 2026-06-30). Background, non-blocking.
+      const toStatusLower = (statusChangeNote.toStatus || '').toLowerCase().trim()
+      const isOON = toStatusLower === 'oon' || toStatusLower === 'out of network'
+      const isDNC = toStatusLower === 'do not call' || toStatusLower === 'donotcall'
+      if (isOON || isDNC) {
+        try {
+          if (isOON) {
+            const nameParts = (appointmentRecord.lead_name || '').split(' ')
+            const firstName = nameParts[0] || ''
+            const lastName = nameParts.slice(1).join(' ') || ''
+            supabase.functions.invoke('notify-slack-oon', {
+              body: {
+                firstName,
+                lastName,
+                phone: appointmentRecord.lead_phone_number || '',
+                calendarName: appointmentRecord.calendar_name || '',
+                projectName: appointmentRecord.project_name,
+                appointmentId: appointmentRecord.id,
+                source: 'ghl-webhook',
+              },
+            }).catch((e: any) => console.error(`[${requestId}] notify-slack-oon (GHL-driven) failed:`, e))
+          }
+          supabase.functions.invoke('appointment-status-webhook', {
+            body: {
+              appointment_id: appointmentRecord.id,
+              old_status: statusChangeNote.fromStatus,
+              new_status: statusChangeNote.toStatus,
+              source: 'ghl-webhook',
+            },
+          }).catch((e: any) => console.error(`[${requestId}] appointment-status-webhook (GHL-driven ${statusChangeNote.toStatus}) failed:`, e))
+          console.log(`[${requestId}] Fired ${isOON ? 'OON' : 'DNC'} side-effects for GHL-driven status change`)
+        } catch (sideEffectErr) {
+          console.error(`[${requestId}] OON/DNC side-effect dispatch threw:`, sideEffectErr)
+        }
+      }
     }
 
       // Enrich all appointments with full GHL contact data (if ghl_id available)
