@@ -1,53 +1,27 @@
-## What I found
+Forward-only fix so a silent OON like Meelah's cannot recur. No backfill, no historical changes.
 
-Meelah Noell (Vivid Vascular, appt `5c7a80e3…`, GHL appt `tgsGLHtI6dsrsXbYCAj5`) is sitting at `status='OON'` in the database — but:
+## Edits
 
-- Zero rows in `appointment_notes` for this appointment (the "Status changed to OON" system note never wrote).
-- Every `security_audit_log` entry for this row shows `old_status: OON → new_status: OON`.
-- No `notify-slack-oon`, `appointment-status-webhook`, or `update-ghl-appointment` logs reference it.
+### 1. `supabase/functions/ghl-webhook-handler/index.ts`
+After the existing `statusChangeNote` block (~line 409), add a forward-only side-effect dispatcher: when GHL drives the row to `OON` or `Do Not Call`, fire `notify-slack-oon` (OON only) and `appointment-status-webhook` in the background. Failures are logged, never thrown — DB write is never blocked. The existing portal-only-status guard (line 1108) still prevents GHL from overwriting an already-OON row.
 
-### Root cause
+### 2. `supabase/functions/update-appointment-status/index.ts`
+External REST endpoint. Add a hard 403 reject when incoming `status` normalizes to `OON` or `Do Not Call` — those are portal-only and must not be settable from outside. (Existing guard only blocked overwriting OON; this blocks writing it.)
 
-In `AllAppointmentsManager.tsx` `handleStatusChange`, the OON side effects (Slack alert + `appointment-status-webhook` that fires VIVID's GHL workflow + the system note) are **all gated on `oldStatus !== status`** (line 752). The unconditional `update-ghl-appointment` call right above does run, but that only PATCHes `appointmentStatus='cancelled'` on the GHL event — it does NOT fire the workflow that sends the OON SMS/cancellation.
+### 3. `supabase/functions/sync-from-sheet/index.ts`
+Before applying `payload.status`, drop the field (with a warning log) if it normalizes to `OON` or `Do Not Call`. Sheets are not the source of truth for terminal portal states. All other fields still sync.
 
-For Meelah the row was already at `OON` before Ivy clicked OON in the portal (most likely an earlier silent set — sheet sync / webhook race / earlier click that failed mid-flight). So every retry just no-ops the side-effects branch. Slack stays silent, the GHL workflow never runs, and from VIVID's POV nothing happens.
+### 4. `supabase/functions/sync-buffalo-appointment-statuses/index.ts`
+Same skip for `csv_status`. Buffalo-only, hygiene fix.
 
-This is a class bug — it will keep biting anyone who clicks OON on a row that's somehow already OON, and the UI gives no clue why.
+### 5. DB migration — audit-log index
+`CREATE INDEX IF NOT EXISTS idx_security_audit_log_appointment_id ON security_audit_log ((details->>'appointment_id'));` — makes future incident lookups instant. Online, non-blocking.
 
-## Fix
+### 6. Memory — add Core rule to `mem://index.md`
+> **OON/DNC are portal-only terminal states.** Any subsystem that writes `status='OON'` or `'Do Not Call'` to `all_appointments` MUST fire `notify-slack-oon` (OON only) + `appointment-status-webhook` + status-change note — or reject the write. No silent transitions.
 
-### 1. `src/components/AllAppointmentsManager.tsx` — let OON (and Do Not Call) re-fire
-
-In `handleStatusChange`, pull the **OON block** and the **Do Not Call DND block** and the **`appointment-status-webhook` call** out of the `if (oldStatus !== status)` gate. Keep the system-note write gated (we don't want duplicate "changed from OON to OON" notes), but instead write a "Re-triggered OON workflow by {user}" note on the re-fire path so the audit trail explains why Slack pinged again.
-
-Concretely:
-
-```text
-if (oldStatus !== status) {
-  write "Status changed from X to Y" system note
-}
-
-// always runs when the user explicitly picks these:
-if (status === 'OON') { fire notify-slack-oon + appointment-status-webhook, write re-fire note if oldStatus===status }
-if (status === 'Do Not Call') { fire DND + write DO NOT CALL note (dedupe if already present) }
-```
-
-`update-ghl-appointment` already runs unconditionally — leave it.
-
-### 2. Recover Meelah Noell right now
-
-After the code fix ships, Ivy can just re-click OON on the row and everything fires. But to unblock her without waiting:
-
-- Invoke `notify-slack-oon` directly with Meelah's payload (firstName=Meelah, lastName=Noell, project=Vivid Vascular, calendar=UFE Aventura, appointmentId=`5c7a80e3-edbc-489c-960f-3c9029b6c998`).
-- Invoke `appointment-status-webhook` with `old_status='Confirmed'`, `new_status='OON'` for the same id — this is the call that hits VIVID's GHL workflow URL (`…/hooks/R7WRMPd1zyAxkp8WCZZo/webhook-trigger/2pTY4eHeBOgdU8Sg5rMr`) and is what actually cancels the appt + sends the OON message in GHL.
-- Write the missing "Status changed to OON by Ivy" note on `appointment_notes` so the row has an audit trail.
-
-I'll do this from a one-shot recovery utility (kept under `src/utils/`) that an admin can run once from the browser console, mirroring the pattern of the other one-shot recovery utils already in the project.
-
-## Why not change the DB / Review Queue path
-
-The Review Queue OON flow is already correct (fires Slack + webhook in `ReviewQueue.tsx`). This bug is specific to the All Appointments status dropdown, which is what the user uses on the portal. No schema or RLS changes needed.
-
-## Out of scope
-
-- Why the row reached OON without firing side effects in the first place (likely a separate race — happy to investigate after we recover Meelah and unblock the re-fire path).
+## Safety notes
+- All edge function changes are additive or restrictive — no existing legitimate flow regresses.
+- No schema changes to `all_appointments`, no RLS changes, no destructive SQL.
+- Slack/webhook failures are non-fatal (logged, not thrown).
+- Forward-only: existing rows untouched.
