@@ -1206,25 +1206,31 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
   
   // === PAD-specific field extraction from intake notes text ===
-  
-  // Smoking/tobacco status
-  if (!parsedData.medical_info.smoking_status) {
-    const smokeMatch = intakeNotes.match(/(?:smoke|tobacco)[^:]*:\s*([^\n]+)/i);
-    if (smokeMatch && smokeMatch[1]) {
-      parsedData.medical_info.smoking_status = smokeMatch[1].trim();
-      console.log(`[AUTO-PARSE ENRICH] Extracted smoking_status via regex: ${parsedData.medical_info.smoking_status}`);
+  // Only run for PAD procedure — otherwise address fragments like "Smokey Cypress Loop"
+  // or non-PAD content can pollute smoking_status / blood_thinners.
+  const isPAD = (parsedData.pathology_info?.procedure_type || '').toString().toUpperCase() === 'PAD';
+
+  if (isPAD) {
+    // Smoking/tobacco status — require explicit label with word boundary, stop at pipe
+    if (!parsedData.medical_info.smoking_status) {
+      const smokeMatch = intakeNotes.match(/\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker)\s*:\s*([^\n|]+)/i);
+      if (smokeMatch && smokeMatch[1]) {
+        parsedData.medical_info.smoking_status = smokeMatch[1].trim();
+        console.log(`[AUTO-PARSE ENRICH] Extracted smoking_status via regex: ${parsedData.medical_info.smoking_status}`);
+      }
+    }
+
+    // Blood thinners — require word boundary label, stop at pipe
+    if (!parsedData.medical_info.blood_thinners) {
+      const btMatch = intakeNotes.match(/\bblood\s+thinner[^:|\n]*:\s*([^\n|]+)/i);
+      if (btMatch && btMatch[1]) {
+        const val = btMatch[1].trim().toLowerCase();
+        parsedData.medical_info.blood_thinners = val.includes('yes') ? 'YES' : val.includes('no') ? 'NO' : btMatch[1].trim();
+        console.log(`[AUTO-PARSE ENRICH] Extracted blood_thinners via regex: ${parsedData.medical_info.blood_thinners}`);
+      }
     }
   }
-  
-  // Blood thinners
-  if (!parsedData.medical_info.blood_thinners) {
-    const btMatch = intakeNotes.match(/blood thinner[^:]*:\s*([^\n]+)/i);
-    if (btMatch && btMatch[1]) {
-      const val = btMatch[1].trim().toLowerCase();
-      parsedData.medical_info.blood_thinners = val.includes('yes') ? 'YES' : val.includes('no') ? 'NO' : btMatch[1].trim();
-      console.log(`[AUTO-PARSE ENRICH] Extracted blood_thinners via regex: ${parsedData.medical_info.blood_thinners}`);
-    }
-  }
+
   
   // Vascular provider
   if (!parsedData.pathology_info.vascular_provider) {
