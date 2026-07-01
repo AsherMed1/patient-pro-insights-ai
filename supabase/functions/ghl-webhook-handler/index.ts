@@ -203,9 +203,11 @@ serve(async (req) => {
       if (error) throw error
       appointmentRecord = data
     } else {
-      // Projects exempt from Review Queue (time-preference-only intake, not real bookings)
-      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
-      const isExempt = REVIEW_QUEUE_EXEMPT.includes(appointmentData.project_name);
+      // All projects now route through the Review Queue unless the GHL "Insurance Intake Source"
+      // custom field is set to "Setter Submitted". Previously Premier/ECCO/Davis were auto-approved
+      // via a REVIEW_QUEUE_EXEMPT list, but that let patient self-bookings become client-facing
+      // without verification.
+      const isExempt = false;
 
       // Setter-submitted insurance forms bypass the review queue and go straight to the portal.
       // If the webhook payload didn't include the custom field, fall back to fetching the
