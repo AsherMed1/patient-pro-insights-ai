@@ -222,7 +222,7 @@ serve(async (req) => {
       dob: normalizedDob,
       time_preference: timePreference,
       is_unscheduled: isPremierVascular,
-      review_status: ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'].includes(body.project_name) ? 'approved' : 'pending',
+      review_status: 'pending',
     }
 
     // Check if appointment already exists based on ghl_appointment_id or ghl_id
