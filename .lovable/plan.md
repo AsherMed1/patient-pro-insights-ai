@@ -1,40 +1,36 @@
-## Bug
+## Problem
 
-The Medical Information card shows `Smoking Status: Aiken | state: South Carolina | zip: 29805` for Larry Palmer. This is a parser bug, not a data-entry issue.
+Self-booked (patient-submitted) appointments for Premier Vascular and other "preferred time" clinics (ECCO Medical, Premier Vascular Surgery, Davis Vein & Vascular) are auto-approved and bypass the Review Queue entirely, so they become client-facing without verification.
 
-**Root cause** — in `supabase/functions/auto-parse-intake-notes/index.ts` line 1212, the PAD-specific enrichment runs unconditionally on every appointment and uses an overly loose regex:
-
-```ts
-const smokeMatch = intakeNotes.match(/(?:smoke|tobacco)[^:]*:\s*([^\n]+)/i);
-```
-
-Larry's address is `Smokey Cypress Loop | city: Aiken | state: South Carolina | zip: 29805`. The regex matches `Smokey Cypress Loop | city` as the label and captures `Aiken | state: South Carolina | zip: 29805` as the value, then writes it to `parsed_medical_info.smoking_status`.
-
-Two things are wrong:
-1. The regex matches any word starting with `smoke` (including `Smokey`) rather than an actual "Smoking Status" / "Tobacco Use" label.
-2. Smoking status and blood thinners are PAD-only fields, but the enrichment runs for every procedure (GAE in this case).
+Currently these four projects are hard-coded as `REVIEW_QUEUE_EXEMPT` in the intake pipeline, which forces `review_status = 'approved'` regardless of who booked the appointment.
 
 ## Fix
 
-Edit `supabase/functions/auto-parse-intake-notes/index.ts` around lines 1208–1230:
+Treat these clinics like every other clinic: gate visibility on the GHL "Insurance Intake Source" custom field.
 
-1. **Gate the whole PAD enrichment block on procedure** — only run smoking/blood-thinner regex extraction when `parsedData.pathology_info.procedure_type === 'PAD'` (or the calendar-derived procedure is PAD). GAE/UFE/PAE/HAE/etc. skip it entirely.
-2. **Tighten the smoking regex** to require an explicit label with word boundaries:
-   ```ts
-   /\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker)\s*:\s*([^\n|]+)/i
-   ```
-   - Adds `\b` word boundary so `Smokey` no longer matches.
-   - Requires the full label token (`smoking status`, `tobacco`, `tobacco use`, `smoker`).
-   - Stops capture at `|` so pipe-delimited address fragments don't get slurped.
-3. **Tighten the blood-thinner regex** the same way (`\bblood\s+thinner`, stop at `|`).
+- `Setter Submitted` → auto-approved (bypass Review Queue), no Slack alert. Unchanged.
+- `Patient Submitted` or unset → `review_status = 'pending'`, appears in Review Queue, fires Slack review-queue alert.
 
-## Backfill
+## Changes
 
-After the code fix, clear the bad value on Larry Palmer's appointment (`0681d550…`) so the UI stops showing it:
+1. **`supabase/functions/ghl-webhook-handler/index.ts`** (lines ~206-238)
+   - Remove the `REVIEW_QUEUE_EXEMPT` shortcut for setting `review_status`.
+   - Keep the existing intake-source resolution (webhook field, then contact fallback).
+   - `reviewStatus = isSetterSubmitted ? 'approved' : 'pending'` for all projects.
 
-- `UPDATE all_appointments SET parsed_medical_info = parsed_medical_info - 'smoking_status', parsing_completed_at = NULL WHERE id = '0681d550-...'`
-- Auto-parse cron re-runs within 30s; UI refreshes clean.
+2. **`supabase/functions/all-appointments-api/index.ts`**
+   - Line 225: stop forcing `review_status: 'approved'` for the four projects — default all new rows to `'pending'`.
+   - Lines 307-308: remove these four projects from `REVIEW_QUEUE_EXEMPT` so the Slack review-queue notification fires for them too.
 
-Optional broader sweep: find any other non-PAD appointment where `parsed_medical_info->>'smoking_status'` looks like an address fragment (contains `state:`, `zip:`, or `|`) and clear + re-parse those too.
+3. **`supabase/functions/import-missing-leads-from-ghl/index.ts`** (backfill importer)
+   - Remove Premier/ECCO/Davis/Premier Vascular Surgery from `REVIEW_QUEUE_EXEMPT` so re-imports also land in Review Queue (unless setter_submitted, if that logic exists there — otherwise all default to pending).
 
-No schema, UI, or GHL changes needed.
+4. **Memory update** — `mem://index.md` Core rule for Review Queue Gate: drop "ECCO Medical, Premier Vascular, Premier Vascular Surgery, and Davis Vein & Vascular are exempt" and replace with a note that ALL projects follow the Insurance Intake Source rule. Update or remove `mem://features/admin-review-queue/exempt-projects`.
+
+5. **No schema or UI changes.** Existing already-approved historical rows are left alone (only new intakes are affected). If the user wants existing auto-approved Premier rows retroactively moved back to pending for re-review, that's a separate one-shot SQL and I'll ask before running it.
+
+## Verification
+
+- Deploy the two edge functions.
+- Confirm in Supabase that a new Premier Vascular webhook without `insurance_intake_source = setter_submitted` inserts with `review_status = 'pending'` and shows up in the admin Review Queue.
+- Confirm a setter-submitted Premier lead still auto-approves and skips Slack.

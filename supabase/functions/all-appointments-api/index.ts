@@ -222,7 +222,7 @@ serve(async (req) => {
       dob: normalizedDob,
       time_preference: timePreference,
       is_unscheduled: isPremierVascular,
-      review_status: ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'].includes(body.project_name) ? 'approved' : 'pending',
+      review_status: 'pending',
     }
 
     // Check if appointment already exists based on ghl_appointment_id or ghl_id
@@ -303,9 +303,8 @@ serve(async (req) => {
       data = insertResult.data;
       error = insertResult.error;
 
-      // Notify Slack review queue on new insert (fire-and-forget) — skip exempt projects
-      const REVIEW_QUEUE_EXEMPT = ['ECCO Medical', 'Premier Vascular', 'Premier Vascular Surgery', 'Davis Vein & Vascular'];
-      if (!error && data && data[0] && !REVIEW_QUEUE_EXEMPT.includes(data[0].project_name)) {
+      // Notify Slack review queue on new insert (fire-and-forget)
+      if (!error && data && data[0]) {
         try {
           supabase.functions.invoke('notify-slack-review-queue', {
             body: {

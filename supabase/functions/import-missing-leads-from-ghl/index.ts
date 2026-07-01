@@ -8,12 +8,10 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
-const REVIEW_QUEUE_EXEMPT = new Set([
-  'ECCO Medical',
-  'Premier Vascular',
-  'Premier Vascular Surgery',
-  'Davis Vein & Vascular',
-]);
+// All projects now route through the Review Queue by default. Previously
+// ECCO/Premier/Davis were auto-approved, but self-booked appointments must be
+// verified before becoming client-facing.
+const REVIEW_QUEUE_EXEMPT = new Set<string>();
 
 // Infer procedure from calendar/intake/project default so unscheduled-capture
 // leads (ECCO/Premier/Davis) populate the service filter correctly at insert time.
