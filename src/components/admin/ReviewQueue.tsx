@@ -243,7 +243,6 @@ const ReviewQueue: React.FC = () => {
       .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes')
       .eq('review_status', queueView)
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-      .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")')
       .limit(500);
 
     if (queueView === 'declined') {
@@ -289,8 +288,7 @@ const ReviewQueue: React.FC = () => {
         .from('all_appointments')
         .select('id', { count: 'exact', head: true })
         .eq('review_status', status)
-        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-        .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")');
+        .or('is_reserved_block.is.null,is_reserved_block.eq.false');
     const [{ count: pc }, { count: dc }] = await Promise.all([base('pending'), base('declined')]);
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
