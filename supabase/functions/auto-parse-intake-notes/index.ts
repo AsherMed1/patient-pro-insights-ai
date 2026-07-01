@@ -921,28 +921,16 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   
   // Extract PCP info if not already populated
-  if (!parsedData.medical_info.pcp_name) {
-    const pcpPatterns = [
-      /Primary Care.*?:\s*([^\n|]+)/i,
-      /PCP.*?:\s*([^\n|]+)/i,
-      /physician.*?:\s*([^\n|]+)/i
-    ];
-    
-    for (const pattern of pcpPatterns) {
-      const match = intakeNotes.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        // Try to extract phone from combined string
-        const phoneMatch = value.match(/(\d{3}[.-]?\d{3}[.-]?\d{4})/);
-        if (phoneMatch) {
-          parsedData.medical_info.pcp_phone = phoneMatch[1];
-          parsedData.medical_info.pcp_name = value.replace(phoneMatch[1], '').trim();
-        } else {
-          parsedData.medical_info.pcp_name = value;
-        }
-        console.log(`[AUTO-PARSE ENRICH] Extracted PCP via regex: ${value}`);
-        break;
-      }
+  if (!parsedData.medical_info) parsedData.medical_info = {};
+  if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
+    const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
+    if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
+      parsedData.medical_info.pcp_name = pcpExtracted.name;
+      console.log(`[AUTO-PARSE ENRICH] Extracted PCP name via regex: ${pcpExtracted.name}`);
+    }
+    if (!parsedData.medical_info.pcp_phone && pcpExtracted.phone) {
+      parsedData.medical_info.pcp_phone = pcpExtracted.phone;
+      console.log(`[AUTO-PARSE ENRICH] Extracted PCP phone via regex: ${pcpExtracted.phone}`);
     }
   }
   
