@@ -1,34 +1,42 @@
-## Issue
+# Fix: PCP Name missing when GHL splits it into two labeled fields
 
-Test Johann Insurance Booked (`714f9b9d-2a48-491e-a192-194c69fdc08c`) shows empty Patient Pro Insights because the appointment's `patient_intake_notes` only contains a single line:
+## Root cause
+
+For appointment `1c80bc60…` (Test Johann Booked, Everest Vascular), the GHL intake notes contain **two separate** Primary Care lines:
 
 ```
-**Insurance:** insurance_id_link: https://services.leadconnectorhq.com/documents/download/VAw0zyRWa02R8b0M5zNL
+Primary Care Doctor's Phone Number: 3241231412
+Primary Care Doctor's Name: dr sdfa
 ```
 
-The parser ran (`parsing_completed_at` is set) and correctly extracted nothing — there's nothing in the notes to extract. No insurance fields, no PCP, no pathology answers, no demographics beyond DOB. So this isn't a parser miss like Juan Barrientos was; the source data itself is empty on the appointment row.
+The parser's PCP-backfill regex in `supabase/functions/auto-parse-intake-notes/index.ts` is `/Primary Care[^:\n]*:\s*([^\n|]+)/i`, which matches the **first** matching line (the Phone one). It then:
 
-The contact does exist in GHL (`ghl_id: nbMac8GehMs2tv5slGfo`), so the fix is to pull fresh contact data from GHL and re-parse — same pipeline we use elsewhere (`reparse-specific-appointments`).
+1. Strips the digits into `pcp_phone` (correct: `3241231412`).
+2. Sets `pcp_name` to what's left after the strip — an empty string.
+
+Result: `parsed_medical_info = { pcp_name: "", pcp_phone: "3241231412", … }` and the UI shows PCP Phone but no PCP Name, even though "dr sdfa" is right there in the raw notes.
+
+The same greedy regex appears in three places in `auto-parse-intake-notes/index.ts` (approx. lines 699–716, 936–955, and 1132–1147).
 
 ## Fix
 
-Run the standard GHL refresh + reparse for this one appointment:
+1. **Parser (`supabase/functions/auto-parse-intake-notes/index.ts`)** — update all three PCP-backfill blocks so they:
+   - Try a **Name-specific** pattern first: `/Primary Care[^:\n]*Name[^:\n]*:\s*([^\n|]+)/i` (also accept `PCP ... Name`), and if it matches, use that value for `pcp_name` only (never touch `pcp_phone` from a Name line).
+   - Only fall back to the generic `/Primary Care[^:\n]*:\s*([^\n|]+)/i` when no Name-labeled line exists, and in that fallback **skip lines whose label contains "Phone" / "Number" / "Tel"** so a phone-only line can't be misread as a name.
+   - After extraction, if the resulting `pcp_name` is empty/whitespace, leave it `null` instead of storing `""` (empty strings currently poison the "already parsed" check).
+   - Keep the existing separate `pcp_phone` backfill (lines ~1150–1160) — it already handles the Phone line correctly.
 
-1. Invoke `reparse-specific-appointments` with `{ appointment_ids: ['714f9b9d-2a48-491e-a192-194c69fdc08c'] }`. That edge function will:
-   - Call `fetch-ghl-contact-data` server-to-server to pull the latest custom fields / intake blob from GHL into `patient_intake_notes`.
-   - Null out `parsing_completed_at` on this row.
-   - Trigger `auto-parse-intake-notes` to repopulate `parsed_insurance_info`, `parsed_pathology_info`, `parsed_medical_info`, and `detected_insurance_*`.
-2. Verify with a `SELECT` that the parsed fields are populated.
+2. **Backfill this record** — trigger a re-parse of appointment `1c80bc60-d9cb-46eb-82ab-1aecbca39808` so the corrected parser writes `pcp_name: "dr sdfa"` into `parsed_medical_info` (and also into the top-level column if the field-sync logic mirrors it).
 
-## Expected outcome
+3. **Optional sanity sweep** (only if you want it now) — run the same re-parse across appointments where `parsed_medical_info->>'pcp_phone' IS NOT NULL AND (parsed_medical_info->>'pcp_name' IS NULL OR parsed_medical_info->>'pcp_name' = '')` and the raw `patient_intake_notes` contain a `Primary Care ... Name:` line. Let me know if you want this in the same pass or skipped.
 
-- If the GHL contact actually has insurance / pathology data filled in, the portal will show it after the refresh.
-- If the GHL contact is genuinely empty (this looks like a test booking — name "Test Johann Insurance Booked", DOB 2026-06-01, email `test@insurance.com`), the refresh will be a no-op and we'll report back that there's nothing on the GHL side to pull. In that case nothing more to do — the portal correctly reflects an empty intake.
+## No changes to
 
-## Not doing
+- UI rendering of the Medical & PCP Information card — the card already shows PCP Name when present.
+- GHL-JSON key-based extractor (lines ~2033–2064) — it already handles Name vs Phone keys correctly; the bug is strictly in the text-regex fallback.
+- Other medical fields (allergies, medications, imaging).
 
-- Not touching any other appointments.
-- Not changing the parser or the intake form.
-- Not writing anything back to GHL.
+## Verification
 
-Confirm and I'll run it.
+- Re-parse the Test Johann record and confirm the card shows `PCP Name: dr sdfa` alongside `PCP Phone: 3241231412`.
+- Spot-check one Ally / Everest / Champion record that previously had both PCP name and phone to confirm no regression.
