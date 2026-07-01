@@ -10,6 +10,74 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Extract PCP name and/or phone from raw intake notes. Handles:
+//  - Combined line: "Primary Care Doctor's Name and Phone: Dr Jones 214-555-5555"
+//  - Split lines:   "Primary Care Doctor's Name: Dr Jones"
+//                   "Primary Care Doctor's Phone Number: 214-555-5555"
+// Never mistakes a phone-labeled line for a name.
+function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; phone: string | null } {
+  const result: { name: string | null; phone: string | null } = { name: null, phone: null };
+  if (!intakeNotes) return result;
+
+  const PHONE_RE = /(\(?\d{3}\)?[.\-\s]?\d{3}[.\-\s]?\d{4})/;
+  const isBad = (v: string) => !v || /^(none|n\/a|unknown|-|--)$/i.test(v.trim());
+
+  // 1) Name-specific labels first.
+  const nameLine = intakeNotes.match(/(?:Primary Care|PCP)[^:\n]*\bName\b[^:\n]*:\s*([^\n|]+)/i);
+  if (nameLine && nameLine[1]) {
+    const v = nameLine[1].trim().replace(/[,\-\s]+$/, '');
+    if (!isBad(v)) {
+      const pm = v.match(PHONE_RE);
+      if (pm) {
+        result.phone = pm[1];
+        const stripped = v.replace(pm[1], '').replace(/[,\-\s]+$/, '').trim();
+        if (stripped && !isBad(stripped)) result.name = stripped;
+      } else {
+        result.name = v;
+      }
+    }
+  }
+
+  // 2) Phone-specific labels.
+  if (!result.phone) {
+    const phoneLine = intakeNotes.match(/(?:Primary Care|PCP)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
+    if (phoneLine && phoneLine[1]) {
+      const v = phoneLine[1].trim();
+      if (!isBad(v)) {
+        const pm = v.match(PHONE_RE);
+        result.phone = pm ? pm[1] : v;
+      }
+    }
+  }
+
+  // 3) Generic fallback for a combined "Primary Care …: <name and/or phone>" line,
+  //    but SKIP any line whose label is phone-specific (already handled) so we don't
+  //    accidentally treat digits as a name.
+  if (!result.name) {
+    const lineRe = /^(?:[ \t]*)([^\n:]*(?:Primary Care|PCP|physician)[^\n:]*):\s*([^\n|]+)$/gim;
+    let m: RegExpExecArray | null;
+    while ((m = lineRe.exec(intakeNotes)) !== null) {
+      const label = m[1] || '';
+      const value = (m[2] || '').trim();
+      if (isBad(value)) continue;
+      if (/\b(phone|number|tel)\b/i.test(label)) continue; // handled above
+      if (/\bname\b/i.test(label)) { /* already tried */ continue; }
+      const pm = value.match(PHONE_RE);
+      if (pm) {
+        if (!result.phone) result.phone = pm[1];
+        const stripped = value.replace(pm[1], '').replace(/[,\-\s]+$/, '').trim();
+        if (stripped && !isBad(stripped)) { result.name = stripped; break; }
+      } else {
+        result.name = value;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+
 // Reject conversational/status text masquerading as group number
 function isInvalidGroupNumber(v: string | null | undefined): boolean {
   if (!v) return false;
