@@ -1,36 +1,25 @@
+# Fix: Premier / ECCO / Premier Vascular Surgery invisible in Review Queue
+
 ## Problem
+Yesterday's fix routed self-booked Premier Vascular, Premier Vascular Surgery, ECCO Medical, and Davis Vein leads through `review_status='pending'` instead of auto-approving. Backend confirmed: Test Johann (`khbh4ZNk7Qm958IhWvry`, Premier Vascular) is in the DB with `review_status='pending'`.
 
-Self-booked (patient-submitted) appointments for Premier Vascular and other "preferred time" clinics (ECCO Medical, Premier Vascular Surgery, Davis Vein & Vascular) are auto-approved and bypass the Review Queue entirely, so they become client-facing without verification.
+However `src/components/admin/ReviewQueue.tsx` still has a leftover UI filter from when those projects were exempt:
 
-Currently these four projects are hard-coded as `REVIEW_QUEUE_EXEMPT` in the intake pipeline, which forces `review_status = 'approved'` regardless of who booked the appointment.
+- Line 246 (rows fetch): `.not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")')`
+- Line 293 (pending/declined counts): same exclusion
 
-## Fix
+So the pending rows exist but the queue silently hides them. Davis Vein was never in this list, so Davis leads already appear correctly — confirming the exclusion is the sole cause.
 
-Treat these clinics like every other clinic: gate visibility on the GHL "Insurance Intake Source" custom field.
-
-- `Setter Submitted` → auto-approved (bypass Review Queue), no Slack alert. Unchanged.
-- `Patient Submitted` or unset → `review_status = 'pending'`, appears in Review Queue, fires Slack review-queue alert.
-
-## Changes
-
-1. **`supabase/functions/ghl-webhook-handler/index.ts`** (lines ~206-238)
-   - Remove the `REVIEW_QUEUE_EXEMPT` shortcut for setting `review_status`.
-   - Keep the existing intake-source resolution (webhook field, then contact fallback).
-   - `reviewStatus = isSetterSubmitted ? 'approved' : 'pending'` for all projects.
-
-2. **`supabase/functions/all-appointments-api/index.ts`**
-   - Line 225: stop forcing `review_status: 'approved'` for the four projects — default all new rows to `'pending'`.
-   - Lines 307-308: remove these four projects from `REVIEW_QUEUE_EXEMPT` so the Slack review-queue notification fires for them too.
-
-3. **`supabase/functions/import-missing-leads-from-ghl/index.ts`** (backfill importer)
-   - Remove Premier/ECCO/Davis/Premier Vascular Surgery from `REVIEW_QUEUE_EXEMPT` so re-imports also land in Review Queue (unless setter_submitted, if that logic exists there — otherwise all default to pending).
-
-4. **Memory update** — `mem://index.md` Core rule for Review Queue Gate: drop "ECCO Medical, Premier Vascular, Premier Vascular Surgery, and Davis Vein & Vascular are exempt" and replace with a note that ALL projects follow the Insurance Intake Source rule. Update or remove `mem://features/admin-review-queue/exempt-projects`.
-
-5. **No schema or UI changes.** Existing already-approved historical rows are left alone (only new intakes are affected). If the user wants existing auto-approved Premier rows retroactively moved back to pending for re-review, that's a separate one-shot SQL and I'll ask before running it.
+## Change
+Delete both `.not('project_name', 'in', ...)` clauses in `src/components/admin/ReviewQueue.tsx` (lines 246 and 293). No other logic changes — sort, search, project filter, RLS, and approve/decline flows all already work generically.
 
 ## Verification
+1. Load Admin → Review Queue as Johann (admin).
+2. Confirm "Test Johann" Premier Vascular pending row (`3052618d-49c2-43a2-9b7d-06231ec62e92`) now appears in the Pending tab.
+3. Confirm the Pending count badge increases to include the previously hidden Premier/ECCO/PVS rows.
+4. Approve the test row and confirm it disappears from Pending and becomes visible in Kristi's Premier Vascular client portal.
 
-- Deploy the two edge functions.
-- Confirm in Supabase that a new Premier Vascular webhook without `insurance_intake_source = setter_submitted` inserts with `review_status = 'pending'` and shows up in the admin Review Queue.
-- Confirm a setter-submitted Premier lead still auto-approves and skips Slack.
+## Out of scope
+- No backend, RLS, edge function, or schema changes.
+- No change to Setter Submitted auto-approve behavior.
+- Historical already-approved Premier/ECCO/PVS rows are unaffected.
