@@ -1759,6 +1759,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
   // Process custom fields with procedure filtering
   const customFields = contact.customFields || [];
   let stepFieldCount = 0;
+  const isTargetPAD = (targetProcedure || '').toString().toUpperCase() === 'PAD';
   
   for (const field of customFields) {
     const rawKey = customFieldDefs[field.id] || field.key || '';
@@ -1965,7 +1966,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       (result.pathology_info as any).vascular_provider = String(value);
     } else if (key.includes('medical conditions') || key.includes('medical_conditions')) {
       (result.pathology_info as any).diagnosis = String(value);
-    } else if (key.includes('smoke') || key.includes('tobacco')) {
+    } else if (isTargetPAD && /\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker|smoke)\b/i.test(rawKey)) {
       (result.medical_info as any).smoking_status = String(value);
     } else if (key.includes('numbness') || key.includes('cold feet') || key.includes('discoloration')) {
       const lowerVal = String(value).toLowerCase();
@@ -1981,7 +1982,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       }
     } else if ((key.includes('pad') && key.includes('circulation')) || key.includes('poor circulation')) {
       (result.pathology_info as any).pad_diagnosed = String(value);
-    } else if (key.includes('blood thinner') || key.includes('blood_thinner')) {
+    } else if (isTargetPAD && (key.includes('blood thinner') || key.includes('blood_thinner'))) {
       const lowerVal = String(value).toLowerCase();
       if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
         result.medical_info.medications = result.medical_info.medications 
