@@ -1,42 +1,40 @@
-# Fix: PCP Name missing when GHL splits it into two labeled fields
+## Bug
 
-## Root cause
+The Medical Information card shows `Smoking Status: Aiken | state: South Carolina | zip: 29805` for Larry Palmer. This is a parser bug, not a data-entry issue.
 
-For appointment `1c80bc60…` (Test Johann Booked, Everest Vascular), the GHL intake notes contain **two separate** Primary Care lines:
+**Root cause** — in `supabase/functions/auto-parse-intake-notes/index.ts` line 1212, the PAD-specific enrichment runs unconditionally on every appointment and uses an overly loose regex:
 
+```ts
+const smokeMatch = intakeNotes.match(/(?:smoke|tobacco)[^:]*:\s*([^\n]+)/i);
 ```
-Primary Care Doctor's Phone Number: 3241231412
-Primary Care Doctor's Name: dr sdfa
-```
 
-The parser's PCP-backfill regex in `supabase/functions/auto-parse-intake-notes/index.ts` is `/Primary Care[^:\n]*:\s*([^\n|]+)/i`, which matches the **first** matching line (the Phone one). It then:
+Larry's address is `Smokey Cypress Loop | city: Aiken | state: South Carolina | zip: 29805`. The regex matches `Smokey Cypress Loop | city` as the label and captures `Aiken | state: South Carolina | zip: 29805` as the value, then writes it to `parsed_medical_info.smoking_status`.
 
-1. Strips the digits into `pcp_phone` (correct: `3241231412`).
-2. Sets `pcp_name` to what's left after the strip — an empty string.
-
-Result: `parsed_medical_info = { pcp_name: "", pcp_phone: "3241231412", … }` and the UI shows PCP Phone but no PCP Name, even though "dr sdfa" is right there in the raw notes.
-
-The same greedy regex appears in three places in `auto-parse-intake-notes/index.ts` (approx. lines 699–716, 936–955, and 1132–1147).
+Two things are wrong:
+1. The regex matches any word starting with `smoke` (including `Smokey`) rather than an actual "Smoking Status" / "Tobacco Use" label.
+2. Smoking status and blood thinners are PAD-only fields, but the enrichment runs for every procedure (GAE in this case).
 
 ## Fix
 
-1. **Parser (`supabase/functions/auto-parse-intake-notes/index.ts`)** — update all three PCP-backfill blocks so they:
-   - Try a **Name-specific** pattern first: `/Primary Care[^:\n]*Name[^:\n]*:\s*([^\n|]+)/i` (also accept `PCP ... Name`), and if it matches, use that value for `pcp_name` only (never touch `pcp_phone` from a Name line).
-   - Only fall back to the generic `/Primary Care[^:\n]*:\s*([^\n|]+)/i` when no Name-labeled line exists, and in that fallback **skip lines whose label contains "Phone" / "Number" / "Tel"** so a phone-only line can't be misread as a name.
-   - After extraction, if the resulting `pcp_name` is empty/whitespace, leave it `null` instead of storing `""` (empty strings currently poison the "already parsed" check).
-   - Keep the existing separate `pcp_phone` backfill (lines ~1150–1160) — it already handles the Phone line correctly.
+Edit `supabase/functions/auto-parse-intake-notes/index.ts` around lines 1208–1230:
 
-2. **Backfill this record** — trigger a re-parse of appointment `1c80bc60-d9cb-46eb-82ab-1aecbca39808` so the corrected parser writes `pcp_name: "dr sdfa"` into `parsed_medical_info` (and also into the top-level column if the field-sync logic mirrors it).
+1. **Gate the whole PAD enrichment block on procedure** — only run smoking/blood-thinner regex extraction when `parsedData.pathology_info.procedure_type === 'PAD'` (or the calendar-derived procedure is PAD). GAE/UFE/PAE/HAE/etc. skip it entirely.
+2. **Tighten the smoking regex** to require an explicit label with word boundaries:
+   ```ts
+   /\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker)\s*:\s*([^\n|]+)/i
+   ```
+   - Adds `\b` word boundary so `Smokey` no longer matches.
+   - Requires the full label token (`smoking status`, `tobacco`, `tobacco use`, `smoker`).
+   - Stops capture at `|` so pipe-delimited address fragments don't get slurped.
+3. **Tighten the blood-thinner regex** the same way (`\bblood\s+thinner`, stop at `|`).
 
-3. **Optional sanity sweep** (only if you want it now) — run the same re-parse across appointments where `parsed_medical_info->>'pcp_phone' IS NOT NULL AND (parsed_medical_info->>'pcp_name' IS NULL OR parsed_medical_info->>'pcp_name' = '')` and the raw `patient_intake_notes` contain a `Primary Care ... Name:` line. Let me know if you want this in the same pass or skipped.
+## Backfill
 
-## No changes to
+After the code fix, clear the bad value on Larry Palmer's appointment (`0681d550…`) so the UI stops showing it:
 
-- UI rendering of the Medical & PCP Information card — the card already shows PCP Name when present.
-- GHL-JSON key-based extractor (lines ~2033–2064) — it already handles Name vs Phone keys correctly; the bug is strictly in the text-regex fallback.
-- Other medical fields (allergies, medications, imaging).
+- `UPDATE all_appointments SET parsed_medical_info = parsed_medical_info - 'smoking_status', parsing_completed_at = NULL WHERE id = '0681d550-...'`
+- Auto-parse cron re-runs within 30s; UI refreshes clean.
 
-## Verification
+Optional broader sweep: find any other non-PAD appointment where `parsed_medical_info->>'smoking_status'` looks like an address fragment (contains `state:`, `zip:`, or `|`) and clear + re-parse those too.
 
-- Re-parse the Test Johann record and confirm the card shows `PCP Name: dr sdfa` alongside `PCP Phone: 3241231412`.
-- Spot-check one Ally / Everest / Champion record that previously had both PCP name and phone to confirm no regression.
+No schema, UI, or GHL changes needed.
