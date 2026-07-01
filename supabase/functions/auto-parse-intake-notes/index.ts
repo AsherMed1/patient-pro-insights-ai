@@ -1104,36 +1104,20 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   // Backfill PCP name/phone from raw notes when AI missed it.
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
+  // Also handles GHL splitting Name and Phone into two separate labeled lines.
   if (!parsedData.medical_info) parsedData.medical_info = {};
-  if (!parsedData.medical_info.pcp_name) {
-    const m = intakeNotes.match(/Primary Care[^:\n]*:\s*([^\n|]+)/i);
-    if (m && m[1]) {
-      const v = m[1].trim();
-      if (v && !/^(none|n\/a|unknown)$/i.test(v)) {
-        const phoneMatch = v.match(/(\d{3}[.\-\s]?\d{3}[.\-\s]?\d{4})/);
-        if (phoneMatch) {
-          parsedData.medical_info.pcp_phone = phoneMatch[1];
-          parsedData.medical_info.pcp_name = v.replace(phoneMatch[1], '').trim().replace(/[,\-\s]+$/, '');
-        } else {
-          parsedData.medical_info.pcp_name = v;
-        }
-        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_name via regex: ${parsedData.medical_info.pcp_name}`);
-      }
+  if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
+    const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
+    if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
+      parsedData.medical_info.pcp_name = pcpExtracted.name;
+      console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_name via regex: ${pcpExtracted.name}`);
+    }
+    if (!parsedData.medical_info.pcp_phone && pcpExtracted.phone) {
+      parsedData.medical_info.pcp_phone = pcpExtracted.phone;
+      console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_phone via regex: ${pcpExtracted.phone}`);
     }
   }
 
-  // Backfill pcp_phone from a separate "Primary Care ... Phone ..." line when present.
-  if (!parsedData.medical_info.pcp_phone) {
-    const pm = intakeNotes.match(/Primary Care[^:\n]*Phone[^:\n]*:\s*([^\n|]+)/i)
-      || intakeNotes.match(/(?:PCP|Primary Care Doctor)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
-    if (pm && pm[1]) {
-      const pv = pm[1].trim();
-      if (pv && !/^(none|n\/a|unknown)$/i.test(pv)) {
-        parsedData.medical_info.pcp_phone = pv;
-        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_phone via regex: ${pv}`);
-      }
-    }
-  }
 
 
   // Backfill imaging_details from "Had Imaging Before ?:" when AI missed it.
