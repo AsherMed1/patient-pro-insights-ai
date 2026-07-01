@@ -10,6 +10,74 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Extract PCP name and/or phone from raw intake notes. Handles:
+//  - Combined line: "Primary Care Doctor's Name and Phone: Dr Jones 214-555-5555"
+//  - Split lines:   "Primary Care Doctor's Name: Dr Jones"
+//                   "Primary Care Doctor's Phone Number: 214-555-5555"
+// Never mistakes a phone-labeled line for a name.
+function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; phone: string | null } {
+  const result: { name: string | null; phone: string | null } = { name: null, phone: null };
+  if (!intakeNotes) return result;
+
+  const PHONE_RE = /(\(?\d{3}\)?[.\-\s]?\d{3}[.\-\s]?\d{4})/;
+  const isBad = (v: string) => !v || /^(none|n\/a|unknown|-|--)$/i.test(v.trim());
+
+  // 1) Name-specific labels first.
+  const nameLine = intakeNotes.match(/(?:Primary Care|PCP)[^:\n]*\bName\b[^:\n]*:\s*([^\n|]+)/i);
+  if (nameLine && nameLine[1]) {
+    const v = nameLine[1].trim().replace(/[,\-\s]+$/, '');
+    if (!isBad(v)) {
+      const pm = v.match(PHONE_RE);
+      if (pm) {
+        result.phone = pm[1];
+        const stripped = v.replace(pm[1], '').replace(/[,\-\s]+$/, '').trim();
+        if (stripped && !isBad(stripped)) result.name = stripped;
+      } else {
+        result.name = v;
+      }
+    }
+  }
+
+  // 2) Phone-specific labels.
+  if (!result.phone) {
+    const phoneLine = intakeNotes.match(/(?:Primary Care|PCP)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
+    if (phoneLine && phoneLine[1]) {
+      const v = phoneLine[1].trim();
+      if (!isBad(v)) {
+        const pm = v.match(PHONE_RE);
+        result.phone = pm ? pm[1] : v;
+      }
+    }
+  }
+
+  // 3) Generic fallback for a combined "Primary Care …: <name and/or phone>" line,
+  //    but SKIP any line whose label is phone-specific (already handled) so we don't
+  //    accidentally treat digits as a name.
+  if (!result.name) {
+    const lineRe = /^(?:[ \t]*)([^\n:]*(?:Primary Care|PCP|physician)[^\n:]*):\s*([^\n|]+)$/gim;
+    let m: RegExpExecArray | null;
+    while ((m = lineRe.exec(intakeNotes)) !== null) {
+      const label = m[1] || '';
+      const value = (m[2] || '').trim();
+      if (isBad(value)) continue;
+      if (/\b(phone|number|tel)\b/i.test(label)) continue; // handled above
+      if (/\bname\b/i.test(label)) { /* already tried */ continue; }
+      const pm = value.match(PHONE_RE);
+      if (pm) {
+        if (!result.phone) result.phone = pm[1];
+        const stripped = value.replace(pm[1], '').replace(/[,\-\s]+$/, '').trim();
+        if (stripped && !isBad(stripped)) { result.name = stripped; break; }
+      } else {
+        result.name = value;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+
 // Reject conversational/status text masquerading as group number
 function isInvalidGroupNumber(v: string | null | undefined): boolean {
   if (!v) return false;
@@ -695,28 +763,16 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
     }
   }
 
-  // Extract PCP
-  const pcpPatterns = [
-    /Primary Care.*?:\s*([^\n|]+)/i,
-    /PCP.*?:\s*([^\n|]+)/i,
-    /physician.*?:\s*([^\n|]+)/i
-  ];
-  
-  for (const pattern of pcpPatterns) {
-    const match = intakeNotes.match(pattern);
-    if (match && match[1]) {
-      const value = match[1].trim();
-      // Try to extract phone from combined string
-      const phoneMatch = value.match(/(\d{3}[.-]?\d{3}[.-]?\d{4})/);
-      if (phoneMatch) {
-        result.medical_info.pcp_phone = phoneMatch[1];
-        result.medical_info.pcp_name = value.replace(phoneMatch[1], '').trim();
-      } else {
-        result.medical_info.pcp_name = value;
-      }
-      console.log(`[AUTO-PARSE FALLBACK] Extracted PCP: ${value}`);
-      break;
-    }
+  // Extract PCP — prefer Name-labeled line; otherwise fall back to a generic PCP/Primary Care line
+  // that is NOT a phone/number label.
+  const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
+  if (pcpExtracted.name) {
+    result.medical_info.pcp_name = pcpExtracted.name;
+    console.log(`[AUTO-PARSE FALLBACK] Extracted PCP name: ${pcpExtracted.name}`);
+  }
+  if (pcpExtracted.phone && !result.medical_info.pcp_phone) {
+    result.medical_info.pcp_phone = pcpExtracted.phone;
+    console.log(`[AUTO-PARSE FALLBACK] Extracted PCP phone: ${pcpExtracted.phone}`);
   }
 
   // Extract Imaging Facility
@@ -933,28 +989,16 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   
   // Extract PCP info if not already populated
-  if (!parsedData.medical_info.pcp_name) {
-    const pcpPatterns = [
-      /Primary Care.*?:\s*([^\n|]+)/i,
-      /PCP.*?:\s*([^\n|]+)/i,
-      /physician.*?:\s*([^\n|]+)/i
-    ];
-    
-    for (const pattern of pcpPatterns) {
-      const match = intakeNotes.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        // Try to extract phone from combined string
-        const phoneMatch = value.match(/(\d{3}[.-]?\d{3}[.-]?\d{4})/);
-        if (phoneMatch) {
-          parsedData.medical_info.pcp_phone = phoneMatch[1];
-          parsedData.medical_info.pcp_name = value.replace(phoneMatch[1], '').trim();
-        } else {
-          parsedData.medical_info.pcp_name = value;
-        }
-        console.log(`[AUTO-PARSE ENRICH] Extracted PCP via regex: ${value}`);
-        break;
-      }
+  if (!parsedData.medical_info) parsedData.medical_info = {};
+  if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
+    const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
+    if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
+      parsedData.medical_info.pcp_name = pcpExtracted.name;
+      console.log(`[AUTO-PARSE ENRICH] Extracted PCP name via regex: ${pcpExtracted.name}`);
+    }
+    if (!parsedData.medical_info.pcp_phone && pcpExtracted.phone) {
+      parsedData.medical_info.pcp_phone = pcpExtracted.phone;
+      console.log(`[AUTO-PARSE ENRICH] Extracted PCP phone via regex: ${pcpExtracted.phone}`);
     }
   }
   
@@ -1128,36 +1172,20 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   // Backfill PCP name/phone from raw notes when AI missed it.
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
+  // Also handles GHL splitting Name and Phone into two separate labeled lines.
   if (!parsedData.medical_info) parsedData.medical_info = {};
-  if (!parsedData.medical_info.pcp_name) {
-    const m = intakeNotes.match(/Primary Care[^:\n]*:\s*([^\n|]+)/i);
-    if (m && m[1]) {
-      const v = m[1].trim();
-      if (v && !/^(none|n\/a|unknown)$/i.test(v)) {
-        const phoneMatch = v.match(/(\d{3}[.\-\s]?\d{3}[.\-\s]?\d{4})/);
-        if (phoneMatch) {
-          parsedData.medical_info.pcp_phone = phoneMatch[1];
-          parsedData.medical_info.pcp_name = v.replace(phoneMatch[1], '').trim().replace(/[,\-\s]+$/, '');
-        } else {
-          parsedData.medical_info.pcp_name = v;
-        }
-        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_name via regex: ${parsedData.medical_info.pcp_name}`);
-      }
+  if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
+    const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
+    if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
+      parsedData.medical_info.pcp_name = pcpExtracted.name;
+      console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_name via regex: ${pcpExtracted.name}`);
+    }
+    if (!parsedData.medical_info.pcp_phone && pcpExtracted.phone) {
+      parsedData.medical_info.pcp_phone = pcpExtracted.phone;
+      console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_phone via regex: ${pcpExtracted.phone}`);
     }
   }
 
-  // Backfill pcp_phone from a separate "Primary Care ... Phone ..." line when present.
-  if (!parsedData.medical_info.pcp_phone) {
-    const pm = intakeNotes.match(/Primary Care[^:\n]*Phone[^:\n]*:\s*([^\n|]+)/i)
-      || intakeNotes.match(/(?:PCP|Primary Care Doctor)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
-    if (pm && pm[1]) {
-      const pv = pm[1].trim();
-      if (pv && !/^(none|n\/a|unknown)$/i.test(pv)) {
-        parsedData.medical_info.pcp_phone = pv;
-        console.log(`[AUTO-PARSE ENRICH] Backfilled pcp_phone via regex: ${pv}`);
-      }
-    }
-  }
 
 
   // Backfill imaging_details from "Had Imaging Before ?:" when AI missed it.
