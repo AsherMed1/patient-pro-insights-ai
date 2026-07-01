@@ -245,9 +245,9 @@ serve(async (req) => {
         .single()
 
       // Race-condition recovery: concurrent webhook may have just inserted the same
-      // unscheduled lead. Partial unique index on (project_name, ghl_id) for the
-      // exempt projects rejects the second insert — recover by updating the winner.
-      if (error && (error as any).code === '23505' && isExempt && appointmentData.ghl_id && appointmentData.is_unscheduled) {
+      // unscheduled lead. Partial unique index on (project_name, ghl_id) for
+      // unscheduled-capture projects rejects the second insert — recover by updating the winner.
+      if (error && (error as any).code === '23505' && appointmentData.ghl_id && appointmentData.is_unscheduled) {
         console.warn(`[${requestId}] Unique violation — recovering as update for ghl_id=${appointmentData.ghl_id}`)
         const { data: winner } = await supabase
           .from('all_appointments')
