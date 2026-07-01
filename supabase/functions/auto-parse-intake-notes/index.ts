@@ -695,28 +695,16 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
     }
   }
 
-  // Extract PCP
-  const pcpPatterns = [
-    /Primary Care.*?:\s*([^\n|]+)/i,
-    /PCP.*?:\s*([^\n|]+)/i,
-    /physician.*?:\s*([^\n|]+)/i
-  ];
-  
-  for (const pattern of pcpPatterns) {
-    const match = intakeNotes.match(pattern);
-    if (match && match[1]) {
-      const value = match[1].trim();
-      // Try to extract phone from combined string
-      const phoneMatch = value.match(/(\d{3}[.-]?\d{3}[.-]?\d{4})/);
-      if (phoneMatch) {
-        result.medical_info.pcp_phone = phoneMatch[1];
-        result.medical_info.pcp_name = value.replace(phoneMatch[1], '').trim();
-      } else {
-        result.medical_info.pcp_name = value;
-      }
-      console.log(`[AUTO-PARSE FALLBACK] Extracted PCP: ${value}`);
-      break;
-    }
+  // Extract PCP — prefer Name-labeled line; otherwise fall back to a generic PCP/Primary Care line
+  // that is NOT a phone/number label.
+  const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
+  if (pcpExtracted.name) {
+    result.medical_info.pcp_name = pcpExtracted.name;
+    console.log(`[AUTO-PARSE FALLBACK] Extracted PCP name: ${pcpExtracted.name}`);
+  }
+  if (pcpExtracted.phone && !result.medical_info.pcp_phone) {
+    result.medical_info.pcp_phone = pcpExtracted.phone;
+    console.log(`[AUTO-PARSE FALLBACK] Extracted PCP phone: ${pcpExtracted.phone}`);
   }
 
   // Extract Imaging Facility
