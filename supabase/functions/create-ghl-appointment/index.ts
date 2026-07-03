@@ -304,11 +304,12 @@ serve(async (req) => {
         const [h, m] = t.split(':').map(Number);
         return h * 60 + m;
       })();
-      const endMin = (() => {
+      const endMinNew = (() => {
         const t = end_time.substring(11, 16);
         const [h, m] = t.split(':').map(Number);
         return h * 60 + m;
       })();
+
 
       const { data: candidates, error: scanErr } = await supabase
         .from('all_appointments')
