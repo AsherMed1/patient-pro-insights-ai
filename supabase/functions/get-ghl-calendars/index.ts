@@ -74,11 +74,23 @@ serve(async (req) => {
     // Extract active calendars
     const calendars: GHLCalendar[] = (data.calendars || [])
       .filter((cal: any) => cal.isActive !== false)
-      .map((cal: any) => ({
-        id: cal.id,
-        name: cal.name,
-        isActive: cal.isActive ?? true
-      }));
+      .map((cal: any) => {
+        // GHL exposes the double-booking limit under a few possible field names
+        // depending on calendar type. Read all known variants and default to 1.
+        const rawPerSlot =
+          cal.appointmentPerSlot ??
+          cal.appointmentsPerSlot ??
+          cal.appoinmentPerSlot ?? // known GHL API typo on some responses
+          cal.slotsPerAppointment ??
+          1;
+        const perSlot = Number(rawPerSlot);
+        return {
+          id: cal.id,
+          name: cal.name,
+          isActive: cal.isActive ?? true,
+          appointmentPerSlot: Number.isFinite(perSlot) && perSlot >= 1 ? perSlot : 1,
+        };
+      });
 
     console.log(`Found ${calendars.length} active calendars`);
 
