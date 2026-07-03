@@ -9,6 +9,10 @@ interface GHLCalendar {
   id: string;
   name: string;
   isActive: boolean;
+  // GHL "Appointments per slot" — >1 means double/multi-booking is enabled and a
+  // reserved block will NOT silently cancel a coexisting confirmed appointment.
+  // Defaults to 1 (single-booking) when the field is absent on the calendar object.
+  appointmentPerSlot: number;
 }
 
 serve(async (req) => {
