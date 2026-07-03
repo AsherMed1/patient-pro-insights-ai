@@ -344,7 +344,7 @@ serve(async (req) => {
             const endRaw = parseMin(row.reserved_end_time);
             const endMin = endRaw !== null && endRaw > apptMin ? endRaw : apptMin + 1;
             // Only interested in blocks that touch the new window.
-            if (apptMin < endMin && apptMin < endMin && !(endMin <= startMin || apptMin >= endMinNew)) {
+            if (apptMin < endMinNew && endMin > startMin) {
               blocks.push({ startMin: apptMin, endMin, row });
             }
             continue;
