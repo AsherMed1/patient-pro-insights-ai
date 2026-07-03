@@ -293,6 +293,7 @@ export function ReserveTimeBlockDialog({
       setReason('');
       setHardConflicts([]);
       setSoftConflicts([]);
+      setCoexistConflicts([]);
       setShowConflictDialog(false);
       setAutoCancelConflicts(true);
     }
