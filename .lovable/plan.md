@@ -1,41 +1,55 @@
-## Problem
+## Your two questions
 
-Double-booking calendar (`appointmentPerSlot = 2`) is letting the user create a 3rd occupant in the 3:00 PM slot on July 31:
-- 1 confirmed appt (Test Johann)
-- 2 reserved blocks already created
-- UI still permits a 3rd block
+### 1. "2/2 reserved blocks" — shouldn't it be 1?
 
-## Root cause
+You're right that the wording is misleading. Here's what's actually happening in your July 31, 3 PM slot:
 
-Both the client scan (`blockConflictScan.ts`) and the server guard (`create-ghl-appointment/index.ts`) **skip rows where `is_reserved_block = true`** when measuring per-slot occupancy. So existing reserved blocks are invisible to the capacity math — only real patient appointments count. With capacity 2 and 1 patient appt, the guard always sees `existingInSlot (1) + 1 <= 2` and allows the block, no matter how many reserved blocks already occupy the slot.
+- Calendar capacity (`appointmentPerSlot`): **2**
+- Current occupants: **1 patient (Test Johann) + 2 reserved blocks = 3**
+
+The slot is over-capacity by 1 — because the earlier bug (before yesterday's fix) let you create a second block that never should have been allowed. With capacity 2 and 1 patient scheduled, only **1** reserved block should exist in that slot, not 2.
+
+The scan is correctly refusing your 3rd block, but the label `Slot already full (2/2 reserved blocks)` only counts blocks and ignores the patient — so it reads as if the slot is "just" full of blocks. It should say something like `Slot already full (3/2 — 1 appointment + 2 reserved blocks)` so it's obvious *why* it's full and that one of the existing blocks is a leftover from the earlier bug.
+
+### 2. Should the block-off show in the GHL calendar?
+
+Yes. Reserved blocks are created through GHL's `/calendars/events/block-slots` endpoint, so they exist as real block events in GHL. Two caveats worth knowing:
+
+- On **round-robin calendars**, GHL only renders slot blocks on the assigned user's *personal* calendar view — not the shared team calendar view. This is a GHL rendering constraint, not a sync bug. (Documented in project memory: `GHL Round Robin Constraints`.)
+- If a block was created but doesn't appear at all on any view, it usually means the `block-slots` POST silently failed for that team member — the edge function logs will show it.
 
 ## Fix
 
-Count reserved blocks as occupants of the slot (they consume GHL capacity just like a real appointment does), but keep them out of the user-facing conflict lists.
+### A. `src/components/appointments/blockConflictScan.ts`
+When synthesizing the block-only hard-conflict row, include the patient count in the label so the user sees the whole picture:
 
-### 1. `src/components/appointments/blockConflictScan.ts`
-- In the candidates loop, do **not** `continue` on `is_reserved_block === true`. Instead, still bump `slotOccupancy` for that `(calendar_name, requested_time)` key, then skip pushing it into `candidates` (blocks aren't shown as conflicts, they just occupy space).
-- Terminal-status rows keep their current early `continue` (they don't hold a slot).
-- Net effect: when we later evaluate a confirmed overlap, `existingInSlot` includes prior reserved blocks, so `existingInSlot + 1 <= capacity` correctly fails once capacity is reached.
+- Track patient occupancy per slot alongside block occupancy.
+- Change the synthesized `lead_name` from
+  `Slot already full (2/2 reserved blocks)`
+  to
+  `Slot already full (3/2 — 1 appointment + 2 reserved blocks)` (or `2/2 — 2 reserved blocks` when no patient is in the slot).
 
-### 2. `supabase/functions/create-ghl-appointment/index.ts`
-- Mirror the same change in the server-side overlap guard's `slotOccupancy` build: reserved-block rows count toward occupancy but are not added to the `blocking` list.
-- Result: server returns 409 `CONFIRMED_TIER_OVERLAP` (or a new `SLOT_CAPACITY_EXCEEDED` reason) when capacity is already saturated by patient appts + existing blocks.
+### B. `src/components/appointments/BlockConflictDialog.tsx`
+Add a one-line explainer under the hard-conflict list when any synthesized "Slot already full" entry is present:
 
-### 3. Dialog copy (`BlockConflictDialog.tsx`)
-- When the coexist path fails purely because prior reserved blocks fill the slot (no confirmed patient conflict), surface a clear hard-conflict message: "This slot is already fully booked (2 of 2 slots taken, including existing reserved blocks). Remove an existing block or shrink your window."
-- Achieved by tagging synthetic hard-conflict entries from the scan when capacity is exceeded by blocks-only, so the existing hard-conflict UI can render them without new components.
+> One or more slots are already at (or over) the calendar's per-slot capacity. Remove an existing reserved block, shrink your window, or drop that calendar from the selection.
+
+### C. No changes to GHL sync behavior
+The block-slots creation call is already correct. I'll add a short note in the dialog after a successful block that says "Reserved blocks appear on GHL personal calendar views for the assigned team member" only if it feels needed — happy to skip if you don't want it.
+
+## Cleanup for the leftover block on July 31
+
+The 2nd reserved block on Test Johann's slot is orphaned from the earlier bug. You can delete it from the calendar UI (the reserved block row has a delete action), which will remove it from both the portal DB and GHL. No migration needed.
 
 ## Verification
 
-1. Humble VSC, July 31, 3 PM, calendar with `appointmentPerSlot = 2`:
-   - State A: 1 patient + 0 blocks → allow (coexist).
-   - State B: 1 patient + 1 block → block creation refused with capacity message.
-   - State C: 0 patients + 2 blocks → block creation refused.
-2. Single-booking calendar regression: 1 patient + 0 blocks still refuses (unchanged).
-3. Edge function log shows `slot capacity exceeded` info line when refused for capacity, `coexist overlap allowed` when allowed.
+1. Humble VSC, July 31, 3 PM, capacity 2, 1 patient + 2 blocks: dialog title now shows `Slot already full (3/2 — 1 appointment + 2 reserved blocks)`.
+2. After deleting the leftover block: 1 patient + 1 block → adding another block is refused with `(2/2 — 1 appointment + 1 reserved block)`.
+3. Blocks-only saturation (0 patients + 2 blocks) still shows `(2/2 — 2 reserved blocks)`.
+4. Single-booking calendars unchanged.
 
 ## Out of scope
 
 - No schema changes.
-- No changes to how blocks are written to GHL — GHL itself enforces its own per-slot cap; we're aligning our pre-flight math with it.
+- No changes to how blocks are written to GHL.
+- No auto-cleanup of the leftover block — you delete it manually from the calendar UI so nothing gets removed unexpectedly.
