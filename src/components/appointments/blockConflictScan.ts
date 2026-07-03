@@ -106,10 +106,12 @@ export async function scanBlockConflicts(params: {
     return empty;
   }
 
-  // Pull candidates: same project, same date, matching calendar names, not a reserved block.
+  // Pull candidates: same project, same date, matching calendar names.
+  // Include reserved_end_time so full-day blocks are tallied across every
+  // slot they cover, not just at their start time.
   const { data, error } = await supabase
     .from('all_appointments')
-    .select('id, lead_name, lead_phone_number, requested_time, status, calendar_name, ghl_appointment_id, ghl_id, date_of_appointment, is_reserved_block, was_ever_confirmed')
+    .select('id, lead_name, lead_phone_number, requested_time, reserved_end_time, status, calendar_name, ghl_appointment_id, ghl_id, date_of_appointment, is_reserved_block, was_ever_confirmed')
     .eq('project_name', projectName)
     .gte('date_of_appointment', `${dateStr}T00:00:00`)
     .lte('date_of_appointment', `${dateStr}T23:59:59`)
@@ -130,41 +132,41 @@ export async function scanBlockConflicts(params: {
     }))
     .filter((r): r is { start: number; end: number } => r.start !== null && r.end !== null);
 
-  // First pass: collect every non-terminal, non-superseded appt that overlaps
-  // the window. Reserved blocks DO count toward per-slot occupancy (they hold
-  // a GHL slot the same way a patient appt does) but are never shown as
-  // user-facing conflicts.
-  interface Candidate {
+  // Partition rows by calendar into blocks (with their [start,end) range)
+  // and patient candidates. Only include rows that touch the new block window.
+  interface BlockRange { startMin: number; endMin: number; row: any }
+  interface PatientRow {
     row: any;
     conflict: BlockConflict;
     status: string;
-    slotKey: string;
+    slotMin: number;
+    calName: string;
   }
-  const candidates: Candidate[] = [];
-  const slotOccupancy: Map<string, number> = new Map();
-  // Track blocks-only occupancy per slot so we can synthesize a hard conflict
-  // when prior reserved blocks alone saturate the slot (no patient overlap).
-  const blockOnlyBySlot: Map<string, { count: number; sample: any }> = new Map();
-  // Track patient (non-block, non-terminal) occupancy per slot so the
-  // saturated-slot label can show the full picture (patients + blocks).
-  const patientBySlot: Map<string, number> = new Map();
+  const blocksByCal: Map<string, BlockRange[]> = new Map();
+  const patients: PatientRow[] = [];
 
   for (const row of data as any[]) {
-    const apptMinutes = timeToMinutes(row.requested_time);
-    if (apptMinutes === null) continue;
-
-    const overlaps = rangeBounds.some((r) => apptMinutes >= r.start && apptMinutes < r.end);
-    if (!overlaps) continue;
-
-    const slotKey = `${row.calendar_name || ''}::${row.requested_time || ''}`;
+    const calName = row.calendar_name || '';
+    const startMin = timeToMinutes(row.requested_time);
+    if (startMin === null) continue;
 
     if (row.is_reserved_block === true) {
-      // Blocks occupy a slot but are not conflicts themselves.
-      slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
-      const prev = blockOnlyBySlot.get(slotKey);
-      blockOnlyBySlot.set(slotKey, { count: (prev?.count || 0) + 1, sample: prev?.sample || row });
+      // Use reserved_end_time when present; otherwise treat as a single
+      // slot occupancy at start (fallback matches legacy behavior).
+      const endMinRaw = timeToMinutes(row.reserved_end_time);
+      const endMin = endMinRaw !== null && endMinRaw > startMin ? endMinRaw : startMin + 1;
+      // Skip blocks that don't overlap ANY of the new-block ranges.
+      const touches = rangeBounds.some((r) => startMin < r.end && endMin > r.start);
+      if (!touches) continue;
+      const list = blocksByCal.get(calName) || [];
+      list.push({ startMin, endMin, row });
+      blocksByCal.set(calName, list);
       continue;
     }
+
+    // Patient candidate — only overlaps if requested_time falls inside a range.
+    const overlaps = rangeBounds.some((r) => startMin >= r.start && startMin < r.end);
+    if (!overlaps) continue;
 
     const status = (row.status || '').toString().trim().toLowerCase();
     if (TERMINAL_STATUSES.has(status)) continue;
@@ -182,70 +184,101 @@ export async function scanBlockConflicts(params: {
       was_ever_confirmed: row.was_ever_confirmed === true,
     };
 
-    slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
-    patientBySlot.set(slotKey, (patientBySlot.get(slotKey) || 0) + 1);
-    candidates.push({ row, conflict, status, slotKey });
+    patients.push({ row, conflict, status, slotMin: startMin, calName });
   }
+
+  // Helpers — occupancy at a specific slot time T on a calendar.
+  const patientsAt = (calName: string, T: number): number =>
+    patients.filter((p) => p.calName === calName && p.slotMin === T).length;
+  const blocksCovering = (calName: string, T: number): number => {
+    const list = blocksByCal.get(calName) || [];
+    return list.filter((b) => T >= b.startMin && T < b.endMin).length;
+  };
+
+  const formatMin = (m: number): string => {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  };
 
   const hardConflicts: BlockConflict[] = [];
   const softConflicts: BlockConflict[] = [];
   const coexistConflicts: BlockConflict[] = [];
-  const slotsWithHard = new Set<string>();
+  const slotsWithHard = new Set<string>(); // key: cal::T
 
-  for (const { conflict, status, slotKey, row } of candidates) {
-    if (SOFT_STATUSES.has(status)) {
-      if (conflict.was_ever_confirmed) {
-        hardConflicts.push(conflict);
-        slotsWithHard.add(slotKey);
+  for (const p of patients) {
+    if (SOFT_STATUSES.has(p.status)) {
+      if (p.conflict.was_ever_confirmed) {
+        hardConflicts.push(p.conflict);
+        slotsWithHard.add(`${p.calName}::${p.slotMin}`);
       } else {
-        softConflicts.push(conflict);
+        softConflicts.push(p.conflict);
       }
       continue;
     }
 
-    // Confirmed-tier overlap. Check per-slot capacity on this calendar.
     const capacity =
-      (calendarCapacityByName && row.calendar_name && calendarCapacityByName[row.calendar_name]) ||
-      1;
-    const existingInSlot = slotOccupancy.get(slotKey) || 1;
+      (calendarCapacityByName && p.calName && calendarCapacityByName[p.calName]) || 1;
+    const patientsHere = patientsAt(p.calName, p.slotMin);
+    const blocksHere = blocksCovering(p.calName, p.slotMin);
     // +1 for the new block itself occupying that slot.
-    if (capacity > 1 && existingInSlot + 1 <= capacity) {
-      coexistConflicts.push(conflict);
+    const projected = patientsHere + blocksHere + 1;
+    if (capacity > 1 && projected <= capacity) {
+      coexistConflicts.push(p.conflict);
     } else {
-      hardConflicts.push(conflict);
-      slotsWithHard.add(slotKey);
+      hardConflicts.push(p.conflict);
+      slotsWithHard.add(`${p.calName}::${p.slotMin}`);
     }
   }
 
-  // Synthesize hard conflicts for slots saturated by prior reserved blocks
-  // (with or without patients also in the slot). Skip slots that already
-  // produced a patient-based hard conflict to avoid duplicate rows.
-  for (const [slotKey, info] of blockOnlyBySlot.entries()) {
-    if (slotsWithHard.has(slotKey)) continue;
-    const calName = info.sample.calendar_name || '';
+  // Synthesize saturation rows for every slot inside the new-block window
+  // where (patients_at_T + blocks_covering_T + 1) > capacity but no patient
+  // hard-conflict has already been recorded for that slot. We check patient
+  // slot times AND every existing block's start time as candidate T values
+  // — those are the only points where occupancy can change.
+  const seenSaturated = new Set<string>();
+  for (const [calName, blocks] of blocksByCal.entries()) {
     const capacity =
       (calendarCapacityByName && calName && calendarCapacityByName[calName]) || 1;
-    const patients = patientBySlot.get(slotKey) || 0;
-    const totalOccupants = patients + info.count;
-    if (totalOccupants + 1 > capacity) {
-      const blockLabel = `${info.count} reserved block${info.count === 1 ? '' : 's'}`;
-      const patientLabel = patients > 0
-        ? `${patients} appointment${patients === 1 ? '' : 's'} + `
+    const candidateTs = new Set<number>();
+    for (const b of blocks) candidateTs.add(b.startMin);
+    for (const p of patients) if (p.calName === calName) candidateTs.add(p.slotMin);
+
+    for (const T of candidateTs) {
+      // Only report saturation at slots the new block would actually occupy.
+      const insideNewBlock = rangeBounds.some((r) => T >= r.start && T < r.end);
+      if (!insideNewBlock) continue;
+      const slotKey = `${calName}::${T}`;
+      if (slotsWithHard.has(slotKey)) continue;
+      if (seenSaturated.has(slotKey)) continue;
+
+      const patientsHere = patientsAt(calName, T);
+      const blocksHere = blocksCovering(calName, T);
+      const total = patientsHere + blocksHere;
+      if (total + 1 <= capacity) continue;
+
+      seenSaturated.add(slotKey);
+      const sample = blocks.find((b) => T >= b.startMin && T < b.endMin)?.row || blocks[0].row;
+      const blockLabel = `${blocksHere} reserved block${blocksHere === 1 ? '' : 's'} covering ${formatMin(T)}`;
+      const patientLabel = patientsHere > 0
+        ? `${patientsHere} appointment${patientsHere === 1 ? '' : 's'} + `
         : '';
       hardConflicts.push({
         id: `block-cap::${slotKey}`,
-        lead_name: `Slot already full (${totalOccupants}/${capacity} — ${patientLabel}${blockLabel})`,
+        lead_name: `Slot already full (${total}/${capacity} — ${patientLabel}${blockLabel})`,
         lead_phone_number: null,
-        requested_time: info.sample.requested_time,
+        requested_time: formatMin(T),
         status: 'Reserved block',
         calendar_name: calName,
         ghl_appointment_id: null,
         ghl_id: null,
-        date_of_appointment: info.sample.date_of_appointment,
+        date_of_appointment: sample.date_of_appointment,
         was_ever_confirmed: false,
       });
     }
   }
+
+
 
 
   return { hardConflicts, softConflicts, coexistConflicts };
