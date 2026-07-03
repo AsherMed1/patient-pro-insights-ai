@@ -205,12 +205,39 @@ export async function scanBlockConflicts(params: {
   const softConflicts: BlockConflict[] = [];
   const coexistConflicts: BlockConflict[] = [];
   const slotsWithHard = new Set<string>(); // key: cal::T
+  const emittedBlockRowIds = new Set<string>();
+
+  // Emit companion informational rows for existing blocks covering slot T,
+  // so users can see the full picture (1 appt + 1 reserved block = 2/2 full).
+  const emitCoveringBlockCompanions = (calName: string, T: number) => {
+    const list = blocksByCal.get(calName) || [];
+    for (const b of list) {
+      if (!(T >= b.startMin && T < b.endMin)) continue;
+      if (emittedBlockRowIds.has(b.row.id)) continue;
+      emittedBlockRowIds.add(b.row.id);
+      hardConflicts.push({
+        id: `block-existing::${b.row.id}`,
+        lead_name: b.row.lead_name || 'Reserved block',
+        lead_phone_number: null,
+        requested_time: b.row.requested_time,
+        status: 'Reserved block',
+        calendar_name: b.row.calendar_name,
+        ghl_appointment_id: null,
+        ghl_id: null,
+        date_of_appointment: b.row.date_of_appointment,
+        was_ever_confirmed: false,
+      });
+    }
+  };
 
   for (const p of patients) {
     if (SOFT_STATUSES.has(p.status)) {
       if (p.conflict.was_ever_confirmed) {
         hardConflicts.push(p.conflict);
         slotsWithHard.add(`${p.calName}::${p.slotMin}`);
+        if (blocksCovering(p.calName, p.slotMin) > 0) {
+          emitCoveringBlockCompanions(p.calName, p.slotMin);
+        }
       } else {
         softConflicts.push(p.conflict);
       }
@@ -228,6 +255,9 @@ export async function scanBlockConflicts(params: {
     } else {
       hardConflicts.push(p.conflict);
       slotsWithHard.add(`${p.calName}::${p.slotMin}`);
+      if (blocksHere > 0) {
+        emitCoveringBlockCompanions(p.calName, p.slotMin);
+      }
     }
   }
 
