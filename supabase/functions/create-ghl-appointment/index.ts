@@ -304,15 +304,16 @@ serve(async (req) => {
         const [h, m] = t.split(':').map(Number);
         return h * 60 + m;
       })();
-      const endMin = (() => {
+      const endMinNew = (() => {
         const t = end_time.substring(11, 16);
         const [h, m] = t.split(':').map(Number);
         return h * 60 + m;
       })();
 
+
       const { data: candidates, error: scanErr } = await supabase
         .from('all_appointments')
-        .select('id, lead_name, status, requested_time, calendar_name, was_ever_confirmed, is_reserved_block, is_superseded')
+        .select('id, lead_name, status, requested_time, reserved_end_time, calendar_name, was_ever_confirmed, is_reserved_block, is_superseded')
         .eq('project_name', project_name)
         .eq('calendar_name', calendar_name)
         .gte('date_of_appointment', `${dateStr}T00:00:00`)
@@ -321,93 +322,100 @@ serve(async (req) => {
       if (scanErr) {
         console.error('[CREATE-GHL-BLOCK-SLOT] Server overlap scan failed:', scanErr);
       } else if (candidates) {
-        // Gather occupants of the block window. Reserved blocks DO count
-        // toward per-slot capacity (GHL sees them as taking a slot) but are
-        // never surfaced as user-facing "blocking" rows themselves.
-        interface OverlapRow {
-          row: any;
-          status: string;
-          slotKey: string;
-          isConfirmedTier: boolean;
-        }
-        const overlaps: OverlapRow[] = [];
-        const slotOccupancy: Map<string, number> = new Map();
-        const blockOnlyBySlot: Map<string, { count: number; sample: any }> = new Map();
+        // Model existing blocks as ranges [startMin, endMin) so a full-day
+        // block correctly occupies every slot it covers, not just its start.
+        interface BlockRange { startMin: number; endMin: number; row: any }
+        interface PatientRow { row: any; status: string; slotMin: number; isConfirmedTier: boolean }
+        const blocks: BlockRange[] = [];
+        const patients: PatientRow[] = [];
+
+        const parseMin = (t: string | null): number | null => {
+          const m = /^(\d{1,2}):(\d{2})/.exec((t || '').toString().trim());
+          if (!m) return null;
+          return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+        };
 
         for (const row of candidates as any[]) {
           if (row.is_superseded === true) continue;
-
-          const t = (row.requested_time || '').toString().trim();
-          const m = /^(\d{1,2}):(\d{2})/.exec(t);
-          if (!m) continue;
-          const apptMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-          if (!(apptMin >= startMin && apptMin < endMin)) continue;
-
-          const slotKey = `${row.requested_time || ''}`;
+          const apptMin = parseMin(row.requested_time);
+          if (apptMin === null) continue;
 
           if (row.is_reserved_block === true) {
-            slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
-            const prev = blockOnlyBySlot.get(slotKey);
-            blockOnlyBySlot.set(slotKey, { count: (prev?.count || 0) + 1, sample: prev?.sample || row });
+            const endRaw = parseMin(row.reserved_end_time);
+            const endMin = endRaw !== null && endRaw > apptMin ? endRaw : apptMin + 1;
+            // Only interested in blocks that touch the new window.
+            if (apptMin < endMinNew && endMin > startMin) {
+              blocks.push({ startMin: apptMin, endMin, row });
+            }
             continue;
           }
 
+          if (!(apptMin >= startMin && apptMin < endMinNew)) continue;
           const status = (row.status || '').toString().trim().toLowerCase();
           if (TERMINAL.has(status)) continue;
-
-          slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
-
           const isConfirmedTier =
             !['', 'pending'].includes(status) || row.was_ever_confirmed === true;
-          overlaps.push({ row, status, slotKey, isConfirmedTier });
+          patients.push({ row, status, slotMin: apptMin, isConfirmedTier });
         }
 
+        const patientsAt = (T: number) => patients.filter((p) => p.slotMin === T).length;
+        const blocksCovering = (T: number) =>
+          blocks.filter((b) => T >= b.startMin && T < b.endMin).length;
+        const formatMin = (m: number) => {
+          const h = Math.floor(m / 60);
+          const mm = m % 60;
+          return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+        };
+
         const blocking: any[] = [];
-        const slotsWithBlocking = new Set<string>();
-        for (const { row, slotKey, isConfirmedTier } of overlaps) {
-          if (!isConfirmedTier) continue;
-          const existingInSlot = slotOccupancy.get(slotKey) || 1;
-          // +1 for the block itself. If capacity absorbs it, GHL won't cancel.
-          if (appointmentPerSlot > 1 && existingInSlot + 1 <= appointmentPerSlot) {
+        const slotsWithBlocking = new Set<number>();
+
+        for (const p of patients) {
+          if (!p.isConfirmedTier) continue;
+          const projected = patientsAt(p.slotMin) + blocksCovering(p.slotMin) + 1;
+          if (appointmentPerSlot > 1 && projected <= appointmentPerSlot) {
             console.log(
               '[CREATE-GHL-BLOCK-SLOT] coexist overlap allowed — capacity',
-              appointmentPerSlot,
-              'accommodates',
-              existingInSlot + 1,
-              'for',
-              row.lead_name,
-              '@',
-              row.requested_time
+              appointmentPerSlot, 'accommodates', projected,
+              'for', p.row.lead_name, '@', p.row.requested_time
             );
             continue;
           }
-          blocking.push(row);
-          slotsWithBlocking.add(slotKey);
+          blocking.push(p.row);
+          slotsWithBlocking.add(p.slotMin);
         }
 
-        // Slots saturated by prior reserved blocks alone → synthesize a
-        // blocking entry so the guard refuses instead of silently allowing
-        // an over-capacity block.
-        for (const [slotKey, info] of blockOnlyBySlot.entries()) {
-          if (slotsWithBlocking.has(slotKey)) continue;
-          if (info.count + 1 > appointmentPerSlot) {
-            console.log(
-              '[CREATE-GHL-BLOCK-SLOT] slot capacity exceeded by prior blocks — capacity',
-              appointmentPerSlot,
-              'existing blocks',
-              info.count,
-              '@',
-              info.sample.requested_time
-            );
-            blocking.push({
-              id: `block-cap::${slotKey}`,
-              lead_name: `Slot full (${info.count}/${appointmentPerSlot} reserved blocks)`,
-              status: 'Reserved block',
-              requested_time: info.sample.requested_time,
-              was_ever_confirmed: false,
-            });
-          }
+        // Iterate every candidate slot time (patient times + block starts)
+        // inside the new-block window and synthesize a capacity refusal for
+        // any that overflow — this catches patient+block and blocks-only
+        // saturation alike.
+        const candidateTs = new Set<number>();
+        for (const b of blocks) if (b.startMin >= startMin && b.startMin < endMinNew) candidateTs.add(b.startMin);
+        for (const p of patients) candidateTs.add(p.slotMin);
+        const reportedTs = new Set<number>();
+        for (const T of candidateTs) {
+          if (slotsWithBlocking.has(T)) continue;
+          if (reportedTs.has(T)) continue;
+          const pAt = patientsAt(T);
+          const bAt = blocksCovering(T);
+          const total = pAt + bAt;
+          if (total + 1 <= appointmentPerSlot) continue;
+          reportedTs.add(T);
+          console.log(
+            '[CREATE-GHL-BLOCK-SLOT] slot capacity exceeded — capacity',
+            appointmentPerSlot, 'patients', pAt, 'blocks covering', bAt, '@', formatMin(T)
+          );
+          const blockPart = `${bAt} reserved block${bAt === 1 ? '' : 's'} covering ${formatMin(T)}`;
+          const patientPart = pAt > 0 ? `${pAt} appointment${pAt === 1 ? '' : 's'} + ` : '';
+          blocking.push({
+            id: `block-cap::${T}`,
+            lead_name: `Slot full (${total}/${appointmentPerSlot} — ${patientPart}${blockPart})`,
+            status: 'Reserved block',
+            requested_time: formatMin(T),
+            was_ever_confirmed: false,
+          });
         }
+
 
 
         if (blocking.length > 0) {
