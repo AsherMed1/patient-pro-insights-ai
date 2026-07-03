@@ -33,6 +33,7 @@ const CardUploadArea = ({
 }: CardUploadAreaProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const { url: viewUrl, loading: heicLoading } = useHeicUrl(currentUrl);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
