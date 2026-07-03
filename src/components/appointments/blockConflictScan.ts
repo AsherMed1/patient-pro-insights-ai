@@ -145,6 +145,9 @@ export async function scanBlockConflicts(params: {
   // Track blocks-only occupancy per slot so we can synthesize a hard conflict
   // when prior reserved blocks alone saturate the slot (no patient overlap).
   const blockOnlyBySlot: Map<string, { count: number; sample: any }> = new Map();
+  // Track patient (non-block, non-terminal) occupancy per slot so the
+  // saturated-slot label can show the full picture (patients + blocks).
+  const patientBySlot: Map<string, number> = new Map();
 
   for (const row of data as any[]) {
     const apptMinutes = timeToMinutes(row.requested_time);
@@ -180,6 +183,7 @@ export async function scanBlockConflicts(params: {
     };
 
     slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
+    patientBySlot.set(slotKey, (patientBySlot.get(slotKey) || 0) + 1);
     candidates.push({ row, conflict, status, slotKey });
   }
 
@@ -214,16 +218,23 @@ export async function scanBlockConflicts(params: {
   }
 
   // Synthesize hard conflicts for slots saturated by prior reserved blocks
-  // alone (no patient in the slot to attach the conflict to).
+  // (with or without patients also in the slot). Skip slots that already
+  // produced a patient-based hard conflict to avoid duplicate rows.
   for (const [slotKey, info] of blockOnlyBySlot.entries()) {
     if (slotsWithHard.has(slotKey)) continue;
     const calName = info.sample.calendar_name || '';
     const capacity =
       (calendarCapacityByName && calName && calendarCapacityByName[calName]) || 1;
-    if (info.count + 1 > capacity) {
+    const patients = patientBySlot.get(slotKey) || 0;
+    const totalOccupants = patients + info.count;
+    if (totalOccupants + 1 > capacity) {
+      const blockLabel = `${info.count} reserved block${info.count === 1 ? '' : 's'}`;
+      const patientLabel = patients > 0
+        ? `${patients} appointment${patients === 1 ? '' : 's'} + `
+        : '';
       hardConflicts.push({
         id: `block-cap::${slotKey}`,
-        lead_name: `Slot already full (${info.count}/${capacity} reserved blocks)`,
+        lead_name: `Slot already full (${totalOccupants}/${capacity} — ${patientLabel}${blockLabel})`,
         lead_phone_number: null,
         requested_time: info.sample.requested_time,
         status: 'Reserved block',
@@ -239,6 +250,7 @@ export async function scanBlockConflicts(params: {
 
   return { hardConflicts, softConflicts, coexistConflicts };
 }
+
 
 /**
  * Format "HH:mm" → "9:30 AM"
