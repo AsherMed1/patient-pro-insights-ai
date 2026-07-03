@@ -435,11 +435,14 @@ serve(async (req) => {
             },
           });
 
+          const capacityOnly = blocking.every((b: any) => b.status === 'Reserved block');
           return new Response(
             JSON.stringify({
               success: false,
-              error: 'Block would silently cancel confirmed patient appointments',
-              code: 'CONFIRMED_TIER_OVERLAP',
+              error: capacityOnly
+                ? `This slot is already at capacity (${appointmentPerSlot}/${appointmentPerSlot}) from existing reserved blocks.`
+                : 'Block would silently cancel confirmed patient appointments',
+              code: capacityOnly ? 'SLOT_CAPACITY_EXCEEDED' : 'CONFIRMED_TIER_OVERLAP',
               overlapping_appointments: blocking.map((b: any) => ({
                 id: b.id, lead_name: b.lead_name, status: b.status,
                 requested_time: b.requested_time,
@@ -447,6 +450,7 @@ serve(async (req) => {
             }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+
         }
       }
     }
