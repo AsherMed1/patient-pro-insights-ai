@@ -38,6 +38,33 @@ async function convert(url: string): Promise<string | null> {
 }
 
 /**
+ * Opens a URL in a new tab, converting HEIC to JPEG first so it renders
+ * inline instead of downloading. Opens the tab synchronously to avoid
+ * popup blockers, then navigates it once conversion resolves.
+ */
+export function openHeicAwareUrl(url?: string | null) {
+  if (!url) return;
+  if (!isHeic(url)) {
+    window.open(url, "_blank");
+    return;
+  }
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(
+      '<title>Converting image…</title><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#666">Converting HEIC image…</body>'
+    );
+  }
+  convert(url).then((objectUrl) => {
+    const target = objectUrl || url;
+    if (win) {
+      win.location.href = target;
+    } else {
+      window.open(target, "_blank");
+    }
+  });
+}
+
+/**
  * Returns a browser-viewable URL for a possibly-HEIC image URL.
  * - If the URL isn't HEIC, returns it unchanged immediately.
  * - If HEIC, fetches + converts to JPEG blob URL (cached across the session).
