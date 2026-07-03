@@ -376,16 +376,30 @@ export function ReserveTimeBlockDialog({
         .map((id) => calendars.find((c) => c.id === id)?.name)
         .filter((n): n is string => !!n);
 
-      const { hardConflicts: hard, softConflicts: soft } = await scanBlockConflicts({
-        projectName,
-        dateStr,
-        timeRanges: timeRanges.map((r) => ({ startTime: r.startTime, endTime: r.endTime })),
-        calendarNames,
-      });
+      // Build calendar name → GHL "Appointments per slot" map so the scanner
+      // can distinguish "will be silently cancelled" (capacity 1) from
+      // "safely coexists in a spare slot" (capacity > 1).
+      const calendarCapacityByName: Record<string, number> = {};
+      for (const id of selectedCalendarIds) {
+        const cal = calendars.find((c) => c.id === id);
+        if (cal?.name) {
+          calendarCapacityByName[cal.name] = Math.max(1, cal.appointmentPerSlot || 1);
+        }
+      }
 
-      if (hard.length > 0 || soft.length > 0) {
+      const { hardConflicts: hard, softConflicts: soft, coexistConflicts: coexist } =
+        await scanBlockConflicts({
+          projectName,
+          dateStr,
+          timeRanges: timeRanges.map((r) => ({ startTime: r.startTime, endTime: r.endTime })),
+          calendarNames,
+          calendarCapacityByName,
+        });
+
+      if (hard.length > 0 || soft.length > 0 || coexist.length > 0) {
         setHardConflicts(hard);
         setSoftConflicts(soft);
+        setCoexistConflicts(coexist);
         setAutoCancelConflicts(true);
         setShowConflictDialog(true);
         setIsScanning(false);
