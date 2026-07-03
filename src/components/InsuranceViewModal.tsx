@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload } from 'lucide-react';
+import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload, Loader2 } from 'lucide-react';
+import { useHeicUrl } from "@/hooks/useHeicUrl";
 
 interface InsuranceInfo {
   insurance_provider?: string;
