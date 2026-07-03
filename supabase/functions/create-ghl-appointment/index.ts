@@ -321,9 +321,9 @@ serve(async (req) => {
       if (scanErr) {
         console.error('[CREATE-GHL-BLOCK-SLOT] Server overlap scan failed:', scanErr);
       } else if (candidates) {
-        // First pass: gather every non-terminal, non-block, non-superseded
-        // overlapping row and measure per-slot occupancy so we can decide
-        // whether the calendar's double-booking capacity absorbs the block.
+        // Gather occupants of the block window. Reserved blocks DO count
+        // toward per-slot capacity (GHL sees them as taking a slot) but are
+        // never surfaced as user-facing "blocking" rows themselves.
         interface OverlapRow {
           row: any;
           status: string;
@@ -332,12 +332,10 @@ serve(async (req) => {
         }
         const overlaps: OverlapRow[] = [];
         const slotOccupancy: Map<string, number> = new Map();
+        const blockOnlyBySlot: Map<string, { count: number; sample: any }> = new Map();
 
         for (const row of candidates as any[]) {
-          if (row.is_reserved_block === true) continue;
           if (row.is_superseded === true) continue;
-          const status = (row.status || '').toString().trim().toLowerCase();
-          if (TERMINAL.has(status)) continue;
 
           const t = (row.requested_time || '').toString().trim();
           const m = /^(\d{1,2}):(\d{2})/.exec(t);
@@ -346,6 +344,17 @@ serve(async (req) => {
           if (!(apptMin >= startMin && apptMin < endMin)) continue;
 
           const slotKey = `${row.requested_time || ''}`;
+
+          if (row.is_reserved_block === true) {
+            slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
+            const prev = blockOnlyBySlot.get(slotKey);
+            blockOnlyBySlot.set(slotKey, { count: (prev?.count || 0) + 1, sample: prev?.sample || row });
+            continue;
+          }
+
+          const status = (row.status || '').toString().trim().toLowerCase();
+          if (TERMINAL.has(status)) continue;
+
           slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
 
           const isConfirmedTier =
@@ -354,6 +363,7 @@ serve(async (req) => {
         }
 
         const blocking: any[] = [];
+        const slotsWithBlocking = new Set<string>();
         for (const { row, slotKey, isConfirmedTier } of overlaps) {
           if (!isConfirmedTier) continue;
           const existingInSlot = slotOccupancy.get(slotKey) || 1;
@@ -372,7 +382,33 @@ serve(async (req) => {
             continue;
           }
           blocking.push(row);
+          slotsWithBlocking.add(slotKey);
         }
+
+        // Slots saturated by prior reserved blocks alone → synthesize a
+        // blocking entry so the guard refuses instead of silently allowing
+        // an over-capacity block.
+        for (const [slotKey, info] of blockOnlyBySlot.entries()) {
+          if (slotsWithBlocking.has(slotKey)) continue;
+          if (info.count + 1 > appointmentPerSlot) {
+            console.log(
+              '[CREATE-GHL-BLOCK-SLOT] slot capacity exceeded by prior blocks — capacity',
+              appointmentPerSlot,
+              'existing blocks',
+              info.count,
+              '@',
+              info.sample.requested_time
+            );
+            blocking.push({
+              id: `block-cap::${slotKey}`,
+              lead_name: `Slot full (${info.count}/${appointmentPerSlot} reserved blocks)`,
+              status: 'Reserved block',
+              requested_time: info.sample.requested_time,
+              was_ever_confirmed: false,
+            });
+          }
+        }
+
 
         if (blocking.length > 0) {
           console.error('[CREATE-GHL-BLOCK-SLOT] Server-side guard tripped — refusing block. Overlapping:',
