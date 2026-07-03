@@ -58,6 +58,7 @@ export function BlockConflictDialog({
   onOpenChange,
   hardConflicts,
   softConflicts,
+  coexistConflicts = [],
   autoCancel,
   onAutoCancelChange,
   onConfirm,
@@ -66,11 +67,20 @@ export function BlockConflictDialog({
 }: BlockConflictDialogProps) {
   const hasHard = hardConflicts.length > 0;
   const hasSoft = softConflicts.length > 0;
-  const totalCount = hardConflicts.length + softConflicts.length;
+  const hasCoexist = coexistConflicts.length > 0;
+  const totalCount = hardConflicts.length + softConflicts.length + coexistConflicts.length;
 
   const titleText = hasHard
     ? `${totalCount} appointment${totalCount === 1 ? '' : 's'} overlap this block`
-    : `${softConflicts.length} unconfirmed appointment${softConflicts.length === 1 ? '' : 's'} overlap this block`;
+    : hasSoft
+      ? `${softConflicts.length} unconfirmed appointment${softConflicts.length === 1 ? '' : 's'} overlap this block`
+      : `${coexistConflicts.length} appointment${coexistConflicts.length === 1 ? '' : 's'} will remain in this slot`;
+
+  const description = hasHard
+    ? 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
+    : hasSoft
+      ? "These patients have unconfirmed appointments during the time you're blocking. Choose how to handle them."
+      : "This calendar allows multiple bookings per slot. The existing appointment(s) below will remain scheduled — creating this block just reserves the next open slot.";
 
   return (
     <Dialog open={open} onOpenChange={(v) => !isSubmitting && onOpenChange(v)}>
@@ -80,11 +90,7 @@ export function BlockConflictDialog({
             <AlertTriangle className="h-5 w-5 text-warning" />
             {titleText}
           </DialogTitle>
-          <DialogDescription>
-            {hasHard
-              ? 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
-              : "These patients have unconfirmed appointments during the time you're blocking. Choose how to handle them."}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
