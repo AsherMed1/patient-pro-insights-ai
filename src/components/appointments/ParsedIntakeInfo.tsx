@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
 import { InsuranceCardUpload } from "./InsuranceCardUpload";
 import { SecondaryInsuranceCardUpload } from "./SecondaryInsuranceCardUpload";
+import { openHeicAwareUrl } from "@/hooks/useHeicUrl";
 
 interface ParsedIntakeInfoProps {
   parsedInsuranceInfo?: any;
