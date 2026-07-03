@@ -21,6 +21,14 @@ export interface BlockConflict {
 export interface BlockConflictScanResult {
   hardConflicts: BlockConflict[];
   softConflicts: BlockConflict[];
+  /**
+   * Confirmed-tier appointments that overlap the block window but sit on a
+   * calendar with `appointmentPerSlot > 1` (double-booking) AND still have
+   * spare slot capacity after adding the block. GHL will NOT cancel these —
+   * they safely coexist with the reserved block. Shown to the user as an
+   * FYI but do NOT block submission and are never auto-cancelled.
+   */
+  coexistConflicts: BlockConflict[];
 }
 
 /**
