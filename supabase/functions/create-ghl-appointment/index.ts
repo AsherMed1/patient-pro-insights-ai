@@ -233,11 +233,62 @@ serve(async (req) => {
       );
     }
 
+    // Step 1: Fetch calendar details to determine type, team members, and
+    // double-booking capacity (appointmentPerSlot). We fetch this BEFORE the
+    // overlap guard so the guard can be capacity-aware — a calendar
+    // configured for multiple bookings per slot does NOT silently cancel
+    // coexisting appointments when a block is created.
+    let calendarData: CalendarData | null = null;
+    let teamMembers: TeamMember[] = [];
+    let appointmentPerSlot = 1;
+
+    try {
+      console.log('[CREATE-GHL-BLOCK-SLOT] Fetching calendar details...');
+      const calendarResponse = await fetch(
+        `https://services.leadconnectorhq.com/calendars/${calendar_id}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${project.ghl_api_key}`,
+            'Version': '2021-04-15',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      calendarData = await ghlJson(calendarResponse);
+      console.log('[CREATE-GHL-BLOCK-SLOT] Calendar data:', JSON.stringify(calendarData, null, 2));
+
+      // Extract team members from various possible locations
+      teamMembers = calendarData?.calendar?.teamMembers ||
+                    calendarData?.teamMembers ||
+                    calendarData?.calendar?.users ||
+                    calendarData?.users ||
+                    [];
+
+      console.log('[CREATE-GHL-BLOCK-SLOT] Found team members:', teamMembers.length);
+
+      // Extract appointmentPerSlot (GHL exposes it under several field names).
+      const cal: any = calendarData?.calendar || calendarData || {};
+      const rawPerSlot =
+        cal.appointmentPerSlot ??
+        cal.appointmentsPerSlot ??
+        cal.appoinmentPerSlot ?? // known GHL typo
+        cal.slotsPerAppointment ??
+        1;
+      const perSlot = Number(rawPerSlot);
+      appointmentPerSlot = Number.isFinite(perSlot) && perSlot >= 1 ? perSlot : 1;
+      console.log('[CREATE-GHL-BLOCK-SLOT] Calendar appointmentPerSlot capacity:', appointmentPerSlot);
+    } catch (e) {
+      console.error('[CREATE-GHL-BLOCK-SLOT] Error fetching calendar:', e);
+    }
+
     // ────────────────────────────────────────────────────────────────────
     // Server-side overlap guard. Re-runs the same check as the client-side
     // blockConflictScan, but here on the server we cannot be bypassed by a
     // stale UI, an external caller, or a manual API call. If any
-    // confirmed-tier patient appointment overlaps the proposed block,
+    // confirmed-tier patient appointment overlaps the proposed block AND
+    // the calendar cannot accommodate coexistence (per-slot capacity),
     // we abort with 409 instead of letting GHL silently cancel it.
     // (Incident: VIM 2026-04-21 — see plan.md.)
     // ────────────────────────────────────────────────────────────────────
@@ -270,22 +321,58 @@ serve(async (req) => {
       if (scanErr) {
         console.error('[CREATE-GHL-BLOCK-SLOT] Server overlap scan failed:', scanErr);
       } else if (candidates) {
-        const blocking = candidates.filter((row: any) => {
-          if (row.is_reserved_block === true) return false;
-          if (row.is_superseded === true) return false;
+        // First pass: gather every non-terminal, non-block, non-superseded
+        // overlapping row and measure per-slot occupancy so we can decide
+        // whether the calendar's double-booking capacity absorbs the block.
+        interface OverlapRow {
+          row: any;
+          status: string;
+          slotKey: string;
+          isConfirmedTier: boolean;
+        }
+        const overlaps: OverlapRow[] = [];
+        const slotOccupancy: Map<string, number> = new Map();
+
+        for (const row of candidates as any[]) {
+          if (row.is_reserved_block === true) continue;
+          if (row.is_superseded === true) continue;
           const status = (row.status || '').toString().trim().toLowerCase();
-          if (TERMINAL.has(status)) return false;
-          // Confirmed-tier OR ever-confirmed pending → would be silently cancelled by GHL
-          const isConfirmedTier =
-            !['', 'pending'].includes(status) || row.was_ever_confirmed === true;
-          if (!isConfirmedTier) return false;
+          if (TERMINAL.has(status)) continue;
 
           const t = (row.requested_time || '').toString().trim();
           const m = /^(\d{1,2}):(\d{2})/.exec(t);
-          if (!m) return false;
+          if (!m) continue;
           const apptMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-          return apptMin >= startMin && apptMin < endMin;
-        });
+          if (!(apptMin >= startMin && apptMin < endMin)) continue;
+
+          const slotKey = `${row.requested_time || ''}`;
+          slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
+
+          const isConfirmedTier =
+            !['', 'pending'].includes(status) || row.was_ever_confirmed === true;
+          overlaps.push({ row, status, slotKey, isConfirmedTier });
+        }
+
+        const blocking: any[] = [];
+        for (const { row, slotKey, isConfirmedTier } of overlaps) {
+          if (!isConfirmedTier) continue;
+          const existingInSlot = slotOccupancy.get(slotKey) || 1;
+          // +1 for the block itself. If capacity absorbs it, GHL won't cancel.
+          if (appointmentPerSlot > 1 && existingInSlot + 1 <= appointmentPerSlot) {
+            console.log(
+              '[CREATE-GHL-BLOCK-SLOT] coexist overlap allowed — capacity',
+              appointmentPerSlot,
+              'accommodates',
+              existingInSlot + 1,
+              'for',
+              row.lead_name,
+              '@',
+              row.requested_time
+            );
+            continue;
+          }
+          blocking.push(row);
+        }
 
         if (blocking.length > 0) {
           console.error('[CREATE-GHL-BLOCK-SLOT] Server-side guard tripped — refusing block. Overlapping:',
@@ -302,6 +389,7 @@ serve(async (req) => {
               start_time,
               end_time,
               attempted_by: user_name || 'Unknown',
+              appointment_per_slot: appointmentPerSlot,
               blocking_appointments: blocking.map((b: any) => ({
                 id: b.id, lead_name: b.lead_name, status: b.status,
                 requested_time: b.requested_time, was_ever_confirmed: b.was_ever_confirmed,
@@ -325,39 +413,6 @@ serve(async (req) => {
           );
         }
       }
-    }
-
-    // Step 1: Fetch calendar details to determine type and team members
-    let calendarData: CalendarData | null = null;
-    let teamMembers: TeamMember[] = [];
-    
-    try {
-      console.log('[CREATE-GHL-BLOCK-SLOT] Fetching calendar details...');
-      const calendarResponse = await fetch(
-        `https://services.leadconnectorhq.com/calendars/${calendar_id}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${project.ghl_api_key}`,
-            'Version': '2021-04-15',
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      calendarData = await ghlJson(calendarResponse);
-      console.log('[CREATE-GHL-BLOCK-SLOT] Calendar data:', JSON.stringify(calendarData, null, 2));
-
-      // Extract team members from various possible locations
-      teamMembers = calendarData?.calendar?.teamMembers || 
-                    calendarData?.teamMembers || 
-                    calendarData?.calendar?.users ||
-                    calendarData?.users ||
-                    [];
-                    
-      console.log('[CREATE-GHL-BLOCK-SLOT] Found team members:', teamMembers.length);
-    } catch (e) {
-      console.error('[CREATE-GHL-BLOCK-SLOT] Error fetching calendar:', e);
     }
 
     // Step 2: Try block-slots endpoint with calendarId first (works for event calendars)
