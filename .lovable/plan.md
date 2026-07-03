@@ -1,36 +1,27 @@
-## Problem
+# Fix broken insurance card previews (HEIC uploads)
 
-When a slot is saturated by 1 patient appointment + 1 existing reserved block on a capacity-2 calendar, the block conflict dialog only lists the patient (e.g., "Test Johann Booked, 3:00 PM, Confirmed"). The existing reserved block is invisible, so the user sees "1 appointment overlap" and can't tell *why* they're being blocked — it looks like a single confirmed appointment should still fit under capacity 2.
+## Problem
+Dean's ticket: Donna Zarn's insurance card image renders as a broken image and, when clicked, downloads instead of opening in a new tab. Root cause confirmed in the codebase: the uploaded file was a `.heic` (iPhone default). Browsers can't render HEIC, and Supabase Storage serves an unknown MIME with `Content-Disposition: attachment`, hence the forced download.
+
+Neither `InsuranceCardUpload.tsx` nor `SecondaryInsuranceCardUpload.tsx` has any HEIC handling today — both just `accept="image/*"` and upload the raw file. Fix has to happen at upload time; existing broken records can be re-uploaded by staff.
 
 ## Fix
 
-Surface the existing reserved block(s) in the conflict list alongside the patient row, so the math is obvious (1 appt + 1 reserved = 2/2 full).
+Client-side conversion to JPEG before upload in both `InsuranceCardUpload.tsx` and `SecondaryInsuranceCardUpload.tsx`.
 
-### `src/components/appointments/blockConflictScan.ts`
+1. Add `heic2any` dependency (small, browser-only, no server changes).
+2. In each component's `uploadFile`, detect HEIC/HEIF by extension (`.heic`, `.heif`) or MIME (`image/heic`, `image/heif`) — iOS sometimes reports an empty type.
+3. If detected: convert to JPEG blob (quality 0.9), rebuild a `File` with `.jpg` extension and `image/jpeg` type, then continue the existing upload path unchanged. Show a brief toast ("Converting HEIC…") during conversion so slow phones don't feel frozen.
+4. If conversion throws: toast a clear error asking the user to upload JPG/PNG instead, and abort — don't upload the raw HEIC.
+5. Keep `accept="image/*"` (iOS camera roll needs it), but add a comment noting HEIC is auto-converted.
 
-In the patient loop, when a confirmed-tier patient is pushed to `hardConflicts` **because of slot saturation** (i.e., `capacity > 1` and `projected > capacity` with `blocksHere > 0`), also synthesize a companion informational row for each existing block covering that slot. Track already-emitted blocks by row id to avoid duplicates when multiple patients share the slot.
+No changes to storage bucket, edge functions, DB schema, or the viewer modal — once the stored file is a real JPEG, the existing `<img src>` preview and "open in new tab" behavior work correctly.
 
-The companion row uses the existing `BlockConflict` shape:
-- `id`: `block-existing::${block.row.id}` (unique, non-`block-cap::` prefix so the capacity-warning banner logic in `BlockConflictDialog` still fires correctly on the `block-cap::` synthesized rows in the pure-blocks-saturation path)
-- `lead_name`: the block's `lead_name` (typically "Reserved" or the user-entered title)
-- `requested_time`: block's `requested_time`
-- `status`: `"Reserved block"`
-- `calendar_name`: same calendar
-- Other fields: null / passthrough
+## Files touched
+- `package.json` — add `heic2any`
+- `src/components/appointments/InsuranceCardUpload.tsx` — HEIC conversion in `uploadFile`
+- `src/components/appointments/SecondaryInsuranceCardUpload.tsx` — same
 
-Result in the dialog for the current case:
-```
-Will be cancelled in GoHighLevel — fix before continuing
-  Test Johann Booked          3:00 PM   Confirmed        (patient — real hard conflict)
-  Reserved - <title>          9:00 AM   Reserved block   (companion, context)
-```
-
-Plus the existing capacity-warning banner still appears because the header count now shows 2 items and the user can see the slot is already at 1 appt + 1 block.
-
-### No other files change
-- `BlockConflictDialog.tsx` already renders any hard-conflict row generically via `ConflictRow`; no UI changes needed.
-- `supabase/functions/create-ghl-appointment/index.ts` server guard is unchanged (server only needs to *block*, not explain).
-
-### Out of scope
-- No change to which cases are blocked vs allowed — the guardrail behavior from the previous fix stays exactly the same.
-- No schema changes.
+## Out of scope
+- Backfilling Donna Zarn's existing broken card (staff can re-upload; happy to add a one-off cleanup util if you want).
+- Server-side conversion / a Supabase edge function — unnecessary since we can convert in the browser before the file ever reaches storage.

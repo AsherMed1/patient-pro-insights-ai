@@ -167,7 +167,35 @@ export const InsuranceCardUpload = ({
         return null;
       }
 
-      // Generate unique path
+      // Convert HEIC/HEIF (iPhone default) to JPEG so browsers can preview it
+      // and Supabase Storage serves it inline instead of as a download.
+      const nameLower = file.name.toLowerCase();
+      const isHeic =
+        file.type === "image/heic" ||
+        file.type === "image/heif" ||
+        nameLower.endsWith(".heic") ||
+        nameLower.endsWith(".heif");
+
+      if (isHeic) {
+        try {
+          toast({ title: "Converting HEIC…", description: "This can take a few seconds." });
+          const heic2any = (await import("heic2any")).default;
+          const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+          const blob = Array.isArray(converted) ? converted[0] : converted;
+          const newName = file.name.replace(/\.(heic|heif)$/i, "") + ".jpg";
+          file = new File([blob], newName, { type: "image/jpeg" });
+        } catch (err) {
+          console.error("HEIC conversion failed:", err);
+          toast({
+            title: "Unsupported image",
+            description: "Could not convert this HEIC photo. Please upload a JPG or PNG instead.",
+            variant: "destructive",
+          });
+          return null;
+        }
+      }
+
+      // Generate unique path (accept="image/*" — HEIC is auto-converted above)
       const fileExt = file.name.split(".").pop() || "jpg";
       const sanitizedProject = (projectName || "unknown").replace(/[^a-zA-Z0-9]/g, "_");
       const filePath = `${sanitizedProject}/${appointmentId}/${side}_${Date.now()}.${fileExt}`;
