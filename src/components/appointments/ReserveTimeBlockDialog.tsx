@@ -222,6 +222,7 @@ export function ReserveTimeBlockDialog({
   // Conflict-scan state
   const [hardConflicts, setHardConflicts] = useState<BlockConflict[]>([]);
   const [softConflicts, setSoftConflicts] = useState<BlockConflict[]>([]);
+  const [coexistConflicts, setCoexistConflicts] = useState<BlockConflict[]>([]);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
   const [autoCancelConflicts, setAutoCancelConflicts] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
