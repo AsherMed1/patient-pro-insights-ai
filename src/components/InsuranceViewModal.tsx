@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload } from 'lucide-react';
+import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload, Loader2 } from 'lucide-react';
+import { useHeicUrl } from "@/hooks/useHeicUrl";
 
 interface InsuranceInfo {
   insurance_provider?: string;
@@ -30,35 +31,47 @@ interface InsuranceViewModalProps {
   patientDob?: string | null;
 }
 
-const PhotoSide = ({ label, url }: { label: string; url?: string }) => (
-  <div className="flex-1">
-    <div className="text-xs font-medium text-muted-foreground mb-2">{label}</div>
-    {url ? (
-      <>
-        <img
-          src={url}
-          alt={label}
-          className="w-full h-32 object-cover rounded-lg border border-border"
-          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full h-7 text-xs mt-2"
-          onClick={() => window.open(url, '_blank')}
-        >
-          <ExternalLink className="h-3 w-3 mr-1" />
-          Full Size
-        </Button>
-      </>
-    ) : (
-      <div className="h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground">
-        <ImageIcon className="h-6 w-6 mb-1 opacity-50" />
-        <span className="text-xs">No image</span>
-      </div>
-    )}
-  </div>
-);
+const PhotoSide = ({ label, url }: { label: string; url?: string }) => {
+  const { url: viewUrl, loading, failed, isHeic } = useHeicUrl(url);
+  return (
+    <div className="flex-1">
+      <div className="text-xs font-medium text-muted-foreground mb-2">{label}</div>
+      {url ? (
+        <>
+          {loading ? (
+            <div className="w-full h-32 rounded-lg border border-border flex flex-col items-center justify-center bg-muted/40 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mb-1" />
+              <span className="text-xs">Converting HEIC…</span>
+            </div>
+          ) : (
+            <img
+              src={viewUrl || url}
+              alt={label}
+              className="w-full h-32 object-cover rounded-lg border border-border"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-7 text-xs mt-2"
+            disabled={loading}
+            onClick={() => window.open(viewUrl || url, '_blank')}
+            title={isHeic && failed ? "HEIC preview unavailable — original may download" : undefined}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" />
+            Full Size
+          </Button>
+        </>
+      ) : (
+        <div className="h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+          <ImageIcon className="h-6 w-6 mb-1 opacity-50" />
+          <span className="text-xs">No image</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const CardPhotos = ({
   frontUrl,
