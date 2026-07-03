@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 interface GHLCalendar {
   id: string;
   name: string;
+  /** GHL "Appointments per slot". >1 = double/multi-booking enabled. Defaults to 1. */
+  appointmentPerSlot?: number;
 }
 
 interface UseGhlCalendarsReturn {
