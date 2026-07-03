@@ -737,7 +737,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     variant="outline"
                     size="sm"
                     className="w-full mt-2"
-                    onClick={() => window.open(insuranceIdLink || insuranceBackLink || "", "_blank")}
+                    onClick={() => openHeicAwareUrl(insuranceIdLink || insuranceBackLink || "")}
                   >
                     <ExternalLink className="h-3 w-3 mr-2" />
                     View Insurance Card
@@ -832,7 +832,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       variant="outline"
                       size="sm"
                       className="w-full mt-2"
-                      onClick={() => window.open(secFront, "_blank")}
+                      onClick={() => openHeicAwareUrl(secFront)}
                     >
                       <ExternalLink className="h-3 w-3 mr-2" />
                       View Secondary Insurance Card

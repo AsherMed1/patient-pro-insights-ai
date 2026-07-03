@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Shield, FileText, User, Calendar, ExternalLink, Image as ImageIcon, Upload, Loader2 } from 'lucide-react';
-import { useHeicUrl } from "@/hooks/useHeicUrl";
+import { useHeicUrl, openHeicAwareUrl } from "@/hooks/useHeicUrl";
 
 interface InsuranceInfo {
   insurance_provider?: string;
@@ -56,7 +56,7 @@ const PhotoSide = ({ label, url }: { label: string; url?: string }) => {
             size="sm"
             className="w-full h-7 text-xs mt-2"
             disabled={loading}
-            onClick={() => window.open(viewUrl || url, '_blank')}
+            onClick={() => openHeicAwareUrl(viewUrl && !failed ? viewUrl : url)}
             title={isHeic && failed ? "HEIC preview unavailable — original may download" : undefined}
           >
             <ExternalLink className="h-3 w-3 mr-1" />
@@ -155,7 +155,7 @@ const InsuranceSection = ({
             variant="outline"
             size="sm"
             className="mt-2 h-7 px-2 text-xs"
-            onClick={() => window.open(idLink, '_blank')}
+            onClick={() => openHeicAwareUrl(idLink)}
           >
             <ExternalLink className="h-3 w-3 mr-1" />
             View Insurance Details
