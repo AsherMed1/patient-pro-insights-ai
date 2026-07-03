@@ -158,6 +158,28 @@ export function BlockConflictDialog({
               )}
             </div>
           )}
+
+          {/* COEXIST — double-booking calendar, existing appt stays scheduled */}
+          {hasCoexist && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                <ShieldCheck className="h-4 w-4" />
+                Will remain scheduled — double-booking slot available
+              </div>
+              <ScrollArea className="max-h-[200px] rounded-lg border border-emerald-500/40 bg-emerald-500/5">
+                <div className="divide-y divide-emerald-500/20">
+                  {coexistConflicts.map((c) => (
+                    <ConflictRow key={c.id} c={c} tone="soft" />
+                  ))}
+                </div>
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground italic px-1">
+                This calendar is configured to allow multiple bookings per slot in GoHighLevel. Your
+                reserved block will take the next open slot and these patient appointments will stay
+                intact.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -174,12 +196,14 @@ export function BlockConflictDialog({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {autoCancel ? 'Cancelling & blocking...' : 'Creating block...'}
+                    {hasSoft && autoCancel ? 'Cancelling & blocking...' : 'Creating block...'}
                   </>
-                ) : autoCancel ? (
+                ) : hasSoft && autoCancel ? (
                   `Cancel ${softConflicts.length} & Create Block`
-                ) : (
+                ) : hasSoft ? (
                   'Skip & Create Block'
+                ) : (
+                  'Create Block'
                 )}
               </Button>
             </>
