@@ -130,8 +130,10 @@ export async function scanBlockConflicts(params: {
     }))
     .filter((r): r is { start: number; end: number } => r.start !== null && r.end !== null);
 
-  // First pass: collect every non-terminal, non-block appt that overlaps the window,
-  // grouped by (calendar_name, requested_time) so we can measure per-slot occupancy.
+  // First pass: collect every non-terminal, non-superseded appt that overlaps
+  // the window. Reserved blocks DO count toward per-slot occupancy (they hold
+  // a GHL slot the same way a patient appt does) but are never shown as
+  // user-facing conflicts.
   interface Candidate {
     row: any;
     conflict: BlockConflict;
@@ -140,15 +142,26 @@ export async function scanBlockConflicts(params: {
   }
   const candidates: Candidate[] = [];
   const slotOccupancy: Map<string, number> = new Map();
+  // Track blocks-only occupancy per slot so we can synthesize a hard conflict
+  // when prior reserved blocks alone saturate the slot (no patient overlap).
+  const blockOnlyBySlot: Map<string, { count: number; sample: any }> = new Map();
 
   for (const row of data as any[]) {
-    if (row.is_reserved_block === true) continue;
-
     const apptMinutes = timeToMinutes(row.requested_time);
     if (apptMinutes === null) continue;
 
     const overlaps = rangeBounds.some((r) => apptMinutes >= r.start && apptMinutes < r.end);
     if (!overlaps) continue;
+
+    const slotKey = `${row.calendar_name || ''}::${row.requested_time || ''}`;
+
+    if (row.is_reserved_block === true) {
+      // Blocks occupy a slot but are not conflicts themselves.
+      slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
+      const prev = blockOnlyBySlot.get(slotKey);
+      blockOnlyBySlot.set(slotKey, { count: (prev?.count || 0) + 1, sample: prev?.sample || row });
+      continue;
+    }
 
     const status = (row.status || '').toString().trim().toLowerCase();
     if (TERMINAL_STATUSES.has(status)) continue;
@@ -166,7 +179,6 @@ export async function scanBlockConflicts(params: {
       was_ever_confirmed: row.was_ever_confirmed === true,
     };
 
-    const slotKey = `${row.calendar_name || ''}::${row.requested_time || ''}`;
     slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
     candidates.push({ row, conflict, status, slotKey });
   }
@@ -174,15 +186,13 @@ export async function scanBlockConflicts(params: {
   const hardConflicts: BlockConflict[] = [];
   const softConflicts: BlockConflict[] = [];
   const coexistConflicts: BlockConflict[] = [];
+  const slotsWithHard = new Set<string>();
 
   for (const { conflict, status, slotKey, row } of candidates) {
     if (SOFT_STATUSES.has(status)) {
-      // Truly unconfirmed → existing auto-cancel flow is fine.
-      // EXCEPT: if this row was ever confirmed before being moved back to pending,
-      // it represents a real patient that GHL would silently cancel. Promote to hard.
-      // (See incident: VIM time-block cancellations 2026-04-21.)
       if (conflict.was_ever_confirmed) {
         hardConflicts.push(conflict);
+        slotsWithHard.add(slotKey);
       } else {
         softConflicts.push(conflict);
       }
@@ -199,8 +209,33 @@ export async function scanBlockConflicts(params: {
       coexistConflicts.push(conflict);
     } else {
       hardConflicts.push(conflict);
+      slotsWithHard.add(slotKey);
     }
   }
+
+  // Synthesize hard conflicts for slots saturated by prior reserved blocks
+  // alone (no patient in the slot to attach the conflict to).
+  for (const [slotKey, info] of blockOnlyBySlot.entries()) {
+    if (slotsWithHard.has(slotKey)) continue;
+    const calName = info.sample.calendar_name || '';
+    const capacity =
+      (calendarCapacityByName && calName && calendarCapacityByName[calName]) || 1;
+    if (info.count + 1 > capacity) {
+      hardConflicts.push({
+        id: `block-cap::${slotKey}`,
+        lead_name: `Slot already full (${info.count}/${capacity} reserved blocks)`,
+        lead_phone_number: null,
+        requested_time: info.sample.requested_time,
+        status: 'Reserved block',
+        calendar_name: calName,
+        ghl_appointment_id: null,
+        ghl_id: null,
+        date_of_appointment: info.sample.date_of_appointment,
+        was_ever_confirmed: false,
+      });
+    }
+  }
+
 
   return { hardConflicts, softConflicts, coexistConflicts };
 }
