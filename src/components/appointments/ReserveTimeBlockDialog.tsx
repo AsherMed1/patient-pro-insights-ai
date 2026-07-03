@@ -811,6 +811,7 @@ export function ReserveTimeBlockDialog({
         onOpenChange={setShowConflictDialog}
         hardConflicts={hardConflicts}
         softConflicts={softConflicts}
+        coexistConflicts={coexistConflicts}
         autoCancel={autoCancelConflicts}
         onAutoCancelChange={setAutoCancelConflicts}
         isSubmitting={isSubmitting}
@@ -818,9 +819,11 @@ export function ReserveTimeBlockDialog({
           setShowConflictDialog(false);
           setHardConflicts([]);
           setSoftConflicts([]);
+          setCoexistConflicts([]);
         }}
         onConfirm={() => {
-          // Hard conflicts block submission entirely; only soft conflicts can be auto-cancelled here
+          // Hard conflicts block submission entirely; only soft conflicts can be auto-cancelled here.
+          // Coexist conflicts are never cancelled — GHL keeps them alongside the new block.
           executeBlockCreation(autoCancelConflicts ? softConflicts : []);
         }}
       />
