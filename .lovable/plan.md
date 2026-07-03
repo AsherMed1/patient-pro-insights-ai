@@ -1,24 +1,25 @@
-# Fix remaining HEIC auto-download paths
+# Fix HEIC handling for extension-less GHL download links
 
-## Problem
-The previous fix converts HEIC only for inline previews via `useHeicUrl`. Several buttons still call `window.open(rawUrl)` with the original `.heic` link, so the browser downloads it:
+## Root cause
+Donna Zarn's card links are `https://services.leadconnectorhq.com/documents/download/<id>` — there is no `.heic` in the URL. All current HEIC logic detects HEIC by file extension, so:
+- `openHeicAwareUrl` treats them as non-HEIC and opens the raw URL → GHL forces a download
+- inline previews render the raw HEIC bytes → broken image
 
-- `src/components/appointments/ParsedIntakeInfo.tsx` line 740 — "View Insurance Card" button
-- `src/components/appointments/ParsedIntakeInfo.tsx` line 835 — secondary card "Full Size"
-- `src/components/InsuranceViewModal.tsx` line 158 — "View Insurance Details" button
-- `src/components/InsuranceViewModal.tsx` line 59 — "Full Size" can fire before conversion finishes (falls back to raw URL)
+Detection must be based on file **content**, not the URL. Also, the browser can't fetch GHL URLs directly (CORS), so a small backend proxy is needed.
 
-## Fix
+## Plan
 
-1. **Add `openHeicAwareUrl(url)` helper to `src/hooks/useHeicUrl.tsx`**
-   - Opens a blank tab synchronously (avoids popup blockers), then:
-   - Non-HEIC → navigate tab to the URL immediately.
-   - HEIC → reuse the existing convert/cache logic, then point the tab at the converted JPEG blob URL. On failure, fall back to the original URL.
+1. **New edge function `fetch-insurance-image`**
+   - Accepts a `url` param (only allows `services.leadconnectorhq.com`, `storage.googleapis.com`, and our own Supabase storage hosts).
+   - Fetches the file server-side and streams the bytes back with permissive CORS headers and the detected content type.
 
-2. **Update all click handlers to use the helper**
-   - `ParsedIntakeInfo.tsx`: both `window.open` calls (lines 740, 835).
-   - `InsuranceViewModal.tsx`: "View Insurance Details" (line 158) and "Full Size" (line 59) — Full Size will also wait for the in-flight conversion instead of falling back to the raw URL while loading.
+2. **Rework `src/hooks/useHeicUrl.tsx` to content-based detection**
+   - Fetch the image bytes (via the proxy for cross-origin hosts, directly for same-origin/Supabase storage).
+   - Sniff magic bytes (`ftypheic`/`ftypheif`/`ftypmif1`) to detect HEIC regardless of URL.
+   - HEIC → convert with `heic2any` to JPEG blob URL; other images → blob URL with correct MIME type.
+   - Both `useHeicUrl` (inline previews) and `openHeicAwareUrl` (new-tab buttons) use this resolved blob URL, so previews render and "Full Size"/"View Insurance Card" open a viewable image instead of downloading.
+   - Keep the existing session cache and "Converting…" placeholder tab.
 
-3. **Verify** with Playwright against Donna Zarn's record: click View Insurance Card and Full Size, confirm the tab shows an image instead of triggering a download.
+3. **No component changes needed** — `InsuranceViewModal` and `ParsedIntakeInfo` already route through the hook/helper.
 
-No backend or data changes needed.
+4. **Verify with Playwright** on Donna Zarn's record: preview thumbnails render, and both buttons open a tab showing the image (no download).
