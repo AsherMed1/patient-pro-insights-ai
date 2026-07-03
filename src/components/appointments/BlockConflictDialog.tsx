@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ interface BlockConflictDialogProps {
   onOpenChange: (open: boolean) => void;
   hardConflicts: BlockConflict[];
   softConflicts: BlockConflict[];
+  coexistConflicts?: BlockConflict[];
   autoCancel: boolean;
   onAutoCancelChange: (v: boolean) => void;
   onConfirm: () => void;
@@ -57,6 +58,7 @@ export function BlockConflictDialog({
   onOpenChange,
   hardConflicts,
   softConflicts,
+  coexistConflicts = [],
   autoCancel,
   onAutoCancelChange,
   onConfirm,
@@ -65,11 +67,20 @@ export function BlockConflictDialog({
 }: BlockConflictDialogProps) {
   const hasHard = hardConflicts.length > 0;
   const hasSoft = softConflicts.length > 0;
-  const totalCount = hardConflicts.length + softConflicts.length;
+  const hasCoexist = coexistConflicts.length > 0;
+  const totalCount = hardConflicts.length + softConflicts.length + coexistConflicts.length;
 
   const titleText = hasHard
     ? `${totalCount} appointment${totalCount === 1 ? '' : 's'} overlap this block`
-    : `${softConflicts.length} unconfirmed appointment${softConflicts.length === 1 ? '' : 's'} overlap this block`;
+    : hasSoft
+      ? `${softConflicts.length} unconfirmed appointment${softConflicts.length === 1 ? '' : 's'} overlap this block`
+      : `${coexistConflicts.length} appointment${coexistConflicts.length === 1 ? '' : 's'} will remain in this slot`;
+
+  const description = hasHard
+    ? 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
+    : hasSoft
+      ? "These patients have unconfirmed appointments during the time you're blocking. Choose how to handle them."
+      : "This calendar allows multiple bookings per slot. The existing appointment(s) below will remain scheduled — creating this block just reserves the next open slot.";
 
   return (
     <Dialog open={open} onOpenChange={(v) => !isSubmitting && onOpenChange(v)}>
@@ -79,11 +90,7 @@ export function BlockConflictDialog({
             <AlertTriangle className="h-5 w-5 text-warning" />
             {titleText}
           </DialogTitle>
-          <DialogDescription>
-            {hasHard
-              ? 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
-              : "These patients have unconfirmed appointments during the time you're blocking. Choose how to handle them."}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -151,6 +158,28 @@ export function BlockConflictDialog({
               )}
             </div>
           )}
+
+          {/* COEXIST — double-booking calendar, existing appt stays scheduled */}
+          {hasCoexist && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                <ShieldCheck className="h-4 w-4" />
+                Will remain scheduled — double-booking slot available
+              </div>
+              <ScrollArea className="max-h-[200px] rounded-lg border border-emerald-500/40 bg-emerald-500/5">
+                <div className="divide-y divide-emerald-500/20">
+                  {coexistConflicts.map((c) => (
+                    <ConflictRow key={c.id} c={c} tone="soft" />
+                  ))}
+                </div>
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground italic px-1">
+                This calendar is configured to allow multiple bookings per slot in GoHighLevel. Your
+                reserved block will take the next open slot and these patient appointments will stay
+                intact.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -167,12 +196,14 @@ export function BlockConflictDialog({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {autoCancel ? 'Cancelling & blocking...' : 'Creating block...'}
+                    {hasSoft && autoCancel ? 'Cancelling & blocking...' : 'Creating block...'}
                   </>
-                ) : autoCancel ? (
+                ) : hasSoft && autoCancel ? (
                   `Cancel ${softConflicts.length} & Create Block`
-                ) : (
+                ) : hasSoft ? (
                   'Skip & Create Block'
+                ) : (
+                  'Create Block'
                 )}
               </Button>
             </>
