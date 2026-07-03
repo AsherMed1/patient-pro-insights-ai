@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ interface BlockConflictDialogProps {
   onOpenChange: (open: boolean) => void;
   hardConflicts: BlockConflict[];
   softConflicts: BlockConflict[];
+  coexistConflicts?: BlockConflict[];
   autoCancel: boolean;
   onAutoCancelChange: (v: boolean) => void;
   onConfirm: () => void;
