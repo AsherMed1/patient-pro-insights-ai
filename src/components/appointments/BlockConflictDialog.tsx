@@ -68,7 +68,9 @@ export function BlockConflictDialog({
   const hasHard = hardConflicts.length > 0;
   const hasSoft = softConflicts.length > 0;
   const hasCoexist = coexistConflicts.length > 0;
+  const hasCapacityRow = hardConflicts.some((c) => c.id.startsWith('block-cap::'));
   const totalCount = hardConflicts.length + softConflicts.length + coexistConflicts.length;
+
 
   const titleText = hasHard
     ? `${totalCount} appointment${totalCount === 1 ? '' : 's'} overlap this block`
@@ -113,6 +115,14 @@ export function BlockConflictDialog({
                 Reschedule them first, shrink your block window so it no longer overlaps, or remove the
                 affected calendar(s) from your selection.
               </p>
+              {hasCapacityRow && (
+                <p className="text-xs text-destructive/80 px-1">
+                  One or more slots are already at (or over) the calendar's per-slot capacity.
+                  Remove an existing reserved block, shrink your window, or drop that calendar from
+                  the selection.
+                </p>
+              )}
+
             </div>
           )}
 
