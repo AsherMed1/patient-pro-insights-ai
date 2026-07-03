@@ -87,9 +87,20 @@ export async function scanBlockConflicts(params: {
   dateStr: string; // 'YYYY-MM-DD'
   timeRanges: BlockTimeRange[];
   calendarNames: string[];
+  /**
+   * Optional map of calendar name → `appointmentPerSlot` (GHL double-booking capacity).
+   * When capacity > 1 and the resulting slot occupancy (existing appts + the new block)
+   * stays within capacity, confirmed overlaps are downgraded from hard → coexist.
+   * Missing entries default to 1 (single-booking, current behavior preserved).
+   */
+  calendarCapacityByName?: Record<string, number>;
 }): Promise<BlockConflictScanResult> {
-  const empty: BlockConflictScanResult = { hardConflicts: [], softConflicts: [] };
-  const { projectName, dateStr, timeRanges, calendarNames } = params;
+  const empty: BlockConflictScanResult = {
+    hardConflicts: [],
+    softConflicts: [],
+    coexistConflicts: [],
+  };
+  const { projectName, dateStr, timeRanges, calendarNames, calendarCapacityByName } = params;
 
   if (!projectName || !dateStr || !calendarNames.length || !timeRanges.length) {
     return empty;
@@ -119,8 +130,16 @@ export async function scanBlockConflicts(params: {
     }))
     .filter((r): r is { start: number; end: number } => r.start !== null && r.end !== null);
 
-  const hardConflicts: BlockConflict[] = [];
-  const softConflicts: BlockConflict[] = [];
+  // First pass: collect every non-terminal, non-block appt that overlaps the window,
+  // grouped by (calendar_name, requested_time) so we can measure per-slot occupancy.
+  interface Candidate {
+    row: any;
+    conflict: BlockConflict;
+    status: string;
+    slotKey: string;
+  }
+  const candidates: Candidate[] = [];
+  const slotOccupancy: Map<string, number> = new Map();
 
   for (const row of data as any[]) {
     if (row.is_reserved_block === true) continue;
@@ -132,8 +151,6 @@ export async function scanBlockConflicts(params: {
     if (!overlaps) continue;
 
     const status = (row.status || '').toString().trim().toLowerCase();
-
-    // Skip terminal — those are already "settled"; GHL won't re-cancel a cancelled event.
     if (TERMINAL_STATUSES.has(status)) continue;
 
     const conflict: BlockConflict = {
@@ -149,6 +166,16 @@ export async function scanBlockConflicts(params: {
       was_ever_confirmed: row.was_ever_confirmed === true,
     };
 
+    const slotKey = `${row.calendar_name || ''}::${row.requested_time || ''}`;
+    slotOccupancy.set(slotKey, (slotOccupancy.get(slotKey) || 0) + 1);
+    candidates.push({ row, conflict, status, slotKey });
+  }
+
+  const hardConflicts: BlockConflict[] = [];
+  const softConflicts: BlockConflict[] = [];
+  const coexistConflicts: BlockConflict[] = [];
+
+  for (const { conflict, status, slotKey, row } of candidates) {
     if (SOFT_STATUSES.has(status)) {
       // Truly unconfirmed → existing auto-cancel flow is fine.
       // EXCEPT: if this row was ever confirmed before being moved back to pending,
@@ -159,14 +186,23 @@ export async function scanBlockConflicts(params: {
       } else {
         softConflicts.push(conflict);
       }
+      continue;
+    }
+
+    // Confirmed-tier overlap. Check per-slot capacity on this calendar.
+    const capacity =
+      (calendarCapacityByName && row.calendar_name && calendarCapacityByName[row.calendar_name]) ||
+      1;
+    const existingInSlot = slotOccupancy.get(slotKey) || 1;
+    // +1 for the new block itself occupying that slot.
+    if (capacity > 1 && existingInSlot + 1 <= capacity) {
+      coexistConflicts.push(conflict);
     } else {
-      // Confirmed, Welcome Call, Scheduled, or anything else non-terminal
-      // → GHL will silently cancel these. Hard block.
       hardConflicts.push(conflict);
     }
   }
 
-  return { hardConflicts, softConflicts };
+  return { hardConflicts, softConflicts, coexistConflicts };
 }
 
 /**
