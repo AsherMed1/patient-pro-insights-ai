@@ -84,14 +84,15 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   }, [projectFilter, serviceFilter]);
   const fetchProjects = async () => {
     try {
-      const { data } = await supabase.from('projects').select('name').order('name');
+      const { data } = await supabase.from('projects').select('project_name').order('project_name');
       if (data) {
-        setProjects(data.map(p => p.name).filter(Boolean));
+        setProjects(data.map(p => p.project_name).filter(Boolean));
       }
     } catch (error) {
       console.error('Error fetching projects:', error);
     }
   };
+
 
   const fetchStatusOptions = async () => {
     const statuses = await getBaseStatusOptions();
