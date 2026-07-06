@@ -1,25 +1,30 @@
-# Fix HEIC handling for extension-less GHL download links
+## Problem
 
-## Root cause
-Donna Zarn's card links are `https://services.leadconnectorhq.com/documents/download/<id>` — there is no `.heic` in the URL. All current HEIC logic detects HEIC by file extension, so:
-- `openHeicAwareUrl` treats them as non-HEIC and opens the raw URL → GHL forces a download
-- inline previews render the raw HEIC bytes → broken image
+In the Appointments tab, the "All Projects" dropdown only shows a handful of clinics (Allegheny, Alliance, Ally, Apex...) even though 52 projects exist in the database.
 
-Detection must be based on file **content**, not the URL. Also, the browser can't fetch GHL URLs directly (CORS), so a small backend proxy is needed.
+## Root Cause
 
-## Plan
+`AppointmentFilters.tsx` builds the project list by querying `all_appointments.project_name`:
 
-1. **New edge function `fetch-insurance-image`**
-   - Accepts a `url` param (only allows `services.leadconnectorhq.com`, `storage.googleapis.com`, and our own Supabase storage hosts).
-   - Fetches the file server-side and streams the bytes back with permissive CORS headers and the detected content type.
+```ts
+const { data } = await supabase.from('all_appointments').select('project_name')...
+```
 
-2. **Rework `src/hooks/useHeicUrl.tsx` to content-based detection**
-   - Fetch the image bytes (via the proxy for cross-origin hosts, directly for same-origin/Supabase storage).
-   - Sniff magic bytes (`ftypheic`/`ftypheif`/`ftypmif1`) to detect HEIC regardless of URL.
-   - HEIC → convert with `heic2any` to JPEG blob URL; other images → blob URL with correct MIME type.
-   - Both `useHeicUrl` (inline previews) and `openHeicAwareUrl` (new-tab buttons) use this resolved blob URL, so previews render and "Full Size"/"View Insurance Card" open a viewable image instead of downloading.
-   - Keep the existing session cache and "Converting…" placeholder tab.
+Supabase caps this at 1000 rows by default. With ~19k appointments ordered by insertion, only the project names present in the first 1000 rows come back — so most clinics never make it into the dropdown.
 
-3. **No component changes needed** — `InsuranceViewModal` and `ParsedIntakeInfo` already route through the hook/helper.
+## Fix
 
-4. **Verify with Playwright** on Donna Zarn's record: preview thumbnails render, and both buttons open a tab showing the image (no download).
+Switch the project list source in `AppointmentFilters.tsx` → `fetchProjects()` to query the dedicated `projects` table instead:
+
+```ts
+const { data } = await supabase.from('projects').select('name').order('name');
+```
+
+This returns all 52 clinics directly, avoids the row-cap, and matches the canonical project list used elsewhere in the app.
+
+No other filters (status/location/service) need changes — those are derived per-project and the volumes stay well under the limit.
+
+## Verification
+
+- Open Appointments → All Projects dropdown, confirm all 52 clinics are listed alphabetically.
+- Select a previously-missing project (e.g. one further down the alphabet) and confirm the filter applies.
