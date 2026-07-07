@@ -1569,8 +1569,8 @@ const AllAppointmentsManager = ({
                     else query = query.ilike('calendar_name', `%${locationFilter}%`).not('calendar_name', 'ilike', '%Virtual%');
                   }
                   if (serviceFilter !== 'ALL') {
-                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE,parsed_pathology_info->>procedure_type.eq.GAE');
-                    else query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter},parsed_pathology_info->>procedure_type.eq.${serviceFilter}`);
+                    if (serviceFilter === 'GAE') query = query.or('parsed_pathology_info->>procedure_type.eq.GAE,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE))');
+                    else query = query.or(`parsed_pathology_info->>procedure_type.eq.${serviceFilter},and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
                   }
 
 
