@@ -1,77 +1,103 @@
+## Goal
 
-## Actual root cause (updated)
+Sync the GHL Contact custom field **"Notes (Example: Imaging, Secondary, etc.)"** into the portal's Medical Information → **Notes:** chip. Zero impact on any existing behavior.
 
-Ran `backfill-ghl-appointment` for Jill's contact. The confirmed event `PLcSM41LaDpyvm8Pkzzd` (2026-07-09 14:30) was rejected by the Postgres unique constraint `unique_appointment_ghl_datetime`, defined as:
+---
+
+## Why the safety question matters
+
+The current `ghl-webhook-handler` detects payload shape at line 612 like this:
 
 ```
-UNIQUE (ghl_id, date_of_appointment, requested_time)
+if (payload.calendar || payload.contact_id || payload.first_name) {
+  → extractWorkflowFormat  → appointment upsert path
+}
 ```
 
-Our existing Cancelled row for the same contact is at the same date/time, so any subsequent booking at that slot is blocked at insert time — regardless of status. That is why the confirmed appt never made it into the DB or the Review Queue. The reactivation branch in `findExistingAppointment` wasn't the culprit.
+A GHL **Contact Changed** webhook default body contains `contact_id` and `first_name`. Without a guard it would flow into that appointment path and could touch existing rows. So the intercept **must run before** `extractWebhookData` is called, and must be strictly scoped so nothing else matches it.
 
-## Is the fix safe?
+---
 
-Yes, when done as a single migration in the right order. Details:
+## Part A — GHL Setup (you do this first)
 
-1. **Old constraint dropped, new partial unique index created in one migration.** Postgres runs both statements in one transaction, so there is no window where duplicates could sneak in.
-2. **Partial index only counts "active" rows.** It ignores rows where status is Cancelled/Canceled/No Show/Rescheduled/Do Not Call/OON/Welcome Call, or where `is_superseded=true`, or where any of the three columns is NULL. That matches the business rule: those rows are terminal history and must not block a real rebooking.
-3. **Pre-check to guarantee the index builds.** Before creating the new index, I'll run a read-only SELECT to confirm no existing "active" duplicates exist. If any surface, we resolve them first (mark older as superseded) — otherwise the `CREATE UNIQUE INDEX` would fail and abort the whole migration safely (no data change).
-4. **Existing active rows keep their protection.** Two active (Confirmed/Pending/Showed/etc.) rows for the same (ghl_id, date, time) will still be blocked exactly as before.
-5. **Non-destructive.** No data is deleted or updated. Only the constraint definition changes. Rolling back is a one-line reverse migration.
-6. **No RLS/policy changes.** No permission or access surface changes.
+1. Automation → Workflows → **+ Create Workflow → Start from scratch**
+2. Name: `Sync Contact Notes → Portal`
+3. **Trigger: Contact Changed** → filter: Custom Field **Notes (Example: Imaging, Secondary, etc.)** *has changed*
+4. **Action: Webhook**
+   - Method: `POST`
+   - URL: `https://bhabbokbhnqioykjimix.functions.supabase.co/ghl-webhook-handler`
+   - Body: **Custom Data** (recommended) with only:
+     ```json
+     {
+       "sync_type": "contact_notes_only",
+       "contact_id": "{{contact.id}}",
+       "location_id": "{{location.id}}",
+       "notes_value": "{{contact.notes__example__imaging__secondary__etc_}}"
+     }
+     ```
+     (exact merge-tag name comes from the field's picker in GHL)
+   - If Custom Data is unavailable in your GHL plan, fall back to Default body — the intercept below still catches it, but Custom Data is the belt-and-suspenders option.
+5. **Save → Publish**
 
-## Fix plan (build order)
+---
 
-### 1. Pre-check (read-only)
+## Part B — Portal Side (single edge function edit)
 
-Run:
-```sql
-SELECT ghl_id, date_of_appointment, requested_time, COUNT(*) 
-FROM public.all_appointments
-WHERE ghl_id IS NOT NULL 
-  AND date_of_appointment IS NOT NULL 
-  AND requested_time IS NOT NULL
-  AND COALESCE(is_superseded, false) = false
-  AND (status IS NULL OR LOWER(TRIM(status)) NOT IN 
-       ('cancelled','canceled','no show','noshow','no-show','rescheduled',
-        'do not call','donotcall','oon','welcome call'))
-GROUP BY 1,2,3 HAVING COUNT(*) > 1;
-```
-If it returns anything, resolve those first (mark older as superseded) before the index migration.
+**File:** `supabase/functions/ghl-webhook-handler/index.ts`
 
-### 2. Migration
+Insert a new branch **immediately after the JSON parse and BEFORE the call to `extractWebhookData`** (around line ~97). The branch:
 
-```sql
-ALTER TABLE public.all_appointments 
-  DROP CONSTRAINT IF EXISTS unique_appointment_ghl_datetime;
+**Match conditions — ALL must be true (very strict):**
+1. Payload has `contact_id` (or `contactId`)
+2. Payload has **no** `appointment` object
+3. Payload has **no** `calendar` object
+4. Payload has **no** `type` field mentioning "appointment"
+5. Payload has **no** `appointmentStatus` and **no** `status` field
+6. **AND** either:
+   - `sync_type === "contact_notes_only"` (Custom Data path), OR
+   - the target Notes custom field is present in `customFields` (Default body path)
 
-DROP INDEX IF EXISTS public.unique_appointment_ghl_datetime_active;
+If any condition fails → fall through untouched to existing logic.
 
-CREATE UNIQUE INDEX unique_appointment_ghl_datetime_active
-ON public.all_appointments (ghl_id, date_of_appointment, requested_time)
-WHERE ghl_id IS NOT NULL
-  AND date_of_appointment IS NOT NULL
-  AND requested_time IS NOT NULL
-  AND COALESCE(is_superseded, false) = false
-  AND (status IS NULL OR LOWER(TRIM(status)) NOT IN (
-    'cancelled','canceled','no show','noshow','no-show',
-    'rescheduled','do not call','donotcall','oon','welcome call'
-  ));
-```
+**Action when it matches:**
+1. Resolve the new Notes value: prefer `notes_value` (Custom Data), else read the field from `customFields` by field ID / label match.
+2. If value is empty/null/whitespace → return `{ ok: true, branch: "contact_notes_sync", updated: 0, reason: "empty" }` and exit.
+3. Query `all_appointments` for rows where `ghl_id = <contact_id>` AND `is_superseded = false` AND status NOT IN (Cancelled, Canceled, No Show, Rescheduled, Won, OON, Do Not Call).
+4. For each matching row: merge `{ notes: <new value> }` into `parsed_medical_info` (single-key JSON merge, all other keys preserved byte-for-byte). No other column touched.
+5. Insert ONE `appointment_notes` row per updated appointment: `"Medical Notes updated from GHL: <first 120 chars>"`.
+6. Return `{ ok: true, branch: "contact_notes_sync", updated: <n> }` and `return` — never reach `extractWebhookData`.
 
-### 3. Re-run backfill for Jill
+---
 
-Call `backfill-ghl-appointment` again with `{ projectName: "Apex Vascular", contactIds: ["foSMURdTUCSZoXbpeuAR"] }`. The confirmed event `PLcSM41LaDpyvm8Pkzzd` should now insert cleanly as a pending Review Queue row.
+## Safety guarantees (line by line)
 
-### 4. Verify
+| Concern | Guarantee |
+|---|---|
+| Could this create a new appointment? | No — branch exits before `getUpdateableFields` / insert path is reached. |
+| Could this update appointment status / date / calendar? | No — only `parsed_medical_info.notes` is written. |
+| Could it overwrite other Medical Info keys (PCP, imaging_location…)? | No — JSON merge, single key. |
+| Could it touch terminal appointments (Cancelled/OON/DNC/etc.)? | No — filtered out in the query. |
+| Could it fire Slack / status webhook / GHL tag update / auto-parse? | No — none of those calls exist in this branch. |
+| Could a normal Appointment webhook accidentally match this branch? | No — conditions require the absence of `appointment`, `calendar`, `status`, and `appointmentStatus`. Appointment webhooks always carry at least one of those. |
+| Could a normal Contact webhook (not Notes) accidentally match? | Only if the Notes field is present in payload; if empty → early exit with `updated: 0`. Nothing else changes. |
+| Rollback? | Revert one file. No migration, no schema, no RLS change. |
+| If the GHL workflow isn't published? | Branch never fires. Portal behaves exactly as today. |
 
-- `SELECT` on `all_appointments` for `ghl_id='foSMURdTUCSZoXbpeuAR'` → expect 2 rows (Cancelled + new pending Confirmed).
-- Open Apex Vascular → Review Queue → confirmed appt shows as pending.
+---
 
-### 5. Memory update
+## Test plan
 
-Add to `mem://data-integrity/appointment-uniqueness`: "Unique-slot enforcement uses a partial index scoped to active, non-superseded rows so cancelled/terminal history never blocks a rebooking."
+1. Publish GHL workflow, edit Notes on **Test Johann Booked**, save.
+2. Edge logs → expect `branch: "contact_notes_sync", updated: 1`.
+3. Portal card → **Notes:** shows new value; every other field (DOB, phone, calendar, status, PCP, imaging) unchanged.
+4. Confirm no new `appointment_notes` beyond the single "Medical Notes updated from GHL: …" row.
+5. Sanity: create a normal booking in GHL → verify it still lands in Review Queue as usual (proves we didn't break the appointment path).
 
-## Not doing (and why)
+---
 
-- **Not touching `findExistingAppointment` reactivation logic.** The earlier hypothesis about `was_ever_confirmed=true` blocking reactivation was wrong. That path was actually returning `null` correctly; the DB constraint was the real gate. Changing reactivation now would add risk with no benefit.
+## Explicitly NOT doing
+
+- Duplicated notes block display bug
+- Standalone ContactUpdate for any other custom field
+- Force-reparse flag
+- GHL Contact "Notes tab" sync (different object)
