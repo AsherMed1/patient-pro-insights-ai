@@ -2052,8 +2052,7 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
     await supabase.from('appointment_notes').insert({
       appointment_id: row.id,
       note_text: `Medical Notes updated from GHL: ${preview}`,
-      created_by: 'GHL Sync',
-      note_type: 'system'
+      created_by: 'GoHighLevel',
     }).then(({ error }: any) => {
       if (error) console.error(`[${requestId}] [notes-sync] audit note insert failed for ${row.id}:`, error)
     })
