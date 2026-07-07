@@ -1080,14 +1080,27 @@ function getUpdateableFields(
       // Still allow non-date fields to update below, just skip date_of_appointment and requested_time
     } else {
       // Accept date/time changes (rescheduling) only if outside debounce window
-      if (webhookData.date_of_appointment !== undefined) {
-        updateFields.date_of_appointment = webhookData.date_of_appointment
+      // AND only when the incoming payload actually carries a real date. Contact-only
+      // GHL workflows (e.g. "Sync Contact Notes → Portal") fire an appointment-shaped
+      // webhook with date_of_appointment=null / requested_time=null; treating that as
+      // a reschedule would wipe the stored date. Skip the whole block in that case.
+      const incomingDate = webhookData.date_of_appointment
+      const incomingTime = webhookData.requested_time
+      const hasRealDate = incomingDate != null && incomingDate !== ''
+
+      if (!hasRealDate) {
+        console.log(`[WEBHOOK] Skipping date/time overwrite — incoming payload has no start time (date=${JSON.stringify(incomingDate)}, time=${JSON.stringify(incomingTime)})`)
+      } else {
+        updateFields.date_of_appointment = incomingDate
+        if (incomingTime != null && incomingTime !== '') {
+          updateFields.requested_time = incomingTime
+        }
 
         // Reset IPC and status if date actually changed (reschedule detected).
         // Date-driven reschedules ARE honored even when existing status is portal-only terminal
         // (OON, Do Not Call, Cancelled) — a new appointment date from GHL means the patient
         // was rebooked and should be recovered from the terminal tab.
-        if (existingAppointment.date_of_appointment !== webhookData.date_of_appointment) {
+        if (existingAppointment.date_of_appointment !== incomingDate) {
           const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
           const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
           const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
@@ -1101,8 +1114,8 @@ function getUpdateableFields(
           existingHistory.push({
             previous_date: existingAppointment.date_of_appointment,
             previous_time: existingAppointment.requested_time,
-            new_date: webhookData.date_of_appointment,
-            new_time: webhookData.requested_time,
+            new_date: incomingDate,
+            new_time: incomingTime,
             changed_at: new Date().toISOString(),
             previous_status: existingAppointment.status,
             recovered_from_terminal: isPortalOnlyTerminal || undefined,
@@ -1133,8 +1146,8 @@ function getUpdateableFields(
           ].filter(Boolean).join(' ')
 
           const toDateTime = [
-            webhookData.date_of_appointment,
-            webhookData.requested_time
+            incomingDate,
+            incomingTime
           ].filter(Boolean).join(' ')
 
           rescheduleNoteData = {
@@ -1145,11 +1158,9 @@ function getUpdateableFields(
           }
         }
       }
-      if (webhookData.requested_time !== undefined) {
-        updateFields.requested_time = webhookData.requested_time
-      }
     }
   }
+
   
   // Always accept calendar and location updates
   if (webhookData.calendar_name) {
