@@ -424,9 +424,9 @@ const AllAppointmentsManager = ({
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE,parsed_pathology_info->>procedure_type.eq.GAE');
+          appointmentsQuery = appointmentsQuery.or('parsed_pathology_info->>procedure_type.eq.GAE,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE))');
         } else {
-          appointmentsQuery = appointmentsQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter},parsed_pathology_info->>procedure_type.eq.${serviceFilter}`);
+          appointmentsQuery = appointmentsQuery.or(`parsed_pathology_info->>procedure_type.eq.${serviceFilter},and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
         }
       }
 
