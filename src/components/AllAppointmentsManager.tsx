@@ -284,13 +284,12 @@ const AllAppointmentsManager = ({
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          // GAE and In-person are the same service type; also match parsed pathology procedure
-          countQuery = countQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
+          countQuery = countQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE,parsed_pathology_info->>procedure_type.eq.GAE');
         } else {
-          // Match calendar name OR parsed pathology procedure (covers bare "Virtual Consultation" calendars)
-          countQuery = countQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
+          countQuery = countQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter},parsed_pathology_info->>procedure_type.eq.${serviceFilter}`);
         }
       }
+
       
       // Apply tab-based filtering to count query
       const today = new Date();
@@ -425,11 +424,12 @@ const AllAppointmentsManager = ({
       // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
+          appointmentsQuery = appointmentsQuery.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE,parsed_pathology_info->>procedure_type.eq.GAE');
         } else {
-          appointmentsQuery = appointmentsQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
+          appointmentsQuery = appointmentsQuery.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter},parsed_pathology_info->>procedure_type.eq.${serviceFilter}`);
         }
       }
+
       
       
       if (activeTab === 'all') {
@@ -574,11 +574,12 @@ const AllAppointmentsManager = ({
         // Apply service filter (extracted from calendar_name)
       if (serviceFilter !== 'ALL') {
         if (serviceFilter === 'GAE') {
-          query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
+          query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE,parsed_pathology_info->>procedure_type.eq.GAE');
         } else {
-          query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
+          query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter},parsed_pathology_info->>procedure_type.eq.${serviceFilter}`);
         }
       }
+
         
         
         return query;
@@ -1568,9 +1569,10 @@ const AllAppointmentsManager = ({
                     else query = query.ilike('calendar_name', `%${locationFilter}%`).not('calendar_name', 'ilike', '%Virtual%');
                   }
                   if (serviceFilter !== 'ALL') {
-                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE');
-                    else query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}`);
+                    if (serviceFilter === 'GAE') query = query.or('calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE,parsed_pathology_info->>procedure_type.eq.GAE');
+                    else query = query.or(`calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter},parsed_pathology_info->>procedure_type.eq.${serviceFilter}`);
                   }
+
 
                   // Apply tab-based filters to mirror the on-screen list
                   const today = new Date();
