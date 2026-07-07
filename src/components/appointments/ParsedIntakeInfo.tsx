@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { User, Heart, Phone, Shield, ExternalLink, ChevronDown, Pencil, X, Check, Loader2, Upload, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -87,6 +88,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPCPAddress, setEditPCPAddress] = useState("");
   const [editUrologistName, setEditUrologistName] = useState("");
   const [editUrologistPhone, setEditUrologistPhone] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [editImagingFacility, setEditImagingFacility] = useState("");
   const [editImagingPhone, setEditImagingPhone] = useState("");
   const [editImagingLocation, setEditImagingLocation] = useState("");
@@ -231,6 +233,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     setEditPCPAddress(formatValue(parsedMedicalInfo?.pcp_address) || "");
     setEditUrologistName(formatValue(parsedMedicalInfo?.urologist_name) || "");
     setEditUrologistPhone(formatValue(parsedMedicalInfo?.urologist_phone) || "");
+    setEditNotes(formatValue(parsedMedicalInfo?.notes) || "");
     setEditImagingFacility(formatValue(parsedMedicalInfo?.imaging_facility) || "");
     setEditImagingPhone(formatValue(parsedMedicalInfo?.imaging_phone) || "");
     setEditImagingLocation(formatValue(parsedMedicalInfo?.imaging_location) || "");
@@ -261,6 +264,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         pcp_address: editPCPAddress || null,
         urologist_name: editUrologistName || null,
         urologist_phone: editUrologistPhone || null,
+        notes: editNotes || null,
         imaging_facility: editImagingFacility || null,
         imaging_phone: editImagingPhone || null,
         imaging_location: editImagingLocation || null,
@@ -1251,6 +1255,15 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         </div>
                       </>
                     )}
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Notes</label>
+                      <Textarea
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        placeholder="Medical notes"
+                        className="min-h-[72px] text-sm bg-background"
+                      />
+                    </div>
                     <div className="pt-3 border-t border-teal-200 mt-3">
                       <label className="text-xs font-medium text-teal-700 mb-2 block">Imaging Information</label>
                       <div className="space-y-2">
@@ -1324,6 +1337,12 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       <div className="text-sm">
                         <span className="text-muted-foreground">Urologist Phone:</span>{" "}
                         <span className="font-medium">{formatValue(parsedMedicalInfo?.urologist_phone) || "—"}</span>
+                      </div>
+                    )}
+                    {formatValue(parsedMedicalInfo?.notes) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Notes:</span>{" "}
+                        <span className="font-medium whitespace-pre-wrap">{parsedMedicalInfo.notes}</span>
                       </div>
                     )}
                     {formatValue(parsedMedicalInfo?.xray_details) && (
