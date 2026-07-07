@@ -1731,9 +1731,11 @@ async function enrichAppointmentWithGHLData(
       .single()
     
     const currentNotes = appointment?.patient_intake_notes || ''
-    const updatedNotes = currentNotes 
-      ? `${currentNotes}\n\n${formattedNotes}`
-      : formattedNotes
+    const ghlContactDataMarker = '=== GHL Contact Data (Full) ==='
+    const markerIndex = currentNotes.indexOf(ghlContactDataMarker)
+    const updatedNotes = markerIndex >= 0
+      ? `${currentNotes.slice(0, markerIndex).trimEnd()}\n\n${formattedNotes}`.trim()
+      : (currentNotes ? `${currentNotes}\n\n${formattedNotes}` : formattedNotes)
     
     // Helper function to calculate age from DOB
     const calculateAge = (dobString: string | null): number | null => {
@@ -1984,18 +1986,28 @@ function resolveNotesValueFromCustomFields(cf: any): string | null {
 async function tryContactNotesSync(payload: any, supabase: any, requestId: string): Promise<any | null> {
   if (!payload || typeof payload !== 'object') return null
 
+  const isExplicit = payload.sync_type === 'contact_notes_only'
   const contactId = sanitizeId(payload.contact_id || payload.contactId)
-  if (!contactId) return null
+  if (!contactId) {
+    if (isExplicit) {
+      console.warn(`[${requestId}] [notes-sync] explicit payload missing contact_id; safely skipping appointment logic`)
+      return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'missing_contact_id' }
+    }
+    return null
+  }
 
-  // Strict guards: must NOT look like any appointment webhook
-  if (payload.appointment) return null
-  if (payload.calendar) return null
-  if (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment')) return null
-  if (payload.appointmentStatus) return null
-  if (payload.status) return null
+  // Non-explicit auto-detection must NOT look like an appointment webhook.
+  // Explicit contact_notes_only payloads always stay in this safe branch and
+  // never fall through to appointment update/enrichment logic.
+  if (!isExplicit) {
+    if (payload.appointment) return null
+    if (payload.calendar) return null
+    if (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment')) return null
+    if (payload.appointmentStatus) return null
+    if (payload.status) return null
+  }
 
   // Must be either explicit Custom Data sync OR carry the Notes custom field
-  const isExplicit = payload.sync_type === 'contact_notes_only'
   let newValue: string | null = null
 
   if (isExplicit && payload.notes_value !== undefined) {
@@ -2005,6 +2017,10 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
     if (newValue === null && !isExplicit) {
       // Not an explicit sync and no matching Notes field present — not ours
       return null
+    }
+    if (newValue === null && isExplicit) {
+      console.warn(`[${requestId}] [notes-sync] explicit payload missing notes_value; safely skipping appointment logic`)
+      return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'missing_notes_value' }
     }
   }
 
@@ -2040,7 +2056,7 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
 
     const { error: updErr } = await supabase
       .from('all_appointments')
-      .update({ parsed_medical_info: merged })
+      .update({ parsed_medical_info: merged, updated_at: new Date().toISOString() })
       .eq('id', row.id)
 
     if (updErr) {
