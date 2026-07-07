@@ -94,6 +94,21 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Parsed webhook payload:`, JSON.stringify(payload, null, 2))
 
+    // ============================================================
+    // EARLY INTERCEPT: Contact Notes-only sync
+    // Fires from the GHL "Sync Contact Notes → Portal" workflow.
+    // Strictly scoped — only writes parsed_medical_info.notes.
+    // MUST run BEFORE extractWebhookData so a Contact webhook
+    // never falls into the appointment upsert path.
+    // ============================================================
+    const notesSyncResult = await tryContactNotesSync(payload, supabase, requestId)
+    if (notesSyncResult) {
+      return new Response(JSON.stringify({ ...notesSyncResult, requestId }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     // Detect webhook format and extract data
     const webhookData = extractWebhookData(payload, requestId)
     
