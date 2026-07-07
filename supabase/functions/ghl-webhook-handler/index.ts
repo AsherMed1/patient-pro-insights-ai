@@ -1944,3 +1944,123 @@ function calculateBusinessHours(start: Date, end: Date): number {
   }
   return Math.max(hours, 0);
 }
+
+// ============================================================
+// Contact Notes-only sync (early intercept)
+// Returns a result object when it handled the request, else null.
+// Strictly scoped: only merges { notes: <value> } into
+// parsed_medical_info for non-terminal, non-superseded rows
+// matched by ghl_id. Never touches any other column.
+// ============================================================
+const NOTES_FIELD_LABEL_MATCH = /notes.*(example|imaging|secondary)/i
+const TERMINAL_STATUSES_FOR_NOTES_SYNC = [
+  'Cancelled', 'Canceled', 'No Show', 'Rescheduled', 'Won', 'OON', 'Do Not Call'
+]
+
+function resolveNotesValueFromCustomFields(cf: any): string | null {
+  if (!cf) return null
+  // Object shape: { "Notes (Example: ...)": "value", ... }
+  if (!Array.isArray(cf) && typeof cf === 'object') {
+    for (const [key, value] of Object.entries(cf)) {
+      if (NOTES_FIELD_LABEL_MATCH.test(key) && value != null && String(value).trim() !== '') {
+        return String(value)
+      }
+    }
+    return null
+  }
+  // Array shape: [{ key/name/id, value }]
+  if (Array.isArray(cf)) {
+    for (const item of cf) {
+      if (!item || typeof item !== 'object') continue
+      const label = String(item.name || item.key || item.fieldKey || item.label || '')
+      if (NOTES_FIELD_LABEL_MATCH.test(label) && item.value != null && String(item.value).trim() !== '') {
+        return String(item.value)
+      }
+    }
+  }
+  return null
+}
+
+async function tryContactNotesSync(payload: any, supabase: any, requestId: string): Promise<any | null> {
+  if (!payload || typeof payload !== 'object') return null
+
+  const contactId = sanitizeId(payload.contact_id || payload.contactId)
+  if (!contactId) return null
+
+  // Strict guards: must NOT look like any appointment webhook
+  if (payload.appointment) return null
+  if (payload.calendar) return null
+  if (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment')) return null
+  if (payload.appointmentStatus) return null
+  if (payload.status) return null
+
+  // Must be either explicit Custom Data sync OR carry the Notes custom field
+  const isExplicit = payload.sync_type === 'contact_notes_only'
+  let newValue: string | null = null
+
+  if (isExplicit && payload.notes_value !== undefined) {
+    newValue = payload.notes_value == null ? '' : String(payload.notes_value)
+  } else {
+    newValue = resolveNotesValueFromCustomFields(payload.customFields)
+    if (newValue === null && !isExplicit) {
+      // Not an explicit sync and no matching Notes field present — not ours
+      return null
+    }
+  }
+
+  console.log(`[${requestId}] [notes-sync] intercepted contact=${contactId} explicit=${isExplicit} hasValue=${newValue !== null && newValue !== ''}`)
+
+  const trimmed = (newValue ?? '').trim()
+  if (!trimmed) {
+    return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'empty' }
+  }
+
+  // Find matching non-terminal, non-superseded appointments for this contact
+  const { data: rows, error: selErr } = await supabase
+    .from('all_appointments')
+    .select('id, parsed_medical_info, status, is_superseded, project_name, lead_name')
+    .eq('ghl_id', contactId)
+    .eq('is_superseded', false)
+    .not('status', 'in', `(${TERMINAL_STATUSES_FOR_NOTES_SYNC.map(s => `"${s}"`).join(',')})`)
+
+  if (selErr) {
+    console.error(`[${requestId}] [notes-sync] select error:`, selErr)
+    return { ok: false, branch: 'contact_notes_sync', error: 'select_failed', message: selErr.message }
+  }
+
+  if (!rows || rows.length === 0) {
+    console.log(`[${requestId}] [notes-sync] no eligible appointments for contact ${contactId}`)
+    return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'no_matching_appointments' }
+  }
+
+  let updated = 0
+  for (const row of rows) {
+    const existing = (row.parsed_medical_info && typeof row.parsed_medical_info === 'object') ? row.parsed_medical_info : {}
+    const merged = { ...existing, notes: trimmed }
+
+    const { error: updErr } = await supabase
+      .from('all_appointments')
+      .update({ parsed_medical_info: merged })
+      .eq('id', row.id)
+
+    if (updErr) {
+      console.error(`[${requestId}] [notes-sync] update failed for ${row.id}:`, updErr)
+      continue
+    }
+
+    const preview = trimmed.length > 120 ? trimmed.slice(0, 120) + '…' : trimmed
+    await supabase.from('appointment_notes').insert({
+      appointment_id: row.id,
+      note_text: `Medical Notes updated from GHL: ${preview}`,
+      created_by: 'GHL Sync',
+      note_type: 'system'
+    }).then(({ error }: any) => {
+      if (error) console.error(`[${requestId}] [notes-sync] audit note insert failed for ${row.id}:`, error)
+    })
+
+    updated++
+  }
+
+  console.log(`[${requestId}] [notes-sync] done: ${updated}/${rows.length} updated for contact ${contactId}`)
+  return { ok: true, branch: 'contact_notes_sync', updated, matched: rows.length }
+}
