@@ -1,55 +1,77 @@
 
-## Confirmed diagnosis
+## Actual root cause (updated)
 
-Your GHL screenshot shows two separate appointments for Jill Blevins, both at July 9 2:30 PM:
+Ran `backfill-ghl-appointment` for Jill's contact. The confirmed event `PLcSM41LaDpyvm8Pkzzd` (2026-07-09 14:30) was rejected by the Postgres unique constraint `unique_appointment_ghl_datetime`, defined as:
 
-1. **Confirmed** — a brand-new event with its own `ghl_appointment_id`
-2. **Cancelled** ("Rescheduled to July 9, 02:30 PM") — the original event; this is the one already in our DB as row `603b8637` (status Cancelled, `was_ever_confirmed=true`).
+```
+UNIQUE (ghl_id, date_of_appointment, requested_time)
+```
 
-Our DB only has the Cancelled row. The Confirmed row was never inserted.
+Our existing Cancelled row for the same contact is at the same date/time, so any subsequent booking at that slot is blocked at insert time — regardless of status. That is why the confirmed appt never made it into the DB or the Review Queue. The reactivation branch in `findExistingAppointment` wasn't the culprit.
 
-Walking the webhook logic for the new confirmed event:
+## Is the fix safe?
 
-1. `findExistingAppointment` looks up by the new `ghl_appointment_id` → no match.
-2. Falls into the reactivation branch, which requires `was_ever_confirmed = false`. Our cancelled row is `was_ever_confirmed = true`, so it's skipped.
-3. Should return `null` → handler should create a fresh row.
+Yes, when done as a single migration in the right order. Details:
 
-Since no row exists, either GHL never delivered the "appointment created" webhook for the new event, or the handler received it and errored before insert (no matching logs found for this contact in recent retention).
+1. **Old constraint dropped, new partial unique index created in one migration.** Postgres runs both statements in one transaction, so there is no window where duplicates could sneak in.
+2. **Partial index only counts "active" rows.** It ignores rows where status is Cancelled/Canceled/No Show/Rescheduled/Do Not Call/OON/Welcome Call, or where `is_superseded=true`, or where any of the three columns is NULL. That matches the business rule: those rows are terminal history and must not block a real rebooking.
+3. **Pre-check to guarantee the index builds.** Before creating the new index, I'll run a read-only SELECT to confirm no existing "active" duplicates exist. If any surface, we resolve them first (mark older as superseded) — otherwise the `CREATE UNIQUE INDEX` would fail and abort the whole migration safely (no data change).
+4. **Existing active rows keep their protection.** Two active (Confirmed/Pending/Showed/etc.) rows for the same (ghl_id, date, time) will still be blocked exactly as before.
+5. **Non-destructive.** No data is deleted or updated. Only the constraint definition changes. Rolling back is a one-line reverse migration.
+6. **No RLS/policy changes.** No permission or access surface changes.
 
-## Fix plan
+## Fix plan (build order)
 
-### 1. Recover Jill Blevins' confirmed appointment (one-time)
+### 1. Pre-check (read-only)
 
-- Look up the new event via our existing GHL calendar sync helper for contact `foSMURdTUCSZoXbpeuAR` in Apex Vascular to grab the `ghl_appointment_id`, calendar name, and confirm date/time (July 9, 2026 2:30 PM EDT).
-- Insert a new row in `all_appointments`:
-  - `ghl_id = 'foSMURdTUCSZoXbpeuAR'`, `ghl_appointment_id` = new event ID
-  - `project_name = 'Apex Vascular'`
-  - `lead_name`, `lead_phone_number`, `lead_email`, `dob` mirrored from row `603b8637`
-  - `status = 'Confirmed'`, `date_of_appointment = '2026-07-09'`, time = 14:30
-  - `calendar_name = 'Request your GAE Consultation at North Knoxville'`
-  - `review_status = 'pending'` (so it lands in the Review Queue)
-  - `is_superseded = false`, `was_ever_confirmed = true`
-- Leave the Cancelled row (`603b8637`) untouched as history.
+Run:
+```sql
+SELECT ghl_id, date_of_appointment, requested_time, COUNT(*) 
+FROM public.all_appointments
+WHERE ghl_id IS NOT NULL 
+  AND date_of_appointment IS NOT NULL 
+  AND requested_time IS NOT NULL
+  AND COALESCE(is_superseded, false) = false
+  AND (status IS NULL OR LOWER(TRIM(status)) NOT IN 
+       ('cancelled','canceled','no show','noshow','no-show','rescheduled',
+        'do not call','donotcall','oon','welcome call'))
+GROUP BY 1,2,3 HAVING COUNT(*) > 1;
+```
+If it returns anything, resolve those first (mark older as superseded) before the index migration.
 
-### 2. Close the reactivation gap (`supabase/functions/ghl-webhook-handler/index.ts`, `findExistingAppointment` ~line 1386)
+### 2. Migration
 
-Change the reactivation branch so a portal-only terminal row (`Cancelled`, `OON`, `Do Not Call`) never absorbs a NEW GHL event and never blocks the "create new row" path:
+```sql
+ALTER TABLE public.all_appointments 
+  DROP CONSTRAINT IF EXISTS unique_appointment_ghl_datetime;
 
-- If the existing row's status is portal-only terminal AND the incoming event has a different `ghl_appointment_id` from what's stored, do NOT reactivate in place. Return `null` so the handler creates a fresh row.
-- Reactivation-in-place stays reserved for non-portal-terminal rows (e.g., `Rescheduled`, plain `No Show`) where `was_ever_confirmed = false`, matching today's behavior for those cases.
+DROP INDEX IF EXISTS public.unique_appointment_ghl_datetime_active;
 
-Net effect: a Cancelled/OON/DNC row can never silently swallow a subsequent GHL booking — the new event always produces a new pending row visible in the Review Queue.
+CREATE UNIQUE INDEX unique_appointment_ghl_datetime_active
+ON public.all_appointments (ghl_id, date_of_appointment, requested_time)
+WHERE ghl_id IS NOT NULL
+  AND date_of_appointment IS NOT NULL
+  AND requested_time IS NOT NULL
+  AND COALESCE(is_superseded, false) = false
+  AND (status IS NULL OR LOWER(TRIM(status)) NOT IN (
+    'cancelled','canceled','no show','noshow','no-show',
+    'rescheduled','do not call','donotcall','oon','welcome call'
+  ));
+```
 
-### 3. Add observability
+### 3. Re-run backfill for Jill
 
-At the top of `findExistingAppointment`, when we detect "portal-terminal row exists for same contact+project but incoming `ghl_appointment_id` differs," emit `console.log('[REBOOKING NEW ROW]', ...)` with contact ID, both appointment IDs, and existing status. Durable trail if this recurs.
+Call `backfill-ghl-appointment` again with `{ projectName: "Apex Vascular", contactIds: ["foSMURdTUCSZoXbpeuAR"] }`. The confirmed event `PLcSM41LaDpyvm8Pkzzd` should now insert cleanly as a pending Review Queue row.
 
 ### 4. Verify
 
-- Re-check `all_appointments` for `ghl_id = 'foSMURdTUCSZoXbpeuAR'` → expect 2 rows (Cancelled + new pending Confirmed).
-- Open Apex Vascular → Review Queue → the confirmed 7/9 appt appears as pending.
-- Deno test on `findExistingAppointment` covering the "portal-terminal + different appt_id" path.
+- `SELECT` on `all_appointments` for `ghl_id='foSMURdTUCSZoXbpeuAR'` → expect 2 rows (Cancelled + new pending Confirmed).
+- Open Apex Vascular → Review Queue → confirmed appt shows as pending.
 
 ### 5. Memory update
 
-Append to `mem://integrations/ghl-webhook-sync-logic-v3`: "Portal-only terminal rows (Cancelled/OON/DNC) never block or absorb a subsequent GHL booking with a different `ghl_appointment_id` — the handler always creates a fresh pending row so it lands in the Review Queue."
+Add to `mem://data-integrity/appointment-uniqueness`: "Unique-slot enforcement uses a partial index scoped to active, non-superseded rows so cancelled/terminal history never blocks a rebooking."
+
+## Not doing (and why)
+
+- **Not touching `findExistingAppointment` reactivation logic.** The earlier hypothesis about `was_ever_confirmed=true` blocking reactivation was wrong. That path was actually returning `null` correctly; the DB constraint was the real gate. Changing reactivation now would add risk with no benefit.
