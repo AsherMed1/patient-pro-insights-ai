@@ -1,58 +1,50 @@
-# Why the service filter under-counts
+# Fix: Service filter double-counts when calendar and parser disagree
 
-The Service dropdown in `AllAppointmentsManager.tsx` (lines ~285, ~426, ~575, ~1570) filters on:
+## What's actually happening
+
+Lorenda Hill's row has:
+- `calendar_name` = "Request your GAE Consultation at Macon, GA"
+- `parsed_pathology_info.procedure` = **GAE** (derived from calendar name)
+- `parsed_pathology_info.procedure_type` = **PFE** (what the AI parser concluded from the intake notes)
+
+The badge in the UI reads `procedure_type`, so she correctly displays as **PFE**. But after my last fix the Service filter now matches on calendar_name OR procedure OR procedure_type, so she matches BOTH the GAE filter (via calendar/procedure) AND the PFE filter (via procedure_type). That's why GAE went from 23 → 24 and totals no longer reconcile (24 + 6 = 30, but All Services = 29 because she's a single distinct row).
+
+Same class of bug will hit any row where the calendar says one procedure but the parser overrode it based on the actual pathology.
+
+## Fix — one source of truth: `procedure_type`
+
+`procedure_type` is what the badge, the patient card, and every downstream summary already display. The Service filter must use the same field so filter results match what the user sees on screen.
+
+### `src/components/AllAppointmentsManager.tsx`
+
+Update all four Service filter branches (count query ~L285, appointments query ~L426, export query ~L575, Excel export ~L1570) so each service option resolves through `procedure_type` first, with a fallback ONLY when `procedure_type` is null:
 
 ```
-calendar_name ILIKE %X% OR parsed_pathology_info->>'procedure' = X
+parsed_pathology_info->>procedure_type.eq.<SERVICE>,
+and(parsed_pathology_info->>procedure_type.is.null,
+    or(calendar_name.ilike.%<SERVICE>%,
+       parsed_pathology_info->>procedure.eq.<SERVICE>))
 ```
 
-But the parser stores the procedure in two different keys depending on the code path:
+Net effect:
+- If the parser assigned a `procedure_type`, that value alone decides which Service bucket the row belongs to.
+- If the parser never ran / never produced one, we fall back to calendar_name + legacy `procedure` so unparsed rows still bucket somewhere.
+- No row can appear in two Service buckets.
 
-- `parsed_pathology_info.procedure` — set by the older intake parser
-- `parsed_pathology_info.procedure_type` — set by `bulk-parse-all-intake-notes` and newer parsers (this is what the UI badges read)
+Keep the special GAE ↔ "In-person" mapping for Ally Vascular, but apply the same "procedure_type wins, fallback only when null" pattern inside that branch too.
 
-For Premier Vascular, June 1–30, the actual distribution is:
+### Verification
 
-- **23** rows with `procedure_type = 'GAE'` (that's what you see in the list)
-- **6** rows with `procedure_type = 'PFE'` (you likely read the "P" badge as PAE — it's PFE)
-- **0** rows with `procedure_type = 'UFE'` or `'PAE'`
+Re-run Premier Vascular, Created Date Jun 1–30:
+- All Services = 29
+- GAE = 23 (Lorenda drops out)
+- PFE = 6 (Lorenda stays here, matching her badge)
+- UFE = 0
+- 23 + 6 + 0 = 29 ✅
 
-Total 29. When filtering by "GAE", only 7 rows have both `procedure = 'GAE'` OR a `GAE` calendar name, so the other 16 GAE rows disappear. Same for PFE (3 shown out of 6). That's the whole mismatch — no data is missing, the filter just checks the wrong JSON key.
+Also spot-check that unparsed rows (older data with no `procedure_type`) still show up under the calendar-derived service — that's the fallback branch's job.
 
-# Plan
+## Not in scope
 
-## 1. Fix the Service filter to check both JSON keys
-
-In `src/components/AllAppointmentsManager.tsx`, update all four service-filter `.or(...)` clauses to also match `parsed_pathology_info->>'procedure_type'`:
-
-Before:
-```
-calendar_name.ilike.%X%,parsed_pathology_info->>procedure.eq.X
-```
-
-After:
-```
-calendar_name.ilike.%X%,parsed_pathology_info->>procedure.eq.X,parsed_pathology_info->>procedure_type.eq.X
-```
-
-Apply to the four locations: count query (~line 285), list query (~line 426), export query (~line 575), and Excel export (~line 1570). Keep the special GAE branch (`In-person`) and add `procedure_type.eq.GAE` to it as well.
-
-## 2. Verify
-
-After the fix, re-run Premier Vascular, Created Date June 1–30:
-
-- All Services: 29
-- GAE: 23
-- PFE: 6
-- UFE: 0
-- Sum: 29 ✓
-
-## 3. (Optional) Backfill for consistency
-
-Longer-term, migrate `procedure_type` values into `procedure` (or vice versa) so both keys always agree. Not required for this fix — the OR handles it either way — but useful to prevent future divergence. I'll skip this unless you want it.
-
-# Technical details
-
-- Files changed: `src/components/AllAppointmentsManager.tsx` only.
-- No schema changes, no edge function work, no backfill required for the fix itself.
-- Root cause is purely the query key mismatch, not missing parsed data.
+- No schema change, no backfill, no edge function change.
+- Not touching the parser's rules for when to override the calendar — the parser is correct to say Lorenda is PFE based on her intake notes; the filter just needs to agree with the badge.
