@@ -2064,14 +2064,8 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
       continue
     }
 
-    const preview = trimmed.length > 120 ? trimmed.slice(0, 120) + '…' : trimmed
-    await supabase.from('appointment_notes').insert({
-      appointment_id: row.id,
-      note_text: `Medical Notes updated from GHL: ${preview}`,
-      created_by: 'GoHighLevel',
-    }).then(({ error }: any) => {
-      if (error) console.error(`[${requestId}] [notes-sync] audit note insert failed for ${row.id}:`, error)
-    })
+    // Intentionally do NOT insert an internal appointment_notes row here.
+    // Notes-only sync updates ONLY parsed_medical_info.notes (Medical Information → Notes).
 
     updated++
   }
