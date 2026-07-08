@@ -1,50 +1,24 @@
+## Issue
 
-## What's happening
+Lynda Jones (Ozark Regional Vein and Artery Center, appointment `481efb46`) has a full 2,046-char `patient_intake_notes` blob synced from GHL — including insurance ("Self-pay/Cash", Plan/Group/ID = "Self Pay"), PAD pathology answers, contact info, and DOB — but every field in `parsed_insurance_info`, `parsed_medical_info`, `parsed_pathology_info`, `parsed_contact_info`, `parsed_demographics` came back null. `parsing_completed_at` is set (Jul 2 15:17:51), so the AI parser ran but returned an empty payload — likely a transient OpenAI response on this one record.
 
-The screenshot is from the **Patient Intake Notes** panel inside the appointment card (`src/components/appointments/AppointmentCard.tsx`, lines 1918-1950). That panel renders `appointment.patient_intake_notes` as raw text with `whitespace-pre-wrap`.
-
-GHL intake for these contacts contains **two overlapping fields**:
-
-- `Primary Care Doctor's Name: Patricia E. Weaver, NP`
-- `Primary Care Doctor's Name and Phone: PCP: Patricia E. Weaver, NP  8434792341`
-
-Because we dump the notes verbatim, the doctor name shows twice and the phone is glued onto the second label instead of standing on its own. The user wants the phone visually separated.
-
-We already extract `pcp_name` and `pcp_phone` cleanly into `parsed_medical_info` (shown at the top of the intake panel via `ParsedIntakeInfo.tsx`), so this is purely a **display cleanup** on the raw notes block. No parser, webhook, or DB change.
+Nothing is missing in GHL and nothing is wrong with the sync — this is a one-off failed AI parse.
 
 ## Fix
 
-Extend the existing text sanitizer used before rendering `patient_intake_notes` (`stripAIPrompt` in `AppointmentCard.tsx`) — or add a small sibling helper `normalizePcpBlock` — that:
+Re-run the parser for this single appointment via the existing `reparse-specific-appointments` edge function.
 
-1. Finds any `Primary Care Doctor's Name and Phone:` line (curly + straight apostrophe safe, case-insensitive).
-2. Splits its value into a name portion and a phone portion:
-   - Strip a leading `PCP:` prefix.
-   - Extract the last phone-like token: `/(\+?\d[\d\s().-]{7,}\d)\s*$/`.
-   - Name = value with that phone stripped and trimmed of trailing punctuation.
-3. Replaces the single combined line with two clean lines:
-   ```
-   Primary Care Doctor's Name: Patricia E. Weaver, NP
-   Primary Care Doctor's Phone: 8434792341
-   ```
-4. If a plain `Primary Care Doctor's Name:` line already exists earlier in the notes with the same name (case-insensitive, punctuation-insensitive), drop the duplicated name line produced in step 3 and keep only the `Primary Care Doctor's Phone:` line so the name isn't shown twice.
-5. If no phone is found in the combined line, leave the original line untouched (safe no-op).
+Steps:
+1. Invoke `reparse-specific-appointments` with `appointment_ids: ["481efb46-d87b-46fc-98d8-25d525a98b21"]`. That function already:
+   - Re-fetches fresh GHL contact data (no-op here since notes are already complete)
+   - Resets `parsing_completed_at = null`
+   - Calls `auto-parse-intake-notes` to repopulate the `parsed_*` JSONB fields
+2. Verify the appointment row: `parsed_insurance_info.insurance_provider` = "Self-pay/Cash", plan/group/id = "Self Pay", `parsed_medical_info.pcp_name` = "None", pathology PAD fields populated.
+3. Confirm the Patient Pro Insights panel now shows Insurance and Intake sections filled in.
 
-## Where the change lives
-
-- `src/components/appointments/AppointmentCard.tsx`
-  - Add helper `normalizePcpBlock(notes: string): string` next to `stripAIPrompt`.
-  - Update line 1945 render to `{normalizePcpBlock(stripAIPrompt(appointment.patient_intake_notes))}`.
-
-No other components render `patient_intake_notes` raw in a way the user sees this label pattern (verified via `rg`), so the fix is scoped to that one call site.
+No code changes, no schema changes — just triggering the existing reparse pipeline for this one appointment.
 
 ## Out of scope
 
-- No changes to `parsed_medical_info` writes, no migrations, no changes to `ParsedIntakeInfo.tsx` (its `PCP Name` / `PCP Phone` rows are already separated and correct).
-- No change to GHL intake templates — we treat GHL data as-is and sanitize on display.
-
-## Verification
-
-1. Open an appointment whose `patient_intake_notes` contains both `Primary Care Doctor's Name:` and `Primary Care Doctor's Name and Phone:` lines (e.g., the Patricia E. Weaver record in the screenshot).
-2. Expand "Patient Intake Notes" and confirm the combined line is replaced with a standalone `Primary Care Doctor's Phone: 8434792341` line and no duplicate name.
-3. Open an appointment whose notes only contain the combined line (no separate name line) and confirm both name and phone appear on their own lines.
-4. Open an appointment with neither field and confirm the notes render unchanged.
+- No change to parser prompt or `auto-parse-intake-notes` logic (single-record failure, not systemic).
+- No backfill sweep for other Ozark leads unless you want one — I can add a follow-up to scan all Ozark appointments with non-empty notes but empty `parsed_insurance_info` and reparse them in a batch.
