@@ -1811,20 +1811,23 @@ async function enrichAppointmentWithGHLData(
       gender: contact.gender || null
     }
     
-    // Update appointment with enriched notes AND parsed fields
+    // Update appointment with enriched notes AND parsed fields.
+    // Only write dob / parsed_demographics when GHL actually returned a DOB —
+    // otherwise a subsequent enrichment could blank a previously-known DOB.
+    const enrichmentUpdate: Record<string, unknown> = {
+      patient_intake_notes: updatedNotes,
+      parsed_contact_info: parsedContactInfo,
+      ...(contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: parsedDemographics } : {}),
+      ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
+      ...(contact.email ? { lead_email: contact.email } : {}),
+      ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
+      updated_at: new Date().toISOString(),
+    }
     const { error: updateError } = await supabase
       .from('all_appointments')
-      .update({ 
-        patient_intake_notes: updatedNotes,
-        parsed_contact_info: parsedContactInfo,
-        parsed_demographics: parsedDemographics,
-        dob: contact.dateOfBirth || null,
-        ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
-        ...(contact.email ? { lead_email: contact.email } : {}),
-        ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
-        updated_at: new Date().toISOString()
-      })
+      .update(enrichmentUpdate)
       .eq('id', appointmentId)
+
     
     if (updateError) {
       console.error(`[${requestId}] Failed to update appointment with enriched notes:`, updateError)
