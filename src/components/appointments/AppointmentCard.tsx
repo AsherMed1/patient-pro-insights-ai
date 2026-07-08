@@ -89,6 +89,42 @@ const stripAIPrompt = (notes: string): string => {
   return notes.substring(0, idx).trimEnd();
 };
 
+// Splits the combined "Primary Care Doctor's Name and Phone: ..." line into
+// separate Name and Phone lines. Curly + straight apostrophe safe.
+const normalizePcpBlock = (notes: string): string => {
+  if (!notes) return notes;
+  const combinedRe = /^([ \t]*)Primary Care Doctor[\u2019']s Name and Phone[ \t]*:[ \t]*(.+)$/im;
+  const match = notes.match(combinedRe);
+  if (!match) return notes;
+
+  const indent = match[1] || '';
+  let value = match[2].trim();
+  // Strip leading "PCP:" prefix if present
+  value = value.replace(/^PCP[ \t]*:[ \t]*/i, '').trim();
+
+  // Extract trailing phone-like token
+  const phoneRe = /(\+?\d[\d\s().\-]{7,}\d)\s*$/;
+  const phoneMatch = value.match(phoneRe);
+  if (!phoneMatch) return notes; // safe no-op
+
+  const phone = phoneMatch[1].trim();
+  let name = value.slice(0, phoneMatch.index).replace(/[\s,;:\-|]+$/, '').trim();
+
+  // Check for a pre-existing "Primary Care Doctor's Name:" line with the same name
+  const nameLineRe = /^[ \t]*Primary Care Doctor[\u2019']s Name[ \t]*:[ \t]*(.+)$/im;
+  const existingNameMatch = notes.match(nameLineRe);
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const nameAlreadyPresent =
+    !!existingNameMatch && !!name && normalize(existingNameMatch[1]) === normalize(name);
+
+  const replacement =
+    nameAlreadyPresent || !name
+      ? `${indent}Primary Care Doctor\u2019s Phone: ${phone}`
+      : `${indent}Primary Care Doctor\u2019s Name: ${name}\n${indent}Primary Care Doctor\u2019s Phone: ${phone}`;
+
+  return notes.replace(combinedRe, replacement);
+};
+
 const AppointmentCard = ({
   appointment,
   projectFilter,
@@ -1942,7 +1978,7 @@ const AppointmentCard = ({
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
                 <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 rounded border">
-                  {stripAIPrompt(appointment.patient_intake_notes)}
+                  {normalizePcpBlock(stripAIPrompt(appointment.patient_intake_notes))}
                 </div>
               </CollapsibleContent>
             </Collapsible>
