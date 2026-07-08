@@ -1163,9 +1163,10 @@ function getUpdateableFields(
 
   
   // Always accept calendar and location updates
-  if (webhookData.calendar_name) {
+  if (webhookData.calendar_name && webhookData.calendar_name !== 'Unknown') {
     updateFields.calendar_name = webhookData.calendar_name
   }
+
   if (webhookData.ghl_location_id) {
     updateFields.ghl_location_id = webhookData.ghl_location_id
   }
