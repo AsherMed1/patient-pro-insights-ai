@@ -1978,7 +1978,7 @@ const AppointmentCard = ({
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
                 <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 rounded border">
-                  {stripAIPrompt(appointment.patient_intake_notes)}
+                  {normalizePcpBlock(stripAIPrompt(appointment.patient_intake_notes))}
                 </div>
               </CollapsibleContent>
             </Collapsible>
