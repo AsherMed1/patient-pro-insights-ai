@@ -204,6 +204,24 @@ serve(async (req) => {
     const isUpdate = !!existingAppointment
     console.log(`[${requestId}] Operation type: ${isUpdate ? 'UPDATE' : 'CREATE'}`)
 
+    // A contact/lead workflow without a real appointment ID/date is only allowed
+    // to create rows for approved unscheduled-capture projects. Other projects
+    // must keep using appointment webhooks so contact updates cannot create noise.
+    if (!isUpdate && !webhookData.date_of_appointment && !webhookData.ghl_appointment_id && !isUnscheduledCaptureProject(webhookData.project_name)) {
+      console.log(`[${requestId}] ⏭️ Skipping lead-only payload for non-unscheduled project: ${webhookData.project_name}`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          operation: 'skipped',
+          reason: 'lead_only_payload_not_allowed_for_project',
+          project_name: webhookData.project_name,
+          lead_name: webhookData.lead_name,
+          requestId,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Defensive guard: never CREATE a new appointment from a contact-notes-only payload.
     // Belt-and-suspenders on top of the early tryContactNotesSync intercept — if a notes
     // workflow payload ever slips past the intercept (e.g. added an extra field that trips
@@ -919,7 +937,7 @@ function isLeadWorkflowCandidate(payload: any): boolean {
     resolveContactId(payload)
   )
 
-  return hasIdentity && (hasSubstantiveLeadCustomFields(payload) || !!resolveLeadName(payload))
+  return hasIdentity && hasSubstantiveLeadCustomFields(payload)
 }
 
 // Format custom fields into structured patient intake notes
