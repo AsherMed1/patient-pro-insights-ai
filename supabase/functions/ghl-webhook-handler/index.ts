@@ -36,6 +36,22 @@ const sanitizeId = (v: any): string | null => {
   return s
 }
 
+const UNSCHEDULED_CAPTURE_PROJECTS = new Set([
+  'premier vascular',
+  'ecco medical',
+  'davis vein & vascular',
+  'horizon vascular specialists',
+])
+
+function isUnscheduledCaptureProject(projectName: any): boolean {
+  return UNSCHEDULED_CAPTURE_PROJECTS.has(normalizeProjectName(String(projectName || '')).toLowerCase())
+}
+
+function isPlaceholderProjectName(projectName: any): boolean {
+  const s = String(projectName || '').trim().toLowerCase()
+  return !s || s === 'unknown' || s === 'null' || s === 'undefined'
+}
+
 serve(async (req) => {
   const requestId = generateRequestId()
   
@@ -128,8 +144,19 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Extracted webhook data:`, webhookData)
 
+    // Lead-only GHL workflows may omit location.name/calendar and only send location.id.
+    // Resolve that ID to the canonical project before validation/project creation so we
+    // never create an orphan "Unknown" project for Horizon/ECCO/Premier/Davis leads.
+    if (isPlaceholderProjectName(webhookData.project_name) && webhookData.ghl_location_id) {
+      const mappedProjectName = await resolveProjectNameByLocationId(supabase, webhookData.ghl_location_id, requestId)
+      if (mappedProjectName) {
+        console.log(`[${requestId}] Resolved project from location ID ${webhookData.ghl_location_id}: ${mappedProjectName}`)
+        webhookData.project_name = mappedProjectName
+      }
+    }
+
     // Validate required fields
-    if (!webhookData.lead_name || !webhookData.project_name) {
+    if (!webhookData.lead_name || isPlaceholderProjectName(webhookData.project_name)) {
       return new Response(
         JSON.stringify({ 
           error: 'Missing required fields', 
@@ -657,8 +684,8 @@ function extractWebhookData(payload: any, requestId: string) {
     return extractStandardEventFormat(payload)
   }
   
-  // Workflow Webhook Format (flattened structure with calendar object)
-  if (payload.calendar || payload.contact_id || payload.first_name) {
+  // Workflow Webhook Format (flattened appointment or lead/contact workflow structure)
+  if (payload.calendar || payload.contact_id || payload.contactId || payload.first_name || payload.firstName || payload.full_name || payload.fullName || payload.name || payload.contact || isLeadWorkflowCandidate(payload)) {
     console.log(`[${requestId}] Detected: Workflow Webhook`)
     return extractWorkflowFormat(payload)
   }
@@ -758,41 +785,141 @@ function extractWorkflowFormat(payload: any) {
     }
   }
   
-  // Format patient intake notes from customFields object (NOT root-level custom_ fields)
-  const customFieldsObj = payload.customFields || {}
-  const isMeaningful = (v: any) => {
-    if (v === null || v === undefined) return false
-    const s = String(v).trim().toLowerCase()
-    return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== 'na' && s !== 'none'
-  }
-  const customFields = Object.entries(customFieldsObj)
-    .filter(([_, value]) => isMeaningful(value))
-    .map(([key, value]) => ({ key, value }))
+  // Format patient intake notes from workflow/contact custom fields. GHL may send
+  // these as either an object or an array depending on workflow/subaccount setup.
+  const rawCustomFields = resolveRawCustomFields(payload)
+  const customFields = normalizeCustomFieldEntries(rawCustomFields)
   const patientIntakeNotes = formatCustomFieldsToNotes(customFields)
   
   // Extract project name - prioritize location name (sub-account) over calendar name
   const calendarName = calendar.calendarName || calendar.name || 'Unknown'
-  const locationName = payload.location?.name
-  const projectName = locationName || extractProjectFromCalendar(calendarName)
+  const payloadProjectName = resolveProjectNameFromPayload(payload)
+  const projectName = payloadProjectName || extractProjectFromCalendar(calendarName)
   
   return {
     ghl_appointment_id: sanitizeId(calendar.appointmentId || payload.appointment_id),
-    ghl_id: sanitizeId(payload.contact_id || payload.contactId),
-    ghl_location_id: sanitizeId(payload.location?.id),
+    ghl_id: resolveContactId(payload),
+    ghl_location_id: resolveLocationId(payload),
     status: normalizeStatus(calendar.status || payload.status),
     date_of_appointment: dateOfAppointment,
     requested_time: requestedTime,
     date_appointment_created: calendar.dateAdded || payload.date_added || new Date().toISOString(),
     patient_intake_notes: patientIntakeNotes || calendar.notes || payload.notes,
-    lead_name: payload.full_name || `${payload.first_name || ''} ${payload.last_name || ''}`.trim(),
-    lead_phone_number: payload.phone || payload.phone_number,
-    lead_email: payload.email,
-    dob: normalizeDob(payload.date_of_birth || payload.dob),
+    lead_name: resolveLeadName(payload),
+    lead_phone_number: resolveFirstMeaningfulValue(payload, [
+      ['phone'], ['phone_number'], ['phoneNumber'], ['contact', 'phone'], ['customData', 'phone'], ['custom_data', 'phone']
+    ]),
+    lead_email: resolveFirstMeaningfulValue(payload, [
+      ['email'], ['contact', 'email'], ['customData', 'email'], ['custom_data', 'email']
+    ]),
+    dob: normalizeDob(resolveFirstMeaningfulValue(payload, [
+      ['date_of_birth'], ['dateOfBirth'], ['dob'], ['contact', 'dateOfBirth'], ['contact', 'dob'], ['customData', 'dob'], ['custom_data', 'dob']
+    ])),
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
-    insurance_id_link: extractInsuranceCardUrl(payload.customFields || customFieldsObj),
-    insurance_intake_source: extractInsuranceIntakeSource(payload.customFields || customFieldsObj),
+    insurance_id_link: extractInsuranceCardUrl(rawCustomFields),
+    insurance_intake_source: extractInsuranceIntakeSource(rawCustomFields),
   }
+}
+
+function resolveRawCustomFields(payload: any): any {
+  return resolveNestedValue(payload, [
+    ['customFields'],
+    ['custom_fields'],
+    ['contact', 'customFields'],
+    ['contact', 'custom_fields'],
+    ['customData', 'customFields'],
+    ['customData', 'custom_fields'],
+    ['custom_data', 'customFields'],
+    ['custom_data', 'custom_fields'],
+  ]) || {}
+}
+
+function normalizeCustomFieldEntries(customFields: any): Array<{ key: string; value: any }> {
+  const isMeaningful = (v: any) => {
+    if (v === null || v === undefined) return false
+    const s = String(Array.isArray(v) ? v.join(', ') : v).trim().toLowerCase()
+    return s !== '' && s !== 'null' && s !== 'undefined' && s !== 'n/a' && s !== 'na' && s !== 'none'
+  }
+
+  if (!customFields) return []
+
+  if (Array.isArray(customFields)) {
+    return customFields
+      .map((field: any) => ({
+        key: String(field?.key || field?.name || field?.fieldKey || field?.label || field?.id || '').trim(),
+        value: field?.value ?? field?.field_value ?? field?.fieldValue,
+      }))
+      .filter((field) => field.key && isMeaningful(field.value))
+  }
+
+  if (typeof customFields === 'object') {
+    return Object.entries(customFields)
+      .filter(([_, value]) => isMeaningful(value))
+      .map(([key, value]) => ({ key, value }))
+  }
+
+  return []
+}
+
+function resolveFirstMeaningfulValue(payload: any, paths: string[][]): string | null {
+  const raw = resolveNestedValue(payload, paths)
+  if (raw === null || raw === undefined) return null
+  const value = String(raw).trim()
+  if (!value || value.toLowerCase() === 'null' || value.toLowerCase() === 'undefined') return null
+  return value
+}
+
+function resolveLeadName(payload: any): string {
+  const fullName = resolveFirstMeaningfulValue(payload, [
+    ['full_name'], ['fullName'], ['name'], ['contact', 'name'], ['customData', 'full_name'], ['customData', 'fullName'], ['custom_data', 'full_name'], ['custom_data', 'fullName']
+  ])
+  if (fullName) return fullName
+
+  const firstName = resolveFirstMeaningfulValue(payload, [
+    ['first_name'], ['firstName'], ['contact', 'firstName'], ['customData', 'first_name'], ['customData', 'firstName'], ['custom_data', 'first_name'], ['custom_data', 'firstName']
+  ]) || ''
+  const lastName = resolveFirstMeaningfulValue(payload, [
+    ['last_name'], ['lastName'], ['contact', 'lastName'], ['customData', 'last_name'], ['customData', 'lastName'], ['custom_data', 'last_name'], ['custom_data', 'lastName']
+  ]) || ''
+  return `${firstName} ${lastName}`.trim()
+}
+
+function resolveLocationId(payload: any): string | null {
+  return sanitizeId(resolveNestedValue(payload, [
+    ['location', 'id'],
+    ['locationId'],
+    ['location_id'],
+    ['customData', 'locationId'],
+    ['customData', 'location_id'],
+    ['custom_data', 'locationId'],
+    ['custom_data', 'location_id'],
+  ]))
+}
+
+function hasSubstantiveLeadCustomFields(payload: any): boolean {
+  return normalizeCustomFieldEntries(resolveRawCustomFields(payload)).some((field) => {
+    const key = field.key.toLowerCase()
+    if (NOTES_FIELD_LABEL_MATCH.test(key)) return false
+    return !['sync_type', 'synctype', 'contact_id', 'contactid', 'notes_value', 'notesvalue'].includes(key.replace(/[\s_-]+/g, ''))
+  })
+}
+
+function isLeadWorkflowCandidate(payload: any): boolean {
+  if (!payload || typeof payload !== 'object') return false
+  if (resolveSyncType(payload) === 'contact_notes_only') return false
+  if (payload.appointment || (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment'))) return false
+
+  const hasProjectContext = !!(resolveProjectNameFromPayload(payload) || resolveLocationId(payload) || payload.calendar?.name || payload.calendar?.calendarName)
+  if (!hasProjectContext) return false
+
+  const hasIdentity = !!(
+    resolveLeadName(payload) ||
+    resolveFirstMeaningfulValue(payload, [['email'], ['contact', 'email'], ['phone'], ['phone_number'], ['contact', 'phone']]) ||
+    resolveContactId(payload)
+  )
+
+  return hasIdentity && (hasSubstantiveLeadCustomFields(payload) || !!resolveLeadName(payload))
 }
 
 // Format custom fields into structured patient intake notes
@@ -1039,9 +1166,8 @@ function getUpdateableFields(
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
     // Unscheduled-capture projects: capture lead without booking — store time preference only.
-    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular', 'horizon vascular specialists']);
-    const isPremierVascular = UNSCHEDULED_PROJECTS.has((webhookData.project_name || '').trim().toLowerCase());
-    const timePreference = isPremierVascular
+    const isUnscheduledProject = isUnscheduledCaptureProject(webhookData.project_name);
+    const timePreference = isUnscheduledProject
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
 
@@ -1058,20 +1184,20 @@ function getUpdateableFields(
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
         lead_name: webhookData.lead_name,
         project_name: webhookData.project_name,
-        date_of_appointment: isPremierVascular ? null : webhookData.date_of_appointment,
-        requested_time: isPremierVascular ? null : webhookData.requested_time,
+        date_of_appointment: isUnscheduledProject ? null : webhookData.date_of_appointment,
+        requested_time: isUnscheduledProject ? null : webhookData.requested_time,
         lead_email: webhookData.lead_email,
         lead_phone_number: webhookData.lead_phone_number,
         calendar_name: webhookData.calendar_name,
         ghl_id: webhookData.ghl_id,
-        ghl_appointment_id: isPremierVascular ? null : webhookData.ghl_appointment_id,
+        ghl_appointment_id: isUnscheduledProject ? null : webhookData.ghl_appointment_id,
         ghl_location_id: webhookData.ghl_location_id,
         status: 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
         was_ever_confirmed: true,
         time_preference: timePreference,
-        is_unscheduled: isPremierVascular,
+        is_unscheduled: isUnscheduledProject,
         ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
       }
     }
@@ -1087,9 +1213,8 @@ function getUpdateableFields(
   // store a booked date/time — only a time-of-day preference. If a later GHL webhook tries to
   // attach an actual calendar slot, force the row back to unscheduled state instead of accepting
   // date_of_appointment / requested_time. See mem://projects/premier-vascular/unscheduled-capture.
-  const UNSCHEDULED_PROJECTS_UPDATE = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular', 'horizon vascular specialists'])
   const projectNameForUnscheduled = (webhookData.project_name || existingAppointment.project_name || '').trim().toLowerCase()
-  const isUnscheduledProject = UNSCHEDULED_PROJECTS_UPDATE.has(projectNameForUnscheduled)
+  const isUnscheduledProject = isUnscheduledCaptureProject(projectNameForUnscheduled)
 
   if (isUnscheduledProject) {
     updateFields.date_of_appointment = null
@@ -1339,6 +1464,23 @@ function normalizeDob(dob: any): string | null {
 // Normalize project name - collapse multiple spaces into single space
 function normalizeProjectName(name: string): string {
   return name.replace(/\s+/g, ' ').trim()
+}
+
+async function resolveProjectNameByLocationId(supabase: any, locationId: string | null, requestId: string): Promise<string | null> {
+  if (!locationId) return null
+  const { data, error } = await supabase
+    .from('projects')
+    .select('project_name')
+    .eq('ghl_location_id', locationId)
+    .eq('active', true)
+    .limit(1)
+
+  if (error) {
+    console.warn(`[${requestId}] Failed to resolve project from location ID ${locationId}:`, error)
+    return null
+  }
+
+  return data?.[0]?.project_name || null
 }
 
 // Ensure project exists, create if not (with name normalization for matching)
@@ -2119,6 +2261,7 @@ function resolveNotesValueFromCustomFields(cf: any): string | null {
 function isLikelyNotesOnlyPayload(payload: any): boolean {
   if (!payload || typeof payload !== 'object') return false
   if (resolveSyncType(payload) === 'contact_notes_only') return true
+  if (isLeadWorkflowCandidate(payload)) return false
 
   const contactId = resolveContactId(payload)
   if (!contactId) return false
@@ -2168,6 +2311,7 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
     if (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment')) return null
     if (payload.appointmentStatus) return null
     if (payload.status) return null
+    if (isLeadWorkflowCandidate(payload)) return null
   }
 
   // Must be either explicit Custom Data sync OR carry the Notes custom field
