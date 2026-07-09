@@ -144,6 +144,22 @@ serve(async (req) => {
       )
     }
 
+    // Belt-and-suspenders: if a notes-only payload uses an unexpected shape and
+    // somehow reaches extraction, stop before project creation / appointment upsert.
+    if (isLikelyNotesOnlyPayload(payload)) {
+      console.warn(`[${requestId}] ⛔ Refusing to continue appointment logic for notes-only payload`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          operation: 'skipped',
+          reason: 'notes_sync_no_matching_appointment',
+          contact_id: resolveContactId(payload),
+          requestId
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Auto-create project if it doesn't exist (returns canonical project name)
     const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId)
     webhookData.project_name = canonicalProjectName // Use canonical name for all operations
@@ -172,7 +188,7 @@ serve(async (req) => {
           success: true,
           operation: 'skipped',
           reason: 'notes_sync_no_matching_appointment',
-          contact_id: sanitizeId(payload.contact_id || payload.contactId) || null,
+          contact_id: resolveContactId(payload),
           requestId
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
