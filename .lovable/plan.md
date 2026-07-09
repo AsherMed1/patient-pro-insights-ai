@@ -1,5 +1,4 @@
-Delete two duplicate appointment records from `all_appointments`:
-- Angela Peck — portal ID `05f61473`
-- Lisa Greenlee — portal ID `f9d28e40`
+Delete duplicate appointment record from `all_appointments`:
+- Sherrida Griffin Rouser — portal ID `36d3cfcc`
 
-I'll verify each row (name + project) before deletion, then remove them.
+I'll verify the row before deletion.
