@@ -1999,6 +1999,21 @@ function resolveNotesValueFromCustomFields(cf: any): string | null {
     for (const [key, value] of Object.entries(cf)) {
       if (NOTES_FIELD_LABEL_MATCH.test(key) && value != null && String(value).trim() !== '') {
         return String(value)
+      }
+    }
+    return null
+  }
+  // Array shape: [{ key/name/id, value }]
+  if (Array.isArray(cf)) {
+    for (const item of cf) {
+      if (!item || typeof item !== 'object') continue
+      const label = String(item.name || item.key || item.fieldKey || item.label || '')
+      if (NOTES_FIELD_LABEL_MATCH.test(label) && item.value != null && String(item.value).trim() !== '') {
+        return String(item.value)
+      }
+    }
+  }
+  return null
 }
 
 // Returns true if the payload looks like a contact-notes-only sync payload —
@@ -2018,21 +2033,6 @@ function isLikelyNotesOnlyPayload(payload: any): boolean {
   if (hasAppointmentContext) return false
   const notesFromCf = resolveNotesValueFromCustomFields(payload.customFields)
   return notesFromCf !== null || payload.notes_value !== undefined
-}
-    }
-    return null
-  }
-  // Array shape: [{ key/name/id, value }]
-  if (Array.isArray(cf)) {
-    for (const item of cf) {
-      if (!item || typeof item !== 'object') continue
-      const label = String(item.name || item.key || item.fieldKey || item.label || '')
-      if (NOTES_FIELD_LABEL_MATCH.test(label) && item.value != null && String(item.value).trim() !== '') {
-        return String(item.value)
-      }
-    }
-  }
-  return null
 }
 
 async function tryContactNotesSync(payload: any, supabase: any, requestId: string): Promise<any | null> {
