@@ -161,6 +161,24 @@ serve(async (req) => {
     const isUpdate = !!existingAppointment
     console.log(`[${requestId}] Operation type: ${isUpdate ? 'UPDATE' : 'CREATE'}`)
 
+    // Defensive guard: never CREATE a new appointment from a contact-notes-only payload.
+    // Belt-and-suspenders on top of the early tryContactNotesSync intercept — if a notes
+    // workflow payload ever slips past the intercept (e.g. added an extra field that trips
+    // auto-detection), we still refuse to insert a brand-new row here.
+    if (!isUpdate && isLikelyNotesOnlyPayload(payload)) {
+      console.warn(`[${requestId}] ⛔ Refusing to CREATE appointment from notes-only payload (no existing match for contact)`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          operation: 'skipped',
+          reason: 'notes_sync_no_matching_appointment',
+          contact_id: sanitizeId(payload.contact_id || payload.contactId) || null,
+          requestId
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Skip creating NEW appointments with terminal statuses (cancelled, showed, no-show)
     // If appointment already exists, allow status updates as normal
     const terminalStatuses = ['cancelled', 'canceled', 'no show', 'noshow', 'no-show', 'showed', 'attended']
