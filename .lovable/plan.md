@@ -1,24 +1,46 @@
-## Issue
+## Goal
 
-Lynda Jones (Ozark Regional Vein and Artery Center, appointment `481efb46`) has a full 2,046-char `patient_intake_notes` blob synced from GHL — including insurance ("Self-pay/Cash", Plan/Group/ID = "Self Pay"), PAD pathology answers, contact info, and DOB — but every field in `parsed_insurance_info`, `parsed_medical_info`, `parsed_pathology_info`, `parsed_contact_info`, `parsed_demographics` came back null. `parsing_completed_at` is set (Jul 2 15:17:51), so the AI parser ran but returned an empty payload — likely a transient OpenAI response on this one record.
+Capture the new GHL intake question — "Which side is affected by the condition you are seeking treatment for?" (Left / Right / Both) — and surface it in the Medical Information card of every appointment, regardless of project or procedure type.
 
-Nothing is missing in GHL and nothing is wrong with the sync — this is a one-off failed AI parse.
+## Why current code misses it
 
-## Fix
+- The intake key on Johann's record is `GAE STEP 1 | Which side is affected by the condition you are seeking treatment for?: Both`. Its answer is `Both` (no "knee" in the value).
+- In `auto-parse-intake-notes/index.ts` the "affected" branch (line 1903) writes `affected_area = "Both"` — a nonsense value — and the knee-side branch (line 1918) only fires when the key contains `knee`. So `affected_knee` / `affected_area` stay null, and nothing is displayed.
+- The UI already has an `Affected Knee` row but it's gated to `procedure_type === 'GAE'` (line 1039), so even if we forced knee mapping it wouldn't cover PAE, UFE, HAE, PAD, Neuropathy, etc.
 
-Re-run the parser for this single appointment via the existing `reparse-specific-appointments` edge function.
+## Changes
 
-Steps:
-1. Invoke `reparse-specific-appointments` with `appointment_ids: ["481efb46-d87b-46fc-98d8-25d525a98b21"]`. That function already:
-   - Re-fetches fresh GHL contact data (no-op here since notes are already complete)
-   - Resets `parsing_completed_at = null`
-   - Calls `auto-parse-intake-notes` to repopulate the `parsed_*` JSONB fields
-2. Verify the appointment row: `parsed_insurance_info.insurance_provider` = "Self-pay/Cash", plan/group/id = "Self Pay", `parsed_medical_info.pcp_name` = "None", pathology PAD fields populated.
-3. Confirm the Patient Pro Insights panel now shows Insurance and Intake sections filled in.
+### 1. Parser — `supabase/functions/auto-parse-intake-notes/index.ts`
 
-No code changes, no schema changes — just triggering the existing reparse pipeline for this one appointment.
+- Add a new pathology field `affected_side: 'Left' | 'Right' | 'Both' | null` to the parsed pathology schema (initialised alongside `affected_area` / `affected_knee` in every result scaffold — ~lines 489, 884, 1716).
+- Add the field to the OpenAI JSON schema block (line ~2540) with description: `"'Left', 'Right', or 'Both' — extract from any 'Which side is affected...' question, applies to all procedures."`
+- In the GHL key/value loop, insert a new branch BEFORE the existing `key.includes('affected')` branch that matches keys containing `which side` OR (`side` AND `affected`). Normalise the answer to `Left` / `Right` / `Both` (bilateral → Both) and write to `pathology_info.affected_side`. Do NOT overwrite `affected_area` from this question.
+- Fix the existing "affected/area/location" branch (line 1903) so it skips values that are just `Left` / `Right` / `Both` / `Bilateral` (prevents the current bug where `affected_area` gets set to `"Both"`).
+- For GAE specifically, keep the existing `affected_knee` mirror so the current knee-only badge continues to work.
+
+### 2. UI — `src/components/appointments/ParsedIntakeInfo.tsx`
+
+- In the Medical Information card, add a new row rendered for **all** procedures whenever `parsedPathologyInfo.affected_side` is present:
+
+  ```
+  Affected Side:  [Left | Right | Both]  (badge, amber)
+  ```
+
+  Place it directly above the existing `Affected Knee` / `Affected Shoulder` rows (~line 1038) so it's the primary display; the GAE-only "Affected Knee" and FSE-only "Affected Shoulder" badges remain as procedure-specific detail.
+
+### 3. Backfill
+
+- Reparse the sample lead `b7483ab5-8973-4db8-b101-ce6c92c3d02f` (Test Johann Booked) via `reparse-specific-appointments` to verify `affected_side = 'Both'` populates and the badge renders.
+- No mass backfill required — future GHL webhooks will populate the field naturally; the same edge function auto-parses new records. If you want, I can add an optional one-time sweep that reparses appointments whose `patient_intake_notes` contain "which side is affected" but whose `parsed_pathology_info.affected_side` is null. (Say the word and I'll include it.)
+
+## Safety
+
+- Purely additive: new JSON field + new UI row. No existing field is renamed, removed, or repurposed.
+- The bug-fix to the `affected_area` branch only prevents nonsense values (`"Both"`, `"Left"`, `"Right"`, `"Bilateral"`) from being stored there — real anatomical values (`Uterus`, `Prostate`, `Achilles tendon`, `Knee`, etc.) are unaffected.
+- No DB migration, no schema change (JSONB), no changes to webhook routing, status logic, or the notes-sync branch.
+- Rollback = revert the two file edits.
 
 ## Out of scope
 
-- No change to parser prompt or `auto-parse-intake-notes` logic (single-record failure, not systemic).
-- No backfill sweep for other Ozark leads unless you want one — I can add a follow-up to scan all Ozark appointments with non-empty notes but empty `parsed_insurance_info` and reparse them in a batch.
+- No changes to Patient Intake Notes raw view, Insurance section, status routing, or GHL sync.
+- No new dashboard filters based on affected side (can be a follow-up if useful).

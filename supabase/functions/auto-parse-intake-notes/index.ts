@@ -488,6 +488,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       pain_level: null as string | null,
       affected_area: null as string | null,
       affected_knee: null as string | null,
+      affected_side: null as string | null,
       duration: null as string | null,
       previous_treatments: null as string | null,
       oa_tkr_diagnosed: null as string | null,
@@ -883,6 +884,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       result.pathology_info.primary_complaint = null;
       result.pathology_info.affected_area = null;
       result.pathology_info.affected_knee = null;
+      result.pathology_info.affected_side = null;
       result.pathology_info.previous_treatments = null;
       result.pathology_info.oa_tkr_diagnosed = null;
       result.pathology_info.imaging_done = null;
@@ -1714,7 +1716,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       symptoms: null as string | null, 
       pain_level: null as string | null, 
       affected_area: null as string | null,
-      affected_knee: null as string | null 
+      affected_knee: null as string | null,
+      affected_side: null as string | null 
     },
     medical_info: { 
       medications: null as string | null, 
@@ -1900,29 +1903,49 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       result.pathology_info.symptoms = value;
     } else if (key.includes('pain') && key.includes('level')) {
       result.pathology_info.pain_level = value;
-    } else if (key.includes('affected') || key.includes('area') || key.includes('location')) {
-      result.pathology_info.affected_area = value;
-      // Check for knee side in the value
-      const lowerValue = value.toLowerCase();
-      if (lowerValue.includes('knee')) {
-        if (lowerValue.includes('both') || lowerValue.includes('bilateral')) {
-          result.pathology_info.affected_knee = 'Both';
-        } else if (lowerValue.includes('left')) {
-          result.pathology_info.affected_knee = 'Left';
-        } else if (lowerValue.includes('right')) {
-          result.pathology_info.affected_knee = 'Right';
+    }
+    // Generic "Which side is affected..." question (applies to all procedures)
+    else if ((key.includes('which side') || (key.includes('side') && key.includes('affected'))) && !key.includes('knee') && !key.includes('shoulder')) {
+      const lv = value.toLowerCase();
+      let side: string | null = null;
+      if (lv.includes('both') || lv.includes('bilateral')) side = 'Both';
+      else if (lv.includes('left')) side = 'Left';
+      else if (lv.includes('right')) side = 'Right';
+      if (side) {
+        result.pathology_info.affected_side = side;
+        // Mirror to affected_knee for GAE so the existing knee badge still works
+        if ((result.pathology_info.procedure_type || '').toUpperCase() === 'GAE') {
+          result.pathology_info.affected_knee = side;
+        }
+      }
+    }
+    else if (key.includes('affected') || key.includes('area') || key.includes('location')) {
+      // Skip pure side answers so we don't pollute affected_area with 'Left'/'Right'/'Both'
+      const trimmed = value.trim();
+      if (!/^(left|right|both|bilateral)$/i.test(trimmed)) {
+        result.pathology_info.affected_area = value;
+        const lowerValue = value.toLowerCase();
+        if (lowerValue.includes('knee')) {
+          if (lowerValue.includes('both') || lowerValue.includes('bilateral')) {
+            result.pathology_info.affected_knee = 'Both';
+          } else if (lowerValue.includes('left')) {
+            result.pathology_info.affected_knee = 'Left';
+          } else if (lowerValue.includes('right')) {
+            result.pathology_info.affected_knee = 'Right';
+          }
         }
       }
     }
     // Specific knee side field
     else if (key.includes('knee') && (key.includes('which') || key.includes('affected') || key.includes('side'))) {
       const lowerValue = value.toLowerCase();
-      if (lowerValue.includes('both') || lowerValue.includes('bilateral')) {
-        result.pathology_info.affected_knee = 'Both';
-      } else if (lowerValue.includes('left')) {
-        result.pathology_info.affected_knee = 'Left';
-      } else if (lowerValue.includes('right')) {
-        result.pathology_info.affected_knee = 'Right';
+      let side: string | null = null;
+      if (lowerValue.includes('both') || lowerValue.includes('bilateral')) side = 'Both';
+      else if (lowerValue.includes('left')) side = 'Left';
+      else if (lowerValue.includes('right')) side = 'Right';
+      if (side) {
+        result.pathology_info.affected_knee = side;
+        if (!result.pathology_info.affected_side) result.pathology_info.affected_side = side;
       }
     }
     // Procedure/treatment preference fields (Vivid Vascular patterns)
@@ -2540,6 +2563,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "affected_area": "string or null",
     "pain_location": "string or null - Verbatim answer to 'Where is your pain located?' for ATE intakes (e.g., 'Middle of the Achilles tendon', 'Insertion', 'Mid-tendon').",
     "affected_knee": "string or null - Which knee is affected: 'Left', 'Right', or 'Both'. Extract from any mention of specific knee side, bilateral, or left/right knee references.",
+    "affected_side": "string or null - 'Left', 'Right', or 'Both'. Extract from any 'Which side is affected by the condition you are seeking treatment for?' question. Applies to all procedures (knees, shoulders, feet, etc.). Bilateral maps to 'Both'.",
     "duration": "string or null",
     "previous_treatments": "string or null",
     "oa_tkr_diagnosed": "string or null (YES/NO)",
