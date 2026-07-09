@@ -2188,16 +2188,17 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
     return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'empty' }
   }
 
-  // Find matching non-terminal, non-superseded appointments for this contact.
+  // Find matching non-terminal, non-superseded portal appointments for this contact.
   // If the workflow includes a project/location, scope updates to that project only;
   // notes-only sync must not update the same GHL contact ID in another client portal.
   const projectName = resolveProjectNameFromPayload(payload)
   let query = supabase
     .from('all_appointments')
-    .select('id, parsed_medical_info, status, is_superseded, project_name, lead_name')
+    .select('id, parsed_medical_info, status, review_status, is_superseded, project_name, lead_name')
     .eq('ghl_id', contactId)
     .eq('is_superseded', false)
     .not('status', 'in', `(${TERMINAL_STATUSES_FOR_NOTES_SYNC.map(s => `"${s}"`).join(',')})`)
+    .or('review_status.is.null,review_status.eq.approved')
 
   if (projectName) {
     query = query.eq('project_name', projectName)
