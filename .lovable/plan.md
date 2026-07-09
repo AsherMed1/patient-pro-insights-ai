@@ -1,13 +1,11 @@
-## Add Horizon to Time Preference UI
+## No action needed — already fixed
 
-**File:** `src/components/appointments/AppointmentCard.tsx` (line 1587)
+Checked the record `18625570-5d25-4771-af88-1e37e5c3100f`:
 
-Add `'Horizon Vascular Specialists'` to the project allowlist that renders the Time Preference dropdown:
+- `project_name`: Horizon Vascular Specialists
+- `time_preference`: **afternoon** ✅ (already stored, parsed from "Time Preference: Afternoon" in the notes)
+- `is_unscheduled`: true
 
-```tsx
-{['Premier Vascular', 'ECCO Medical', 'Davis Vein & Vascular', 'Horizon Vascular Specialists'].includes(appointment.project_name) && (
-```
+The data is correct. The reason the badge/dropdown wasn't rendering on the card was the UI allowlist we just patched in the previous turn (`src/components/appointments/AppointmentCard.tsx` line 1587 now includes `'Horizon Vascular Specialists'`).
 
-This mirrors the existing behavior for the other three unscheduled-capture projects — a Morning/Afternoon/Evening/No Preference selector appears on the appointment card, writing to `time_preference` and setting `is_unscheduled: true`.
-
-No other changes needed — webhook ingestion already stores `time_preference` for Horizon (from the previous fix).
+**Next step for you:** Hard refresh the portal (Cmd/Ctrl+Shift+R). The "Time Preference: Afternoon" selector will appear on Test Fixed Johann's card. No database change or additional code change required.
