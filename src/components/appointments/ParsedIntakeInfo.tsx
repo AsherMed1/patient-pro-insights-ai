@@ -1035,6 +1035,17 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     <span className="font-medium">{parsedPathologyInfo.affected_area}</span>
                   </div>
                 )}
+                {formatValue(parsedPathologyInfo.affected_side) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Affected Side:</span>{" "}
+                    <Badge
+                      variant="outline"
+                      className="ml-2 bg-amber-100 text-amber-800 border-amber-300"
+                    >
+                      {parsedPathologyInfo.affected_side}
+                    </Badge>
+                  </div>
+                )}
                 {formatValue(parsedPathologyInfo.affected_knee) &&
                  (parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() === 'GAE' && (
                   <div className="text-sm">
