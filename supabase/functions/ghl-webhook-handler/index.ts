@@ -1999,7 +1999,26 @@ function resolveNotesValueFromCustomFields(cf: any): string | null {
     for (const [key, value] of Object.entries(cf)) {
       if (NOTES_FIELD_LABEL_MATCH.test(key) && value != null && String(value).trim() !== '') {
         return String(value)
-      }
+}
+
+// Returns true if the payload looks like a contact-notes-only sync payload —
+// used as a defensive guard in the main CREATE path so notes workflows can
+// never create new appointments even if they slip past the early intercept.
+function isLikelyNotesOnlyPayload(payload: any): boolean {
+  if (!payload || typeof payload !== 'object') return false
+  if (payload.sync_type === 'contact_notes_only') return true
+  const contactId = payload.contact_id || payload.contactId
+  if (!contactId) return false
+  const hasAppointmentContext =
+    !!payload.appointment ||
+    !!payload.calendar ||
+    !!payload.appointmentId ||
+    !!payload.appointment_id ||
+    (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment'))
+  if (hasAppointmentContext) return false
+  const notesFromCf = resolveNotesValueFromCustomFields(payload.customFields)
+  return notesFromCf !== null || payload.notes_value !== undefined
+}
     }
     return null
   }
