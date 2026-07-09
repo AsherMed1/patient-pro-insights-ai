@@ -144,6 +144,22 @@ serve(async (req) => {
       )
     }
 
+    // Belt-and-suspenders: if a notes-only payload uses an unexpected shape and
+    // somehow reaches extraction, stop before project creation / appointment upsert.
+    if (isLikelyNotesOnlyPayload(payload)) {
+      console.warn(`[${requestId}] ⛔ Refusing to continue appointment logic for notes-only payload`)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          operation: 'skipped',
+          reason: 'notes_sync_no_matching_appointment',
+          contact_id: resolveContactId(payload),
+          requestId
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Auto-create project if it doesn't exist (returns canonical project name)
     const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId)
     webhookData.project_name = canonicalProjectName // Use canonical name for all operations
@@ -172,7 +188,7 @@ serve(async (req) => {
           success: true,
           operation: 'skipped',
           reason: 'notes_sync_no_matching_appointment',
-          contact_id: sanitizeId(payload.contact_id || payload.contactId) || null,
+          contact_id: resolveContactId(payload),
           requestId
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1992,6 +2008,87 @@ const TERMINAL_STATUSES_FOR_NOTES_SYNC = [
   'Cancelled', 'Canceled', 'No Show', 'Rescheduled', 'Won', 'OON', 'Do Not Call'
 ]
 
+function normalizeSyncType(value: any): string | null {
+  if (value === null || value === undefined) return null
+  const normalized = String(value).trim().toLowerCase().replace(/[\s-]+/g, '_')
+  return normalized || null
+}
+
+function resolveNestedValue(obj: any, paths: string[][]): any {
+  if (!obj || typeof obj !== 'object') return undefined
+  for (const path of paths) {
+    let current = obj
+    let found = true
+    for (const part of path) {
+      if (!current || typeof current !== 'object' || !(part in current)) {
+        found = false
+        break
+      }
+      current = current[part]
+    }
+    if (found && current !== undefined) return current
+  }
+  return undefined
+}
+
+function resolveContactId(payload: any): string | null {
+  return sanitizeId(resolveNestedValue(payload, [
+    ['contact_id'],
+    ['contactId'],
+    ['contact', 'id'],
+    ['appointment', 'contactId'],
+    ['appointment', 'contact', 'id'],
+    ['customData', 'contact_id'],
+    ['customData', 'contactId'],
+    ['custom_data', 'contact_id'],
+    ['custom_data', 'contactId'],
+  ]))
+}
+
+function resolveProjectNameFromPayload(payload: any): string | null {
+  const raw = resolveNestedValue(payload, [
+    ['project_name'],
+    ['projectName'],
+    ['location', 'name'],
+    ['customData', 'project_name'],
+    ['customData', 'projectName'],
+    ['custom_data', 'project_name'],
+    ['custom_data', 'projectName'],
+  ])
+  if (raw === null || raw === undefined) return null
+  const value = normalizeProjectName(String(raw))
+  return value || null
+}
+
+function resolveSyncType(payload: any): string | null {
+  return normalizeSyncType(resolveNestedValue(payload, [
+    ['sync_type'],
+    ['syncType'],
+    ['customData', 'sync_type'],
+    ['customData', 'syncType'],
+    ['custom_data', 'sync_type'],
+    ['custom_data', 'syncType'],
+  ]))
+}
+
+function resolveNotesValue(payload: any, isExplicit: boolean): string | null {
+  const direct = resolveNestedValue(payload, [
+    ['notes_value'],
+    ['notesValue'],
+    ['customData', 'notes_value'],
+    ['customData', 'notesValue'],
+    ['custom_data', 'notes_value'],
+    ['custom_data', 'notesValue'],
+  ])
+  if (direct !== undefined) return direct == null ? '' : String(direct)
+
+  const fromCustomFields = resolveNotesValueFromCustomFields(payload?.customFields)
+  if (fromCustomFields !== null) return fromCustomFields
+
+  if (isExplicit) return null
+  return null
+}
+
 function resolveNotesValueFromCustomFields(cf: any): string | null {
   if (!cf) return null
   // Object shape: { "Notes (Example: ...)": "value", ... }
@@ -2021,25 +2118,39 @@ function resolveNotesValueFromCustomFields(cf: any): string | null {
 // never create new appointments even if they slip past the early intercept.
 function isLikelyNotesOnlyPayload(payload: any): boolean {
   if (!payload || typeof payload !== 'object') return false
-  if (payload.sync_type === 'contact_notes_only') return true
-  const contactId = payload.contact_id || payload.contactId
+  if (resolveSyncType(payload) === 'contact_notes_only') return true
+
+  const contactId = resolveContactId(payload)
   if (!contactId) return false
+
+  const appointmentId = sanitizeId(resolveNestedValue(payload, [
+    ['appointmentId'],
+    ['appointment_id'],
+    ['appointment', 'id'],
+    ['appointment', 'appointmentId'],
+    ['calendar', 'appointmentId'],
+    ['calendar', 'id'],
+  ]))
+
   const hasAppointmentContext =
     !!payload.appointment ||
-    !!payload.calendar ||
-    !!payload.appointmentId ||
-    !!payload.appointment_id ||
+    !!appointmentId ||
+    !!payload.calendar?.startTime ||
+    !!payload.calendar?.status ||
+    !!payload.calendar?.calendarName ||
+    !!payload.calendar?.name ||
     (typeof payload.type === 'string' && payload.type.toLowerCase().includes('appointment'))
   if (hasAppointmentContext) return false
-  const notesFromCf = resolveNotesValueFromCustomFields(payload.customFields)
-  return notesFromCf !== null || payload.notes_value !== undefined
+
+  return resolveNotesValue(payload, false) !== null
 }
 
 async function tryContactNotesSync(payload: any, supabase: any, requestId: string): Promise<any | null> {
   if (!payload || typeof payload !== 'object') return null
 
-  const isExplicit = payload.sync_type === 'contact_notes_only'
-  const contactId = sanitizeId(payload.contact_id || payload.contactId)
+  const syncType = resolveSyncType(payload)
+  const isExplicit = syncType === 'contact_notes_only'
+  const contactId = resolveContactId(payload)
   if (!contactId) {
     if (isExplicit) {
       console.warn(`[${requestId}] [notes-sync] explicit payload missing contact_id; safely skipping appointment logic`)
@@ -2060,20 +2171,14 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
   }
 
   // Must be either explicit Custom Data sync OR carry the Notes custom field
-  let newValue: string | null = null
-
-  if (isExplicit && payload.notes_value !== undefined) {
-    newValue = payload.notes_value == null ? '' : String(payload.notes_value)
-  } else {
-    newValue = resolveNotesValueFromCustomFields(payload.customFields)
-    if (newValue === null && !isExplicit) {
-      // Not an explicit sync and no matching Notes field present — not ours
-      return null
-    }
-    if (newValue === null && isExplicit) {
-      console.warn(`[${requestId}] [notes-sync] explicit payload missing notes_value; safely skipping appointment logic`)
-      return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'missing_notes_value' }
-    }
+  const newValue = resolveNotesValue(payload, isExplicit)
+  if (newValue === null && !isExplicit) {
+    // Not an explicit sync and no matching Notes field present — not ours
+    return null
+  }
+  if (newValue === null && isExplicit) {
+    console.warn(`[${requestId}] [notes-sync] explicit payload missing notes_value; safely skipping appointment logic`)
+    return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'missing_notes_value' }
   }
 
   console.log(`[${requestId}] [notes-sync] intercepted contact=${contactId} explicit=${isExplicit} hasValue=${newValue !== null && newValue !== ''}`)
@@ -2083,13 +2188,22 @@ async function tryContactNotesSync(payload: any, supabase: any, requestId: strin
     return { ok: true, branch: 'contact_notes_sync', updated: 0, reason: 'empty' }
   }
 
-  // Find matching non-terminal, non-superseded appointments for this contact
-  const { data: rows, error: selErr } = await supabase
+  // Find matching non-terminal, non-superseded appointments for this contact.
+  // If the workflow includes a project/location, scope updates to that project only;
+  // notes-only sync must not update the same GHL contact ID in another client portal.
+  const projectName = resolveProjectNameFromPayload(payload)
+  let query = supabase
     .from('all_appointments')
     .select('id, parsed_medical_info, status, is_superseded, project_name, lead_name')
     .eq('ghl_id', contactId)
     .eq('is_superseded', false)
     .not('status', 'in', `(${TERMINAL_STATUSES_FOR_NOTES_SYNC.map(s => `"${s}"`).join(',')})`)
+
+  if (projectName) {
+    query = query.eq('project_name', projectName)
+  }
+
+  const { data: rows, error: selErr } = await query
 
   if (selErr) {
     console.error(`[${requestId}] [notes-sync] select error:`, selErr)
