@@ -1039,7 +1039,7 @@ function getUpdateableFields(
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
     // Unscheduled-capture projects: capture lead without booking — store time preference only.
-    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular']);
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular', 'horizon vascular specialists']);
     const isPremierVascular = UNSCHEDULED_PROJECTS.has((webhookData.project_name || '').trim().toLowerCase());
     const timePreference = isPremierVascular
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
@@ -1087,7 +1087,7 @@ function getUpdateableFields(
   // store a booked date/time — only a time-of-day preference. If a later GHL webhook tries to
   // attach an actual calendar slot, force the row back to unscheduled state instead of accepting
   // date_of_appointment / requested_time. See mem://projects/premier-vascular/unscheduled-capture.
-  const UNSCHEDULED_PROJECTS_UPDATE = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular'])
+  const UNSCHEDULED_PROJECTS_UPDATE = new Set(['premier vascular', 'ecco medical', 'davis vein & vascular', 'horizon vascular specialists'])
   const projectNameForUnscheduled = (webhookData.project_name || existingAppointment.project_name || '').trim().toLowerCase()
   const isUnscheduledProject = UNSCHEDULED_PROJECTS_UPDATE.has(projectNameForUnscheduled)
 
