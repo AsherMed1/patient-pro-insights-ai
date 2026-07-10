@@ -1,21 +1,17 @@
-## Problem
+## Goal
 
-VSAV Test lead has "GAE STEP 1 | Which side is affected by the condition you are seeking treatment for?: Both" in the intake notes, but `parsed_pathology_info.affected_side` is `null`, so the Medical Information card doesn't display it.
+Show a single "Affected Side" row in the Medical Information card for GAE/PFE/FSE/PAD/ATE/Neuropathy leads. Remove the duplicate "Affected Knee" row.
 
-The AI parser missed it, and the deterministic GHL-key branch that handles "which side / affected" (`auto-parse-intake-notes/index.ts:1908`) only runs on structured GHL contact custom fields — not on the raw STEP-formatted intake notes text where the answer lives. None of the STEP regex enrichment blocks extract affected side.
+## Changes
 
-## Fix
+1. `src/components/appointments/ParsedIntakeInfo.tsx` (lines ~1049–1058)
+   - Delete the `Affected Knee` render block. Keep only the `Affected Side` block at line 1038.
 
-Add a deterministic regex enrichment for `affected_side` in `supabase/functions/auto-parse-intake-notes/index.ts`, scoped to procedures that actually have a laterality question: **GAE, PFE, FSE, PAD, ATE, Neuropathy**.
+2. `supabase/functions/auto-parse-intake-notes/index.ts`
+   - Remove the GAE-specific mirror that writes the extracted laterality into `parsed_pathology_info.affected_knee`. Only set `affected_side`.
+   - Redeploy the edge function.
 
-Logic:
-- Detect current procedure via `parsedData.pathology_info.procedure_type` (uppercased). If not in the allowlist above, skip.
-- Regex against raw `intakeNotes`: `/which side is affected[^:?\n]*\??:\s*([^\n]+)/i`.
-- Normalize captured value: `both`/`bilateral` → `Both`, `left` → `Left`, `right` → `Right`.
-- Only overwrite when current `affected_side` is null/empty.
-- For GAE: when `affected_knee` is empty, mirror the value into `affected_knee` so the existing GAE knee badge lights up.
-- Log the extraction like the other enrichment branches.
+## Notes
 
-After deploy, invoke `reparse-specific-appointments` for VSAV Test (`c0fb9d82-f910-42e2-9e33-25aa10c2b320`) so the existing record picks up the value.
-
-No UI changes needed — `ParsedIntakeInfo.tsx` already renders `parsedPathologyInfo.affected_side` (line 1038).
+- No backfill needed — existing `affected_knee` values simply won't render anymore.
+- Editing behavior for `affected_side` in the UI is unchanged.
