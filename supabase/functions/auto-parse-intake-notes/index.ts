@@ -1545,6 +1545,35 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // Affected side (Left / Right / Both) — applies to procedures with a laterality question
+  {
+    const proc = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
+    const SIDE_PROCEDURES = ['GAE', 'PFE', 'FSE', 'PAD', 'ATE', 'NEUROPATHY'];
+    if (SIDE_PROCEDURES.includes(proc)) {
+      const current = parsedData.pathology_info.affected_side;
+      if (!current || !String(current).trim()) {
+        const m = intakeNotes.match(/which side is affected[^:?\n]*\??:\s*([^\n]+)/i);
+        if (m && m[1]) {
+          const lv = m[1].toLowerCase();
+          let side: string | null = null;
+          if (/\b(both|bilateral)\b/.test(lv)) side = 'Both';
+          else if (/\bleft\b/.test(lv)) side = 'Left';
+          else if (/\bright\b/.test(lv)) side = 'Right';
+          if (side) {
+            parsedData.pathology_info.affected_side = side;
+            console.log(`[AUTO-PARSE ENRICH] Extracted affected_side via regex (${proc}): ${side}`);
+            if (proc === 'GAE' && !parsedData.pathology_info.affected_knee) {
+              parsedData.pathology_info.affected_knee = side;
+              console.log(`[AUTO-PARSE ENRICH] Mirrored affected_side to affected_knee: ${side}`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+
   // === PAE w/BPH STEP-specific field extraction (deterministic regex on raw notes) ===
   // PAE intake uses "PAE w/BPH | <question>:" format that GPT often skips.
   if (/PAE w\/?\s*BPH\s*\||prostate|BPH/i.test(intakeNotes)) {
