@@ -1562,10 +1562,6 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
           if (side) {
             parsedData.pathology_info.affected_side = side;
             console.log(`[AUTO-PARSE ENRICH] Extracted affected_side via regex (${proc}): ${side}`);
-            if (proc === 'GAE' && !parsedData.pathology_info.affected_knee) {
-              parsedData.pathology_info.affected_knee = side;
-              console.log(`[AUTO-PARSE ENRICH] Mirrored affected_side to affected_knee: ${side}`);
-            }
           }
         }
       }
@@ -1942,10 +1938,6 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       else if (lv.includes('right')) side = 'Right';
       if (side) {
         result.pathology_info.affected_side = side;
-        // Mirror to affected_knee for GAE so the existing knee badge still works
-        if ((result.pathology_info.procedure_type || '').toUpperCase() === 'GAE') {
-          result.pathology_info.affected_knee = side;
-        }
       }
     }
     else if (key.includes('affected') || key.includes('area') || key.includes('location')) {
