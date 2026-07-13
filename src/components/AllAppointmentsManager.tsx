@@ -923,7 +923,8 @@ const AllAppointmentsManager = ({
                                procedureStatus === 'no_procedure' ? false : 
                                procedureStatus === 'not_covered' ? false : 
                                procedureStatus === 'imaging_ordered' ? null :
-                               procedureStatus === 'pending_test_results' ? null : null;
+                               procedureStatus === 'pending_test_results' ? null :
+                               procedureStatus === 'pending_insurance_auth' ? null : null;
       
       const { error } = await supabase
         .from('all_appointments')
