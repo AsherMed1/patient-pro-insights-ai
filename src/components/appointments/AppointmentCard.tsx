@@ -279,6 +279,8 @@ const AppointmentCard = ({
       return `${baseClass} bg-purple-50 border-purple-200 hover:bg-purple-100`;
     } else if (procedureStatus === 'pending_insurance_auth') {
       return `${baseClass} bg-amber-50 border-amber-200 hover:bg-amber-100`;
+    } else if (procedureStatus === 'procedure_complete') {
+      return `${baseClass} bg-emerald-50 border-emerald-200 hover:bg-emerald-100`;
     } else if (procedureStatus === 'no_procedure') {
       return `${baseClass} bg-gray-50 border-gray-200 hover:bg-gray-100`;
     } else {
@@ -1893,6 +1895,7 @@ const AppointmentCard = ({
                 <SelectItem value="imaging_ordered">Imaging Ordered</SelectItem>
                 <SelectItem value="pending_test_results">Pending Test Results</SelectItem>
                 <SelectItem value="pending_insurance_auth">Pending Insurance Authorization</SelectItem>
+                <SelectItem value="procedure_complete">Procedure Complete</SelectItem>
                 <SelectItem value="no_procedure">No Procedure Ordered</SelectItem>
                 <SelectItem value="not_covered">Procedure Not Covered</SelectItem>
               </SelectContent>
