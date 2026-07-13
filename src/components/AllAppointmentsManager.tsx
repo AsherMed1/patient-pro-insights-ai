@@ -920,6 +920,7 @@ const AllAppointmentsManager = ({
     try {
       // Map procedure_status to procedure_ordered for backward compatibility
       const procedureOrdered = procedureStatus === 'ordered' ? true : 
+                               procedureStatus === 'procedure_complete' ? true :
                                procedureStatus === 'no_procedure' ? false : 
                                procedureStatus === 'not_covered' ? false : 
                                procedureStatus === 'imaging_ordered' ? null :
