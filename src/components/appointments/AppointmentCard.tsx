@@ -277,6 +277,8 @@ const AppointmentCard = ({
       return `${baseClass} bg-blue-50 border-blue-200 hover:bg-blue-100`;
     } else if (procedureStatus === 'pending_test_results') {
       return `${baseClass} bg-purple-50 border-purple-200 hover:bg-purple-100`;
+    } else if (procedureStatus === 'pending_insurance_auth') {
+      return `${baseClass} bg-amber-50 border-amber-200 hover:bg-amber-100`;
     } else if (procedureStatus === 'no_procedure') {
       return `${baseClass} bg-gray-50 border-gray-200 hover:bg-gray-100`;
     } else {

@@ -1,17 +1,29 @@
-## Goal
+## Add "Pending Insurance Authorization" procedure status
 
-Show a single "Affected Side" row in the Medical Information card for GAE/PFE/FSE/PAD/ATE/Neuropathy leads. Remove the duplicate "Affected Knee" row.
+New procedure-dropdown option (value `pending_insurance_auth`, label **Pending Insurance Authorization**). It sits alongside the existing `imaging_ordered` / `pending_test_results` options and behaves the same way — a post-consultation tracking state that leaves appointment `status` (Confirmed, etc.), GHL sync, and Meta/conversion tracking untouched.
 
-## Changes
+### Files to edit
 
-1. `src/components/appointments/ParsedIntakeInfo.tsx` (lines ~1049–1058)
-   - Delete the `Affected Knee` render block. Keep only the `Affected Side` block at line 1038.
+1. **`src/components/appointments/AppointmentCard.tsx`**
+   - Add `<SelectItem value="pending_insurance_auth">Pending Insurance Authorization</SelectItem>` to the Procedure dropdown (after `pending_test_results`, before `no_procedure`).
+   - Add a color branch in `getProcedureTriggerClass` (amber/indigo tint, e.g. `bg-amber-50 border-amber-200 hover:bg-amber-100`) so the trigger is visually distinct from the existing statuses.
 
-2. `supabase/functions/auto-parse-intake-notes/index.ts`
-   - Remove the GAE-specific mirror that writes the extracted laterality into `parsed_pathology_info.affected_knee`. Only set `affected_side`.
-   - Redeploy the edge function.
+2. **`src/components/appointments/DetailedAppointmentView.tsx`**
+   - Same new `SelectItem` in the procedure Select (around line 977).
 
-## Notes
+3. **`src/components/appointments/AppointmentFilters.tsx`**
+   - Same new `SelectItem` in the procedure filter dropdown (around line 296) so clinics can filter/report on it.
 
-- No backfill needed — existing `affected_knee` values simply won't render anymore.
-- Editing behavior for `affected_side` in the UI is unchanged.
+4. **`src/components/AllAppointmentsManager.tsx`**
+   - Extend the `procedureStatus → procedure_ordered` mapping (~lines 921-926) to include `pending_insurance_auth → null`, mirroring how `imaging_ordered` and `pending_test_results` are treated. No other query logic changes — existing `.eq('procedure_status', filter)` handles the new value automatically.
+
+### What is intentionally NOT changed
+
+- No DB migration — `all_appointments.procedure_status` is a free-text column with no CHECK constraint.
+- No changes to appointment `status` handling, `handle_appointment_status_completion` trigger, EMR queue, GHL webhook handler, Slack/Meta/conversion webhooks, or the `was_ever_confirmed` flag. Confirmed appointments stay Confirmed; this is purely a procedure-side label.
+- Excel export already emits `procedure_status` verbatim, so the new value flows into reports with no code change.
+
+### Verification
+- Open a Confirmed appointment, set procedure to Pending Insurance Authorization, confirm the badge/trigger renders in amber and no GHL sync fires.
+- Change it to `ordered` and confirm the existing "Procedure Ordered" path still triggers normally.
+- Filter the appointments list by "Pending Insurance Authorization" and confirm counts + list match.
