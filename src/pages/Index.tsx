@@ -37,7 +37,7 @@ const Index = () => {
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const { user, signOut } = useAuth();
-  const { role, hasManagementAccess, isProjectUser, isReviewOnly, accessibleProjects, loading: roleLoading } = useRole();
+  const { role, hasManagementAccess, isProjectUser, isReviewOnly, isQASpecialist, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
   
   // Initialize automatic intake notes parsing
