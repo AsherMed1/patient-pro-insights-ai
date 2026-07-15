@@ -145,7 +145,9 @@ export const useRole = () => {
   const isProjectUser = () => hasRole('project_user');
   const isVA = () => hasRole('va');
   const isReviewOnly = () => hasRole('review_only');
+  const isQASpecialist = () => hasRole('qa_specialist');
   const hasManagementAccess = () => hasRole(['admin', 'agent']);
+  const hasQAAccess = () => hasRole(['admin', 'agent', 'qa_specialist']);
   const canEditNotes = () => hasRole(['admin', 'agent', 'va']);
 
   return {
@@ -159,7 +161,9 @@ export const useRole = () => {
     isProjectUser,
     isVA,
     isReviewOnly,
+    isQASpecialist,
     hasManagementAccess,
+    hasQAAccess,
     canEditNotes
   };
 };
