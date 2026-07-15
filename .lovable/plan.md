@@ -1,49 +1,77 @@
-# QA Operations Queue — Short Implementation Update
+# Connect QA Operations Queue → PPM ControlHub
 
-A centralized QA workspace is now built into the PatientPro Portal for managing appointment-quality alerts and tracking resolution performance.
+Two separate Lovable projects = two separate Supabase instances. The cleanest and safest way to connect them is a small HTTP bridge: PatientPro calls a public edge function on ControlHub, authenticated with a shared API key, and ControlHub inserts the ticket into its own database using service role. This is exactly what the existing `create-controlhub-ticket` function was already designed for — we just need to build the ControlHub side and wire the two secrets.
 
-## What shipped
+## Architecture
 
-1. **Dedicated QA workspace**
-   - New **QA Operations** tab is available for Admins, Agents, and the new `qa_specialist` role.
-   - QA specialists see a focused, stripped-down layout containing only the queue.
-   - Access is project-scoped using the existing `project_access` pattern.
+```text
+PatientPro Portal                                 PPM ControlHub
+─────────────────                                 ──────────────
+QAOperationsQueue.tsx
+  │
+  ▼
+create-controlhub-ticket  ──HTTPS + Bearer token──▶  receive-external-ticket
+  (already exists)                                    (new edge function)
+                                                        │
+                                                        ▼
+                                                     tech_ticket_submissions
+                                                     (or the correct ticket table)
+```
 
-2. **Case workflow statuses**
-   - New, In Review, Pending / Escalated, Reopened, Completed.
-   - Each status has its own tab with a count badge and shared search/filters.
+Why this beats the alternatives:
+- **Direct DB write from PatientPro into ControlHub's Supabase** → would require sharing ControlHub's service role key, bypasses ControlHub RLS, and couples the two schemas. Rejected.
+- **MCP** → great for the Lovable chat agent, but MCP tools aren't callable from a deployed React app. Not the right layer.
+- **Manual copy-paste** → not automation.
 
-3. **Automatic case ingestion**
-   - Cases are created automatically from:
-     - short-notice alerts,
-     - OON status transitions,
-     - Cancelled or No Show transitions when the appointment was previously Confirmed.
-   - Each case carries patient, project, service line, appointment date, alert reason, and current appointment status.
+## What we'll build
 
-4. **Case detail drawer**
-   - Full patient and appointment context.
-   - Internal threaded notes with author attribution.
-   - Auto-generated activity log for status changes, notes, and ticket actions.
-   - One-click link back to the related appointment in the project portal.
+### 1. On ControlHub (PPM ControlHub project)
+Create a new edge function `receive-external-ticket`:
+- `verify_jwt = false` (called from another project, not a signed-in user).
+- Requires header `x-api-key` matching a new secret `PATIENTPRO_INBOUND_API_KEY`.
+- Accepts JSON: `{ source, external_case_id, title, description, patient_name, project_name, service_line, alert_type, appointment_status, metadata }`.
+- Uses service role to insert a row into the correct ticket table (need to confirm which one — likely `tech_ticket_submissions` given the codebase, but I'll verify the table + required columns during build).
+- Returns `{ ticket_id, ticket_url, status }` so PatientPro can store them on the QA case.
 
-5. **ControlHub ticket creation**
-   - Dedicated edge function `create-controlhub-ticket`.
-   - Stub mode records the ticket creation in the activity log today.
-   - Live mode pushes to ControlHub once the API endpoint and key are added as secrets; returned ticket ID is stored on the case and surfaced in the queue list.
+### 2. On PatientPro (this project)
+Small updates to `create-controlhub-ticket/index.ts`:
+- Send `x-api-key` header instead of `Authorization: Bearer`.
+- POST to `${CONTROLHUB_BASE_URL}/functions/v1/receive-external-ticket`.
+- Everything else — case lookup, `qa_cases` update, activity log — stays as-is.
 
-6. **Access control and auditability**
-   - New `qa_specialist` role and `qa_cases`, `qa_case_notes`, `qa_case_activity` tables, all with RLS.
-   - QA specialists see only cases for their assigned projects; Admins/Agents see all cases.
-   - Every status change, note, and ticket creation is timestamped and attributed.
+No frontend changes. The "Create ControlHub Ticket" button in `QAOperationsQueue.tsx` already calls this function.
 
-## To go live
+### 3. Secrets
+On **PatientPro**:
+- `CONTROLHUB_BASE_URL` → `https://<controlhub-supabase-ref>.supabase.co`
+- `CONTROLHUB_API_KEY` → the shared key
 
-1. Assign `qa_specialist` role to the Quality Specialists and grant them project-scoped access.
-2. Provide ControlHub API endpoint and API key so ticket creation can switch from stub to live mode.
+On **ControlHub**:
+- `PATIENTPRO_INBOUND_API_KEY` → same shared key
+
+I'll generate one strong random value and give you the same value to store on both sides.
+
+### 4. Testing
+1. Create a test QA case in the PatientPro queue.
+2. Click "Create ControlHub Ticket".
+3. Verify: ticket appears in ControlHub's ticket list, `qa_cases.controlhub_ticket_id` and `controlhub_ticket_url` populated on the PatientPro side, `qa_case_activity` shows `ticket_created` (stub=false).
+
+## Out of scope (unless you want it)
+
+- **Two-way sync** (ControlHub → PatientPro when a ticket is resolved). Doable later via a ControlHub webhook hitting a new PatientPro edge function.
+- **Backfilling existing stub tickets** into real ControlHub tickets.
+- **Deep-linking a specific ControlHub ticket type** (tech / feature / bug). I'll default to whatever ControlHub uses for QA/ops issues; tell me if you want it to route to a specific type.
 
 ## Files touched
 
-- Database: new `qa_cases`, `qa_case_notes`, `qa_case_activity` tables and ingestion triggers.
-- Supabase Edge Function: `supabase/functions/create-controlhub-ticket/index.ts`.
-- Frontend: `src/components/admin/QAOperationsQueue.tsx` and `src/pages/Index.tsx`.
-- Auth/roles: `src/hooks/useRole.tsx` updates for `qa_specialist`.
+- ControlHub project (I can only read it from here — you or I in that project will need to create it): `supabase/functions/receive-external-ticket/index.ts`.
+- PatientPro: `supabase/functions/create-controlhub-ticket/index.ts` (small header + URL change).
+- Secrets on both projects.
+
+## Question before I build
+
+Do you want me to:
+- **(A)** Build the PatientPro side now and give you a ready-to-paste `receive-external-ticket` function you drop into the ControlHub project, or
+- **(B)** Have you switch me over to the ControlHub project so I build it there directly, then come back here and finish the wiring?
+
+Option B is cleaner (I can verify the exact ticket table and columns instead of guessing).
