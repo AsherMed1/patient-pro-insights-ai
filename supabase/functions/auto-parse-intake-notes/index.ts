@@ -1620,6 +1620,90 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // === GAE STEP-specific field extraction (deterministic regex on raw notes) ===
+  // GAE intake uses "GAE STEP 1 | <question>:" / "GAE STEP 2 | <question>:" format.
+  // The AI parser occasionally returns wrong values here (e.g. pain_level scraped from a
+  // phone number, or duration from the wrong step). When STEP-formatted answers exist in
+  // the raw notes, treat them as authoritative and OVERRIDE whatever the model produced.
+  if (/GAE\s*STEP\s*\d/i.test(intakeNotes)) {
+    const grab = (re: RegExp): string | null => {
+      const m = intakeNotes.match(re);
+      return m && m[1] ? m[1].trim() : null;
+    };
+
+    // Duration → STEP 1 "How long have you been experiencing knee pain?"
+    const dur = grab(/GAE\s*STEP\s*1\s*\|[^|\n]*how long[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (dur) {
+      parsedData.pathology_info.duration = dur;
+      console.log(`[AUTO-PARSE GAE] Override duration: ${dur}`);
+    }
+
+    // OA / TKR diagnosed → STEP 1 "Have you ever been diagnosed with knee osteoarthritis?"
+    const oa = grab(/GAE\s*STEP\s*1\s*\|[^|\n]*(?:diagnosed with knee osteoarthritis|OA|TKR)[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (oa) {
+      const v = oa.toLowerCase();
+      if (/yes/.test(v)) parsedData.pathology_info.oa_tkr_diagnosed = 'YES';
+      else if (/no/.test(v)) parsedData.pathology_info.oa_tkr_diagnosed = 'NO';
+      console.log(`[AUTO-PARSE GAE] Override oa_tkr_diagnosed: ${parsedData.pathology_info.oa_tkr_diagnosed}`);
+    }
+
+    // Imaging done → STEP 2 "Have you had a knee X-ray or MRI or CT?"
+    const img = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*(?:X-?ray|MRI|CT|imaging)[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (img) {
+      const v = img.toLowerCase();
+      if (/yes/.test(v)) parsedData.pathology_info.imaging_done = 'YES';
+      else if (/no/.test(v)) parsedData.pathology_info.imaging_done = 'NO';
+      console.log(`[AUTO-PARSE GAE] Override imaging_done: ${parsedData.pathology_info.imaging_done}`);
+    }
+
+    // Symptoms → STEP 2 "Describe the symptoms you're experiencing."
+    const sx = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*symptoms?[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (sx && sx.length > 2) {
+      parsedData.pathology_info.symptoms = sx;
+      console.log(`[AUTO-PARSE GAE] Override symptoms: ${sx}`);
+    }
+
+    // Previous treatments → STEP 2 "What treatments have you tried for your knee pain?"
+    const tx = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*treatments?[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (tx && tx.length > 2) {
+      parsedData.pathology_info.previous_treatments = tx;
+      console.log(`[AUTO-PARSE GAE] Override previous_treatments: ${tx}`);
+    }
+
+    // Pain level → STEP 2 "On a scale of 1-10 how severe is your pain?" (0-10 only)
+    const pl = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*(?:scale of 1-10|how severe is your pain|pain level)[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (pl) {
+      const num = pl.match(/\b(10|[0-9])\b/);
+      if (num) {
+        parsedData.pathology_info.pain_level = num[1];
+        console.log(`[AUTO-PARSE GAE] Override pain_level: ${num[1]}`);
+      }
+    } else if (parsedData.pathology_info.pain_level) {
+      // Sanity clamp: if AI produced a pain_level outside 0-10, drop it
+      const n = parseInt(String(parsedData.pathology_info.pain_level), 10);
+      if (isNaN(n) || n < 0 || n > 10) {
+        console.log(`[AUTO-PARSE GAE] Dropping invalid pain_level: ${parsedData.pathology_info.pain_level}`);
+        parsedData.pathology_info.pain_level = null;
+      }
+    }
+
+    // Age range → STEP 1 "How old are you?" — AI often mis-picks this
+    const ageR = grab(/GAE\s*STEP\s*1\s*\|[^|\n]*how old are you[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (ageR) {
+      (parsedData.pathology_info as any).age_range = ageR;
+      console.log(`[AUTO-PARSE GAE] Override age_range: ${ageR}`);
+    }
+
+    // Trauma onset → STEP 2 "Did your symptoms begin after a recent trauma/injury..."
+    const tr = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*(?:trauma|injury)[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (tr) {
+      const v = tr.toLowerCase();
+      if (/yes/.test(v)) (parsedData.pathology_info as any).trauma_related_onset = 'YES';
+      else if (/no/.test(v)) (parsedData.pathology_info as any).trauma_related_onset = 'NO';
+    }
+  }
+
+
   // === ATE STEP-specific field extraction (deterministic regex on raw notes) ===
   // ATE intake uses "STEP 1 | Where is your pain located?" / "STEP 2 | Have you tried..." format.
   // Trigger when the calendar already detected ATE OR the notes mention Achilles/tendinitis.
