@@ -1,41 +1,41 @@
-## Goal
-Prevent the two bugs that hit Jovita from happening on future leads, with zero risk to existing data.
+## Scope
+Safely clean up the 6 Premier Vascular records with corrupted parsed data — same category of issue Jovita had. No parser code changes (the hardening from last turn already prevents recurrence). Manual JSONB patch only, mirroring the exact approach used on Jovita.
 
-## Root causes recap
-1. AI parser scraped `pain_level: 478` from her phone number `(478) 998-…` instead of the pain scale answer `10`.
-2. My earlier GAE-STEP regex safety net matched the wrong line — the *"Did your symptoms begin after a recent trauma…"* line — and wrote `❌ NO` into the Symptoms field.
+## Records to fix
 
-## Fix (single file: `supabase/functions/auto-parse-intake-notes/index.ts`)
+Symptoms were mis-parsed as the trauma Yes/No answer instead of the real symptom list. Correct values are pulled directly from each record's raw `patient_intake_notes` line `GAE STEP 2 | Describe the symptoms you're experiencing.: ...`.
 
-All changes are inside the existing `if (/GAE\s*STEP\s*\d/i.test(intakeNotes)) { … }` block, so they only run on GAE-STEP-formatted intakes. No other procedure paths are touched.
+| ID | Patient | Current symptoms | Correct symptoms (from raw notes) |
+|---|---|---|---|
+| 9e57314b… | Janice Fambro | ❌ NO | (from notes) |
+| bfc968d6… | Delois Peal | ❌ NO | (from notes) |
+| a4248ced… | Sam Oni | ❌ NO | (from notes) |
+| 18a53041… | Cassius Dudley | ☑️ YES | Instability or weakness, Grinding sensation, Stiffness, Swelling, Sharp Pain, Dull Ache |
+| d2c704da… | Jeanette Scarboro | ☑️ YES | (from notes) |
 
-1. **Tighten the Symptoms regex** so it only matches the correct line:
-   `GAE STEP 2 | (Describe the symptoms … | symptoms you're experiencing | What symptoms are you experiencing) : …`
-   Reject the match if the captured value starts with `yes / no / ❌ / ☑️`.
+Plus one non-GAE record with an invalid pain level:
 
-2. **Sanitize an already-bad Symptoms value.** If the model returned a Symptoms value that starts with `yes / no / ❌ / ☑️` and the regex above didn't produce a better value, set `symptoms = null` (blank is safer than misleading garbage).
+| ID | Patient | Issue | Fix |
+|---|---|---|---|
+| 0cd13f25… | Emma Rozier (PFE) | pain_level = 19 (PFE has no 0–10 pain scale) | set pain_level = null |
 
-3. **Harden pain-level extraction against phone-number scraping:**
-   - Prefer the STEP 2 pain-scale line explicitly ("scale of 1-10" / "how severe is your pain" / "pain level").
-   - Existing 0–10 clamp stays in place; if the AI value is outside 0–10 (like `478`), drop it to null.
-   - Add a small guard: never accept a pain value that appears inside a phone-number-looking substring (e.g. `(478)` or `478-`).
+## How
 
-4. **Log a `[AUTO-PARSE GAE]` line** for each override / drop so we can see it in edge logs if it ever misbehaves again.
+For each row, one targeted SQL UPDATE on `all_appointments`:
+- Only mutate `parsed_pathology_info->'symptoms'` (or `pain_level` for Emma) via `jsonb_set`.
+- Read the correct value from that same row's `patient_intake_notes` (fixed line pattern), so we never guess.
+- Bump `updated_at`.
+- No touching of top-level columns (DOB, phone, email, dates, status, IPC, EMR queue).
+- No parser re-run, no `parsing_completed_at` reset, no GHL fetch.
 
-## Safety guarantees
-- No database migrations.
-- No changes to any existing data. No re-parse triggered.
-- Only runs on new/future parses (and only when notes contain "GAE STEP N |").
-- Worst-case behavior: a field goes blank instead of wrong. No field gets silently overwritten with something worse than it is today.
-- No touch to top-level columns (DOB, phone, email, appointment date/time, status, IPC).
-- No changes to any other procedure's parsing logic (PAE, UFE, HAE, PAD, PFE, Neuropathy, ATE, etc.).
-- No changes to the review-queue, EMR queue, GHL webhook, or any other edge function.
+## Safety
+- 6 rows, scoped by explicit `id =` clauses.
+- Worst case if a raw-notes line is missing: we set that record's symptoms to null (blank is safer than misleading garbage) — same rule the hardened parser now uses.
+- No migration, no schema change, no other records touched.
+- Verified after: re-query the 6 IDs and confirm `symptoms` / `pain_level` look correct.
 
-## What's explicitly NOT in this plan
-- No sweep of the 5 existing bad Symptoms rows (Janice / Sam / Jeanette / Cassius / Delois). They stay as-is until you ask.
-- No change to Jovita's row (already backfilled).
-- No secrets, migrations, or new tables.
-
-## Verification after build
-- Read back the changed lines in `auto-parse-intake-notes/index.ts` to confirm only the GAE block moved.
-- No re-parse call. Fix applies naturally to the next new GAE lead.
+## Not in this plan
+- No changes to any other Premier record.
+- No changes to any other project.
+- No parser code changes (already done last turn).
+- No re-parse of these records — manual value only, matches how Jovita was fixed.
