@@ -26,6 +26,7 @@ import SupportQueueManager from "@/components/SupportQueueManager";
 import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
 import HelpVideoManager from "@/components/HelpVideoManager";
 import ReviewQueue from "@/components/admin/ReviewQueue";
+import QAOperationsQueue from "@/components/admin/QAOperationsQueue";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
