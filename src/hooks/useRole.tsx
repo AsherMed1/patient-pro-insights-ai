@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
-export type UserRole = 'admin' | 'agent' | 'project_user' | 'va' | 'review_only';
+export type UserRole = 'admin' | 'agent' | 'project_user' | 'va' | 'review_only' | 'qa_specialist';
 
 export const useRole = () => {
   const { user, loading: authLoading } = useAuth();
@@ -65,9 +65,9 @@ export const useRole = () => {
         console.log('✅ [useRole] Role fetched successfully:', userRole);
         setRole(userRole);
 
-        // If project_user, get accessible projects
-        if (userRole === 'project_user') {
-          console.log('👤 [useRole] Fetching project access for project user');
+        // If project_user or qa_specialist, get accessible projects
+        if (userRole === 'project_user' || userRole === 'qa_specialist') {
+          console.log('👤 [useRole] Fetching project access for scoped user');
           const { data: projectAccess, error: projectError } = await supabase
             .from('project_user_access')
             .select('projects(project_name)')
@@ -75,7 +75,6 @@ export const useRole = () => {
 
           if (projectError) {
             console.error('❌ [useRole] Error fetching project access:', projectError);
-            // Don't clear existing accessible projects on error
             if (accessibleProjects.length === 0) {
               setAccessibleProjects([]);
             }
@@ -146,7 +145,9 @@ export const useRole = () => {
   const isProjectUser = () => hasRole('project_user');
   const isVA = () => hasRole('va');
   const isReviewOnly = () => hasRole('review_only');
+  const isQASpecialist = () => hasRole('qa_specialist');
   const hasManagementAccess = () => hasRole(['admin', 'agent']);
+  const hasQAAccess = () => hasRole(['admin', 'agent', 'qa_specialist']);
   const canEditNotes = () => hasRole(['admin', 'agent', 'va']);
 
   return {
@@ -160,7 +161,9 @@ export const useRole = () => {
     isProjectUser,
     isVA,
     isReviewOnly,
+    isQASpecialist,
     hasManagementAccess,
+    hasQAAccess,
     canEditNotes
   };
 };

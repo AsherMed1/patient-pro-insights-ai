@@ -3019,6 +3019,176 @@ export type Database = {
         }
         Relationships: []
       }
+      qa_case_activity: {
+        Row: {
+          activity_type: string
+          actor_user_id: string | null
+          case_id: string
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          activity_type: string
+          actor_user_id?: string | null
+          case_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          activity_type?: string
+          actor_user_id?: string | null
+          case_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_case_activity_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "qa_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qa_case_notes: {
+        Row: {
+          author_name: string | null
+          author_user_id: string | null
+          case_id: string
+          created_at: string
+          id: string
+          note: string
+        }
+        Insert: {
+          author_name?: string | null
+          author_user_id?: string | null
+          case_id: string
+          created_at?: string
+          id?: string
+          note: string
+        }
+        Update: {
+          author_name?: string | null
+          author_user_id?: string | null
+          case_id?: string
+          created_at?: string
+          id?: string
+          note?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_case_notes_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "qa_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qa_cases: {
+        Row: {
+          alert_source_id: string | null
+          alert_type: string
+          appointment_date: string | null
+          appointment_id: string | null
+          appointment_status: string | null
+          assigned_qs_user_id: string | null
+          completed_at: string | null
+          completed_by_user_id: string | null
+          controlhub_ticket_id: string | null
+          controlhub_ticket_status: string | null
+          controlhub_ticket_url: string | null
+          created_at: string
+          entered_queue_at: string
+          ghl_contact_id: string | null
+          id: string
+          last_alert_activity_at: string
+          patient_name: string | null
+          project_name: string
+          review_started_at: string | null
+          service_line: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        Insert: {
+          alert_source_id?: string | null
+          alert_type: string
+          appointment_date?: string | null
+          appointment_id?: string | null
+          appointment_status?: string | null
+          assigned_qs_user_id?: string | null
+          completed_at?: string | null
+          completed_by_user_id?: string | null
+          controlhub_ticket_id?: string | null
+          controlhub_ticket_status?: string | null
+          controlhub_ticket_url?: string | null
+          created_at?: string
+          entered_queue_at?: string
+          ghl_contact_id?: string | null
+          id?: string
+          last_alert_activity_at?: string
+          patient_name?: string | null
+          project_name: string
+          review_started_at?: string | null
+          service_line?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Update: {
+          alert_source_id?: string | null
+          alert_type?: string
+          appointment_date?: string | null
+          appointment_id?: string | null
+          appointment_status?: string | null
+          assigned_qs_user_id?: string | null
+          completed_at?: string | null
+          completed_by_user_id?: string | null
+          controlhub_ticket_id?: string | null
+          controlhub_ticket_status?: string | null
+          controlhub_ticket_url?: string | null
+          created_at?: string
+          entered_queue_at?: string
+          ghl_contact_id?: string | null
+          id?: string
+          last_alert_activity_at?: string
+          patient_name?: string | null
+          project_name?: string
+          review_started_at?: string | null
+          service_line?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "qa_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
       quarterly_strategy_submissions: {
         Row: {
           accountability: Json | null
@@ -4087,6 +4257,7 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
+      has_qa_case_access: { Args: { _case_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4176,6 +4347,21 @@ export type Database = {
           processed_count: number
           success_count: number
         }[]
+      }
+      qa_upsert_case: {
+        Args: {
+          _activity_description: string
+          _alert_source_id: string
+          _alert_type: string
+          _appointment_date: string
+          _appointment_id: string
+          _appointment_status: string
+          _ghl_contact_id: string
+          _patient_name: string
+          _project_name: string
+          _service_line: string
+        }
+        Returns: string
       }
       refresh_performance_views: { Args: never; Returns: undefined }
       sync_lead_data_to_appointments: {
