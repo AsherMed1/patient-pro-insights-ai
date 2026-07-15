@@ -1,66 +1,49 @@
-# Update to Requestor — QA Operations Queue
+# QA Operations Queue — Short Implementation Update
 
-Below is a draft you can send to the requestor summarizing what shipped in the PatientPro Portal for the centralized QA Operations Queue.
+A centralized QA workspace is now built into the PatientPro Portal for managing appointment-quality alerts and tracking resolution performance.
 
----
+## What shipped
 
-**Subject:** QA Operations Queue — Ready for Review
+1. **Dedicated QA workspace**
+   - New **QA Operations** tab is available for Admins, Agents, and the new `qa_specialist` role.
+   - QA specialists see a focused, stripped-down layout containing only the queue.
+   - Access is project-scoped using the existing `project_access` pattern.
 
-Hi [Requestor],
+2. **Case workflow statuses**
+   - New, In Review, Pending / Escalated, Reopened, Completed.
+   - Each status has its own tab with a count badge and shared search/filters.
 
-The centralized QA Operations Queue is now live in the PatientPro Portal. Here's a full breakdown of what was built against your original spec.
+3. **Automatic case ingestion**
+   - Cases are created automatically from:
+     - short-notice alerts,
+     - OON status transitions,
+     - Cancelled or No Show transitions when the appointment was previously Confirmed.
+   - Each case carries patient, project, service line, appointment date, alert reason, and current appointment status.
 
-**1. Dedicated Workspace for Quality Specialists**
-- A new **QA Operations** tab is available in the portal for Admins, Agents, and users assigned the new `qa_specialist` role.
-- Users with `qa_specialist` role see a stripped-down, standalone layout focused only on the QA queue — no distractions from other portal tabs.
-- Access is project-scoped: QA Specialists only see cases for the projects/clinics they are assigned to.
+4. **Case detail drawer**
+   - Full patient and appointment context.
+   - Internal threaded notes with author attribution.
+   - Auto-generated activity log for status changes, notes, and ticket actions.
+   - One-click link back to the related appointment in the project portal.
 
-**2. Case Lifecycle (Workflow Statuses)**
-Cases move through the exact four statuses you requested:
-- **New** — freshly ingested, not yet triaged
-- **In Review** — a QA Specialist has taken ownership and is investigating
-- **Pending / Escalated** — waiting on another team, clinic, or leadership
-- **Completed** — resolved and closed out
+5. **ControlHub ticket creation**
+   - Dedicated edge function `create-controlhub-ticket`.
+   - Stub mode records the ticket creation in the activity log today.
+   - Live mode pushes to ControlHub once the API endpoint and key are added as secrets; returned ticket ID is stored on the case and surfaced in the queue list.
 
-Each status has its own tab with counts, plus search and filters (project, date range, keyword) across the queue.
+6. **Access control and auditability**
+   - New `qa_specialist` role and `qa_cases`, `qa_case_notes`, `qa_case_activity` tables, all with RLS.
+   - QA specialists see only cases for their assigned projects; Admins/Agents see all cases.
+   - Every status change, note, and ticket creation is timestamped and attributed.
 
-**3. Automatic Case Ingestion**
-Cases now flow into the queue automatically — no manual creation required — from three triggers:
-- **Short-notice alerts** (appointments booked inside the clinic's short-notice window)
-- **OON (Out of Network)** status changes on any appointment
-- **Cancelled / No Show** transitions where the appointment had previously been Confirmed (i.e. a confirmed patient who fell off)
+## To go live
 
-Every ingested case carries the appointment context (patient, project, appointment date, reason for entry) so the specialist has everything they need to investigate.
+1. Assign `qa_specialist` role to the Quality Specialists and grant them project-scoped access.
+2. Provide ControlHub API endpoint and API key so ticket creation can switch from stub to live mode.
 
-**4. Case Detail Drawer**
-Clicking any case opens a side drawer with:
-- Full patient + appointment context
-- **Notes thread** — QA Specialists can add investigation notes, threaded chronologically
-- **Activity log** — every status change, assignment, and note is timestamped and attributed to the user who made it
-- Status controls to move the case through the workflow
-- One-click link back to the underlying appointment record
+## Files touched
 
-**5. ControlHub Ticket Creation**
-Directly from a case, a specialist can click **Create ControlHub Ticket** and a ticket is created with the case context pre-filled. This runs through a dedicated backend function and supports two modes:
-- **Stub mode** (default today) — records the ticket intent in the case activity log so nothing is lost
-- **Live mode** — when the ControlHub API credentials are provided, tickets are pushed to ControlHub in real time and the returned ticket ID is stored on the case
-
-To flip on live mode we just need the ControlHub API endpoint + API key added as secrets. Let me know and I'll wire them in.
-
-**6. Auditability & Security**
-- All case activity (creation, status changes, notes, ticket creation) is stored with user attribution and timestamps.
-- Row-Level Security ensures QA Specialists only see cases for their assigned projects; Admins/Agents see everything.
-- The `qa_specialist` role is separate from Admin/Agent, so you can grant QA access without granting portal-wide edit rights.
-
-**What's Needed From You to Go Live**
-1. Tell me which users should get the `qa_specialist` role, and which projects each should be scoped to — I'll assign them.
-2. (Optional but recommended) Provide the ControlHub API endpoint + API key so tickets flow live instead of stub mode.
-
-Happy to jump on a quick walkthrough once you've had a chance to poke around. Let me know if you'd like any of the ingestion triggers tuned (e.g. additional statuses that should auto-create a case) or additional filters in the queue.
-
-Thanks,
-[Your Name]
-
----
-
-Want me to adjust tone (more formal / more casual), shorten it, or add screenshots of the new tab before you send?
+- Database: new `qa_cases`, `qa_case_notes`, `qa_case_activity` tables and ingestion triggers.
+- Supabase Edge Function: `supabase/functions/create-controlhub-ticket/index.ts`.
+- Frontend: `src/components/admin/QAOperationsQueue.tsx` and `src/pages/Index.tsx`.
+- Auth/roles: `src/hooks/useRole.tsx` updates for `qa_specialist`.
