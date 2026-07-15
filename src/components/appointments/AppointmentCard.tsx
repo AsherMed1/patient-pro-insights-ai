@@ -1869,11 +1869,21 @@ const AppointmentCard = ({
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
+                {statusOptions.map((status) => {
+                  const isCancelled = (appointment.status || '').trim().toLowerCase() === 'cancelled';
+                  const isWelcomeCall = status.toLowerCase() === 'welcome call';
+                  const disabled = isCancelled && isWelcomeCall;
+                  return (
+                    <SelectItem
+                      key={status}
+                      value={status}
+                      disabled={disabled}
+                      title={disabled ? 'Change status to Confirmed first before moving to Welcome Call.' : undefined}
+                    >
+                      {status}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
