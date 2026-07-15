@@ -346,6 +346,9 @@ const Index = () => {
                 )}
               </TabsTrigger>
             )}
+            {hasManagementAccess() && (
+              <TabsTrigger value="qa-queue">QA Operations</TabsTrigger>
+            )}
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
