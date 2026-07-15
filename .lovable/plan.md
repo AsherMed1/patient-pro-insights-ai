@@ -1,41 +1,58 @@
-## Scope
-Safely clean up the 6 Premier Vascular records with corrupted parsed data — same category of issue Jovita had. No parser code changes (the hardening from last turn already prevents recurrence). Manual JSONB patch only, mirroring the exact approach used on Jovita.
+## Sidney Pye — Humble Vascular Surgery Center
 
-## Records to fix
+Two active portal rows for the same GHL contact (`VFzmfQOYjw9qNnjKhyBI`, phone +1 713-201-9111):
 
-Symptoms were mis-parsed as the trauma Yes/No answer instead of the real symptom list. Correct values are pulled directly from each record's raw `patient_intake_notes` line `GAE STEP 2 | Describe the symptoms you're experiencing.: ...`.
+| Portal ID | Date/Time | Status | Created | Notes |
+|---|---|---|---|---|
+| `039ff18c-54bb-4e4a-9eb0-144be3f0f75a` | Jul 14, 10:00 AM | Welcome Call | Jul 11 | **duplicate to remove** |
+| `2121530c-39d4-4ae4-975b-3e8587e1862d` | Jul 27, 10:00 AM | Welcome Call | Jul 15 | **keep** |
 
-| ID | Patient | Current symptoms | Correct symptoms (from raw notes) |
-|---|---|---|---|
-| 9e57314b… | Janice Fambro | ❌ NO | (from notes) |
-| bfc968d6… | Delois Peal | ❌ NO | (from notes) |
-| a4248ced… | Sam Oni | ❌ NO | (from notes) |
-| 18a53041… | Cassius Dudley | ☑️ YES | Instability or weakness, Grinding sensation, Stiffness, Swelling, Sharp Pain, Dull Ache |
-| d2c704da… | Jeanette Scarboro | ☑️ YES | (from notes) |
+## What actually happened (root cause)
 
-Plus one non-GAE record with an invalid pain level:
+Audit-log timeline for the Jul 14 row (`039ff18c…`):
 
-| ID | Patient | Issue | Fix |
-|---|---|---|---|
-| 0cd13f25… | Emma Rozier (PFE) | pain_level = 19 (PFE has no 0–10 pain scale) | set pain_level = null |
+1. Jul 11 19:29 — created from GHL webhook (Jul 14 appt).
+2. Jul 13 20:59 — portal user changed Confirmed → Welcome Call.
+3. Jul 13 21:06 — portal user changed Welcome Call → **Cancelled** (patient rescheduled).
+4. Jul 15 14:12 — GHL sent the reschedule as a **new appointment** for Jul 27. Handler correctly created the second row (`2121530c…`).
+5. Jul 15 17:25 — portal user re-opened the Jul 14 row and changed Cancelled → **Welcome Call**, resurrecting it. That is the moment the duplicate appeared.
 
-## How
+Two structural reasons this wasn't auto-cleaned:
 
-For each row, one targeted SQL UPDATE on `all_appointments`:
-- Only mutate `parsed_pathology_info->'symptoms'` (or `pain_level` for Emma) via `jsonb_set`.
-- Read the correct value from that same row's `patient_intake_notes` (fixed line pattern), so we never guess.
-- Bump `updated_at`.
-- No touching of top-level columns (DOB, phone, email, dates, status, IPC, EMR queue).
-- No parser re-run, no `parsing_completed_at` reset, no GHL fetch.
+- Neither row has a `ghl_appointment_id` (`appointment_id` is NULL on both), so `ghl-webhook-handler` couldn't match the Jul 27 payload to the Jul 14 row and update it in place — it created a new row. This is expected for this project's flow.
+- `mark_superseded_on_change` only marks older Cancelled siblings as `is_superseded=true` when `was_ever_confirmed=false`. The Jul 14 row had been Confirmed once (`was_ever_confirmed=true`), so it stayed visible and remained editable back to a non-terminal status.
 
-## Safety
-- 6 rows, scoped by explicit `id =` clauses.
-- Worst case if a raw-notes line is missing: we set that record's symptoms to null (blank is safer than misleading garbage) — same rule the hardened parser now uses.
-- No migration, no schema change, no other records touched.
-- Verified after: re-query the 6 IDs and confirm `symptoms` / `pain_level` look correct.
+The immediate trigger was human — a portal user un-cancelled a stale row — but the guardrails allowed it silently.
 
-## Not in this plan
-- No changes to any other Premier record.
-- No changes to any other project.
-- No parser code changes (already done last turn).
-- No re-parse of these records — manual value only, matches how Jovita was fixed.
+## Fix
+
+### 1. Data cleanup (this record only)
+Mark the Jul 14 row `is_superseded=true` and set status back to `Cancelled` so it drops out of every portal view but the history is preserved:
+
+```
+UPDATE all_appointments
+SET status='Cancelled', is_superseded=true, updated_at=now()
+WHERE id='039ff18c-54bb-4e4a-9eb0-144be3f0f75a';
+```
+
+Plus one audit_logs row explaining the manual cleanup.
+
+I will **not** hard-delete it — the reschedule/cancel history is real audit data.
+
+### 2. Safe structural fix (prevents recurrence, no behavior change for normal flow)
+
+Extend `mark_superseded_on_change` (trigger on `all_appointments`) so that when a row transitions **out of a terminal status back to an active status** (e.g. Cancelled → Welcome Call/Confirmed/Pending), the trigger checks for a newer active sibling on the same `ghl_id` (or same phone+name when `ghl_id` is null). If one exists, the reactivated row is immediately marked `is_superseded=true` so it stays out of client views.
+
+Why this is safe:
+- Only fires when a newer active sibling already exists for the same contact — the normal "un-cancel by mistake with no other row" path is untouched.
+- Doesn't block or reject the update, so no portal UX regressions or edge-function failures.
+- Uses the same sibling-lookup predicate the trigger already uses for the reverse direction, so no new matching logic.
+- Terminal-status list stays the shared constant already in the function.
+
+### Technical notes
+- File touched: `supabase/functions` migration adding the updated `mark_superseded_on_change` function body (existing trigger stays bound).
+- No frontend changes.
+- No changes to `ghl-webhook-handler`, EMR queue, or Slack.
+- Audit log entry recorded for the manual Jul 14 supersede.
+
+Once you approve, I'll (a) supersede `039ff18c…` and (b) ship the trigger update as one migration.
