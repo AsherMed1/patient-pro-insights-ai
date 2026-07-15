@@ -43,20 +43,40 @@ Deno.serve(async (req) => {
     let ticketId: string;
     let ticketUrl: string | null = null;
     let ticketStatus = 'open';
+    let stub = true;
 
     if (controlhubApiKey && controlhubBaseUrl) {
-      // Real API integration
-      const resp = await fetch(`${controlhubBaseUrl}/api/tickets`, {
+      // Real ControlHub integration — call receive-external-ticket on the ControlHub project.
+      const resp = await fetch(`${controlhubBaseUrl}/functions/v1/receive-external-ticket`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${controlhubApiKey}`,
+          'x-api-key': controlhubApiKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: `QA: ${qaCase.alert_type} — ${qaCase.patient_name || 'Unknown'}`,
-          description: `Project: ${qaCase.project_name}\nService: ${qaCase.service_line || 'n/a'}\nAppt status: ${qaCase.appointment_status || 'n/a'}\nAlert: ${qaCase.alert_type}`,
           source: 'patientpro_qa_queue',
-          metadata: { qa_case_id: case_id, project: qaCase.project_name },
+          external_case_id: case_id,
+          task_name: `QA: ${qaCase.alert_type} — ${qaCase.patient_name || 'Unknown'}`,
+          client_name: qaCase.project_name,
+          service_involved: qaCase.service_line || null,
+          issue_type: 'qa-operations',
+          description: [
+            `QA Alert: ${qaCase.alert_type}`,
+            `Patient: ${qaCase.patient_name || 'Unknown'}`,
+            `Project: ${qaCase.project_name}`,
+            `Service line: ${qaCase.service_line || 'n/a'}`,
+            `Appointment status: ${qaCase.appointment_status || 'n/a'}`,
+            qaCase.appointment_id ? `Appointment ID: ${qaCase.appointment_id}` : null,
+          ].filter(Boolean).join('\n'),
+          submitted_by: 'PatientPro QA Queue',
+          priority: 'normal',
+          metadata: {
+            qa_case_id: case_id,
+            project: qaCase.project_name,
+            alert_type: qaCase.alert_type,
+            appointment_id: qaCase.appointment_id,
+            ghl_contact_id: qaCase.ghl_contact_id,
+          },
         }),
       });
       if (!resp.ok) {
@@ -67,9 +87,10 @@ Deno.serve(async (req) => {
         );
       }
       const payload = await resp.json();
-      ticketId = String(payload.id ?? payload.ticket_id ?? `CH-${Date.now()}`);
-      ticketUrl = payload.url ?? `${controlhubBaseUrl}/tickets/${ticketId}`;
+      ticketId = String(payload.ticket_id ?? payload.id ?? `CH-${Date.now()}`);
+      ticketUrl = payload.ticket_url ?? null;
       ticketStatus = payload.status ?? 'open';
+      stub = false;
     } else {
       // Stub mode — records intent; real API can be enabled by setting secrets.
       ticketId = `STUB-${Date.now()}`;
@@ -96,11 +117,11 @@ Deno.serve(async (req) => {
       case_id,
       activity_type: 'ticket_created',
       description: `ControlHub ticket ${ticketId} created`,
-      metadata: { ticket_id: ticketId, ticket_url: ticketUrl, stub: !controlhubApiKey },
+      metadata: { ticket_id: ticketId, ticket_url: ticketUrl, stub },
     });
 
     return new Response(
-      JSON.stringify({ ticket_id: ticketId, ticket_url: ticketUrl, stub: !controlhubApiKey }),
+      JSON.stringify({ ticket_id: ticketId, ticket_url: ticketUrl, stub }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err) {
