@@ -1,38 +1,41 @@
-## Why Jovita Dodson (f703ec9d) shows almost no info
+## Goal
+Prevent the two bugs that hit Jovita from happening on future leads, with zero risk to existing data.
 
-**Root cause:** The record parsed successfully (`parsing_completed_at = Jul 12, 2026 14:42:27 UTC`, ~2 seconds after creation), but the AI extraction returned mostly nulls even though the raw `patient_intake_notes` contain the full GHL contact dump.
+## Root causes recap
+1. AI parser scraped `pain_level: 478` from her phone number `(478) 998-…` instead of the pain scale answer `10`.
+2. My earlier GAE-STEP regex safety net matched the wrong line — the *"Did your symptoms begin after a recent trauma…"* line — and wrote `❌ NO` into the Symptoms field.
 
-What actually got populated:
-- Contact block: name, phone, email, DOB, address ✅
-- Demographics: DOB 1956-08-26, age 69 ✅
-- Pathology: only `procedure_type: GAE` and `affected_side: Both` ✅
-- **Insurance: all null** ❌ (raw notes clearly show "United Healthcare Medicare", ID `9491348931`, plan "United Health care")
-- **Pathology detail: duration, symptoms, pain level, treatments, imaging_done — all null** ❌ (raw notes have all of them under "GAE STEP 1/2")
-- **Medical info: PCP name/phone/imaging — all null** ❌ (raw notes name Dr. Sherri Graham + address + phone)
+## Fix (single file: `supabase/functions/auto-parse-intake-notes/index.ts`)
 
-So it's not a display bug and it's not a missing-webhook bug — the enrichment pass silently dropped fields the raw notes explicitly contain. This is the same class of failure we saw on VSAV Test before we added the deterministic `affected_side` regex fallback: the model returned null for a field that was present verbatim.
+All changes are inside the existing `if (/GAE\s*STEP\s*\d/i.test(intakeNotes)) { … }` block, so they only run on GAE-STEP-formatted intakes. No other procedure paths are touched.
 
-**Note on missing date/time:** that part is expected — Premier Vascular is on unscheduled-capture, so Morning/Afternoon time preference is correct (`time_preference = morning` is already set). The "no info" complaint is about the empty Medical Information card, not the missing date.
+1. **Tighten the Symptoms regex** so it only matches the correct line:
+   `GAE STEP 2 | (Describe the symptoms … | symptoms you're experiencing | What symptoms are you experiencing) : …`
+   Reject the match if the captured value starts with `yes / no / ❌ / ☑️`.
 
-## Plan
+2. **Sanitize an already-bad Symptoms value.** If the model returned a Symptoms value that starts with `yes / no / ❌ / ☑️` and the regex above didn't produce a better value, set `symptoms = null` (blank is safer than misleading garbage).
 
-1. **Immediate fix for Jovita** — call `reparse-specific-appointments` for `f703ec9d-20f5-4353-9d37-c086fff86d1f` so the AI parser re-runs with the current schema. If a second pass still misses insurance/pathology, backfill her row directly from the raw notes we already have.
+3. **Harden pain-level extraction against phone-number scraping:**
+   - Prefer the STEP 2 pain-scale line explicitly ("scale of 1-10" / "how severe is your pain" / "pain level").
+   - Existing 0–10 clamp stays in place; if the AI value is outside 0–10 (like `478`), drop it to null.
+   - Add a small guard: never accept a pain value that appears inside a phone-number-looking substring (e.g. `(478)` or `478-`).
 
-2. **Diagnose why the first parse dropped fields** — pull the `auto-parse-intake-notes` edge function logs for `2026-07-12 14:42:27Z ± a few seconds` and confirm whether:
-   - the model returned nulls (needs stronger prompt / deterministic regex fallbacks), or
-   - the response was truncated / rate-limited (needs retry logic), or
-   - the "Patient Intake Summary" blob sanitization consumed the labels (known failure mode already in memory).
+4. **Log a `[AUTO-PARSE GAE]` line** for each override / drop so we can see it in edge logs if it ever misbehaves again.
 
-3. **Category fix, not just this row** — sweep Premier Vascular records created in the same window where `patient_intake_notes` contains "Please select your Primary insurance provider" but `parsed_insurance_info.insurance_provider IS NULL`, and re-queue them for reparse. Same sweep for `GAE STEP` present + `parsed_pathology_info.duration IS NULL`. This mirrors the Ozark Affected Side backfill we just ran.
+## Safety guarantees
+- No database migrations.
+- No changes to any existing data. No re-parse triggered.
+- Only runs on new/future parses (and only when notes contain "GAE STEP N |").
+- Worst-case behavior: a field goes blank instead of wrong. No field gets silently overwritten with something worse than it is today.
+- No touch to top-level columns (DOB, phone, email, appointment date/time, status, IPC).
+- No changes to any other procedure's parsing logic (PAE, UFE, HAE, PAD, PFE, Neuropathy, ATE, etc.).
+- No changes to the review-queue, EMR queue, GHL webhook, or any other edge function.
 
-4. **Add deterministic regex enrichment** in `auto-parse-intake-notes` for the fields that failed here (insurance provider/plan/ID, pain level, duration, symptoms, treatments, PCP name/phone) so a null from the model is patched from the raw text before write, matching the pattern we already use for `affected_side`.
+## What's explicitly NOT in this plan
+- No sweep of the 5 existing bad Symptoms rows (Janice / Sam / Jeanette / Cassius / Delois). They stay as-is until you ask.
+- No change to Jovita's row (already backfilled).
+- No secrets, migrations, or new tables.
 
-No schema changes. No UI changes beyond what reparse produces.
-
-## Deliverable order
-
-1. Reparse Jovita → verify her card populates.
-2. Log check + backfill sweep for the same-window Premier records.
-3. Add regex fallbacks to `auto-parse-intake-notes` so this stops recurring.
-
-Want me to proceed with all three, or just fix Jovita for now and come back to the sweep + parser hardening separately?
+## Verification after build
+- Read back the changed lines in `auto-parse-intake-notes/index.ts` to confirm only the GAE block moved.
+- No re-parse call. Fix applies naturally to the next new GAE lead.
