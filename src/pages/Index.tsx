@@ -400,6 +400,14 @@ const Index = () => {
             </TabsContent>
           )}
 
+          {hasManagementAccess() && (
+            <TabsContent value="qa-queue" className="space-y-6">
+              <QAOperationsQueue />
+            </TabsContent>
+          )}
+
+
+
           <TabsContent value="emr-queue" className="space-y-6">
             <EmrProcessingQueue />
           </TabsContent>
