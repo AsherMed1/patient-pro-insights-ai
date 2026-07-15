@@ -1657,11 +1657,18 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
 
     // Symptoms → STEP 2 "Describe the symptoms you're experiencing."
-    const sx = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*symptoms?[^:?]*\??\s*:\s*([^\n]+)/i);
-    if (sx && sx.length > 2) {
+    // Must NOT match "Did your symptoms begin after a recent trauma..." (trauma question also
+    // contains the word "symptoms") — require "describe" or "experiencing" nearby.
+    const sx = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*(?:describe[^|\n]*symptoms?|symptoms?[^|\n]*(?:experiencing|are you experiencing))[^:?]*\??\s*:\s*([^\n]+)/i);
+    if (sx && sx.length > 2 && !/^(?:yes|no|❌|☑️)/i.test(sx.trim())) {
       parsedData.pathology_info.symptoms = sx;
       console.log(`[AUTO-PARSE GAE] Override symptoms: ${sx}`);
+    } else if (parsedData.pathology_info.symptoms && /^(?:yes|no|❌|☑️)/i.test(String(parsedData.pathology_info.symptoms).trim())) {
+      // Existing value is a stray Yes/No — drop it so UI doesn't display garbage.
+      console.log(`[AUTO-PARSE GAE] Dropping invalid symptoms value: ${parsedData.pathology_info.symptoms}`);
+      parsedData.pathology_info.symptoms = null;
     }
+
 
     // Previous treatments → STEP 2 "What treatments have you tried for your knee pain?"
     const tx = grab(/GAE\s*STEP\s*2\s*\|[^|\n]*treatments?[^:?]*\??\s*:\s*([^\n]+)/i);
