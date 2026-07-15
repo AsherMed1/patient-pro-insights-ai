@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
             qaCase.appointment_id ? `Appointment ID: ${qaCase.appointment_id}` : null,
           ].filter(Boolean).join('\n'),
           submitted_by: 'PatientPro QA Queue',
-          priority: 'normal',
+          priority: 'medium',
           metadata: {
             qa_case_id: case_id,
             project: qaCase.project_name,
