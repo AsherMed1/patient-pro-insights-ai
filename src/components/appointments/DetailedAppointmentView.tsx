@@ -944,14 +944,24 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     <SelectValue placeholder="Set status" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-[9999]">
-                    {statusOptions.sort().map((status) => (
-                      <SelectItem key={status} value={status}>
-                        <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${getStatusDot(status)}`} />
-                          {status}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {statusOptions.sort().map((status) => {
+                      const isCancelled = (currentStatus || '').trim().toLowerCase() === 'cancelled';
+                      const isWelcomeCall = status.toLowerCase() === 'welcome call';
+                      const disabled = isCancelled && isWelcomeCall;
+                      return (
+                        <SelectItem
+                          key={status}
+                          value={status}
+                          disabled={disabled}
+                          title={disabled ? 'Change status to Confirmed first before moving to Welcome Call.' : undefined}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full ${getStatusDot(status)}`} />
+                            {status}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
