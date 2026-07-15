@@ -1869,21 +1869,11 @@ const AppointmentCard = ({
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map((status) => {
-                  const isCancelled = appointment.status?.toLowerCase() === 'cancelled';
-                  const disableWelcome = isCancelled && status === 'Welcome Call';
-                  return (
-                    <SelectItem
-                      key={status}
-                      value={status}
-                      disabled={disableWelcome}
-                      className={disableWelcome ? 'opacity-50 cursor-not-allowed' : ''}
-                      title={disableWelcome ? 'Confirm the appointment before moving to Welcome Call.' : undefined}
-                    >
-                      {status}
-                    </SelectItem>
-                  );
-                })}
+                {statusOptions.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
