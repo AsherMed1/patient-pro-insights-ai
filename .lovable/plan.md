@@ -1,29 +1,15 @@
-Joseph Brant’s most recent `all_appointments` row (ID: `cfa151e7-a503-48ec-8663-121e56986884`, Liberty Joint & Vascular) is currently `status = 'OON'`. The user wants it reverted to `Confirmed` so they can manually attempt the OON transition again.
+## Backfill VSAV: Shrader Road → Mechanicsville
 
-## Plan
+GHL is already renamed, so future bookings will land as "…at Mechanicsville" automatically. The one existing VSAV row in `all_appointments` still says "Shrader Road", which is why the dropdown still shows it.
 
-1. **Update the appointment status** in `all_appointments`:
-   - Set `status = 'Confirmed'`
-   - Set `updated_at = now()`
-   - Filter by `id = 'cfa151e7-a503-48ec-8663-121e56986884'` to target only the active row.
-
-2. **Verify the change** with a follow-up `SELECT` to confirm the row now reads `Confirmed`.
-
-## SQL to execute
+### Change
+Single data update — no schema, no code:
 
 ```sql
 UPDATE all_appointments
-SET status = 'Confirmed',
-    updated_at = now()
-WHERE id = 'cfa151e7-a503-48ec-8663-121e56986884';
+SET calendar_name = REPLACE(calendar_name, 'Shrader Road', 'Mechanicsville')
+WHERE project_name = 'Vascular Surgery Associates of Virginia'
+  AND calendar_name ILIKE '%Shrader Road%';
 ```
 
-## Verification query
-
-```sql
-SELECT id, lead_name, project_name, status, updated_at
-FROM all_appointments
-WHERE id = 'cfa151e7-a503-48ec-8663-121e56986884';
-```
-
-No code changes are required for this request.
+Affects 1 row. After it runs, the **All Locations** dropdown will show Henrico, Petersburg, Mechanicsville on next load.
