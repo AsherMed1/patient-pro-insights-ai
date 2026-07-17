@@ -2134,10 +2134,13 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // Procedure/treatment preference fields (Vivid Vascular patterns)
     else if (key.includes('prefer') || key.includes('non-surgical') || key.includes('nonsurgical') || 
              key.includes('treatment') || key.includes('procedure') || key.includes('surgical')) {
-      // Extract procedure type from key if present
+      // Extract procedure type from key if present. Only PAE has a legitimate
+      // pathology-label complaint ("PAE / BPH", set elsewhere); every other procedure
+      // should derive primary_complaint from actual patient symptoms — never
+      // "<PROC> Consultation".
       const procedureMatch = key.match(/\b(pae|ufe|gae|tae|hae|pad|fse|pfe)\b/i);
-      if (procedureMatch) {
-        result.pathology_info.primary_complaint = `${procedureMatch[1].toUpperCase()} Consultation`;
+      if (procedureMatch && procedureMatch[1].toUpperCase() === 'PAE' && !result.pathology_info.primary_complaint) {
+        result.pathology_info.primary_complaint = 'PAE Consultation';
       }
       // Store treatment preference as symptom/notes
       if (result.pathology_info.symptoms) {
@@ -2148,13 +2151,13 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     }
     // PAE/UFE/GAE/PAD specific fields
     else if (key.includes('pae') || key.includes('prostate')) {
-      result.pathology_info.primary_complaint = 'PAE Consultation';
+      if (!result.pathology_info.primary_complaint) {
+        result.pathology_info.primary_complaint = 'PAE Consultation';
+      }
       result.pathology_info.affected_area = 'Prostate';
     } else if (key.includes('ufe') || key.includes('fibroid') || key.includes('uterine')) {
-      result.pathology_info.primary_complaint = 'UFE Consultation';
       result.pathology_info.affected_area = 'Uterus';
     } else if (key.includes('gae') || key.includes('gastric') || (key.includes('artery') && key.includes('embolization'))) {
-      result.pathology_info.primary_complaint = 'GAE Consultation';
       result.pathology_info.affected_area = 'Gastric';
     }
     // PAD-specific survey fields
