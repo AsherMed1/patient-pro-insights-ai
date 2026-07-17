@@ -1377,9 +1377,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   // For Joint & Vascular Institute TAE intake; runs even when GHL custom field defs are unavailable
   if (/TAE STEP|thyroid nodule|thyroid artery embolization/i.test(intakeNotes)) {
     parsedData.pathology_info.procedure_type = 'TAE';
-    if (!parsedData.pathology_info.primary_complaint) {
-      parsedData.pathology_info.primary_complaint = 'TAE Consultation';
-    }
+    // primary_complaint left for the procedure-agnostic sweep to derive from symptoms
+
     if (!parsedData.pathology_info.affected_area) {
       parsedData.pathology_info.affected_area = 'Thyroid';
     }
@@ -1628,11 +1627,9 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
   } // end _isPaeIntake guard
 
-  // === PFE (Plantar Fasciitis Embolization) sanity guards ===
+  // === PFE (Plantar Fasciitis Embolization) pain-scale guard ===
   // PFE intake has no pain-scale question, so any pain_level for a PFE lead was
-  // scraped from unrelated text (e.g. the leading digit of "3-6 months"). Also
-  // ensure a PFE lead never gets tagged as "PAE / BPH" (a bare "BPH" substring in
-  // the notes could bleed through some other path).
+  // scraped from unrelated text (e.g. the leading digit of "3-6 months").
   {
     const _procForPfe = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
     if (_procForPfe === 'PFE') {
@@ -1640,47 +1637,6 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       if (!hasPainScale && parsedData.pathology_info.pain_level != null) {
         console.log(`[AUTO-PARSE PFE] Dropping pain_level (no scale question in intake): ${parsedData.pathology_info.pain_level}`);
         parsedData.pathology_info.pain_level = null;
-      }
-      const pc = String(parsedData.pathology_info.primary_complaint || '').trim();
-      // Drop redundant / wrong fallbacks — primary_complaint should reflect actual symptoms,
-      // not the pathology label (which is already shown as procedure_type).
-      if (/^PAE\s*\/\s*BPH$/i.test(pc) || /^PFE\s+Consultation$/i.test(pc)) {
-        console.log(`[AUTO-PARSE PFE] Dropping non-symptom primary_complaint "${pc}"`);
-        parsedData.pathology_info.primary_complaint = null;
-      }
-      // Derive primary_complaint from the patient's actual symptoms.
-      if (!parsedData.pathology_info.primary_complaint) {
-        const grab = (re: RegExp): string | null => {
-          const m = intakeNotes.match(re);
-          return m && m[1] ? m[1].trim().replace(/\s*\|\s*$/, '').trim() : null;
-        };
-        // 1) Explicit "chief/primary complaint / what brings you in / reason for visit" answers
-        let derived = grab(/(?:chief|primary)\s*complaint\s*:\s*([^\n|]+)/i)
-          || grab(/what\s+brings\s+you\s+in[^:?]*[:?]\s*([^\n|]+)/i)
-          || grab(/reason\s+for\s+(?:visit|consult(?:ation)?)\s*:\s*([^\n|]+)/i);
-        // 2) Location-of-pain answers → "<location> pain"
-        if (!derived) {
-          const loc = grab(/where\s+is\s+your\s+pain\s+located[^:?]*[:?]\s*([^\n|]+)/i)
-            || grab(/location\s+of\s+pain\s*:\s*([^\n|]+)/i);
-          if (loc) {
-            const cleaned = loc.replace(/[.?!]+$/, '').trim();
-            if (cleaned && cleaned.length < 60 && !/^(yes|no)$/i.test(cleaned)) {
-              derived = /pain$/i.test(cleaned) ? cleaned : `${cleaned} pain`;
-            }
-          }
-        }
-        // 3) Fall back to a short symptoms phrase if it looks human (not a checklist)
-        if (!derived) {
-          const sx = String(parsedData.pathology_info.symptoms || '').trim();
-          if (sx && sx.length > 0 && sx.length < 80 && !/[|,]/.test(sx) && !/^(yes|no|❌|☑️)/i.test(sx)) {
-            derived = sx;
-          }
-        }
-        if (derived) {
-          parsedData.pathology_info.primary_complaint = derived;
-          console.log(`[AUTO-PARSE PFE] Derived primary_complaint from symptoms: ${derived}`);
-        }
-        // Otherwise leave null — do NOT invent a "PFE Consultation" placeholder.
       }
     }
   }
@@ -1800,9 +1756,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       // already detected; leave alone
     }
     if (String(parsedData.pathology_info.procedure_type).toUpperCase() === 'ATE') {
-      if (!parsedData.pathology_info.primary_complaint) {
-        parsedData.pathology_info.primary_complaint = 'ATE Consultation';
-      }
+      // primary_complaint left for the procedure-agnostic sweep to derive from symptoms
+
 
       // Where is your pain located? → pain_location + affected_area
       const loc = grab(/STEP\s*1\s*\|\s*Where is your pain located\??\s*:\s*([^\n]+)/i)
@@ -1838,6 +1793,47 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
             console.log(`[AUTO-PARSE ATE] Extracted pain_level: ${num[0]}`);
           }
         }
+      }
+    }
+  }
+
+  // === Procedure-agnostic primary_complaint sanity sweep ===
+  // Never let "<PROC> Consultation" placeholders survive — primary_complaint should
+  // reflect the patient's actual symptom (e.g. "heel pain"), not the pathology label
+  // which is already shown as procedure_type. PAE / BPH is the one legitimate
+  // pathology-label complaint and is preserved.
+  {
+    const pc = String(parsedData.pathology_info?.primary_complaint || '').trim();
+    if (/^(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation$/i.test(pc)) {
+      console.log(`[AUTO-PARSE SWEEP] Dropping placeholder primary_complaint "${pc}"`);
+      parsedData.pathology_info.primary_complaint = null;
+
+      const grab = (re: RegExp): string | null => {
+        const m = intakeNotes.match(re);
+        return m && m[1] ? m[1].trim().replace(/\s*\|\s*$/, '').trim() : null;
+      };
+      let derived = grab(/(?:chief|primary)\s*complaint\s*:\s*([^\n|]+)/i)
+        || grab(/what\s+brings\s+you\s+in[^:?]*[:?]\s*([^\n|]+)/i)
+        || grab(/reason\s+for\s+(?:visit|consult(?:ation)?)\s*:\s*([^\n|]+)/i);
+      if (!derived) {
+        const loc = grab(/where\s+is\s+your\s+pain\s+located[^:?]*[:?]\s*([^\n|]+)/i)
+          || grab(/location\s+of\s+pain\s*:\s*([^\n|]+)/i);
+        if (loc) {
+          const cleaned = loc.replace(/[.?!]+$/, '').trim();
+          if (cleaned && cleaned.length < 60 && !/^(yes|no)$/i.test(cleaned)) {
+            derived = /pain$/i.test(cleaned) ? cleaned : `${cleaned} pain`;
+          }
+        }
+      }
+      if (!derived) {
+        const sx = String(parsedData.pathology_info.symptoms || '').trim();
+        if (sx && sx.length > 0 && sx.length < 80 && !/[|,]/.test(sx) && !/^(yes|no|❌|☑️)/i.test(sx)) {
+          derived = sx;
+        }
+      }
+      if (derived) {
+        parsedData.pathology_info.primary_complaint = derived;
+        console.log(`[AUTO-PARSE SWEEP] Derived primary_complaint from symptoms: ${derived}`);
       }
     }
   }
@@ -2138,10 +2134,13 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // Procedure/treatment preference fields (Vivid Vascular patterns)
     else if (key.includes('prefer') || key.includes('non-surgical') || key.includes('nonsurgical') || 
              key.includes('treatment') || key.includes('procedure') || key.includes('surgical')) {
-      // Extract procedure type from key if present
+      // Extract procedure type from key if present. Only PAE has a legitimate
+      // pathology-label complaint ("PAE / BPH", set elsewhere); every other procedure
+      // should derive primary_complaint from actual patient symptoms — never
+      // "<PROC> Consultation".
       const procedureMatch = key.match(/\b(pae|ufe|gae|tae|hae|pad|fse|pfe)\b/i);
-      if (procedureMatch) {
-        result.pathology_info.primary_complaint = `${procedureMatch[1].toUpperCase()} Consultation`;
+      if (procedureMatch && procedureMatch[1].toUpperCase() === 'PAE' && !result.pathology_info.primary_complaint) {
+        result.pathology_info.primary_complaint = 'PAE Consultation';
       }
       // Store treatment preference as symptom/notes
       if (result.pathology_info.symptoms) {
@@ -2152,13 +2151,13 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     }
     // PAE/UFE/GAE/PAD specific fields
     else if (key.includes('pae') || key.includes('prostate')) {
-      result.pathology_info.primary_complaint = 'PAE Consultation';
+      if (!result.pathology_info.primary_complaint) {
+        result.pathology_info.primary_complaint = 'PAE Consultation';
+      }
       result.pathology_info.affected_area = 'Prostate';
     } else if (key.includes('ufe') || key.includes('fibroid') || key.includes('uterine')) {
-      result.pathology_info.primary_complaint = 'UFE Consultation';
       result.pathology_info.affected_area = 'Uterus';
     } else if (key.includes('gae') || key.includes('gastric') || (key.includes('artery') && key.includes('embolization'))) {
-      result.pathology_info.primary_complaint = 'GAE Consultation';
       result.pathology_info.affected_area = 'Gastric';
     }
     // PAD-specific survey fields
@@ -2221,7 +2220,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // TAE-specific survey fields (Thyroid Artery Embolization)
     else if (key.includes('thyroid') || key.includes('goiter') || key.includes('tae')) {
       const lowerVal = String(value).toLowerCase();
-      result.pathology_info.primary_complaint = 'TAE Consultation';
+      // primary_complaint left null here — the procedure-agnostic sweep will
+      // derive from actual symptoms; never write "TAE Consultation".
       (result.pathology_info as any).affected_area = 'Thyroid';
       if (key.includes('nodule') || key.includes('goiter')) {
         (result.pathology_info as any).diagnosis = String(value);
@@ -2379,7 +2379,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     }
     // Catch-all for uncategorized procedure-related fields
     else if (key.includes('consultation') || key.includes('appointment') || key.includes('service')) {
-      if (!result.pathology_info.primary_complaint) {
+      // Skip generic "<PROC> Consultation" placeholders — primary_complaint should
+      // reflect the patient's actual symptom, not the pathology label.
+      if (!result.pathology_info.primary_complaint &&
+          !/^\s*(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation\s*$/i.test(String(value))) {
         result.pathology_info.primary_complaint = value;
       }
     }
@@ -2792,9 +2795,9 @@ ${calendarProcedure === 'PFE' ? 'PFE (Plantar Fasciitis Embolization) focuses on
 ${calendarProcedure === 'PAD' ? 'PAD (Peripheral Artery Disease) focuses on: poor circulation, numbness, cold feet, discoloration, open wounds/sores, toe pain, pain that worsens when walking and improves with rest, blood thinners, smoking/tobacco status, medical conditions (diabetes, hypertension, kidney disease). Set procedure_type to "PAD". Map medical conditions to "diagnosis".' : ''}
 ${calendarProcedure === 'FSE' ? 'FSE (Frozen Shoulder Embolization) focuses on: shoulder pain, frozen shoulder, limited range of motion, shoulder stiffness, difficulty raising arm, affected shoulder (left/right). Set procedure_type to "FSE".' : ''}
 ${calendarProcedure === 'HAE' ? 'HAE (Hemorrhoid Artery Embolization) focuses on: rectal bleeding, internal/external hemorrhoids, bowel discomfort, constipation, colonoscopy results, hemorrhoid diagnosis, bleeding duration. Set procedure_type to "HAE".' : ''}
-${calendarProcedure === 'TAE' ? 'TAE (Thyroid Artery Embolization) focuses on: thyroid nodule or goiter diagnosis, lump or swelling in the neck, pressure or tightness in the throat, difficulty swallowing, cosmetic concerns about the neck, prior thyroid imaging (ultrasound/CT/MRI), interest in avoiding surgery, openness to minimally invasive treatment. Set procedure_type to "TAE", primary_complaint to "TAE Consultation", and affected_area to "Thyroid". Map "TAE STEP 1/2 | Are you experiencing any of the following?" to symptoms; "diagnosed with a thyroid nodule or goiter" to diagnosis; "Has a doctor recommended..." to previous_treatments; "imaging of your thyroid" to imaging_done (YES/NO); "Had Imaging Before" to medical_info.imaging_details.' : ''}
+${calendarProcedure === 'TAE' ? 'TAE (Thyroid Artery Embolization) focuses on: thyroid nodule or goiter diagnosis, lump or swelling in the neck, pressure or tightness in the throat, difficulty swallowing, cosmetic concerns about the neck, prior thyroid imaging (ultrasound/CT/MRI), interest in avoiding surgery, openness to minimally invasive treatment. Set procedure_type to "TAE" and affected_area to "Thyroid". primary_complaint should reflect the patient\'s actual symptom (e.g. "lump in neck", "difficulty swallowing") — never the placeholder "TAE Consultation". Leave primary_complaint null if no symptom-specific phrase is available. Map "TAE STEP 1/2 | Are you experiencing any of the following?" to symptoms; "diagnosed with a thyroid nodule or goiter" to diagnosis; "Has a doctor recommended..." to previous_treatments; "imaging of your thyroid" to imaging_done (YES/NO); "Had Imaging Before" to medical_info.imaging_details.' : ''}
 ${calendarProcedure === 'Neuropathy' ? 'Neuropathy (peripheral neuropathy consultation, The Painless Center) focuses on: numbness, tingling, burning, cold feet, balance issues, foot/leg nerve pain, diabetic neuropathy, duration of symptoms. Set procedure_type to "Neuropathy". DO NOT extract knee-specific GAE fields like oa_tkr_diagnosed, affected_knee, or knee imaging — leave them null. primary_complaint should be "Neuropathy" or the described nerve symptom.' : ''}
-${calendarProcedure === 'ATE' ? 'ATE (Achilles Tendinitis Embolization) focuses on: chronic Achilles tendon pain, location of pain along the Achilles tendon (insertion, mid-tendon, etc.), pain level, duration of symptoms, prior treatments tried (rest, PT, injections, orthotics), prior imaging (X-ray, MRI, ultrasound). Set procedure_type to "ATE", primary_complaint to "ATE Consultation", and affected_area to "Achilles tendon". Map "STEP 1 | How would you rate your pain on a scale of 0–10?" to pain_level; "STEP 1 | Where is your pain located?" to BOTH pathology_info.pain_location (the verbatim answer, e.g. "Middle of the Achilles tendon") AND affected_area; any "How long have you had..." answers to duration; "STEP 2 | Have you tried any treatments for your Achilles pain?" answers (and any other prior treatment lists) to previous_treatments — preserve the comma-separated list verbatim. DO NOT extract knee-specific GAE fields (oa_tkr_diagnosed, affected_knee) — leave them null.' : ''}
+${calendarProcedure === 'ATE' ? 'ATE (Achilles Tendinitis Embolization) focuses on: chronic Achilles tendon pain, location of pain along the Achilles tendon (insertion, mid-tendon, etc.), pain level, duration of symptoms, prior treatments tried (rest, PT, injections, orthotics), prior imaging (X-ray, MRI, ultrasound). Set procedure_type to "ATE" and affected_area to "Achilles tendon". primary_complaint should reflect the patient\'s actual symptom (e.g. "Achilles pain", "heel-cord pain") — never the placeholder "ATE Consultation". Leave primary_complaint null if no symptom-specific phrase is available. Map "STEP 1 | How would you rate your pain on a scale of 0–10?" to pain_level; "STEP 1 | Where is your pain located?" to BOTH pathology_info.pain_location (the verbatim answer, e.g. "Middle of the Achilles tendon") AND affected_area; any "How long have you had..." answers to duration; "STEP 2 | Have you tried any treatments for your Achilles pain?" answers (and any other prior treatment lists) to previous_treatments — preserve the comma-separated list verbatim. DO NOT extract knee-specific GAE fields (oa_tkr_diagnosed, affected_knee) — leave them null.' : ''}
 
 IGNORE any intake data from prior consultations for different procedures. Focus on ${calendarProcedure} data only.
 `;
