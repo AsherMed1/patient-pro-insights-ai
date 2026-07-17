@@ -1756,9 +1756,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       // already detected; leave alone
     }
     if (String(parsedData.pathology_info.procedure_type).toUpperCase() === 'ATE') {
-      if (!parsedData.pathology_info.primary_complaint) {
-        parsedData.pathology_info.primary_complaint = 'ATE Consultation';
-      }
+      // primary_complaint left for the procedure-agnostic sweep to derive from symptoms
+
 
       // Where is your pain located? → pain_location + affected_area
       const loc = grab(/STEP\s*1\s*\|\s*Where is your pain located\??\s*:\s*([^\n]+)/i)
