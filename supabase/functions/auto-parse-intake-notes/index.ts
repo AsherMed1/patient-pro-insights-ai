@@ -1377,9 +1377,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   // For Joint & Vascular Institute TAE intake; runs even when GHL custom field defs are unavailable
   if (/TAE STEP|thyroid nodule|thyroid artery embolization/i.test(intakeNotes)) {
     parsedData.pathology_info.procedure_type = 'TAE';
-    if (!parsedData.pathology_info.primary_complaint) {
-      parsedData.pathology_info.primary_complaint = 'TAE Consultation';
-    }
+    // primary_complaint left for the procedure-agnostic sweep to derive from symptoms
+
     if (!parsedData.pathology_info.affected_area) {
       parsedData.pathology_info.affected_area = 'Thyroid';
     }
