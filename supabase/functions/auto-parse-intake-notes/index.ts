@@ -2379,7 +2379,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     }
     // Catch-all for uncategorized procedure-related fields
     else if (key.includes('consultation') || key.includes('appointment') || key.includes('service')) {
-      if (!result.pathology_info.primary_complaint) {
+      // Skip generic "<PROC> Consultation" placeholders — primary_complaint should
+      // reflect the patient's actual symptom, not the pathology label.
+      if (!result.pathology_info.primary_complaint &&
+          !/^\s*(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation\s*$/i.test(String(value))) {
         result.pathology_info.primary_complaint = value;
       }
     }
