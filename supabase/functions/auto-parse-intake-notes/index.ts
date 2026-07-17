@@ -1628,11 +1628,9 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
   } // end _isPaeIntake guard
 
-  // === PFE (Plantar Fasciitis Embolization) sanity guards ===
+  // === PFE (Plantar Fasciitis Embolization) pain-scale guard ===
   // PFE intake has no pain-scale question, so any pain_level for a PFE lead was
-  // scraped from unrelated text (e.g. the leading digit of "3-6 months"). Also
-  // ensure a PFE lead never gets tagged as "PAE / BPH" (a bare "BPH" substring in
-  // the notes could bleed through some other path).
+  // scraped from unrelated text (e.g. the leading digit of "3-6 months").
   {
     const _procForPfe = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
     if (_procForPfe === 'PFE') {
@@ -1640,47 +1638,6 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       if (!hasPainScale && parsedData.pathology_info.pain_level != null) {
         console.log(`[AUTO-PARSE PFE] Dropping pain_level (no scale question in intake): ${parsedData.pathology_info.pain_level}`);
         parsedData.pathology_info.pain_level = null;
-      }
-      const pc = String(parsedData.pathology_info.primary_complaint || '').trim();
-      // Drop redundant / wrong fallbacks — primary_complaint should reflect actual symptoms,
-      // not the pathology label (which is already shown as procedure_type).
-      if (/^PAE\s*\/\s*BPH$/i.test(pc) || /^PFE\s+Consultation$/i.test(pc)) {
-        console.log(`[AUTO-PARSE PFE] Dropping non-symptom primary_complaint "${pc}"`);
-        parsedData.pathology_info.primary_complaint = null;
-      }
-      // Derive primary_complaint from the patient's actual symptoms.
-      if (!parsedData.pathology_info.primary_complaint) {
-        const grab = (re: RegExp): string | null => {
-          const m = intakeNotes.match(re);
-          return m && m[1] ? m[1].trim().replace(/\s*\|\s*$/, '').trim() : null;
-        };
-        // 1) Explicit "chief/primary complaint / what brings you in / reason for visit" answers
-        let derived = grab(/(?:chief|primary)\s*complaint\s*:\s*([^\n|]+)/i)
-          || grab(/what\s+brings\s+you\s+in[^:?]*[:?]\s*([^\n|]+)/i)
-          || grab(/reason\s+for\s+(?:visit|consult(?:ation)?)\s*:\s*([^\n|]+)/i);
-        // 2) Location-of-pain answers → "<location> pain"
-        if (!derived) {
-          const loc = grab(/where\s+is\s+your\s+pain\s+located[^:?]*[:?]\s*([^\n|]+)/i)
-            || grab(/location\s+of\s+pain\s*:\s*([^\n|]+)/i);
-          if (loc) {
-            const cleaned = loc.replace(/[.?!]+$/, '').trim();
-            if (cleaned && cleaned.length < 60 && !/^(yes|no)$/i.test(cleaned)) {
-              derived = /pain$/i.test(cleaned) ? cleaned : `${cleaned} pain`;
-            }
-          }
-        }
-        // 3) Fall back to a short symptoms phrase if it looks human (not a checklist)
-        if (!derived) {
-          const sx = String(parsedData.pathology_info.symptoms || '').trim();
-          if (sx && sx.length > 0 && sx.length < 80 && !/[|,]/.test(sx) && !/^(yes|no|❌|☑️)/i.test(sx)) {
-            derived = sx;
-          }
-        }
-        if (derived) {
-          parsedData.pathology_info.primary_complaint = derived;
-          console.log(`[AUTO-PARSE PFE] Derived primary_complaint from symptoms: ${derived}`);
-        }
-        // Otherwise leave null — do NOT invent a "PFE Consultation" placeholder.
       }
     }
   }
