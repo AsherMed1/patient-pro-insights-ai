@@ -1799,6 +1799,47 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // === Procedure-agnostic primary_complaint sanity sweep ===
+  // Never let "<PROC> Consultation" placeholders survive — primary_complaint should
+  // reflect the patient's actual symptom (e.g. "heel pain"), not the pathology label
+  // which is already shown as procedure_type. PAE / BPH is the one legitimate
+  // pathology-label complaint and is preserved.
+  {
+    const pc = String(parsedData.pathology_info?.primary_complaint || '').trim();
+    if (/^(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation$/i.test(pc)) {
+      console.log(`[AUTO-PARSE SWEEP] Dropping placeholder primary_complaint "${pc}"`);
+      parsedData.pathology_info.primary_complaint = null;
+
+      const grab = (re: RegExp): string | null => {
+        const m = intakeNotes.match(re);
+        return m && m[1] ? m[1].trim().replace(/\s*\|\s*$/, '').trim() : null;
+      };
+      let derived = grab(/(?:chief|primary)\s*complaint\s*:\s*([^\n|]+)/i)
+        || grab(/what\s+brings\s+you\s+in[^:?]*[:?]\s*([^\n|]+)/i)
+        || grab(/reason\s+for\s+(?:visit|consult(?:ation)?)\s*:\s*([^\n|]+)/i);
+      if (!derived) {
+        const loc = grab(/where\s+is\s+your\s+pain\s+located[^:?]*[:?]\s*([^\n|]+)/i)
+          || grab(/location\s+of\s+pain\s*:\s*([^\n|]+)/i);
+        if (loc) {
+          const cleaned = loc.replace(/[.?!]+$/, '').trim();
+          if (cleaned && cleaned.length < 60 && !/^(yes|no)$/i.test(cleaned)) {
+            derived = /pain$/i.test(cleaned) ? cleaned : `${cleaned} pain`;
+          }
+        }
+      }
+      if (!derived) {
+        const sx = String(parsedData.pathology_info.symptoms || '').trim();
+        if (sx && sx.length > 0 && sx.length < 80 && !/[|,]/.test(sx) && !/^(yes|no|❌|☑️)/i.test(sx)) {
+          derived = sx;
+        }
+      }
+      if (derived) {
+        parsedData.pathology_info.primary_complaint = derived;
+        console.log(`[AUTO-PARSE SWEEP] Derived primary_complaint from symptoms: ${derived}`);
+      }
+    }
+  }
+
   return parsedData;
 }
 
