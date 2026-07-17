@@ -1572,7 +1572,14 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   // === PAE w/BPH STEP-specific field extraction (deterministic regex on raw notes) ===
   // PAE intake uses "PAE w/BPH | <question>:" format that GPT often skips.
-  if (/PAE w\/?\s*BPH\s*\||prostate|BPH/i.test(intakeNotes)) {
+  // IMPORTANT: gate on structural markers or an actual PAE procedure — a bare "BPH"
+  // substring can appear in unrelated intakes (e.g. PFE) and must NOT trigger this block.
+  {
+    const _procForPae = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
+    const _isPaeIntake = /PAE\s*w\/?\s*BPH\s*\|/i.test(intakeNotes)
+      || /PAE\s*STEP\s*\d/i.test(intakeNotes)
+      || _procForPae === 'PAE';
+    if (_isPaeIntake) {
     if (!parsedData.pathology_info.primary_complaint) {
       parsedData.pathology_info.primary_complaint = 'PAE / BPH';
     }
