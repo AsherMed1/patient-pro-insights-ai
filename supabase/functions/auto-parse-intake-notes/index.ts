@@ -2220,7 +2220,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // TAE-specific survey fields (Thyroid Artery Embolization)
     else if (key.includes('thyroid') || key.includes('goiter') || key.includes('tae')) {
       const lowerVal = String(value).toLowerCase();
-      result.pathology_info.primary_complaint = 'TAE Consultation';
+      // primary_complaint left null here — the procedure-agnostic sweep will
+      // derive from actual symptoms; never write "TAE Consultation".
       (result.pathology_info as any).affected_area = 'Thyroid';
       if (key.includes('nodule') || key.includes('goiter')) {
         (result.pathology_info as any).diagnosis = String(value);
