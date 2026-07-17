@@ -1572,7 +1572,14 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
   // === PAE w/BPH STEP-specific field extraction (deterministic regex on raw notes) ===
   // PAE intake uses "PAE w/BPH | <question>:" format that GPT often skips.
-  if (/PAE w\/?\s*BPH\s*\||prostate|BPH/i.test(intakeNotes)) {
+  // IMPORTANT: gate on structural markers or an actual PAE procedure — a bare "BPH"
+  // substring can appear in unrelated intakes (e.g. PFE) and must NOT trigger this block.
+  {
+    const _procForPae = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
+    const _isPaeIntake = /PAE\s*w\/?\s*BPH\s*\|/i.test(intakeNotes)
+      || /PAE\s*STEP\s*\d/i.test(intakeNotes)
+      || _procForPae === 'PAE';
+    if (_isPaeIntake) {
     if (!parsedData.pathology_info.primary_complaint) {
       parsedData.pathology_info.primary_complaint = 'PAE / BPH';
     }
@@ -1619,6 +1626,33 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       console.log(`[AUTO-PARSE PAE] Extracted urologist surgery note: ${surg}`);
     }
   }
+  } // end _isPaeIntake guard
+
+  // === PFE (Plantar Fasciitis Embolization) sanity guards ===
+  // PFE intake has no pain-scale question, so any pain_level for a PFE lead was
+  // scraped from unrelated text (e.g. the leading digit of "3-6 months"). Also
+  // ensure a PFE lead never gets tagged as "PAE / BPH" (a bare "BPH" substring in
+  // the notes could bleed through some other path).
+  {
+    const _procForPfe = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
+    if (_procForPfe === 'PFE') {
+      const hasPainScale = /scale of 1[\s-]*to?[\s-]*10[^\n]*pain/i.test(intakeNotes);
+      if (!hasPainScale && parsedData.pathology_info.pain_level != null) {
+        console.log(`[AUTO-PARSE PFE] Dropping pain_level (no scale question in intake): ${parsedData.pathology_info.pain_level}`);
+        parsedData.pathology_info.pain_level = null;
+      }
+      const pc = String(parsedData.pathology_info.primary_complaint || '').trim();
+      if (/^PAE\s*\/\s*BPH$/i.test(pc)) {
+        console.log(`[AUTO-PARSE PFE] Dropping bogus primary_complaint "${pc}" for PFE lead`);
+        parsedData.pathology_info.primary_complaint = null;
+      }
+      if (!parsedData.pathology_info.primary_complaint) {
+        parsedData.pathology_info.primary_complaint = 'PFE Consultation';
+      }
+    }
+  }
+
+
 
   // === GAE STEP-specific field extraction (deterministic regex on raw notes) ===
   // GAE intake uses "GAE STEP 1 | <question>:" / "GAE STEP 2 | <question>:" format.
