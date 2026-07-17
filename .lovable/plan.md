@@ -1,42 +1,41 @@
 ## Problem
 
-On Georgia Endovascular PFE lead (Georgia Test, `6630f3ac`), the Medical Information card shows:
+On Georgia Endovascular PFE lead (Georgia Test, `6630f3ac`):
 - `Pain Level: 3/10` — PFE intake has no pain scale question. The `3` was scraped from `Duration: 3-6 months`.
-- `Primary Complaint: PAE / BPH` — this is a PFE lead; PAE is not offered at Georgia Endovascular.
+- `Primary Complaint: PAE / BPH` — this is a PFE lead; PAE isn't offered at Georgia Endovascular. The trigger fires on any casual `BPH` substring.
 
-## Root cause (verified against the record)
-
-In `supabase/functions/auto-parse-intake-notes/index.ts`:
-
-**Primary complaint bleed (line ~1573):**
-```ts
-if (/PAE w\/?\s*BPH\s*\||prostate|BPH/i.test(intakeNotes)) {
-  if (!parsedData.pathology_info.primary_complaint) {
-    parsedData.pathology_info.primary_complaint = 'PAE / BPH';
-  }
-  ...
-}
-```
-The trigger fires on any casual occurrence of the substring `BPH` anywhere in the intake blob (confirmed: the PFE record contains a stray `Bph` token). It should only fire for real PAE intakes.
-
-**Pain level bleed:** PFE intake has no "scale of 1–10" question, so the deterministic PFE branch never sets `pain_level`. The `3` is coming from the AI parser lifting the leading digit of `3-6 months`, and no PFE-specific guard clears it. Other procedures (GAE, ATE) already clamp / clear invalid `pain_level` values.
+Primary complaint should reflect the patient's actual symptoms (e.g. "heel pain"), not the pathology label (PFE) and not a generic "PFE Consultation" placeholder.
 
 ## Fix
 
 Edit only `supabase/functions/auto-parse-intake-notes/index.ts`.
 
-1. **Tighten the PAE/BPH deterministic block trigger.** Replace the loose `BPH|prostate` substring test with a structural test: fire only when the intake contains `PAE w/BPH |` or `PAE STEP N |`, OR when `parsedData.pathology_info.procedure_type` is already `PAE`. This prevents PFE / GAE / UFE leads from being tagged `PAE / BPH`.
+1. **Tighten the PAE/BPH deterministic block trigger.** (Already applied.) Fire only when the intake contains `PAE w/BPH |` or `PAE STEP N |`, or when `procedure_type === 'PAE'`. Stops PFE / GAE / UFE leads from being tagged `PAE / BPH`.
 
-2. **Add a PFE pain-level guard** (mirror the existing GAE/ATE clamps): after enrichment, if `procedure_type === 'PFE'` and the intake notes contain no `scale of 1[-\s]to[-\s]10` pain question, force `pain_level = null`. Also drop any AI-provided `primary_complaint` equal to `'PAE / BPH'` when procedure is PFE, and default it to `'PFE Consultation'` when empty (matching the pattern used for TAE/ATE/UFE).
+2. **PFE-specific guard** (after GAE/ATE clamps):
+   - If `procedure_type === 'PFE'` and the intake has no `scale of 1[-\s]to[-\s]10` pain question, force `pain_level = null`.
+   - If `primary_complaint === 'PAE / BPH'` (leftover from a bad prior parse), clear it.
+   - **Do NOT default to `'PFE Consultation'`** — redundant with the pathology label.
 
-3. **Backfill the affected records.** Re-run the parser (or a targeted SQL update) for existing Georgia Endovascular PFE rows so `Georgia Test` and any siblings display correctly. Verify with a follow-up read query.
+3. **Derive `primary_complaint` from patient symptoms for PFE.** When empty, try in order:
+   - Regex on raw intake notes for the "chief complaint / primary complaint / what brings you in / reason for visit" answer.
+   - Location-of-pain answers ("heel", "arch", "bottom of foot") → phrase as "<location> pain".
+   - The `symptoms` field if it's a short human phrase (e.g. "heel pain", "sharp heel pain in the morning").
+   
+   If none produce a patient-specific phrase, leave `primary_complaint` `null` rather than inventing one. Apply the same "reflect actual symptoms, never fall back to `<Procedure> Consultation`" rule to the other symptom-driven procedures already using that placeholder (TAE / ATE / UFE / HAE) so behavior stays consistent — do not change PAE, which has a legitimate `PAE / BPH` diagnostic label.
+
+4. **Backfill.** Null `parsing_completed_at` for Georgia Endovascular PFE rows so the auto-parse hook re-runs them. Verify `Georgia Test` and one or two siblings.
 
 ## Out of scope
 
-- No UI changes — `ParsedIntakeInfo.tsx` already renders whatever the parser stores.
-- No schema or migration changes.
-- Other procedures' extraction rules are left untouched.
+- No UI changes.
+- No schema changes.
+- PAE extraction rules untouched.
 
 ## Verification
 
-After the edit and backfill, re-query `parsed_pathology_info` for `6630f3ac-…` and confirm `pain_level` is null and `primary_complaint` is not `PAE / BPH`. Spot-check one PAE lead (e.g., Steven Dabbs) to confirm PAE behavior is unchanged.
+Re-query `parsed_pathology_info` for `6630f3ac-…` and confirm:
+- `pain_level` is null.
+- `primary_complaint` is either the patient's actual symptom phrase (e.g. "heel pain") or null — never `PAE / BPH`, never `PFE Consultation`.
+
+Spot-check one real PAE lead to confirm `PAE / BPH` still lands there.
