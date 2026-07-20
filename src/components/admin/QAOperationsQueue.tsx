@@ -118,6 +118,7 @@ export default function QAOperationsQueue() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
+  const [setters, setSetters] = useState<{ id: string; name: string }[]>([]);
 
   const fetchCases = async () => {
     setLoading(true);
@@ -180,6 +181,26 @@ export default function QAOperationsQueue() {
         }
         setProjectLocationMap(map);
       }
+    })();
+    (async () => {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'review_only');
+      const ids = (roles as any[])?.map((r) => r.user_id).filter(Boolean) ?? [];
+      if (ids.length === 0) {
+        setSetters([]);
+        return;
+      }
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', ids);
+      const list = ((profs as any[]) ?? [])
+        .map((p) => ({ id: p.id, name: (p.full_name || p.email || '').trim() }))
+        .filter((p) => p.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setSetters(list);
     })();
   }, []);
 
@@ -415,10 +436,12 @@ export default function QAOperationsQueue() {
       <CaseDrawer
         caseData={selectedCase}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
+        setters={setters}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); fetchCounts(); }}
       />
+
     </div>
   );
 }
@@ -426,12 +449,14 @@ export default function QAOperationsQueue() {
 function CaseDrawer({
   caseData,
   ghlUrl,
+  setters,
   onClose,
   onStatusChange,
   onRefresh,
 }: {
   caseData: QACase | null;
   ghlUrl: string | null;
+  setters: { id: string; name: string }[];
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
@@ -593,12 +618,39 @@ function CaseDrawer({
                   </div>
                   <div>
                     <Label className="text-xs">Error Source</Label>
-                    <Input
-                      value={audit.error_source ?? ''}
-                      onChange={(e) => setAudit((a) => ({ ...a, error_source: e.target.value }))}
-                      placeholder="Setter / agent name"
-                    />
+                    <Select
+                      value={
+                        audit.error_source && setters.some((s) => s.name === audit.error_source)
+                          ? audit.error_source
+                          : audit.error_source
+                            ? '__other__'
+                            : ''
+                      }
+                      onValueChange={(v) =>
+                        setAudit((a) => ({
+                          ...a,
+                          error_source: v === '__other__' ? (a.error_source && !setters.some((s) => s.name === a.error_source) ? a.error_source : '') : v,
+                        }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select setter / agent" /></SelectTrigger>
+                      <SelectContent>
+                        {setters.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                        ))}
+                        <SelectItem value="__other__">Other…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {audit.error_source !== null && audit.error_source !== undefined && !setters.some((s) => s.name === audit.error_source) && (
+                      <Input
+                        className="mt-2"
+                        value={audit.error_source ?? ''}
+                        onChange={(e) => setAudit((a) => ({ ...a, error_source: e.target.value }))}
+                        placeholder="Enter name"
+                      />
+                    )}
                   </div>
+
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
