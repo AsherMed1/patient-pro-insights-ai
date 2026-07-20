@@ -251,8 +251,6 @@ export default function QAOperationsQueue() {
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
-            <SelectItem value="cancelled">Cancelled (was Confirmed)</SelectItem>
-            <SelectItem value="no_show">No Show (was Confirmed)</SelectItem>
           </SelectContent>
         </Select>
         <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
