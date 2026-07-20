@@ -471,14 +471,25 @@ function CaseDrawer({
 
   useEffect(() => {
     if (!caseData) return;
-    setAudit({
-      qa_name: caseData.qa_name ?? user?.email ?? '',
-      self_booked: caseData.self_booked,
-      error_category: caseData.error_category,
-      error_source: caseData.error_source,
-      caught_before_clinic: caseData.caught_before_clinic,
-      resolution_type: caseData.resolution_type,
-    });
+    (async () => {
+      let defaultName = '';
+      if (user?.id) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', user.id)
+          .maybeSingle();
+        defaultName = ((prof as any)?.full_name || '').trim() || (user as any)?.user_metadata?.full_name || '';
+      }
+      setAudit({
+        qa_name: caseData.qa_name ?? (defaultName || ''),
+        self_booked: caseData.self_booked,
+        error_category: caseData.error_category,
+        error_source: caseData.error_source,
+        caught_before_clinic: caseData.caught_before_clinic,
+        resolution_type: caseData.resolution_type,
+      });
+    })();
     (async () => {
       const [n, a] = await Promise.all([
         supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false }),
