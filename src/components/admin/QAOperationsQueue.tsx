@@ -355,7 +355,23 @@ export default function QAOperationsQueue() {
                 <TableBody>
                   {filtered.map((c) => (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => setSelectedCase(c)}>
-                      <TableCell className="font-medium">{c.patient_name || '—'}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{c.patient_name || '—'}</span>
+                          {ghlUrlFor(c) && (
+                            <a
+                              href={ghlUrlFor(c)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-primary hover:text-primary/80"
+                              title="Open in GHL"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{c.project_name}</TableCell>
                       <TableCell>{c.service_line || '—'}</TableCell>
                       <TableCell>
