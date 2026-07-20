@@ -168,6 +168,29 @@ export default function QAOperationsQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('name, ghl_location_id');
+      if (data) {
+        const map: Record<string, string> = {};
+        for (const p of data as any[]) {
+          if (p.ghl_location_id) map[p.name] = p.ghl_location_id;
+        }
+        setProjectLocationMap(map);
+      }
+    })();
+  }, []);
+
+  const ghlUrlFor = (c: QACase): string | null => {
+    if (!c.ghl_contact_id) return null;
+    const loc = projectLocationMap[c.project_name];
+    if (loc) return `https://app.gohighlevel.com/v2/location/${loc}/contacts/detail/${c.ghl_contact_id}`;
+    return `https://services.leadconnectorhq.com/contacts/${c.ghl_contact_id}`;
+  };
+
+
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
   const filtered = useMemo(() => {
