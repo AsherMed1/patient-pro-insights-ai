@@ -118,6 +118,7 @@ export default function QAOperationsQueue() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
+  const [setters, setSetters] = useState<{ id: string; name: string }[]>([]);
 
   const fetchCases = async () => {
     setLoading(true);
