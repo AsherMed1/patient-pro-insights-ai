@@ -526,9 +526,6 @@ function CaseDrawer({
     onRefresh();
   };
 
-  const patientLink = caseData?.project_name
-    ? `${window.location.origin}/project/${encodeURIComponent(caseData.project_name)}`
-    : '';
 
   return (
     <Sheet open={!!caseData} onOpenChange={(open) => !open && onClose()}>
