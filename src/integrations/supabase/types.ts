@@ -3100,20 +3100,29 @@ export type Database = {
           appointment_id: string | null
           appointment_status: string | null
           assigned_qs_user_id: string | null
+          caught_before_clinic: boolean | null
           completed_at: string | null
           completed_by_user_id: string | null
           controlhub_ticket_id: string | null
           controlhub_ticket_status: string | null
           controlhub_ticket_url: string | null
           created_at: string
+          date_resolved: string | null
           entered_queue_at: string
+          error_category: string | null
+          error_source: string | null
           ghl_contact_id: string | null
           id: string
           last_alert_activity_at: string
+          patient_link: string | null
           patient_name: string | null
           project_name: string
+          qa_name: string | null
+          resolution_type: string | null
           review_started_at: string | null
+          self_booked: boolean | null
           service_line: string | null
+          ticket_created: boolean
           updated_at: string
           workflow_status: string
         }
@@ -3124,20 +3133,29 @@ export type Database = {
           appointment_id?: string | null
           appointment_status?: string | null
           assigned_qs_user_id?: string | null
+          caught_before_clinic?: boolean | null
           completed_at?: string | null
           completed_by_user_id?: string | null
           controlhub_ticket_id?: string | null
           controlhub_ticket_status?: string | null
           controlhub_ticket_url?: string | null
           created_at?: string
+          date_resolved?: string | null
           entered_queue_at?: string
+          error_category?: string | null
+          error_source?: string | null
           ghl_contact_id?: string | null
           id?: string
           last_alert_activity_at?: string
+          patient_link?: string | null
           patient_name?: string | null
           project_name: string
+          qa_name?: string | null
+          resolution_type?: string | null
           review_started_at?: string | null
+          self_booked?: boolean | null
           service_line?: string | null
+          ticket_created?: boolean
           updated_at?: string
           workflow_status?: string
         }
@@ -3148,20 +3166,29 @@ export type Database = {
           appointment_id?: string | null
           appointment_status?: string | null
           assigned_qs_user_id?: string | null
+          caught_before_clinic?: boolean | null
           completed_at?: string | null
           completed_by_user_id?: string | null
           controlhub_ticket_id?: string | null
           controlhub_ticket_status?: string | null
           controlhub_ticket_url?: string | null
           created_at?: string
+          date_resolved?: string | null
           entered_queue_at?: string
+          error_category?: string | null
+          error_source?: string | null
           ghl_contact_id?: string | null
           id?: string
           last_alert_activity_at?: string
+          patient_link?: string | null
           patient_name?: string | null
           project_name?: string
+          qa_name?: string | null
+          resolution_type?: string | null
           review_started_at?: string | null
+          self_booked?: boolean | null
           service_line?: string | null
+          ticket_created?: boolean
           updated_at?: string
           workflow_status?: string
         }
@@ -3182,6 +3209,64 @@ export type Database = {
           },
           {
             foreignKeyName: "qa_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
+      qa_metrics_events: {
+        Row: {
+          appointment_date: string | null
+          appointment_id: string | null
+          appointment_status: string | null
+          created_at: string
+          event_type: string
+          id: string
+          patient_name: string | null
+          project_name: string
+          was_ever_confirmed: boolean | null
+        }
+        Insert: {
+          appointment_date?: string | null
+          appointment_id?: string | null
+          appointment_status?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          patient_name?: string | null
+          project_name: string
+          was_ever_confirmed?: boolean | null
+        }
+        Update: {
+          appointment_date?: string | null
+          appointment_id?: string | null
+          appointment_status?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          patient_name?: string | null
+          project_name?: string
+          was_ever_confirmed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_metrics_events_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_metrics_events_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "qa_metrics_events_appointment_id_fkey"
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "recapture_events"
