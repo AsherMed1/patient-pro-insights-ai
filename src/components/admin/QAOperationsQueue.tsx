@@ -614,12 +614,39 @@ function CaseDrawer({
                   </div>
                   <div>
                     <Label className="text-xs">Error Source</Label>
-                    <Input
-                      value={audit.error_source ?? ''}
-                      onChange={(e) => setAudit((a) => ({ ...a, error_source: e.target.value }))}
-                      placeholder="Setter / agent name"
-                    />
+                    <Select
+                      value={
+                        audit.error_source && setters.some((s) => s.name === audit.error_source)
+                          ? audit.error_source
+                          : audit.error_source
+                            ? '__other__'
+                            : ''
+                      }
+                      onValueChange={(v) =>
+                        setAudit((a) => ({
+                          ...a,
+                          error_source: v === '__other__' ? (a.error_source && !setters.some((s) => s.name === a.error_source) ? a.error_source : '') : v,
+                        }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select setter / agent" /></SelectTrigger>
+                      <SelectContent>
+                        {setters.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                        ))}
+                        <SelectItem value="__other__">Other…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {audit.error_source !== null && audit.error_source !== undefined && !setters.some((s) => s.name === audit.error_source) && (
+                      <Input
+                        className="mt-2"
+                        value={audit.error_source ?? ''}
+                        onChange={(e) => setAudit((a) => ({ ...a, error_source: e.target.value }))}
+                        placeholder="Enter name"
+                      />
+                    )}
                   </div>
+
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
