@@ -79,8 +79,6 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
 const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
-  cancelled: 'Cancelled (was Confirmed)',
-  no_show: 'No Show (was Confirmed)',
   confirmed_audit: 'Confirmed Audit',
 };
 
