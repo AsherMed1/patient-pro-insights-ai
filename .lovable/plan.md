@@ -1,41 +1,41 @@
-## Problem
+# Ann Layendecker — Why the portal didn't auto-sync to Cancelled
 
-TEH Test (`df258529…`, Texas Endovascular, PFE) still shows `Primary Complaint: PFE Consultation` despite the PFE guard I added last turn. DB confirms: `procedure_type: PFE`, `primary_complaint: PFE Consultation`, `parsing_completed_at: 2026-07-17 22:20:07` (already re-parsed once).
+## What actually happened on this record
 
-## Why it slipped through
+Appointment `d6b13599…` (Ann Layendecker, Liberty Joint & Vascular). Note timeline:
 
-Two mechanisms in `auto-parse-intake-notes/index.ts` write `"PFE Consultation"` into `parsedData` during a run:
+1. `2026-07-02 19:31` — Maria (portal user) flipped Confirmed → **Welcome Call**.
+2. `2026-07-14 11:52:50` — GHL-driven cancellation reason note arrived (System).
+3. `2026-07-14 11:52:51` — **Natalie manually** flipped Welcome Call → **Cancelled** in the portal.
 
-1. `extractDataFromGHLFields` (line ~2144): any GHL custom field whose key matches `prefer|procedure|treatment|surgical` and contains a `pfe` token → sets `primary_complaint = "PFE Consultation"`. GHL fields for Texas Endovascular PFE calendars trigger this.
-2. Same function line ~2381: catch-all where any GHL field key containing `consultation`/`appointment`/`service` copies its value into `primary_complaint`. A GHL field literally named/valued "PFE Consultation" lands here.
+So the current "Cancelled" state is from Natalie's manual click, not from GHL sync. **No GHL setup is missing on the clinic side** — GHL did send the update, but the portal ignored the status change.
 
-The PFE sanity guard in `enrichWithCriticalFields` (line ~1631) is supposed to null out `"PFE Consultation"` afterward. It runs at line 2930 — after the GHL merge and calendar override — so it *should* fire. The fact that this record was reparsed at 22:20 today with the guard code and still ended up wrong means either (a) the run at 22:20 used a pre-guard edge-function build, or (b) the guard branch isn't executing on this record. Either way, the same-shape placeholder is still being *produced* upstream on every fresh run, so the fix should stop producing it at the source, not only clean it up after the fact.
+## Root cause
+
+`supabase/functions/ghl-webhook-handler/index.ts` line 1356 treats **Welcome Call as a "portal-only terminal status"** and refuses to overwrite it from any GHL webhook:
+
+```ts
+const portalOnlyStatuses = ['oon', 'do not call', 'cancelled', 'canceled', 'welcome call']
+```
+
+That guard is correct for OON / Do Not Call / Cancelled (portal-only terminal per Core rules), but **Welcome Call is not terminal** — it's a mid-flow portal state. Because it's in this list, any GHL status update (including a real Cancellation) is silently dropped whenever the portal is currently on Welcome Call. That's the tech ticket the clinic reported.
 
 ## Fix
 
-Edit only `supabase/functions/auto-parse-intake-notes/index.ts`.
+Remove **only** `'welcome call'` from the `portalOnlyStatuses` guard at line 1356 in `ghl-webhook-handler/index.ts`.
 
-1. **Stop generating `"<PROC> Consultation"` placeholders at the source in `extractDataFromGHLFields`.** For the symptom-driven procedures (PFE, GAE, UFE, HAE, TAE, ATE, FSE, PAD) do not write `primary_complaint` from a bare procedure-type key or from generic "consultation"/"appointment"/"service" catch-alls. Concretely:
-   - Line ~2138–2152 ("prefer / non-surgical / treatment / procedure / surgical" branch): drop the `procedureMatch → "<PROC> Consultation"` assignment for symptom-driven procedures. Still capture the raw value into `symptoms`. Leave PAE alone (it has a real diagnostic label `PAE / BPH` handled elsewhere).
-   - Line ~2153–2163 (`pae/ufe/gae` branches): keep `affected_area` writes; remove the `"<PROC> Consultation"` assignments for UFE and GAE. PAE stays as-is because the deterministic PAE block sets `PAE / BPH` as its real complaint.
-   - Line ~2222 (TAE branch): same treatment — remove `"TAE Consultation"` seed; the TAE deterministic guard at line ~1381 can still fall back only when everything else fails, but per the "actual symptoms, never `<Procedure> Consultation`" rule from last turn's plan, we drop that too.
-   - Line ~1381 (TAE guard) and line ~1803 (ATE guard) inside `enrichWithCriticalFields`: remove the `"TAE Consultation"` / `"ATE Consultation"` fallbacks. If we can't derive a symptom phrase, leave `primary_complaint` null.
-   - Line ~2380–2385 catch-all (`consultation|appointment|service`): tighten so it only fires when the value looks like a patient symptom phrase (short, not equal to `"<PROC> Consultation"`, not equal to the procedure_type). Simplest: skip entirely if `value` matches `/^\s*(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation\s*$/i`.
+Effects, verified against surrounding code:
 
-2. **Broaden the sanity guard to be procedure-agnostic.** In `enrichWithCriticalFields`, after the existing per-procedure blocks, add a final pass: if `primary_complaint` matches `/^(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation$/i` **and** it's not the legitimate `PAE / BPH` case, null it and re-run the same "derive from chief complaint / location-of-pain / short symptom phrase" logic already used for PFE (extract the helper so PFE, GAE, UFE, HAE, TAE, ATE, FSE, PAD all share it). Leave null if nothing derives. This is a safety net in case a new GHL field path is added later.
+- Real portal-only terminals (OON, Do Not Call, Cancelled) remain protected from GHL echo-back.
+- GHL-driven status changes from Welcome Call now flow through and already trigger the existing `welcomeCallTransitionNote` audit note (lines 1364–1369) so the transition is visible in the appointment history with attribution to the GHL sync.
+- No change to `update-appointment-status`, portal UI, or Welcome Call dropdown-gating logic. Only the inbound GHL sync path changes.
 
-3. **Backfill.** Null `parsing_completed_at` for rows where `parsed_pathology_info->>'primary_complaint'` matches `^(PAE|PFE|UFE|GAE|HAE|TAE|ATE|FSE|PAD)\s+Consultation$` (excluding legitimate PAE / BPH). The auto-parse client hook re-runs them within 30s. Spot-check TEH Test (`df258529…`) after re-parse: expect `primary_complaint` to be either derived symptom text or `null`, and `procedure_type` to remain `PFE`.
+## What to tell the clinic
 
-## Out of scope
+Nothing to configure in GHL. GHL cancellation already flows to the portal for all statuses except Welcome Call, and this fix closes that gap. Going forward, cancelling in GHL while the portal is on Welcome Call will automatically move the portal to Cancelled and log a status-change note.
 
-- No UI changes.
-- No schema changes.
-- PAE `PAE / BPH` labeling and Neuropathy handling untouched.
+## Technical details
 
-## Verification
-
-Re-query `parsed_pathology_info` for `df258529…`:
-- `procedure_type` = `PFE`
-- `primary_complaint` is `null` (TEH Test has no chief-complaint or location-of-pain answer and null symptoms) — never `PFE Consultation`.
-
-Spot-check one real PAE lead: `primary_complaint` still `PAE / BPH`. Spot-check one recently-parsed UFE / GAE lead: `primary_complaint` reflects patient symptoms or null, never `UFE Consultation` / `GAE Consultation`.
+- File: `supabase/functions/ghl-webhook-handler/index.ts`
+- Single-line edit at line 1356; the `welcomeCallTransitionNote` branch that follows already handles the audit trail.
+- No DB migration, no UI change, no memory update needed (the "portal-only terminal" list in Core memory already omits Welcome Call — code was stricter than policy).
