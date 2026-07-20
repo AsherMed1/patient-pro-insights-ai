@@ -1,29 +1,19 @@
-## Fixes for QA Operations Queue
+## Problem
 
-### 1. Remove Cancelled / No Show from the queue UI
+The GHL link falls back to `https://services.leadconnectorhq.com/contacts/{id}` when we can't resolve a `ghl_location_id` for the case's project. That URL is a REST API endpoint (returns `401 version header was not found.`), not the GHL app UI. Only the `app.gohighlevel.com/v2/location/{loc}/contacts/detail/{id}` URL renders a usable page.
 
-The DB triggers already divert Cancelled/No Show to `qa_metrics_events` and no longer create queue cases, but `QAOperationsQueue.tsx` still lists them as filter options and label variants, so any legacy rows (or a future trigger regression) would still render. Tighten the UI to Confirmed audit + OON + Short Notice only.
+## Fix
 
-- `src/components/admin/QAOperationsQueue.tsx`
-  - `AlertType` union → drop `'cancelled' | 'no_show'`.
-  - `ALERT_LABELS` → remove the `cancelled` and `no_show` entries.
-  - Alert-type filter `<Select>` → remove the two `<SelectItem>`s.
-  - Row fetch query → add `.in('alert_type', ['short_notice','oon','confirmed_audit'])` so any legacy Cancelled/No Show cases are hidden from the queue (they remain in the DB for historical reference but never appear).
+In `src/components/admin/QAOperationsQueue.tsx`:
 
-Reporting/trend totals are unaffected — `qa_metrics_events` continues to receive Cancelled/No Show rows via the existing trigger.
+1. **Drop the broken fallback in `ghlUrlFor`.** Return `null` when `projectLocationMap[project_name]` is missing, so the icon simply doesn't render for unresolved projects instead of pointing to a 401 page.
+2. **Broaden the location lookup** so it doesn't quietly miss projects:
+   - Also select `ghl_subaccount_id` from `projects` and use it as a secondary source if `ghl_location_id` is null (mirrors the pattern already used elsewhere).
+   - If a case still has no mapping after the initial fetch, one-shot fetch the project's location by name on demand (cached in the same map) — covers projects added after the component mounts.
+3. **Verify the resolved URL format** matches what `AppointmentCard.tsx` uses (`https://app.gohighlevel.com/v2/location/{loc}/contacts/detail/{ghl_contact_id}`) — already correct, no change needed there.
 
-### 2. Clickable "Open in GHL" icon (replaces the copy-paste Patient Link)
+No DB changes, no other files touched.
 
-Mirror the pattern already used in `AppointmentCard.tsx` and `ReviewQueue.tsx`: an `ExternalLink` icon button that opens `https://app.gohighlevel.com/v2/location/{locationId}/contacts/detail/{ghl_contact_id}` in a new tab. Fallback to `https://services.leadconnectorhq.com/contacts/{ghl_contact_id}` when the location id can't be resolved (matches ReviewQueue's fallback).
+## Follow-up question after this fix
 
-- `src/components/admin/QAOperationsQueue.tsx`
-  - Extend the `qa_cases` fetch to also select `ghl_location_id` and `ghl_contact_id` from the joined appointment (or resolve `ghl_location_id` from a projects lookup, keyed on `project_name`, cached once per mount — same approach as `AppointmentCard`).
-  - **In the table row (next to the patient name / ID, matching the screenshot):** render a small `ExternalLink` icon button when `ghl_contact_id` exists. Clicking opens the GHL URL in a new tab (`target="_blank" rel="noopener noreferrer"`). Stops propagation so it doesn't also open the drawer.
-  - **In the case drawer:** replace the read-only Patient Link input + Copy button with the same `ExternalLink` icon button labeled "Open in GHL". Remove the `Copy` import if no longer used elsewhere in the file.
-  - Hide the icon (or show a disabled state) if `ghl_contact_id` is null.
-
-### Technical section
-
-- No DB migration required — the ingestion triggers already exclude Cancelled/No Show.
-- No changes to `qa_metrics_events`, `create-controlhub-ticket`, or notes/activity tables.
-- Files touched: `src/components/admin/QAOperationsQueue.tsx` only.
+For QA cases whose project genuinely has no `ghl_location_id` on file, do you want me to (a) hide the icon silently, or (b) show a disabled icon with a tooltip like "No GHL location configured for this project"? Default in this plan: hide silently.
