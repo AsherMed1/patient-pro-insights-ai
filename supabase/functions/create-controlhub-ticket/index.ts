@@ -11,9 +11,38 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { case_id } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const {
+      case_id,
+      task_name,
+      client_name,
+      service_involved,
+      issue_type,
+      priority,
+      description,
+      submitted_by,
+    } = body ?? {};
+
     if (!case_id || typeof case_id !== 'string') {
       return new Response(JSON.stringify({ error: 'case_id is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!task_name || typeof task_name !== 'string' || !task_name.trim()) {
+      return new Response(JSON.stringify({ error: 'task_name is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!client_name || typeof client_name !== 'string' || !client_name.trim()) {
+      return new Response(JSON.stringify({ error: 'client_name is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!description || typeof description !== 'string' || !description.trim()) {
+      return new Response(JSON.stringify({ error: 'description is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -40,13 +69,22 @@ Deno.serve(async (req) => {
     const controlhubApiKey = Deno.env.get('CONTROLHUB_API_KEY');
     const controlhubBaseUrl = Deno.env.get('CONTROLHUB_BASE_URL');
 
+    const normalizedPriority = ['low', 'medium', 'high', 'urgent'].includes(String(priority))
+      ? String(priority)
+      : 'medium';
+    const normalizedIssueType = (typeof issue_type === 'string' && issue_type.trim())
+      ? issue_type.trim()
+      : 'qa-operations';
+    const normalizedSubmittedBy = (typeof submitted_by === 'string' && submitted_by.trim())
+      ? submitted_by.trim()
+      : 'PatientPro QA Queue';
+
     let ticketId: string;
     let ticketUrl: string | null = null;
     let ticketStatus = 'open';
     let stub = true;
 
     if (controlhubApiKey && controlhubBaseUrl) {
-      // Real ControlHub integration — call receive-external-ticket on the ControlHub project.
       const resp = await fetch(`${controlhubBaseUrl}/functions/v1/receive-external-ticket`, {
         method: 'POST',
         headers: {
@@ -56,20 +94,13 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           source: 'patientpro_qa_queue',
           external_case_id: case_id,
-          task_name: `QA: ${qaCase.alert_type} — ${qaCase.patient_name || 'Unknown'}`,
-          client_name: qaCase.project_name,
-          service_involved: qaCase.service_line || null,
-          issue_type: 'qa-operations',
-          description: [
-            `QA Alert: ${qaCase.alert_type}`,
-            `Patient: ${qaCase.patient_name || 'Unknown'}`,
-            `Project: ${qaCase.project_name}`,
-            `Service line: ${qaCase.service_line || 'n/a'}`,
-            `Appointment status: ${qaCase.appointment_status || 'n/a'}`,
-            qaCase.appointment_id ? `Appointment ID: ${qaCase.appointment_id}` : null,
-          ].filter(Boolean).join('\n'),
-          submitted_by: 'PatientPro QA Queue',
-          priority: 'medium',
+          task_name: task_name.trim(),
+          client_name: client_name.trim(),
+          service_involved: (typeof service_involved === 'string' && service_involved.trim()) ? service_involved.trim() : null,
+          issue_type: normalizedIssueType,
+          description: description.trim(),
+          submitted_by: normalizedSubmittedBy,
+          priority: normalizedPriority,
           metadata: {
             qa_case_id: case_id,
             project: qaCase.project_name,
@@ -80,9 +111,9 @@ Deno.serve(async (req) => {
         }),
       });
       if (!resp.ok) {
-        const body = await resp.text();
+        const bodyText = await resp.text();
         return new Response(
-          JSON.stringify({ error: 'ControlHub request failed', status: resp.status, details: body }),
+          JSON.stringify({ error: 'ControlHub request failed', status: resp.status, details: bodyText }),
           { status: resp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -92,7 +123,6 @@ Deno.serve(async (req) => {
       ticketStatus = payload.status ?? 'open';
       stub = false;
     } else {
-      // Stub mode — records intent; real API can be enabled by setting secrets.
       ticketId = `STUB-${Date.now()}`;
       ticketUrl = null;
     }
@@ -117,7 +147,15 @@ Deno.serve(async (req) => {
       case_id,
       activity_type: 'ticket_created',
       description: `ControlHub ticket ${ticketId} created`,
-      metadata: { ticket_id: ticketId, ticket_url: ticketUrl, stub },
+      metadata: {
+        ticket_id: ticketId,
+        ticket_url: ticketUrl,
+        stub,
+        task_name: task_name.trim(),
+        priority: normalizedPriority,
+        issue_type: normalizedIssueType,
+        submitted_by: normalizedSubmittedBy,
+      },
     });
 
     return new Response(

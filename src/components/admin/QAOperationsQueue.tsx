@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
@@ -547,11 +548,69 @@ function CaseDrawer({
     onRefresh();
   };
 
-  const createTicket = async () => {
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  const [ticketForm, setTicketForm] = useState({
+    task_name: '',
+    client_name: '',
+    service_involved: '',
+    issue_type: 'qa-operations',
+    priority: 'medium',
+    description: '',
+    submitted_by: '',
+  });
+
+  const buildDefaultDescription = (c: QACase): string => {
+    return [
+      `QA Alert: ${c.alert_type}`,
+      `Patient: ${c.patient_name || 'Unknown'}`,
+      `Project: ${c.project_name}`,
+      `Service line: ${c.service_line || 'n/a'}`,
+      `Appointment status: ${c.appointment_status || 'n/a'}`,
+      c.appointment_id ? `Appointment ID: ${c.appointment_id}` : null,
+    ].filter(Boolean).join('\n');
+  };
+
+  const openTicketDialog = async () => {
     if (!caseData) return;
+    let submittedBy = user?.email ?? '';
+    if (user?.id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+      submittedBy = ((prof as any)?.full_name || '').trim() || (prof as any)?.email || user?.email || '';
+    }
+    setTicketForm({
+      task_name: `QA: ${caseData.alert_type} — ${caseData.patient_name || 'Unknown'}`,
+      client_name: caseData.project_name || '',
+      service_involved: caseData.service_line || '',
+      issue_type: 'qa-operations',
+      priority: 'medium',
+      description: buildDefaultDescription(caseData),
+      submitted_by: submittedBy,
+    });
+    setTicketDialogOpen(true);
+  };
+
+  const submitTicket = async () => {
+    if (!caseData) return;
+    if (!ticketForm.task_name.trim() || !ticketForm.client_name.trim() || !ticketForm.description.trim()) {
+      toast({ title: 'Missing required fields', description: 'Task name, client, and description are required.', variant: 'destructive' });
+      return;
+    }
     setCreatingTicket(true);
     const { data, error } = await supabase.functions.invoke('create-controlhub-ticket', {
-      body: { case_id: caseData.id },
+      body: {
+        case_id: caseData.id,
+        task_name: ticketForm.task_name.trim(),
+        client_name: ticketForm.client_name.trim(),
+        service_involved: ticketForm.service_involved.trim() || null,
+        issue_type: ticketForm.issue_type.trim() || 'qa-operations',
+        priority: ticketForm.priority,
+        description: ticketForm.description.trim(),
+        submitted_by: ticketForm.submitted_by.trim() || 'PatientPro QA Queue',
+      },
     });
     setCreatingTicket(false);
     if (error) {
@@ -559,6 +618,7 @@ function CaseDrawer({
       return;
     }
     toast({ title: 'ControlHub ticket created', description: (data as any)?.ticket_id });
+    setTicketDialogOpen(false);
     onRefresh();
   };
 
@@ -744,9 +804,9 @@ function CaseDrawer({
                   </Button>
                 )}
                 {!caseData.controlhub_ticket_id && (
-                  <Button size="sm" onClick={createTicket} disabled={creatingTicket}>
+                  <Button size="sm" onClick={openTicketDialog} disabled={creatingTicket}>
                     <Ticket className="h-3 w-3 mr-1" />
-                    {creatingTicket ? 'Creating…' : 'Create ControlHub Ticket'}
+                    Create ControlHub Ticket
                   </Button>
                 )}
                 {caseData.controlhub_ticket_id && (
@@ -799,6 +859,99 @@ function CaseDrawer({
           </>
         )}
       </SheetContent>
+
+      <Dialog open={ticketDialogOpen} onOpenChange={setTicketDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create ControlHub Ticket</DialogTitle>
+            <DialogDescription>
+              Log a ticket without leaving the portal. Fields are prefilled from the QA case — edit as needed before submitting.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Task name *</Label>
+              <Input
+                value={ticketForm.task_name}
+                onChange={(e) => setTicketForm((f) => ({ ...f, task_name: e.target.value }))}
+                maxLength={200}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Client *</Label>
+                <Input
+                  value={ticketForm.client_name}
+                  onChange={(e) => setTicketForm((f) => ({ ...f, client_name: e.target.value }))}
+                  maxLength={120}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Service involved</Label>
+                <Input
+                  value={ticketForm.service_involved}
+                  onChange={(e) => setTicketForm((f) => ({ ...f, service_involved: e.target.value }))}
+                  maxLength={120}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Issue type</Label>
+                <Input
+                  value={ticketForm.issue_type}
+                  onChange={(e) => setTicketForm((f) => ({ ...f, issue_type: e.target.value }))}
+                  placeholder="qa-operations"
+                  maxLength={60}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Priority</Label>
+                <Select
+                  value={ticketForm.priority}
+                  onValueChange={(v) => setTicketForm((f) => ({ ...f, priority: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Description *</Label>
+              <Textarea
+                value={ticketForm.description}
+                onChange={(e) => setTicketForm((f) => ({ ...f, description: e.target.value }))}
+                rows={6}
+                maxLength={4000}
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Submitted by</Label>
+              <Input value={ticketForm.submitted_by} readOnly className="bg-muted" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTicketDialogOpen(false)} disabled={creatingTicket}>
+              Cancel
+            </Button>
+            <Button onClick={submitTicket} disabled={creatingTicket}>
+              {creatingTicket && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+              {creatingTicket ? 'Creating…' : 'Create ticket'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
