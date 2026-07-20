@@ -548,11 +548,69 @@ function CaseDrawer({
     onRefresh();
   };
 
-  const createTicket = async () => {
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  const [ticketForm, setTicketForm] = useState({
+    task_name: '',
+    client_name: '',
+    service_involved: '',
+    issue_type: 'qa-operations',
+    priority: 'medium',
+    description: '',
+    submitted_by: '',
+  });
+
+  const buildDefaultDescription = (c: QACase): string => {
+    return [
+      `QA Alert: ${c.alert_type}`,
+      `Patient: ${c.patient_name || 'Unknown'}`,
+      `Project: ${c.project_name}`,
+      `Service line: ${c.service_line || 'n/a'}`,
+      `Appointment status: ${c.appointment_status || 'n/a'}`,
+      c.appointment_id ? `Appointment ID: ${c.appointment_id}` : null,
+    ].filter(Boolean).join('\n');
+  };
+
+  const openTicketDialog = async () => {
     if (!caseData) return;
+    let submittedBy = user?.email ?? '';
+    if (user?.id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+      submittedBy = ((prof as any)?.full_name || '').trim() || (prof as any)?.email || user?.email || '';
+    }
+    setTicketForm({
+      task_name: `QA: ${caseData.alert_type} — ${caseData.patient_name || 'Unknown'}`,
+      client_name: caseData.project_name || '',
+      service_involved: caseData.service_line || '',
+      issue_type: 'qa-operations',
+      priority: 'medium',
+      description: buildDefaultDescription(caseData),
+      submitted_by: submittedBy,
+    });
+    setTicketDialogOpen(true);
+  };
+
+  const submitTicket = async () => {
+    if (!caseData) return;
+    if (!ticketForm.task_name.trim() || !ticketForm.client_name.trim() || !ticketForm.description.trim()) {
+      toast({ title: 'Missing required fields', description: 'Task name, client, and description are required.', variant: 'destructive' });
+      return;
+    }
     setCreatingTicket(true);
     const { data, error } = await supabase.functions.invoke('create-controlhub-ticket', {
-      body: { case_id: caseData.id },
+      body: {
+        case_id: caseData.id,
+        task_name: ticketForm.task_name.trim(),
+        client_name: ticketForm.client_name.trim(),
+        service_involved: ticketForm.service_involved.trim() || null,
+        issue_type: ticketForm.issue_type.trim() || 'qa-operations',
+        priority: ticketForm.priority,
+        description: ticketForm.description.trim(),
+        submitted_by: ticketForm.submitted_by.trim() || 'PatientPro QA Queue',
+      },
     });
     setCreatingTicket(false);
     if (error) {
@@ -560,6 +618,7 @@ function CaseDrawer({
       return;
     }
     toast({ title: 'ControlHub ticket created', description: (data as any)?.ticket_id });
+    setTicketDialogOpen(false);
     onRefresh();
   };
 
