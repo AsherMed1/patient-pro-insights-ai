@@ -117,11 +117,14 @@ export default function QAOperationsQueue() {
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
+  const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
+
   const fetchCases = async () => {
     setLoading(true);
     let q = supabase
       .from('qa_cases' as any)
       .select('*')
+      .in('alert_type', ACTIVE_ALERT_TYPES)
       .order('entered_queue_at', { ascending: false })
       .limit(500);
     if (tab !== 'all') q = q.eq('workflow_status', tab);
