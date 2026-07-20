@@ -804,9 +804,9 @@ function CaseDrawer({
                   </Button>
                 )}
                 {!caseData.controlhub_ticket_id && (
-                  <Button size="sm" onClick={createTicket} disabled={creatingTicket}>
+                  <Button size="sm" onClick={openTicketDialog} disabled={creatingTicket}>
                     <Ticket className="h-3 w-3 mr-1" />
-                    {creatingTicket ? 'Creating…' : 'Create ControlHub Ticket'}
+                    Create ControlHub Ticket
                   </Button>
                 )}
                 {caseData.controlhub_ticket_id && (
