@@ -1184,8 +1184,16 @@ function getUpdateableFields(
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
     // Unscheduled-capture projects: capture lead without booking — store time preference only.
-    const isUnscheduledProject = isUnscheduledCaptureProject(webhookData.project_name);
-    const timePreference = isUnscheduledProject
+    // Davis Vein & Vascular is HYBRID: if the incoming payload carries a real date/time, treat
+    // it exactly like a scheduled project. Only fall back to Morning/Afternoon capture when
+    // the payload has no date. Premier / ECCO / Horizon remain strict unscheduled.
+    const projectLower = (webhookData.project_name || '').trim().toLowerCase();
+    const isDavis = projectLower === 'davis vein & vascular';
+    const payloadHasRealDate =
+      webhookData.date_of_appointment != null && String(webhookData.date_of_appointment).trim() !== '';
+    const treatAsUnscheduled =
+      isUnscheduledCaptureProject(webhookData.project_name) && !(isDavis && payloadHasRealDate);
+    const timePreference = treatAsUnscheduled
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
 
@@ -1202,24 +1210,25 @@ function getUpdateableFields(
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
         lead_name: webhookData.lead_name,
         project_name: webhookData.project_name,
-        date_of_appointment: isUnscheduledProject ? null : webhookData.date_of_appointment,
-        requested_time: isUnscheduledProject ? null : webhookData.requested_time,
+        date_of_appointment: treatAsUnscheduled ? null : webhookData.date_of_appointment,
+        requested_time: treatAsUnscheduled ? null : webhookData.requested_time,
         lead_email: webhookData.lead_email,
         lead_phone_number: webhookData.lead_phone_number,
         calendar_name: webhookData.calendar_name,
         ghl_id: webhookData.ghl_id,
-        ghl_appointment_id: isUnscheduledProject ? null : webhookData.ghl_appointment_id,
+        ghl_appointment_id: treatAsUnscheduled ? null : webhookData.ghl_appointment_id,
         ghl_location_id: webhookData.ghl_location_id,
         status: 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
         was_ever_confirmed: true,
         time_preference: timePreference,
-        is_unscheduled: isUnscheduledProject,
+        is_unscheduled: treatAsUnscheduled,
         ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
       }
     }
   }
+
   
   // For UPDATE - selective fields only
   const updateFields: Record<string, any> = {}
@@ -1227,18 +1236,30 @@ function getUpdateableFields(
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let statusChangeNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
 
-  // Unscheduled-capture projects (Premier Vascular, ECCO Medical, Davis Vein & Vascular) NEVER
-  // store a booked date/time — only a time-of-day preference. If a later GHL webhook tries to
-  // attach an actual calendar slot, force the row back to unscheduled state instead of accepting
-  // date_of_appointment / requested_time. See mem://projects/premier-vascular/unscheduled-capture.
+  // Unscheduled-capture projects (Premier Vascular, ECCO Medical, Horizon Vascular Specialists)
+  // NEVER store a booked date/time — only a time-of-day preference. If a later GHL webhook tries
+  // to attach an actual calendar slot, force the row back to unscheduled state instead of
+  // accepting date_of_appointment / requested_time.
+  // Davis Vein & Vascular is HYBRID: if the incoming payload has a real date, fall through to
+  // the scheduled reschedule logic below. If it has no date, keep the legacy unscheduled behavior
+  // (refresh time_preference only, never wipe an existing booked date).
   const projectNameForUnscheduled = (webhookData.project_name || existingAppointment.project_name || '').trim().toLowerCase()
-  const isUnscheduledProject = isUnscheduledCaptureProject(projectNameForUnscheduled)
+  const isDavisUpdate = projectNameForUnscheduled === 'davis vein & vascular'
+  const payloadHasRealDateUpdate =
+    webhookData.date_of_appointment != null && String(webhookData.date_of_appointment).trim() !== ''
+  const treatAsUnscheduledUpdate =
+    isUnscheduledCaptureProject(projectNameForUnscheduled) && !(isDavisUpdate && payloadHasRealDateUpdate)
 
-  if (isUnscheduledProject) {
-    updateFields.date_of_appointment = null
-    updateFields.requested_time = null
-    updateFields.ghl_appointment_id = null
-    updateFields.is_unscheduled = true
+  if (treatAsUnscheduledUpdate) {
+    // For Davis with no incoming date, only refresh time_preference — do NOT wipe an existing
+    // booked date. For strict unscheduled projects (Premier/ECCO/Horizon), force back to
+    // unscheduled state as before.
+    if (!isDavisUpdate) {
+      updateFields.date_of_appointment = null
+      updateFields.requested_time = null
+      updateFields.ghl_appointment_id = null
+      updateFields.is_unscheduled = true
+    }
 
     // Refresh time_preference from incoming intake notes only when extraction yields a value —
     // never overwrite an existing preference with null.
@@ -1247,6 +1268,7 @@ function getUpdateableFields(
       updateFields.time_preference = extractedPref
     }
   } else {
+
     // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
     const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
     const nowTime = new Date()
