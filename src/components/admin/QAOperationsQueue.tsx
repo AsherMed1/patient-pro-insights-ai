@@ -186,8 +186,8 @@ export default function QAOperationsQueue() {
   const ghlUrlFor = (c: QACase): string | null => {
     if (!c.ghl_contact_id) return null;
     const loc = projectLocationMap[c.project_name];
-    if (loc) return `https://app.gohighlevel.com/v2/location/${loc}/contacts/detail/${c.ghl_contact_id}`;
-    return `https://services.leadconnectorhq.com/contacts/${c.ghl_contact_id}`;
+    if (!loc) return null;
+    return `https://app.gohighlevel.com/v2/location/${loc}/contacts/detail/${c.ghl_contact_id}`;
   };
 
 
