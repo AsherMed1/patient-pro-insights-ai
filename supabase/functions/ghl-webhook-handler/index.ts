@@ -1184,8 +1184,16 @@ function getUpdateableFields(
   // with terminal statuses entirely, so any insert reaching here should be Confirmed.
   if (!existingAppointment) {
     // Unscheduled-capture projects: capture lead without booking — store time preference only.
-    const isUnscheduledProject = isUnscheduledCaptureProject(webhookData.project_name);
-    const timePreference = isUnscheduledProject
+    // Davis Vein & Vascular is HYBRID: if the incoming payload carries a real date/time, treat
+    // it exactly like a scheduled project. Only fall back to Morning/Afternoon capture when
+    // the payload has no date. Premier / ECCO / Horizon remain strict unscheduled.
+    const projectLower = (webhookData.project_name || '').trim().toLowerCase();
+    const isDavis = projectLower === 'davis vein & vascular';
+    const payloadHasRealDate =
+      webhookData.date_of_appointment != null && String(webhookData.date_of_appointment).trim() !== '';
+    const treatAsUnscheduled =
+      isUnscheduledCaptureProject(webhookData.project_name) && !(isDavis && payloadHasRealDate);
+    const timePreference = treatAsUnscheduled
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
 
@@ -1202,24 +1210,25 @@ function getUpdateableFields(
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
         lead_name: webhookData.lead_name,
         project_name: webhookData.project_name,
-        date_of_appointment: isUnscheduledProject ? null : webhookData.date_of_appointment,
-        requested_time: isUnscheduledProject ? null : webhookData.requested_time,
+        date_of_appointment: treatAsUnscheduled ? null : webhookData.date_of_appointment,
+        requested_time: treatAsUnscheduled ? null : webhookData.requested_time,
         lead_email: webhookData.lead_email,
         lead_phone_number: webhookData.lead_phone_number,
         calendar_name: webhookData.calendar_name,
         ghl_id: webhookData.ghl_id,
-        ghl_appointment_id: isUnscheduledProject ? null : webhookData.ghl_appointment_id,
+        ghl_appointment_id: treatAsUnscheduled ? null : webhookData.ghl_appointment_id,
         ghl_location_id: webhookData.ghl_location_id,
         status: 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
         was_ever_confirmed: true,
         time_preference: timePreference,
-        is_unscheduled: isUnscheduledProject,
+        is_unscheduled: treatAsUnscheduled,
         ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
       }
     }
   }
+
   
   // For UPDATE - selective fields only
   const updateFields: Record<string, any> = {}
