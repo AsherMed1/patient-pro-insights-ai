@@ -173,11 +173,11 @@ export default function QAOperationsQueue() {
     (async () => {
       const { data } = await supabase
         .from('projects')
-        .select('name, ghl_location_id');
+        .select('project_name, ghl_location_id');
       if (data) {
         const map: Record<string, string> = {};
         for (const p of data as any[]) {
-          if (p.ghl_location_id) map[p.name] = p.ghl_location_id;
+          if (p.ghl_location_id && p.project_name) map[p.project_name] = p.ghl_location_id;
         }
         setProjectLocationMap(map);
       }
