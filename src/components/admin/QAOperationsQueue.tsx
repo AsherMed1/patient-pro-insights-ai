@@ -16,10 +16,12 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Copy } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon } from 'lucide-react';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'cancelled' | 'no_show' | 'confirmed_audit';
+type AlertType = 'short_notice' | 'oon' | 'confirmed_audit';
+
+const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit'];
 
 interface QACase {
   id: string;
@@ -77,8 +79,6 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
 const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
-  cancelled: 'Cancelled (was Confirmed)',
-  no_show: 'No Show (was Confirmed)',
   confirmed_audit: 'Confirmed Audit',
 };
 
@@ -117,11 +117,14 @@ export default function QAOperationsQueue() {
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
+  const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
+
   const fetchCases = async () => {
     setLoading(true);
     let q = supabase
       .from('qa_cases' as any)
       .select('*')
+      .in('alert_type', ACTIVE_ALERT_TYPES)
       .order('entered_queue_at', { ascending: false })
       .limit(500);
     if (tab !== 'all') q = q.eq('workflow_status', tab);
@@ -164,6 +167,29 @@ export default function QAOperationsQueue() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('name, ghl_location_id');
+      if (data) {
+        const map: Record<string, string> = {};
+        for (const p of data as any[]) {
+          if (p.ghl_location_id) map[p.name] = p.ghl_location_id;
+        }
+        setProjectLocationMap(map);
+      }
+    })();
+  }, []);
+
+  const ghlUrlFor = (c: QACase): string | null => {
+    if (!c.ghl_contact_id) return null;
+    const loc = projectLocationMap[c.project_name];
+    if (loc) return `https://app.gohighlevel.com/v2/location/${loc}/contacts/detail/${c.ghl_contact_id}`;
+    return `https://services.leadconnectorhq.com/contacts/${c.ghl_contact_id}`;
+  };
+
 
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
@@ -251,8 +277,6 @@ export default function QAOperationsQueue() {
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
-            <SelectItem value="cancelled">Cancelled (was Confirmed)</SelectItem>
-            <SelectItem value="no_show">No Show (was Confirmed)</SelectItem>
           </SelectContent>
         </Select>
         <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
@@ -331,7 +355,23 @@ export default function QAOperationsQueue() {
                 <TableBody>
                   {filtered.map((c) => (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => setSelectedCase(c)}>
-                      <TableCell className="font-medium">{c.patient_name || '—'}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{c.patient_name || '—'}</span>
+                          {ghlUrlFor(c) && (
+                            <a
+                              href={ghlUrlFor(c)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-primary hover:text-primary/80"
+                              title="Open in GHL"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{c.project_name}</TableCell>
                       <TableCell>{c.service_line || '—'}</TableCell>
                       <TableCell>
@@ -374,6 +414,7 @@ export default function QAOperationsQueue() {
 
       <CaseDrawer
         caseData={selectedCase}
+        ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); fetchCounts(); }}
@@ -384,11 +425,13 @@ export default function QAOperationsQueue() {
 
 function CaseDrawer({
   caseData,
+  ghlUrl,
   onClose,
   onStatusChange,
   onRefresh,
 }: {
   caseData: QACase | null;
+  ghlUrl: string | null;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
@@ -483,9 +526,6 @@ function CaseDrawer({
     onRefresh();
   };
 
-  const patientLink = caseData?.project_name
-    ? `${window.location.origin}/project/${encodeURIComponent(caseData.project_name)}`
-    : '';
 
   return (
     <Sheet open={!!caseData} onOpenChange={(open) => !open && onClose()}>
@@ -606,19 +646,20 @@ function CaseDrawer({
                 </div>
 
                 <div>
-                  <Label className="text-xs">Patient Link</Label>
-                  <div className="flex gap-2">
-                    <Input value={patientLink} readOnly className="text-xs" />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(patientLink);
-                        toast({ title: 'Link copied' });
-                      }}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
+                  <Label className="text-xs">GHL Contact</Label>
+                  <div>
+                    {ghlUrl ? (
+                      <a
+                        href={ghlUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                      >
+                        Open in GHL <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No GHL contact linked</span>
+                    )}
                   </div>
                 </div>
 
