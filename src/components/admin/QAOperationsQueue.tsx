@@ -646,19 +646,20 @@ function CaseDrawer({
                 </div>
 
                 <div>
-                  <Label className="text-xs">Patient Link</Label>
-                  <div className="flex gap-2">
-                    <Input value={patientLink} readOnly className="text-xs" />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(patientLink);
-                        toast({ title: 'Link copied' });
-                      }}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
+                  <Label className="text-xs">GHL Contact</Label>
+                  <div>
+                    {ghlUrl ? (
+                      <a
+                        href={ghlUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                      >
+                        Open in GHL <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No GHL contact linked</span>
+                    )}
                   </div>
                 </div>
 
