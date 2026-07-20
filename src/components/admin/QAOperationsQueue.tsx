@@ -6,14 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
-import { Loader2, ExternalLink, Ticket } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Copy } from 'lucide-react';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
+type AlertType = 'short_notice' | 'oon' | 'cancelled' | 'no_show' | 'confirmed_audit';
 
 interface QACase {
   id: string;
@@ -24,13 +30,23 @@ interface QACase {
   service_line: string | null;
   appointment_date: string | null;
   appointment_status: string | null;
-  alert_type: 'short_notice' | 'oon' | 'cancelled' | 'no_show';
+  alert_type: AlertType;
   workflow_status: WorkflowStatus;
+  assigned_qs_user_id: string | null;
   entered_queue_at: string;
   last_alert_activity_at: string;
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
+  qa_name: string | null;
+  self_booked: boolean | null;
+  patient_link: string | null;
+  error_category: string | null;
+  error_source: string | null;
+  caught_before_clinic: boolean | null;
+  resolution_type: string | null;
+  date_resolved: string | null;
+  ticket_created: boolean;
 }
 
 interface QANote {
@@ -58,16 +74,32 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
 ];
 
-const ALERT_LABELS: Record<QACase['alert_type'], string> = {
+const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
   cancelled: 'Cancelled (was Confirmed)',
   no_show: 'No Show (was Confirmed)',
+  confirmed_audit: 'Confirmed Audit',
 };
 
-const alertVariant = (t: QACase['alert_type']): 'default' | 'destructive' | 'secondary' | 'outline' => {
+const ERROR_CATEGORIES = [
+  'Missing Insurance',
+  'Notes Added to Portal',
+  'Duplicate Appointment',
+  'Booking Rule Violation',
+  'Uploaded Insurance Card',
+  'Name Correction',
+  'Double Booked',
+  'Incorrect Patient Info',
+  'Other',
+];
+
+const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to AM', 'Other'];
+
+const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
   if (t === 'short_notice') return 'default';
+  if (t === 'confirmed_audit') return 'outline';
   return 'secondary';
 };
 
@@ -79,6 +111,9 @@ export default function QAOperationsQueue() {
   const [search, setSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState<string>('all');
   const [alertFilter, setAlertFilter] = useState<string>('all');
+  const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
@@ -137,14 +172,24 @@ export default function QAOperationsQueue() {
     return cases.filter((c) => {
       if (projectFilter !== 'all' && c.project_name !== projectFilter) return false;
       if (alertFilter !== 'all' && c.alert_type !== alertFilter) return false;
+      if (assignmentFilter === 'mine' && c.assigned_qs_user_id !== user?.id) return false;
+      if (assignmentFilter === 'unassigned' && c.assigned_qs_user_id) return false;
+      if (dateFrom && new Date(c.entered_queue_at) < dateFrom) return false;
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(c.entered_queue_at) > end) return false;
+      }
       if (!t) return true;
       return (
         c.patient_name?.toLowerCase().includes(t) ||
         c.project_name.toLowerCase().includes(t) ||
-        c.service_line?.toLowerCase().includes(t)
+        c.service_line?.toLowerCase().includes(t) ||
+        c.error_source?.toLowerCase().includes(t) ||
+        c.error_category?.toLowerCase().includes(t)
       );
     });
-  }, [cases, search, projectFilter, alertFilter]);
+  }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
 
   const updateStatus = async (id: string, next: WorkflowStatus) => {
     const patch: any = { workflow_status: next };
@@ -169,20 +214,25 @@ export default function QAOperationsQueue() {
     fetchCounts();
   };
 
+  const clearDateFilters = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">QA Operations Queue</h2>
           <p className="text-sm text-muted-foreground">
-            Centralized workspace for reviewing appointment quality alerts.
+            Centralized workspace for reviewing appointment quality alerts and auditing confirmed appointments.
           </p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
         <Input
-          placeholder="Search patient, project, service…"
+          placeholder="Search patient, project, service, error…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -198,12 +248,46 @@ export default function QAOperationsQueue() {
           <SelectTrigger className="w-56"><SelectValue placeholder="Alert type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All alert types</SelectItem>
+            <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
             <SelectItem value="cancelled">Cancelled (was Confirmed)</SelectItem>
             <SelectItem value="no_show">No Show (was Confirmed)</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Assignment" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All assignments</SelectItem>
+            <SelectItem value="mine">Assigned to me</SelectItem>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+          </SelectContent>
+        </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn('justify-start', !dateFrom && 'text-muted-foreground')}>
+              <CalendarIcon className="h-3 w-3 mr-1" />
+              {dateFrom ? format(dateFrom, 'MMM d') : 'From'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarPicker mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className={cn('p-3 pointer-events-auto')} />
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn('justify-start', !dateTo && 'text-muted-foreground')}>
+              <CalendarIcon className="h-3 w-3 mr-1" />
+              {dateTo ? format(dateTo, 'MMM d') : 'To'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={clearDateFilters}>Clear dates</Button>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
@@ -231,11 +315,15 @@ export default function QAOperationsQueue() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Patient</TableHead>
-                    <TableHead>Project</TableHead>
+                    <TableHead>Clinic</TableHead>
                     <TableHead>Service</TableHead>
                     <TableHead>Alert</TableHead>
-                    <TableHead>Appt Status</TableHead>
-                    <TableHead>Entered Queue</TableHead>
+                    <TableHead>Self-Booked</TableHead>
+                    <TableHead>Error</TableHead>
+                    <TableHead>Error Source</TableHead>
+                    <TableHead>Resolution</TableHead>
+                    <TableHead>Entered</TableHead>
+                    <TableHead>Resolved</TableHead>
                     <TableHead>Ticket</TableHead>
                     <TableHead />
                   </TableRow>
@@ -249,8 +337,12 @@ export default function QAOperationsQueue() {
                       <TableCell>
                         <Badge variant={alertVariant(c.alert_type)}>{ALERT_LABELS[c.alert_type]}</Badge>
                       </TableCell>
-                      <TableCell>{c.appointment_status || '—'}</TableCell>
+                      <TableCell>{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>
+                      <TableCell>{c.error_category || '—'}</TableCell>
+                      <TableCell>{c.error_source || '—'}</TableCell>
+                      <TableCell>{c.resolution_type || '—'}</TableCell>
                       <TableCell>{format(new Date(c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
+                      <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
                       <TableCell>
                         {c.controlhub_ticket_id ? (
                           <a
@@ -306,9 +398,19 @@ function CaseDrawer({
   const [activity, setActivity] = useState<QAActivity[]>([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
+  const [audit, setAudit] = useState<Partial<QACase>>({});
+  const [savingAudit, setSavingAudit] = useState(false);
 
   useEffect(() => {
     if (!caseData) return;
+    setAudit({
+      qa_name: caseData.qa_name ?? user?.email ?? '',
+      self_booked: caseData.self_booked,
+      error_category: caseData.error_category,
+      error_source: caseData.error_source,
+      caught_before_clinic: caseData.caught_before_clinic,
+      resolution_type: caseData.resolution_type,
+    });
     (async () => {
       const [n, a] = await Promise.all([
         supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false }),
@@ -317,7 +419,7 @@ function CaseDrawer({
       setNotes(((n.data as any) || []) as QANote[]);
       setActivity(((a.data as any) || []) as QAActivity[]);
     })();
-  }, [caseData]);
+  }, [caseData, user?.email]);
 
   const addNote = async () => {
     if (!caseData || !noteDraft.trim()) return;
@@ -336,6 +438,36 @@ function CaseDrawer({
     setNotes(((data as any) || []) as QANote[]);
   };
 
+  const saveAudit = async () => {
+    if (!caseData) return;
+    setSavingAudit(true);
+    const patch: any = {
+      qa_name: audit.qa_name ?? null,
+      self_booked: audit.self_booked ?? null,
+      error_category: audit.error_category ?? null,
+      error_source: audit.error_source ?? null,
+      caught_before_clinic: audit.caught_before_clinic ?? null,
+      resolution_type: audit.resolution_type ?? null,
+    };
+    if (!caseData.assigned_qs_user_id && user?.id) {
+      patch.assigned_qs_user_id = user.id;
+    }
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', caseData.id);
+    setSavingAudit(false);
+    if (error) {
+      toast({ title: 'Save failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'audit_update',
+      description: 'Audit fields updated',
+      actor_user_id: user?.id ?? null,
+    } as any);
+    toast({ title: 'Audit details saved' });
+    onRefresh();
+  };
+
   const createTicket = async () => {
     if (!caseData) return;
     setCreatingTicket(true);
@@ -350,6 +482,10 @@ function CaseDrawer({
     toast({ title: 'ControlHub ticket created', description: (data as any)?.ticket_id });
     onRefresh();
   };
+
+  const patientLink = caseData?.project_name
+    ? `${window.location.origin}/project/${encodeURIComponent(caseData.project_name)}`
+    : '';
 
   return (
     <Sheet open={!!caseData} onOpenChange={(open) => !open && onClose()}>
@@ -381,6 +517,12 @@ function CaseDrawer({
                   <div className="text-muted-foreground text-xs">Entered queue</div>
                   <div>{format(new Date(caseData.entered_queue_at), 'PP p')}</div>
                 </div>
+                {caseData.date_resolved && (
+                  <div>
+                    <div className="text-muted-foreground text-xs">Date resolved</div>
+                    <div>{format(new Date(caseData.date_resolved), 'PP p')}</div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -397,7 +539,97 @@ function CaseDrawer({
                 </Select>
               </div>
 
-              <div className="flex gap-2">
+              <div className="border rounded-lg p-3 space-y-3">
+                <div className="text-sm font-semibold">Audit Details</div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">QA Name</Label>
+                    <Input
+                      value={audit.qa_name ?? ''}
+                      onChange={(e) => setAudit((a) => ({ ...a, qa_name: e.target.value }))}
+                      placeholder="QA specialist"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Error Source</Label>
+                    <Input
+                      value={audit.error_source ?? ''}
+                      onChange={(e) => setAudit((a) => ({ ...a, error_source: e.target.value }))}
+                      placeholder="Setter / agent name"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Error Category</Label>
+                    <Select
+                      value={audit.error_category ?? ''}
+                      onValueChange={(v) => setAudit((a) => ({ ...a, error_category: v }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {ERROR_CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Resolution Type</Label>
+                    <Select
+                      value={audit.resolution_type ?? ''}
+                      onValueChange={(v) => setAudit((a) => ({ ...a, resolution_type: v }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {RESOLUTION_TYPES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!audit.self_booked}
+                      onCheckedChange={(v) => setAudit((a) => ({ ...a, self_booked: v }))}
+                    />
+                    <Label className="text-xs">Self-booked</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!audit.caught_before_clinic}
+                      onCheckedChange={(v) => setAudit((a) => ({ ...a, caught_before_clinic: v }))}
+                    />
+                    <Label className="text-xs">Caught before clinic</Label>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Patient Link</Label>
+                  <div className="flex gap-2">
+                    <Input value={patientLink} readOnly className="text-xs" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(patientLink);
+                        toast({ title: 'Link copied' });
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button size="sm" onClick={saveAudit} disabled={savingAudit}>
+                    {savingAudit ? 'Saving…' : 'Save audit details'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 flex-wrap">
                 {caseData.appointment_id && (
                   <Button
                     variant="outline"
