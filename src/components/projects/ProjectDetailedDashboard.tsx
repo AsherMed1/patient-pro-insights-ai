@@ -502,6 +502,57 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
             >
               Last 90 Days
             </Button>
+            <div className="flex items-center gap-1 ml-1">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !internalDateRange.from && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {internalDateRange.from ? format(internalDateRange.from, "MMM d, yyyy") : "Start date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarPicker
+                    mode="single"
+                    selected={internalDateRange.from}
+                    onSelect={(d) => setInternalDateRange(prev => ({ ...prev, from: d }))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-sm text-muted-foreground">to</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !internalDateRange.to && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {internalDateRange.to ? format(internalDateRange.to, "MMM d, yyyy") : "End date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarPicker
+                    mode="single"
+                    selected={internalDateRange.to}
+                    onSelect={(d) => setInternalDateRange(prev => ({ ...prev, to: d }))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             {(internalDateRange.from || internalDateRange.to || locationFilter !== 'ALL' || serviceFilter !== 'ALL') && (
               <Button
                 variant="ghost"
