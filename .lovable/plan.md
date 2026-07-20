@@ -1,52 +1,58 @@
-# Davis Vein & Vascular: hybrid scheduled + legacy Morning/Afternoon
 
-Davis now books real appointments in GHL, but existing rows already captured as Morning/Afternoon must keep working. Move Davis to a hybrid model driven by whether a real date/time is present on the row.
+## Correction
 
-## Behavior
+You're right — I mis-read your prior instruction. The correct signature for "Sarella-like" Davis rows is:
 
-- **New Davis leads from GHL**: if the payload has a real `date_of_appointment`/`requested_time`, store them exactly like any scheduled project (Ally, VSAV, etc.). If it has none, fall back to the current unscheduled capture (Morning/Afternoon/No Preference, `is_unscheduled=true`, no calendar slot).
-- **Existing Davis rows**:
-  - Rows with `date_of_appointment IS NULL` keep showing the Time Preference dropdown — unchanged.
-  - Rows with a real `date_of_appointment` hide the Time Preference dropdown and show the standard date/time editor even if `is_unscheduled=true` or `time_preference` is set. The dropdown is not driven by project name anymore, it's driven by "does this row have a booked date".
+- `time_preference` IS set (e.g. `no_preference`)
+- `date_of_appointment` IS NULL
+- `is_unscheduled = true`
+- `ghl_id` is present
 
-## Code changes
+...i.e. rows that currently look unscheduled in the portal but likely have a real scheduled appointment in GHL.
 
-### 1. `supabase/functions/ghl-webhook-handler/index.ts`
+## Candidates confirmed in DB
 
-Add a helper `payloadHasRealDate(webhookData)` returning true when `date_of_appointment` is a non-empty string.
+Query results for the 8 names you gave (Davis Vein & Vascular, not superseded):
 
-**CREATE branch (~lines 1185-1220)**: when project is unscheduled-capture AND `payloadHasRealDate` is false, keep today's unscheduled behavior. When it *is* true, treat Davis exactly as a scheduled project for this insert: store the real `date_of_appointment` / `requested_time` / `ghl_appointment_id`, set `is_unscheduled=false`, and skip the forced `time_preference='no_preference'`. Premier / ECCO / Horizon keep the strict unscheduled path (they are not switching), so gate the "accept real date" branch on `project === 'davis vein & vascular'`.
+| Lead | portal id | ghl_id | Portal status | time_pref | date | Notes |
+|---|---|---|---|---|---|---|
+| Adam Neely | adeb6410 | 1NPbxBiSf4Jv6RrxC50a | Confirmed | no_preference | NULL | |
+| Charles Spivey | 1f4d2e61 | WEQ1wOXfgAetOq2ySDUU | Pending | no_preference | NULL | |
+| Charvis Dorismond | ffb82845 | umWANhk8iUAprGa8iBv2 | Pending | no_preference | NULL | |
+| Daniel Medellin | 77252c41 | GkjVU580Rch95TbWTtbm | Pending | no_preference | NULL | |
+| ESIQUIA C DELAGARZA | 99db03d4 | g70TeWQwrk8Xs6yoSJou | Pending | no_preference | NULL | |
+| Fred T Gibson | 331ce51f | YQMYcpSuBuxhd2eV04Dj | Pending | no_preference | NULL | |
+| Gaylord McKenzie | 9a7b7d6a | bHIcszih0rLHOMiAhoEM | Confirmed | no_preference | NULL | primary (calendar: "Request your GAE Consultation at Spring, TX") |
+| Gaylord McKenzie | 89de9c8f | bHIcszih0rLHOMiAhoEM | Confirmed | no_preference | NULL | duplicate (calendar: Unknown) — same ghl_id |
+| Timothy Roth | 4eefd1f2 | c0bTfgwx5Io35MpY5J7s | Confirmed | no_preference | NULL | |
 
-**UPDATE branch (~lines 1230-1249)**: same gating. For Davis, if the incoming payload has a real date, fall through into the existing scheduled reschedule logic (debounce, reschedule history, IPC reset, etc.) instead of the "force back to unscheduled" block. If it has no date, keep today's Davis behavior (refresh `time_preference` only, don't wipe an existing booked date).
+None are terminal. All 9 rows are safe to repair the same way I did for Sarella. Gaylord has a duplicate that needs to be superseded.
 
-Leave Premier, ECCO, Horizon untouched.
+## Plan
 
-### 2. `supabase/functions/all-appointments-api/index.ts` (line 184)
+**Step 1 — Fetch real appointments from GHL (per contact)**
 
-Remove `'davis vein & vascular'` from `UNSCHEDULED_PROJECTS`. This function is used by the direct REST intake endpoint, which now always receives Davis with a real date/time. Payloads with a date will insert as scheduled; if a legacy caller ever sends one without a date, it will still land in Needs Review via the standard null-date routing rule.
+Call `backfill-ghl-appointment` once with all 8 unique `ghl_id`s under `projectName = "Davis Vein & Vascular"`. It fetches each contact's live appointments from GHL, synthesizes an `AppointmentCreate` webhook, and posts it to `ghl-webhook-handler`. With the current handler behavior, if the GHL payload carries a real `startTime`, the update branch will populate `date_of_appointment` / `requested_time` / `ghl_appointment_id` / `calendar_name` and flip `is_unscheduled = false` on the matching row (matched by `ghl_id`). No schema or code changes needed — the pipeline built for Sarella already handles this.
 
-### 3. `src/components/appointments/AppointmentCard.tsx` (line 1591)
+**Step 2 — Manual repair for anything the webhook can't map**
 
-Change the Time Preference row's condition from a project-name whitelist to a per-row check: render the dropdown when the project is one of the unscheduled-capture projects (Premier / ECCO / Horizon / Davis) **and** `appointment.date_of_appointment` is falsy. Once a Davis row has a booked date, the dropdown disappears and the existing date/time editor takes over. Any other card (`DetailedAppointmentView.tsx`) that gates on the same project list gets the same `&& !date_of_appointment` guard.
+After Step 1, re-run the same query and inspect each row:
+- If `date_of_appointment` is now populated → done.
+- If GHL returned no scheduled appointment for that contact → leave the row as-is (it really is unscheduled).
+- If GHL returned an appointment but the row didn't update (e.g., handler skipped it because of a guard), run a targeted `UPDATE` on `all_appointments` for that `id` with the values from `backfill-ghl-appointment`'s response.
 
-## Data fix for Sarella Kately and any similar Davis rows
+**Step 3 — Gaylord McKenzie duplicate**
 
-For Davis rows currently stuck as `is_unscheduled=true` with `date_of_appointment IS NULL`, we fetch the real appointment from GHL and repair the row:
+Two rows share `ghl_id = bHIcszih0rLHOMiAhoEM`. Keep the primary (`9a7b7d6a…`, calendar "Request your GAE Consultation at Spring, TX"). Mark the other (`89de9c8f…`, calendar "Unknown") as `is_superseded = true`.
 
-1. Query all Davis rows with `is_unscheduled = true AND date_of_appointment IS NULL AND ghl_id IS NOT NULL`.
-2. For each, call the existing GHL appointments API (same helper used by other syncs — `fetchGHLAppointmentsForContact` in `_shared/ghl-client.ts`, or the pattern used by `sync-buffalo-appointment-statuses`) using Davis's project GHL API key.
-3. If an active appointment is returned, set `date_of_appointment`, `requested_time`, `ghl_appointment_id`, `calendar_name` (if missing), `is_unscheduled = false`. Leave `time_preference` in place so we don't lose historical context; the UI will hide it once `date_of_appointment` is set.
-4. If GHL returns nothing, leave the row as-is (still legacy unscheduled).
+**Step 4 — Report back**
 
-Run this as a one-off SQL/edge-function invocation, not an ongoing job. Sarella Kately (`2e4d14c1…`, ghl_id `MViXAALeYGfzvNT9gal2`) is the primary target and matches the linked GHL contact.
-
-## Memory updates
-
-- Update `mem://projects/davis-vein-vascular/unscheduled-capture` to describe the new hybrid rule: Davis accepts scheduled appointments; Time Preference only applies to rows without a `date_of_appointment`.
-- Update the Core "Unscheduled Capture" phrasing in `mem://index.md` so Davis is listed as hybrid rather than strict unscheduled.
+Post a per-lead summary in chat:
+- Real GHL appointment start time (if any) and status
+- Whether the portal row was auto-repaired, needs manual patch, or was left as-is
 
 ## Out of scope
 
-- Premier Vascular, ECCO Medical, Horizon Vascular Specialists behavior — unchanged.
-- Approved-tag list in `retry-missing-ghl-approved-tags` — unchanged.
-- No schema changes.
+- No changes to `ghl-webhook-handler`, hybrid Davis logic, or any UI code.
+- Not touching Premier / ECCO / Horizon rows.
+- Not modifying the earlier 5 Cancelled-with-no-time-preference rows (separate audit if you want).
