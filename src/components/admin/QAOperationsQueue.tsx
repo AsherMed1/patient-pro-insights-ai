@@ -859,6 +859,99 @@ function CaseDrawer({
           </>
         )}
       </SheetContent>
+
+      <Dialog open={ticketDialogOpen} onOpenChange={setTicketDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create ControlHub Ticket</DialogTitle>
+            <DialogDescription>
+              Log a ticket without leaving the portal. Fields are prefilled from the QA case — edit as needed before submitting.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Task name *</Label>
+              <Input
+                value={ticketForm.task_name}
+                onChange={(e) => setTicketForm((f) => ({ ...f, task_name: e.target.value }))}
+                maxLength={200}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Client *</Label>
+                <Input
+                  value={ticketForm.client_name}
+                  onChange={(e) => setTicketForm((f) => ({ ...f, client_name: e.target.value }))}
+                  maxLength={120}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Service involved</Label>
+                <Input
+                  value={ticketForm.service_involved}
+                  onChange={(e) => setTicketForm((f) => ({ ...f, service_involved: e.target.value }))}
+                  maxLength={120}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Issue type</Label>
+                <Input
+                  value={ticketForm.issue_type}
+                  onChange={(e) => setTicketForm((f) => ({ ...f, issue_type: e.target.value }))}
+                  placeholder="qa-operations"
+                  maxLength={60}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Priority</Label>
+                <Select
+                  value={ticketForm.priority}
+                  onValueChange={(v) => setTicketForm((f) => ({ ...f, priority: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Description *</Label>
+              <Textarea
+                value={ticketForm.description}
+                onChange={(e) => setTicketForm((f) => ({ ...f, description: e.target.value }))}
+                rows={6}
+                maxLength={4000}
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Submitted by</Label>
+              <Input value={ticketForm.submitted_by} readOnly className="bg-muted" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTicketDialogOpen(false)} disabled={creatingTicket}>
+              Cancel
+            </Button>
+            <Button onClick={submitTicket} disabled={creatingTicket}>
+              {creatingTicket && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+              {creatingTicket ? 'Creating…' : 'Create ticket'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
