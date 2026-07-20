@@ -425,11 +425,13 @@ export default function QAOperationsQueue() {
 
 function CaseDrawer({
   caseData,
+  ghlUrl,
   onClose,
   onStatusChange,
   onRefresh,
 }: {
   caseData: QACase | null;
+  ghlUrl: string | null;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
