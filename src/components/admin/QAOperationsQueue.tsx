@@ -16,10 +16,12 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Copy } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon } from 'lucide-react';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'cancelled' | 'no_show' | 'confirmed_audit';
+type AlertType = 'short_notice' | 'oon' | 'confirmed_audit';
+
+const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit'];
 
 interface QACase {
   id: string;
