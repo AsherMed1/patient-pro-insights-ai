@@ -414,6 +414,7 @@ export default function QAOperationsQueue() {
 
       <CaseDrawer
         caseData={selectedCase}
+        ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); fetchCounts(); }}
