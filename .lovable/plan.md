@@ -1,24 +1,28 @@
+## Multi-Assignee Support for ControlHub Tickets
 
-## Goal
-Let QA specialists pick an assignee when creating a ControlHub ticket from the QA Operations Queue, so tickets don't need to be re-assigned in ControlHub afterwards.
+Allow selecting multiple assignees when creating a VA or Tech ticket from the QA Operations Queue.
 
-## UI (`src/components/admin/QAOperationsQueue.tsx`)
-Add an **Assignee** field to the Create ControlHub Ticket dialog, placed between Ticket Type and Task Name:
+### Changes
 
-- Rendered as a searchable Select (same `Command`/`Popover` pattern used elsewhere in this file for Error Source/Category).
-- Optional — a "Unassigned" first option that submits nothing.
-- Options depend on Ticket Type:
-  - **VA**: Ivy Simeon, Jenny, Giselle Mitra, Gloria Govender, Matthew Pernes, Robert Christian Tan, Dean Lunderstedt, Isis Curiel, Aridni Martinez, Marissa Kresnik, Kathryn Meksavanh, Alexa Briggs.
-  - **Tech**: same list (per user answer).
-- Switching Ticket Type resets the selected assignee (names could differ later; keeps state clean).
-- Lists defined as two constants at the top of the file (`VA_ASSIGNEES`, `TECH_ASSIGNEES`) so future edits are one-liners.
+**1. `src/components/admin/QAOperationsQueue.tsx` — Ticket dialog**
+- Replace single-select Assignee dropdown with a multi-select searchable picker (checkbox list inside a Popover, with selected names shown as removable chips/badges).
+- State becomes `assigneeNames: string[]` instead of a single string.
+- Same 12-name list for VA; existing tech list for Tech.
+- Activity log entry lists all selected names (comma-separated) instead of one.
 
-## Edge function (`supabase/functions/create-controlhub-ticket/index.ts`)
-- Accept a new optional string field `assignee_name` in the request body.
-- Trim + length-cap it; if present, forward it to ControlHub's `receive-external-ticket` POST body as `assignee_name` (top-level) and also mirror into `metadata.assignee_name` so it's visible even if ControlHub hasn't wired the top-level field yet.
-- Include `assignee_name` in the `qa_case_activity` `ticket_created` metadata so the QA case audit trail records who it was routed to.
-- No validation against a fixed list on the server — names-only routing per user preference; ControlHub resolves the name to a user.
+**2. `supabase/functions/create-controlhub-ticket/index.ts`**
+- Accept `assignee_names: string[]` (keep `assignee_name` as a backward-compatible fallback for a single value).
+- Forward to ControlHub as both:
+  - `assignee_names` (array) — primary
+  - `assignee_name` (string) — first name, for backward compatibility
+  - `metadata.assignees` (array) — for the receiving function to fan out
+- No DB schema change needed; ControlHub-side routing decides how to store multi-assignment.
 
-## Out of scope
-- No changes to ControlHub itself. A short follow-up note in the response will mention that ControlHub's `receive-external-ticket` needs to read `assignee_name` (or `metadata.assignee_name`) and set the ticket's assignee accordingly for auto-routing to take effect end-to-end.
-- No DB schema changes.
+**3. Note about ControlHub side**
+- The existing `receive-external-ticket` function on the PPM ControlHub project currently reads a single `assignee_name`. To fully honor multiple assignees, that function will need a follow-up update (I will provide the exact prompt once this side is merged). Until then, ControlHub will use the first assignee and the full list will be visible in the ticket description/metadata.
+
+### UX details
+- Empty selection is allowed (ticket created unassigned, matching current behavior).
+- Selected assignees rendered as small removable badges above the search input.
+- Search filters the checklist by name.
+- No changes to any other QA fields, filters, or workflows.
