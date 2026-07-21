@@ -78,6 +78,16 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
 ];
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  created: 'Case created',
+  alert_repeat: 'Repeat alert',
+  realerted: 'Re-alerted — returned to New',
+  status_change: 'Status changed',
+  audit_update: 'Audit updated',
+  reopened: 'Reopened',
+};
+
+
 const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
