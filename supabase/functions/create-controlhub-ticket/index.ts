@@ -107,6 +107,9 @@ Deno.serve(async (req) => {
           issue_type: normalizedIssueType,
           description: description.trim(),
           submitted_by: normalizedSubmittedBy,
+          submitted_by_email: (typeof submitted_by_email === 'string' && submitted_by_email.trim())
+            ? submitted_by_email.trim()
+            : null,
           priority: normalizedPriority,
           metadata: {
             qa_case_id: case_id,
