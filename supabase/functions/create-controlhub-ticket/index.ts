@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
         issue_type: normalizedIssueType,
         submitted_by: normalizedSubmittedBy,
         assignee_name: normalizedAssignee,
+        assignees: normalizedAssignees,
       },
     });
 
