@@ -278,7 +278,7 @@ export default function QAOperationsQueue() {
     } as any);
     toast({ title: 'Status updated' });
     fetchCases();
-    fetchCounts();
+
   };
 
   const openCase = (c: QACase) => {
