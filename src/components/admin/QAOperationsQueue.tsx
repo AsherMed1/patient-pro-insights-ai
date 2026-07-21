@@ -103,6 +103,22 @@ const ALERT_LABELS: Record<AlertType, string> = {
 
 const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to Tech', 'Escalated to AM', 'Escalated to Gloria', 'Other'];
 
+const VA_ASSIGNEES = [
+  'Ivy Simeon',
+  'Jenny',
+  'Giselle Mitra',
+  'Gloria Govender',
+  'Matthew Pernes',
+  'Robert Christian Tan',
+  'Dean Lunderstedt',
+  'Isis Curiel',
+  'Aridni Martinez',
+  'Marissa Kresnik',
+  'Kathryn Meksavanh',
+  'Alexa Briggs',
+];
+const TECH_ASSIGNEES = VA_ASSIGNEES;
+
 const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
   if (t === 'short_notice') return 'default';
@@ -635,6 +651,7 @@ function CaseDrawer({
     priority: 'medium',
     description: '',
     submitted_by: '',
+    assignee_name: '',
   });
 
   const stripTypePrefix = (name: string) =>
@@ -678,6 +695,7 @@ function CaseDrawer({
       priority: 'medium',
       description: buildDefaultDescription(caseData),
       submitted_by: submittedBy,
+      assignee_name: '',
     });
     setTicketDialogOpen(true);
   };
@@ -704,6 +722,7 @@ function CaseDrawer({
         description: ticketForm.description.trim(),
         submitted_by: ticketForm.submitted_by.trim() || 'PatientPro QA Queue',
         submitted_by_email: user?.email ?? null,
+        assignee_name: ticketForm.assignee_name.trim() || null,
       },
     });
     setCreatingTicket(false);
@@ -1014,6 +1033,7 @@ function CaseDrawer({
                     ...f,
                     issue_type: v as 'va' | 'tech',
                     task_name: f.task_name.trim() ? applyTypePrefix(f.task_name, v as 'va' | 'tech') : f.task_name,
+                    assignee_name: '',
                   }))}
                 >
                   <SelectTrigger><SelectValue placeholder="Select ticket type…" /></SelectTrigger>
@@ -1038,6 +1058,25 @@ function CaseDrawer({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Assignee (optional)</Label>
+              <Select
+                value={ticketForm.assignee_name || '__unassigned__'}
+                onValueChange={(v) => setTicketForm((f) => ({ ...f, assignee_name: v === '__unassigned__' ? '' : v }))}
+                disabled={!ticketForm.issue_type}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={ticketForm.issue_type ? 'Unassigned' : 'Select ticket type first…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                  {(ticketForm.issue_type === 'tech' ? TECH_ASSIGNEES : VA_ASSIGNEES).map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

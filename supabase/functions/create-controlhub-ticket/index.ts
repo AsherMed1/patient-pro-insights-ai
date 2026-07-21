@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
       description,
       submitted_by,
       submitted_by_email,
+      assignee_name,
     } = body ?? {};
 
     if (!case_id || typeof case_id !== 'string') {
@@ -85,6 +86,9 @@ Deno.serve(async (req) => {
     const normalizedSubmittedBy = (typeof submitted_by === 'string' && submitted_by.trim())
       ? submitted_by.trim()
       : 'PatientPro QA Queue';
+    const normalizedAssignee = (typeof assignee_name === 'string' && assignee_name.trim())
+      ? assignee_name.trim().slice(0, 200)
+      : null;
 
     let ticketId: string;
     let ticketUrl: string | null = null;
@@ -111,12 +115,14 @@ Deno.serve(async (req) => {
             ? submitted_by_email.trim()
             : null,
           priority: normalizedPriority,
+          assignee_name: normalizedAssignee,
           metadata: {
             qa_case_id: case_id,
             project: qaCase.project_name,
             alert_type: qaCase.alert_type,
             appointment_id: qaCase.appointment_id,
             ghl_contact_id: qaCase.ghl_contact_id,
+            assignee_name: normalizedAssignee,
           },
         }),
       });
@@ -180,6 +186,7 @@ Deno.serve(async (req) => {
         priority: normalizedPriority,
         issue_type: normalizedIssueType,
         submitted_by: normalizedSubmittedBy,
+        assignee_name: normalizedAssignee,
       },
     });
 
