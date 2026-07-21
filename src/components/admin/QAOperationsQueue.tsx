@@ -1063,22 +1063,81 @@ function CaseDrawer({
             </div>
 
             <div>
-              <Label className="text-xs">Assignee (optional)</Label>
-              <Select
-                value={ticketForm.assignee_name || '__unassigned__'}
-                onValueChange={(v) => setTicketForm((f) => ({ ...f, assignee_name: v === '__unassigned__' ? '' : v }))}
-                disabled={!ticketForm.issue_type}
+              <Label className="text-xs">Assignees (optional)</Label>
+              <Popover
+                onOpenChange={(open) => { if (!open) setAssigneeSearch(''); }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder={ticketForm.issue_type ? 'Unassigned' : 'Select ticket type first…'} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__unassigned__">Unassigned</SelectItem>
-                  {(ticketForm.issue_type === 'tech' ? TECH_ASSIGNEES : VA_ASSIGNEES).map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start font-normal h-auto min-h-10 py-2"
+                    disabled={!ticketForm.issue_type}
+                  >
+                    {ticketForm.assignee_names.length === 0 ? (
+                      <span className="text-muted-foreground">
+                        {ticketForm.issue_type ? 'Unassigned — click to add…' : 'Select ticket type first…'}
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {ticketForm.assignee_names.map((name) => (
+                          <Badge
+                            key={name}
+                            variant="secondary"
+                            className="gap-1"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setTicketForm((f) => ({
+                                ...f,
+                                assignee_names: f.assignee_names.filter((n) => n !== name),
+                              }));
+                            }}
+                          >
+                            {name} <span className="ml-1 text-muted-foreground">×</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+                  <Input
+                    autoFocus
+                    placeholder="Search assignees…"
+                    value={assigneeSearch}
+                    onChange={(e) => setAssigneeSearch(e.target.value)}
+                    className="mb-2 h-8"
+                  />
+                  <div className="max-h-64 overflow-y-auto space-y-1">
+                    {(ticketForm.issue_type === 'tech' ? TECH_ASSIGNEES : VA_ASSIGNEES)
+                      .filter((name) => name.toLowerCase().includes(assigneeSearch.toLowerCase()))
+                      .map((name) => {
+                        const checked = ticketForm.assignee_names.includes(name);
+                        return (
+                          <label
+                            key={name}
+                            className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setTicketForm((f) => ({
+                                  ...f,
+                                  assignee_names: e.target.checked
+                                    ? [...f.assignee_names, name]
+                                    : f.assignee_names.filter((n) => n !== name),
+                                }));
+                              }}
+                            />
+                            {name}
+                          </label>
+                        );
+                      })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
