@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
         try {
           const u = new URL(returnedUrl);
           const tid = u.searchParams.get('ticket') ?? ticketId;
-          const ttype = u.searchParams.get('type') ?? 'tech';
+          const ttype = u.searchParams.get('type') ?? normalizedIssueType;
           ticketUrl = `${u.origin}/admin?ticket=${tid}&type=${ttype}`;
         } catch {
           ticketUrl = returnedUrl;
