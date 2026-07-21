@@ -2680,6 +2680,18 @@ Deno.serve(async (req) => {
             calendarProcedure = constrained;
           }
         }
+
+        // Unscheduled / Unknown-calendar leads (Premier Vascular, ECCO, Davis, Horizon)
+        // have calendar_name = "Unknown" so detectProcedureFromCalendar returns null.
+        // Sniff procedure from the intake notes so the AI prompt receives the correct
+        // procedure-specific extraction guidance instead of the generic prompt.
+        if (!calendarProcedure) {
+          const sniffed = sniffProcedureFromNotes(record.patient_intake_notes, null);
+          if (sniffed) {
+            calendarProcedure = sniffed;
+            console.log(`[AUTO-PARSE] Sniffed ${sniffed} procedure from intake notes (calendar=${record.calendar_name || 'null'})`);
+          }
+        }
         
         // If appointment has ghl_id, try to fetch GHL custom fields
         if (record.table === 'all_appointments' && record.ghl_id) {
@@ -2860,6 +2872,35 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
               console.log(`[AUTO-PARSE] Using regex fallback due to invalid JSON for ${recordIdentifier}`);
               parsedData = fallbackRegexParsing(record.patient_intake_notes);
               usedFallback = true;
+            }
+
+            // Empty-result guard: if the AI returned a valid JSON shell but every
+            // pathology/medical/insurance field is null while the notes clearly
+            // contain STEP / Insurance / Medical content, treat it as a parse
+            // miss and merge in the regex fallback so the record isn't stamped
+            // "parsed" with an empty payload.
+            if (!usedFallback && parsedData) {
+              const isEmptyObj = (o: any) =>
+                !o || Object.values(o).every((v) => v === null || v === undefined || v === '');
+              const pathEmpty = isEmptyObj(parsedData.pathology_info);
+              const medEmpty = isEmptyObj(parsedData.medical_info);
+              const insEmpty = isEmptyObj(parsedData.insurance_info);
+              const notes = record.patient_intake_notes || '';
+              const notesLookRich =
+                /STEP\s*\d+\s*\|/i.test(notes) ||
+                /Insurance Information\s*:/i.test(notes) ||
+                /Medical Information\s*:/i.test(notes) ||
+                /Pathology Information\s*:/i.test(notes) ||
+                /Primary Care Doctor/i.test(notes);
+              if (pathEmpty && medEmpty && insEmpty && notesLookRich) {
+                console.log(`[AUTO-PARSE] ⚠ AI returned empty payload for ${recordIdentifier} despite rich notes — merging regex fallback`);
+                const fb = fallbackRegexParsing(record.patient_intake_notes);
+                parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info || {}, fb.pathology_info || {});
+                parsedData.medical_info = mergeWithNonNull(parsedData.medical_info || {}, fb.medical_info || {});
+                parsedData.insurance_info = mergeWithNonNull(parsedData.insurance_info || {}, fb.insurance_info || {});
+                parsedData.contact_info = mergeWithNonNull(parsedData.contact_info || {}, fb.contact_info || {});
+                parsedData.demographics = mergeWithNonNull(parsedData.demographics || {}, fb.demographics || {});
+              }
             }
           }
         }
