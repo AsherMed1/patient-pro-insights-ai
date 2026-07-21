@@ -26,6 +26,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [ticketNumber, setTicketNumber] = useState('');
   const { user } = useAuth();
+  const { userName } = useUserAttribution();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,7 +46,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
           category,
           priority,
           created_by_email: user.email,
-          created_by_name: user.email.split('@')[0],
+          created_by_name: userName && userName !== 'Unknown User' ? userName : user.email.split('@')[0],
           metadata: { service_affected: serviceAffected }
         })
         .select('ticket_number')
