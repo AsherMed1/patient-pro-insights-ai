@@ -84,17 +84,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
   confirmed_audit: 'Confirmed Audit',
 };
 
-const ERROR_CATEGORIES = [
-  'Missing Insurance',
-  'Notes Added to Portal',
-  'Duplicate Appointment',
-  'Booking Rule Violation',
-  'Uploaded Insurance Card',
-  'Name Correction',
-  'Double Booked',
-  'Incorrect Patient Info',
-  'Other',
-];
+// Error Category options are stored in the qa_error_categories table (editable master list)
 
 const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to AM', 'Other'];
 
@@ -121,6 +111,7 @@ export default function QAOperationsQueue() {
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
+  const [errorCategories, setErrorCategories] = useState<{ id: string; name: string }[]>([]);
 
   const refreshErrorSources = async () => {
     const { data } = await supabase
@@ -128,6 +119,14 @@ export default function QAOperationsQueue() {
       .select('id, name')
       .order('name', { ascending: true });
     setErrorSources(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+  };
+
+  const refreshErrorCategories = async () => {
+    const { data } = await supabase
+      .from('qa_error_categories' as any)
+      .select('id, name')
+      .order('name', { ascending: true });
+    setErrorCategories(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
   };
 
   const fetchCases = async () => {
@@ -193,6 +192,7 @@ export default function QAOperationsQueue() {
       }
     })();
     refreshErrorSources();
+    refreshErrorCategories();
   }, []);
 
   const ghlUrlFor = (c: QACase): string | null => {
@@ -429,6 +429,8 @@ export default function QAOperationsQueue() {
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
         errorSources={errorSources}
         onErrorSourcesRefresh={refreshErrorSources}
+        errorCategories={errorCategories}
+        onErrorCategoriesRefresh={refreshErrorCategories}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); fetchCounts(); }}
@@ -443,6 +445,8 @@ function CaseDrawer({
   ghlUrl,
   errorSources,
   onErrorSourcesRefresh,
+  errorCategories,
+  onErrorCategoriesRefresh,
   onClose,
   onStatusChange,
   onRefresh,
@@ -451,6 +455,8 @@ function CaseDrawer({
   ghlUrl: string | null;
   errorSources: { id: string; name: string }[];
   onErrorSourcesRefresh: () => Promise<void>;
+  errorCategories: { id: string; name: string }[];
+  onErrorCategoriesRefresh: () => Promise<void>;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
@@ -734,15 +740,12 @@ function CaseDrawer({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Error Category</Label>
-                    <Select
+                    <ErrorCategoryField
                       value={audit.error_category ?? ''}
-                      onValueChange={(v) => setAudit((a) => ({ ...a, error_category: v }))}
-                    >
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {ERROR_CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => setAudit((a) => ({ ...a, error_category: v }))}
+                      categories={errorCategories}
+                      onCategoriesRefresh={onErrorCategoriesRefresh}
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Resolution Type</Label>
@@ -1071,6 +1074,105 @@ function ErrorSourceField({
               value={otherInput}
               onChange={(e) => { setOtherInput(e.target.value); setOtherError(null); }}
               placeholder="Enter new error source"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+            />
+            <Button type="button" onClick={handleAdd} disabled={saving} size="sm">
+              {saving ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+          {otherError && (
+            <p className="text-xs text-destructive">{otherError}</p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ErrorCategoryField({
+  value,
+  onChange,
+  categories,
+  onCategoriesRefresh,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  categories: { id: string; name: string }[];
+  onCategoriesRefresh: () => Promise<void>;
+}) {
+  const [showOther, setShowOther] = useState(false);
+  const [otherInput, setOtherInput] = useState('');
+  const [otherError, setOtherError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const inList = value && categories.some((c) => c.name === value);
+  const selectValue = inList ? value : showOther || value ? '__other__' : '';
+
+  const handleAdd = async () => {
+    const trimmed = otherInput.trim();
+    setOtherError(null);
+    if (!trimmed) {
+      setOtherError('Please enter a category.');
+      return;
+    }
+    const existing = categories.find(
+      (c) => c.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setOtherError(`"${existing.name}" already exists in the list — please select it instead.`);
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from('qa_error_categories' as any)
+      .insert({ name: trimmed });
+    setSaving(false);
+    if (error) {
+      if ((error as any).code === '23505') {
+        setOtherError(`"${trimmed}" already exists in the list — please select it instead.`);
+        await onCategoriesRefresh();
+      } else {
+        setOtherError(error.message);
+      }
+      return;
+    }
+    await onCategoriesRefresh();
+    onChange(trimmed);
+    setOtherInput('');
+    setShowOther(false);
+  };
+
+  return (
+    <>
+      <Select
+        value={selectValue}
+        onValueChange={(v) => {
+          if (v === '__other__') {
+            setShowOther(true);
+            setOtherError(null);
+            onChange('');
+          } else {
+            setShowOther(false);
+            setOtherError(null);
+            onChange(v);
+          }
+        }}
+      >
+        <SelectTrigger><SelectValue placeholder="Select error category" /></SelectTrigger>
+        <SelectContent className="max-h-72">
+          {categories.map((c) => (
+            <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+          ))}
+          <SelectItem value="__other__">Other…</SelectItem>
+        </SelectContent>
+      </Select>
+      {showOther && (
+        <div className="mt-2 space-y-1">
+          <div className="flex gap-2">
+            <Input
+              value={otherInput}
+              onChange={(e) => { setOtherInput(e.target.value); setOtherError(null); }}
+              placeholder="Enter new error category"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
             />
             <Button type="button" onClick={handleAdd} disabled={saving} size="sm">
