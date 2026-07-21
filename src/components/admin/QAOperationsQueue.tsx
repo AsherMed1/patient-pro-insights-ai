@@ -1033,6 +1033,7 @@ function CaseDrawer({
                     ...f,
                     issue_type: v as 'va' | 'tech',
                     task_name: f.task_name.trim() ? applyTypePrefix(f.task_name, v as 'va' | 'tech') : f.task_name,
+                    assignee_name: '',
                   }))}
                 >
                   <SelectTrigger><SelectValue placeholder="Select ticket type…" /></SelectTrigger>
@@ -1057,6 +1058,25 @@ function CaseDrawer({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Assignee (optional)</Label>
+              <Select
+                value={ticketForm.assignee_name || '__unassigned__'}
+                onValueChange={(v) => setTicketForm((f) => ({ ...f, assignee_name: v === '__unassigned__' ? '' : v }))}
+                disabled={!ticketForm.issue_type}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={ticketForm.issue_type ? 'Unassigned' : 'Select ticket type first…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                  {(ticketForm.issue_type === 'tech' ? TECH_ASSIGNEES : VA_ASSIGNEES).map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
