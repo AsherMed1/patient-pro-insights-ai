@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
             : null,
           priority: normalizedPriority,
           assignee_name: normalizedAssignee,
+          assignee_names: normalizedAssignees,
           metadata: {
             qa_case_id: case_id,
             project: qaCase.project_name,
@@ -129,6 +130,7 @@ Deno.serve(async (req) => {
             appointment_id: qaCase.appointment_id,
             ghl_contact_id: qaCase.ghl_contact_id,
             assignee_name: normalizedAssignee,
+            assignees: normalizedAssignees,
           },
         }),
       });
