@@ -96,6 +96,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
   confirmed_audit: 'Confirmed Audit',
+  review_queue: 'Review Queue',
 };
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
