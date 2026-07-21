@@ -136,8 +136,9 @@ Deno.serve(async (req) => {
         try {
           const u = new URL(returnedUrl);
           const tid = u.searchParams.get('ticket') ?? ticketId;
-          const ttype = u.searchParams.get('type') ?? normalizedIssueType;
-          ticketUrl = `${u.origin}/admin?ticket=${tid}&type=${ttype}`;
+          // Always trust our normalizedIssueType over whatever ControlHub returned,
+          // so VA tickets deep-link to the VA view even if ControlHub still labels the row as tech.
+          ticketUrl = `${u.origin}/admin?ticket=${tid}&type=${normalizedIssueType}`;
         } catch {
           ticketUrl = returnedUrl;
         }
