@@ -419,7 +419,7 @@ export default function QAOperationsQueue() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedCase(c); }}>
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openCase(c); }}>
                           Open
                         </Button>
                       </TableCell>
