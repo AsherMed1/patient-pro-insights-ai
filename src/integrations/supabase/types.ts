@@ -3216,6 +3216,30 @@ export type Database = {
           },
         ]
       }
+      qa_error_sources: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_seeded: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_seeded?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_seeded?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       qa_metrics_events: {
         Row: {
           appointment_date: string | null

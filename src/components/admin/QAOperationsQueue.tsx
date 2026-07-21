@@ -120,7 +120,15 @@ export default function QAOperationsQueue() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
-  const [setters, setSetters] = useState<{ id: string; name: string }[]>([]);
+  const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
+
+  const refreshErrorSources = async () => {
+    const { data } = await supabase
+      .from('qa_error_sources' as any)
+      .select('id, name')
+      .order('name', { ascending: true });
+    setErrorSources(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+  };
 
   const fetchCases = async () => {
     setLoading(true);
