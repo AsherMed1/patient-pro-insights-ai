@@ -143,14 +143,12 @@ export default function QAOperationsQueue() {
 
   const fetchCases = async () => {
     setLoading(true);
-    let q = supabase
+    const { data, error } = await supabase
       .from('qa_cases' as any)
       .select('*')
       .in('alert_type', ACTIVE_ALERT_TYPES)
       .order('entered_queue_at', { ascending: false })
       .limit(500);
-    if (tab !== 'all') q = q.eq('workflow_status', tab);
-    const { data, error } = await q;
     if (error) {
       console.error('QA cases fetch error:', error);
       toast({ title: 'Failed to load cases', description: error.message, variant: 'destructive' });
@@ -161,34 +159,19 @@ export default function QAOperationsQueue() {
     setLoading(false);
   };
 
-  const fetchCounts = async () => {
-    const results = await Promise.all(
-      (['new', 'in_review', 'pending_escalated', 'completed'] as WorkflowStatus[]).map(async (s) => {
-        const { count } = await supabase
-          .from('qa_cases' as any)
-          .select('id', { count: 'exact', head: true })
-          .eq('workflow_status', s);
-        return [s, count || 0] as const;
-      })
-    );
-    setCounts(Object.fromEntries(results));
-  };
-
   useEffect(() => {
     fetchCases();
-    fetchCounts();
     const ch = supabase
       .channel('qa-cases-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, () => {
         fetchCases();
-        fetchCounts();
       })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, []);
+
 
   useEffect(() => {
     (async () => {
