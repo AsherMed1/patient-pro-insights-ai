@@ -620,11 +620,13 @@ function CaseDrawer({
     const apptLine = c.appointment_date
       ? `Appointment: ${format(new Date(c.appointment_date), 'PP p')}`
       : 'Appointment: Not scheduled';
-    return [
+    const lines = [
       `Patient: ${c.patient_name || 'Unknown'}`,
       `Service line: ${c.service_line || 'n/a'}`,
       apptLine,
-    ].join('\n');
+    ];
+    if (ghlUrl) lines.push(`GHL: ${ghlUrl}`);
+    return lines.join('\n');
   };
 
   const openTicketDialog = async () => {
@@ -639,7 +641,7 @@ function CaseDrawer({
       submittedBy = ((prof as any)?.full_name || '').trim() || (prof as any)?.email || user?.email || '';
     }
     setTicketForm({
-      task_name: caseData.patient_name || 'Unknown',
+      task_name: '',
       client_name: caseData.project_name || '',
       service_involved: caseData.service_line || '',
       issue_type: '',
@@ -950,7 +952,7 @@ function CaseDrawer({
                   onValueChange={(v) => setTicketForm((f) => ({
                     ...f,
                     issue_type: v as 'va' | 'tech',
-                    task_name: applyTypePrefix(f.task_name, v as 'va' | 'tech'),
+                    task_name: f.task_name.trim() ? applyTypePrefix(f.task_name, v as 'va' | 'tech') : f.task_name,
                   }))}
                 >
                   <SelectTrigger><SelectValue placeholder="Select ticket type…" /></SelectTrigger>
