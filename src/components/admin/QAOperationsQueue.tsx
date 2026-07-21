@@ -39,6 +39,7 @@ interface QACase {
   assigned_qs_user_id: string | null;
   entered_queue_at: string;
   last_alert_activity_at: string;
+  first_entered_at: string;
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
