@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
       priority,
       description,
       submitted_by,
+      submitted_by_email,
     } = body ?? {};
 
     if (!case_id || typeof case_id !== 'string') {
@@ -106,6 +107,9 @@ Deno.serve(async (req) => {
           issue_type: normalizedIssueType,
           description: description.trim(),
           submitted_by: normalizedSubmittedBy,
+          submitted_by_email: (typeof submitted_by_email === 'string' && submitted_by_email.trim())
+            ? submitted_by_email.trim()
+            : null,
           priority: normalizedPriority,
           metadata: {
             qa_case_id: case_id,
@@ -125,7 +129,21 @@ Deno.serve(async (req) => {
       }
       const payload = await resp.json();
       ticketId = String(payload.ticket_id ?? payload.id ?? `CH-${Date.now()}`);
-      ticketUrl = payload.ticket_url ?? null;
+      // Force /admin deep link so the ticket dialog listener on AdminDashboard picks it up.
+      // ControlHub's Index page can't render tech tickets for non-admin viewers.
+      const returnedUrl: string | null = payload.ticket_url ?? null;
+      if (returnedUrl) {
+        try {
+          const u = new URL(returnedUrl);
+          const tid = u.searchParams.get('ticket') ?? ticketId;
+          const ttype = u.searchParams.get('type') ?? 'tech';
+          ticketUrl = `${u.origin}/admin?ticket=${tid}&type=${ttype}`;
+        } catch {
+          ticketUrl = returnedUrl;
+        }
+      } else {
+        ticketUrl = null;
+      }
       ticketStatus = payload.status ?? 'open';
       stub = false;
     } else {
