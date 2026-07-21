@@ -252,6 +252,14 @@ export default function QAOperationsQueue() {
     fetchCounts();
   };
 
+  const openCase = (c: QACase) => {
+    setSelectedCase(c);
+    if (c.workflow_status === 'new') {
+      // Auto-transition to In Review; do not await so modal opens instantly
+      updateStatus(c.id, 'in_review');
+    }
+  };
+
   const clearDateFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
@@ -366,7 +374,7 @@ export default function QAOperationsQueue() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((c) => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => setSelectedCase(c)}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openCase(c)}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <span>{c.patient_name || '—'}</span>
@@ -411,7 +419,7 @@ export default function QAOperationsQueue() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedCase(c); }}>
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openCase(c); }}>
                           Open
                         </Button>
                       </TableCell>
