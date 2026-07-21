@@ -252,6 +252,14 @@ export default function QAOperationsQueue() {
     fetchCounts();
   };
 
+  const openCase = (c: QACase) => {
+    setSelectedCase(c);
+    if (c.workflow_status === 'new') {
+      // Auto-transition to In Review; do not await so modal opens instantly
+      updateStatus(c.id, 'in_review');
+    }
+  };
+
   const clearDateFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
