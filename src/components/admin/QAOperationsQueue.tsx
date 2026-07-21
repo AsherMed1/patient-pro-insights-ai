@@ -73,7 +73,7 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'new', label: 'New' },
   { value: 'in_review', label: 'In Review' },
   { value: 'pending_escalated', label: 'Pending / Escalated' },
-  { value: 'reopened', label: 'Reopened' },
+  
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
