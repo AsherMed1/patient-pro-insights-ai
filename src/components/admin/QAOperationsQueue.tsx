@@ -880,7 +880,7 @@ function CaseDrawer({
                         <span>{n.author_name || 'Unknown'}</span>
                         <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
                       </div>
-                      <div className="whitespace-pre-wrap">{n.note}</div>
+                      <div className="whitespace-pre-wrap break-words">{renderWithLinks(n.note)}</div>
                     </div>
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
