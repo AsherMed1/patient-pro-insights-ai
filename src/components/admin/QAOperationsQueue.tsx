@@ -192,6 +192,7 @@ export default function QAOperationsQueue() {
       }
     })();
     refreshErrorSources();
+    refreshErrorCategories();
   }, []);
 
   const ghlUrlFor = (c: QACase): string | null => {
