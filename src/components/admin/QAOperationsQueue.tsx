@@ -22,9 +22,9 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import { renderWithLinks } from '@/lib/linkify';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'confirmed_audit';
+type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue';
 
-const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit'];
+const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit', 'review_queue'];
 
 interface QACase {
   id: string;
