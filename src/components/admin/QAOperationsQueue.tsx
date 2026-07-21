@@ -609,7 +609,7 @@ function CaseDrawer({
       submittedBy = ((prof as any)?.full_name || '').trim() || (prof as any)?.email || user?.email || '';
     }
     setTicketForm({
-      task_name: `QA: ${caseData.alert_type} — ${caseData.patient_name || 'Unknown'}`,
+      task_name: caseData.patient_name || 'Unknown',
       client_name: caseData.project_name || '',
       service_involved: caseData.service_line || '',
       issue_type: '',
