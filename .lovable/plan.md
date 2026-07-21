@@ -1,26 +1,40 @@
-## No changes needed — feature is already in place
+## Make Error Category an editable, DB-driven master list
 
-The "Use a controlled Error Source list" request is already implemented. Verified today against the live database and `src/components/admin/QAOperationsQueue.tsx`:
+Mirror the pattern already used for Error Source: replace the hardcoded 9-item `ERROR_CATEGORIES` array with a `qa_error_categories` table seeded with the full approved list, and let QAs add new categories via an "Other…" flow that persists to the table.
 
-**Master list drives the dropdown**
-- The Error Source field (`ErrorSourceField`, lines ~990–1087 in `QAOperationsQueue.tsx`) reads exclusively from the `qa_error_sources` table via `supabase.from('qa_error_sources')`.
-- It does not read from `profiles`, `user_roles`, or any account-based source, so setters and non-person sources without user accounts are supported equally.
+### Database (migration)
 
-**All 8 required non-person entries are seeded**
-Confirmed present in `qa_error_sources`:
-- Workflow
-- AI Ashley
-- AI Grace
-- AI Mark
-- Clinic Error
-- Clinic Update
-- Patient Update
-- Portal Error
+Create `public.qa_error_categories`:
+- `id uuid pk default gen_random_uuid()`
+- `name text not null unique`
+- `is_seeded boolean not null default false`
+- `created_by uuid null`
+- `created_at timestamptz not null default now()`
 
-Alongside the 28 setter names from your earlier curated list (36 rows total).
+Grants + RLS mirroring `qa_error_sources`:
+- `GRANT SELECT, INSERT ON public.qa_error_categories TO authenticated;`
+- `GRANT ALL ON public.qa_error_categories TO service_role;`
+- Enable RLS; authenticated users can SELECT and INSERT (no updates/deletes from client).
 
-**"Other…" remains available**
-- The dropdown includes a permanent `Other…` option.
-- Selecting it opens an inline text field; on save, the new name is inserted into `qa_error_sources` (with a duplicate check that guards against case-insensitive collisions and the DB unique constraint), then immediately becomes selectable for everyone going forward.
+Seed with the full 23-item list:
 
-**Per your answer**, the master list stays as-is (non-person entries + setter names + Other…), so no code or data change is required for this request. If a specific entry ever needs to be renamed or hidden, that can be handled as a separate small task (an admin management UI or a one-off data update).
+Already present (kept):
+Missing Insurance, Notes Added to Portal, Duplicate Appointment, Booking Rule Violation, Uploaded Insurance Card, Name Correction, Double Booked, Incorrect Patient Info
+
+Newly added:
+Clinic Notes / DND, Missing Address, Missing DOB, Missing PCP Info, No Email, Not on Portal, Notes Added to GHL, OON / Setter, Portal/GHL Sync Issue, Tech Ticket, Triple Booked, Updated Portal Status, Wrong Location, Wrong Procedure, Missing Secondary Insurance
+
+### Frontend (`src/components/admin/QAOperationsQueue.tsx`)
+
+- Remove the static `ERROR_CATEGORIES` constant.
+- Fetch `qa_error_categories` (ordered alphabetically) into state, refreshed the same way `qa_error_sources` is loaded on mount.
+- Replace the Error Category `<Select>` with a new `ErrorCategoryField` component modeled on `ErrorSourceField`:
+  - Renders master-list options + a permanent `Other…` entry.
+  - Selecting `Other…` reveals an inline text input + Add button that inserts into `qa_error_categories` (with case-insensitive duplicate guard and `23505` handling), refreshes the list, and selects the new value.
+  - If a case already carries a legacy value not in the master list, the field still shows it as selected (same fallback behavior as `ErrorSourceField`).
+- No changes to `qa_cases` — `error_category` remains a free-text column, so historical rows and any custom entries continue to work.
+
+### Out of scope
+
+- No admin CRUD screen for renaming/deactivating categories (deferred, same as with `qa_error_sources`).
+- No changes to Resolution Type, Error Source, or any other QA fields.
