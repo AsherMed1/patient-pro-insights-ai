@@ -286,10 +286,13 @@ export default function QAOperationsQueue() {
   };
 
   const openCase = (c: QACase) => {
-    setSelectedCase(c);
     if (c.workflow_status === 'new') {
-      // Auto-transition to In Review; do not await so modal opens instantly
+      // Optimistically reflect In Review in the drawer immediately
+      setSelectedCase({ ...c, workflow_status: 'in_review' });
+      // Auto-transition in DB; do not await so modal opens instantly
       updateStatus(c.id, 'in_review');
+    } else {
+      setSelectedCase(c);
     }
   };
 
