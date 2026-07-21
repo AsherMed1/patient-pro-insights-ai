@@ -111,6 +111,7 @@ export default function QAOperationsQueue() {
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
+  const [errorCategories, setErrorCategories] = useState<{ id: string; name: string }[]>([]);
 
   const refreshErrorSources = async () => {
     const { data } = await supabase
@@ -118,6 +119,14 @@ export default function QAOperationsQueue() {
       .select('id, name')
       .order('name', { ascending: true });
     setErrorSources(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+  };
+
+  const refreshErrorCategories = async () => {
+    const { data } = await supabase
+      .from('qa_error_categories' as any)
+      .select('id, name')
+      .order('name', { ascending: true });
+    setErrorCategories(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
   };
 
   const fetchCases = async () => {
