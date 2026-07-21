@@ -1088,3 +1088,102 @@ function ErrorSourceField({
     </>
   );
 }
+
+function ErrorCategoryField({
+  value,
+  onChange,
+  categories,
+  onCategoriesRefresh,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  categories: { id: string; name: string }[];
+  onCategoriesRefresh: () => Promise<void>;
+}) {
+  const [showOther, setShowOther] = useState(false);
+  const [otherInput, setOtherInput] = useState('');
+  const [otherError, setOtherError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const inList = value && categories.some((c) => c.name === value);
+  const selectValue = inList ? value : showOther || value ? '__other__' : '';
+
+  const handleAdd = async () => {
+    const trimmed = otherInput.trim();
+    setOtherError(null);
+    if (!trimmed) {
+      setOtherError('Please enter a category.');
+      return;
+    }
+    const existing = categories.find(
+      (c) => c.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setOtherError(`"${existing.name}" already exists in the list — please select it instead.`);
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from('qa_error_categories' as any)
+      .insert({ name: trimmed });
+    setSaving(false);
+    if (error) {
+      if ((error as any).code === '23505') {
+        setOtherError(`"${trimmed}" already exists in the list — please select it instead.`);
+        await onCategoriesRefresh();
+      } else {
+        setOtherError(error.message);
+      }
+      return;
+    }
+    await onCategoriesRefresh();
+    onChange(trimmed);
+    setOtherInput('');
+    setShowOther(false);
+  };
+
+  return (
+    <>
+      <Select
+        value={selectValue}
+        onValueChange={(v) => {
+          if (v === '__other__') {
+            setShowOther(true);
+            setOtherError(null);
+            onChange('');
+          } else {
+            setShowOther(false);
+            setOtherError(null);
+            onChange(v);
+          }
+        }}
+      >
+        <SelectTrigger><SelectValue placeholder="Select error category" /></SelectTrigger>
+        <SelectContent className="max-h-72">
+          {categories.map((c) => (
+            <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+          ))}
+          <SelectItem value="__other__">Other…</SelectItem>
+        </SelectContent>
+      </Select>
+      {showOther && (
+        <div className="mt-2 space-y-1">
+          <div className="flex gap-2">
+            <Input
+              value={otherInput}
+              onChange={(e) => { setOtherInput(e.target.value); setOtherError(null); }}
+              placeholder="Enter new error category"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+            />
+            <Button type="button" onClick={handleAdd} disabled={saving} size="sm">
+              {saving ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+          {otherError && (
+            <p className="text-xs text-destructive">{otherError}</p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
