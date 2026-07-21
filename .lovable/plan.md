@@ -1,46 +1,52 @@
-## Purpose
+## Root cause
 
-Provide a self-contained prompt the user can paste into the PPM ControlHub project to fix the bug where all PatientPro external tickets are routed to `tech_ticket_submissions` even when `issue_type: "va"` is sent.
+Reproducing the failing "Create ticket" call returned:
 
-## Paste this into the PPM ControlHub project
+```
+ControlHub request failed (500):
+"Could not find the 'source' column of 'va_request_submissions' in the schema cache"
+```
+
+The ControlHub team applied the VA routing branch we sent them, but they're passing PatientPro's `source: "patientpro_qa_queue"` straight into the `va_request_submissions` insert. That table has no `source` column (only `tech_ticket_submissions` does), so PostgREST rejects the insert and the failure bubbles back through our edge function as a non-2xx.
+
+Nothing in PatientPro needs to change — our payload is correct and matches the shape they asked for.
+
+## Deliverable
+
+Provide a second, drop-in prompt the user can paste into the PPM ControlHub project telling that agent to only pass columns that exist on `va_request_submissions` (drop `source` and any other tech-only fields from the VA branch), and to whitelist columns per branch so this class of error can't recur.
+
+Content of the prompt (to be pasted into ControlHub):
 
 ```text
 You are working in the PPM ControlHub project (project id: 3d134fcb-0269-41ba-a69a-68661f5fab98).
 
-Problem: The `receive-external-ticket` Supabase Edge Function at `supabase/functions/receive-external-ticket/index.ts` currently routes ALL external tickets from PatientPro into the `tech_ticket_submissions` table, regardless of the `issue_type` field. When PatientPro sends `issue_type: "va"`, it should be inserted into `va_request_submissions` instead, and the returned deep link should use `type=va`.
+Bug: `supabase/functions/receive-external-ticket/index.ts` now branches on `issue_type`, but the VA branch is still passing the full inbound payload (including `source`) into `va_request_submissions`. That table has no `source` column, so the insert fails with:
+"Could not find the 'source' column of 'va_request_submissions' in the schema cache"
 
-Please make the following changes to `supabase/functions/receive-external-ticket/index.ts`:
+Fix:
+1. In the VA branch, build the insert row EXPLICITLY — only include columns that exist on `va_request_submissions`:
+   - task_name
+   - submitted_by
+   - client_name
+   - account_location  ← from body.service_involved
+   - issue_category    ← "External — PatientPro QA"
+   - priority
+   - description       ← if `additional_info` column does not exist on va_request_submissions, append `\n\nMetadata: ${JSON.stringify(body.metadata ?? {})}` to the description here
+   - status            ← "open"
+   Do NOT spread the request body. Do NOT pass `source`, `external_case_id`, `issue_type`, `submitted_by_email`, or `metadata` as columns.
 
-1. Read `body.issue_type` (case-insensitive). If it equals `"va"` (any case), treat the ticket as a VA request. Otherwise, treat it as a tech ticket.
+2. In the tech branch, do the same — build the insert row explicitly from the known columns of `tech_ticket_submissions` instead of spreading `body`. This prevents the same failure mode if PatientPro adds new payload fields later.
 
-2. For VA tickets:
-   - Insert into `va_request_submissions` table with these columns:
-     - `task_name` ← `body.task_name`
-     - `submitted_by` ← `body.submitted_by`
-     - `client_name` ← `body.client_name`
-     - `account_location` ← `body.service_involved`
-     - `issue_category` ← `"External — PatientPro QA"`
-     - `priority` ← `body.priority`
-     - `description` ← `body.description`
-     - `additional_info` ← `JSON.stringify(body.metadata ?? {})` (if the column does not exist, append the metadata JSON to the end of `description` instead)
-     - `status` ← `"open"`
-     - `sla_deadline` ← `null`
-   - Apply the same `submitted_by_email` → `user_id` profile linkage that currently exists for tech tickets, but update the row in `va_request_submissions`.
-   - Fire the same Slack notification that the in-app VA form uses, with `ticket_type: "va"`, so VA supervisors are notified.
-   - Return `ticket_url` with `type=va`: `${publicOrigin}/admin?ticket=${data.id}&type=va`
+3. Keep the profile linkage (`submitted_by_email` → `user_id`) as an UPDATE on whichever table was inserted into.
 
-3. For tech tickets (and any other issue_type):
-   - Keep the existing insert into `tech_ticket_submissions` unchanged.
-   - Return `ticket_url` with `type=tech`: `${publicOrigin}/admin?ticket=${data.id}&type=tech`
+4. Keep the Slack notification for the VA branch (`ticket_type: "va"`) firing after a successful insert.
 
-4. Update the Zod schema so `issue_type` is still a free-form string, but `"va"` is matched case-insensitively.
+5. Deep link stays: `${publicOrigin}/admin?ticket=${data.id}&type=${isVA ? "va" : "tech"}`.
 
-No database migration is needed if `va_request_submissions` already permits the listed columns with nullable defaults. If `additional_info` does not exist on `va_request_submissions`, do not add it; instead append the metadata JSON to the end of `description`.
-
-After the change, deploy the edge function and verify by sending a test payload with `issue_type: "va"` from PatientPro and confirming the ticket appears under VA Requests in ControlHub with the correct deep link.
+After deploying, retest by clicking "Create ticket" as a VA Ticket from the PatientPro QA Operations Queue and confirm a row appears in `va_request_submissions` and the ticket lands under VA Requests in ControlHub.
 ```
 
-## Notes
+## No changes on this side
 
-- The PatientPro side has already been hardened: `create-controlhub-ticket` now forces the `type=` parameter in the stored `ticket_url` from its own `issue_type`, so once ControlHub returns the correct `type=va` URL the deep link will be consistent.
-- No further code changes are required in PatientPro after ControlHub ships this fix.
+- `create-controlhub-ticket` is already correctly forwarding `issue_type: "va"` and rewriting the stored `ticket_url` to `&type=va`.
+- Once ControlHub ships the column-whitelist fix, the same "Create ticket" click will succeed with no further PatientPro changes.
