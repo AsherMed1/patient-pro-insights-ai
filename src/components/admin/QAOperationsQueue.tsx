@@ -577,11 +577,12 @@ function CaseDrawer({
     submitted_by: '',
   });
 
-  const stripTypePrefix = (name: string) => name.replace(/^(VA|Tech)\s—\s/, '');
+  const stripTypePrefix = (name: string) =>
+    name.replace(/^QA:\s+[^—]+\s—\s/, '').replace(/^(VA|Tech)\s+(Ticket\s+)?—\s*/, '');
   const applyTypePrefix = (name: string, type: '' | 'va' | 'tech') => {
     const base = stripTypePrefix(name);
-    if (type === 'va') return `VA — ${base}`;
-    if (type === 'tech') return `Tech — ${base}`;
+    if (type === 'va') return `VA Ticket — ${base}`;
+    if (type === 'tech') return `Tech Ticket — ${base}`;
     return base;
   };
 
