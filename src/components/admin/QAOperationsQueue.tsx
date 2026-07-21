@@ -470,6 +470,7 @@ function CaseDrawer({
   const [savingAudit, setSavingAudit] = useState(false);
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
+  const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
