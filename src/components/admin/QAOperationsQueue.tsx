@@ -200,7 +200,16 @@ export default function QAOperationsQueue() {
 
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
-  const filtered = useMemo(() => {
+  const hasActiveFilter = useMemo(() => (
+    search.trim() !== '' ||
+    projectFilter !== 'all' ||
+    alertFilter !== 'all' ||
+    assignmentFilter !== 'all' ||
+    !!dateFrom || !!dateTo
+  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
+
+  // Apply everything except workflow_status. Used to derive per-bucket counts.
+  const filteredNoStatus = useMemo(() => {
     const t = search.trim().toLowerCase();
     return cases.filter((c) => {
       if (projectFilter !== 'all' && c.project_name !== projectFilter) return false;
@@ -223,6 +232,31 @@ export default function QAOperationsQueue() {
       );
     });
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
+
+  const bucketCounts = useMemo(() => {
+    const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0 };
+    for (const c of filteredNoStatus) {
+      if (counts[c.workflow_status] !== undefined) counts[c.workflow_status]++;
+    }
+    return counts;
+  }, [filteredNoStatus]);
+
+  const filtered = useMemo(() => (
+    tab === 'all' ? filteredNoStatus : filteredNoStatus.filter((c) => c.workflow_status === tab)
+  ), [filteredNoStatus, tab]);
+
+  // When a search/filter is active and the current bucket has no matches, auto-switch
+  // to the first bucket that does. Only reacts to filter changes, not manual tab clicks.
+  useEffect(() => {
+    if (!hasActiveFilter) return;
+    if (tab === 'all') return;
+    if (bucketCounts[tab] > 0) return;
+    const order: WorkflowStatus[] = ['new', 'in_review', 'pending_escalated', 'completed'];
+    const next = order.find((s) => bucketCounts[s] > 0);
+    if (next && next !== tab) setTab(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveFilter, bucketCounts]);
+
 
   const updateStatus = async (id: string, next: WorkflowStatus) => {
     const patch: any = { workflow_status: next };
