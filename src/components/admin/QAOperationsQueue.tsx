@@ -882,7 +882,7 @@ function CaseDrawer({
                 <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
                   {activity.map((a) => (
                     <div key={a.id} className="flex justify-between border-b py-1">
-                      <span>{a.description || a.activity_type}</span>
+                      <span>{a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}</span>
                       <span className="text-xs text-muted-foreground">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
                     </div>
                   ))}
