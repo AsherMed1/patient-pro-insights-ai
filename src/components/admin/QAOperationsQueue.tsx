@@ -477,7 +477,7 @@ export default function QAOperationsQueue() {
         onErrorCategoriesRefresh={refreshErrorCategories}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
-        onRefresh={() => { fetchCases(); fetchCounts(); }}
+        onRefresh={() => { fetchCases(); }}
       />
 
     </div>
