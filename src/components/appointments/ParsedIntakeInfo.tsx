@@ -235,6 +235,54 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     }
   };
 
+  const handleStartEditSecondary = () => {
+    const sec: any = parsedInsuranceInfo || {};
+    setEditSecProvider(formatValue(sec.secondary_provider) || "");
+    setEditSecPlan(formatValue(sec.secondary_plan) || "");
+    setEditSecMemberId(formatValue(sec.secondary_id_number) || "");
+    setEditSecGroupNumber(formatValue(sec.secondary_group_number) || "");
+    setIsEditingSecondary(true);
+  };
+
+  const handleCancelEditSecondary = () => {
+    setIsEditingSecondary(false);
+  };
+
+  const handleSaveSecondaryInsurance = async () => {
+    if (!appointmentId) {
+      toast({ title: "Error", description: "Cannot save: appointment ID is missing", variant: "destructive" });
+      return;
+    }
+    setIsSavingSecondary(true);
+    try {
+      const { error } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates: {},
+          parsedInsurancePatch: {
+            secondary_provider: editSecProvider || null,
+            secondary_plan: editSecPlan || null,
+            secondary_id_number: editSecMemberId || null,
+            secondary_group_number: editSecGroupNumber || null,
+          },
+          userId,
+          userName,
+          changeSource: 'portal',
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Success", description: "Secondary insurance updated" });
+      setIsEditingSecondary(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error saving secondary insurance:', error);
+      toast({ title: "Error", description: "Failed to save secondary insurance", variant: "destructive" });
+    } finally {
+      setIsSavingSecondary(false);
+    }
+  };
+
+
   // PCP edit handlers
   const handleStartEditPCP = () => {
     setEditPCPName(formatValue(parsedMedicalInfo?.pcp_name) || "");
