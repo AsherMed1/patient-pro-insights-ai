@@ -1,21 +1,10 @@
-## Goal
-Rename the QA Operations error category **"Uploaded Insurance Card"** to **"Uploaded Insurance"** everywhere it appears, so the dropdown and existing case records stay consistent.
+Add the two missing resolution types from the uploaded screenshot to the QA Operations Queue Resolution Type dropdown.
 
-## Changes
-1. **Seed migration update**  
-   Update `supabase/migrations/20260721182025_26e26908-e292-49c1-8191-7825a890ef3e.sql` so the seeded value reads `('Uploaded Insurance', true)` instead of `('Uploaded Insurance Card', true)`. This keeps fresh deployments consistent.
+Current dropdown values: `Resolved by QA`, `Escalated to AM`, `Other`.
+Requested values (per screenshot): `Resolved by QA`, `Escalated to Tech`, `Escalated to AM`, `Escalated to Gloria`, `Other`.
 
-2. **New data-migration**  
-   Create a new Supabase migration that:
-   - Updates `public.qa_error_categories.name` from `"Uploaded Insurance Card"` to `"Uploaded Insurance"`.
-   - Updates `public.qa_cases.error_category` from `"Uploaded Insurance Card"` to `"Uploaded Insurance"` for all existing cases.
-   - Updates the `qa_cases_error_category_check` constraint to allow `"Uploaded Insurance"` in place of `"Uploaded Insurance Card"`.
+Changes required:
+1. Database migration — update the `qa_cases_resolution_type_check` constraint on `public.qa_cases` to allow `'Escalated to Tech'` and `'Escalated to Gloria'`.
+2. Frontend — update the `RESOLUTION_TYPES` constant in `src/components/admin/QAOperationsQueue.tsx` to include the two new options in the same order shown in the screenshot.
 
-## Verification
-- Run the migration against the project database.
-- Open the QA Operations Queue, create or edit a case, and confirm the dropdown now shows **"Uploaded Insurance"**.
-- Confirm existing cases previously categorized as "Uploaded Insurance Card" now display **"Uploaded Insurance"**.
-
-## Notes
-- No UI component changes are required; the dropdown already loads from `qa_error_categories`.
-- This is a purely data/schema change.
+No data backfill is needed because the change only expands the allowed enum values.
