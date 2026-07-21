@@ -740,15 +740,12 @@ function CaseDrawer({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Error Category</Label>
-                    <Select
+                    <ErrorCategoryField
                       value={audit.error_category ?? ''}
-                      onValueChange={(v) => setAudit((a) => ({ ...a, error_category: v }))}
-                    >
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {ERROR_CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => setAudit((a) => ({ ...a, error_category: v }))}
+                      categories={errorCategories}
+                      onCategoriesRefresh={onErrorCategoriesRefresh}
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Resolution Type</Label>
