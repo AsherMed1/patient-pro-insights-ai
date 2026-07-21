@@ -470,6 +470,7 @@ function CaseDrawer({
   const [savingAudit, setSavingAudit] = useState(false);
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
+  const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
@@ -506,6 +507,7 @@ function CaseDrawer({
           .maybeSingle();
         defaultName = ((prof as any)?.full_name || '').trim() || (user as any)?.user_metadata?.full_name || '';
       }
+      setAuthorDisplayName(defaultName || user?.email || '');
       setAudit({
         qa_name: caseData.qa_name ?? (defaultName || ''),
         self_booked: caseData.self_booked,
@@ -531,7 +533,7 @@ function CaseDrawer({
       case_id: caseData.id,
       note: noteDraft.trim(),
       author_user_id: user?.id ?? null,
-      author_name: user?.email ?? null,
+      author_name: authorDisplayName || user?.email || null,
     } as any);
     if (error) {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserAttribution } from '@/hooks/useUserAttribution';
 
 interface Message {
   id: string;
@@ -36,6 +37,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { userName: authorName } = useUserAttribution();
+  const displayName = authorName && authorName !== 'Unknown User' ? authorName : (user?.email?.split('@')[0] || null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -87,7 +90,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           type: 'live_agent',
           status: 'waiting_agent',
           user_email: user?.email,
-          user_name: user?.email?.split('@')[0]
+          user_name: displayName
         })
         .select()
         .single();
@@ -199,7 +202,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         type: 'ai',
         status: 'active',
         user_email: user?.email,
-        user_name: user?.email?.split('@')[0]
+        user_name: displayName
       })
       .select()
       .single();
