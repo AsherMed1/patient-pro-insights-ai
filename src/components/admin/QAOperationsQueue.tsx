@@ -103,6 +103,22 @@ const ALERT_LABELS: Record<AlertType, string> = {
 
 const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to Tech', 'Escalated to AM', 'Escalated to Gloria', 'Other'];
 
+const VA_ASSIGNEES = [
+  'Ivy Simeon',
+  'Jenny',
+  'Giselle Mitra',
+  'Gloria Govender',
+  'Matthew Pernes',
+  'Robert Christian Tan',
+  'Dean Lunderstedt',
+  'Isis Curiel',
+  'Aridni Martinez',
+  'Marissa Kresnik',
+  'Kathryn Meksavanh',
+  'Alexa Briggs',
+];
+const TECH_ASSIGNEES = VA_ASSIGNEES;
+
 const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
   if (t === 'short_notice') return 'default';
