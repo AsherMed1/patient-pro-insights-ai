@@ -86,6 +86,9 @@ Deno.serve(async (req) => {
     const normalizedSubmittedBy = (typeof submitted_by === 'string' && submitted_by.trim())
       ? submitted_by.trim()
       : 'PatientPro QA Queue';
+    const normalizedAssignee = (typeof assignee_name === 'string' && assignee_name.trim())
+      ? assignee_name.trim().slice(0, 200)
+      : null;
 
     let ticketId: string;
     let ticketUrl: string | null = null;
