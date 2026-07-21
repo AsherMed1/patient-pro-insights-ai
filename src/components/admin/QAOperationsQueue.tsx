@@ -429,6 +429,8 @@ export default function QAOperationsQueue() {
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
         errorSources={errorSources}
         onErrorSourcesRefresh={refreshErrorSources}
+        errorCategories={errorCategories}
+        onErrorCategoriesRefresh={refreshErrorCategories}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); fetchCounts(); }}
