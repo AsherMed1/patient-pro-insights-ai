@@ -192,26 +192,7 @@ export default function QAOperationsQueue() {
         setProjectLocationMap(map);
       }
     })();
-    (async () => {
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'review_only');
-      const ids = (roles as any[])?.map((r) => r.user_id).filter(Boolean) ?? [];
-      if (ids.length === 0) {
-        setSetters([]);
-        return;
-      }
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', ids);
-      const list = ((profs as any[]) ?? [])
-        .map((p) => ({ id: p.id, name: (p.full_name || p.email || '').trim() }))
-        .filter((p) => p.name)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setSetters(list);
-    })();
+    refreshErrorSources();
   }, []);
 
   const ghlUrlFor = (c: QACase): string | null => {
