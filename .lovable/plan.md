@@ -1,30 +1,30 @@
-## Root cause
+## Problem
 
-The ControlHub link stored on `qa_cases.controlhub_ticket_url` (e.g. `https://ppmcontrolhub.lovable.app/?ticket=<id>&type=tech`) fails because of two problems on the ControlHub side, verified by cross-project reads:
+The QA Operations Queue shows OON (66) cases but zero **Confirmed Audit** cases, even though 1,292 confirmed appointments exist.
 
-1. **The row has no `user_id`.** PatientPro's `create-controlhub-ticket` calls ControlHub's `receive-external-ticket`, which inserts into `tech_ticket_submissions` with `source: "patientpro"` but never sets `user_id`. Every RLS SELECT policy on that table requires either `has_role(auth.uid(),'admin')`, `has_role(auth.uid(),'moderator')`, `auth.uid() = user_id`, or `auth.uid() = assigned_to`. A non-admin QA opening the link matches none of them, so `UserSubmissionDetailDialog.fetchTicket()` gets an empty response and renders exactly the message in the screenshot: *"Couldn't load this ticket. It may have been removed or you no longer have access."*
-2. **The deep link points at `/`, not `/admin`.** The `Index` page dispatches `open-ticket-detail`, but only components that happen to be mounted on `/` (mainly `FeatureGrid`) listen for it. For admin/moderator viewers the ticket dialog is wired up on `/admin`. So even admins occasionally see nothing happen from a `/?ticket=…` link.
+**Root cause:** `trg_qa_ingest_confirmed_audit` only fires on `AFTER UPDATE OF status` where the *previous* status was different from `'confirmed'`. In practice:
 
-Evidence: `PPM ControlHub/supabase/functions/receive-external-ticket/index.ts:53-64` (no `user_id` on insert), `PPM ControlHub/supabase/migrations/…tech_ticket_submissions` RLS policies, `PPM ControlHub/src/components/UserSubmissionDetailDialog.tsx:236-242` (empty result → that exact error string), and `qa_cases.controlhub_ticket_url` rows queried in this project.
+- New appointments are inserted directly with `status='Confirmed'` (default from GHL sync / Review Queue approval) → no UPDATE fires, so no case is created.
+- Appointments that were already Confirmed before the trigger was deployed were never enqueued.
 
-## Fix — two coordinated changes
+That's why the queue is empty of confirmed audits.
 
-### A. ControlHub project (`PPM ControlHub`)
+## Fix
 
-1. **`supabase/functions/receive-external-ticket/index.ts`** — after inserting, look up a profile whose email matches `submitted_by` (case-insensitive). If found, update the new row's `user_id` so the "Users can view own tech tickets" policy admits them. If no match, leave `user_id` null and rely on admin/moderator visibility. Also accept an optional `submitted_by_email` field in the payload (Zod schema) so PatientPro can pass the real email even when the display name is different.
-2. **Migration**: add an RLS policy `"External patientpro tickets viewable by authenticated"` on `tech_ticket_submissions` that permits SELECT when `source = 'patientpro'` for any authenticated user — scoped narrowly to externally-created tickets so it doesn't loosen anything else. (This makes the QA/setter/agent who filed the ticket able to open it even if their ControlHub profile email doesn't match.)
-3. **`ticket_url` fix**: change the returned URL from `${publicOrigin}/?ticket=…` to `${publicOrigin}/admin?ticket=…&type=tech`. `AdminDashboard.tsx` already handles that deep link via its `useEffect` on `searchParams`.
+1. **Add an INSERT-side trigger** on `all_appointments` that calls the existing `qa_ingest_confirmed_audit` logic when a row is inserted with `status='Confirmed'` (and not a reserved block / superseded). Reuse `qa_upsert_case` so dedup by `(appointment_id, alert_type)` still holds.
+2. **Also enqueue on Review Queue approval.** When admin approval flips `review_status` to `approved` on an already-Confirmed row, ensure a `confirmed_audit` case is created (approval is the moment the appointment becomes clinic-visible, so that's the right audit trigger).
+3. **Backfill** existing confirmed, non-superseded, non-reserved, review-approved (or legacy pre-review-queue) appointments into `qa_cases` as `confirmed_audit / new`, respecting the existing dedup key so no duplicates are created for rows that already have an OON or short-notice case.
 
-### B. PatientPro project (this repo)
+No UI changes — the queue already filters to `short_notice | oon | confirmed_audit` and renders the "Confirmed Audit" badge.
 
-1. **`supabase/functions/create-controlhub-ticket/index.ts`** — forward the QA's real email as `submitted_by_email` in the outbound POST. Source it from `auth.uid()` → `profiles.email` when the caller is authenticated (the function is called from the browser, so `Authorization: Bearer <jwt>` is present). Fall back to the existing `submitted_by` string only.
-2. No UI changes; the `<a href={caseData.controlhub_ticket_url}>` in `QAOperationsQueue.tsx` will start working automatically because the stored URL will already point to `/admin?ticket=…`.
+## Technical details
 
-### Backfill
+- New trigger: `AFTER INSERT ON public.all_appointments FOR EACH ROW WHEN (LOWER(TRIM(NEW.status)) = 'confirmed')` → reuse `qa_ingest_confirmed_audit` (or split into a shared helper called from both INSERT and UPDATE paths).
+- Extend/replace `qa_ingest_confirmed_audit` to accept both TG_OP='INSERT' and 'UPDATE'; skip the `old <> new` guard on INSERT.
+- Optional: `AFTER UPDATE OF review_status` trigger firing when `review_status` transitions to `approved` and status is `Confirmed`, so pending-review confirmations enter the queue at approval time rather than webhook time.
+- Backfill SQL: `INSERT INTO qa_cases (...) SELECT ... FROM all_appointments WHERE status ILIKE 'confirmed' AND NOT is_reserved_block AND NOT is_superseded AND COALESCE(review_status,'approved') IN ('approved') AND NOT EXISTS (SELECT 1 FROM qa_cases q WHERE q.appointment_id = all_appointments.id AND q.alert_type = 'confirmed_audit')`.
+- Wrap trigger body in the same EXCEPTION block already used, so a QA ingestion error can never block a clinical INSERT/UPDATE.
 
-One-time SQL over `qa_cases`: rewrite existing `controlhub_ticket_url` values from `…/?ticket=<id>&type=tech` to `…/admin?ticket=<id>&type=tech` so the three tickets already created (verified via `read_query`) become clickable too.
+## Open question
 
-## Out of scope
-
-- No changes to the QA queue UI, ticket dialog, or Slack/email templates.
-- Not touching VA/system/calendar ticket flows; only the tech path used by PatientPro.
+Do you want the backfill to enqueue **all 1,292 existing confirmed appointments** at once (large one-time queue for QA), or only ones confirmed in the **last N days** (e.g., 14 or 30)?
