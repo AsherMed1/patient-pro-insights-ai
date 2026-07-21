@@ -1,27 +1,55 @@
-## Fix: QA Operations Queue search doesn't update bucket counts
+# Review Queue as a QA Alert Type
 
-### Current behavior
-- `fetchCases` loads cases for the **active tab only** (`.eq('workflow_status', tab)`), then `filtered` applies search + filters **client-side**.
-- `fetchCounts` counts every case per status **ignoring** search, project, alert, assignment, and date filters — so "New 758 / In Review 4 / Pending 3 / Completed 1" stays static while typing.
-- Consequence: while searching "Joe", the visible list narrows but the tab badges still show total volume, and there's no signal telling the user which bucket the match lives in.
+Track Review Queue appointments in the QA Operations Queue as a first-class alert type alongside Confirmed Audit and OON, with full lifecycle history (entered → approved/declined/OON) so Quality Specialists can see how long each appointment sat awaiting review and who resolved it.
 
-### Change (frontend only, `src/components/admin/QAOperationsQueue.tsx`)
+## Behavior
 
-1. **Load across all statuses when searching/filtering.** Drop the `.eq('workflow_status', tab)` clause in `fetchCases` and always load up to 500 cases across every workflow status. The tab becomes a client-side view of the same result set. Re-run `fetchCases` when filters change (currently it only re-runs on `tab` change).
+**New alert type:** `review_queue`
 
-2. **Derive bucket counts from the same filter pipeline used for the visible rows.** Replace `fetchCounts` with a memoized `bucketCounts` computed from the fully filtered list (search + project + alert + assignment + date). Each tab badge shows the count of matches in that status; buckets with zero matches show `0` (dimmed) so it's obvious no match lives there.
+**Ingestion (triggered on `all_appointments`):**
+- When a row is inserted with `review_status = 'pending'`, or when `review_status` transitions to `pending`, open a QA case with `alert_type = 'review_queue'`.
+- Case status starts as `new`; activity log records "Entered Review Queue" with timestamp.
 
-3. **Make the matching bucket obvious.**
-   - When a search or filter is active, prefix badges of buckets with matches with a subtle highlight (accent ring / bolded number) so the user can see at a glance which status contains the results.
-   - If the currently selected tab has 0 matches but another bucket has matches, auto-switch the active tab once to the first non-empty bucket (New → In Review → Pending / Escalated → Completed) so results are visible without a manual click. Only auto-switch when the search term or filter actually changes, never on tab clicks — the user can always click back.
-   - Keep the existing "All" tab as an escape hatch showing the combined filtered list.
+**Lifecycle transitions on the same QA case (no new case created):**
+- `review_status` → `approved` and `status` = Confirmed / Showed / Won → flip `alert_type` from `review_queue` to `confirmed_audit`. Log "Approved by {name}" with timestamp; keep the case in the queue for confirmed auditing.
+- `review_status` → `oon` (or `status` → OON) → flip `alert_type` to `oon`. Log "Marked OON by {name}".
+- `review_status` → `declined` or `dismissed` → close the QA case (`status = completed`, resolution auto-set to "Declined in Review Queue"). Log actor + timestamp.
 
-4. **Keep realtime + refresh paths consistent.** `postgres_changes` subscription and `onRefresh` (from the detail modal) call the new single `fetchCases`; counts recompute automatically from state.
+**Timing metrics stored on `qa_cases`:**
+- `review_entered_at` (when it first hit the Review Queue)
+- `review_resolved_at` (when it left the Review Queue via approve/decline/OON)
+- Derived "time in Review Queue" shown in the case detail drawer.
 
-### Out of scope
-- No schema changes, no server-side changes, no changes to filtering semantics beyond making counts respect them.
-- Row layout, columns, and "Latest Alert" ordering stay identical.
+**Activity log entries** (existing `qa_case_activity` table) record each transition with actor (from `reviewed_by` → `profiles.full_name`) so the case history reads:
+1. Entered Review Queue — {timestamp}
+2. Approved / Declined / Marked OON by {name} — {timestamp}
+3. (If approved) Alert switched from Review Queue → Confirmed Audit
 
-### Technical notes
-- Loading all statuses is fine: the current 500-row cap already applies; ordering by `entered_queue_at DESC` is preserved. If the caller has >500 cases across all statuses, the same cap that already applied per-tab now applies globally — acceptable given the queue view is already list-limited.
-- `useEffect` dependency list expands to include filter inputs so a filter change re-queries (search stays fully client-side; only the initial fetch depends on tab-less loading).
+## UI (`QAOperationsQueue.tsx`)
+
+- Add `review_queue` to `AlertType`, `ACTIVE_ALERT_TYPES`, `ALERT_LABELS` ("Review Queue"), and `alertVariant` (distinct color, e.g. amber).
+- Add "Review Queue" option to the Alert Type filter dropdown.
+- Case detail drawer: new "Review Queue Timeline" block showing entered_at, resolved_at, duration, and actor when applicable.
+- Table Alert column shows the current alert badge; when it flips (e.g., Review Queue → Confirmed Audit) the badge updates and the timeline preserves the history.
+
+## Technical Details
+
+**Migration:**
+1. Extend `qa_cases_alert_type_check` constraint to include `'review_queue'`.
+2. Add columns `qa_cases.review_entered_at timestamptz`, `qa_cases.review_resolved_at timestamptz`.
+3. New trigger function `qa_ingest_review_queue()` on `all_appointments` AFTER INSERT/UPDATE OF `review_status`:
+   - On pending (insert or transition into pending): call `qa_upsert_case(..., 'review_queue', ...)` and stamp `review_entered_at = now()`.
+   - On approved: `UPDATE qa_cases SET alert_type='confirmed_audit', review_resolved_at=now()` for the matching appointment_id + alert_type='review_queue'; insert activity row "Approved by {name}".
+   - On oon: same pattern, flip to `alert_type='oon'`, stamp resolved_at.
+   - On declined/dismissed: mark QA case completed with resolution "Declined in Review Queue", stamp resolved_at.
+4. Update `qa_upsert_case` to accept `review_queue` (no logic change beyond the constraint).
+5. Backfill: for every current `all_appointments` row where `review_status = 'pending'` and no existing QA case, insert a `review_queue` case with `review_entered_at = created_at`. For historical approved/declined rows we do not backfill (no reliable entered timestamp).
+
+**Frontend edits:** `src/components/admin/QAOperationsQueue.tsx` only — types, labels, filter option, badge variant, timeline block in the detail drawer.
+
+**Memory update:** append Review Queue as an alert type to `mem://features/qa-operations-queue`.
+
+## Out of Scope
+
+- No changes to Review Queue UI itself (`ReviewQueue.tsx`) — actors/timestamps already captured in `reviewed_by` / `reviewed_at`; the QA triggers read those.
+- No new ControlHub ticket behavior.
