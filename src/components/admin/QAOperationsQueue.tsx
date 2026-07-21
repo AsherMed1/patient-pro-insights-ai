@@ -445,6 +445,8 @@ function CaseDrawer({
   ghlUrl,
   errorSources,
   onErrorSourcesRefresh,
+  errorCategories,
+  onErrorCategoriesRefresh,
   onClose,
   onStatusChange,
   onRefresh,
@@ -453,6 +455,8 @@ function CaseDrawer({
   ghlUrl: string | null;
   errorSources: { id: string; name: string }[];
   onErrorSourcesRefresh: () => Promise<void>;
+  errorCategories: { id: string; name: string }[];
+  onErrorCategoriesRefresh: () => Promise<void>;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
