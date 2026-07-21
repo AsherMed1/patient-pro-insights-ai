@@ -72,9 +72,15 @@ Deno.serve(async (req) => {
     const normalizedPriority = ['low', 'medium', 'high', 'urgent'].includes(String(priority))
       ? String(priority)
       : 'medium';
-    const normalizedIssueType = (typeof issue_type === 'string' && issue_type.trim())
-      ? issue_type.trim()
-      : 'qa-operations';
+    const normalizedIssueType = (typeof issue_type === 'string' && (issue_type === 'va' || issue_type === 'tech'))
+      ? issue_type
+      : null;
+    if (!normalizedIssueType) {
+      return new Response(JSON.stringify({ error: 'issue_type must be "va" or "tech"' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const normalizedSubmittedBy = (typeof submitted_by === 'string' && submitted_by.trim())
       ? submitted_by.trim()
       : 'PatientPro QA Queue';

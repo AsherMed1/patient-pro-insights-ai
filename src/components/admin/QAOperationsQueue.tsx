@@ -553,11 +553,19 @@ function CaseDrawer({
     task_name: '',
     client_name: '',
     service_involved: '',
-    issue_type: 'qa-operations',
+    issue_type: '' as '' | 'va' | 'tech',
     priority: 'medium',
     description: '',
     submitted_by: '',
   });
+
+  const stripTypePrefix = (name: string) => name.replace(/^(VA|Tech)\s—\s/, '');
+  const applyTypePrefix = (name: string, type: '' | 'va' | 'tech') => {
+    const base = stripTypePrefix(name);
+    if (type === 'va') return `VA — ${base}`;
+    if (type === 'tech') return `Tech — ${base}`;
+    return base;
+  };
 
   const buildDefaultDescription = (c: QACase): string => {
     return [
@@ -585,7 +593,7 @@ function CaseDrawer({
       task_name: `QA: ${caseData.alert_type} — ${caseData.patient_name || 'Unknown'}`,
       client_name: caseData.project_name || '',
       service_involved: caseData.service_line || '',
-      issue_type: 'qa-operations',
+      issue_type: '',
       priority: 'medium',
       description: buildDefaultDescription(caseData),
       submitted_by: submittedBy,
@@ -599,6 +607,10 @@ function CaseDrawer({
       toast({ title: 'Missing required fields', description: 'Task name, client, and description are required.', variant: 'destructive' });
       return;
     }
+    if (ticketForm.issue_type !== 'va' && ticketForm.issue_type !== 'tech') {
+      toast({ title: 'Ticket type required', description: 'Select VA Ticket or Tech Ticket.', variant: 'destructive' });
+      return;
+    }
     setCreatingTicket(true);
     const { data, error } = await supabase.functions.invoke('create-controlhub-ticket', {
       body: {
@@ -606,7 +618,7 @@ function CaseDrawer({
         task_name: ticketForm.task_name.trim(),
         client_name: ticketForm.client_name.trim(),
         service_involved: ticketForm.service_involved.trim() || null,
-        issue_type: ticketForm.issue_type.trim() || 'qa-operations',
+        issue_type: ticketForm.issue_type,
         priority: ticketForm.priority,
         description: ticketForm.description.trim(),
         submitted_by: ticketForm.submitted_by.trim() || 'PatientPro QA Queue',
@@ -900,13 +912,21 @@ function CaseDrawer({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Issue type</Label>
-                <Input
-                  value={ticketForm.issue_type}
-                  onChange={(e) => setTicketForm((f) => ({ ...f, issue_type: e.target.value }))}
-                  placeholder="qa-operations"
-                  maxLength={60}
-                />
+                <Label className="text-xs">Ticket type *</Label>
+                <Select
+                  value={ticketForm.issue_type || undefined}
+                  onValueChange={(v) => setTicketForm((f) => ({
+                    ...f,
+                    issue_type: v as 'va' | 'tech',
+                    task_name: applyTypePrefix(f.task_name, v as 'va' | 'tech'),
+                  }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select ticket type…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="va">VA Ticket</SelectItem>
+                    <SelectItem value="tech">Tech Ticket</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs">Priority</Label>
@@ -945,7 +965,7 @@ function CaseDrawer({
             <Button variant="outline" onClick={() => setTicketDialogOpen(false)} disabled={creatingTicket}>
               Cancel
             </Button>
-            <Button onClick={submitTicket} disabled={creatingTicket}>
+            <Button onClick={submitTicket} disabled={creatingTicket || !ticketForm.issue_type}>
               {creatingTicket && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               {creatingTicket ? 'Creating…' : 'Create ticket'}
             </Button>
