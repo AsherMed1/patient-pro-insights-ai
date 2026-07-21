@@ -696,7 +696,7 @@ function CaseDrawer({
       priority: 'medium',
       description: buildDefaultDescription(caseData),
       submitted_by: submittedBy,
-      assignee_name: '',
+      assignee_names: [],
     });
     setTicketDialogOpen(true);
   };
