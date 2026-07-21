@@ -952,7 +952,7 @@ function CaseDrawer({
                   onValueChange={(v) => setTicketForm((f) => ({
                     ...f,
                     issue_type: v as 'va' | 'tech',
-                    task_name: applyTypePrefix(f.task_name, v as 'va' | 'tech'),
+                    task_name: f.task_name.trim() ? applyTypePrefix(f.task_name, v as 'va' | 'tech') : f.task_name,
                   }))}
                 >
                   <SelectTrigger><SelectValue placeholder="Select ticket type…" /></SelectTrigger>
