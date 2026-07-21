@@ -198,8 +198,8 @@ export default function QAOperationsQueue() {
         .select('id, full_name, email')
         .in('id', ids);
       const list = ((profs as any[]) ?? [])
-        .map((p) => ({ id: p.id, name: (p.full_name || p.email || '').trim() }))
-        .filter((p) => p.name)
+        .map((p) => ({ id: p.id, name: (p.full_name || '').trim() }))
+        .filter((p) => p.name && !p.name.includes('@'))
         .sort((a, b) => a.name.localeCompare(b.name));
       setSetters(list);
     })();
