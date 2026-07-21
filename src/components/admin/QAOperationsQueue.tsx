@@ -107,6 +107,7 @@ const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | '
   if (t === 'oon') return 'destructive';
   if (t === 'short_notice') return 'default';
   if (t === 'confirmed_audit') return 'outline';
+  if (t === 'review_queue') return 'secondary';
   return 'secondary';
 };
 
