@@ -1005,6 +1005,16 @@ function CaseDrawer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {portalRecord && (
+        <DetailedAppointmentView
+          appointment={portalRecord}
+          isOpen={!!portalRecord}
+          onClose={() => setPortalRecord(null)}
+          onDataRefresh={refreshPortalRecord}
+          onDeleted={() => { setPortalRecord(null); onRefresh(); }}
+        />
+      )}
     </Sheet>
   );
 }
