@@ -2680,6 +2680,18 @@ Deno.serve(async (req) => {
             calendarProcedure = constrained;
           }
         }
+
+        // Unscheduled / Unknown-calendar leads (Premier Vascular, ECCO, Davis, Horizon)
+        // have calendar_name = "Unknown" so detectProcedureFromCalendar returns null.
+        // Sniff procedure from the intake notes so the AI prompt receives the correct
+        // procedure-specific extraction guidance instead of the generic prompt.
+        if (!calendarProcedure) {
+          const sniffed = sniffProcedureFromNotes(record.patient_intake_notes, null);
+          if (sniffed) {
+            calendarProcedure = sniffed;
+            console.log(`[AUTO-PARSE] Sniffed ${sniffed} procedure from intake notes (calendar=${record.calendar_name || 'null'})`);
+          }
+        }
         
         // If appointment has ghl_id, try to fetch GHL custom fields
         if (record.table === 'all_appointments' && record.ghl_id) {
