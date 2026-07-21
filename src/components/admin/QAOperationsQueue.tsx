@@ -73,10 +73,20 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'new', label: 'New' },
   { value: 'in_review', label: 'In Review' },
   { value: 'pending_escalated', label: 'Pending / Escalated' },
-  { value: 'reopened', label: 'Reopened' },
+  
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  created: 'Case created',
+  alert_repeat: 'Repeat alert',
+  realerted: 'Re-alerted — returned to New',
+  status_change: 'Status changed',
+  audit_update: 'Audit updated',
+  reopened: 'Reopened',
+};
+
 
 const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
@@ -151,7 +161,7 @@ export default function QAOperationsQueue() {
 
   const fetchCounts = async () => {
     const results = await Promise.all(
-      (['new', 'in_review', 'pending_escalated', 'reopened', 'completed'] as WorkflowStatus[]).map(async (s) => {
+      (['new', 'in_review', 'pending_escalated', 'completed'] as WorkflowStatus[]).map(async (s) => {
         const { count } = await supabase
           .from('qa_cases' as any)
           .select('id', { count: 'exact', head: true })
@@ -701,6 +711,14 @@ function CaseDrawer({
                   <div className="text-muted-foreground text-xs">Entered queue</div>
                   <div>{format(new Date(caseData.entered_queue_at), 'PP p')}</div>
                 </div>
+                {caseData.last_alert_activity_at &&
+                  new Date(caseData.last_alert_activity_at).getTime() >
+                    new Date(caseData.entered_queue_at).getTime() + 60_000 && (
+                    <div>
+                      <div className="text-muted-foreground text-xs">Latest alert</div>
+                      <div>{format(new Date(caseData.last_alert_activity_at), 'PP p')}</div>
+                    </div>
+                  )}
                 {caseData.date_resolved && (
                   <div>
                     <div className="text-muted-foreground text-xs">Date resolved</div>
@@ -874,7 +892,7 @@ function CaseDrawer({
                 <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
                   {activity.map((a) => (
                     <div key={a.id} className="flex justify-between border-b py-1">
-                      <span>{a.description || a.activity_type}</span>
+                      <span>{a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}</span>
                       <span className="text-xs text-muted-foreground">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
                     </div>
                   ))}
