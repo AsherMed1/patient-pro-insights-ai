@@ -586,14 +586,14 @@ function CaseDrawer({
   };
 
   const buildDefaultDescription = (c: QACase): string => {
+    const apptLine = c.appointment_date
+      ? `Appointment: ${format(new Date(c.appointment_date), 'PP p')}`
+      : 'Appointment: Not scheduled';
     return [
-      `QA Alert: ${c.alert_type}`,
       `Patient: ${c.patient_name || 'Unknown'}`,
-      `Project: ${c.project_name}`,
       `Service line: ${c.service_line || 'n/a'}`,
-      `Appointment status: ${c.appointment_status || 'n/a'}`,
-      c.appointment_id ? `Appointment ID: ${c.appointment_id}` : null,
-    ].filter(Boolean).join('\n');
+      apptLine,
+    ].join('\n');
   };
 
   const openTicketDialog = async () => {
