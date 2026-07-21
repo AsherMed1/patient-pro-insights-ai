@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2 } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
+import { renderWithLinks } from '@/lib/linkify';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit';
@@ -879,7 +880,7 @@ function CaseDrawer({
                         <span>{n.author_name || 'Unknown'}</span>
                         <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
                       </div>
-                      <div className="whitespace-pre-wrap">{n.note}</div>
+                      <div className="whitespace-pre-wrap break-words">{renderWithLinks(n.note)}</div>
                     </div>
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
