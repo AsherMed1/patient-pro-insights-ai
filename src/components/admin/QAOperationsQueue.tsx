@@ -151,7 +151,7 @@ export default function QAOperationsQueue() {
 
   const fetchCounts = async () => {
     const results = await Promise.all(
-      (['new', 'in_review', 'pending_escalated', 'reopened', 'completed'] as WorkflowStatus[]).map(async (s) => {
+      (['new', 'in_review', 'pending_escalated', 'completed'] as WorkflowStatus[]).map(async (s) => {
         const { count } = await supabase
           .from('qa_cases' as any)
           .select('id', { count: 'exact', head: true })
