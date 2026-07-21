@@ -53,6 +53,8 @@ interface QACase {
   resolution_type: string | null;
   date_resolved: string | null;
   ticket_created: boolean;
+  review_entered_at: string | null;
+  review_resolved_at: string | null;
 }
 
 interface QANote {
