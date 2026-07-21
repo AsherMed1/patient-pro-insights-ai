@@ -84,17 +84,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
   confirmed_audit: 'Confirmed Audit',
 };
 
-const ERROR_CATEGORIES = [
-  'Missing Insurance',
-  'Notes Added to Portal',
-  'Duplicate Appointment',
-  'Booking Rule Violation',
-  'Uploaded Insurance Card',
-  'Name Correction',
-  'Double Booked',
-  'Incorrect Patient Info',
-  'Other',
-];
+// Error Category options are stored in the qa_error_categories table (editable master list)
 
 const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to AM', 'Other'];
 
