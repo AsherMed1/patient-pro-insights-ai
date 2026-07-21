@@ -87,9 +87,14 @@ Deno.serve(async (req) => {
     const normalizedSubmittedBy = (typeof submitted_by === 'string' && submitted_by.trim())
       ? submitted_by.trim()
       : 'PatientPro QA Queue';
-    const normalizedAssignee = (typeof assignee_name === 'string' && assignee_name.trim())
-      ? assignee_name.trim().slice(0, 200)
-      : null;
+    const normalizedAssignees: string[] = Array.isArray(assignee_names)
+      ? assignee_names
+          .filter((n: unknown) => typeof n === 'string' && n.trim())
+          .map((n: string) => n.trim().slice(0, 200))
+      : (typeof assignee_name === 'string' && assignee_name.trim())
+        ? [assignee_name.trim().slice(0, 200)]
+        : [];
+    const normalizedAssignee = normalizedAssignees[0] ?? null;
 
     let ticketId: string;
     let ticketUrl: string | null = null;
