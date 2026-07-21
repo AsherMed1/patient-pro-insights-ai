@@ -553,11 +553,19 @@ function CaseDrawer({
     task_name: '',
     client_name: '',
     service_involved: '',
-    issue_type: 'qa-operations',
+    issue_type: '' as '' | 'va' | 'tech',
     priority: 'medium',
     description: '',
     submitted_by: '',
   });
+
+  const stripTypePrefix = (name: string) => name.replace(/^(VA|Tech)\s—\s/, '');
+  const applyTypePrefix = (name: string, type: '' | 'va' | 'tech') => {
+    const base = stripTypePrefix(name);
+    if (type === 'va') return `VA — ${base}`;
+    if (type === 'tech') return `Tech — ${base}`;
+    return base;
+  };
 
   const buildDefaultDescription = (c: QACase): string => {
     return [
