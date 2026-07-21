@@ -985,3 +985,102 @@ function CaseDrawer({
     </Sheet>
   );
 }
+
+function ErrorSourceField({
+  value,
+  onChange,
+  sources,
+  onSourcesRefresh,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  sources: { id: string; name: string }[];
+  onSourcesRefresh: () => Promise<void>;
+}) {
+  const [showOther, setShowOther] = useState(false);
+  const [otherInput, setOtherInput] = useState('');
+  const [otherError, setOtherError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const inList = value && sources.some((s) => s.name === value);
+  const selectValue = inList ? value : showOther || value ? '__other__' : '';
+
+  const handleAdd = async () => {
+    const trimmed = otherInput.trim();
+    setOtherError(null);
+    if (!trimmed) {
+      setOtherError('Please enter a name.');
+      return;
+    }
+    const existing = sources.find(
+      (s) => s.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setOtherError(`"${existing.name}" already exists in the list — please select it instead.`);
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from('qa_error_sources' as any)
+      .insert({ name: trimmed });
+    setSaving(false);
+    if (error) {
+      if ((error as any).code === '23505') {
+        setOtherError(`"${trimmed}" already exists in the list — please select it instead.`);
+        await onSourcesRefresh();
+      } else {
+        setOtherError(error.message);
+      }
+      return;
+    }
+    await onSourcesRefresh();
+    onChange(trimmed);
+    setOtherInput('');
+    setShowOther(false);
+  };
+
+  return (
+    <>
+      <Select
+        value={selectValue}
+        onValueChange={(v) => {
+          if (v === '__other__') {
+            setShowOther(true);
+            setOtherError(null);
+            onChange('');
+          } else {
+            setShowOther(false);
+            setOtherError(null);
+            onChange(v);
+          }
+        }}
+      >
+        <SelectTrigger><SelectValue placeholder="Select error source" /></SelectTrigger>
+        <SelectContent className="max-h-72">
+          {sources.map((s) => (
+            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+          ))}
+          <SelectItem value="__other__">Other…</SelectItem>
+        </SelectContent>
+      </Select>
+      {showOther && (
+        <div className="mt-2 space-y-1">
+          <div className="flex gap-2">
+            <Input
+              value={otherInput}
+              onChange={(e) => { setOtherInput(e.target.value); setOtherError(null); }}
+              placeholder="Enter new error source"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+            />
+            <Button type="button" onClick={handleAdd} disabled={saving} size="sm">
+              {saving ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+          {otherError && (
+            <p className="text-xs text-destructive">{otherError}</p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
