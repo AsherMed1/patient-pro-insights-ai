@@ -377,7 +377,8 @@ export default function QAOperationsQueue() {
                     <TableHead>Error</TableHead>
                     <TableHead>Error Source</TableHead>
                     <TableHead>Resolution</TableHead>
-                    <TableHead>Entered</TableHead>
+                    <TableHead>Date Created</TableHead>
+                    <TableHead>Latest Alert</TableHead>
                     <TableHead>Resolved</TableHead>
                     <TableHead>Ticket</TableHead>
                     <TableHead />
