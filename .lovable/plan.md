@@ -1,28 +1,27 @@
-# Inline Patient Portal Record in QA Operations Queue
+## Add editable Secondary Insurance to the portal
 
-## Goal
-Replace the "View in project portal" button (which opens `/project/<name>` in a new tab) with an inline modal/drawer that shows the patient's appointment record directly on the QA Operations page — no tab switch, no navigation away.
+**Problem:** The portal's Insurance card has an inline edit pencil for the primary insurance (Provider, Plan, Member ID, Group Number), but the Secondary Insurance card in `ParsedIntakeInfo.tsx` is read-only and only renders when secondary data already exists. There is no way for a clinic user to add or edit secondary insurance fields — only to upload a secondary card image.
 
-## Approach
+## Changes (frontend only, `src/components/appointments/ParsedIntakeInfo.tsx`)
 
-The QA queue already renders `AppointmentCard` inline for the selected case (visible in the screenshot). What the "View in project portal" button currently adds is the richer *project-portal-scoped* context (portal-styled detail view). We'll replicate that inline via a large `Dialog` (or `Sheet`) that mounts the same detailed appointment view used in the project portal, scoped to this one appointment.
+1. **Always render the Secondary Insurance card** when `appointmentId` is present, even if there is no existing secondary data. When empty and not editing, show a small "Add Secondary Insurance" button that flips it into edit mode.
 
-## Changes
+2. **Add edit mode for Secondary Insurance**, mirroring the primary card:
+   - New state: `isEditingSecondary`, `editSecProvider`, `editSecPlan`, `editSecMemberId`, `editSecGroupNumber`, `isSavingSecondary`.
+   - Pencil button in the card header opens edit mode; Check/X buttons save/cancel (same styling as primary, using the emerald palette already used by the secondary card).
+   - Inputs for Provider, Plan, Member ID, Group Number.
 
-**`src/components/admin/QAOperationsQueue.tsx`**
-- Remove `window.open('/project/...', '_blank')` on the "View in project portal" button.
-- Add local state `portalRecordOpen: boolean` and reuse the existing `caseData.appointment_id`.
-- On click, open a full-width `Dialog` (`max-w-6xl`, `max-h-[90vh]`, scrollable) titled "Patient portal record — {lead_name}".
-- Inside the dialog, render the project-portal detailed appointment view for that single appointment id. Reuse `DetailedAppointmentView` (already used in `AppointmentCard` / portal) fed by a small fetch of the appointment row by id, so we don't need to load the whole project portal.
-- Keep the button label but drop the `ExternalLink` icon; use a "Maximize2" icon to signal in-page open.
+3. **Save handler** `handleSaveSecondaryInsurance` calls the existing `update-appointment-fields` edge function with a `parsedInsurancePatch` (same pattern already used by `SecondaryInsuranceCardUpload.tsx`), writing:
+   - `secondary_provider`
+   - `secondary_plan`
+   - `secondary_id_number`
+   - `secondary_group_number`
+   
+   Empty strings are sent as `null` so users can clear a field. On success, toast + `onUpdate?.()`.
 
-**No changes to** routing, `ProjectPortal.tsx`, or the button's permissions logic.
-
-## Technical notes
-- `DetailedAppointmentView` accepts an appointment object; we'll query `all_appointments` by `caseData.appointment_id` on dialog open and pass the row in, with a small loading state.
-- The right-hand QA audit drawer stays mounted, so QA can save audit details and open the record simultaneously.
-- Closing the dialog returns focus to the QA case with no re-fetch of the queue.
+4. **Preserve the existing "Upload Secondary Insurance Card" collapsible** and the "View Secondary Insurance Card" button — they stay unchanged and remain available inside the always-visible card.
 
 ## Out of scope
-- Embedding the entire project portal (tabs, filters, etc.) — not needed for QA review.
-- Changing how the "Open in GHL" link works (still external, as intended).
+- No DB migration (secondary fields already live inside `parsed_insurance_info` JSONB).
+- No changes to the AI parser, GHL webhook, or any business logic.
+- No changes to the primary insurance edit flow.
