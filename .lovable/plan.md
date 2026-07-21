@@ -1,27 +1,32 @@
-## Add editable Secondary Insurance to the portal
+## Goal
+Replace the QA Operations "Error Source" dropdown (currently pulled from `review_only` setters) with a curated, persistent list. Support an "Other" option that lets QAs add new sources on the fly, with duplicate validation.
 
-**Problem:** The portal's Insurance card has an inline edit pencil for the primary insurance (Provider, Plan, Member ID, Group Number), but the Secondary Insurance card in `ParsedIntakeInfo.tsx` is read-only and only renders when secondary data already exists. There is no way for a clinic user to add or edit secondary insurance fields — only to upload a secondary card image.
+## Changes
 
-## Changes (frontend only, `src/components/appointments/ParsedIntakeInfo.tsx`)
+### 1. Database — new table `qa_error_sources`
+- Columns: `name` (text, unique, case-insensitive), `is_seeded` (bool), `created_by` (uuid), plus standard id/timestamps.
+- Seed with the 36 provided names (AI Ashley … Yeimy Roa). "Other" is NOT stored — it's a UI-only sentinel.
+- Grants: SELECT/INSERT for `authenticated`, ALL for `service_role`.
+- RLS: any authenticated user can read; only admin/agent/qa_specialist can insert.
+- Unique index on `LOWER(TRIM(name))` to enforce case-insensitive dedup.
 
-1. **Always render the Secondary Insurance card** when `appointmentId` is present, even if there is no existing secondary data. When empty and not editing, show a small "Add Secondary Insurance" button that flips it into edit mode.
+### 2. UI — `src/components/admin/QAOperationsQueue.tsx`
+- Drop the current setter-fetching logic for Error Source (keep setters for anywhere else that needs them — they are not referenced elsewhere here, so remove).
+- Fetch `qa_error_sources` ordered by name, plus append an "Other" entry at the bottom.
+- When user picks "Other":
+  - Show an inline text input + Add button.
+  - On Add: trim input, reject empty, check against the loaded list case-insensitively. If it matches, show validation error "'X' already exists in the list — please select it instead" and do NOT insert.
+  - Otherwise insert into `qa_error_sources`, refresh the list, and auto-select the new value.
+- Selected value persists to `qa_cases.error_source` as plain text (schema unchanged).
 
-2. **Add edit mode for Secondary Insurance**, mirroring the primary card:
-   - New state: `isEditingSecondary`, `editSecProvider`, `editSecPlan`, `editSecMemberId`, `editSecGroupNumber`, `isSavingSecondary`.
-   - Pencil button in the card header opens edit mode; Check/X buttons save/cancel (same styling as primary, using the emerald palette already used by the secondary card).
-   - Inputs for Provider, Plan, Member ID, Group Number.
-
-3. **Save handler** `handleSaveSecondaryInsurance` calls the existing `update-appointment-fields` edge function with a `parsedInsurancePatch` (same pattern already used by `SecondaryInsuranceCardUpload.tsx`), writing:
-   - `secondary_provider`
-   - `secondary_plan`
-   - `secondary_id_number`
-   - `secondary_group_number`
-   
-   Empty strings are sent as `null` so users can clear a field. On success, toast + `onUpdate?.()`.
-
-4. **Preserve the existing "Upload Secondary Insurance Card" collapsible** and the "View Secondary Insurance Card" button — they stay unchanged and remain available inside the always-visible card.
+### 3. Backfill / migration
+- Existing `qa_cases.error_source` values remain as-is (free text). No data migration required.
 
 ## Out of scope
-- No DB migration (secondary fields already live inside `parsed_insurance_info` JSONB).
-- No changes to the AI parser, GHL webhook, or any business logic.
-- No changes to the primary insurance edit flow.
+- No admin UI for editing/deleting sources (can be added later).
+- No renaming of existing free-text values in older cases.
+
+## Technical notes
+- Case-insensitive dedup via `create unique index on qa_error_sources (lower(trim(name)))`.
+- Seed via `insert ... on conflict do nothing` so re-running is safe.
+- "Other" sentinel handled purely in React state — never written to DB as a source name.
