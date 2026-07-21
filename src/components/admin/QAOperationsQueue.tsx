@@ -756,6 +756,37 @@ function CaseDrawer({
                 )}
               </div>
 
+              {caseData.review_entered_at && (
+                <div className="border rounded-lg p-3 space-y-1 bg-muted/30">
+                  <div className="text-sm font-semibold">Review Queue Timeline</div>
+                  <div className="text-xs text-muted-foreground">
+                    Entered: {format(new Date(caseData.review_entered_at), 'PP p')}
+                  </div>
+                  {caseData.review_resolved_at ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Resolved: {format(new Date(caseData.review_resolved_at), 'PP p')}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Time in queue: {(() => {
+                          const ms = new Date(caseData.review_resolved_at).getTime() - new Date(caseData.review_entered_at).getTime();
+                          const mins = Math.max(0, Math.round(ms / 60000));
+                          if (mins < 60) return `${mins} min`;
+                          const hrs = Math.floor(mins / 60);
+                          const rem = mins % 60;
+                          if (hrs < 24) return `${hrs}h ${rem}m`;
+                          const days = Math.floor(hrs / 24);
+                          return `${days}d ${hrs % 24}h`;
+                        })()}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-amber-600">Awaiting review action</div>
+                  )}
+                </div>
+              )}
+
+
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Workflow status</div>
                 <Select value={caseData.workflow_status} onValueChange={(v) => onStatusChange(caseData.id, v as WorkflowStatus)}>
