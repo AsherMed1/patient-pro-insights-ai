@@ -119,7 +119,7 @@ export default function QAOperationsQueue() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
