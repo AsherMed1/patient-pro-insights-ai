@@ -701,6 +701,14 @@ function CaseDrawer({
                   <div className="text-muted-foreground text-xs">Entered queue</div>
                   <div>{format(new Date(caseData.entered_queue_at), 'PP p')}</div>
                 </div>
+                {caseData.last_alert_activity_at &&
+                  new Date(caseData.last_alert_activity_at).getTime() >
+                    new Date(caseData.entered_queue_at).getTime() + 60_000 && (
+                    <div>
+                      <div className="text-muted-foreground text-xs">Latest alert</div>
+                      <div>{format(new Date(caseData.last_alert_activity_at), 'PP p')}</div>
+                    </div>
+                  )}
                 {caseData.date_resolved && (
                   <div>
                     <div className="text-muted-foreground text-xs">Date resolved</div>
