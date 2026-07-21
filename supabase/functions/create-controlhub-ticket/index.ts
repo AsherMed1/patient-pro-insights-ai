@@ -23,6 +23,7 @@ Deno.serve(async (req) => {
       submitted_by,
       submitted_by_email,
       assignee_name,
+      assignee_names,
     } = body ?? {};
 
     if (!case_id || typeof case_id !== 'string') {
@@ -86,9 +87,14 @@ Deno.serve(async (req) => {
     const normalizedSubmittedBy = (typeof submitted_by === 'string' && submitted_by.trim())
       ? submitted_by.trim()
       : 'PatientPro QA Queue';
-    const normalizedAssignee = (typeof assignee_name === 'string' && assignee_name.trim())
-      ? assignee_name.trim().slice(0, 200)
-      : null;
+    const normalizedAssignees: string[] = Array.isArray(assignee_names)
+      ? assignee_names
+          .filter((n: unknown) => typeof n === 'string' && n.trim())
+          .map((n: string) => n.trim().slice(0, 200))
+      : (typeof assignee_name === 'string' && assignee_name.trim())
+        ? [assignee_name.trim().slice(0, 200)]
+        : [];
+    const normalizedAssignee = normalizedAssignees[0] ?? null;
 
     let ticketId: string;
     let ticketUrl: string | null = null;
@@ -116,6 +122,7 @@ Deno.serve(async (req) => {
             : null,
           priority: normalizedPriority,
           assignee_name: normalizedAssignee,
+          assignee_names: normalizedAssignees,
           metadata: {
             qa_case_id: case_id,
             project: qaCase.project_name,
@@ -123,6 +130,7 @@ Deno.serve(async (req) => {
             appointment_id: qaCase.appointment_id,
             ghl_contact_id: qaCase.ghl_contact_id,
             assignee_name: normalizedAssignee,
+            assignees: normalizedAssignees,
           },
         }),
       });
@@ -187,6 +195,7 @@ Deno.serve(async (req) => {
         issue_type: normalizedIssueType,
         submitted_by: normalizedSubmittedBy,
         assignee_name: normalizedAssignee,
+        assignees: normalizedAssignees,
       },
     });
 
