@@ -3111,6 +3111,7 @@ export type Database = {
           entered_queue_at: string
           error_category: string | null
           error_source: string | null
+          first_entered_at: string
           ghl_contact_id: string | null
           id: string
           last_alert_activity_at: string
@@ -3144,6 +3145,7 @@ export type Database = {
           entered_queue_at?: string
           error_category?: string | null
           error_source?: string | null
+          first_entered_at?: string
           ghl_contact_id?: string | null
           id?: string
           last_alert_activity_at?: string
@@ -3177,6 +3179,7 @@ export type Database = {
           entered_queue_at?: string
           error_category?: string | null
           error_source?: string | null
+          first_entered_at?: string
           ghl_contact_id?: string | null
           id?: string
           last_alert_activity_at?: string

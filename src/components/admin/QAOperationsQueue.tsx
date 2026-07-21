@@ -39,6 +39,7 @@ interface QACase {
   assigned_qs_user_id: string | null;
   entered_queue_at: string;
   last_alert_activity_at: string;
+  first_entered_at: string;
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
@@ -376,7 +377,8 @@ export default function QAOperationsQueue() {
                     <TableHead>Error</TableHead>
                     <TableHead>Error Source</TableHead>
                     <TableHead>Resolution</TableHead>
-                    <TableHead>Entered</TableHead>
+                    <TableHead>Date Created</TableHead>
+                    <TableHead>Latest Alert</TableHead>
                     <TableHead>Resolved</TableHead>
                     <TableHead>Ticket</TableHead>
                     <TableHead />
@@ -411,6 +413,7 @@ export default function QAOperationsQueue() {
                       <TableCell>{c.error_category || '—'}</TableCell>
                       <TableCell>{c.error_source || '—'}</TableCell>
                       <TableCell>{c.resolution_type || '—'}</TableCell>
+                      <TableCell className="text-muted-foreground">{format(new Date(c.first_entered_at || c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
                       <TableCell>{format(new Date(c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
                       <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
                       <TableCell>
@@ -708,17 +711,13 @@ function CaseDrawer({
                   <div>{caseData.appointment_date ? format(new Date(caseData.appointment_date), 'PP p') : '—'}</div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground text-xs">Entered queue</div>
+                  <div className="text-muted-foreground text-xs">Date created</div>
+                  <div>{format(new Date(caseData.first_entered_at || caseData.entered_queue_at), 'PP p')}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Latest alert</div>
                   <div>{format(new Date(caseData.entered_queue_at), 'PP p')}</div>
                 </div>
-                {caseData.last_alert_activity_at &&
-                  new Date(caseData.last_alert_activity_at).getTime() >
-                    new Date(caseData.entered_queue_at).getTime() + 60_000 && (
-                    <div>
-                      <div className="text-muted-foreground text-xs">Latest alert</div>
-                      <div>{format(new Date(caseData.last_alert_activity_at), 'PP p')}</div>
-                    </div>
-                  )}
                 {caseData.date_resolved && (
                   <div>
                     <div className="text-muted-foreground text-xs">Date resolved</div>
