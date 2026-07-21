@@ -23,6 +23,7 @@ Deno.serve(async (req) => {
       submitted_by,
       submitted_by_email,
       assignee_name,
+      assignee_names,
     } = body ?? {};
 
     if (!case_id || typeof case_id !== 'string') {
