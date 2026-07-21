@@ -327,6 +327,7 @@ export default function QAOperationsQueue() {
           <SelectTrigger className="w-56"><SelectValue placeholder="Alert type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All alert types</SelectItem>
+            <SelectItem value="review_queue">Review Queue</SelectItem>
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
