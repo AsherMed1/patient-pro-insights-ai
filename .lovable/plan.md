@@ -1,22 +1,26 @@
 ## Goal
-Trim the auto-filled ControlHub ticket description created from the QA Operations Queue so it only carries the minimum context the VA needs, leaving the rest of the field free for the QA to write the issue/request.
+Update the default task name in the QA Operations Queue "Create ControlHub Ticket" dialog so that:
+- The task name stays editable.
+- VA Tickets default to **VA Ticket — Patient Name**.
+- Tech Tickets default to **Tech Ticket — Patient Name**.
+- The old `QA: confirmed_audit — Patient Name` format is removed.
 
-## Change
-In `src/components/admin/QAOperationsQueue.tsx`, replace `buildDefaultDescription` (currently emits QA Alert, Patient, Project, Service line, Appointment status, Appointment ID) with a three-line prefill:
+## Files to change
+- `src/components/admin/QAOperationsQueue.tsx`
 
-```
-Patient: <patient_name>
-Service line: <service_line>
-Appointment: <formatted appointment_date or "Not scheduled">
-```
+## Implementation
+1. Update the ticket title helper functions inside `CaseDrawer`:
+   - `stripTypePrefix(name)` should strip the new prefixes (`VA Ticket — `, `Tech Ticket — `) as well as the old prefixes (`VA — `, `Tech — `, and `QA: <alert_type> — `) so switching ticket types does not stack prefixes.
+   - `applyTypePrefix(name, type)` should apply `VA Ticket — ` for `va` and `Tech Ticket — ` for `tech`.
 
-Notes:
-- Drop `QA Alert:`, `Project:` (already captured in the ticket's Client field), `Appointment status:`, and `Appointment ID:`.
-- If `appointment_date` is null, print `Appointment: Not scheduled` so the line is still present.
-- Same prefill for both VA and Tech tickets — the user only specified VA, but the removed fields are equally redundant for Tech and the QA can always add more before submit.
-- The full case metadata (project, appointment id, status, alert type, ghl contact id) is already forwarded to ControlHub in the `metadata` object by `create-controlhub-ticket` and stored on the `qa_cases` row, so nothing is lost — it just stops cluttering the editable description.
+2. Update `openTicketDialog` so the initial `task_name` is just the patient name (e.g., `caseData.patient_name || 'Unknown'`). The ticket-type selector will then apply the correct prefix when the QA chooses VA or Tech.
 
-No edge function, DB, or ControlHub-side changes needed.
+3. Keep the existing `Input` for task name fully editable, and keep the existing behavior where changing the Ticket type dropdown re-applies the prefix to the current base name.
 
-## Verify
-Open a QA case → Create ControlHub Ticket → confirm the Description textarea shows only the three lines and the QA has room to write their explanation. Submit and confirm the ticket still lands with the correct client, service, and metadata.
+## Verification
+- Open a QA case and click "Create ControlHub Ticket".
+- Confirm the Task name field starts with only the patient name.
+- Select "VA Ticket" → field becomes `VA Ticket — Patient Name`.
+- Select "Tech Ticket" → field becomes `Tech Ticket — Patient Name`.
+- Edit the patient portion → switching ticket type preserves the custom text and only swaps the prefix.
+- Submit a ticket and confirm the created ticket carries the simplified title in ControlHub.

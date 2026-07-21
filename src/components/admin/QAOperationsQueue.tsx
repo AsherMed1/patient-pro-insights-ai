@@ -577,11 +577,12 @@ function CaseDrawer({
     submitted_by: '',
   });
 
-  const stripTypePrefix = (name: string) => name.replace(/^(VA|Tech)\s—\s/, '');
+  const stripTypePrefix = (name: string) =>
+    name.replace(/^QA:\s+[^—]+\s—\s/, '').replace(/^(VA|Tech)\s+(Ticket\s+)?—\s*/, '');
   const applyTypePrefix = (name: string, type: '' | 'va' | 'tech') => {
     const base = stripTypePrefix(name);
-    if (type === 'va') return `VA — ${base}`;
-    if (type === 'tech') return `Tech — ${base}`;
+    if (type === 'va') return `VA Ticket — ${base}`;
+    if (type === 'tech') return `Tech Ticket — ${base}`;
     return base;
   };
 
@@ -608,7 +609,7 @@ function CaseDrawer({
       submittedBy = ((prof as any)?.full_name || '').trim() || (prof as any)?.email || user?.email || '';
     }
     setTicketForm({
-      task_name: `QA: ${caseData.alert_type} — ${caseData.patient_name || 'Unknown'}`,
+      task_name: caseData.patient_name || 'Unknown',
       client_name: caseData.project_name || '',
       service_involved: caseData.service_line || '',
       issue_type: '',
