@@ -3120,6 +3120,8 @@ export type Database = {
           project_name: string
           qa_name: string | null
           resolution_type: string | null
+          review_entered_at: string | null
+          review_resolved_at: string | null
           review_started_at: string | null
           self_booked: boolean | null
           service_line: string | null
@@ -3154,6 +3156,8 @@ export type Database = {
           project_name: string
           qa_name?: string | null
           resolution_type?: string | null
+          review_entered_at?: string | null
+          review_resolved_at?: string | null
           review_started_at?: string | null
           self_booked?: boolean | null
           service_line?: string | null
@@ -3188,6 +3192,8 @@ export type Database = {
           project_name?: string
           qa_name?: string | null
           resolution_type?: string | null
+          review_entered_at?: string | null
+          review_resolved_at?: string | null
           review_started_at?: string | null
           self_booked?: boolean | null
           service_line?: string | null

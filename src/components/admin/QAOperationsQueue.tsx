@@ -22,9 +22,9 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import { renderWithLinks } from '@/lib/linkify';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'confirmed_audit';
+type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue';
 
-const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit'];
+const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit', 'review_queue'];
 
 interface QACase {
   id: string;
@@ -53,6 +53,8 @@ interface QACase {
   resolution_type: string | null;
   date_resolved: string | null;
   ticket_created: boolean;
+  review_entered_at: string | null;
+  review_resolved_at: string | null;
 }
 
 interface QANote {
@@ -94,6 +96,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
   confirmed_audit: 'Confirmed Audit',
+  review_queue: 'Review Queue',
 };
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
@@ -104,6 +107,7 @@ const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | '
   if (t === 'oon') return 'destructive';
   if (t === 'short_notice') return 'default';
   if (t === 'confirmed_audit') return 'outline';
+  if (t === 'review_queue') return 'secondary';
   return 'secondary';
 };
 
@@ -323,6 +327,7 @@ export default function QAOperationsQueue() {
           <SelectTrigger className="w-56"><SelectValue placeholder="Alert type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All alert types</SelectItem>
+            <SelectItem value="review_queue">Review Queue</SelectItem>
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
@@ -750,6 +755,37 @@ function CaseDrawer({
                   </div>
                 )}
               </div>
+
+              {caseData.review_entered_at && (
+                <div className="border rounded-lg p-3 space-y-1 bg-muted/30">
+                  <div className="text-sm font-semibold">Review Queue Timeline</div>
+                  <div className="text-xs text-muted-foreground">
+                    Entered: {format(new Date(caseData.review_entered_at), 'PP p')}
+                  </div>
+                  {caseData.review_resolved_at ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Resolved: {format(new Date(caseData.review_resolved_at), 'PP p')}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Time in queue: {(() => {
+                          const ms = new Date(caseData.review_resolved_at).getTime() - new Date(caseData.review_entered_at).getTime();
+                          const mins = Math.max(0, Math.round(ms / 60000));
+                          if (mins < 60) return `${mins} min`;
+                          const hrs = Math.floor(mins / 60);
+                          const rem = mins % 60;
+                          if (hrs < 24) return `${hrs}h ${rem}m`;
+                          const days = Math.floor(hrs / 24);
+                          return `${days}d ${hrs % 24}h`;
+                        })()}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-amber-600">Awaiting review action</div>
+                  )}
+                </div>
+              )}
+
 
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Workflow status</div>
