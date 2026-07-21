@@ -115,12 +115,14 @@ Deno.serve(async (req) => {
             ? submitted_by_email.trim()
             : null,
           priority: normalizedPriority,
+          assignee_name: normalizedAssignee,
           metadata: {
             qa_case_id: case_id,
             project: qaCase.project_name,
             alert_type: qaCase.alert_type,
             appointment_id: qaCase.appointment_id,
             ghl_contact_id: qaCase.ghl_contact_id,
+            assignee_name: normalizedAssignee,
           },
         }),
       });
