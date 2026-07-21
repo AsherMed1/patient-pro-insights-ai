@@ -470,6 +470,31 @@ function CaseDrawer({
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const [savingAudit, setSavingAudit] = useState(false);
+  const [portalRecord, setPortalRecord] = useState<any | null>(null);
+  const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
+
+  const openPortalRecord = async () => {
+    if (!caseData?.appointment_id) return;
+    setLoadingPortalRecord(true);
+    const { data, error } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('id', caseData.appointment_id)
+      .single();
+    setLoadingPortalRecord(false);
+    if (error || !data) {
+      toast({ title: 'Unable to load record', description: error?.message || 'Not found', variant: 'destructive' });
+      return;
+    }
+    setPortalRecord(data);
+  };
+
+  const refreshPortalRecord = async () => {
+    if (!portalRecord?.id) return;
+    const { data } = await supabase.from('all_appointments').select('*').eq('id', portalRecord.id).single();
+    if (data) setPortalRecord(data);
+    onRefresh();
+  };
 
   useEffect(() => {
     if (!caseData) return;
