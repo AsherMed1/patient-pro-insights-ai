@@ -848,8 +848,8 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
 
           {/* Secondary Insurance Information Section */}
 
-          {(() => {
-            const sec = parsedInsuranceInfo || {};
+          {appointmentId && (() => {
+            const sec: any = parsedInsuranceInfo || {};
             const secProvider = sanitizeInsuranceValue(sec.secondary_provider);
             const secPlan = sanitizeInsuranceValue(sec.secondary_plan);
             const secId = sanitizeInsuranceValue(sec.secondary_id_number);
@@ -857,52 +857,146 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             const secFront: string | null = sec.secondary_card_front_url || sec.secondary_card_url || null;
             const secBack: string | null = sec.secondary_card_back_url || null;
             const hasAnySecondary = !!(secProvider || secPlan || secId || secGroup || secFront || secBack);
-            if (!hasAnySecondary) return null;
+
             return (
               <Card className="bg-emerald-50 border-emerald-200">
                 <CardContent className="pt-4 space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Shield className="h-4 w-4 text-emerald-600" />
-                    <span className="font-medium text-sm text-emerald-900">Secondary Insurance Information</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-emerald-600" />
+                      <span className="font-medium text-sm text-emerald-900">Secondary Insurance Information</span>
+                    </div>
+                    {!isEditingSecondary && hasAnySecondary && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                        onClick={(e) => { e.stopPropagation(); handleStartEditSecondary(); }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {isEditingSecondary && (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                          onClick={handleSaveSecondaryInsurance}
+                          disabled={isSavingSecondary}
+                        >
+                          {isSavingSecondary ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={handleCancelEditSecondary}
+                          disabled={isSavingSecondary}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  {secProvider && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Provider:</span>{" "}
-                      <span className="font-medium">{secProvider}</span>
+
+                  {isEditingSecondary ? (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Provider</label>
+                        <Input
+                          value={editSecProvider}
+                          onChange={(e) => setEditSecProvider(e.target.value)}
+                          placeholder="Insurance provider"
+                          className="h-8 text-sm bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Plan</label>
+                        <Input
+                          value={editSecPlan}
+                          onChange={(e) => setEditSecPlan(e.target.value)}
+                          placeholder="Insurance plan"
+                          className="h-8 text-sm bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Member ID</label>
+                        <Input
+                          value={editSecMemberId}
+                          onChange={(e) => setEditSecMemberId(e.target.value)}
+                          placeholder="Member ID"
+                          className="h-8 text-sm bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Group Number</label>
+                        <Input
+                          value={editSecGroupNumber}
+                          onChange={(e) => setEditSecGroupNumber(e.target.value)}
+                          placeholder="Group number"
+                          className="h-8 text-sm bg-background"
+                        />
+                      </div>
                     </div>
-                  )}
-                  {secPlan && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Plan:</span>{" "}
-                      <span className="font-medium">{secPlan}</span>
-                    </div>
-                  )}
-                  {secId && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Member ID:</span>{" "}
-                      <span className="font-medium">{secId}</span>
-                    </div>
-                  )}
-                  {secGroup && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Group Number:</span>{" "}
-                      <span className="font-medium">{secGroup}</span>
-                    </div>
-                  )}
-                  {secFront && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2"
-                      onClick={() => openHeicAwareUrl(secFront)}
-                    >
-                      <ExternalLink className="h-3 w-3 mr-2" />
-                      View Secondary Insurance Card
-                    </Button>
+                  ) : (
+                    <>
+                      {!hasAnySecondary && (
+                        <div className="text-xs text-muted-foreground py-2">
+                          No secondary insurance on file.
+                        </div>
+                      )}
+                      {secProvider && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Provider:</span>{" "}
+                          <span className="font-medium">{secProvider}</span>
+                        </div>
+                      )}
+                      {secPlan && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Plan:</span>{" "}
+                          <span className="font-medium">{secPlan}</span>
+                        </div>
+                      )}
+                      {secId && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Member ID:</span>{" "}
+                          <span className="font-medium">{secId}</span>
+                        </div>
+                      )}
+                      {secGroup && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Group Number:</span>{" "}
+                          <span className="font-medium">{secGroup}</span>
+                        </div>
+                      )}
+                      {secFront && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={() => openHeicAwareUrl(secFront)}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          View Secondary Insurance Card
+                        </Button>
+                      )}
+                      {!hasAnySecondary && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                          onClick={handleStartEditSecondary}
+                        >
+                          <Pencil className="h-3 w-3 mr-2" />
+                          Add Secondary Insurance
+                        </Button>
+                      )}
+                    </>
                   )}
 
                   {/* Secondary Insurance Card Upload - Collapsible */}
-                  {appointmentId && (
+                  {!isEditingSecondary && (
                     <div className="mt-4 pt-4 border-t border-emerald-200">
                       <Collapsible open={isSecondaryUploadOpen} onOpenChange={setIsSecondaryUploadOpen}>
                         <CollapsibleTrigger className="w-full">
@@ -938,6 +1032,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
               </Card>
             );
           })()}
+
 
 
 
