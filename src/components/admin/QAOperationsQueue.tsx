@@ -119,7 +119,7 @@ export default function QAOperationsQueue() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
   const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
@@ -143,14 +143,12 @@ export default function QAOperationsQueue() {
 
   const fetchCases = async () => {
     setLoading(true);
-    let q = supabase
+    const { data, error } = await supabase
       .from('qa_cases' as any)
       .select('*')
       .in('alert_type', ACTIVE_ALERT_TYPES)
       .order('entered_queue_at', { ascending: false })
       .limit(500);
-    if (tab !== 'all') q = q.eq('workflow_status', tab);
-    const { data, error } = await q;
     if (error) {
       console.error('QA cases fetch error:', error);
       toast({ title: 'Failed to load cases', description: error.message, variant: 'destructive' });
@@ -161,34 +159,19 @@ export default function QAOperationsQueue() {
     setLoading(false);
   };
 
-  const fetchCounts = async () => {
-    const results = await Promise.all(
-      (['new', 'in_review', 'pending_escalated', 'completed'] as WorkflowStatus[]).map(async (s) => {
-        const { count } = await supabase
-          .from('qa_cases' as any)
-          .select('id', { count: 'exact', head: true })
-          .eq('workflow_status', s);
-        return [s, count || 0] as const;
-      })
-    );
-    setCounts(Object.fromEntries(results));
-  };
-
   useEffect(() => {
     fetchCases();
-    fetchCounts();
     const ch = supabase
       .channel('qa-cases-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, () => {
         fetchCases();
-        fetchCounts();
       })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, []);
+
 
   useEffect(() => {
     (async () => {
@@ -217,7 +200,16 @@ export default function QAOperationsQueue() {
 
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
-  const filtered = useMemo(() => {
+  const hasActiveFilter = useMemo(() => (
+    search.trim() !== '' ||
+    projectFilter !== 'all' ||
+    alertFilter !== 'all' ||
+    assignmentFilter !== 'all' ||
+    !!dateFrom || !!dateTo
+  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
+
+  // Apply everything except workflow_status. Used to derive per-bucket counts.
+  const filteredNoStatus = useMemo(() => {
     const t = search.trim().toLowerCase();
     return cases.filter((c) => {
       if (projectFilter !== 'all' && c.project_name !== projectFilter) return false;
@@ -241,6 +233,31 @@ export default function QAOperationsQueue() {
     });
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
 
+  const bucketCounts = useMemo(() => {
+    const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0 };
+    for (const c of filteredNoStatus) {
+      if (counts[c.workflow_status] !== undefined) counts[c.workflow_status]++;
+    }
+    return counts;
+  }, [filteredNoStatus]);
+
+  const filtered = useMemo(() => (
+    tab === 'all' ? filteredNoStatus : filteredNoStatus.filter((c) => c.workflow_status === tab)
+  ), [filteredNoStatus, tab]);
+
+  // When a search/filter is active and the current bucket has no matches, auto-switch
+  // to the first bucket that does. Only reacts to filter changes, not manual tab clicks.
+  useEffect(() => {
+    if (!hasActiveFilter) return;
+    if (tab === 'all') return;
+    if (bucketCounts[tab] > 0) return;
+    const order: WorkflowStatus[] = ['new', 'in_review', 'pending_escalated', 'completed'];
+    const next = order.find((s) => bucketCounts[s] > 0);
+    if (next && next !== tab) setTab(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveFilter, bucketCounts]);
+
+
   const updateStatus = async (id: string, next: WorkflowStatus) => {
     const patch: any = { workflow_status: next };
     if (next === 'in_review') patch.review_started_at = new Date().toISOString();
@@ -261,7 +278,7 @@ export default function QAOperationsQueue() {
     } as any);
     toast({ title: 'Status updated' });
     fetchCases();
-    fetchCounts();
+
   };
 
   const openCase = (c: QACase) => {
@@ -351,8 +368,13 @@ export default function QAOperationsQueue() {
           {STATUS_TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}
-              {t.value !== 'all' && counts[t.value] > 0 && (
-                <Badge variant="secondary" className="ml-2">{counts[t.value]}</Badge>
+              {t.value !== 'all' && (
+                <Badge
+                  variant={hasActiveFilter && bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
+                  className="ml-2"
+                >
+                  {bucketCounts[t.value] ?? 0}
+                </Badge>
               )}
             </TabsTrigger>
           ))}
@@ -455,7 +477,7 @@ export default function QAOperationsQueue() {
         onErrorCategoriesRefresh={refreshErrorCategories}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
-        onRefresh={() => { fetchCases(); fetchCounts(); }}
+        onRefresh={() => { fetchCases(); }}
       />
 
     </div>
