@@ -17,7 +17,8 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2 } from 'lucide-react';
+import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit';
@@ -469,6 +470,31 @@ function CaseDrawer({
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const [savingAudit, setSavingAudit] = useState(false);
+  const [portalRecord, setPortalRecord] = useState<any | null>(null);
+  const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
+
+  const openPortalRecord = async () => {
+    if (!caseData?.appointment_id) return;
+    setLoadingPortalRecord(true);
+    const { data, error } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('id', caseData.appointment_id)
+      .single();
+    setLoadingPortalRecord(false);
+    if (error || !data) {
+      toast({ title: 'Unable to load record', description: error?.message || 'Not found', variant: 'destructive' });
+      return;
+    }
+    setPortalRecord(data);
+  };
+
+  const refreshPortalRecord = async () => {
+    if (!portalRecord?.id) return;
+    const { data } = await supabase.from('all_appointments').select('*').eq('id', portalRecord.id).single();
+    if (data) setPortalRecord(data);
+    onRefresh();
+  };
 
   useEffect(() => {
     if (!caseData) return;
@@ -811,9 +837,15 @@ function CaseDrawer({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(`/project/${encodeURIComponent(caseData.project_name)}`, '_blank')}
+                    onClick={openPortalRecord}
+                    disabled={loadingPortalRecord}
                   >
-                    View in project portal <ExternalLink className="h-3 w-3 ml-1" />
+                    {loadingPortalRecord ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Maximize2 className="h-3 w-3 mr-1" />
+                    )}
+                    View patient record
                   </Button>
                 )}
                 {!caseData.controlhub_ticket_id && (
@@ -973,6 +1005,16 @@ function CaseDrawer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {portalRecord && (
+        <DetailedAppointmentView
+          appointment={portalRecord}
+          isOpen={!!portalRecord}
+          onClose={() => setPortalRecord(null)}
+          onDataRefresh={refreshPortalRecord}
+          onDeleted={() => { setPortalRecord(null); onRefresh(); }}
+        />
+      )}
     </Sheet>
   );
 }
