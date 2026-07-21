@@ -837,9 +837,15 @@ function CaseDrawer({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(`/project/${encodeURIComponent(caseData.project_name)}`, '_blank')}
+                    onClick={openPortalRecord}
+                    disabled={loadingPortalRecord}
                   >
-                    View in project portal <ExternalLink className="h-3 w-3 ml-1" />
+                    {loadingPortalRecord ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Maximize2 className="h-3 w-3 mr-1" />
+                    )}
+                    View patient record
                   </Button>
                 )}
                 {!caseData.controlhub_ticket_id && (
