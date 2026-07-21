@@ -722,6 +722,7 @@ function CaseDrawer({
         description: ticketForm.description.trim(),
         submitted_by: ticketForm.submitted_by.trim() || 'PatientPro QA Queue',
         submitted_by_email: user?.email ?? null,
+        assignee_name: ticketForm.assignee_name.trim() || null,
       },
     });
     setCreatingTicket(false);
