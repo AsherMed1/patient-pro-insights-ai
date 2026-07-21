@@ -1,52 +1,27 @@
-## Root cause
+## Fix: QA Operations Queue search doesn't update bucket counts
 
-Reproducing the failing "Create ticket" call returned:
+### Current behavior
+- `fetchCases` loads cases for the **active tab only** (`.eq('workflow_status', tab)`), then `filtered` applies search + filters **client-side**.
+- `fetchCounts` counts every case per status **ignoring** search, project, alert, assignment, and date filters — so "New 758 / In Review 4 / Pending 3 / Completed 1" stays static while typing.
+- Consequence: while searching "Joe", the visible list narrows but the tab badges still show total volume, and there's no signal telling the user which bucket the match lives in.
 
-```
-ControlHub request failed (500):
-"Could not find the 'source' column of 'va_request_submissions' in the schema cache"
-```
+### Change (frontend only, `src/components/admin/QAOperationsQueue.tsx`)
 
-The ControlHub team applied the VA routing branch we sent them, but they're passing PatientPro's `source: "patientpro_qa_queue"` straight into the `va_request_submissions` insert. That table has no `source` column (only `tech_ticket_submissions` does), so PostgREST rejects the insert and the failure bubbles back through our edge function as a non-2xx.
+1. **Load across all statuses when searching/filtering.** Drop the `.eq('workflow_status', tab)` clause in `fetchCases` and always load up to 500 cases across every workflow status. The tab becomes a client-side view of the same result set. Re-run `fetchCases` when filters change (currently it only re-runs on `tab` change).
 
-Nothing in PatientPro needs to change — our payload is correct and matches the shape they asked for.
+2. **Derive bucket counts from the same filter pipeline used for the visible rows.** Replace `fetchCounts` with a memoized `bucketCounts` computed from the fully filtered list (search + project + alert + assignment + date). Each tab badge shows the count of matches in that status; buckets with zero matches show `0` (dimmed) so it's obvious no match lives there.
 
-## Deliverable
+3. **Make the matching bucket obvious.**
+   - When a search or filter is active, prefix badges of buckets with matches with a subtle highlight (accent ring / bolded number) so the user can see at a glance which status contains the results.
+   - If the currently selected tab has 0 matches but another bucket has matches, auto-switch the active tab once to the first non-empty bucket (New → In Review → Pending / Escalated → Completed) so results are visible without a manual click. Only auto-switch when the search term or filter actually changes, never on tab clicks — the user can always click back.
+   - Keep the existing "All" tab as an escape hatch showing the combined filtered list.
 
-Provide a second, drop-in prompt the user can paste into the PPM ControlHub project telling that agent to only pass columns that exist on `va_request_submissions` (drop `source` and any other tech-only fields from the VA branch), and to whitelist columns per branch so this class of error can't recur.
+4. **Keep realtime + refresh paths consistent.** `postgres_changes` subscription and `onRefresh` (from the detail modal) call the new single `fetchCases`; counts recompute automatically from state.
 
-Content of the prompt (to be pasted into ControlHub):
+### Out of scope
+- No schema changes, no server-side changes, no changes to filtering semantics beyond making counts respect them.
+- Row layout, columns, and "Latest Alert" ordering stay identical.
 
-```text
-You are working in the PPM ControlHub project (project id: 3d134fcb-0269-41ba-a69a-68661f5fab98).
-
-Bug: `supabase/functions/receive-external-ticket/index.ts` now branches on `issue_type`, but the VA branch is still passing the full inbound payload (including `source`) into `va_request_submissions`. That table has no `source` column, so the insert fails with:
-"Could not find the 'source' column of 'va_request_submissions' in the schema cache"
-
-Fix:
-1. In the VA branch, build the insert row EXPLICITLY — only include columns that exist on `va_request_submissions`:
-   - task_name
-   - submitted_by
-   - client_name
-   - account_location  ← from body.service_involved
-   - issue_category    ← "External — PatientPro QA"
-   - priority
-   - description       ← if `additional_info` column does not exist on va_request_submissions, append `\n\nMetadata: ${JSON.stringify(body.metadata ?? {})}` to the description here
-   - status            ← "open"
-   Do NOT spread the request body. Do NOT pass `source`, `external_case_id`, `issue_type`, `submitted_by_email`, or `metadata` as columns.
-
-2. In the tech branch, do the same — build the insert row explicitly from the known columns of `tech_ticket_submissions` instead of spreading `body`. This prevents the same failure mode if PatientPro adds new payload fields later.
-
-3. Keep the profile linkage (`submitted_by_email` → `user_id`) as an UPDATE on whichever table was inserted into.
-
-4. Keep the Slack notification for the VA branch (`ticket_type: "va"`) firing after a successful insert.
-
-5. Deep link stays: `${publicOrigin}/admin?ticket=${data.id}&type=${isVA ? "va" : "tech"}`.
-
-After deploying, retest by clicking "Create ticket" as a VA Ticket from the PatientPro QA Operations Queue and confirm a row appears in `va_request_submissions` and the ticket lands under VA Requests in ControlHub.
-```
-
-## No changes on this side
-
-- `create-controlhub-ticket` is already correctly forwarding `issue_type: "va"` and rewriting the stored `ticket_url` to `&type=va`.
-- Once ControlHub ships the column-whitelist fix, the same "Create ticket" click will succeed with no further PatientPro changes.
+### Technical notes
+- Loading all statuses is fine: the current 500-row cap already applies; ordering by `entered_queue_at DESC` is preserved. If the caller has >500 cases across all statuses, the same cap that already applied per-tab now applies globally — acceptable given the queue view is already list-limited.
+- `useEffect` dependency list expands to include filter inputs so a filter change re-queries (search stays fully client-side; only the initial fetch depends on tab-less loading).
