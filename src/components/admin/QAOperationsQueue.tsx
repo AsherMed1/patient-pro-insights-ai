@@ -533,7 +533,7 @@ function CaseDrawer({
       case_id: caseData.id,
       note: noteDraft.trim(),
       author_user_id: user?.id ?? null,
-      author_name: user?.email ?? null,
+      author_name: authorDisplayName || user?.email || null,
     } as any);
     if (error) {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
