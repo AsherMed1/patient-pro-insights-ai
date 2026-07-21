@@ -120,7 +120,15 @@ export default function QAOperationsQueue() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
-  const [setters, setSetters] = useState<{ id: string; name: string }[]>([]);
+  const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
+
+  const refreshErrorSources = async () => {
+    const { data } = await supabase
+      .from('qa_error_sources' as any)
+      .select('id, name')
+      .order('name', { ascending: true });
+    setErrorSources(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+  };
 
   const fetchCases = async () => {
     setLoading(true);
@@ -184,26 +192,7 @@ export default function QAOperationsQueue() {
         setProjectLocationMap(map);
       }
     })();
-    (async () => {
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'review_only');
-      const ids = (roles as any[])?.map((r) => r.user_id).filter(Boolean) ?? [];
-      if (ids.length === 0) {
-        setSetters([]);
-        return;
-      }
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', ids);
-      const list = ((profs as any[]) ?? [])
-        .map((p) => ({ id: p.id, name: (p.full_name || p.email || '').trim() }))
-        .filter((p) => p.name)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setSetters(list);
-    })();
+    refreshErrorSources();
   }, []);
 
   const ghlUrlFor = (c: QACase): string | null => {
@@ -438,7 +427,8 @@ export default function QAOperationsQueue() {
       <CaseDrawer
         caseData={selectedCase}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
-        setters={setters}
+        errorSources={errorSources}
+        onErrorSourcesRefresh={refreshErrorSources}
         onClose={() => setSelectedCase(null)}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); fetchCounts(); }}
@@ -451,14 +441,16 @@ export default function QAOperationsQueue() {
 function CaseDrawer({
   caseData,
   ghlUrl,
-  setters,
+  errorSources,
+  onErrorSourcesRefresh,
   onClose,
   onStatusChange,
   onRefresh,
 }: {
   caseData: QACase | null;
   ghlUrl: string | null;
-  setters: { id: string; name: string }[];
+  errorSources: { id: string; name: string }[];
+  onErrorSourcesRefresh: () => Promise<void>;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
@@ -728,37 +720,12 @@ function CaseDrawer({
                   </div>
                   <div>
                     <Label className="text-xs">Error Source</Label>
-                    <Select
-                      value={
-                        audit.error_source && setters.some((s) => s.name === audit.error_source)
-                          ? audit.error_source
-                          : audit.error_source
-                            ? '__other__'
-                            : ''
-                      }
-                      onValueChange={(v) =>
-                        setAudit((a) => ({
-                          ...a,
-                          error_source: v === '__other__' ? (a.error_source && !setters.some((s) => s.name === a.error_source) ? a.error_source : '') : v,
-                        }))
-                      }
-                    >
-                      <SelectTrigger><SelectValue placeholder="Select setter / agent" /></SelectTrigger>
-                      <SelectContent>
-                        {setters.map((s) => (
-                          <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-                        ))}
-                        <SelectItem value="__other__">Other…</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {audit.error_source !== null && audit.error_source !== undefined && !setters.some((s) => s.name === audit.error_source) && (
-                      <Input
-                        className="mt-2"
-                        value={audit.error_source ?? ''}
-                        onChange={(e) => setAudit((a) => ({ ...a, error_source: e.target.value }))}
-                        placeholder="Enter name"
-                      />
-                    )}
+                    <ErrorSourceField
+                      value={audit.error_source ?? ''}
+                      onChange={(v) => setAudit((a) => ({ ...a, error_source: v }))}
+                      sources={errorSources}
+                      onSourcesRefresh={onErrorSourcesRefresh}
+                    />
                   </div>
 
                 </div>
@@ -1016,5 +983,104 @@ function CaseDrawer({
         />
       )}
     </Sheet>
+  );
+}
+
+function ErrorSourceField({
+  value,
+  onChange,
+  sources,
+  onSourcesRefresh,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  sources: { id: string; name: string }[];
+  onSourcesRefresh: () => Promise<void>;
+}) {
+  const [showOther, setShowOther] = useState(false);
+  const [otherInput, setOtherInput] = useState('');
+  const [otherError, setOtherError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const inList = value && sources.some((s) => s.name === value);
+  const selectValue = inList ? value : showOther || value ? '__other__' : '';
+
+  const handleAdd = async () => {
+    const trimmed = otherInput.trim();
+    setOtherError(null);
+    if (!trimmed) {
+      setOtherError('Please enter a name.');
+      return;
+    }
+    const existing = sources.find(
+      (s) => s.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setOtherError(`"${existing.name}" already exists in the list — please select it instead.`);
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from('qa_error_sources' as any)
+      .insert({ name: trimmed });
+    setSaving(false);
+    if (error) {
+      if ((error as any).code === '23505') {
+        setOtherError(`"${trimmed}" already exists in the list — please select it instead.`);
+        await onSourcesRefresh();
+      } else {
+        setOtherError(error.message);
+      }
+      return;
+    }
+    await onSourcesRefresh();
+    onChange(trimmed);
+    setOtherInput('');
+    setShowOther(false);
+  };
+
+  return (
+    <>
+      <Select
+        value={selectValue}
+        onValueChange={(v) => {
+          if (v === '__other__') {
+            setShowOther(true);
+            setOtherError(null);
+            onChange('');
+          } else {
+            setShowOther(false);
+            setOtherError(null);
+            onChange(v);
+          }
+        }}
+      >
+        <SelectTrigger><SelectValue placeholder="Select error source" /></SelectTrigger>
+        <SelectContent className="max-h-72">
+          {sources.map((s) => (
+            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+          ))}
+          <SelectItem value="__other__">Other…</SelectItem>
+        </SelectContent>
+      </Select>
+      {showOther && (
+        <div className="mt-2 space-y-1">
+          <div className="flex gap-2">
+            <Input
+              value={otherInput}
+              onChange={(e) => { setOtherInput(e.target.value); setOtherError(null); }}
+              placeholder="Enter new error source"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+            />
+            <Button type="button" onClick={handleAdd} disabled={saving} size="sm">
+              {saving ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+          {otherError && (
+            <p className="text-xs text-destructive">{otherError}</p>
+          )}
+        </div>
+      )}
+    </>
   );
 }
