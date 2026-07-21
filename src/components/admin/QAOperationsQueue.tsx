@@ -507,6 +507,7 @@ function CaseDrawer({
           .maybeSingle();
         defaultName = ((prof as any)?.full_name || '').trim() || (user as any)?.user_metadata?.full_name || '';
       }
+      setAuthorDisplayName(defaultName || user?.email || '');
       setAudit({
         qa_name: caseData.qa_name ?? (defaultName || ''),
         self_booked: caseData.self_booked,
