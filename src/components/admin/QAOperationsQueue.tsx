@@ -912,13 +912,21 @@ function CaseDrawer({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Issue type</Label>
-                <Input
-                  value={ticketForm.issue_type}
-                  onChange={(e) => setTicketForm((f) => ({ ...f, issue_type: e.target.value }))}
-                  placeholder="qa-operations"
-                  maxLength={60}
-                />
+                <Label className="text-xs">Ticket type *</Label>
+                <Select
+                  value={ticketForm.issue_type || undefined}
+                  onValueChange={(v) => setTicketForm((f) => ({
+                    ...f,
+                    issue_type: v as 'va' | 'tech',
+                    task_name: applyTypePrefix(f.task_name, v as 'va' | 'tech'),
+                  }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select ticket type…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="va">VA Ticket</SelectItem>
+                    <SelectItem value="tech">Tech Ticket</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs">Priority</Label>
