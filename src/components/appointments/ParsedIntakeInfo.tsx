@@ -80,6 +80,15 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editMemberId, setEditMemberId] = useState("");
   const [editGroupNumber, setEditGroupNumber] = useState("");
 
+  // Secondary insurance edit state
+  const [isEditingSecondary, setIsEditingSecondary] = useState(false);
+  const [isSavingSecondary, setIsSavingSecondary] = useState(false);
+  const [editSecProvider, setEditSecProvider] = useState("");
+  const [editSecPlan, setEditSecPlan] = useState("");
+  const [editSecMemberId, setEditSecMemberId] = useState("");
+  const [editSecGroupNumber, setEditSecGroupNumber] = useState("");
+
+
   // PCP edit state
   const [isEditingPCP, setIsEditingPCP] = useState(false);
   const [isSavingPCP, setIsSavingPCP] = useState(false);
