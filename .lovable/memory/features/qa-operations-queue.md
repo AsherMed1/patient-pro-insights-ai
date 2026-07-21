@@ -10,6 +10,7 @@ Ingestion (DB triggers):
 - `short_notice_alerts` INSERT → `short_notice` case
 - `all_appointments.status` UPDATE to OON → `oon` case
 - `all_appointments.status` UPDATE to Confirmed → `confirmed_audit` case (routine auditing of every confirmed appointment)
+- `all_appointments.review_status` = 'pending' (insert or transition into pending) → `review_queue` case. On approve → alert flips to `confirmed_audit`; on OON → flips to `oon`; on declined/dismissed → case completed with resolution "Declined in Review Queue". `review_entered_at` / `review_resolved_at` timestamps capture how long the appointment sat in Review Queue. Reviewer name (profiles.full_name) recorded in qa_case_activity.
 - Cancelled / No Show (post-confirmation) are NO LONGER in the daily queue. They log to `qa_metrics_events` only, for reporting/trend analysis.
 
 Dedup key: (appointment_id OR ghl_contact_id, alert_type) for non-completed cases. A repeat alert on a completed case reopens it.
