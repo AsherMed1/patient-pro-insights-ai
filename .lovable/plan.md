@@ -1,30 +1,28 @@
-## Problem
+# Inline Patient Portal Record in QA Operations Queue
 
-The QA Operations Queue shows OON (66) cases but zero **Confirmed Audit** cases, even though 1,292 confirmed appointments exist.
+## Goal
+Replace the "View in project portal" button (which opens `/project/<name>` in a new tab) with an inline modal/drawer that shows the patient's appointment record directly on the QA Operations page — no tab switch, no navigation away.
 
-**Root cause:** `trg_qa_ingest_confirmed_audit` only fires on `AFTER UPDATE OF status` where the *previous* status was different from `'confirmed'`. In practice:
+## Approach
 
-- New appointments are inserted directly with `status='Confirmed'` (default from GHL sync / Review Queue approval) → no UPDATE fires, so no case is created.
-- Appointments that were already Confirmed before the trigger was deployed were never enqueued.
+The QA queue already renders `AppointmentCard` inline for the selected case (visible in the screenshot). What the "View in project portal" button currently adds is the richer *project-portal-scoped* context (portal-styled detail view). We'll replicate that inline via a large `Dialog` (or `Sheet`) that mounts the same detailed appointment view used in the project portal, scoped to this one appointment.
 
-That's why the queue is empty of confirmed audits.
+## Changes
 
-## Fix
+**`src/components/admin/QAOperationsQueue.tsx`**
+- Remove `window.open('/project/...', '_blank')` on the "View in project portal" button.
+- Add local state `portalRecordOpen: boolean` and reuse the existing `caseData.appointment_id`.
+- On click, open a full-width `Dialog` (`max-w-6xl`, `max-h-[90vh]`, scrollable) titled "Patient portal record — {lead_name}".
+- Inside the dialog, render the project-portal detailed appointment view for that single appointment id. Reuse `DetailedAppointmentView` (already used in `AppointmentCard` / portal) fed by a small fetch of the appointment row by id, so we don't need to load the whole project portal.
+- Keep the button label but drop the `ExternalLink` icon; use a "Maximize2" icon to signal in-page open.
 
-1. **Add an INSERT-side trigger** on `all_appointments` that calls the existing `qa_ingest_confirmed_audit` logic when a row is inserted with `status='Confirmed'` (and not a reserved block / superseded). Reuse `qa_upsert_case` so dedup by `(appointment_id, alert_type)` still holds.
-2. **Also enqueue on Review Queue approval.** When admin approval flips `review_status` to `approved` on an already-Confirmed row, ensure a `confirmed_audit` case is created (approval is the moment the appointment becomes clinic-visible, so that's the right audit trigger).
-3. **Backfill** existing confirmed, non-superseded, non-reserved, review-approved (or legacy pre-review-queue) appointments into `qa_cases` as `confirmed_audit / new`, respecting the existing dedup key so no duplicates are created for rows that already have an OON or short-notice case.
+**No changes to** routing, `ProjectPortal.tsx`, or the button's permissions logic.
 
-No UI changes — the queue already filters to `short_notice | oon | confirmed_audit` and renders the "Confirmed Audit" badge.
+## Technical notes
+- `DetailedAppointmentView` accepts an appointment object; we'll query `all_appointments` by `caseData.appointment_id` on dialog open and pass the row in, with a small loading state.
+- The right-hand QA audit drawer stays mounted, so QA can save audit details and open the record simultaneously.
+- Closing the dialog returns focus to the QA case with no re-fetch of the queue.
 
-## Technical details
-
-- New trigger: `AFTER INSERT ON public.all_appointments FOR EACH ROW WHEN (LOWER(TRIM(NEW.status)) = 'confirmed')` → reuse `qa_ingest_confirmed_audit` (or split into a shared helper called from both INSERT and UPDATE paths).
-- Extend/replace `qa_ingest_confirmed_audit` to accept both TG_OP='INSERT' and 'UPDATE'; skip the `old <> new` guard on INSERT.
-- Optional: `AFTER UPDATE OF review_status` trigger firing when `review_status` transitions to `approved` and status is `Confirmed`, so pending-review confirmations enter the queue at approval time rather than webhook time.
-- Backfill SQL: `INSERT INTO qa_cases (...) SELECT ... FROM all_appointments WHERE status ILIKE 'confirmed' AND NOT is_reserved_block AND NOT is_superseded AND COALESCE(review_status,'approved') IN ('approved') AND NOT EXISTS (SELECT 1 FROM qa_cases q WHERE q.appointment_id = all_appointments.id AND q.alert_type = 'confirmed_audit')`.
-- Wrap trigger body in the same EXCEPTION block already used, so a QA ingestion error can never block a clinical INSERT/UPDATE.
-
-## Open question
-
-Do you want the backfill to enqueue **all 1,292 existing confirmed appointments** at once (large one-time queue for QA), or only ones confirmed in the **last N days** (e.g., 14 or 30)?
+## Out of scope
+- Embedding the entire project portal (tabs, filters, etc.) — not needed for QA review.
+- Changing how the "Open in GHL" link works (still external, as intended).
