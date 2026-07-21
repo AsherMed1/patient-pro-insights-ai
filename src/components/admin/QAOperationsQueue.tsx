@@ -651,8 +651,9 @@ function CaseDrawer({
     priority: 'medium',
     description: '',
     submitted_by: '',
-    assignee_name: '',
+    assignee_names: [] as string[],
   });
+  const [assigneeSearch, setAssigneeSearch] = useState('');
 
   const stripTypePrefix = (name: string) =>
     name.replace(/^QA:\s+[^—]+\s—\s/, '').replace(/^(VA|Tech)\s+(Ticket\s+)?—\s*/, '');
