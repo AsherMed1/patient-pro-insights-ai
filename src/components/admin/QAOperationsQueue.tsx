@@ -635,6 +635,7 @@ function CaseDrawer({
     priority: 'medium',
     description: '',
     submitted_by: '',
+    assignee_name: '',
   });
 
   const stripTypePrefix = (name: string) =>
