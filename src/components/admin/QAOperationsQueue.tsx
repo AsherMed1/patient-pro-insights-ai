@@ -374,7 +374,7 @@ export default function QAOperationsQueue() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((c) => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => setSelectedCase(c)}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openCase(c)}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <span>{c.patient_name || '—'}</span>
