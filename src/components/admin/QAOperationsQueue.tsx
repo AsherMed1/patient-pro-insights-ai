@@ -98,7 +98,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
 
-const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to AM', 'Other'];
+const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to Tech', 'Escalated to AM', 'Escalated to Gloria', 'Other'];
 
 const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
