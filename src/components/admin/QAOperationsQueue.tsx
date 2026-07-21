@@ -413,6 +413,7 @@ export default function QAOperationsQueue() {
                       <TableCell>{c.error_category || '—'}</TableCell>
                       <TableCell>{c.error_source || '—'}</TableCell>
                       <TableCell>{c.resolution_type || '—'}</TableCell>
+                      <TableCell className="text-muted-foreground">{format(new Date(c.first_entered_at || c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
                       <TableCell>{format(new Date(c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
                       <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
                       <TableCell>
