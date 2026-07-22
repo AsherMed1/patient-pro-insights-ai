@@ -614,6 +614,8 @@ export default function QAOperationsQueue() {
 
 function CaseDrawer({
   caseData,
+  siblings,
+  onSwitchCase,
   ghlUrl,
   errorSources,
   onErrorSourcesRefresh,
@@ -624,6 +626,8 @@ function CaseDrawer({
   onRefresh,
 }: {
   caseData: QACase | null;
+  siblings: QACase[];
+  onSwitchCase: (c: QACase) => void;
   ghlUrl: string | null;
   errorSources: { id: string; name: string }[];
   onErrorSourcesRefresh: () => Promise<void>;
@@ -633,6 +637,7 @@ function CaseDrawer({
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
 }) {
+
   const { user } = useAuth();
   const [notes, setNotes] = useState<QANote[]>([]);
   const [activity, setActivity] = useState<QAActivity[]>([]);
