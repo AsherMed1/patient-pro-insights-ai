@@ -110,6 +110,12 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPhone, setEditPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
 
+  // Demographics edit state
+  const [isEditingDemographics, setIsEditingDemographics] = useState(false);
+  const [isSavingDemographics, setIsSavingDemographics] = useState(false);
+  const [editDob, setEditDob] = useState("");
+  const [editGender, setEditGender] = useState("");
+
   // Reparse state
   const [isReparsing, setIsReparsing] = useState(false);
 
@@ -445,6 +451,118 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     }
   };
 
+  // Demographics edit handlers
+  const handleStartEditDemographics = () => {
+    const rawDob = dob || parsedDemographics?.dob || parsedContactInfo?.dob || "";
+    let normalizedDob = "";
+    if (rawDob) {
+      try {
+        const d = new Date(String(rawDob));
+        if (!isNaN(d.getTime())) {
+          normalizedDob = format(d, "yyyy-MM-dd");
+        }
+      } catch {
+        normalizedDob = "";
+      }
+    }
+    setEditDob(normalizedDob);
+    setEditGender(parsedDemographics?.gender || "");
+    setIsEditingDemographics(true);
+  };
+
+  const handleCancelEditDemographics = () => {
+    setIsEditingDemographics(false);
+  };
+
+  const handleSaveDemographics = async () => {
+    if (!appointmentId) {
+      toast({
+        title: "Error",
+        description: "Cannot save: appointment ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate DOB (allow empty to clear; reject today or future)
+    let dobToSave: string | null = null;
+    if (editDob) {
+      const d = new Date(editDob);
+      if (isNaN(d.getTime())) {
+        toast({ title: "Invalid date", description: "Please enter a valid date of birth.", variant: "destructive" });
+        return;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dCopy = new Date(d);
+      dCopy.setHours(0, 0, 0, 0);
+      if (dCopy.getTime() >= today.getTime()) {
+        toast({ title: "Invalid date", description: "Date of birth cannot be today or in the future.", variant: "destructive" });
+        return;
+      }
+      dobToSave = editDob;
+    }
+
+    setIsSavingDemographics(true);
+    try {
+      const genderToSave = editGender.trim() || null;
+      const updatedDemographics = {
+        ...(parsedDemographics || {}),
+        dob: dobToSave,
+        age: dobToSave ? calculateAge(dobToSave) : null,
+        gender: genderToSave,
+      };
+
+      const updates: Record<string, any> = {
+        dob: dobToSave,
+        parsed_demographics: updatedDemographics,
+      };
+
+      if (parsedContactInfo) {
+        updates.parsed_contact_info = {
+          ...parsedContactInfo,
+          dob: dobToSave,
+        };
+      }
+
+      const previousValues: Record<string, any> = {
+        dob: dob ?? null,
+        parsed_demographics: parsedDemographics || {},
+        ...(parsedContactInfo ? { parsed_contact_info: parsedContactInfo } : {}),
+      };
+
+      const { error } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates,
+          previousValues,
+          userId,
+          userName,
+          changeSource: 'portal'
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Demographics updated",
+      });
+
+      setIsEditingDemographics(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error saving demographics:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save demographics",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDemographics(false);
+    }
+  };
+
   // Handle reparse request
   const handleReparse = async () => {
     if (!appointmentId) {
@@ -521,7 +639,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-4">
           {/* Demographics Section */}
-          {(parsedDemographics || dob || parsedContactInfo?.dob) && (() => {
+          {(parsedDemographics || dob || parsedContactInfo?.dob || appointmentId) && (() => {
             const rawDOB = dob || parsedDemographics?.dob || parsedContactInfo?.dob;
             // Guard against sentinel/garbage DOB values (null, today's date, future dates)
             const isValidDOB = (() => {
@@ -551,28 +669,99 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
             return (
               <Card className="bg-purple-50 border-purple-200">
                 <CardContent className="pt-4 space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <User className="h-4 w-4 text-purple-600" />
-                    <span className="font-medium text-sm text-purple-900">Demographics</span>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Age:</span>{" "}
-                    <span className="font-medium">{formatValue(displayAge) || "—"}</span>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Date of Birth:</span>{" "}
-                    <span className="font-medium">{displayDOB ? formatDOB(displayDOB) : "—"}</span>
-                  </div>
-                  {formatValue(displayGender) && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Gender:</span>{" "}
-                      <span className="font-medium">{displayGender}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-purple-600" />
+                      <span className="font-medium text-sm text-purple-900">Demographics</span>
                     </div>
+                    {appointmentId && !isEditingDemographics && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEditDemographics();
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {isEditingDemographics && (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                          onClick={handleSaveDemographics}
+                          disabled={isSavingDemographics}
+                        >
+                          {isSavingDemographics ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={handleCancelEditDemographics}
+                          disabled={isSavingDemographics}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isEditingDemographics ? (
+                    <div className="space-y-2">
+                      <div className="text-sm">
+                        <label className="text-muted-foreground block mb-1">Date of Birth</label>
+                        <Input
+                          type="date"
+                          value={editDob}
+                          onChange={(e) => setEditDob(e.target.value)}
+                          className="h-8 text-sm bg-white"
+                          max={format(new Date(Date.now() - 86400000), "yyyy-MM-dd")}
+                        />
+                        {editDob && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Age will be recalculated: {calculateAge(editDob) ?? "—"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-sm">
+                        <label className="text-muted-foreground block mb-1">Gender</label>
+                        <Input
+                          type="text"
+                          value={editGender}
+                          onChange={(e) => setEditGender(e.target.value)}
+                          placeholder="e.g. Female / Male"
+                          className="h-8 text-sm bg-white"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Age:</span>{" "}
+                        <span className="font-medium">{formatValue(displayAge) || "—"}</span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Date of Birth:</span>{" "}
+                        <span className="font-medium">{displayDOB ? formatDOB(displayDOB) : "—"}</span>
+                      </div>
+                      {formatValue(displayGender) && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Gender:</span>{" "}
+                          <span className="font-medium">{displayGender}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
             );
           })()}
+
 
           {/* Contact Information Section */}
           {parsedContactInfo && (
