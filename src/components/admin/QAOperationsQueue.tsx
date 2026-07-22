@@ -278,7 +278,7 @@ export default function QAOperationsQueue() {
   useEffect(() => {
     if (!selectedCase) return;
     const fresh = cases.find((c) => c.id === selectedCase.id);
-    if (fresh && fresh.updated_at !== selectedCase.updated_at) {
+    if (fresh && fresh !== selectedCase) {
       setSelectedCase(fresh);
     }
     setSelectedSiblings((ss) =>
