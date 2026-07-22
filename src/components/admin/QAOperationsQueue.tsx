@@ -689,6 +689,23 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
+  const [apptTz, setApptTz] = useState<string>(
+    () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
+  );
+
+  useEffect(() => {
+    if (!caseData?.project_name) return;
+    const cached = getCachedProjectTimezone(caseData.project_name);
+    if (cached) { setApptTz(cached); return; }
+    let cancelled = false;
+    fetchProjectTimezone(caseData.project_name).then((tz) => {
+      if (!cancelled) setApptTz(tz);
+    });
+    return () => { cancelled = true; };
+  }, [caseData?.project_name]);
+
+  const formatApptDate = (iso: string | null | undefined) =>
+    iso ? formatInTimeZone(new Date(iso), apptTz, 'PP p') : '—';
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
