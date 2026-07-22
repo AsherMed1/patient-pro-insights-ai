@@ -16,10 +16,12 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
 import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { renderWithLinks } from '@/lib/linkify';
+import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue';
