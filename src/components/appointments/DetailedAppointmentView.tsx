@@ -199,7 +199,49 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
-  const { isAdmin, isVA } = useRole();
+  const { isAdmin, isVA, hasRole } = useRole();
+
+  // Inline name-edit state (Portal ↔ GHL two-way sync)
+  const canEditName = isAdmin() || isVA() || hasRole(['agent', 'qa_specialist']);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(appointment.lead_name || '');
+  const [savingName, setSavingName] = useState(false);
+  const [displayName, setDisplayName] = useState(appointment.lead_name || '');
+  useEffect(() => {
+    setDisplayName(appointment.lead_name || '');
+    setEditedName(appointment.lead_name || '');
+  }, [appointment.id, appointment.lead_name]);
+
+  const handleSaveName = async () => {
+    const trimmed = editedName.trim();
+    if (!trimmed || trimmed === displayName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('update-ghl-contact-name', {
+        body: { appointment_id: appointment.id, new_name: trimmed, user_name: userName || null },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to update name');
+      setDisplayName(trimmed);
+      setIsEditingName(false);
+      if (data.ghl_pushed) {
+        toast.success('Name updated and synced to GHL');
+      } else if (data.ghl_skipped_reason === 'no_ghl_id') {
+        toast.success('Name updated (no linked GHL contact — portal only)');
+      } else {
+        toast.success('Name updated');
+      }
+    } catch (e: any) {
+      console.error('Name update failed:', e);
+      toast.error(e?.message || 'Failed to update name');
+      setEditedName(displayName);
+    } finally {
+      setSavingName(false);
+    }
+  };
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
