@@ -164,13 +164,33 @@ Deno.serve(async (req) => {
       created_by: actor,
     });
 
+    // Sync patient_name into qa_cases (snapshot column) so QA Operations reflects the change
+    let qaCasesUpdated = 0;
+    const { data: qaByAppt } = await supabase
+      .from('qa_cases')
+      .update({ patient_name: trimmedName })
+      .eq('appointment_id', appointment_id)
+      .select('id');
+    qaCasesUpdated += qaByAppt?.length || 0;
+
+    if (appt.ghl_id) {
+      const { data: qaByGhl } = await supabase
+        .from('qa_cases')
+        .update({ patient_name: trimmedName })
+        .eq('ghl_contact_id', appt.ghl_id)
+        .select('id');
+      qaCasesUpdated += qaByGhl?.length || 0;
+    }
+
     return new Response(JSON.stringify({
       success: true,
       changed: true,
       ghl_pushed: ghlPushed,
       ghl_skipped_reason: ghlSkippedReason,
       siblings_updated: siblingsUpdated,
+      qa_cases_updated: qaCasesUpdated,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
 
   } catch (err) {
     console.error('[update-ghl-contact-name] Error:', err);
