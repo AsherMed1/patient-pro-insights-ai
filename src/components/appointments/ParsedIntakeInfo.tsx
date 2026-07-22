@@ -451,6 +451,118 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     }
   };
 
+  // Demographics edit handlers
+  const handleStartEditDemographics = () => {
+    const rawDob = dob || parsedDemographics?.dob || parsedContactInfo?.dob || "";
+    let normalizedDob = "";
+    if (rawDob) {
+      try {
+        const d = new Date(String(rawDob));
+        if (!isNaN(d.getTime())) {
+          normalizedDob = format(d, "yyyy-MM-dd");
+        }
+      } catch {
+        normalizedDob = "";
+      }
+    }
+    setEditDob(normalizedDob);
+    setEditGender(parsedDemographics?.gender || "");
+    setIsEditingDemographics(true);
+  };
+
+  const handleCancelEditDemographics = () => {
+    setIsEditingDemographics(false);
+  };
+
+  const handleSaveDemographics = async () => {
+    if (!appointmentId) {
+      toast({
+        title: "Error",
+        description: "Cannot save: appointment ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate DOB (allow empty to clear; reject today or future)
+    let dobToSave: string | null = null;
+    if (editDob) {
+      const d = new Date(editDob);
+      if (isNaN(d.getTime())) {
+        toast({ title: "Invalid date", description: "Please enter a valid date of birth.", variant: "destructive" });
+        return;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dCopy = new Date(d);
+      dCopy.setHours(0, 0, 0, 0);
+      if (dCopy.getTime() >= today.getTime()) {
+        toast({ title: "Invalid date", description: "Date of birth cannot be today or in the future.", variant: "destructive" });
+        return;
+      }
+      dobToSave = editDob;
+    }
+
+    setIsSavingDemographics(true);
+    try {
+      const genderToSave = editGender.trim() || null;
+      const updatedDemographics = {
+        ...(parsedDemographics || {}),
+        dob: dobToSave,
+        age: dobToSave ? calculateAge(dobToSave) : null,
+        gender: genderToSave,
+      };
+
+      const updates: Record<string, any> = {
+        dob: dobToSave,
+        parsed_demographics: updatedDemographics,
+      };
+
+      if (parsedContactInfo) {
+        updates.parsed_contact_info = {
+          ...parsedContactInfo,
+          dob: dobToSave,
+        };
+      }
+
+      const previousValues: Record<string, any> = {
+        dob: dob ?? null,
+        parsed_demographics: parsedDemographics || {},
+        ...(parsedContactInfo ? { parsed_contact_info: parsedContactInfo } : {}),
+      };
+
+      const { error } = await supabase.functions.invoke('update-appointment-fields', {
+        body: {
+          appointmentId,
+          updates,
+          previousValues,
+          userId,
+          userName,
+          changeSource: 'portal'
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Demographics updated",
+      });
+
+      setIsEditingDemographics(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error saving demographics:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save demographics",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDemographics(false);
+    }
+  };
+
   // Handle reparse request
   const handleReparse = async () => {
     if (!appointmentId) {
