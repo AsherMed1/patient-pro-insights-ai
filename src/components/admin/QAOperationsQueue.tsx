@@ -254,9 +254,10 @@ export default function QAOperationsQueue() {
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
 
   const bucketCounts = useMemo(() => {
-    const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0 };
+    const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
     for (const c of filteredNoStatus) {
       if (counts[c.workflow_status] !== undefined) counts[c.workflow_status]++;
+      counts.all++;
     }
     return counts;
   }, [filteredNoStatus]);
