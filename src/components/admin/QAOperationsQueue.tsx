@@ -924,55 +924,27 @@ function CaseDrawer({
                       (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
                     )
                   : undefined;
-              const previousAlerts = siblings.filter((s) => s.id !== pinnedShortNotice?.id);
               return (
-                <div className="mt-3 border rounded-lg p-3 bg-muted/30 space-y-3">
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      Current alert{pinnedShortNotice ? 's' : ''} for this patient
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
-                        {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
-                      </Badge>
-                      {pinnedShortNotice && (
-                        <button
-                          onClick={() => onSwitchCase(pinnedShortNotice)}
-                          className="inline-flex"
-                          title={`Open ${ALERT_LABELS[pinnedShortNotice.alert_type]} alert`}
-                        >
-                          <Badge variant={alertVariant(pinnedShortNotice.alert_type)} className="cursor-pointer hover:opacity-80">
-                            {ALERT_LABELS[pinnedShortNotice.alert_type]} · {pinnedShortNotice.workflow_status.replace('_', ' ')}
-                          </Badge>
-                        </button>
-                      )}
-                    </div>
+                <div className="mt-3 border rounded-lg p-3 bg-muted/30">
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Current alert{pinnedShortNotice ? 's' : ''} for this patient
                   </div>
-                  {previousAlerts.length > 0 && (
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-2">
-                        Previous alerts ({previousAlerts.length}) — click to switch
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        {previousAlerts.map((s) => (
-                          <button
-                            key={s.id}
-                            onClick={() => onSwitchCase(s)}
-                            className="text-left text-xs px-2 py-1 rounded hover:bg-accent flex items-center justify-between gap-2"
-                            title={`Open ${ALERT_LABELS[s.alert_type]} alert`}
-                          >
-                            <span>
-                              <Badge variant="outline" className="mr-2">{ALERT_LABELS[s.alert_type]}</Badge>
-                              <span className="text-muted-foreground">{s.workflow_status.replace('_', ' ')}</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              {format(new Date(s.last_alert_activity_at || s.entered_queue_at), 'MMM d, h:mm a')}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
+                      {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
+                    </Badge>
+                    {pinnedShortNotice && (
+                      <button
+                        onClick={() => onSwitchCase(pinnedShortNotice)}
+                        className="inline-flex"
+                        title={`Open ${ALERT_LABELS[pinnedShortNotice.alert_type]} alert`}
+                      >
+                        <Badge variant={alertVariant(pinnedShortNotice.alert_type)} className="cursor-pointer hover:opacity-80">
+                          {ALERT_LABELS[pinnedShortNotice.alert_type]} · {pinnedShortNotice.workflow_status.replace('_', ' ')}
+                        </Badge>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })()}
