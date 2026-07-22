@@ -859,6 +859,33 @@ function CaseDrawer({
               </div>
             </SheetHeader>
 
+            {siblings.length > 0 && (
+              <div className="mt-3 border rounded-lg p-3 bg-muted/30">
+                <div className="text-xs text-muted-foreground mb-2">
+                  Alerts for this patient ({siblings.length + 1}) — click to switch
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
+                    {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
+                  </Badge>
+                  {siblings.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => onSwitchCase(s)}
+                      className="inline-flex"
+                      title={`Open ${ALERT_LABELS[s.alert_type]} alert`}
+                    >
+                      <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                        {ALERT_LABELS[s.alert_type]} · {s.workflow_status.replace('_', ' ')}
+                        {' · '}{format(new Date(s.last_alert_activity_at || s.entered_queue_at), 'MMM d')}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
             <div className="space-y-4 mt-4 min-w-0 max-w-full">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm min-w-0">
                 <div className="min-w-0">
