@@ -131,7 +131,13 @@ const VA_ASSIGNEES = [
   'Kathryn Meksavanh',
   'Alexa Briggs',
 ];
-const TECH_ASSIGNEES = VA_ASSIGNEES;
+const TECH_ASSIGNEES = [
+  'Luis De Leon',
+  'Alexa Briggs',
+  'Althea Romero',
+  'Johann Paul Alpapara',
+  'Mohsin',
+];
 
 const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
