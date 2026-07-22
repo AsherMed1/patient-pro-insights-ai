@@ -377,7 +377,8 @@ export default function QAOperationsQueue() {
 
   };
 
-  const openCase = (c: QACase) => {
+  const openCase = (c: QACase, siblings: QACase[] = []) => {
+    setSelectedSiblings(siblings.filter((s) => s.id !== c.id));
     if (c.workflow_status === 'new') {
       // Optimistically reflect In Review in the drawer immediately
       setSelectedCase({ ...c, workflow_status: 'in_review' });
@@ -387,6 +388,18 @@ export default function QAOperationsQueue() {
       setSelectedCase(c);
     }
   };
+
+  const openGroup = (g: QAGroup) => openCase(g.primary, g.children);
+
+  const switchToSibling = (c: QACase) => {
+    // Switch within the same group without re-triggering the new→in_review flip
+    const allInGroup = selectedCase
+      ? [selectedCase, ...selectedSiblings]
+      : [c];
+    setSelectedSiblings(allInGroup.filter((s) => s.id !== c.id));
+    setSelectedCase(c);
+  };
+
 
   const clearDateFilters = () => {
     setDateFrom(undefined);
