@@ -1,39 +1,55 @@
-## Goal
-In the QA Operations Queue, a patient should visually display **only the most recent alert** on their row and record header. Prior alerts (e.g. Review Queue → Confirmed Audit) become history, not chips. Short-Notice is the one exception — it stays paired alongside the latest alert whenever an open short-notice case exists for that patient.
+## Issue: Earl A Chestnut shows 3 different appointment times
 
-## Scope
-`src/components/admin/QAOperationsQueue.tsx` only. No DB, RLS, or edge function changes. Sibling data is still loaded (needed for switching/history), just filtered from the chip display.
+- **Client portal:** Jul 30, 2026 10:30 AM
+- **QA Operations drawer:** Jul 30, 2026 5:30 AM
+- **GHL:** Jul 31, 2026 11:30 AM (EDT)
 
-## Changes
+I confirmed two distinct problems in the data.
 
-### 1. Compute a `displayAlertTypes` per group
-In `groupCases` (around line 189), replace the flat `alertTypes = unique(sorted.map(...))` with:
-- `latest` = `sorted[0].alert_type` (already sorted by `last_alert_activity_at` desc)
-- `hasOpenShortNotice` = any child where `alert_type === 'short_notice'` AND `workflow_status !== 'completed'`
-- `displayAlertTypes` =
-  - `[latest]` if latest is `short_notice` or no open short-notice sibling exists
-  - `['short_notice', latest]` otherwise (short-notice pinned first)
+---
 
-Rename the group field from `alertTypes` → `displayAlertTypes` and update the two consumers (lines 554, 557).
+### Part 1 — QA Operations timezone bug (root cause identified, safe to fix)
 
-### 2. Update the Alerts column overflow badge
-Line 557's `+N` overflow badge currently counts `children.length - alertTypes.length`. Replace with count of *hidden* alert types: `children.length - displayAlertTypes.length` — remains accurate and now correctly reflects "N older alerts hidden".
+`qa_cases` for this appointment stores `appointment_date = 2026-07-30 10:30:00+00` (UTC). The portal-correct value is `2026-07-30 10:30 America/New_York` (= `14:30 UTC`). So it's stored 4 hours early, then rendered in the viewer's browser timezone — that's why it displays as `5:30 AM` (browser is on CDT/UTC‑5).
 
-### 3. Update the drawer sibling chip strip (lines 868–892)
-Match the same rule for the header chip row:
-- Always show the currently-open case's chip
-- Additionally show a chip for an open short-notice sibling (if the open case isn't already short-notice)
-- Do NOT render other sibling chips as top-level chips
+The bug is in the trigger `public.qa_ingest_confirmed_audit` (and the equivalent line in the other QA ingest triggers):
 
-Move the remaining siblings into a new collapsible **"Previous alerts"** subsection inside the existing Activity/History area — render as clickable rows (same `onSwitchCase` behavior) showing alert label, workflow status, and `last_alert_activity_at`. This preserves the ability to switch cases without cluttering the header.
+```sql
+appt_ts := (NEW.date_of_appointment::text || ' ' || COALESCE(NEW.requested_time, '00:00:00'))::timestamptz
+```
 
-### 4. No changes to
-- Bucket counts (each case still counts in its own bucket by workflow_status)
-- Filters, search, or realtime subscriptions
-- Data model or triggers
+Casting `text → timestamptz` uses the **session timezone (UTC on the server)**, not the project's timezone. So `10:30` local wall‑clock is misinterpreted as `10:30 UTC`.
 
-## Behavior after change
-- Kelly K Vega row: shows only **Short-Notice** + **Confirmed Audit** (latest non-SN), Review Queue moves to history
-- A patient with Review Queue → Confirmed Audit (no short notice): shows only **Confirmed Audit**; Review Queue appears under Previous alerts
-- A patient with only Review Queue open: shows **Review Queue**
-- Short-Notice pairing persists until that short-notice case is marked completed
+**Fix**
+1. Update `qa_ingest_confirmed_audit`, `qa_ingest_review_queue`, `qa_ingest_short_notice`, `qa_ingest_oon` (any that build `appt_ts` from `date_of_appointment + requested_time`) to convert using the project timezone:
+   ```sql
+   SELECT timezone INTO proj_tz FROM public.projects WHERE project_name = NEW.project_name;
+   appt_ts := ((NEW.date_of_appointment::text || ' ' || COALESCE(NEW.requested_time,'00:00:00'))::timestamp)
+              AT TIME ZONE COALESCE(proj_tz, 'America/Chicago');
+   ```
+2. Backfill `qa_cases.appointment_date` for existing open rows using the same formula (join `projects` for tz).
+3. Delete the stray duplicate `qa_cases` row for Earl (one row has `10:30 UTC`, another has `00:00 UTC` from an earlier ingest before `requested_time` was set).
+
+No UI changes needed — `format(new Date(...), 'PP p')` in `QAOperationsQueue.tsx` is correct once the stored value is a true UTC instant.
+
+---
+
+### Part 2 — Portal vs GHL date mismatch (needs investigation, no code change yet)
+
+Portal has `date_of_appointment = 2026-07-30, requested_time = 10:30`. GHL shows `Jul 31, 11:30 AM EDT`. This is a **different day and time**, not a timezone shift — so it's the same class of issue we've seen before where a GHL "Appointment Updated" webhook never reached the portal (Lawrence Luczak, Sarella Kately, etc.).
+
+Proposed investigation steps (read‑only, before proposing a fix):
+- Query GHL for appointment `DfDOfeHtPiBTM0ytTRmT` (Earl's `ghl_appointment_id`) and compare `startTime` to portal.
+- Inspect `ghl_webhook_logs` / edge function logs for this appointment id around the reschedule time to confirm whether the webhook arrived and was rejected/silently dropped, or never arrived.
+- If webhook arrived but was rejected: patch the specific guard in `ghl-webhook-handler`. If webhook never arrived: repair this record via `backfill-ghl-appointment` and log as another instance of the missed‑webhook pattern for follow‑up.
+
+I'll report findings and only then propose a targeted fix — I do not want to change reschedule logic based on assumptions.
+
+---
+
+### Deliverables in build mode
+
+1. Migration updating the QA ingest trigger functions to use project timezone.
+2. Migration backfilling `qa_cases.appointment_date` for non‑completed rows.
+3. Cleanup of the duplicate `qa_cases` row for Earl Chestnut.
+4. Diagnostic run against GHL + webhook logs for `DfDOfeHtPiBTM0ytTRmT`, then a follow‑up plan for Part 2.
