@@ -1,24 +1,39 @@
-## Problem
+## Issue
 
-`qa_cases.patient_name` is a snapshot captured when the case was created. Nothing updates it when `all_appointments.lead_name` changes, so QA Operations keeps showing the old name even after the Portal→GHL sync succeeds.
+Jeanette Moore's record (`3fb0151e`) has clean, well-structured intake notes but the parsed fields on the card are mostly empty:
 
-## Fix
+- **Insurance:** provider, plan, ID all `null` — even though notes clearly say `Please select your insurance provider: Medicare Advantage plans`, `Insurance Plan: SELF PAY`, `Insurance ID Number: SELF PAY`.
+- **Pathology:** `duration`, `oa_tkr_diagnosed`, `affected_side`, `age_range` all `null` — even though every GAE STEP 1 line is present.
+- **Medical:** `pcp_name`, `pcp_phone` `null` — even though `Primary Care Doctor's Name: Dr. Ahmed` and `Primary Care Doctor's Phone Number: 347-338-5111` are present.
 
-Extend `supabase/functions/update-ghl-contact-name/index.ts` so that after it updates the target appointment and its siblings, it also updates every matching `qa_cases` row.
+Only `procedure_type=GAE`, contact info, and demographics survived the parse.
 
-Update logic (service role, runs after DB writes succeed):
+Notes contain no prompt injection or truncation — this is a straight parser miss, not a sanitization case like Walter Pitts.
 
-1. Update `qa_cases` where `appointment_id = appointment_id` → set `patient_name = trimmedName`.
-2. If `appt.ghl_id` is present, also update `qa_cases` where `ghl_contact_id = appt.ghl_id` → set `patient_name = trimmedName` (covers sibling appointments' cases).
-3. Include the counts in the response (`qa_cases_updated`) for debugging; no UI change required — QA Queue already realtime-subscribes to `qa_cases` and will refresh automatically.
+## Fix (two steps)
 
-No schema change, no trigger, no other file edits. Purely additive within the existing edge function so the QA drawer reflects the new name the moment the sync completes.
+### 1. Immediate: reparse Jeanette Moore
 
-## Result
+Invoke `reparse-specific-appointments` for `3fb0151e-b5a2-4fd7-bd79-5d61a7abe304`. If the reparse fills the fields, the root cause was a transient LLM miss (empty-result guard didn't fire because `procedure_type` was returned, so the result wasn't "empty").
 
-Editing a name from either Project Portal or QA Operations now updates:
-- GHL contact
-- All sibling `all_appointments` rows
-- All linked `qa_cases` rows (via appointment_id and ghl_contact_id)
+### 2. Root-cause hardening in `auto-parse-intake-notes/index.ts`
 
-QA Operations Queue reflects the new name in realtime.
+If the reparse still leaves insurance/pathology/medical empty despite the notes being explicit, tighten the parser:
+
+- **Insurance regex fallback** (post-LLM enrichment, similar to how imaging_details already works): when `parsed_insurance_info.insurance_provider` is null, scan the raw notes for `Please select your insurance provider:` / `Insurance Plan:` / `Insurance ID Number:` and backfill. Treat `SELF PAY` as a valid provider/plan value (don't discard it as "not real insurance").
+- **GAE STEP 1 regex fallback:** when pathology fields are null, scan for the exact `GAE STEP 1 | <question>: <answer>` pattern and map to `duration`, `oa_tkr_diagnosed`, `affected_side`, `age_range`.
+- **PCP regex fallback:** when `pcp_name` / `pcp_phone` are null, scan for `Primary Care Doctor's Name:` / `Primary Care Doctor's Phone Number:` (curly and straight apostrophes) and backfill.
+- **Expand the empty-result guard:** currently a result with only `procedure_type` populated passes. Tighten it to also reject when insurance + pathology + medical are all null but the source notes contain the expected section headers — retry once instead of persisting the empty parse.
+
+Only apply the regex fallbacks after the LLM run, only when the field is null, so we don't override any successful LLM extraction.
+
+### Validation
+
+- Reparse Jeanette Moore and confirm the card shows Medicare Advantage / SELF PAY, GAE STEP 1 answers, and Dr. Ahmed's contact info.
+- Query for other Liberty Joint & Vascular records with `parsed_insurance_info->>'insurance_provider' IS NULL` but intake notes containing `Please select your insurance provider:` — reparse the batch so this pattern is caught across the project, not just for Jeanette.
+
+## Technical details
+
+- Files touched: `supabase/functions/auto-parse-intake-notes/index.ts` (regex fallbacks + tightened empty-result guard).
+- No schema changes. No UI changes.
+- Edge functions redeploy automatically.
