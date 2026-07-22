@@ -1,61 +1,43 @@
+# Liberty Joint & Vascular — DOB / Info Investigation
 
-## Goal
+## What I found in the database
 
-Make the QA case drawer's **Activity** section a complete audit trail of the Review Queue lifecycle. Every case that came from the Review Queue should show, in order:
+Checked all three patients directly against `all_appointments` (Liberty Joint & Vascular project):
 
-1. When the appointment entered the Review Queue
-2. How long it sat there (duration until resolution)
-3. When it was approved / declined / marked OON
-4. Who performed the action
-5. When the alert switched from Review Queue → Confirmed Audit or → OON
+| Patient | DOB in Portal | DOB in GHL contact payload | Age | Status |
+| --- | --- | --- | --- | --- |
+| **Jeanette Moore** (id `3fb0151e…`) | ✅ 1948-05-21 | ✅ present in GHL | 78 | Fine — already populated |
+| **Yvonne Osbourne** (id `18c77ecf…`) | ✅ 1961-05-15 | ❌ not in GHL contact fields | 65 | Fine in portal — but GHL has no DOB |
+| **Yvette Molina** (id `495231e5…`) | ❌ null | ❌ not in GHL contact fields | — | Genuinely missing everywhere |
 
-## Current state (verified)
+Other parsed info (insurance, pathology, contact, medical) is populated for all three — this is a DOB-only gap, not a broader parse failure.
 
-- Trigger `qa_ingest_review_queue` (migration `20260722132346`) already writes `qa_case_activity` rows for:
-  - Case creation with description `'Entered Review Queue'` (via `qa_upsert_case`)
-  - Approve → switch to `confirmed_audit` (with reviewer name)
-  - OON → switch to `oon` (with reviewer name)
-  - Declined / dismissed → completion (with reviewer name)
-- `review_entered_at` and `review_resolved_at` columns exist on `qa_cases` and are stamped by the trigger.
-- The drawer renders the raw activity list at `QAOperationsQueue.tsx` lines ~973–984, one line per row, description + timestamp.
-- Duration in queue is **not** written anywhere in activity; reviewer identity is embedded in the description string but not separated; the "entered queue" event only exists when the case was first opened as a `review_queue` alert (fine).
+## Root cause
 
-## Changes
+Liberty Joint & Vascular's GHL intake flow is **not capturing Date of Birth as a structured contact field**. The webhook payload's `Contact Information` block only contains Name/Email/Phone/Address — no `Date of Birth` line — unless a setter manually enters it on the contact. The AI parser can only populate DOB when GHL sends it (or when it's clearly written in the intake notes body); for these three, it wasn't.
 
-### 1. Trigger updates (migration)
+- Jeanette had DOB because her GHL contact record has it filled in.
+- Yvonne's DOB was likely added later manually (portal `updated_at` is newer than `created_at`; her intake notes literally say *"The patient will provide their full address and date of birth at the visit"*).
+- Yvette's DOB has never been provided — her notes explicitly show *"[Your Medicare Member ID]"* placeholder and the setter didn't collect DOB during the booking call.
 
-Update `public.qa_ingest_review_queue` so that on each terminal transition (approved / oon / declined / dismissed / duplicate-closed) it:
+**This is not a portal bug — it's a data-capture gap in the GHL setter workflow / intake form for Liberty.**
 
-- Computes `duration_minutes = EXTRACT(EPOCH FROM (now() - review_entered_at)) / 60` when `review_entered_at` is set.
-- Writes an extra `qa_case_activity` row with `activity_type = 'review_queue_duration'` and description like `Spent 2h 14m in Review Queue`, plus `metadata.duration_minutes`, `metadata.review_entered_at`, `metadata.review_resolved_at`.
-- Keeps the existing status_change row but also stores structured `metadata`:
-  - `actor_user_id` (already set as column)
-  - `actor_name`
-  - `from_alert`, `to_alert` (or `resolution` for declined/dismissed)
-  - `review_status`
+## Recommended fix (needs your decision)
 
-No schema change needed — `qa_case_activity` already has `metadata jsonb` and `actor_user_id`.
+### Option A — Fix in GHL (recommended, permanent)
+Update the Liberty Joint & Vascular GHL intake form / setter script so **Date of Birth is a required field** before an appointment can be booked (same as most other clinics). Once added, GHL will send it in the contact payload and the portal will auto-populate DOB + Age via the existing sync.
 
-Also backfill: for any completed `review_queue`-origin case that has `review_entered_at` and `review_resolved_at` but no `review_queue_duration` activity row, insert one.
+**You'll need to do this in GHL** — I can't edit GHL forms from the portal.
 
-### 2. Frontend rendering (`src/components/admin/QAOperationsQueue.tsx`)
+### Option B — Manual portal update for Yvette now
+For Yvette Molina specifically, someone needs to call/message the patient to get her DOB, then edit it in the portal (DOB field on the appointment card). The portal→GHL sync will push it back to GHL.
 
-- Extend `ACTIVITY_LABELS` with `review_queue_duration: 'Time in Review Queue'`.
-- In the Activity list (lines ~973–984), for each row:
-  - Render the description as today.
-  - When `activity_type = 'status_change'` and `metadata.from_alert = 'review_queue'`, add a small secondary line showing "by {actor_name}" and the target alert badge.
-  - When `activity_type = 'review_queue_duration'`, render with a `Clock` icon and the humanized duration from `metadata.duration_minutes` (e.g. `2h 14m`, `3d 5h`).
-- Sort activity ascending (oldest → newest) inside the Review Queue lifecycle block so the story reads top-down: Entered → Duration → Resolved / Alert switched. Keep the existing overall list order for non-lifecycle rows.
-- No changes to the separate "Review Queue Timeline" section that already exists in the drawer.
+Jeanette and Yvonne are already fixed — no action needed.
 
-### 3. Scope guardrails
+## What I will NOT change in code
+No parser or webhook change is warranted — the AI already extracts DOB correctly when GHL provides it. Adding heuristics to guess DOB from free-text notes would create false positives.
 
-- Only `qa_ingest_review_queue` is touched. `qa_ingest_confirmed_audit`, `qa_ingest_terminal_status`, and the Review Queue module itself are untouched.
-- No changes to `qa_cases` columns, RLS, grants, or realtime publication.
-- No behavior change for cases that never entered the Review Queue.
-
-## Technical notes
-
-- Duration formatting helper (frontend) reused: `< 60` → `Nm`, `< 1440` → `Xh Ym`, else `Xd Yh`.
-- Trigger writes to `qa_case_activity` inside the existing `BEGIN … EXCEPTION WHEN OTHERS` block so any failure is swallowed and never blocks the review action.
-- Backfill DO-block guarded with `WHERE NOT EXISTS (… activity_type = 'review_queue_duration' …)` to be idempotent.
+## Next step
+Tell me:
+1. Do you want me to add a portal-side visual flag (e.g., red badge on the appointment card) when DOB is missing, so setters/QA see it before the appointment? Or
+2. Just handle Yvette manually and fix the GHL form on your side?
