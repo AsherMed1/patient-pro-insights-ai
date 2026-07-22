@@ -157,7 +157,7 @@ interface QAGroup {
   key: string;
   primary: QACase;
   children: QACase[];
-  alertTypes: AlertType[];
+  displayAlertTypes: AlertType[];
   earliestCreated: string;
   latestActivity: string;
   ticketCase: QACase | null;
