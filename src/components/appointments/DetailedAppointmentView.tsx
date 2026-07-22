@@ -697,7 +697,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       `}</style>
       
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="print-dialog w-[95vw] sm:max-w-6xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="print-dialog !w-[calc(100vw-2rem)] !max-w-6xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-2 -mx-6 px-6 -mt-6 pt-6 border-b">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <DialogTitle className="flex items-center space-x-2 min-w-0 flex-1">
@@ -784,7 +784,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
             </div>
           </DialogHeader>
 
-          <div className="space-y-6 print-content">
+          <div className="space-y-6 print-content min-w-0 max-w-full overflow-x-hidden">
             {/* Print Header */}
             <div className="print-header hidden print:block">
               <h1 className="text-2xl font-bold">Patient Information</h1>
@@ -794,7 +794,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
             </div>
 
             {/* Appointment Overview */}
-            <Card className="print-card">
+            <Card className="print-card min-w-0 max-w-full overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
@@ -803,13 +803,13 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               </CardHeader>
               <CardContent className="space-y-4">
                 <TooltipProvider>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                    <div className="space-y-3 min-w-0">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center space-x-2 cursor-default">
+                          <div className="flex items-center space-x-2 cursor-default min-w-0">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span>{displayName}</span>
+                            <span className="min-w-0 break-words">{displayName}</span>
                             {(isAdmin() || isVA()) && appointment.ghl_id && effectiveLocationId && (
                               <a
                                 href={`https://app.gohighlevel.com/v2/location/${effectiveLocationId}/contacts/detail/${appointment.ghl_id}`}
@@ -833,9 +833,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       {(appointment.lead_phone_number || leadDetails?.phone_number) && (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-2 cursor-default">
+                            <div className="flex items-center space-x-2 cursor-default min-w-0">
                               <Phone className="h-4 w-4 text-muted-foreground" />
-                              <span>{appointment.lead_phone_number || leadDetails?.phone_number}</span>
+                              <span className="min-w-0 break-words">{appointment.lead_phone_number || leadDetails?.phone_number}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -847,9 +847,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       {(appointment.lead_email || leadDetails?.email) && (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-2 cursor-default">
+                            <div className="flex items-center space-x-2 cursor-default min-w-0">
                               <Mail className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{appointment.lead_email || leadDetails?.email}</span>
+                              <span className="text-sm min-w-0 break-all">{appointment.lead_email || leadDetails?.email}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -861,9 +861,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       {getPatientAddress() && (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-2 cursor-default">
+                            <div className="flex items-center space-x-2 cursor-default min-w-0">
                               <MapPin className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{getPatientAddress()}</span>
+                              <span className="text-sm min-w-0 break-words">{getPatientAddress()}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -875,9 +875,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       {appointment.project_name && (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-2 cursor-default">
+                            <div className="flex items-center space-x-2 cursor-default min-w-0">
                               <Building className="h-4 w-4 text-muted-foreground" />
-                              <span>{appointment.project_name}</span>
+                              <span className="min-w-0 break-words">{appointment.project_name}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -887,7 +887,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       )}
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 min-w-0">
                       {appointment.date_of_appointment && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -919,9 +919,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       {appointment.calendar_name && (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-2 cursor-default">
+                            <div className="flex items-center space-x-2 cursor-default min-w-0">
                               <Hash className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{appointment.calendar_name}</span>
+                              <span className="text-sm min-w-0 break-words">{appointment.calendar_name}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -1104,7 +1104,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
 
             {/* Reschedule History */}
             {appointment.reschedule_history && appointment.reschedule_history.length > 0 && (
-              <Card className="print-card">
+              <Card className="print-card min-w-0 max-w-full overflow-hidden">
                 <CardHeader className="py-3 px-4">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
@@ -1120,7 +1120,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       const newTime = entry.new_time ? formatTime(entry.new_time) : '';
                       const changedAt = entry.changed_at ? new Date(entry.changed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
                       return (
-                        <div key={idx} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded bg-muted/50">
+                        <div key={idx} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded bg-muted/50 min-w-0 overflow-hidden">
                           <span className="whitespace-nowrap">{prevDate} {prevTime}</span>
                           <span className="text-muted-foreground">→</span>
                           <span className="whitespace-nowrap font-medium">{newDate} {newTime}</span>
@@ -1130,7 +1130,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                             </Badge>
                           )}
                           {changedAt && (
-                            <span className="text-muted-foreground ml-auto whitespace-nowrap">changed {changedAt}</span>
+                          <span className="text-muted-foreground ml-auto whitespace-nowrap shrink-0">changed {changedAt}</span>
                           )}
                         </div>
                       );
@@ -1148,16 +1148,16 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
 
             {/* Patient Intake Notes */}
             {(appointment.patient_intake_notes || leadDetails?.patient_intake_notes) && (
-              <Card className="print-card">
+              <Card className="print-card min-w-0 max-w-full overflow-hidden">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <FileText className="h-4 w-4" />
                     <span>Patient Intake Notes</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                <div className="prose prose-sm max-w-none">
-                    <div className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg border">
+                <CardContent className="min-w-0 max-w-full overflow-hidden">
+                <div className="prose prose-sm max-w-none min-w-0 overflow-hidden">
+                    <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm bg-gray-50 p-4 rounded-lg border max-w-full overflow-x-hidden">
                       {filterIntakeNotesByProcedure(
                         stripAIPrompt(appointment.patient_intake_notes || leadDetails?.patient_intake_notes || ''),
                         appointment.calendar_name
@@ -1180,7 +1180,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
 
                   {/* Parsed Information - Only show when parsing is complete */}
                   {appointment.parsing_completed_at && (
-                    <div className="mt-4">
+                    <div className="mt-4 min-w-0 max-w-full overflow-hidden">
                       <ParsedIntakeInfo 
                         parsedInsuranceInfo={appointment.parsed_insurance_info}
                         parsedPathologyInfo={appointment.parsed_pathology_info}
@@ -1198,6 +1198,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                         projectName={appointment.project_name}
                         patientName={appointment.lead_name}
                         parsingCompletedAt={appointment.parsing_completed_at}
+                        className="min-w-0 max-w-full overflow-hidden [overflow-wrap:anywhere]"
                       />
                     </div>
                   )}
