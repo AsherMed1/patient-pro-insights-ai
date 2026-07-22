@@ -833,7 +833,7 @@ function CaseDrawer({
 
   const buildDefaultDescription = (c: QACase): string => {
     const apptLine = c.appointment_date
-      ? `Appointment: ${format(new Date(c.appointment_date), 'PP p')}`
+      ? `Appointment: ${formatInTimeZone(new Date(c.appointment_date), apptTz, 'PP p')}`
       : 'Appointment: Not scheduled';
     const lines = [
       `Patient: ${c.patient_name || 'Unknown'}`,
