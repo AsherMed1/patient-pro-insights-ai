@@ -1,24 +1,26 @@
-## Problem
+## Goal
 
-Tom Murray's appointment stored correctly in DB as `2026-08-08 15:00 UTC` = **Aug 8, 10:00 AM CT** (NG Vascular timezone `America/Chicago`).
+Consolidate the drawer so previous sibling alerts (e.g. "Confirmed Audit · completed") no longer sit in their own "Previous alerts" block — instead they appear as entries in the **Activity** timeline, keeping everything in one spot.
 
-- Portal renders it correctly using the project timezone → "Aug 08, 2026 10:00 AM"
-- QA Operations drawer renders `new Date(appointment_date)` with `date-fns` `format()`, which uses the **viewer's browser timezone**. For a viewer in Asia/Manila (UTC+8), 15:00 UTC shows as **11:00 PM**.
+## Changes (single file: `src/components/admin/QAOperationsQueue.tsx`)
 
-## Fix
+### 1. `CaseDrawer` header block (lines ~920–978)
+- Keep the "Current alert for this patient" row (current alert chip + pinned active Short-Notice chip when applicable).
+- **Remove** the "Previous alerts (N) — click to switch" list entirely. Its function moves into Activity.
 
-Render `appointment_date` in the QA drawer using the project's timezone (same source of truth as Portal), not the browser's.
+### 2. Activity section (lines ~1202–1251)
+- Build a merged, chronologically sorted list combining:
+  - existing `activity` rows (unchanged rendering), and
+  - one synthesized entry per sibling in `previousAlerts` (siblings excluding the pinned active Short-Notice), using `last_alert_activity_at || entered_queue_at` as the timestamp.
+- Sibling entries render as:
+  - Left: `<Badge variant="outline">{ALERT_LABELS[alert_type]}</Badge>` + workflow status text, wrapped in a button that calls `onSwitchCase(sibling)` and shows a hover state (`hover:bg-accent`, rounded, small padding) to signal it's clickable.
+  - Right: same `MMM d, h:mm a` timestamp style as other activity rows.
+- Preserve existing sort (ascending by created_at); synthesized entries slot in by their timestamp.
+- Empty-state text updates to only show when both activity and siblings are empty.
 
-### Changes in `src/components/admin/QAOperationsQueue.tsx`
+### 3. No changes to
+- Data fetching, realtime, sibling grouping (`groupCases`), or `onSwitchCase` behavior.
+- The top "Current alert" chip row (still shows current + pinned short-notice).
 
-1. Use `formatInTimeZone` from `date-fns-tz` for the appointment date display (line 974) and the ticket description prefill (line 817).
-2. Resolve the project's timezone via the existing `fetchProjectTimezone` / `getCachedProjectTimezone` helper in `src/utils/projectTimezoneCache.ts`, keyed on `caseData.project_name`. Fall back to `America/Chicago`.
-3. Warm the cache when cases load (batch `fetchProjectTimezone` for the visible project names) so the drawer renders synchronously.
-4. Leave workflow timestamps (Date created, Latest alert, Date resolved) as-is — those are event timestamps, correctly shown in the viewer's local time.
-
-No trigger or DB changes — the stored value is already correct. This is a display-layer fix only.
-
-## Verification
-
-- Reopen Tom Murray in QA drawer → "Appt date" reads **Aug 8, 2026 10:00 AM** (matches Portal and GHL).
-- Spot-check a Buffalo (`America/New_York`) case to confirm timezone lookup works per-project.
+## Result
+The drawer shows one unified timeline. In the Dalkiris B Gil example, "Confirmed Audit · completed · Jul 21, 2:46 PM" appears as a clickable row inside **Activity** alongside "Status changed to OON" and "Status changed to in review" — no separate Previous alerts block.
