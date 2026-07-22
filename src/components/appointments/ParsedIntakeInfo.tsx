@@ -110,6 +110,12 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [editPhone, setEditPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
 
+  // Demographics edit state
+  const [isEditingDemographics, setIsEditingDemographics] = useState(false);
+  const [isSavingDemographics, setIsSavingDemographics] = useState(false);
+  const [editDob, setEditDob] = useState("");
+  const [editGender, setEditGender] = useState("");
+
   // Reparse state
   const [isReparsing, setIsReparsing] = useState(false);
 
