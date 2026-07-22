@@ -33,7 +33,10 @@ import {
   Trash2,
   Loader2,
   Plus,
-  MessageSquare
+  MessageSquare,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
@@ -196,7 +199,49 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
   const { userId, userName } = useUserAttribution();
-  const { isAdmin, isVA } = useRole();
+  const { isAdmin, isVA, hasRole } = useRole();
+
+  // Inline name-edit state (Portal ↔ GHL two-way sync)
+  const canEditName = isAdmin() || isVA() || hasRole(['agent', 'qa_specialist']);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(appointment.lead_name || '');
+  const [savingName, setSavingName] = useState(false);
+  const [displayName, setDisplayName] = useState(appointment.lead_name || '');
+  useEffect(() => {
+    setDisplayName(appointment.lead_name || '');
+    setEditedName(appointment.lead_name || '');
+  }, [appointment.id, appointment.lead_name]);
+
+  const handleSaveName = async () => {
+    const trimmed = editedName.trim();
+    if (!trimmed || trimmed === displayName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('update-ghl-contact-name', {
+        body: { appointment_id: appointment.id, new_name: trimmed, user_name: userName || null },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to update name');
+      setDisplayName(trimmed);
+      setIsEditingName(false);
+      if (data.ghl_pushed) {
+        toast.success('Name updated and synced to GHL');
+      } else if (data.ghl_skipped_reason === 'no_ghl_id') {
+        toast.success('Name updated (no linked GHL contact — portal only)');
+      } else {
+        toast.success('Name updated');
+      }
+    } catch (e: any) {
+      console.error('Name update failed:', e);
+      toast.error(e?.message || 'Failed to update name');
+      setEditedName(displayName);
+    } finally {
+      setSavingName(false);
+    }
+  };
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -655,9 +700,45 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
         <DialogContent className="print-dialog w-[95vw] max-w-[1200px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-2 -mx-6 px-6 -mt-6 pt-6 border-b">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <DialogTitle className="flex items-center space-x-2 min-w-0">
+              <DialogTitle className="flex items-center space-x-2 min-w-0 flex-1">
                 <FileText className="h-5 w-5 shrink-0" />
-                <span className="break-words">{appointment.is_reserved_block ? 'Reserved Time Block' : 'Appointment Details'} - {appointment.lead_name}</span>
+                <span className="break-words">{appointment.is_reserved_block ? 'Reserved Time Block' : 'Appointment Details'} -&nbsp;</span>
+                {!appointment.is_reserved_block && isEditingName ? (
+                  <span className="inline-flex items-center gap-1 no-print">
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName();
+                        if (e.key === 'Escape') { setIsEditingName(false); setEditedName(displayName); }
+                      }}
+                      autoFocus
+                      disabled={savingName}
+                      className="h-8 w-64 text-base"
+                    />
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveName} disabled={savingName} title="Save">
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setIsEditingName(false); setEditedName(displayName); }} disabled={savingName} title="Cancel">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 break-words">
+                    <span>{displayName}</span>
+                    {!appointment.is_reserved_block && canEditName && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 no-print"
+                        onClick={() => setIsEditingName(true)}
+                        title="Edit patient name (syncs to GHL)"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </span>
+                )}
               </DialogTitle>
               <div className="flex gap-2 no-print flex-wrap">
                 {appointment.is_reserved_block && (
@@ -728,7 +809,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                         <TooltipTrigger asChild>
                           <div className="flex items-center space-x-2 cursor-default">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span>{appointment.lead_name}</span>
+                            <span>{displayName}</span>
                             {(isAdmin() || isVA()) && appointment.ghl_id && effectiveLocationId && (
                               <a
                                 href={`https://app.gohighlevel.com/v2/location/${effectiveLocationId}/contacts/detail/${appointment.ghl_id}`}

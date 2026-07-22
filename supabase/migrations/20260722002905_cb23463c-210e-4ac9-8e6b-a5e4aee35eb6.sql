@@ -1,0 +1,1 @@
+ALTER TABLE public.all_appointments ADD COLUMN IF NOT EXISTS name_last_synced_at timestamptz;
