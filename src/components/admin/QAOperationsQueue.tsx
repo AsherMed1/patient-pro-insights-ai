@@ -990,7 +990,7 @@ function CaseDrawer({
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt date</div>
-                  <div className="break-words">{caseData.appointment_date ? format(new Date(caseData.appointment_date), 'PP p') : '—'}</div>
+                  <div className="break-words">{formatApptDate(caseData.appointment_date)}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Date created</div>
