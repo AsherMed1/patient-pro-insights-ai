@@ -186,13 +186,20 @@ function groupCases(list: QACase[]): QAGroup[] {
               - new Date(a.last_alert_activity_at || a.entered_queue_at).getTime(),
     );
     const primary = sorted[0];
-    const alertTypes = Array.from(new Set(sorted.map((c) => c.alert_type)));
+    const latest = primary.alert_type;
+    const hasOpenShortNotice = sorted.some(
+      (c) => c.alert_type === 'short_notice' && c.workflow_status !== 'completed',
+    );
+    const displayAlertTypes: AlertType[] =
+      latest === 'short_notice' || !hasOpenShortNotice
+        ? [latest]
+        : ['short_notice', latest];
     const earliestCreated = sorted
       .map((c) => c.first_entered_at || c.entered_queue_at)
       .sort()[0];
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
-    groups.push({ key, primary, children: sorted, alertTypes, earliestCreated, latestActivity, ticketCase });
+    groups.push({ key, primary, children: sorted, displayAlertTypes, earliestCreated, latestActivity, ticketCase });
   }
   groups.sort(
     (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
