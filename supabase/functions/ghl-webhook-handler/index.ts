@@ -1295,6 +1295,17 @@ function getUpdateableFields(
           updateFields.requested_time = incomingTime
         }
 
+        // Placeholder promotion: if this was an unscheduled placeholder (hybrid Davis flow),
+        // attach the incoming ghl_appointment_id and flip it out of unscheduled state so it
+        // stops rendering as "No appointment date/time set".
+        if (existingAppointment.is_unscheduled) {
+          if (webhookData.ghl_appointment_id) {
+            updateFields.ghl_appointment_id = webhookData.ghl_appointment_id
+          }
+          updateFields.is_unscheduled = false
+          updateFields.time_preference = null
+        }
+
         // Reset IPC and status if date actually changed (reschedule detected).
         // Date-driven reschedules ARE honored even when existing status is portal-only terminal
         // (OON, Do Not Call, Cancelled) — a new appointment date from GHL means the patient
@@ -1626,7 +1637,30 @@ async function findExistingAppointment(
       return data
     }
   }
-  
+
+  // PLACEHOLDER PROMOTION: hybrid projects (Davis) can produce an unscheduled placeholder row
+  // from a contact-only webhook (ghl_appointment_id NULL, is_unscheduled=true) followed later
+  // by a real appointment webhook carrying ghl_appointment_id. Promote the placeholder instead
+  // of inserting a duplicate scheduled row.
+  if (ghlAppointmentId && ghlId && projectName) {
+    const { data: placeholder } = await supabase
+      .from('all_appointments')
+      .select('*')
+      .eq('ghl_id', ghlId)
+      .eq('project_name', projectName)
+      .is('ghl_appointment_id', null)
+      .eq('is_unscheduled', true)
+      .eq('is_superseded', false)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (placeholder) {
+      console.log(`[${requestId}] 🎯 PLACEHOLDER PROMOTION: Promoting unscheduled placeholder ${placeholder.id} to scheduled appointment ${ghlAppointmentId}`)
+      return placeholder
+    }
+  }
+
   // REACTIVATION lookup: same contact + same project, terminal status, never confirmed,
   // created within the last 60 days. Reuse cancelled/no-show row instead of duplicating.
   if (ghlAppointmentId && ghlId && projectName) {
