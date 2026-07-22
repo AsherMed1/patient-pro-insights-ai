@@ -1,26 +1,21 @@
-## Goal
+## Problem
 
-Consolidate the drawer so previous sibling alerts (e.g. "Confirmed Audit · completed") no longer sit in their own "Previous alerts" block — instead they appear as entries in the **Activity** timeline, keeping everything in one spot.
+Saving audit details with **Error Category = "Missing Address"** fails because the DB check constraint `qa_cases_error_category_check` only allows:
 
-## Changes (single file: `src/components/admin/QAOperationsQueue.tsx`)
+`Missing Insurance, Notes Added to Portal, Duplicate Appointment, Booking Rule Violation, Uploaded Insurance, Name Correction, Double Booked, Incorrect Patient Info, Other`
 
-### 1. `CaseDrawer` header block (lines ~920–978)
-- Keep the "Current alert for this patient" row (current alert chip + pinned active Short-Notice chip when applicable).
-- **Remove** the "Previous alerts (N) — click to switch" list entirely. Its function moves into Activity.
+The UI's Error Category field is dynamic (users can add new categories via `ErrorCategoryField`), but the DB constraint is a static allowlist — so any newly added category (like "Missing Address") is rejected.
 
-### 2. Activity section (lines ~1202–1251)
-- Build a merged, chronologically sorted list combining:
-  - existing `activity` rows (unchanged rendering), and
-  - one synthesized entry per sibling in `previousAlerts` (siblings excluding the pinned active Short-Notice), using `last_alert_activity_at || entered_queue_at` as the timestamp.
-- Sibling entries render as:
-  - Left: `<Badge variant="outline">{ALERT_LABELS[alert_type]}</Badge>` + workflow status text, wrapped in a button that calls `onSwitchCase(sibling)` and shows a hover state (`hover:bg-accent`, rounded, small padding) to signal it's clickable.
-  - Right: same `MMM d, h:mm a` timestamp style as other activity rows.
-- Preserve existing sort (ascending by created_at); synthesized entries slot in by their timestamp.
-- Empty-state text updates to only show when both activity and siblings are empty.
+## Fix
 
-### 3. No changes to
-- Data fetching, realtime, sibling grouping (`groupCases`), or `onSwitchCase` behavior.
-- The top "Current alert" chip row (still shows current + pinned short-notice).
+Single migration on `qa_cases`:
 
-## Result
-The drawer shows one unified timeline. In the Dalkiris B Gil example, "Confirmed Audit · completed · Jul 21, 2:46 PM" appears as a clickable row inside **Activity** alongside "Status changed to OON" and "Status changed to in review" — no separate Previous alerts block.
+1. Drop `qa_cases_error_category_check`.
+2. Re-create it to also permit `'Missing Address'`, keeping all existing values so nothing else regresses:
+   `Missing Insurance, Missing Address, Notes Added to Portal, Duplicate Appointment, Booking Rule Violation, Uploaded Insurance, Name Correction, Double Booked, Incorrect Patient Info, Other`.
+
+No code changes — the UI already sends the value correctly; the constraint is the sole blocker.
+
+## Note on future categories
+
+The QA team can add categories through the UI dropdown but the DB constraint is a static allowlist, so any brand-new label will hit this same error. If you want I can, in a follow-up, drop the check entirely and rely on the UI-managed list — say the word and I'll include it. For now this plan just unblocks "Missing Address".
