@@ -16,10 +16,12 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
 import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import { renderWithLinks } from '@/lib/linkify';
+import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue';
@@ -687,6 +689,23 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
+  const [apptTz, setApptTz] = useState<string>(
+    () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
+  );
+
+  useEffect(() => {
+    if (!caseData?.project_name) return;
+    const cached = getCachedProjectTimezone(caseData.project_name);
+    if (cached) { setApptTz(cached); return; }
+    let cancelled = false;
+    fetchProjectTimezone(caseData.project_name).then((tz) => {
+      if (!cancelled) setApptTz(tz);
+    });
+    return () => { cancelled = true; };
+  }, [caseData?.project_name]);
+
+  const formatApptDate = (iso: string | null | undefined) =>
+    iso ? formatInTimeZone(new Date(iso), apptTz, 'PP p') : '—';
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
@@ -814,7 +833,7 @@ function CaseDrawer({
 
   const buildDefaultDescription = (c: QACase): string => {
     const apptLine = c.appointment_date
-      ? `Appointment: ${format(new Date(c.appointment_date), 'PP p')}`
+      ? `Appointment: ${formatInTimeZone(new Date(c.appointment_date), apptTz, 'PP p')}`
       : 'Appointment: Not scheduled';
     const lines = [
       `Patient: ${c.patient_name || 'Unknown'}`,
@@ -971,7 +990,7 @@ function CaseDrawer({
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt date</div>
-                  <div className="break-words">{caseData.appointment_date ? format(new Date(caseData.appointment_date), 'PP p') : '—'}</div>
+                  <div className="break-words">{formatApptDate(caseData.appointment_date)}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Date created</div>

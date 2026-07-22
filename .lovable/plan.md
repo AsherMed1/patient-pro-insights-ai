@@ -1,22 +1,24 @@
 ## Problem
 
-In the QA Operations drawer, changing **Workflow status** to "Completed" (or any value) doesn't visibly update until the user refreshes. The DB write succeeds, but the drawer keeps showing the old status.
+Tom Murray's appointment stored correctly in DB as `2026-08-08 15:00 UTC` = **Aug 8, 10:00 AM CT** (NG Vascular timezone `America/Chicago`).
 
-## Root cause
+- Portal renders it correctly using the project timezone → "Aug 08, 2026 10:00 AM"
+- QA Operations drawer renders `new Date(appointment_date)` with `date-fns` `format()`, which uses the **viewer's browser timezone**. For a viewer in Asia/Manila (UTC+8), 15:00 UTC shows as **11:00 PM**.
 
-`updateStatus` writes to Supabase, then calls `fetchCases()` which refreshes the `cases` list. However the drawer renders from a separate `selectedCase` state object, which is never updated after the write. The realtime subscription on `qa_cases` also only re-runs `fetchCases()` — it doesn't touch `selectedCase`. So the Select stays bound to the stale value until the user closes/reopens the drawer (which reads fresh data from `cases`).
+## Fix
 
-The same pattern already works correctly in `openCase` for the New → In Review auto-transition because it optimistically calls `setSelectedCase({ ...c, workflow_status: 'in_review' })` before the DB write.
+Render `appointment_date` in the QA drawer using the project's timezone (same source of truth as Portal), not the browser's.
 
-## Fix (UI only, `src/components/admin/QAOperationsQueue.tsx`)
+### Changes in `src/components/admin/QAOperationsQueue.tsx`
 
-1. In `updateStatus`, optimistically patch `selectedCase` (and any matching sibling) with the new `workflow_status` and the timestamp fields it sets (`review_started_at`, `completed_at`, `completed_by_user_id`) before/alongside the Supabase write, so the drawer's Select reflects the change instantly.
-2. Add a small effect that keeps `selectedCase` in sync with the latest `cases` list — when realtime fires `fetchCases()` (e.g. another user updates the same case), the open drawer picks up the fresh row by id instead of showing stale data.
-3. On write failure, revert the optimistic patch and show the existing error toast.
+1. Use `formatInTimeZone` from `date-fns-tz` for the appointment date display (line 974) and the ticket description prefill (line 817).
+2. Resolve the project's timezone via the existing `fetchProjectTimezone` / `getCachedProjectTimezone` helper in `src/utils/projectTimezoneCache.ts`, keyed on `caseData.project_name`. Fall back to `America/Chicago`.
+3. Warm the cache when cases load (batch `fetchProjectTimezone` for the visible project names) so the drawer renders synchronously.
+4. Leave workflow timestamps (Date created, Latest alert, Date resolved) as-is — those are event timestamps, correctly shown in the viewer's local time.
 
-No schema, trigger, or realtime-publication changes — realtime is already subscribed to `qa_cases`; the missing piece is reflecting updates in the drawer's local state.
+No trigger or DB changes — the stored value is already correct. This is a display-layer fix only.
 
 ## Verification
 
-- Open a case, change status to Completed → dropdown and header chip update immediately, no refresh needed.
-- With the drawer open, update the same case from another browser tab → the open drawer reflects the new status within ~1s via the existing realtime channel.
+- Reopen Tom Murray in QA drawer → "Appt date" reads **Aug 8, 2026 10:00 AM** (matches Portal and GHL).
+- Spot-check a Buffalo (`America/New_York`) case to confirm timezone lookup works per-project.
