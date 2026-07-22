@@ -558,12 +558,12 @@ export default function QAOperationsQueue() {
                       <TableCell>{c.service_line || '—'}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {g.alertTypes.map((t) => (
+                          {g.displayAlertTypes.map((t) => (
                             <Badge key={t} variant={alertVariant(t)}>{ALERT_LABELS[t]}</Badge>
                           ))}
-                          {g.children.length > g.alertTypes.length && (
-                            <Badge variant="outline" title="Multiple alerts of the same type">
-                              +{g.children.length - g.alertTypes.length}
+                          {g.children.length > g.displayAlertTypes.length && (
+                            <Badge variant="outline" title="Older alerts moved to history">
+                              +{g.children.length - g.displayAlertTypes.length}
                             </Badge>
                           )}
                         </div>
