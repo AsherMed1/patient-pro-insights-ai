@@ -1295,6 +1295,17 @@ function getUpdateableFields(
           updateFields.requested_time = incomingTime
         }
 
+        // Placeholder promotion: if this was an unscheduled placeholder (hybrid Davis flow),
+        // attach the incoming ghl_appointment_id and flip it out of unscheduled state so it
+        // stops rendering as "No appointment date/time set".
+        if (existingAppointment.is_unscheduled) {
+          if (webhookData.ghl_appointment_id) {
+            updateFields.ghl_appointment_id = webhookData.ghl_appointment_id
+          }
+          updateFields.is_unscheduled = false
+          updateFields.time_preference = null
+        }
+
         // Reset IPC and status if date actually changed (reschedule detected).
         // Date-driven reschedules ARE honored even when existing status is portal-only terminal
         // (OON, Do Not Call, Cancelled) — a new appointment date from GHL means the patient
