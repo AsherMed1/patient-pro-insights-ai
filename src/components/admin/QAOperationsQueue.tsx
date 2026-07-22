@@ -393,14 +393,12 @@ export default function QAOperationsQueue() {
           {STATUS_TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}
-              {t.value !== 'all' && (
-                <Badge
-                  variant={hasActiveFilter && bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
-                  className="ml-2"
-                >
-                  {bucketCounts[t.value] ?? 0}
-                </Badge>
-              )}
+              <Badge
+                variant={hasActiveFilter && bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
+                className="ml-2"
+              >
+                {bucketCounts[t.value] ?? 0}
+              </Badge>
             </TabsTrigger>
           ))}
         </TabsList>
