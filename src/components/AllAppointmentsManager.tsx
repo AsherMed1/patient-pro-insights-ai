@@ -1315,41 +1315,56 @@ const AllAppointmentsManager = ({
   };
 
   const updateAppointmentName = async (appointmentId: string, name: string) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) {
+      toast({ title: "Invalid name", description: "Name cannot be empty", variant: "destructive" });
+      return;
+    }
     try {
-      const appointment = appointments.find(a => a.id === appointmentId);
-      const updatedContactInfo = {
-        ...(appointment?.parsed_contact_info || {}),
-        name
-      };
-
-      const { error } = await supabase
-        .from('all_appointments')
-        .update({
-          lead_name: name,
-          parsed_contact_info: updatedContactInfo,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointmentId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Patient name updated"
+      const { data, error } = await supabase.functions.invoke('update-ghl-contact-name', {
+        body: { appointment_id: appointmentId, new_name: trimmed, user_name: userName },
       });
-      
+
+      if (error) {
+        const { FunctionsHttpError } = await import('@supabase/supabase-js');
+        const details = error instanceof FunctionsHttpError
+          ? await error.context.text()
+          : (error as any)?.message || 'Unknown error';
+        throw new Error(details);
+      }
+
+      if (data && data.success === false) {
+        throw new Error(data.error || 'Name update failed');
+      }
+
+      const skipped = data?.ghl_skipped_reason as string | null | undefined;
+      let description = "Patient name updated";
+      if (skipped === 'no_ghl_id') {
+        description = "Updated in portal only — no GHL contact linked";
+      } else if (skipped === 'project_missing_ghl_api_key') {
+        description = "Updated in portal only — project has no GHL API key";
+      } else if (data?.ghl_pushed) {
+        const sibs = data?.siblings_updated ?? 0;
+        description = sibs > 0
+          ? `Synced to GHL and ${sibs} related appointment${sibs === 1 ? '' : 's'}`
+          : "Synced to GHL";
+      }
+
+      toast({ title: "Success", description });
+
       fetchAppointments();
       fetchTabCounts();
       onDataChanged?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating patient name:', error);
       toast({
         title: "Error",
-        description: "Failed to update patient name",
+        description: error?.message || "Failed to update patient name",
         variant: "destructive"
       });
     }
   };
+
 
   const updateAppointmentEmail = async (appointmentId: string, email: string) => {
     try {
