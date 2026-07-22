@@ -141,6 +141,59 @@ const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | '
   return 'secondary';
 };
 
+// ---------------------------------------------------------------------------
+// Patient-level grouping. Every alert for the same GHL contact collapses into
+// a single row; the newest alert wins for bucket placement and headline data.
+// Rows without a ghl_contact_id fall back to project + normalized name + appt
+// id so unrelated orphans don't merge together.
+// ---------------------------------------------------------------------------
+interface QAGroup {
+  key: string;
+  primary: QACase;
+  children: QACase[];
+  alertTypes: AlertType[];
+  earliestCreated: string;
+  latestActivity: string;
+  ticketCase: QACase | null;
+}
+
+const normalizeName = (n: string | null): string =>
+  (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const groupKeyFor = (c: QACase): string => {
+  if (c.ghl_contact_id) return `ghl:${c.ghl_contact_id}`;
+  return `fallback:${c.project_name}|${normalizeName(c.patient_name)}|${c.appointment_id ?? c.id}`;
+};
+
+function groupCases(list: QACase[]): QAGroup[] {
+  const buckets = new Map<string, QACase[]>();
+  for (const c of list) {
+    const key = groupKeyFor(c);
+    const arr = buckets.get(key);
+    if (arr) arr.push(c);
+    else buckets.set(key, [c]);
+  }
+  const groups: QAGroup[] = [];
+  for (const [key, children] of buckets) {
+    const sorted = [...children].sort(
+      (a, b) => new Date(b.last_alert_activity_at || b.entered_queue_at).getTime()
+              - new Date(a.last_alert_activity_at || a.entered_queue_at).getTime(),
+    );
+    const primary = sorted[0];
+    const alertTypes = Array.from(new Set(sorted.map((c) => c.alert_type)));
+    const earliestCreated = sorted
+      .map((c) => c.first_entered_at || c.entered_queue_at)
+      .sort()[0];
+    const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
+    const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
+    groups.push({ key, primary, children: sorted, alertTypes, earliestCreated, latestActivity, ticketCase });
+  }
+  groups.sort(
+    (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
+  );
+  return groups;
+}
+
 export default function QAOperationsQueue() {
   const { user } = useAuth();
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
@@ -153,6 +206,8 @@ export default function QAOperationsQueue() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
+  const [selectedSiblings, setSelectedSiblings] = useState<QACase[]>([]);
+  
   
 
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
@@ -267,18 +322,24 @@ export default function QAOperationsQueue() {
     });
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
 
+  // Group filtered cases by patient (GHL contact w/ fallback). Bucket counts
+  // and the visible table both work on groups so each patient appears once.
+  const groupedNoStatus = useMemo(() => groupCases(filteredNoStatus), [filteredNoStatus]);
+
   const bucketCounts = useMemo(() => {
     const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
-    for (const c of filteredNoStatus) {
-      if (counts[c.workflow_status] !== undefined) counts[c.workflow_status]++;
+    for (const g of groupedNoStatus) {
+      const s = g.primary.workflow_status;
+      if (counts[s] !== undefined) counts[s]++;
       counts.all++;
     }
     return counts;
-  }, [filteredNoStatus]);
+  }, [groupedNoStatus]);
 
-  const filtered = useMemo(() => (
-    tab === 'all' ? filteredNoStatus : filteredNoStatus.filter((c) => c.workflow_status === tab)
-  ), [filteredNoStatus, tab]);
+  const filteredGroups = useMemo(() => (
+    tab === 'all' ? groupedNoStatus : groupedNoStatus.filter((g) => g.primary.workflow_status === tab)
+  ), [groupedNoStatus, tab]);
+
 
   // When a search/filter is active and the current bucket has no matches, auto-switch
   // to the first bucket that does. Only reacts to filter changes, not manual tab clicks.
@@ -316,7 +377,8 @@ export default function QAOperationsQueue() {
 
   };
 
-  const openCase = (c: QACase) => {
+  const openCase = (c: QACase, siblings: QACase[] = []) => {
+    setSelectedSiblings(siblings.filter((s) => s.id !== c.id));
     if (c.workflow_status === 'new') {
       // Optimistically reflect In Review in the drawer immediately
       setSelectedCase({ ...c, workflow_status: 'in_review' });
@@ -326,6 +388,18 @@ export default function QAOperationsQueue() {
       setSelectedCase(c);
     }
   };
+
+  const openGroup = (g: QAGroup) => openCase(g.primary, g.children);
+
+  const switchToSibling = (c: QACase) => {
+    // Switch within the same group without re-triggering the new→in_review flip
+    const allInGroup = selectedCase
+      ? [selectedCase, ...selectedSiblings]
+      : [c];
+    setSelectedSiblings(allInGroup.filter((s) => s.id !== c.id));
+    setSelectedCase(c);
+  };
+
 
   const clearDateFilters = () => {
     setDateFrom(undefined);
@@ -423,7 +497,7 @@ export default function QAOperationsQueue() {
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : filtered.length === 0 ? (
+            ) : filteredGroups.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">No cases in this view.</div>
             ) : (
               <Table>
@@ -432,7 +506,7 @@ export default function QAOperationsQueue() {
                     <TableHead>Patient</TableHead>
                     <TableHead>Clinic</TableHead>
                     <TableHead>Service</TableHead>
-                    <TableHead>Alert</TableHead>
+                    <TableHead>Alerts</TableHead>
                     <TableHead>Self-Booked</TableHead>
                     <TableHead>Error</TableHead>
                     <TableHead>Error Source</TableHead>
@@ -445,8 +519,11 @@ export default function QAOperationsQueue() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((c) => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openCase(c)}>
+                  {filteredGroups.map((g) => {
+                    const c = g.primary;
+                    const ticket = g.ticketCase;
+                    return (
+                    <TableRow key={g.key} className="cursor-pointer" onClick={() => openGroup(g)}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <span>{c.patient_name || '—'}</span>
@@ -467,55 +544,69 @@ export default function QAOperationsQueue() {
                       <TableCell>{c.project_name}</TableCell>
                       <TableCell>{c.service_line || '—'}</TableCell>
                       <TableCell>
-                        <Badge variant={alertVariant(c.alert_type)}>{ALERT_LABELS[c.alert_type]}</Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {g.alertTypes.map((t) => (
+                            <Badge key={t} variant={alertVariant(t)}>{ALERT_LABELS[t]}</Badge>
+                          ))}
+                          {g.children.length > g.alertTypes.length && (
+                            <Badge variant="outline" title="Multiple alerts of the same type">
+                              +{g.children.length - g.alertTypes.length}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>
                       <TableCell>{c.error_category || '—'}</TableCell>
                       <TableCell>{c.error_source || '—'}</TableCell>
                       <TableCell>{c.resolution_type || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{format(new Date(c.first_entered_at || c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
-                      <TableCell>{format(new Date(c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
+                      <TableCell className="text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>
+                      <TableCell>{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>
                       <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
                       <TableCell>
-                        {c.controlhub_ticket_id ? (
+                        {ticket?.controlhub_ticket_id ? (
                           <a
-                            href={c.controlhub_ticket_url ?? '#'}
+                            href={ticket.controlhub_ticket_url ?? '#'}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 text-primary underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {c.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
+                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-xs">None</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openCase(c); }}>
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
                           Open
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
+
           </div>
         </TabsContent>
       </Tabs>
 
       <CaseDrawer
         caseData={selectedCase}
+        siblings={selectedSiblings}
+        onSwitchCase={switchToSibling}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
         errorSources={errorSources}
         onErrorSourcesRefresh={refreshErrorSources}
         errorCategories={errorCategories}
         onErrorCategoriesRefresh={refreshErrorCategories}
-        onClose={() => setSelectedCase(null)}
+        onClose={() => { setSelectedCase(null); setSelectedSiblings([]); }}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); }}
       />
+
 
     </div>
   );
@@ -523,6 +614,8 @@ export default function QAOperationsQueue() {
 
 function CaseDrawer({
   caseData,
+  siblings,
+  onSwitchCase,
   ghlUrl,
   errorSources,
   onErrorSourcesRefresh,
@@ -533,6 +626,8 @@ function CaseDrawer({
   onRefresh,
 }: {
   caseData: QACase | null;
+  siblings: QACase[];
+  onSwitchCase: (c: QACase) => void;
   ghlUrl: string | null;
   errorSources: { id: string; name: string }[];
   onErrorSourcesRefresh: () => Promise<void>;
@@ -542,6 +637,7 @@ function CaseDrawer({
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
   onRefresh: () => void;
 }) {
+
   const { user } = useAuth();
   const [notes, setNotes] = useState<QANote[]>([]);
   const [activity, setActivity] = useState<QAActivity[]>([]);
@@ -762,6 +858,33 @@ function CaseDrawer({
                 {caseData.project_name} • {caseData.service_line || 'No service'}
               </div>
             </SheetHeader>
+
+            {siblings.length > 0 && (
+              <div className="mt-3 border rounded-lg p-3 bg-muted/30">
+                <div className="text-xs text-muted-foreground mb-2">
+                  Alerts for this patient ({siblings.length + 1}) — click to switch
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
+                    {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
+                  </Badge>
+                  {siblings.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => onSwitchCase(s)}
+                      className="inline-flex"
+                      title={`Open ${ALERT_LABELS[s.alert_type]} alert`}
+                    >
+                      <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                        {ALERT_LABELS[s.alert_type]} · {s.workflow_status.replace('_', ' ')}
+                        {' · '}{format(new Date(s.last_alert_activity_at || s.entered_queue_at), 'MMM d')}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
 
             <div className="space-y-4 mt-4 min-w-0 max-w-full">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm min-w-0">
