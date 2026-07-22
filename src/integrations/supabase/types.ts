@@ -4493,6 +4493,10 @@ export type Database = {
           success_count: number
         }[]
       }
+      qa_build_appt_ts: {
+        Args: { _date: string; _project_name: string; _time: string }
+        Returns: string
+      }
       qa_upsert_case: {
         Args: {
           _activity_description: string
