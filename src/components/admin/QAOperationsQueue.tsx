@@ -986,13 +986,51 @@ function CaseDrawer({
 
               <div>
                 <div className="text-sm font-semibold mb-2">Activity</div>
-                <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
-                  {activity.map((a) => (
-                    <div key={a.id} className="flex justify-between border-b py-1">
-                      <span>{a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}</span>
-                      <span className="text-xs text-muted-foreground">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
-                    </div>
-                  ))}
+                <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
+                  {[...activity].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((a) => {
+                    const meta = (a.metadata || {}) as any;
+                    const isDuration = a.activity_type === 'review_queue_duration';
+                    const isRQTransition = a.activity_type === 'status_change' && meta.from_alert === 'review_queue';
+                    const durationText = isDuration && typeof meta.duration_minutes === 'number'
+                      ? formatDurationMinutes(meta.duration_minutes)
+                      : null;
+                    return (
+                      <div key={a.id} className="border-b py-1.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="flex items-start gap-1.5">
+                            {isDuration && <Clock className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />}
+                            <span>
+                              {a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                              {durationText && !a.description?.includes(durationText) && (
+                                <span className="ml-1 font-medium">{durationText}</span>
+                              )}
+                            </span>
+                          </span>
+                          <span className="text-xs text-muted-foreground shrink-0">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
+                        </div>
+                        {isRQTransition && (meta.actor_name || meta.to_alert || meta.resolution) && (
+                          <div className="text-xs text-muted-foreground mt-0.5 ml-0.5 flex flex-wrap gap-1.5 items-center">
+                            {meta.actor_name && <span>by {meta.actor_name}</span>}
+                            {meta.to_alert && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                Review Queue → {ALERT_LABELS[meta.to_alert as AlertType] || meta.to_alert}
+                              </Badge>
+                            )}
+                            {meta.resolution && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
+                                {meta.resolution}
+                              </Badge>
+                            )}
+                            {meta.duplicate_of && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                Duplicate of {ALERT_LABELS[meta.duplicate_of as AlertType] || meta.duplicate_of}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {activity.length === 0 && <div className="text-xs text-muted-foreground">No activity yet.</div>}
                 </div>
               </div>
