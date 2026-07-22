@@ -652,14 +652,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       `}</style>
       
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="print-dialog max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center space-x-2">
-                <FileText className="h-5 w-5" />
-                <span>{appointment.is_reserved_block ? 'Reserved Time Block' : 'Appointment Details'} - {appointment.lead_name}</span>
+        <DialogContent className="print-dialog w-[95vw] max-w-[1200px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader className="sticky top-0 bg-background z-10 pb-2 -mx-6 px-6 -mt-6 pt-6 border-b">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <DialogTitle className="flex items-center space-x-2 min-w-0">
+                <FileText className="h-5 w-5 shrink-0" />
+                <span className="break-words">{appointment.is_reserved_block ? 'Reserved Time Block' : 'Appointment Details'} - {appointment.lead_name}</span>
               </DialogTitle>
-              <div className="flex gap-2 no-print">
+              <div className="flex gap-2 no-print flex-wrap">
                 {appointment.is_reserved_block && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
