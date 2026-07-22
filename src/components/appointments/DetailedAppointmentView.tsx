@@ -697,7 +697,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       `}</style>
       
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="print-dialog w-[95vw] max-w-[1200px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="print-dialog w-[95vw] sm:max-w-6xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-2 -mx-6 px-6 -mt-6 pt-6 border-b">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <DialogTitle className="flex items-center space-x-2 min-w-0 flex-1">
