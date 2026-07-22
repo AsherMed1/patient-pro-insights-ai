@@ -809,7 +809,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                         <TooltipTrigger asChild>
                           <div className="flex items-center space-x-2 cursor-default">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span>{appointment.lead_name}</span>
+                            <span>{displayName}</span>
                             {(isAdmin() || isVA()) && appointment.ghl_id && effectiveLocationId && (
                               <a
                                 href={`https://app.gohighlevel.com/v2/location/${effectiveLocationId}/contacts/detail/${appointment.ghl_id}`}
