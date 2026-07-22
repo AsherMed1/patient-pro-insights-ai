@@ -89,7 +89,21 @@ const ACTIVITY_LABELS: Record<string, string> = {
   status_change: 'Status changed',
   audit_update: 'Audit updated',
   reopened: 'Reopened',
+  review_queue_duration: 'Time in Review Queue',
 };
+
+function formatDurationMinutes(min: number): string {
+  if (!Number.isFinite(min) || min < 0) return '—';
+  if (min < 60) return `${Math.round(min)}m`;
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const m = Math.round(min - h * 60);
+    return `${h}h ${m}m`;
+  }
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min - d * 1440) / 60);
+  return `${d}d ${h}h`;
+}
 
 
 const ALERT_LABELS: Record<AlertType, string> = {
