@@ -346,7 +346,7 @@ const Index = () => {
                 )}
               </TabsTrigger>
             )}
-            {hasManagementAccess() && (
+            {(hasManagementAccess() || role === 'va') && (
               <TabsTrigger value="qa-queue">QA Operations</TabsTrigger>
             )}
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
@@ -400,7 +400,7 @@ const Index = () => {
             </TabsContent>
           )}
 
-          {hasManagementAccess() && (
+          {(hasManagementAccess() || role === 'va') && (
             <TabsContent value="qa-queue" className="space-y-6">
               <QAOperationsQueue />
             </TabsContent>
