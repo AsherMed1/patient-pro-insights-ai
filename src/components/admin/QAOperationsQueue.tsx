@@ -1340,7 +1340,7 @@ function CaseDrawer({
             <Button variant="outline" onClick={() => setTicketDialogOpen(false)} disabled={creatingTicket}>
               Cancel
             </Button>
-            <Button onClick={submitTicket} disabled={creatingTicket || !ticketForm.issue_type}>
+            <Button onClick={submitTicket} disabled={creatingTicket || !ticketForm.issue_type || !ticketForm.task_name.trim()}>
               {creatingTicket && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               {creatingTicket ? 'Creating…' : 'Create ticket'}
             </Button>
