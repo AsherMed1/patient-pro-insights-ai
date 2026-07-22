@@ -452,8 +452,20 @@ function parseCompoundImagingResponse(value: string, result: any): void {
 // loses no information.
 function stripPatientIntakeSummary(intakeNotes: string): string {
   if (!intakeNotes) return intakeNotes;
-  // Match the entire "Patient Intake Summary:" line (single-line blob).
-  return intakeNotes.replace(/Patient Intake Summary:[^\n]*/gi, 'Patient Intake Summary: [stripped]');
+  let out = intakeNotes;
+  // Strip the "Patient Intake Summary:" single-line blob (see comment above).
+  out = out.replace(/Patient Intake Summary:[^\n]*/gi, 'Patient Intake Summary: [stripped]');
+  // Strip GHL bot-config leftovers that are prompt injections when forwarded to
+  // our parser LLM. "OpenAI Prompt: Role: You are ..." contains a full system
+  // prompt for a booking bot (Ashley/etc.) that hijacks the parser and causes
+  // it to return nulls for Insurance / Pathology / Medical sections even when
+  // those sections are clearly present in the notes above it. Matches the UI's
+  // existing rule that truncates notes at "OpenAI Prompt:".
+  out = out.replace(/\n?\s*OpenAI Prompt:[\s\S]*$/i, '\n[Bot prompt stripped]');
+  // Standalone bot-config lines with no patient data.
+  out = out.replace(/^\s*Intro Message:[^\n]*$/gim, '');
+  out = out.replace(/^\s*AI Status:[^\n]*$/gim, '');
+  return out;
 }
 
 function fallbackRegexParsing(rawIntakeNotes: string): any {
