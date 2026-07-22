@@ -595,15 +595,18 @@ export default function QAOperationsQueue() {
 
       <CaseDrawer
         caseData={selectedCase}
+        siblings={selectedSiblings}
+        onSwitchCase={switchToSibling}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
         errorSources={errorSources}
         onErrorSourcesRefresh={refreshErrorSources}
         errorCategories={errorCategories}
         onErrorCategoriesRefresh={refreshErrorCategories}
-        onClose={() => setSelectedCase(null)}
+        onClose={() => { setSelectedCase(null); setSelectedSiblings([]); }}
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); }}
       />
+
 
     </div>
   );
