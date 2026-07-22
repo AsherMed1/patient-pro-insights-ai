@@ -753,48 +753,48 @@ function CaseDrawer({
 
   return (
     <Sheet open={!!caseData} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-xl min-w-0 overflow-y-auto overflow-x-hidden">
         {caseData && (
           <>
-            <SheetHeader>
-              <SheetTitle>{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
-              <div className="text-sm text-muted-foreground">
+            <SheetHeader className="min-w-0 pr-6">
+              <SheetTitle className="break-words">{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
+              <div className="text-sm text-muted-foreground break-words">
                 {caseData.project_name} • {caseData.service_line || 'No service'}
               </div>
             </SheetHeader>
 
-            <div className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
+            <div className="space-y-4 mt-4 min-w-0 max-w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm min-w-0">
+                <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Alert</div>
                   <Badge variant={alertVariant(caseData.alert_type)}>{ALERT_LABELS[caseData.alert_type]}</Badge>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt status</div>
-                  <div>{caseData.appointment_status || '—'}</div>
+                  <div className="break-words">{caseData.appointment_status || '—'}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt date</div>
-                  <div>{caseData.appointment_date ? format(new Date(caseData.appointment_date), 'PP p') : '—'}</div>
+                  <div className="break-words">{caseData.appointment_date ? format(new Date(caseData.appointment_date), 'PP p') : '—'}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Date created</div>
-                  <div>{format(new Date(caseData.first_entered_at || caseData.entered_queue_at), 'PP p')}</div>
+                  <div className="break-words">{format(new Date(caseData.first_entered_at || caseData.entered_queue_at), 'PP p')}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Latest alert</div>
-                  <div>{format(new Date(caseData.entered_queue_at), 'PP p')}</div>
+                  <div className="break-words">{format(new Date(caseData.entered_queue_at), 'PP p')}</div>
                 </div>
                 {caseData.date_resolved && (
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-muted-foreground text-xs">Date resolved</div>
-                    <div>{format(new Date(caseData.date_resolved), 'PP p')}</div>
+                    <div className="break-words">{format(new Date(caseData.date_resolved), 'PP p')}</div>
                   </div>
                 )}
               </div>
 
               {caseData.review_entered_at && (
-                <div className="border rounded-lg p-3 space-y-1 bg-muted/30">
+                <div className="border rounded-lg p-3 space-y-1 bg-muted/30 min-w-0 overflow-hidden">
                   <div className="text-sm font-semibold">Review Queue Timeline</div>
                   <div className="text-xs text-muted-foreground">
                     Entered: {format(new Date(caseData.review_entered_at), 'PP p')}
@@ -838,11 +838,11 @@ function CaseDrawer({
                 </Select>
               </div>
 
-              <div className="border rounded-lg p-3 space-y-3">
+              <div className="border rounded-lg p-3 space-y-3 min-w-0 overflow-hidden">
                 <div className="text-sm font-semibold">Audit Details</div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+                  <div className="min-w-0">
                     <Label className="text-xs">QA Name</Label>
                     <Input
                       value={audit.qa_name ?? ''}
@@ -850,7 +850,7 @@ function CaseDrawer({
                       placeholder="QA specialist"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label className="text-xs">Error Source</Label>
                     <ErrorSourceField
                       value={audit.error_source ?? ''}
@@ -862,8 +862,8 @@ function CaseDrawer({
 
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+                  <div className="min-w-0">
                     <Label className="text-xs">Error Category</Label>
                     <ErrorCategoryField
                       value={audit.error_category ?? ''}
@@ -872,7 +872,7 @@ function CaseDrawer({
                       onCategoriesRefresh={onErrorCategoriesRefresh}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label className="text-xs">Resolution Type</Label>
                     <Select
                       value={audit.resolution_type ?? ''}
@@ -886,7 +886,7 @@ function CaseDrawer({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-6 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={!!audit.self_booked}
@@ -903,7 +903,7 @@ function CaseDrawer({
                   </div>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <Label className="text-xs">GHL Contact</Label>
                   <div>
                     {ghlUrl ? (
@@ -995,11 +995,11 @@ function CaseDrawer({
                       ? formatDurationMinutes(meta.duration_minutes)
                       : null;
                     return (
-                      <div key={a.id} className="border-b py-1.5">
-                        <div className="flex justify-between gap-2">
-                          <span className="flex items-start gap-1.5">
+                          <div key={a.id} className="border-b py-1.5 min-w-0">
+                        <div className="flex justify-between gap-2 min-w-0">
+                          <span className="flex items-start gap-1.5 min-w-0">
                             {isDuration && <Clock className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />}
-                            <span>
+                            <span className="min-w-0 break-words">
                               {a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}
                               {durationText && !a.description?.includes(durationText) && (
                                 <span className="ml-1 font-medium">{durationText}</span>

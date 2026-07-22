@@ -1205,28 +1205,28 @@ const ReviewQueue: React.FC = () => {
                           </Button>
                         </div>
                       )}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 min-w-0">
+                        <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">Email</div>
-                          <div>{row.lead_email || '—'}</div>
+                          <div className="break-all">{row.lead_email || '—'}</div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">DOB</div>
-                          <div>{row.dob || demo.dob || '—'}</div>
+                          <div className="break-words">{row.dob || demo.dob || '—'}</div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">Location</div>
-                          <div>{path.location || '—'}</div>
+                          <div className="break-words">{path.location || '—'}</div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">Insurance</div>
-                          <div>{ins.provider || ins.plan || '—'}</div>
+                          <div className="break-words">{ins.provider || ins.plan || '—'}</div>
                         </div>
                       </div>
                       {isDeclinedView && row.review_notes && (
                         <div>
                           <div className="font-medium text-muted-foreground mb-1">Decline reason</div>
-                          <div className="whitespace-pre-wrap bg-background p-2 rounded border">
+                          <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-background p-2 rounded border max-w-full overflow-hidden">
                             {row.review_notes}
                           </div>
                         </div>
@@ -1234,7 +1234,7 @@ const ReviewQueue: React.FC = () => {
                       {row.patient_intake_notes && (
                         <div>
                           <div className="font-medium text-muted-foreground mb-1">Intake notes</div>
-                          <div className="whitespace-pre-wrap bg-background p-2 rounded border max-h-64 overflow-auto">
+                          <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-background p-2 rounded border max-h-64 max-w-full overflow-auto">
                             {row.patient_intake_notes.split('OpenAI Prompt:')[0]}
                           </div>
                         </div>
