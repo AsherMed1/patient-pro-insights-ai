@@ -274,6 +274,19 @@ export default function QAOperationsQueue() {
     };
   }, []);
 
+  // Keep the open drawer in sync with realtime refreshes of `cases`
+  useEffect(() => {
+    if (!selectedCase) return;
+    const fresh = cases.find((c) => c.id === selectedCase.id);
+    if (fresh && fresh !== selectedCase) {
+      setSelectedCase(fresh);
+    }
+    setSelectedSiblings((ss) =>
+      ss.map((s) => cases.find((c) => c.id === s.id) || s)
+    );
+  }, [cases]);
+
+
 
   useEffect(() => {
     (async () => {
@@ -374,8 +387,21 @@ export default function QAOperationsQueue() {
       patch.completed_at = new Date().toISOString();
       patch.completed_by_user_id = user?.id ?? null;
     }
+
+    // Optimistic UI updates so the drawer + list reflect immediately
+    const prevCases = cases;
+    const prevSelected = selectedCase;
+    const prevSiblings = selectedSiblings;
+    setCases((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    setSelectedCase((sc) => (sc && sc.id === id ? { ...sc, ...patch } : sc));
+    setSelectedSiblings((ss) => ss.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
     const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
     if (error) {
+      // Revert optimistic changes
+      setCases(prevCases);
+      setSelectedCase(prevSelected);
+      setSelectedSiblings(prevSiblings);
       toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
       return;
     }

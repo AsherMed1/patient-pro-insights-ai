@@ -1,31 +1,22 @@
-## Context
+## Problem
 
-Portal shows Earl A Chestnut on **Jul 30, 10:30 AM ET**. GHL shows **Jul 31, 11:30 AM ET**. Audit trail confirms the portal record was **not** manually edited after creation — no reschedule entries, empty `reschedule_history`, only the initial webhook + Review Queue approval touched it. This is a missed "Appointment Updated" webhook from GHL, same pattern as Lawrence Luczak and Sarella Kately.
+In the QA Operations drawer, changing **Workflow status** to "Completed" (or any value) doesn't visibly update until the user refreshes. The DB write succeeds, but the drawer keeps showing the old status.
 
-## Plan
+## Root cause
 
-1. **Confirm GHL is authoritative for Jul 31 11:30**
-   - Fetch appointment `DfDOfeHtPiBTM0ytTRmT` directly from GHL via `backfill-ghl-appointment` (or a one-shot fetch) using Champion Heart and Vascular Center credentials.
-   - Record the current `startTime`, `endTime`, `appointmentStatus`.
+`updateStatus` writes to Supabase, then calls `fetchCases()` which refreshes the `cases` list. However the drawer renders from a separate `selectedCase` state object, which is never updated after the write. The realtime subscription on `qa_cases` also only re-runs `fetchCases()` — it doesn't touch `selectedCase`. So the Select stays bound to the stale value until the user closes/reopens the drawer (which reads fresh data from `cases`).
 
-2. **Check whether the reschedule webhook ever arrived**
-   - Scan `ghl-webhook-handler` edge function logs for `DfDOfeHtPiBTM0ytTRmT` between Jul 22 17:07 UTC and now.
-   - Three possible outcomes:
-     - a) No log entry → GHL never delivered the webhook. Repair only.
-     - b) Log entry, but skipped by a guard (`isLikelyNotesOnlyPayload`, `hasRealDate`, terminal-status protection, superseded row, review-queue snapshot freeze, etc.) → repair + patch the guard.
-     - c) Log entry, accepted, but wrote to a different row → repair + investigate row matching.
+The same pattern already works correctly in `openCase` for the New → In Review auto-transition because it optimistically calls `setSelectedCase({ ...c, workflow_status: 'in_review' })` before the DB write.
 
-3. **Repair Earl's portal record**
-   - Invoke `backfill-ghl-appointment` with `projectName: "Champion Heart and Vascular Center"` and `contactIds: ["kONqteQAha8EppZkpnEH"]`. That synthesizes a fresh `AppointmentCreate` payload for the current GHL state and routes it through `ghl-webhook-handler`, which will update `date_of_appointment`, `requested_time`, and log a proper reschedule.
-   - Verify the row now shows Jul 31 11:30 ET (stored as `15:30 UTC`) and that `qa_cases.appointment_date` for the linked case reflects the new time (should happen automatically via the fixed ingest triggers from the previous turn).
+## Fix (UI only, `src/components/admin/QAOperationsQueue.tsx`)
 
-4. **If step 2 revealed a guard rejection, patch it**
-   - Only edit the specific guard that dropped the reschedule. No speculative changes.
+1. In `updateStatus`, optimistically patch `selectedCase` (and any matching sibling) with the new `workflow_status` and the timestamp fields it sets (`review_started_at`, `completed_at`, `completed_by_user_id`) before/alongside the Supabase write, so the drawer's Select reflects the change instantly.
+2. Add a small effect that keeps `selectedCase` in sync with the latest `cases` list — when realtime fires `fetchCases()` (e.g. another user updates the same case), the open drawer picks up the fresh row by id instead of showing stale data.
+3. On write failure, revert the optimistic patch and show the existing error toast.
 
-5. **Report findings**
-   - Whether the webhook arrived, which path dropped it (if any), what was changed, and the final portal state vs GHL.
+No schema, trigger, or realtime-publication changes — realtime is already subscribed to `qa_cases`; the missing piece is reflecting updates in the drawer's local state.
 
-## Out of scope
+## Verification
 
-- No changes to review-queue snapshot behavior, terminal-status protection, or echo-back debounce unless step 2 proves one of them dropped this specific reschedule.
-- No bulk backfill of other patients — this is a targeted repair for Earl only.
+- Open a case, change status to Completed → dropdown and header chip update immediately, no refresh needed.
+- With the drawer open, update the same case from another browser tab → the open drawer reflects the new status within ~1s via the existing realtime channel.
