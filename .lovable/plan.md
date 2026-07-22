@@ -1,21 +1,31 @@
-## Problem
+## Goal
+Make Date of Birth editable in the "View Patient Record" panel (Demographics section of `ParsedIntakeInfo`) opened from the QA Operations Queue drawer.
 
-Saving audit details with **Error Category = "Missing Address"** fails because the DB check constraint `qa_cases_error_category_check` only allows:
+## Scope
+`src/components/appointments/ParsedIntakeInfo.tsx` — Demographics card only. No changes to QA Operations code; the QA drawer already renders `DetailedAppointmentView`, which embeds this component with `appointmentId` set, so the same edit affordance is reused everywhere the patient record is opened.
 
-`Missing Insurance, Notes Added to Portal, Duplicate Appointment, Booking Rule Violation, Uploaded Insurance, Name Correction, Double Booked, Incorrect Patient Info, Other`
+## Changes
 
-The UI's Error Category field is dynamic (users can add new categories via `ErrorCategoryField`), but the DB constraint is a static allowlist — so any newly added category (like "Missing Address") is rejected.
+1. **Add edit affordance to the Demographics card** (mirror the Contact Information card pattern already in this file):
+   - Pencil button in the card header when `appointmentId` is present and not editing.
+   - Check/X buttons while editing, with `Loader2` during save.
+   - Local state: `isEditingDemographics`, `isSavingDemographics`, `editDemographics` (`{ dob, gender }`).
 
-## Fix
+2. **Editable fields**: Date of Birth (date input, `yyyy-MM-dd`) and Gender (text input). Age is not editable — it is always recalculated from DOB per the "Age Calculation" core rule.
 
-Single migration on `qa_cases`:
+3. **Save handler** — write both surfaces in one Supabase update to satisfy the "Field Editing Sync" and "DOB Fallback Display" core rules:
+   - Top-level `all_appointments.dob` = new DOB (or null if cleared).
+   - `parsed_demographics` JSONB merged with `{ dob, age: recalculated, gender }`.
+   - Also mirror `dob` into `parsed_contact_info.dob` if that object exists (some legacy rows read from there — matches existing fallback chain on line 525).
+   - On success: toast, exit edit mode, call the existing `onDataUpdate` callback so the parent (DetailedAppointmentView / QA drawer) refetches.
+   - On failure: toast error, keep edit mode open.
 
-1. Drop `qa_cases_error_category_check`.
-2. Re-create it to also permit `'Missing Address'`, keeping all existing values so nothing else regresses:
-   `Missing Insurance, Missing Address, Notes Added to Portal, Duplicate Appointment, Booking Rule Violation, Uploaded Insurance, Name Correction, Double Booked, Incorrect Patient Info, Other`.
+4. **Validation**: reject future dates and today (reuse the existing `isValidDOB` logic already in the Demographics block). Empty input allowed → stores null.
 
-No code changes — the UI already sends the value correctly; the constraint is the sole blocker.
+## Out of scope
+- No GHL two-way sync for DOB in this change (DOB isn't currently synced outbound from the portal; adding that would be a separate feature).
+- No changes to QA drawer, activity log, or triggers.
 
-## Note on future categories
-
-The QA team can add categories through the UI dropdown but the DB constraint is a static allowlist, so any brand-new label will hit this same error. If you want I can, in a follow-up, drop the check entirely and rely on the UI-managed list — say the word and I'll include it. For now this plan just unblocks "Missing Address".
+## Verification
+- Open QA Operations → click a case → "View patient record" → edit DOB → save → confirm the value persists after reopening and that Age recalculates.
+- Confirm the same pencil now also appears on the Demographics card in the standard Project Portal detailed view (same component, expected).
