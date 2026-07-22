@@ -1123,6 +1123,22 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // When the GHL "Please select your insurance provider" dropdown is set to a
+  // generic value like "Other" / "None" / "N/A" but the free-text "Insurance
+  // Plan" field carries the real carrier name (e.g. "United Healthcare"),
+  // promote the plan value into insurance_provider so the portal Provider
+  // field isn't a useless "Other".
+  {
+    const prov = parsedData.insurance_info.insurance_provider;
+    const plan = parsedData.insurance_info.insurance_plan;
+    const isGenericProvider =
+      typeof prov === 'string' && /^\s*(other|none|n\/a|unknown|na)\s*$/i.test(prov);
+    if (isGenericProvider && plan && typeof plan === 'string' && plan.trim().length >= 3) {
+      console.log(`[AUTO-PARSE ENRICH] Promoting Insurance Plan to provider (was generic "${prov}"): ${plan}`);
+      parsedData.insurance_info.insurance_provider = plan.trim();
+    }
+  }
+
   // ============================================================
   // Secondary insurance: GHL emits "(2)" suffixed copies for the secondary
   // policy plus "Upload A Copy Of Your Insurance Card (Secondary)" containing
