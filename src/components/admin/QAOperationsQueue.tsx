@@ -274,6 +274,19 @@ export default function QAOperationsQueue() {
     };
   }, []);
 
+  // Keep the open drawer in sync with realtime refreshes of `cases`
+  useEffect(() => {
+    if (!selectedCase) return;
+    const fresh = cases.find((c) => c.id === selectedCase.id);
+    if (fresh && fresh.updated_at !== selectedCase.updated_at) {
+      setSelectedCase(fresh);
+    }
+    setSelectedSiblings((ss) =>
+      ss.map((s) => cases.find((c) => c.id === s.id) || s)
+    );
+  }, [cases]);
+
+
 
   useEffect(() => {
     (async () => {
