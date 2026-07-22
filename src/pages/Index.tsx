@@ -400,7 +400,7 @@ const Index = () => {
             </TabsContent>
           )}
 
-          {hasManagementAccess() && (
+          {(hasManagementAccess() || role === 'va') && (
             <TabsContent value="qa-queue" className="space-y-6">
               <QAOperationsQueue />
             </TabsContent>
