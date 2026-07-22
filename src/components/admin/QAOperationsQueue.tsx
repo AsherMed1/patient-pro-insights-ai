@@ -1174,53 +1174,105 @@ function CaseDrawer({
               <div>
                 <div className="text-sm font-semibold mb-2">Activity</div>
                 <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
-                  {[...activity].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((a) => {
-                    const meta = (a.metadata || {}) as any;
-                    const isDuration = a.activity_type === 'review_queue_duration';
-                    const isRQTransition = a.activity_type === 'status_change' && meta.from_alert === 'review_queue';
-                    const durationText = isDuration && typeof meta.duration_minutes === 'number'
-                      ? formatDurationMinutes(meta.duration_minutes)
-                      : null;
-                    return (
-                          <div key={a.id} className="border-b py-1.5 min-w-0">
-                        <div className="flex justify-between gap-2 min-w-0">
-                          <span className="flex items-start gap-1.5 min-w-0">
-                            {isDuration && <Clock className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />}
-                            <span className="min-w-0 break-words">
-                              {a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}
-                              {durationText && !a.description?.includes(durationText) && (
-                                <span className="ml-1 font-medium">{durationText}</span>
-                              )}
-                            </span>
-                          </span>
-                          <span className="text-xs text-muted-foreground shrink-0">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
-                        </div>
-                        {isRQTransition && (meta.actor_name || meta.to_alert || meta.resolution) && (
-                          <div className="text-xs text-muted-foreground mt-0.5 ml-0.5 flex flex-wrap gap-1.5 items-center">
-                            {meta.actor_name && <span>by {meta.actor_name}</span>}
-                            {meta.to_alert && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                Review Queue → {ALERT_LABELS[meta.to_alert as AlertType] || meta.to_alert}
-                              </Badge>
-                            )}
-                            {meta.resolution && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
-                                {meta.resolution}
-                              </Badge>
-                            )}
-                            {meta.duplicate_of && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                Duplicate of {ALERT_LABELS[meta.duplicate_of as AlertType] || meta.duplicate_of}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                  {(() => {
+                    const pinnedShortNoticeId =
+                      caseData.alert_type !== 'short_notice'
+                        ? siblings.find(
+                            (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
+                          )?.id
+                        : undefined;
+                    const siblingEntries = siblings
+                      .filter((s) => s.id !== pinnedShortNoticeId)
+                      .map((s) => ({
+                        kind: 'sibling' as const,
+                        id: `sib-${s.id}`,
+                        ts: s.last_alert_activity_at || s.entered_queue_at,
+                        sibling: s,
+                      }));
+                    const activityEntries = activity.map((a) => ({
+                      kind: 'activity' as const,
+                      id: a.id,
+                      ts: a.created_at,
+                      activity: a,
+                    }));
+                    const merged = [...activityEntries, ...siblingEntries].sort(
+                      (x, y) => new Date(x.ts).getTime() - new Date(y.ts).getTime(),
                     );
-                  })}
-                  {activity.length === 0 && <div className="text-xs text-muted-foreground">No activity yet.</div>}
+                    if (merged.length === 0) {
+                      return <div className="text-xs text-muted-foreground">No activity yet.</div>;
+                    }
+                    return merged.map((entry) => {
+                      if (entry.kind === 'sibling') {
+                        const s = entry.sibling;
+                        return (
+                          <button
+                            key={entry.id}
+                            onClick={() => onSwitchCase(s)}
+                            className="w-full text-left border-b py-1.5 min-w-0 rounded hover:bg-accent px-1 -mx-1"
+                            title={`Open ${ALERT_LABELS[s.alert_type]} alert`}
+                          >
+                            <div className="flex justify-between gap-2 min-w-0">
+                              <span className="flex items-center gap-1.5 min-w-0 break-words">
+                                <Badge variant="outline" className="shrink-0">{ALERT_LABELS[s.alert_type]}</Badge>
+                                <span className="text-muted-foreground text-xs">
+                                  {s.workflow_status.replace('_', ' ')}
+                                </span>
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {format(new Date(entry.ts), 'MMM d, h:mm a')}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      }
+                      const a = entry.activity;
+                      const meta = (a.metadata || {}) as any;
+                      const isDuration = a.activity_type === 'review_queue_duration';
+                      const isRQTransition = a.activity_type === 'status_change' && meta.from_alert === 'review_queue';
+                      const durationText = isDuration && typeof meta.duration_minutes === 'number'
+                        ? formatDurationMinutes(meta.duration_minutes)
+                        : null;
+                      return (
+                        <div key={entry.id} className="border-b py-1.5 min-w-0">
+                          <div className="flex justify-between gap-2 min-w-0">
+                            <span className="flex items-start gap-1.5 min-w-0">
+                              {isDuration && <Clock className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />}
+                              <span className="min-w-0 break-words">
+                                {a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                                {durationText && !a.description?.includes(durationText) && (
+                                  <span className="ml-1 font-medium">{durationText}</span>
+                                )}
+                              </span>
+                            </span>
+                            <span className="text-xs text-muted-foreground shrink-0">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
+                          </div>
+                          {isRQTransition && (meta.actor_name || meta.to_alert || meta.resolution) && (
+                            <div className="text-xs text-muted-foreground mt-0.5 ml-0.5 flex flex-wrap gap-1.5 items-center">
+                              {meta.actor_name && <span>by {meta.actor_name}</span>}
+                              {meta.to_alert && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  Review Queue → {ALERT_LABELS[meta.to_alert as AlertType] || meta.to_alert}
+                                </Badge>
+                              )}
+                              {meta.resolution && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
+                                  {meta.resolution}
+                                </Badge>
+                              )}
+                              {meta.duplicate_of && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  Duplicate of {ALERT_LABELS[meta.duplicate_of as AlertType] || meta.duplicate_of}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
+
             </div>
           </>
         )}
