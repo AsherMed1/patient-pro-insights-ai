@@ -33,7 +33,10 @@ import {
   Trash2,
   Loader2,
   Plus,
-  MessageSquare
+  MessageSquare,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
