@@ -160,9 +160,8 @@ Deno.serve(async (req) => {
     const actor = user_name && user_name.trim() ? user_name.trim() : 'System';
     await supabase.from('appointment_notes').insert({
       appointment_id,
-      note: `Name changed from "${previousName}" to "${trimmedName}" by ${actor}`,
-      created_by: null,
-      is_internal: true,
+      note_text: `Name changed from "${previousName}" to "${trimmedName}" by ${actor}`,
+      created_by: actor,
     });
 
     return new Response(JSON.stringify({
