@@ -497,7 +497,7 @@ export default function QAOperationsQueue() {
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : filtered.length === 0 ? (
+            ) : filteredGroups.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">No cases in this view.</div>
             ) : (
               <Table>
@@ -506,7 +506,7 @@ export default function QAOperationsQueue() {
                     <TableHead>Patient</TableHead>
                     <TableHead>Clinic</TableHead>
                     <TableHead>Service</TableHead>
-                    <TableHead>Alert</TableHead>
+                    <TableHead>Alerts</TableHead>
                     <TableHead>Self-Booked</TableHead>
                     <TableHead>Error</TableHead>
                     <TableHead>Error Source</TableHead>
@@ -519,8 +519,11 @@ export default function QAOperationsQueue() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((c) => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openCase(c)}>
+                  {filteredGroups.map((g) => {
+                    const c = g.primary;
+                    const ticket = g.ticketCase;
+                    return (
+                    <TableRow key={g.key} className="cursor-pointer" onClick={() => openGroup(g)}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <span>{c.patient_name || '—'}</span>
@@ -541,40 +544,51 @@ export default function QAOperationsQueue() {
                       <TableCell>{c.project_name}</TableCell>
                       <TableCell>{c.service_line || '—'}</TableCell>
                       <TableCell>
-                        <Badge variant={alertVariant(c.alert_type)}>{ALERT_LABELS[c.alert_type]}</Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {g.alertTypes.map((t) => (
+                            <Badge key={t} variant={alertVariant(t)}>{ALERT_LABELS[t]}</Badge>
+                          ))}
+                          {g.children.length > g.alertTypes.length && (
+                            <Badge variant="outline" title="Multiple alerts of the same type">
+                              +{g.children.length - g.alertTypes.length}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>
                       <TableCell>{c.error_category || '—'}</TableCell>
                       <TableCell>{c.error_source || '—'}</TableCell>
                       <TableCell>{c.resolution_type || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{format(new Date(c.first_entered_at || c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
-                      <TableCell>{format(new Date(c.entered_queue_at), 'MMM d, h:mm a')}</TableCell>
+                      <TableCell className="text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>
+                      <TableCell>{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>
                       <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
                       <TableCell>
-                        {c.controlhub_ticket_id ? (
+                        {ticket?.controlhub_ticket_id ? (
                           <a
-                            href={c.controlhub_ticket_url ?? '#'}
+                            href={ticket.controlhub_ticket_url ?? '#'}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 text-primary underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {c.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
+                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-xs">None</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openCase(c); }}>
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
                           Open
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
+
           </div>
         </TabsContent>
       </Tabs>
