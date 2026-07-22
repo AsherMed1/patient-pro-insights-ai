@@ -141,6 +141,59 @@ const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | '
   return 'secondary';
 };
 
+// ---------------------------------------------------------------------------
+// Patient-level grouping. Every alert for the same GHL contact collapses into
+// a single row; the newest alert wins for bucket placement and headline data.
+// Rows without a ghl_contact_id fall back to project + normalized name + appt
+// id so unrelated orphans don't merge together.
+// ---------------------------------------------------------------------------
+interface QAGroup {
+  key: string;
+  primary: QACase;
+  children: QACase[];
+  alertTypes: AlertType[];
+  earliestCreated: string;
+  latestActivity: string;
+  ticketCase: QACase | null;
+}
+
+const normalizeName = (n: string | null): string =>
+  (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const groupKeyFor = (c: QACase): string => {
+  if (c.ghl_contact_id) return `ghl:${c.ghl_contact_id}`;
+  return `fallback:${c.project_name}|${normalizeName(c.patient_name)}|${c.appointment_id ?? c.id}`;
+};
+
+function groupCases(list: QACase[]): QAGroup[] {
+  const buckets = new Map<string, QACase[]>();
+  for (const c of list) {
+    const key = groupKeyFor(c);
+    const arr = buckets.get(key);
+    if (arr) arr.push(c);
+    else buckets.set(key, [c]);
+  }
+  const groups: QAGroup[] = [];
+  for (const [key, children] of buckets) {
+    const sorted = [...children].sort(
+      (a, b) => new Date(b.last_alert_activity_at || b.entered_queue_at).getTime()
+              - new Date(a.last_alert_activity_at || a.entered_queue_at).getTime(),
+    );
+    const primary = sorted[0];
+    const alertTypes = Array.from(new Set(sorted.map((c) => c.alert_type)));
+    const earliestCreated = sorted
+      .map((c) => c.first_entered_at || c.entered_queue_at)
+      .sort()[0];
+    const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
+    const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
+    groups.push({ key, primary, children: sorted, alertTypes, earliestCreated, latestActivity, ticketCase });
+  }
+  groups.sort(
+    (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
+  );
+  return groups;
+}
+
 export default function QAOperationsQueue() {
   const { user } = useAuth();
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
