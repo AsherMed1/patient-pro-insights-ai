@@ -322,18 +322,24 @@ export default function QAOperationsQueue() {
     });
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
 
+  // Group filtered cases by patient (GHL contact w/ fallback). Bucket counts
+  // and the visible table both work on groups so each patient appears once.
+  const groupedNoStatus = useMemo(() => groupCases(filteredNoStatus), [filteredNoStatus]);
+
   const bucketCounts = useMemo(() => {
     const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
-    for (const c of filteredNoStatus) {
-      if (counts[c.workflow_status] !== undefined) counts[c.workflow_status]++;
+    for (const g of groupedNoStatus) {
+      const s = g.primary.workflow_status;
+      if (counts[s] !== undefined) counts[s]++;
       counts.all++;
     }
     return counts;
-  }, [filteredNoStatus]);
+  }, [groupedNoStatus]);
 
-  const filtered = useMemo(() => (
-    tab === 'all' ? filteredNoStatus : filteredNoStatus.filter((c) => c.workflow_status === tab)
-  ), [filteredNoStatus, tab]);
+  const filteredGroups = useMemo(() => (
+    tab === 'all' ? groupedNoStatus : groupedNoStatus.filter((g) => g.primary.workflow_status === tab)
+  ), [groupedNoStatus, tab]);
+
 
   // When a search/filter is active and the current bucket has no matches, auto-switch
   // to the first bucket that does. Only reacts to filter changes, not manual tab clicks.
