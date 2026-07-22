@@ -157,7 +157,7 @@ interface QAGroup {
   key: string;
   primary: QACase;
   children: QACase[];
-  alertTypes: AlertType[];
+  displayAlertTypes: AlertType[];
   earliestCreated: string;
   latestActivity: string;
   ticketCase: QACase | null;
@@ -186,13 +186,20 @@ function groupCases(list: QACase[]): QAGroup[] {
               - new Date(a.last_alert_activity_at || a.entered_queue_at).getTime(),
     );
     const primary = sorted[0];
-    const alertTypes = Array.from(new Set(sorted.map((c) => c.alert_type)));
+    const latest = primary.alert_type;
+    const hasOpenShortNotice = sorted.some(
+      (c) => c.alert_type === 'short_notice' && c.workflow_status !== 'completed',
+    );
+    const displayAlertTypes: AlertType[] =
+      latest === 'short_notice' || !hasOpenShortNotice
+        ? [latest]
+        : ['short_notice', latest];
     const earliestCreated = sorted
       .map((c) => c.first_entered_at || c.entered_queue_at)
       .sort()[0];
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
-    groups.push({ key, primary, children: sorted, alertTypes, earliestCreated, latestActivity, ticketCase });
+    groups.push({ key, primary, children: sorted, displayAlertTypes, earliestCreated, latestActivity, ticketCase });
   }
   groups.sort(
     (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
@@ -551,12 +558,12 @@ export default function QAOperationsQueue() {
                       <TableCell>{c.service_line || '—'}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {g.alertTypes.map((t) => (
+                          {g.displayAlertTypes.map((t) => (
                             <Badge key={t} variant={alertVariant(t)}>{ALERT_LABELS[t]}</Badge>
                           ))}
-                          {g.children.length > g.alertTypes.length && (
-                            <Badge variant="outline" title="Multiple alerts of the same type">
-                              +{g.children.length - g.alertTypes.length}
+                          {g.children.length > g.displayAlertTypes.length && (
+                            <Badge variant="outline" title="Older alerts moved to history">
+                              +{g.children.length - g.displayAlertTypes.length}
                             </Badge>
                           )}
                         </div>
@@ -865,31 +872,65 @@ function CaseDrawer({
               </div>
             </SheetHeader>
 
-            {siblings.length > 0 && (
-              <div className="mt-3 border rounded-lg p-3 bg-muted/30">
-                <div className="text-xs text-muted-foreground mb-2">
-                  Alerts for this patient ({siblings.length + 1}) — click to switch
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
-                    {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
-                  </Badge>
-                  {siblings.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => onSwitchCase(s)}
-                      className="inline-flex"
-                      title={`Open ${ALERT_LABELS[s.alert_type]} alert`}
-                    >
-                      <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                        {ALERT_LABELS[s.alert_type]} · {s.workflow_status.replace('_', ' ')}
-                        {' · '}{format(new Date(s.last_alert_activity_at || s.entered_queue_at), 'MMM d')}
+            {siblings.length > 0 && (() => {
+              const pinnedShortNotice =
+                caseData.alert_type !== 'short_notice'
+                  ? siblings.find(
+                      (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
+                    )
+                  : undefined;
+              const previousAlerts = siblings.filter((s) => s.id !== pinnedShortNotice?.id);
+              return (
+                <div className="mt-3 border rounded-lg p-3 bg-muted/30 space-y-3">
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-2">
+                      Current alert{pinnedShortNotice ? 's' : ''} for this patient
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
+                        {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
                       </Badge>
-                    </button>
-                  ))}
+                      {pinnedShortNotice && (
+                        <button
+                          onClick={() => onSwitchCase(pinnedShortNotice)}
+                          className="inline-flex"
+                          title={`Open ${ALERT_LABELS[pinnedShortNotice.alert_type]} alert`}
+                        >
+                          <Badge variant={alertVariant(pinnedShortNotice.alert_type)} className="cursor-pointer hover:opacity-80">
+                            {ALERT_LABELS[pinnedShortNotice.alert_type]} · {pinnedShortNotice.workflow_status.replace('_', ' ')}
+                          </Badge>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {previousAlerts.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Previous alerts ({previousAlerts.length}) — click to switch
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {previousAlerts.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => onSwitchCase(s)}
+                            className="text-left text-xs px-2 py-1 rounded hover:bg-accent flex items-center justify-between gap-2"
+                            title={`Open ${ALERT_LABELS[s.alert_type]} alert`}
+                          >
+                            <span>
+                              <Badge variant="outline" className="mr-2">{ALERT_LABELS[s.alert_type]}</Badge>
+                              <span className="text-muted-foreground">{s.workflow_status.replace('_', ' ')}</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              {format(new Date(s.last_alert_activity_at || s.entered_queue_at), 'MMM d, h:mm a')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
 
             <div className="space-y-4 mt-4 min-w-0 max-w-full">
