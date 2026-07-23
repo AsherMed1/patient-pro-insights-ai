@@ -991,7 +991,7 @@ function CaseDrawer({
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt date</div>
-                  <div className="break-words">{formatApptDate(caseData.appointment_date)}</div>
+                  <div className="break-words">{liveApptDisplay()}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Date created</div>
