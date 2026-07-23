@@ -171,6 +171,18 @@ serve(async (req) => {
       )
     }
 
+    // Skip GHL calendar reserve-time blocks (contacts named "Reserved" or
+    // "Reserved - <label>"). These are calendar blocks the clinic creates to
+    // reserve slots and are not real patients — they must not create
+    // appointments, leads, or QA cases.
+    if (/^\s*reserved(\s*[-–—:].*)?$/i.test(webhookData.lead_name)) {
+      console.log(`[${requestId}] Skipping reserve-time block: "${webhookData.lead_name}"`)
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'reserved_time_block', lead_name: webhookData.lead_name, requestId }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Belt-and-suspenders: if a notes-only payload uses an unexpected shape and
     // somehow reaches extraction, stop before project creation / appointment upsert.
     if (isLikelyNotesOnlyPayload(payload)) {
