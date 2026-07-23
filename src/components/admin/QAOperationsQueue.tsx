@@ -1119,7 +1119,7 @@ function CaseDrawer({
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in_review">In Review</SelectItem>
+                    <SelectItem value="in_review">Opened</SelectItem>
                     <SelectItem value="pending_escalated">Pending / Escalated</SelectItem>
                     <SelectItem value="reopened">Reopened</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
