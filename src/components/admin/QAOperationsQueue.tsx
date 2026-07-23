@@ -57,6 +57,8 @@ interface QACase {
   ticket_created: boolean;
   review_entered_at: string | null;
   review_resolved_at: string | null;
+  lead_phone_number?: string | null;
+  lead_email?: string | null;
 }
 
 interface QANote {
