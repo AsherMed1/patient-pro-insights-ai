@@ -79,12 +79,18 @@ interface QAActivity {
 
 const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'new', label: 'New' },
-  { value: 'in_review', label: 'In Review' },
+  { value: 'in_review', label: 'Opened' },
   { value: 'pending_escalated', label: 'Pending / Escalated' },
   
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
+
+// Calendar reserved/blocked-time entries created via GHL's reserve-time feature
+// come through as contacts named "Reserved" or "Reserved - <something>". These
+// aren't real patients and shouldn't clutter the QA queue.
+const RESERVED_NAME_RE = /^\s*reserved(\s*[-–—:].*)?$/i;
+const isReservedBlock = (name?: string | null) => !!name && RESERVED_NAME_RE.test(name);
 
 const ACTIVITY_LABELS: Record<string, string> = {
   created: 'Case created',
@@ -362,6 +368,7 @@ export default function QAOperationsQueue() {
         end.setHours(23, 59, 59, 999);
         if (new Date(c.entered_queue_at) > end) return false;
       }
+      if (isReservedBlock(c.patient_name)) return false;
       if (!t) return true;
       const digits = t.replace(/\D/g, '');
       const phoneDigits = (c.lead_phone_number || '').replace(/\D/g, '');
@@ -1112,7 +1119,7 @@ function CaseDrawer({
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in_review">In Review</SelectItem>
+                    <SelectItem value="in_review">Opened</SelectItem>
                     <SelectItem value="pending_escalated">Pending / Escalated</SelectItem>
                     <SelectItem value="reopened">Reopened</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
