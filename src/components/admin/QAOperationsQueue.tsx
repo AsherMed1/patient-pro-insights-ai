@@ -739,12 +739,21 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
         if (!cancelled) {
-          setLiveAppt(data ? { date: (data as any).date_of_appointment, time: (data as any).requested_time } : null);
+          setLiveAppt(
+            data
+              ? {
+                  date: (data as any).date_of_appointment,
+                  time: (data as any).requested_time,
+                  phone: (data as any).lead_phone_number ?? null,
+                  email: (data as any).lead_email ?? null,
+                }
+              : null,
+          );
         }
       });
     return () => { cancelled = true; };
