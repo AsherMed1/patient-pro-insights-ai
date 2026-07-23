@@ -57,6 +57,8 @@ interface QACase {
   ticket_created: boolean;
   review_entered_at: string | null;
   review_resolved_at: string | null;
+  lead_phone_number?: string | null;
+  lead_email?: string | null;
 }
 
 interface QANote {
@@ -258,7 +260,28 @@ export default function QAOperationsQueue() {
       toast({ title: 'Failed to load cases', description: error.message, variant: 'destructive' });
       setCases([]);
     } else {
-      setCases((data as any) || []);
+      const rows = ((data as any[]) || []) as QACase[];
+      // Enrich with lead_phone_number / lead_email for search + drawer header
+      const apptIds = Array.from(
+        new Set(rows.map((r) => r.appointment_id).filter((v): v is string => !!v)),
+      );
+      const contactMap = new Map<string, { phone: string | null; email: string | null }>();
+      for (let i = 0; i < apptIds.length; i += 500) {
+        const chunk = apptIds.slice(i, i + 500);
+        const { data: appts } = await supabase
+          .from('all_appointments')
+          .select('id, lead_phone_number, lead_email')
+          .in('id', chunk);
+        for (const a of (appts as any[]) || []) {
+          contactMap.set(a.id, { phone: a.lead_phone_number ?? null, email: a.lead_email ?? null });
+        }
+      }
+      for (const r of rows) {
+        const c = r.appointment_id ? contactMap.get(r.appointment_id) : null;
+        r.lead_phone_number = c?.phone ?? null;
+        r.lead_email = c?.email ?? null;
+      }
+      setCases(rows);
     }
     setLoading(false);
   };
@@ -340,12 +363,16 @@ export default function QAOperationsQueue() {
         if (new Date(c.entered_queue_at) > end) return false;
       }
       if (!t) return true;
+      const digits = t.replace(/\D/g, '');
+      const phoneDigits = (c.lead_phone_number || '').replace(/\D/g, '');
       return (
         c.patient_name?.toLowerCase().includes(t) ||
         c.project_name.toLowerCase().includes(t) ||
         c.service_line?.toLowerCase().includes(t) ||
         c.error_source?.toLowerCase().includes(t) ||
-        c.error_category?.toLowerCase().includes(t)
+        c.error_category?.toLowerCase().includes(t) ||
+        c.lead_email?.toLowerCase().includes(t) ||
+        (digits.length >= 3 && phoneDigits.includes(digits))
       );
     });
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
@@ -460,7 +487,7 @@ export default function QAOperationsQueue() {
 
       <div className="flex flex-wrap gap-2 items-center">
         <Input
-          placeholder="Search patient, project, service, error…"
+          placeholder="Search patient, phone, email, project, service, error…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -689,7 +716,7 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
-  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null } | null>(null);
+  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null; phone: string | null; email: string | null } | null>(null);
   const [apptTz, setApptTz] = useState<string>(
     () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
   );
@@ -712,12 +739,21 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
         if (!cancelled) {
-          setLiveAppt(data ? { date: (data as any).date_of_appointment, time: (data as any).requested_time } : null);
+          setLiveAppt(
+            data
+              ? {
+                  date: (data as any).date_of_appointment,
+                  time: (data as any).requested_time,
+                  phone: (data as any).lead_phone_number ?? null,
+                  email: (data as any).lead_email ?? null,
+                }
+              : null,
+          );
         }
       });
     return () => { cancelled = true; };
@@ -946,6 +982,34 @@ function CaseDrawer({
               <div className="text-sm text-muted-foreground break-words">
                 {caseData.project_name} • {caseData.service_line || 'No service'}
               </div>
+              {(() => {
+                const phone = liveAppt?.phone ?? caseData.lead_phone_number ?? null;
+                const email = liveAppt?.email ?? caseData.lead_email ?? null;
+                return (
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    <div className="break-words">
+                      Phone:{' '}
+                      {phone ? (
+                        <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} className="text-foreground hover:underline">
+                          {phone}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                    <div className="break-all">
+                      Email:{' '}
+                      {email ? (
+                        <a href={`mailto:${email}`} className="text-foreground hover:underline">
+                          {email}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </SheetHeader>
 
             {siblings.length > 0 && (() => {
