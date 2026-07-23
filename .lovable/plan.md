@@ -1,19 +1,26 @@
-## Restore 4 Davis leads only
+## Problem
 
-Scope narrowed per your request — no trigger changes, no sweep. Just restore the four rows the earlier `time_preference` update clobbered back to Cancelled.
+`parsed_medical_info.pcp_name` and `pcp_phone` on Sandra Pongrass (`4994537b-f403-4cf6-88fc-f6558c631c03`) contain the "Follow-Up Notes: Patient insurance under husband William Pongrass..." blob instead of her real PCP info. The parser slurped a downstream label into the PCP fields.
 
-### Change
-Update the following Davis Vein & Vascular rows in `all_appointments`:
+The correct values are present in the intake notes under **Medical Information**:
+- PCP Name: `Dr. Sinonith`
+- PCP Phone: `281 392 6797`
 
-- Abron Johnson
-- Michael Daigle
-- Terry Sadler
-- Loretta Brown Freddie
+The follow-up narrative belongs in a notes field, not PCP.
 
-Set:
-- `status = 'Cancelled'`
-- `internal_process_complete = true`
+## Fix (data-only)
 
-### Notes
-- Trigger `handle_unscheduled_time_preference_change` stays as-is. If any of these four rows has their `time_preference` edited again later, it will re-clobber to Pending — we accept that risk for now.
-- No schema changes, no code changes, no other projects touched.
+Update Sandra's `parsed_medical_info` JSONB:
+- `pcp_name` → `"Dr. Sinonith"`
+- `pcp_phone` → `"281 392 6797"`
+- Preserve the "Patient insurance under husband William Pongrass with CIGNA PPO; Awaiting appointment coordination from Tamra..." context by moving it into `parsed_medical_info.notes` (so it still shows in the Notes area of the Medical card, not as PCP).
+- Leave `imaging_details` as-is.
+
+No code, schema, or trigger changes — the underlying parser hardening for "Patient Intake Summary"-style single-line blob hijacking is already tracked in memory (`ghl-patient-intake-summary-blob-sanitization`). This is a one-off data repair for the already-corrupted row.
+
+## Verify
+
+Reload the Davis project portal → Sandra Pongrass → Medical & PCP Information card shows:
+- PCP Name: Dr. Sinonith
+- PCP Phone: 281 392 6797
+- Notes: the William Pongrass / CIGNA follow-up context
