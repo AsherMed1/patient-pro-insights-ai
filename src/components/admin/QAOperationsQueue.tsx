@@ -363,12 +363,16 @@ export default function QAOperationsQueue() {
         if (new Date(c.entered_queue_at) > end) return false;
       }
       if (!t) return true;
+      const digits = t.replace(/\D/g, '');
+      const phoneDigits = (c.lead_phone_number || '').replace(/\D/g, '');
       return (
         c.patient_name?.toLowerCase().includes(t) ||
         c.project_name.toLowerCase().includes(t) ||
         c.service_line?.toLowerCase().includes(t) ||
         c.error_source?.toLowerCase().includes(t) ||
-        c.error_category?.toLowerCase().includes(t)
+        c.error_category?.toLowerCase().includes(t) ||
+        c.lead_email?.toLowerCase().includes(t) ||
+        (digits.length >= 3 && phoneDigits.includes(digits))
       );
     });
   }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
