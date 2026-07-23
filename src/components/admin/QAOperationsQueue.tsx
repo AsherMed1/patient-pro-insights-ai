@@ -861,9 +861,11 @@ function CaseDrawer({
   };
 
   const buildDefaultDescription = (c: QACase): string => {
-    const apptLine = c.appointment_date
-      ? `Appointment: ${formatInTimeZone(new Date(c.appointment_date), apptTz, 'PP p')}`
-      : 'Appointment: Not scheduled';
+    const apptLine = liveAppt?.date
+      ? `Appointment: ${format(new Date(`${liveAppt.date}T${liveAppt.time || '00:00:00'}`), 'PP p')}`
+      : c.appointment_date
+        ? `Appointment: ${formatInTimeZone(new Date(c.appointment_date), apptTz, 'PP p')}`
+        : 'Appointment: Not scheduled';
     const lines = [
       `Patient: ${c.patient_name || 'Unknown'}`,
       `Service line: ${c.service_line || 'n/a'}`,
