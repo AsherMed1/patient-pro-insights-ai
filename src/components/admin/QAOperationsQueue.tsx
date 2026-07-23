@@ -689,6 +689,7 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
+  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null } | null>(null);
   const [apptTz, setApptTz] = useState<string>(
     () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
   );
@@ -704,8 +705,36 @@ function CaseDrawer({
     return () => { cancelled = true; };
   }, [caseData?.project_name]);
 
+  // Always read the live appointment date/time from all_appointments so the
+  // QA drawer mirrors the Portal (and doesn't render a stale qa_cases.appointment_date).
+  useEffect(() => {
+    if (!caseData?.appointment_id) { setLiveAppt(null); return; }
+    let cancelled = false;
+    supabase
+      .from('all_appointments')
+      .select('date_of_appointment, requested_time')
+      .eq('id', caseData.appointment_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) {
+          setLiveAppt(data ? { date: (data as any).date_of_appointment, time: (data as any).requested_time } : null);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [caseData?.appointment_id]);
+
   const formatApptDate = (iso: string | null | undefined) =>
     iso ? formatInTimeZone(new Date(iso), apptTz, 'PP p') : '—';
+
+  // Prefer the live Portal wall time; fall back to the frozen qa_cases value.
+  const liveApptDisplay = (): string => {
+    if (liveAppt?.date) {
+      const t = liveAppt.time || '00:00:00';
+      const dt = new Date(`${liveAppt.date}T${t}`);
+      if (!isNaN(dt.getTime())) return format(dt, 'PP p');
+    }
+    return formatApptDate(caseData?.appointment_date);
+  };
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
