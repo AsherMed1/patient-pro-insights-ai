@@ -1,0 +1,1 @@
+ALTER TABLE public.qa_cases DROP CONSTRAINT IF EXISTS qa_cases_error_category_check;
