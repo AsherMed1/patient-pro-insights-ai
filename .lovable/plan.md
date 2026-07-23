@@ -1,24 +1,15 @@
-## Goal
-In the QA Operations Queue, let admins search by patient phone number and email, and surface both values in the top-right patient info block of the case drawer (where the red box is drawn in the screenshot).
+## Changes to QA Operations Queue
 
-## Changes (all in `src/components/admin/QAOperationsQueue.tsx`)
+**1. Rename bucket "In Review" → "Opened"**
+- In `src/components/admin/QAOperationsQueue.tsx`, update the bucket label wherever "In Review" is shown in the UI (bucket tabs/filters, drawer status labels, dropdowns).
+- Keep the underlying DB status value (`in_review`) unchanged to avoid migrations and preserve history; only the display label changes.
 
-1. **Enrich loaded cases with phone/email**
-   - Extend the `QACase` interface with optional `lead_phone_number` and `lead_email`.
-   - After the existing `qa_cases` load, batch-fetch `id, lead_phone_number, lead_email` from `all_appointments` for every distinct `appointment_id` in the result set (single `.in('id', [...])` query, chunked to 500 to stay under PostgREST limits).
-   - Merge the phone/email onto each case in memory before calling `setCases`.
+**2. Filter out "Reserved" calendar-block entries**
+- These come from the clinic's GHL reserved-time-block calendar events (patient name like `Reserved` or `Reserved - Judy Appt`).
+- Two-layer fix:
+  - **Ingest guard** in `supabase/functions/ghl-webhook-handler/index.ts`: skip appointment creation when the contact/patient name matches `^reserved(\s*-\s*.*)?$` (case-insensitive). Log and return early so no `all_appointments` row and no QA case is created.
+  - **QA Queue filter** in `QAOperationsQueue.tsx`: exclude cases whose patient name matches the same pattern, so any existing "Reserved" cases disappear from the queue immediately without waiting on cleanup.
+- Optional cleanup (ask before running): bulk-mark existing "Reserved*" `qa_cases` as `completed` / `dismissed` and hide their `all_appointments` rows from the Review Queue.
 
-2. **Extend the search filter**
-   - Update the `filteredNoStatus` predicate so the search string also matches `lead_phone_number` (digits-only compare — strip non-digits from both sides so `(555) 123-4567` matches `5551234567`) and `lead_email` (case-insensitive substring).
-   - Update the search input placeholder to `Search patient, phone, email, project, service, error…`.
-
-3. **Show phone/email in the drawer header**
-   - In `CaseDrawer`, extend the existing `all_appointments` fetch (the one that already selects `date_of_appointment, requested_time`) to also select `lead_phone_number, lead_email`, and store them alongside `liveAppt`.
-   - Under the subtitle line "Humble Vascular Surgery Center • Request Your GAE…" (the empty red-boxed area in the screenshot), render two small muted rows:
-     - `Phone: <formatted phone>` (fallback `—`) — wrap in a `tel:` link
-     - `Email: <email>` (fallback `—`) — wrap in a `mailto:` link
-   - Keep it compact (text-xs, `text-muted-foreground`, `break-all` on the email) so it doesn't disturb the existing grid.
-
-## Out of scope
-- No schema changes; `all_appointments.lead_phone_number` / `lead_email` already exist.
-- No changes to ticket creation, notes, activity, or filters other than the search input.
+## Questions before build
+- For existing "Reserved" rows already in `qa_cases` and `all_appointments`, do you want them (a) just hidden by the filter, or (b) also bulk-cleaned up in the database?
