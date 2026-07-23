@@ -716,7 +716,7 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
-  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null } | null>(null);
+  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null; phone: string | null; email: string | null } | null>(null);
   const [apptTz, setApptTz] = useState<string>(
     () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
   );
