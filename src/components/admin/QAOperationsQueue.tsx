@@ -368,6 +368,7 @@ export default function QAOperationsQueue() {
         end.setHours(23, 59, 59, 999);
         if (new Date(c.entered_queue_at) > end) return false;
       }
+      if (isReservedBlock(c.patient_name)) return false;
       if (!t) return true;
       const digits = t.replace(/\D/g, '');
       const phoneDigits = (c.lead_phone_number || '').replace(/\D/g, '');
