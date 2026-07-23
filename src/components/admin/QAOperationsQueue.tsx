@@ -487,7 +487,7 @@ export default function QAOperationsQueue() {
 
       <div className="flex flex-wrap gap-2 items-center">
         <Input
-          placeholder="Search patient, project, service, error…"
+          placeholder="Search patient, phone, email, project, service, error…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
