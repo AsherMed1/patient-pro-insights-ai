@@ -1,23 +1,24 @@
-## Problem
+## Goal
+In the QA Operations Queue, let admins search by patient phone number and email, and surface both values in the top-right patient info block of the case drawer (where the red box is drawn in the screenshot).
 
-Saving audit details fails with:
-`new row for relation "qa_cases" violates check constraint "qa_cases_error_category_check"`
+## Changes (all in `src/components/admin/QAOperationsQueue.tsx`)
 
-The `error_category` dropdown is populated from an **editable master list** (`qa_error_categories` table), but the `qa_cases.error_category` column still has a hardcoded `CHECK` constraint that only permits 10 fixed values (Missing Insurance, Missing Address, Notes Added to Portal, Duplicate Appointment, Booking Rule Violation, Uploaded Insurance, Name Correction, Double Booked, Incorrect Patient Info, Other).
+1. **Enrich loaded cases with phone/email**
+   - Extend the `QACase` interface with optional `lead_phone_number` and `lead_email`.
+   - After the existing `qa_cases` load, batch-fetch `id, lead_phone_number, lead_email` from `all_appointments` for every distinct `appointment_id` in the result set (single `.in('id', [...])` query, chunked to 500 to stay under PostgREST limits).
+   - Merge the phone/email onto each case in memory before calling `setCases`.
 
-"OON / Setter" (and any other category admins add via the master list) will always be rejected. This is a design mismatch — the check constraint contradicts the "editable master list" model.
+2. **Extend the search filter**
+   - Update the `filteredNoStatus` predicate so the search string also matches `lead_phone_number` (digits-only compare — strip non-digits from both sides so `(555) 123-4567` matches `5551234567`) and `lead_email` (case-insensitive substring).
+   - Update the search input placeholder to `Search patient, phone, email, project, service, error…`.
 
-## Fix
+3. **Show phone/email in the drawer header**
+   - In `CaseDrawer`, extend the existing `all_appointments` fetch (the one that already selects `date_of_appointment, requested_time`) to also select `lead_phone_number, lead_email`, and store them alongside `liveAppt`.
+   - Under the subtitle line "Humble Vascular Surgery Center • Request Your GAE…" (the empty red-boxed area in the screenshot), render two small muted rows:
+     - `Phone: <formatted phone>` (fallback `—`) — wrap in a `tel:` link
+     - `Email: <email>` (fallback `—`) — wrap in a `mailto:` link
+   - Keep it compact (text-xs, `text-muted-foreground`, `break-all` on the email) so it doesn't disturb the existing grid.
 
-Drop the `qa_cases_error_category_check` constraint entirely. The master `qa_error_categories` table is the source of truth for allowed values; the UI already picks from it, so a hardcoded DB whitelist is redundant and blocks legitimate new categories.
-
-### Migration
-```sql
-ALTER TABLE public.qa_cases DROP CONSTRAINT IF EXISTS qa_cases_error_category_check;
-```
-
-No UI or code changes needed — the dropdown, save flow, and master-list editor already work correctly.
-
-## Verification
-
-After the migration, saving the audit details for the pictured case (Error Category = "OON / Setter") will succeed, and admins can freely add new categories via the master list without hitting constraint errors.
+## Out of scope
+- No schema changes; `all_appointments.lead_phone_number` / `lead_email` already exist.
+- No changes to ticket creation, notes, activity, or filters other than the search input.
