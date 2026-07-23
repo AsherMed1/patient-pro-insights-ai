@@ -79,12 +79,18 @@ interface QAActivity {
 
 const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'new', label: 'New' },
-  { value: 'in_review', label: 'In Review' },
+  { value: 'in_review', label: 'Opened' },
   { value: 'pending_escalated', label: 'Pending / Escalated' },
   
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
+
+// Calendar reserved/blocked-time entries created via GHL's reserve-time feature
+// come through as contacts named "Reserved" or "Reserved - <something>". These
+// aren't real patients and shouldn't clutter the QA queue.
+const RESERVED_NAME_RE = /^\s*reserved(\s*[-–—:].*)?$/i;
+const isReservedBlock = (name?: string | null) => !!name && RESERVED_NAME_RE.test(name);
 
 const ACTIVITY_LABELS: Record<string, string> = {
   created: 'Case created',
