@@ -982,6 +982,34 @@ function CaseDrawer({
               <div className="text-sm text-muted-foreground break-words">
                 {caseData.project_name} • {caseData.service_line || 'No service'}
               </div>
+              {(() => {
+                const phone = liveAppt?.phone ?? caseData.lead_phone_number ?? null;
+                const email = liveAppt?.email ?? caseData.lead_email ?? null;
+                return (
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    <div className="break-words">
+                      Phone:{' '}
+                      {phone ? (
+                        <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} className="text-foreground hover:underline">
+                          {phone}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                    <div className="break-all">
+                      Email:{' '}
+                      {email ? (
+                        <a href={`mailto:${email}`} className="text-foreground hover:underline">
+                          {email}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </SheetHeader>
 
             {siblings.length > 0 && (() => {
