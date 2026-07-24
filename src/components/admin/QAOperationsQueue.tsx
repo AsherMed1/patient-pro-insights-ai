@@ -890,6 +890,43 @@ function CaseDrawer({
     onRefresh();
   };
 
+  const clearAudit = async () => {
+    if (!caseData) return;
+    setClearingAudit(true);
+    const patch: any = {
+      qa_name: null,
+      self_booked: null,
+      error_category: null,
+      error_source: null,
+      caught_before_clinic: null,
+      resolution_type: null,
+      date_resolved: null,
+    };
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', caseData.id);
+    setClearingAudit(false);
+    setClearConfirmOpen(false);
+    if (error) {
+      toast({ title: 'Clear failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setAudit({
+      qa_name: authorDisplayName || '',
+      self_booked: null,
+      error_category: null,
+      error_source: null,
+      caught_before_clinic: null,
+      resolution_type: null,
+    });
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'audit_cleared',
+      description: `Audit results cleared${authorDisplayName ? ` by ${authorDisplayName}` : ''}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    toast({ title: 'Audit results cleared' });
+    onRefresh();
+  };
+
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [ticketForm, setTicketForm] = useState({
     task_name: '',
