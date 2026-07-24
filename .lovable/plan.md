@@ -1,23 +1,17 @@
-## Goal
-Help setters spot short-notice bookings while triaging the Review Queue by adding a visual "Short Notice" badge to each pending row that already has (or qualifies for) a short-notice alert.
+Fix the "Short Notice" badge in `src/components/admin/ReviewQueue.tsx` so its text no longer overflows.
 
-## Where
-`src/components/admin/ReviewQueue.tsx` — Pending Review tab rows only. No changes to Declined tab, QA Operations, or business logic.
+Current problem (from screenshot):
+- Badge is fixed at `h-5` with `text-[10px]` and `py-0`
+- Content "Short Notice · 26h" is too wide for the badge, causing the text to overflow/clipping
 
-## How
+Changes to make:
+1. Change badge height from fixed `h-5` to `h-auto min-h-5` so it can grow vertically
+2. Allow text wrapping with `whitespace-normal` and `leading-tight`
+3. Add horizontal padding (`px-2`) and small vertical padding (`py-0.5`) so text isn't crushed
+4. Keep the orange color scheme and Zap icon
+5. Optionally stack the label and time on two lines for very narrow columns (e.g., "Short Notice" on line 1, "26h" on line 2) using a flex column layout inside the badge
 
-1. When Pending Review rows load, collect their `appointment_id`s and fetch matching rows from `short_notice_alerts` (columns: `appointment_id`, `hours_difference`) in a single query. Build a Map keyed by appointment_id.
-2. For each Pending Review row, if the appointment has a short-notice alert, render an amber "⚡ Short Notice · Xh" badge next to the patient name (same row as the existing "Duplicate" badge shown for James Nesbit in the screenshot).
-   - Format: `< 1h` shown as minutes, otherwise rounded biz-hours (matches Slack alert wording).
-3. Add an optional filter chip near the Pending/Declined tabs: "Short notice only" toggle that filters the visible list to badged rows. Off by default.
-4. Sort tweak: within Pending Review, keep current sort but push short-notice rows to the top so setters see them first. (Simple client-side stable sort after fetch.)
-
-## Out of scope
-- No schema changes, no new edge functions, no changes to how short-notice alerts are generated.
-- QA Operations Queue unchanged.
-- No changes to Approve/Decline/OON logic.
-
-## Technical notes
-- Query: `supabase.from('short_notice_alerts').select('appointment_id, hours_difference').in('appointment_id', ids)`.
-- Badge styling: reuse existing amber/orange token used elsewhere (e.g. OON button styling) via Tailwind — `bg-amber-100 text-amber-800 border border-amber-300`.
-- The badge and the sort/filter operate on the already-fetched pending list, so no extra round-trips per row.
+Verification:
+- Re-render the Review Queue with a short-notice row
+- Confirm the badge fully shows "Short Notice · 26h" without clipped text
+- Confirm the row layout remains aligned and the badge doesn't break surrounding grid columns
