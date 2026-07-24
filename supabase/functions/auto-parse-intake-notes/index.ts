@@ -2641,7 +2641,7 @@ Deno.serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -3098,7 +3098,10 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // the webhook (or a prior parse) already populated — critical for
           // insurance_provider / insurance_id_number.
           updateData.parsed_insurance_info = mergeWithNonNull(record.parsed_insurance_info || {}, parsedData.insurance_info || {});
-          updateData.parsed_pathology_info = parsedData.pathology_info;
+          // Non-null merge for pathology too — protects webhook-extracted Neuropathy
+          // STEP data (pain level, affected areas, duration, symptoms, diabetes) from
+          // being wiped by an AI parse that returns nulls for those fields.
+          updateData.parsed_pathology_info = mergeWithNonNull(record.parsed_pathology_info || {}, parsedData.pathology_info || {});
           updateData.parsed_medical_info = mergeWithNonNull(record.parsed_medical_info || {}, parsedData.medical_info || {});
 
           // Strip stale STEP question lines from prior services (e.g. GAE → UFE re-opt-in)
