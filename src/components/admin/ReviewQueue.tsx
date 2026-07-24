@@ -1082,6 +1082,18 @@ const ReviewQueue: React.FC = () => {
                             Duplicate ({duplicatesByRowId[row.id].length})
                           </Badge>
                         )}
+                        {!isDeclinedView && shortNoticeByRowId[row.id] !== undefined && (
+                          <Badge
+                            variant="outline"
+                            className="border-orange-400 text-orange-700 bg-orange-50 text-[10px] py-0 h-5"
+                            title="Booked shortly before appointment (business hours)"
+                          >
+                            <Zap className="h-2.5 w-2.5 mr-1" />
+                            Short Notice · {shortNoticeByRowId[row.id] < 1
+                              ? `${Math.max(1, Math.round(shortNoticeByRowId[row.id] * 60))}m`
+                              : `${Math.round(shortNoticeByRowId[row.id])}h`}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
