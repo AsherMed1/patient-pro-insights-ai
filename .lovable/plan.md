@@ -1,27 +1,23 @@
-## Root cause (verified)
+## Goal
+Help setters spot short-notice bookings while triaging the Review Queue by adding a visual "Short Notice" badge to each pending row that already has (or qualifies for) a short-notice alert.
 
-Patricia Harris's Slack alert fired at 3:23 PM but never landed in QA Operations because inserting into `short_notice_alerts` throws:
+## Where
+`src/components/admin/ReviewQueue.tsx` — Pending Review tab rows only. No changes to Declined tab, QA Operations, or business logic.
 
-> `column a.procedure_type does not exist`
+## How
 
-The trigger `qa_ingest_short_notice()` (on `short_notice_alerts`) selects `a.procedure_type` from `all_appointments`, but that column doesn't exist on that table (only `calendar_name` does). Because the trigger errors, the insert is rolled back — so:
-
-- No `short_notice_alerts` row (last successful insert was July 15).
-- No paired `short_notice` + `review_queue` `qa_cases` rows.
-- Nothing appears in QA Operations even though Slack was sent.
-
-Confirmed via edge logs (`notify-slack-short-notice`) and `information_schema.columns`.
-
-## Fix
-
-Migration to replace `public.qa_ingest_short_notice()` so it no longer references the missing `procedure_type` column — use `calendar_name` directly (which is what `COALESCE(procedure_type, calendar_name)` was already falling back to). Behavior is otherwise unchanged: same paired `short_notice` + `review_queue` case creation when `review_status='pending'`.
-
-## Backfill
-
-After the trigger is fixed, insert the missing `short_notice_alerts` row for Patricia Harris (appointment `051f06e0-0620-4118-90e9-7d5b7a1f95c6`) using the values from the edge-function log, so the QA Operations pair (Short Notice + Review Queue) appears without waiting for a new alert.
-
-Also sanity-check for any other short-notice Slack alerts sent since July 15 with no matching DB row and backfill them the same way.
+1. When Pending Review rows load, collect their `appointment_id`s and fetch matching rows from `short_notice_alerts` (columns: `appointment_id`, `hours_difference`) in a single query. Build a Map keyed by appointment_id.
+2. For each Pending Review row, if the appointment has a short-notice alert, render an amber "⚡ Short Notice · Xh" badge next to the patient name (same row as the existing "Duplicate" badge shown for James Nesbit in the screenshot).
+   - Format: `< 1h` shown as minutes, otherwise rounded biz-hours (matches Slack alert wording).
+3. Add an optional filter chip near the Pending/Declined tabs: "Short notice only" toggle that filters the visible list to badged rows. Off by default.
+4. Sort tweak: within Pending Review, keep current sort but push short-notice rows to the top so setters see them first. (Simple client-side stable sort after fetch.)
 
 ## Out of scope
+- No schema changes, no new edge functions, no changes to how short-notice alerts are generated.
+- QA Operations Queue unchanged.
+- No changes to Approve/Decline/OON logic.
 
-- No changes to the Slack edge function, QA UI, or Review Queue logic.
+## Technical notes
+- Query: `supabase.from('short_notice_alerts').select('appointment_id, hours_difference').in('appointment_id', ids)`.
+- Badge styling: reuse existing amber/orange token used elsewhere (e.g. OON button styling) via Tailwind — `bg-amber-100 text-amber-800 border border-amber-300`.
+- The badge and the sort/filter operate on the already-fetched pending list, so no extra round-trips per row.
