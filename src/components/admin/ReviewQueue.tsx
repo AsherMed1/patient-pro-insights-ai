@@ -194,33 +194,46 @@ const ReviewQueue: React.FC = () => {
   };
 
   const sortedRows = useMemo(() => {
-    if (!sortKey) return rows;
-    const dir = sortDir === 'asc' ? 1 : -1;
-    const getVal = (r: ReviewAppointment): string | number => {
-      switch (sortKey) {
-        case 'patient':
-          return (r.lead_name || '').toLowerCase();
-        case 'project':
-          return (r.project_name || '').toLowerCase();
-        case 'service': {
-          const proc = (r.parsed_pathology_info?.procedure_type || '').toString().toLowerCase();
-          const cal = (r.calendar_name || '').toLowerCase();
-          return `${proc}|${cal}`;
+    const base = shortNoticeOnly ? rows.filter(r => shortNoticeByRowId[r.id] !== undefined) : rows;
+    let ordered = base;
+    if (sortKey) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      const getVal = (r: ReviewAppointment): string | number => {
+        switch (sortKey) {
+          case 'patient':
+            return (r.lead_name || '').toLowerCase();
+          case 'project':
+            return (r.project_name || '').toLowerCase();
+          case 'service': {
+            const proc = (r.parsed_pathology_info?.procedure_type || '').toString().toLowerCase();
+            const cal = (r.calendar_name || '').toLowerCase();
+            return `${proc}|${cal}`;
+          }
+          case 'appointment': {
+            if (!r.date_of_appointment) return Number.POSITIVE_INFINITY;
+            const t = r.requested_time || '00:00:00';
+            return new Date(`${r.date_of_appointment}T${t}`).getTime() || Number.POSITIVE_INFINITY;
+          }
         }
-        case 'appointment': {
-          if (!r.date_of_appointment) return Number.POSITIVE_INFINITY;
-          const t = r.requested_time || '00:00:00';
-          return new Date(`${r.date_of_appointment}T${t}`).getTime() || Number.POSITIVE_INFINITY;
-        }
-      }
-    };
-    return [...rows].sort((a, b) => {
-      const av = getVal(a);
-      const bv = getVal(b);
-      if (av === bv) return 0;
-      return av > bv ? dir : -dir;
-    });
-  }, [rows, sortKey, sortDir]);
+      };
+      ordered = [...base].sort((a, b) => {
+        const av = getVal(a);
+        const bv = getVal(b);
+        if (av === bv) return 0;
+        return av > bv ? dir : -dir;
+      });
+    }
+    // Always float short-notice rows to the top of the Pending view
+    if (!isDeclinedViewFlag) {
+      ordered = [...ordered].sort((a, b) => {
+        const aS = shortNoticeByRowId[a.id] !== undefined ? 0 : 1;
+        const bS = shortNoticeByRowId[b.id] !== undefined ? 0 : 1;
+        return aS - bS;
+      });
+    }
+    return ordered;
+  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly]);
+
 
 
   const openDetail = async (id: string) => {
