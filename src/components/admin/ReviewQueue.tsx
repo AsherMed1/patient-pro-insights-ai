@@ -989,7 +989,20 @@ const ReviewQueue: React.FC = () => {
               {projects.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
+          {!isDeclinedView && (
+            <Button
+              variant={shortNoticeOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShortNoticeOnly(v => !v)}
+              className={shortNoticeOnly ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'border-orange-400 text-orange-700 hover:bg-orange-50'}
+            >
+              <Zap className="h-4 w-4 mr-1" />
+              Short notice only
+              <Badge variant="secondary" className="ml-2">{Object.keys(shortNoticeByRowId).length}</Badge>
+            </Button>
+          )}
         </div>
+
 
         {/* Bulk actions (pending only) */}
         {!isDeclinedView && selected.size > 0 && (
