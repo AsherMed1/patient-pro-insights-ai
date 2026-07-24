@@ -2641,7 +2641,7 @@ Deno.serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -3093,10 +3093,13 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             dob: finalDob // Also ensure DOB in contact_info
           };
           
-          // For appointments: include parsed_* JSON fields
-          updateData.parsed_insurance_info = parsedData.insurance_info;
+          // For appointments: include parsed_* JSON fields.
+          // Non-null merge over existing so an AI miss can never blank values that
+          // the webhook (or a prior parse) already populated — critical for
+          // insurance_provider / insurance_id_number.
+          updateData.parsed_insurance_info = mergeWithNonNull(record.parsed_insurance_info || {}, parsedData.insurance_info || {});
           updateData.parsed_pathology_info = parsedData.pathology_info;
-          updateData.parsed_medical_info = parsedData.medical_info;
+          updateData.parsed_medical_info = mergeWithNonNull(record.parsed_medical_info || {}, parsedData.medical_info || {});
 
           // Strip stale STEP question lines from prior services (e.g. GAE → UFE re-opt-in)
           // so the raw intake notes view doesn't show leftover funnel answers from the
@@ -3148,9 +3151,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
                 parsedData.insurance_info.insurance_id_number = null;
               }
             }
-            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || null;
-            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || null;
-            updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || null;
+            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || record.detected_insurance_provider || updateData.parsed_insurance_info?.insurance_provider || null;
+            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || record.detected_insurance_plan || updateData.parsed_insurance_info?.insurance_plan || null;
+            updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || record.detected_insurance_id || updateData.parsed_insurance_info?.insurance_id_number || null;
           }
           
           // Update insurance_id_link / insurance_back_link with fallback chain:
