@@ -727,6 +727,8 @@ function CaseDrawer({
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const [savingAudit, setSavingAudit] = useState(false);
+  const [clearingAudit, setClearingAudit] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
