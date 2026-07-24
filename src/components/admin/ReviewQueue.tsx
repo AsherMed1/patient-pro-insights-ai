@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
@@ -84,6 +84,8 @@ const ReviewQueue: React.FC = () => {
   const [duplicatesByRowId, setDuplicatesByRowId] = useState<Record<string, DuplicateAppt[]>>({});
   const [dupActionRow, setDupActionRow] = useState<{ row: ReviewAppointment; action: 'replace' | 'keep' } | null>(null);
   const [adoptSlotTarget, setAdoptSlotTarget] = useState<{ row: ReviewAppointment; source: DuplicateAppt } | null>(null);
+  const [shortNoticeByRowId, setShortNoticeByRowId] = useState<Record<string, number>>({});
+  const [shortNoticeOnly, setShortNoticeOnly] = useState(false);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
@@ -192,33 +194,47 @@ const ReviewQueue: React.FC = () => {
   };
 
   const sortedRows = useMemo(() => {
-    if (!sortKey) return rows;
-    const dir = sortDir === 'asc' ? 1 : -1;
-    const getVal = (r: ReviewAppointment): string | number => {
-      switch (sortKey) {
-        case 'patient':
-          return (r.lead_name || '').toLowerCase();
-        case 'project':
-          return (r.project_name || '').toLowerCase();
-        case 'service': {
-          const proc = (r.parsed_pathology_info?.procedure_type || '').toString().toLowerCase();
-          const cal = (r.calendar_name || '').toLowerCase();
-          return `${proc}|${cal}`;
+    const base = shortNoticeOnly ? rows.filter(r => shortNoticeByRowId[r.id] !== undefined) : rows;
+    let ordered = base;
+    if (sortKey) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      const getVal = (r: ReviewAppointment): string | number => {
+        switch (sortKey) {
+          case 'patient':
+            return (r.lead_name || '').toLowerCase();
+          case 'project':
+            return (r.project_name || '').toLowerCase();
+          case 'service': {
+            const proc = (r.parsed_pathology_info?.procedure_type || '').toString().toLowerCase();
+            const cal = (r.calendar_name || '').toLowerCase();
+            return `${proc}|${cal}`;
+          }
+          case 'appointment': {
+            if (!r.date_of_appointment) return Number.POSITIVE_INFINITY;
+            const t = r.requested_time || '00:00:00';
+            return new Date(`${r.date_of_appointment}T${t}`).getTime() || Number.POSITIVE_INFINITY;
+          }
         }
-        case 'appointment': {
-          if (!r.date_of_appointment) return Number.POSITIVE_INFINITY;
-          const t = r.requested_time || '00:00:00';
-          return new Date(`${r.date_of_appointment}T${t}`).getTime() || Number.POSITIVE_INFINITY;
-        }
-      }
-    };
-    return [...rows].sort((a, b) => {
-      const av = getVal(a);
-      const bv = getVal(b);
-      if (av === bv) return 0;
-      return av > bv ? dir : -dir;
-    });
-  }, [rows, sortKey, sortDir]);
+      };
+      ordered = [...base].sort((a, b) => {
+        const av = getVal(a);
+        const bv = getVal(b);
+        if (av === bv) return 0;
+        return av > bv ? dir : -dir;
+      });
+    }
+    // Always float short-notice rows to the top of the Pending view
+    if (queueView === 'pending') {
+      ordered = [...ordered].sort((a, b) => {
+        const aS = shortNoticeByRowId[a.id] !== undefined ? 0 : 1;
+        const bS = shortNoticeByRowId[b.id] !== undefined ? 0 : 1;
+        return aS - bS;
+      });
+    }
+    return ordered;
+  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly, queueView]);
+
+
 
 
   const openDetail = async (id: string) => {
@@ -356,6 +372,33 @@ const ReviewQueue: React.FC = () => {
         }));
       }
       setDuplicatesByRowId(map);
+    };
+    run();
+  }, [rows, queueView]);
+
+  // Detect short-notice alerts for pending rows
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setShortNoticeByRowId({});
+        return;
+      }
+      const ids = rows.map(r => r.id);
+      const { data, error } = await supabase
+        .from('short_notice_alerts')
+        .select('appointment_id, hours_difference')
+        .in('appointment_id', ids);
+      if (error) {
+        console.warn('short-notice fetch failed', error);
+        return;
+      }
+      const map: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        if (r.appointment_id != null && (map[r.appointment_id] === undefined || r.hours_difference < map[r.appointment_id])) {
+          map[r.appointment_id] = Number(r.hours_difference);
+        }
+      });
+      setShortNoticeByRowId(map);
     };
     run();
   }, [rows, queueView]);
@@ -946,7 +989,20 @@ const ReviewQueue: React.FC = () => {
               {projects.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
+          {!isDeclinedView && (
+            <Button
+              variant={shortNoticeOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShortNoticeOnly(v => !v)}
+              className={shortNoticeOnly ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'border-orange-400 text-orange-700 hover:bg-orange-50'}
+            >
+              <Zap className="h-4 w-4 mr-1" />
+              Short notice only
+              <Badge variant="secondary" className="ml-2">{Object.keys(shortNoticeByRowId).length}</Badge>
+            </Button>
+          )}
         </div>
+
 
         {/* Bulk actions (pending only) */}
         {!isDeclinedView && selected.size > 0 && (
@@ -1037,6 +1093,18 @@ const ReviewQueue: React.FC = () => {
                           <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px] py-0 h-5">
                             <Copy className="h-2.5 w-2.5 mr-1" />
                             Duplicate ({duplicatesByRowId[row.id].length})
+                          </Badge>
+                        )}
+                        {!isDeclinedView && shortNoticeByRowId[row.id] !== undefined && (
+                          <Badge
+                            variant="outline"
+                            className="border-orange-400 text-orange-700 bg-orange-50 text-[10px] py-0 h-5"
+                            title="Booked shortly before appointment (business hours)"
+                          >
+                            <Zap className="h-2.5 w-2.5 mr-1" />
+                            Short Notice · {shortNoticeByRowId[row.id] < 1
+                              ? `${Math.max(1, Math.round(shortNoticeByRowId[row.id] * 60))}m`
+                              : `${Math.round(shortNoticeByRowId[row.id])}h`}
                           </Badge>
                         )}
                       </div>
