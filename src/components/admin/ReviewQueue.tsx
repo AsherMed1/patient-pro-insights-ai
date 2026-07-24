@@ -224,7 +224,7 @@ const ReviewQueue: React.FC = () => {
       });
     }
     // Always float short-notice rows to the top of the Pending view
-    if (!isDeclinedViewFlag) {
+    if (queueView === 'pending') {
       ordered = [...ordered].sort((a, b) => {
         const aS = shortNoticeByRowId[a.id] !== undefined ? 0 : 1;
         const bS = shortNoticeByRowId[b.id] !== undefined ? 0 : 1;
@@ -232,7 +232,8 @@ const ReviewQueue: React.FC = () => {
       });
     }
     return ordered;
-  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly]);
+  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly, queueView]);
+
 
 
 
