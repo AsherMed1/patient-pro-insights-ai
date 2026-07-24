@@ -3098,7 +3098,10 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // the webhook (or a prior parse) already populated — critical for
           // insurance_provider / insurance_id_number.
           updateData.parsed_insurance_info = mergeWithNonNull(record.parsed_insurance_info || {}, parsedData.insurance_info || {});
-          updateData.parsed_pathology_info = parsedData.pathology_info;
+          // Non-null merge for pathology too — protects webhook-extracted Neuropathy
+          // STEP data (pain level, affected areas, duration, symptoms, diabetes) from
+          // being wiped by an AI parse that returns nulls for those fields.
+          updateData.parsed_pathology_info = mergeWithNonNull(record.parsed_pathology_info || {}, parsedData.pathology_info || {});
           updateData.parsed_medical_info = mergeWithNonNull(record.parsed_medical_info || {}, parsedData.medical_info || {});
 
           // Strip stale STEP question lines from prior services (e.g. GAE → UFE re-opt-in)
