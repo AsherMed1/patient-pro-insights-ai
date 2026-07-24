@@ -1090,9 +1090,9 @@ const ReviewQueue: React.FC = () => {
                           {row.lead_name}{detailLoading === row.id ? '…' : ''}
                         </button>
                         {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
-                          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px] py-0 h-5">
-                            <Copy className="h-2.5 w-2.5 mr-1" />
-                            Duplicate ({duplicatesByRowId[row.id].length})
+                          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1">
+                            <Copy className="h-2.5 w-2.5 shrink-0" />
+                            <span>Duplicate ({duplicatesByRowId[row.id].length})</span>
                           </Badge>
                         )}
                         {!isDeclinedView && shortNoticeByRowId[row.id] !== undefined && (
