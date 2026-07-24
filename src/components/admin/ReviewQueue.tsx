@@ -1098,13 +1098,15 @@ const ReviewQueue: React.FC = () => {
                         {!isDeclinedView && shortNoticeByRowId[row.id] !== undefined && (
                           <Badge
                             variant="outline"
-                            className="border-orange-400 text-orange-700 bg-orange-50 text-[10px] py-0 h-5"
+                            className="border-orange-400 text-orange-700 bg-orange-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
                             title="Booked shortly before appointment (business hours)"
                           >
-                            <Zap className="h-2.5 w-2.5 mr-1" />
-                            Short Notice · {shortNoticeByRowId[row.id] < 1
-                              ? `${Math.max(1, Math.round(shortNoticeByRowId[row.id] * 60))}m`
-                              : `${Math.round(shortNoticeByRowId[row.id])}h`}
+                            <Zap className="h-2.5 w-2.5 shrink-0" />
+                            <span>
+                              Short Notice · {shortNoticeByRowId[row.id] < 1
+                                ? `${Math.max(1, Math.round(shortNoticeByRowId[row.id] * 60))}m`
+                                : `${Math.round(shortNoticeByRowId[row.id])}h`}
+                            </span>
                           </Badge>
                         )}
                       </div>
