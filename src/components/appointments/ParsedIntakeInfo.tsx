@@ -1387,6 +1387,18 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </Badge>
                   </div>
                 )}
+                {formatValue(parsedPathologyInfo.affected_areas) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Affected Areas:</span>{" "}
+                    <Badge
+                      variant="outline"
+                      className="ml-2 bg-amber-100 text-amber-800 border-amber-300"
+                    >
+                      {parsedPathologyInfo.affected_areas}
+                    </Badge>
+                  </div>
+                )}
+
 
                 {formatValue(parsedPathologyInfo.affected_shoulder) && (
                   <div className="text-sm">
