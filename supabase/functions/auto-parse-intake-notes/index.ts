@@ -3093,10 +3093,13 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             dob: finalDob // Also ensure DOB in contact_info
           };
           
-          // For appointments: include parsed_* JSON fields
-          updateData.parsed_insurance_info = parsedData.insurance_info;
+          // For appointments: include parsed_* JSON fields.
+          // Non-null merge over existing so an AI miss can never blank values that
+          // the webhook (or a prior parse) already populated — critical for
+          // insurance_provider / insurance_id_number.
+          updateData.parsed_insurance_info = mergeWithNonNull(record.parsed_insurance_info || {}, parsedData.insurance_info || {});
           updateData.parsed_pathology_info = parsedData.pathology_info;
-          updateData.parsed_medical_info = parsedData.medical_info;
+          updateData.parsed_medical_info = mergeWithNonNull(record.parsed_medical_info || {}, parsedData.medical_info || {});
 
           // Strip stale STEP question lines from prior services (e.g. GAE → UFE re-opt-in)
           // so the raw intake notes view doesn't show leftover funnel answers from the
