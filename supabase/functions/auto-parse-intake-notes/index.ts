@@ -3151,9 +3151,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
                 parsedData.insurance_info.insurance_id_number = null;
               }
             }
-            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || null;
-            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || null;
-            updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || null;
+            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || record.detected_insurance_provider || updateData.parsed_insurance_info?.insurance_provider || null;
+            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || record.detected_insurance_plan || updateData.parsed_insurance_info?.insurance_plan || null;
+            updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || record.detected_insurance_id || updateData.parsed_insurance_info?.insurance_id_number || null;
           }
           
           // Update insurance_id_link / insurance_back_link with fallback chain:
