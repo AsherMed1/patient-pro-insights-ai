@@ -376,6 +376,33 @@ const ReviewQueue: React.FC = () => {
     run();
   }, [rows, queueView]);
 
+  // Detect short-notice alerts for pending rows
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setShortNoticeByRowId({});
+        return;
+      }
+      const ids = rows.map(r => r.id);
+      const { data, error } = await supabase
+        .from('short_notice_alerts')
+        .select('appointment_id, hours_difference')
+        .in('appointment_id', ids);
+      if (error) {
+        console.warn('short-notice fetch failed', error);
+        return;
+      }
+      const map: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        if (r.appointment_id != null && (map[r.appointment_id] === undefined || r.hours_difference < map[r.appointment_id])) {
+          map[r.appointment_id] = Number(r.hours_difference);
+        }
+      });
+      setShortNoticeByRowId(map);
+    };
+    run();
+  }, [rows, queueView]);
+
   const handleReplaceExisting = async (row: ReviewAppointment) => {
     const dups = duplicatesByRowId[row.id] || [];
     setProcessing(true);
