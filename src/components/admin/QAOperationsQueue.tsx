@@ -354,12 +354,14 @@ export default function QAOperationsQueue() {
     !!dateFrom || !!dateTo
   ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
 
-  // Apply everything except workflow_status. Used to derive per-bucket counts.
-  const filteredNoStatus = useMemo(() => {
+  // Apply row-level filters that are patient-agnostic (project, assignment, date,
+  // reserved-block, search). Alert Type is intentionally NOT applied here —
+  // it's applied AFTER grouping so it evaluates each patient's LATEST alert,
+  // not any historical row.
+  const rowFilteredNoAlert = useMemo(() => {
     const t = search.trim().toLowerCase();
     return cases.filter((c) => {
       if (projectFilter !== 'all' && c.project_name !== projectFilter) return false;
-      if (alertFilter !== 'all' && c.alert_type !== alertFilter) return false;
       if (assignmentFilter === 'mine' && c.assigned_qs_user_id !== user?.id) return false;
       if (assignmentFilter === 'unassigned' && c.assigned_qs_user_id) return false;
       if (dateFrom && new Date(c.entered_queue_at) < dateFrom) return false;
@@ -382,11 +384,16 @@ export default function QAOperationsQueue() {
         (digits.length >= 3 && phoneDigits.includes(digits))
       );
     });
-  }, [cases, search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
+  }, [cases, search, projectFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
 
-  // Group filtered cases by patient (GHL contact w/ fallback). Bucket counts
-  // and the visible table both work on groups so each patient appears once.
-  const groupedNoStatus = useMemo(() => groupCases(filteredNoStatus), [filteredNoStatus]);
+  // Group first so "latest alert" is well-defined per patient, then apply the
+  // Alert Type filter against `primary.alert_type` only. Selecting an alert
+  // type that isn't the patient's latest alert returns zero results for them.
+  const groupedNoStatus = useMemo(() => {
+    const groups = groupCases(rowFilteredNoAlert);
+    if (alertFilter === 'all') return groups;
+    return groups.filter((g) => g.primary.alert_type === alertFilter);
+  }, [rowFilteredNoAlert, alertFilter]);
 
   const bucketCounts = useMemo(() => {
     const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
