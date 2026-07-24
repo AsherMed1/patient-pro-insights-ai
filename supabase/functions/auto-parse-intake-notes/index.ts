@@ -501,6 +501,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       affected_area: null as string | null,
       affected_knee: null as string | null,
       affected_side: null as string | null,
+      affected_areas: null as string | null,
       duration: null as string | null,
       previous_treatments: null as string | null,
       oa_tkr_diagnosed: null as string | null,
@@ -897,6 +898,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       result.pathology_info.affected_area = null;
       result.pathology_info.affected_knee = null;
       result.pathology_info.affected_side = null;
+      result.pathology_info.affected_areas = null;
       result.pathology_info.previous_treatments = null;
       result.pathology_info.oa_tkr_diagnosed = null;
       result.pathology_info.imaging_done = null;
@@ -1595,6 +1597,28 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // Neuropathy "Which areas are most affected by your symptoms?" — free-text
+  // funnel answer (e.g. "Both Feet and Hands", "Feet only"). Distinct from
+  // Left/Right/Both laterality captured in affected_side.
+  {
+    const proc = String(parsedData.pathology_info.procedure_type || '').toUpperCase();
+    if (proc === 'NEUROPATHY') {
+      const current = parsedData.pathology_info.affected_areas;
+      if (!current || !String(current).trim()) {
+        const m = intakeNotes.match(/which areas? (?:are|is) most affected[^:?\n]*\??:\s*([^\n]+)/i);
+        if (m && m[1]) {
+          const v = m[1].trim();
+          if (v) {
+            parsedData.pathology_info.affected_areas = v;
+            console.log(`[AUTO-PARSE ENRICH] Extracted affected_areas (Neuropathy): ${v}`);
+          }
+        }
+      }
+    }
+  }
+
+
+
 
 
   // === PAE w/BPH STEP-specific field extraction (deterministic regex on raw notes) ===
@@ -1932,7 +1956,8 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       pain_level: null as string | null, 
       affected_area: null as string | null,
       affected_knee: null as string | null,
-      affected_side: null as string | null 
+      affected_side: null as string | null,
+      affected_areas: null as string | null
     },
     medical_info: { 
       medications: null as string | null, 
@@ -2794,6 +2819,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "pain_location": "string or null - Verbatim answer to 'Where is your pain located?' for ATE intakes (e.g., 'Middle of the Achilles tendon', 'Insertion', 'Mid-tendon').",
     "affected_knee": "string or null - Which knee is affected: 'Left', 'Right', or 'Both'. Extract from any mention of specific knee side, bilateral, or left/right knee references.",
     "affected_side": "string or null - 'Left', 'Right', or 'Both'. Extract from any 'Which side is affected by the condition you are seeking treatment for?' question. Applies to all procedures (knees, shoulders, feet, etc.). Bilateral maps to 'Both'.",
+    "affected_areas": "string or null - Free-text answer for Neuropathy's 'Which areas are most affected by your symptoms?' question (e.g. 'Both Feet and Hands', 'Feet only', 'Hands only'). Only populate for Neuropathy intakes.",
     "duration": "string or null",
     "previous_treatments": "string or null",
     "oa_tkr_diagnosed": "string or null (YES/NO)",
