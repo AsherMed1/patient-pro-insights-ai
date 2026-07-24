@@ -2222,10 +2222,14 @@ async function enrichAppointmentWithGHLData(
       ...(ins.plan ? { detected_insurance_plan: ins.plan } : {}),
       ...(ins.id ? { detected_insurance_id: ins.id } : {}),
       ...(ins.cardUrl && !(appointment as any)?.insurance_id_link ? { insurance_id_link: ins.cardUrl } : {}),
+      ...(hasAnyPathology ? { parsed_pathology_info: mergedParsedPathology } : {}),
       updated_at: new Date().toISOString(),
     }
     if (hasAnyInsurance) {
       console.log(`[${requestId}] Extracted insurance from custom fields: provider=${ins.provider}, plan=${ins.plan}, id=${ins.id ? '***' : null}, group=${ins.group}`)
+    }
+    if (hasAnyPathology) {
+      console.log(`[${requestId}] Extracted pathology from custom fields: ${Object.keys(pathologyFromFields).join(', ')}`)
     }
     const { error: updateError } = await supabase
       .from('all_appointments')
