@@ -727,6 +727,8 @@ function CaseDrawer({
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const [savingAudit, setSavingAudit] = useState(false);
+  const [clearingAudit, setClearingAudit] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
@@ -885,6 +887,43 @@ function CaseDrawer({
       actor_user_id: user?.id ?? null,
     } as any);
     toast({ title: 'Audit details saved' });
+    onRefresh();
+  };
+
+  const clearAudit = async () => {
+    if (!caseData) return;
+    setClearingAudit(true);
+    const patch: any = {
+      qa_name: null,
+      self_booked: null,
+      error_category: null,
+      error_source: null,
+      caught_before_clinic: null,
+      resolution_type: null,
+      date_resolved: null,
+    };
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', caseData.id);
+    setClearingAudit(false);
+    setClearConfirmOpen(false);
+    if (error) {
+      toast({ title: 'Clear failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setAudit({
+      qa_name: authorDisplayName || '',
+      self_booked: null,
+      error_category: null,
+      error_source: null,
+      caught_before_clinic: null,
+      resolution_type: null,
+    });
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'audit_cleared',
+      description: `Audit results cleared${authorDisplayName ? ` by ${authorDisplayName}` : ''}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    toast({ title: 'Audit results cleared' });
     onRefresh();
   };
 
@@ -1217,12 +1256,40 @@ function CaseDrawer({
                   </div>
                 </div>
 
-                <div className="flex justify-end">
-                  <Button size="sm" onClick={saveAudit} disabled={savingAudit}>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setClearConfirmOpen(true)}
+                    disabled={savingAudit || clearingAudit}
+                  >
+                    Clear Audit Results
+                  </Button>
+                  <Button size="sm" onClick={saveAudit} disabled={savingAudit || clearingAudit}>
                     {savingAudit ? 'Saving…' : 'Save audit details'}
                   </Button>
                 </div>
               </div>
+
+              <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Clear audit results?</DialogTitle>
+                    <DialogDescription>
+                      This will reset QA Name, Self Booked, Error Category, Error Source, Caught Before Clinic, Resolution, and Date Resolved for this case. This action is logged in the activity timeline.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" size="sm" onClick={() => setClearConfirmOpen(false)} disabled={clearingAudit}>
+                      Cancel
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={clearAudit} disabled={clearingAudit}>
+                      {clearingAudit ? 'Clearing…' : 'Clear audit results'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               <div className="flex gap-2 flex-wrap">
                 {caseData.appointment_id && (
