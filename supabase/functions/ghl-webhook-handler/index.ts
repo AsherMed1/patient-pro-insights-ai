@@ -2132,6 +2132,81 @@ async function enrichAppointmentWithGHLData(
     if (ins.group) mergedParsedInsurance.insurance_group_number = ins.group;
     const hasAnyInsurance = ins.provider || ins.plan || ins.id || ins.group;
 
+    // Extract pathology (Neuropathy / GAE / PAD / UFE / etc. STEP answers) directly
+    // from GHL custom fields. Auto-parse runs after this but has been observed to
+    // return nulls for these fields (e.g. Rana Asif — pain_level, affected_areas,
+    // duration, symptoms all null despite rich intake notes). Writing them here
+    // guarantees the Medical Information card lands populated the moment GHL returns
+    // the contact.
+    const extractPathologyFromCustomFields = (fields: any[]): Record<string, string> => {
+      const out: Record<string, string> = {};
+      const norm = (v: any): string | null => {
+        if (v === null || v === undefined) return null;
+        let s = String(Array.isArray(v) ? v.join(', ') : v).trim();
+        if (!s) return null;
+        // Strip GHL checkbox glyphs / prefixes
+        s = s.replace(/^[☑✅✔❌☐□■]+\s*/, '').replace(/\s*[☑✅✔❌☐□■]+$/, '').trim();
+        if (!s) return null;
+        if (/^(other|none|n\/a|na|unknown|not\s*provided)$/i.test(s)) return null;
+        if (s.length > 300) return null;
+        return s;
+      };
+      for (const f of fields) {
+        if (!f?.key) continue;
+        const k = String(f.key).toLowerCase();
+        const v = norm(f.value);
+        if (!v) continue;
+        // Pain level (1-10)
+        if (!out.pain_level && /pain|intense|discomfort/.test(k) && /scale|1\s*to\s*10|1-10/.test(k)) {
+          const m = v.match(/\b(10|[1-9])\b/);
+          if (m) out.pain_level = m[1];
+        }
+        // Affected areas / side / knee
+        else if (!out.affected_areas && /which\s*areas|areas\s*(most\s*)?affected|affected\s*by|which\s*side/.test(k)) {
+          out.affected_areas = v;
+          if (!out.affected_area) out.affected_area = v;
+          if (!out.affected_side && /(left|right|both)/i.test(v)) {
+            out.affected_side = v.match(/(left|right|both)/i)![1];
+          }
+        }
+        // Duration / how long
+        else if (!out.duration && /(more\s*than\s*3\s*months|how\s*long|duration|for\s*more\s*than)/.test(k)) {
+          out.duration = v;
+        }
+        // Symptoms
+        else if (!out.symptoms && /(symptoms?\s*(are|you|currently)|what\s*symptoms)/.test(k)) {
+          out.symptoms = v;
+        }
+        // Diabetes
+        else if (!out.diabetes && /diabet(es|ic)|pre-?diabetes/.test(k)) {
+          out.diabetes = v;
+        }
+        // Previous treatments
+        else if (!out.previous_treatments && /previous\s*treatments?|tried\s*(any\s*)?treatments?|treatments?\s*tried/.test(k)) {
+          out.previous_treatments = v;
+        }
+        // Imaging done
+        else if (!out.imaging_done && /imaging|x-?ray|mri|ct\s*scan|ultrasound/.test(k) && /(had|done|completed|any)/.test(k)) {
+          out.imaging_done = v;
+        }
+        // Primary complaint
+        else if (!out.primary_complaint && /(primary\s*complaint|chief\s*complaint|main\s*concern|reason\s*for\s*visit)/.test(k)) {
+          out.primary_complaint = v;
+        }
+      }
+      return out;
+    };
+    const pathologyFromFields = extractPathologyFromCustomFields(customFields);
+    const existingParsedPathology = (appointment as any)?.parsed_pathology_info || {};
+    const mergedParsedPathology: Record<string, any> = { ...existingParsedPathology };
+    for (const [pk, pv] of Object.entries(pathologyFromFields)) {
+      if (pv && (mergedParsedPathology[pk] === null || mergedParsedPathology[pk] === undefined || mergedParsedPathology[pk] === '')) {
+        mergedParsedPathology[pk] = pv;
+      }
+    }
+    const hasAnyPathology = Object.keys(pathologyFromFields).length > 0;
+
+
     // Update appointment with enriched notes AND parsed fields.
     // Only write dob / parsed_demographics when GHL actually returned a DOB —
     // otherwise a subsequent enrichment could blank a previously-known DOB.
