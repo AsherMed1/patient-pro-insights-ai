@@ -1,28 +1,23 @@
-## Add Clear Audit Results button
+## Goal
+Display the Neuropathy funnel answer "Which areas are most affected by your symptoms?" (e.g. "Both Feet and Hands") in the Medical Information card. Existing `affected_side` field only supports Left/Right/Both, which doesn't fit the Neuropathy question.
 
-Add a secondary button next to "Save audit details" in the QA Operations case drawer that lets the user wipe an incorrectly-tagged audit back to a blank state.
+## Changes
 
-### Behavior
-- Button label: **Clear Audit Results**, `variant="outline"` (destructive text), placed left of the Save button.
-- On click, show an AlertDialog confirmation ("This will reset the audit fields for this case. Continue?").
-- On confirm, update `qa_cases` row setting these fields to `null`:
-  - `qa_name`
-  - `self_booked`
-  - `error_category`
-  - `error_source`
-  - `caught_before_clinic`
-  - `resolution_type`
-  - `date_resolved` (so the case no longer counts as audited)
-  - `ticket_created` stays untouched (real tickets aren't undone by a clear).
-- Reset the local `audit` state to blanks (qa_name defaults back to the current user's name for convenience) so the form reflects the cleared values immediately.
-- Insert a `qa_case_activity` row: `activity_type='audit_cleared'`, `description='Audit results cleared by {name}'`, `actor_user_id=user.id`.
-- Toast "Audit results cleared", then call `onRefresh()` so the table (which shows error_category / resolution_type / date_resolved columns) reflects the reset.
-- Disable the button while the request is in flight (`clearingAudit` state) and while `savingAudit` is true.
+### 1. Parser — `supabase/functions/auto-parse-intake-notes/index.ts`
+- Add a new field `affected_areas: string | null` to `parsed_pathology_info` (alongside `affected_side`).
+- Add extraction (both AI schema hint and regex fallback) for the line:
+  `Neuropathy Step 2 | Which areas are most affected by your symptoms?: <value>`
+  Captures free-text answers like "Both Feet and Hands", "Feet only", "Hands only", etc.
+- Applies only when procedure is Neuropathy; leave `affected_side` untouched.
 
-### Access
-- Same permissions as saving audit (admin / agent / qa_specialist / va already reach this drawer). No new RLS needed — existing update policy on `qa_cases` covers it.
+### 2. UI — `src/components/appointments/ParsedIntakeInfo.tsx`
+- In the Medical Information card (where Pathology / Pain Level / Symptoms / Notes are displayed for Neuropathy), render a new row:
+  `Affected Areas: Both Feet and Hands` when `parsed_pathology_info.affected_areas` is present.
+- Make it editable via the existing pencil-edit pattern used for other pathology fields (writes back to `parsed_pathology_info.affected_areas`).
 
-### Files touched
-- `src/components/admin/QAOperationsQueue.tsx` only — add `clearAudit` handler, `clearingAudit` state, AlertDialog, and the button in the audit form footer (~line 1220).
+### 3. Backfill TPC Test (id `4ea1c1fd…`)
+- Update the row to set `parsed_pathology_info.affected_areas = "Both Feet and Hands"` so the fix is immediately visible without re-running the parser.
 
-No database migration required.
+## Out of scope
+- No change to `affected_side` semantics or other procedures.
+- No schema/migration changes — field lives inside the existing `parsed_pathology_info` JSONB.
