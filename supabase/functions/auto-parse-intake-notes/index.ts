@@ -2641,7 +2641,7 @@ Deno.serve(async (req) => {
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
+      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
