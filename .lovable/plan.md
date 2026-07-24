@@ -1,23 +1,27 @@
-## Goal
-Display the Neuropathy funnel answer "Which areas are most affected by your symptoms?" (e.g. "Both Feet and Hands") in the Medical Information card. Existing `affected_side` field only supports Left/Right/Both, which doesn't fit the Neuropathy question.
+## Root cause (verified)
 
-## Changes
+Patricia Harris's Slack alert fired at 3:23 PM but never landed in QA Operations because inserting into `short_notice_alerts` throws:
 
-### 1. Parser — `supabase/functions/auto-parse-intake-notes/index.ts`
-- Add a new field `affected_areas: string | null` to `parsed_pathology_info` (alongside `affected_side`).
-- Add extraction (both AI schema hint and regex fallback) for the line:
-  `Neuropathy Step 2 | Which areas are most affected by your symptoms?: <value>`
-  Captures free-text answers like "Both Feet and Hands", "Feet only", "Hands only", etc.
-- Applies only when procedure is Neuropathy; leave `affected_side` untouched.
+> `column a.procedure_type does not exist`
 
-### 2. UI — `src/components/appointments/ParsedIntakeInfo.tsx`
-- In the Medical Information card (where Pathology / Pain Level / Symptoms / Notes are displayed for Neuropathy), render a new row:
-  `Affected Areas: Both Feet and Hands` when `parsed_pathology_info.affected_areas` is present.
-- Make it editable via the existing pencil-edit pattern used for other pathology fields (writes back to `parsed_pathology_info.affected_areas`).
+The trigger `qa_ingest_short_notice()` (on `short_notice_alerts`) selects `a.procedure_type` from `all_appointments`, but that column doesn't exist on that table (only `calendar_name` does). Because the trigger errors, the insert is rolled back — so:
 
-### 3. Backfill TPC Test (id `4ea1c1fd…`)
-- Update the row to set `parsed_pathology_info.affected_areas = "Both Feet and Hands"` so the fix is immediately visible without re-running the parser.
+- No `short_notice_alerts` row (last successful insert was July 15).
+- No paired `short_notice` + `review_queue` `qa_cases` rows.
+- Nothing appears in QA Operations even though Slack was sent.
+
+Confirmed via edge logs (`notify-slack-short-notice`) and `information_schema.columns`.
+
+## Fix
+
+Migration to replace `public.qa_ingest_short_notice()` so it no longer references the missing `procedure_type` column — use `calendar_name` directly (which is what `COALESCE(procedure_type, calendar_name)` was already falling back to). Behavior is otherwise unchanged: same paired `short_notice` + `review_queue` case creation when `review_status='pending'`.
+
+## Backfill
+
+After the trigger is fixed, insert the missing `short_notice_alerts` row for Patricia Harris (appointment `051f06e0-0620-4118-90e9-7d5b7a1f95c6`) using the values from the edge-function log, so the QA Operations pair (Short Notice + Review Queue) appears without waiting for a new alert.
+
+Also sanity-check for any other short-notice Slack alerts sent since July 15 with no matching DB row and backfill them the same way.
 
 ## Out of scope
-- No change to `affected_side` semantics or other procedures.
-- No schema/migration changes — field lives inside the existing `parsed_pathology_info` JSONB.
+
+- No changes to the Slack edge function, QA UI, or Review Queue logic.
