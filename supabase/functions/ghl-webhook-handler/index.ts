@@ -2074,6 +2074,64 @@ async function enrichAppointmentWithGHLData(
       gender: contact.gender || null
     }
     
+    // Extract insurance directly from GHL custom fields. Auto-parse runs after this
+    // but has been known to miss insurance on Neuropathy/GAE variants and on transient
+    // AI errors, leaving parsed_insurance_info={} even when the notes clearly have it.
+    // Writing it here guarantees Provider/Plan/ID land on the record the moment GHL
+    // returns the contact.
+    const extractInsuranceFromCustomFields = (fields: any[]): {
+      provider: string | null;
+      plan: string | null;
+      id: string | null;
+      group: string | null;
+      cardUrl: string | null;
+    } => {
+      let provider: string | null = null;
+      let plan: string | null = null;
+      let id: string | null = null;
+      let group: string | null = null;
+      let cardUrl: string | null = null;
+      const norm = (v: any): string | null => {
+        if (v === null || v === undefined) return null;
+        const s = String(Array.isArray(v) ? v.join(', ') : v).trim();
+        if (!s) return null;
+        if (/^(other|none|n\/a|na|unknown|not\s*provided)$/i.test(s)) return null;
+        if (s.length > 200) return null;
+        return s;
+      };
+      for (const f of fields) {
+        if (!f?.key) continue;
+        const k = String(f.key).toLowerCase();
+        // Skip secondary insurance fields — those go under parsed_insurance_info.secondary_*
+        if (/\(2\)|secondary/i.test(k)) continue;
+        const v = norm(f.value);
+        if (!v) continue;
+        if (!provider && /(please\s*select\s*your\s*insurance\s*provider|insurance\s*provider)/i.test(k)) {
+          provider = v;
+        } else if (!plan && /insurance\s*plan/i.test(k)) {
+          plan = v;
+        } else if (!id && /(insurance\s*id\s*number|member\s*id|subscriber\s*id|policy\s*number)/i.test(k)) {
+          id = v;
+        } else if (!group && /(insurance\s*group\s*number|group\s*number)/i.test(k)) {
+          group = v;
+        } else if (!cardUrl && /insurance\s*card/i.test(k)) {
+          // Try to pull a URL out of the value (may be a JSON blob or plain URL)
+          const m = String(f.value).match(/https?:\/\/[^\s"'\]}]+/);
+          if (m) cardUrl = m[0];
+        }
+      }
+      return { provider, plan, id, group, cardUrl };
+    };
+    const ins = extractInsuranceFromCustomFields(customFields);
+    // Non-null merge over existing parsed_insurance_info so we never blank prior values.
+    const existingParsedInsurance = (appointment as any)?.parsed_insurance_info || {};
+    const mergedParsedInsurance = { ...existingParsedInsurance };
+    if (ins.provider) mergedParsedInsurance.insurance_provider = ins.provider;
+    if (ins.plan) mergedParsedInsurance.insurance_plan = ins.plan;
+    if (ins.id) mergedParsedInsurance.insurance_id_number = ins.id;
+    if (ins.group) mergedParsedInsurance.insurance_group_number = ins.group;
+    const hasAnyInsurance = ins.provider || ins.plan || ins.id || ins.group;
+
     // Update appointment with enriched notes AND parsed fields.
     // Only write dob / parsed_demographics when GHL actually returned a DOB —
     // otherwise a subsequent enrichment could blank a previously-known DOB.
@@ -2084,7 +2142,15 @@ async function enrichAppointmentWithGHLData(
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
+      ...(hasAnyInsurance ? { parsed_insurance_info: mergedParsedInsurance } : {}),
+      ...(ins.provider ? { detected_insurance_provider: ins.provider } : {}),
+      ...(ins.plan ? { detected_insurance_plan: ins.plan } : {}),
+      ...(ins.id ? { detected_insurance_id: ins.id } : {}),
+      ...(ins.cardUrl && !(appointment as any)?.insurance_id_link ? { insurance_id_link: ins.cardUrl } : {}),
       updated_at: new Date().toISOString(),
+    }
+    if (hasAnyInsurance) {
+      console.log(`[${requestId}] Extracted insurance from custom fields: provider=${ins.provider}, plan=${ins.plan}, id=${ins.id ? '***' : null}, group=${ins.group}`)
     }
     const { error: updateError } = await supabase
       .from('all_appointments')
