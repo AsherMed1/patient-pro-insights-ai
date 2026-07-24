@@ -1256,12 +1256,40 @@ function CaseDrawer({
                   </div>
                 </div>
 
-                <div className="flex justify-end">
-                  <Button size="sm" onClick={saveAudit} disabled={savingAudit}>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setClearConfirmOpen(true)}
+                    disabled={savingAudit || clearingAudit}
+                  >
+                    Clear Audit Results
+                  </Button>
+                  <Button size="sm" onClick={saveAudit} disabled={savingAudit || clearingAudit}>
                     {savingAudit ? 'Saving…' : 'Save audit details'}
                   </Button>
                 </div>
               </div>
+
+              <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Clear audit results?</DialogTitle>
+                    <DialogDescription>
+                      This will reset QA Name, Self Booked, Error Category, Error Source, Caught Before Clinic, Resolution, and Date Resolved for this case. This action is logged in the activity timeline.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" size="sm" onClick={() => setClearConfirmOpen(false)} disabled={clearingAudit}>
+                      Cancel
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={clearAudit} disabled={clearingAudit}>
+                      {clearingAudit ? 'Clearing…' : 'Clear audit results'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               <div className="flex gap-2 flex-wrap">
                 {caseData.appointment_id && (
