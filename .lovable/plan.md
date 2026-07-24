@@ -1,17 +1,17 @@
-Fix the "Short Notice" badge in `src/components/admin/ReviewQueue.tsx` so its text no longer overflows.
+## Problem
+The "Duplicate" badge in the Review Queue row header is overflowing its text. It currently uses a fixed height (`h-5`) with no vertical padding and no text-wrapping/leading control, so the label "Duplicate (N)" clips outside the badge boundary (see uploaded screenshot).
 
-Current problem (from screenshot):
-- Badge is fixed at `h-5` with `text-[10px]` and `py-0`
-- Content "Short Notice · 26h" is too wide for the badge, causing the text to overflow/clipping
+## Fix
+Update the Duplicate badge in `src/components/admin/ReviewQueue.tsx` to use the same flexible layout already applied to the Short Notice badge:
+- Replace fixed `h-5 py-0` with `h-auto min-h-5 px-2 py-0.5`.
+- Add `whitespace-normal leading-tight inline-flex items-center gap-1`.
+- Add `shrink-0` to the icon so it does not squash when space is tight.
 
-Changes to make:
-1. Change badge height from fixed `h-5` to `h-auto min-h-5` so it can grow vertically
-2. Allow text wrapping with `whitespace-normal` and `leading-tight`
-3. Add horizontal padding (`px-2`) and small vertical padding (`py-0.5`) so text isn't crushed
-4. Keep the orange color scheme and Zap icon
-5. Optionally stack the label and time on two lines for very narrow columns (e.g., "Short Notice" on line 1, "26h" on line 2) using a flex column layout inside the badge
+This makes the badge grow vertically if needed and keeps the icon/text aligned without overflow.
 
-Verification:
-- Re-render the Review Queue with a short-notice row
-- Confirm the badge fully shows "Short Notice · 26h" without clipped text
-- Confirm the row layout remains aligned and the badge doesn't break surrounding grid columns
+## File to change
+- `src/components/admin/ReviewQueue.tsx` (lines ~1092-1097)
+
+## Verification
+- Run TypeScript check (`tsgo` or `tsc --noEmit`).
+- Open the Review Queue preview and confirm the Duplicate badge renders fully inside its border at the shown viewport size.
