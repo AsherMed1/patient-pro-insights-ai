@@ -173,7 +173,16 @@ const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | '
   if (t === 'short_notice') return 'default';
   if (t === 'confirmed_audit') return 'outline';
   if (t === 'review_queue') return 'secondary';
+  if (t === 'no_show' || t === 'cancelled') return 'outline';
   return 'secondary';
+};
+
+// Distinct treatment so terminal (No-Show / Cancellation) alerts never look
+// like the standard QA alert set.
+const alertBadgeClass = (t: AlertType): string => {
+  if (t === 'no_show') return 'border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200';
+  if (t === 'cancelled') return 'border-rose-500 bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200';
+  return '';
 };
 
 // ---------------------------------------------------------------------------
