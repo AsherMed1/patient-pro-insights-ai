@@ -1040,6 +1040,9 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   
   // Extract PCP info if not already populated
   if (!parsedData.medical_info) parsedData.medical_info = {};
+  // Drop AI-supplied placeholder/slurped values so regex can supply the real ones
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_name)) parsedData.medical_info.pcp_name = null;
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_phone)) parsedData.medical_info.pcp_phone = null;
   if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
     const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
     if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
