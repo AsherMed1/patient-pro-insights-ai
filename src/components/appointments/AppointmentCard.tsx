@@ -1965,18 +1965,27 @@ const AppointmentCard = ({
                 {statusOptions.map((status) => {
                   const isCancelled = (appointment.status || '').trim().toLowerCase() === 'cancelled';
                   const isWelcomeCall = status.toLowerCase() === 'welcome call';
-                  const disabled = isCancelled && isWelcomeCall;
+                  const isRescheduleOption = status.toLowerCase() === 'rescheduled';
+                  const blockedByEligibility = isRescheduleBlocked && isRescheduleOption;
+                  const disabled = (isCancelled && isWelcomeCall) || blockedByEligibility;
                   return (
                     <SelectItem
                       key={status}
                       value={status}
                       disabled={disabled}
-                      title={disabled ? 'Change status to Confirmed first before moving to Welcome Call.' : undefined}
+                      title={
+                        blockedByEligibility
+                          ? 'Patient is not eligible for rescheduling — they must contact the clinic directly.'
+                          : disabled
+                            ? 'Change status to Confirmed first before moving to Welcome Call.'
+                            : undefined
+                      }
                     >
                       {status}
                     </SelectItem>
                   );
                 })}
+
               </SelectContent>
             </Select>
           </div>
