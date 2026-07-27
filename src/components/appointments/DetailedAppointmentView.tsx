@@ -1069,10 +1069,13 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       setShowRescheduleDialog(true);
                     } else if (value.toLowerCase() === 'cancelled' || value.toLowerCase() === 'canceled') {
                       setShowCancelDialog(true);
+                    } else if (['no show', 'noshow', 'no-show'].includes(value.toLowerCase())) {
+                      setShowNoShowDialog(true);
                     } else {
                       setCurrentStatus(value);
                       handleFieldUpdate({ status: value });
                     }
+
                   }}
                   disabled={isUpdating}
                 >
