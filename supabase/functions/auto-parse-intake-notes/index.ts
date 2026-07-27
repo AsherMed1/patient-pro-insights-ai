@@ -497,6 +497,12 @@ function stripPatientIntakeSummary(intakeNotes: string): string {
   let out = intakeNotes;
   // Strip the "Patient Intake Summary:" single-line blob (see comment above).
   out = out.replace(/Patient Intake Summary:[^\n]*/gi, 'Patient Intake Summary: [stripped]');
+  // Same class of blob under GHL's other label, "Patient Summary:" — a single line
+  // of "Label: value; Label: value; ..." holding address, DOB, insurance and
+  // appointment details. Left in place it makes Duration/Symptoms/Pain fallbacks
+  // slurp the whole line (e.g. pain_level "7810" from a street address).
+  out = out.replace(/(?<!Intake )Patient Summary:[^\n]*/gi, 'Patient Summary: [stripped]');
+
   // Strip GHL bot-config leftovers that are prompt injections when forwarded to
   // our parser LLM. "OpenAI Prompt: Role: You are ..." contains a full system
   // prompt for a booking bot (Ashley/etc.) that hijacks the parser and causes
