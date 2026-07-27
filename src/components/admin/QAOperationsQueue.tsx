@@ -319,7 +319,7 @@ export default function QAOperationsQueue() {
         supabase
           .from('qa_cases' as any)
           .select('*')
-          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .in('alert_type', visibleAlertTypes)
           .neq('workflow_status', 'completed')
           .order('entered_queue_at', { ascending: false }),
       );
@@ -331,7 +331,7 @@ export default function QAOperationsQueue() {
         let q = supabase
           .from('qa_cases' as any)
           .select('*')
-          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .in('alert_type', visibleAlertTypes)
           .eq('workflow_status', 'completed')
           .order('entered_queue_at', { ascending: false });
         if (!unbounded) q = q.gte('entered_queue_at', cutoff.toISOString());
@@ -342,7 +342,7 @@ export default function QAOperationsQueue() {
         const { count } = await supabase
           .from('qa_cases' as any)
           .select('id', { count: 'exact', head: true })
-          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .in('alert_type', visibleAlertTypes)
           .eq('workflow_status', 'completed');
         setHiddenCompletedCount(Math.max(0, (count ?? 0) - completedRows.length));
       } else {
