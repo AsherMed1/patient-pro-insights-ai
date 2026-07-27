@@ -3011,8 +3011,13 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             // Insurance / PCP data populated even when the AI misses them, without
             // ever overwriting something the AI did extract.
             if (!usedFallback && parsedData) {
-              const isEmptyObj = (o: any) =>
-                !o || Object.values(o).every((v) => v === null || v === undefined || v === '');
+              // procedure_type is calendar-derived and always present, so it is
+              // ignored when deciding whether the AI actually parsed pathology.
+              const isEmptyObj = (o: any, ignoreKeys: string[] = ['procedure_type']) =>
+                !o ||
+                Object.entries(o)
+                  .filter(([k]) => !ignoreKeys.includes(k))
+                  .every(([, v]) => v === null || v === undefined || v === '');
               const notes = record.patient_intake_notes || '';
               const notesLookRich =
                 /STEP\s*\d+\s*\|/i.test(notes) ||
