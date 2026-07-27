@@ -832,10 +832,69 @@ const AppointmentCard = ({
     } else if (newStatus.toLowerCase() === 'oon') {
       setOonConfirmText('');
       setShowOonDialog(true);
+    } else if (['no show', 'noshow', 'no-show'].includes(newStatus.toLowerCase())) {
+      setShowNoShowDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
   };
+
+  // No-show eligibility submission
+  const handleNoShowConfirm = async (eligible: boolean, notes: string) => {
+    setSubmittingNoShow(true);
+    try {
+      onUpdateStatus(appointment.id, 'No Show');
+      await applyNoShowEligibility(
+        {
+          id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          ghl_id: appointment.ghl_id,
+          lead_phone_number: appointment.lead_phone_number,
+        },
+        eligible,
+        notes,
+        userName
+      );
+      setShowNoShowDialog(false);
+      toast({
+        title: 'No Show recorded',
+        description: eligible
+          ? 'Patient remains eligible for rescheduling.'
+          : 'Patient blocked from rescheduling — clinic contact text triggered.',
+      });
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error recording no-show eligibility:', error);
+      toast({ title: 'Error', description: 'Failed to save eligibility decision', variant: 'destructive' });
+    } finally {
+      setSubmittingNoShow(false);
+    }
+  };
+
+  const handleLiftBlock = async () => {
+    setLiftingBlock(true);
+    try {
+      await liftRescheduleBlock(
+        {
+          id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          ghl_id: appointment.ghl_id,
+          lead_phone_number: appointment.lead_phone_number,
+        },
+        userName
+      );
+      toast({ title: 'Block lifted', description: 'Patient can be scheduled again.' });
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error lifting reschedule block:', error);
+      toast({ title: 'Error', description: 'Failed to lift block', variant: 'destructive' });
+    } finally {
+      setLiftingBlock(false);
+    }
+  };
+
 
   // Handle reschedule submission - call GHL directly
   const handleRescheduleSubmit = async () => {
