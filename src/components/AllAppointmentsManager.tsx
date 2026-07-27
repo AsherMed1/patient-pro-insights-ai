@@ -354,6 +354,8 @@ const AllAppointmentsManager = ({
 
       // Exclude reserved time blocks from appointment management
       appointmentsQuery = appointmentsQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+      // Exclude superseded (locked duplicate) records from all views
+      appointmentsQuery = appointmentsQuery.or('is_superseded.is.null,is_superseded.eq.false');
 
       // Apply user-selected sorting for ALL tabs (including "new")
       if (sortBy === 'name_asc' || sortBy === 'name_desc') {
