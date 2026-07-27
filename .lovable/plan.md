@@ -1,28 +1,19 @@
 ## Problem
 
-Kurt Merolla has two records in Georgia Endovascular:
+Serrena Lovelace, NG Vascular and Vein Center, record `a426aa7c` (Scheduled, Jul 23 appt) was stamped parsed on Jul 16 but every parsed field except `procedure_type: PAD` is empty:
 
-- `0a5c976c` — Cancelled, Jul 27 appt — parsed correctly (insurance, PCP, pathology all present).
-- `0aeb425d` — Scheduled, Jul 31 appt (the live one shown in the portal) — parsed badly on Jul 17:
-  - `insurance_provider` = `"** insurance_provider: Ambetter Peach State"` (markdown header slurped in)
-  - `insurance_plan` = `"U9505227801"` (the ID number, not the plan)
-  - `insurance_id_number` = empty
-  - `pcp_name` / `pcp_phone` = empty (notes clearly have Dr. Dana Cole / 770-870-1780)
-  - Pathology only has `procedure_type: FSE`; side, duration, pain level, treatments, imaging all empty
-  - `imaging_details` empty despite "Had Imaging Before?: Yes, X-rays"
+- Insurance: provider, plan, and ID all empty — notes clearly show Healthy Indiana Plan / ID `100294183799`
+- Medical & PCP: empty — notes show Alfonso Bloom / 219 398 9840, and "Had Imaging Before?: Ultrasounds - Saint Catherine Hospital"
+- Pathology: side, symptoms, wounds, vascular-provider status all empty despite five PAD STEP answers present in the notes
 
-The intake notes on this record are complete — this is a parse failure, same markdown-slurp/empty-parse class already patched for other records.
+The intake notes are complete, so this is the same empty-parse failure already hardened against for newer records — this one predates the fix.
 
 ## Fix
 
-1. Force a re-parse of `0aeb425d` via `auto-parse-intake-notes` with `forceAppointmentId`, so the current hardened parser rewrites the record from its own notes.
-2. Verify output, then apply a targeted SQL correction for anything still wrong or missing, using values straight from the notes:
-   - Insurance: provider Ambetter Peach State, plan Ambetter Peach State, ID `U9505227801`, plus the optional intake note text as insurance notes
-   - Medical & PCP: Dr. Dana Cole, 770-870-1780; imaging details "Yes, X-rays; MRI with contrast scheduled for July 30"
-   - Pathology (FSE): affected side Right, area shoulder, duration Less than 3 months, pain level 4–6, worse at night yes, difficulty with shoulder movement yes, no recent injury/surgery, imaging done No (at time of intake), previous treatments Surgery / Physical therapy / Cortisone injections / Oral medications with no long-term relief
-   - Clear the `** insurance_provider: ...` markdown junk
-3. Leave the Cancelled `0a5c976c` record as-is (already correct, and it is not client-facing).
+1. Force a re-parse of `a426aa7c` through `auto-parse-intake-notes` (`{"appointmentId": "..."}`) so the current parser rewrites the record from its own notes.
+2. Verify the result, then apply a targeted data update for anything still missing, taken straight from the notes:
+   - Insurance: provider Healthy Indiana Plan, plan Healthy Indiana Plan, ID `100294183799`
+   - Medical & PCP: Alfonso Bloom, 219 398 9840; imaging details "Ultrasounds — Saint Catherine Hospital"
+   - PAD pathology: affected side Both (legs/feet), no open wounds or sores, rest pain in toes when lying down that improves when dangling the leg or sitting, not currently under the care of a vascular provider, age range under 50 at intake, location Merrillville, Indiana
 
-## Technical notes
-
-No app code changes are needed — the parser hardening for markdown slurp and empty-parse is already in place; this record predates it (parsed Jul 17). Work is one edge-function invocation plus one data migration scoped to a single appointment id.
+No app code changes needed — this is a single-record repair scoped to one appointment id.
