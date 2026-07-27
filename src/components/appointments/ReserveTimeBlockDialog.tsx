@@ -1049,6 +1049,12 @@ export function ReserveTimeBlockDialog({
           // Coexist conflicts are never cancelled — GHL keeps them alongside the new block.
           executeBlockCreation(autoCancelConflicts ? softConflicts : []);
         }}
+        onCarveConfirm={() => {
+          // Hard conflicts present — split the block around each patient's slot
+          // so nothing gets cancelled in GHL.
+          executeCarvedBlockCreation();
+        }}
+
       />
     </Dialog>
   );
