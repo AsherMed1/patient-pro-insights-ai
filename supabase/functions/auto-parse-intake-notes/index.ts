@@ -135,13 +135,19 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   // names but is intentionally NOT applied to insurance_id_number, which can
   // legitimately be all-numeric (e.g. "350244934014").
   if (s.replace(/[^A-Za-z]/g, '').length < 3) return true;
-
+  // Reject URL / markdown-header slurps such as
+  // "** insurance_id_link: https://services.leadconnectorhq.com/..."
+  if (/https?:\/\//i.test(s)) return true;
+  if (/_link\s*:/i.test(s)) return true;
+  if (/^\*+/.test(s)) return true;
+  if (/[{}]/.test(s)) return true;
 
   if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
   if (/No fields found in your shared list/i.test(s)) return true;
   if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(s)) return true;
   return false;
 }
+
 
 // Strip pathology STEP question lines from prior services when the current
 // procedure differs. Patients sometimes re-opt-in for a different service
