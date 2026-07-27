@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
@@ -24,9 +25,13 @@ import { renderWithLinks } from '@/lib/linkify';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue';
+type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
 
 const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit', 'review_queue'];
+// No-Show / Cancellation alerts are hidden by default and only available to
+// admins and designated Account Managers.
+const TERMINAL_ALERT_TYPES: AlertType[] = ['no_show', 'cancelled'];
+const TERMINAL_ALERT_EMAILS = ['kathryn.m@patientpromarketing.com'];
 
 interface QACase {
   id: string;
@@ -134,6 +139,8 @@ const ALERT_LABELS: Record<AlertType, string> = {
   oon: 'OON',
   confirmed_audit: 'Confirmed Audit',
   review_queue: 'Review Queue',
+  no_show: 'No-Show',
+  cancelled: 'Cancellation',
 };
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
@@ -167,7 +174,16 @@ const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | '
   if (t === 'short_notice') return 'default';
   if (t === 'confirmed_audit') return 'outline';
   if (t === 'review_queue') return 'secondary';
+  if (t === 'no_show' || t === 'cancelled') return 'outline';
   return 'secondary';
+};
+
+// Distinct treatment so terminal (No-Show / Cancellation) alerts never look
+// like the standard QA alert set.
+const alertBadgeClass = (t: AlertType): string => {
+  if (t === 'no_show') return 'border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200';
+  if (t === 'cancelled') return 'border-rose-500 bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200';
+  return '';
 };
 
 // ---------------------------------------------------------------------------
@@ -232,6 +248,16 @@ function groupCases(list: QACase[]): QAGroup[] {
 
 export default function QAOperationsQueue() {
   const { user } = useAuth();
+  const { isAdmin } = useRole();
+  const canSeeTerminalAlerts =
+    isAdmin() || TERMINAL_ALERT_EMAILS.includes((user?.email || '').toLowerCase());
+  const [showTerminalAlerts, setShowTerminalAlerts] = useState(false);
+  const visibleAlertTypes = useMemo<AlertType[]>(
+    () => (canSeeTerminalAlerts && showTerminalAlerts
+      ? [...ACTIVE_ALERT_TYPES, ...TERMINAL_ALERT_TYPES]
+      : ACTIVE_ALERT_TYPES),
+    [canSeeTerminalAlerts, showTerminalAlerts],
+  );
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -293,7 +319,7 @@ export default function QAOperationsQueue() {
         supabase
           .from('qa_cases' as any)
           .select('*')
-          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .in('alert_type', visibleAlertTypes)
           .neq('workflow_status', 'completed')
           .order('entered_queue_at', { ascending: false }),
       );
@@ -305,7 +331,7 @@ export default function QAOperationsQueue() {
         let q = supabase
           .from('qa_cases' as any)
           .select('*')
-          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .in('alert_type', visibleAlertTypes)
           .eq('workflow_status', 'completed')
           .order('entered_queue_at', { ascending: false });
         if (!unbounded) q = q.gte('entered_queue_at', cutoff.toISOString());
@@ -316,7 +342,7 @@ export default function QAOperationsQueue() {
         const { count } = await supabase
           .from('qa_cases' as any)
           .select('id', { count: 'exact', head: true })
-          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .in('alert_type', visibleAlertTypes)
           .eq('workflow_status', 'completed');
         setHiddenCompletedCount(Math.max(0, (count ?? 0) - completedRows.length));
       } else {
@@ -357,11 +383,11 @@ export default function QAOperationsQueue() {
   const fetchCasesRef = useRef(fetchCases);
   fetchCasesRef.current = fetchCases;
 
-  // Re-fetch when the visible scope changes (Completed/All tab or a date filter
-  // widens the completed-case window).
+  // Re-fetch when the visible scope changes (Completed/All tab, a date filter
+  // widening the completed-case window, or the No-Show/Cancellation toggle).
   useEffect(() => {
     fetchCasesRef.current();
-  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo]);
+  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo, showTerminalAlerts]);
 
   useEffect(() => {
     const ch = supabase
@@ -592,8 +618,31 @@ export default function QAOperationsQueue() {
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
+            {canSeeTerminalAlerts && showTerminalAlerts && (
+              <>
+                <SelectItem value="no_show">No-Show</SelectItem>
+                <SelectItem value="cancelled">Cancellation</SelectItem>
+              </>
+            )}
           </SelectContent>
         </Select>
+        {canSeeTerminalAlerts && (
+          <div className="flex items-center gap-2 rounded-md border px-3 py-1.5">
+            <Switch
+              id="show-terminal-alerts"
+              checked={showTerminalAlerts}
+              onCheckedChange={(v) => {
+                setShowTerminalAlerts(v);
+                if (!v && (alertFilter === 'no_show' || alertFilter === 'cancelled')) {
+                  setAlertFilter('all');
+                }
+              }}
+            />
+            <Label htmlFor="show-terminal-alerts" className="text-xs cursor-pointer">
+              No-Show / Cancellations
+            </Label>
+          </div>
+        )}
         <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Assignment" /></SelectTrigger>
           <SelectContent>
@@ -708,7 +757,7 @@ export default function QAOperationsQueue() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {g.displayAlertTypes.map((t) => (
-                            <Badge key={t} variant={alertVariant(t)}>{ALERT_LABELS[t]}</Badge>
+                            <Badge key={t} variant={alertVariant(t)} className={alertBadgeClass(t)}>{ALERT_LABELS[t]}</Badge>
                           ))}
                           {g.children.length > g.displayAlertTypes.length && (
                             <Badge variant="outline" title="Older alerts moved to history">
@@ -1158,7 +1207,7 @@ function CaseDrawer({
                     Current alert{pinnedShortNotice ? 's' : ''} for this patient
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
+                    <Badge variant={alertVariant(caseData.alert_type)} className={cn('cursor-default', alertBadgeClass(caseData.alert_type))}>
                       {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
                     </Badge>
                     {pinnedShortNotice && (
@@ -1182,7 +1231,7 @@ function CaseDrawer({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm min-w-0">
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Alert</div>
-                  <Badge variant={alertVariant(caseData.alert_type)}>{ALERT_LABELS[caseData.alert_type]}</Badge>
+                  <Badge variant={alertVariant(caseData.alert_type)} className={alertBadgeClass(caseData.alert_type)}>{ALERT_LABELS[caseData.alert_type]}</Badge>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt status</div>
