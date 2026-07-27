@@ -1,18 +1,20 @@
-## Goal
-Change the QA Operations Queue so the audit record (CaseDrawer) opens only when the user clicks the **Open** button in a row. Clicking anywhere else on the row should not open the record, allowing users to select and copy queue data without triggering the drawer.
+## Diagnosis (verified)
 
-## Current State
-In `src/components/admin/QAOperationsQueue.tsx`, the entire `TableRow` has `className="cursor-pointer"` and an `onClick={() => openGroup(g)}` handler. The last cell contains an **Open** button that also calls `openGroup(g)` and stops propagation. As a result, any click on the row — including text selection — opens the drawer.
+Nothing is being hidden or deleted. Paula Cummings' case still exists in the database:
 
-## Proposed Change
-1. Remove the `onClick` handler from the `TableRow`.
-2. Remove the `cursor-pointer` class from the `TableRow`.
-3. Keep the existing **Open** button as the sole trigger for `openGroup(g)`.
-4. Retain `e.stopPropagation()` on the GHL link and ticket link so they continue to work independently.
+- Case `7ee1f704…`, Ozark Regional Vein and Artery Center, alert `confirmed_audit`, `workflow_status = pending_escalated`, entered queue **Jul 22, 2026 16:09 UTC**. It is her only row (no siblings, no completion, no resolution).
 
-## Verification
-- Build the project to confirm no TypeScript errors.
-- Use Playwright to click a neutral area of a row and confirm the drawer does not open; then click the **Open** button and confirm the drawer opens.
+The reason she disappeared from the UI: `QAOperationsQueue.tsx` fetches cases with `.order('entered_queue_at', desc).limit(500)`. There are now **735 active-type cases newer than her entry** (433 confirmed_audit + 210 review_queue + 74 oon + 18 short_notice), so her row falls outside the 500-row window and never reaches the client. Every bucket count, filter, and search runs on that truncated set, so older open cases silently vanish as volume grows — this affects all long-lived Pending/Escalated and In Review items, not just Paula.
 
-## Files Modified
-- `src/components/admin/QAOperationsQueue.tsx`
+## Fix
+
+1. **Remove the hard 500 cap in `fetchCases`** — replace the single query with a paged fetch loop (`.range()` in pages of 1000) that keeps pulling until fewer rows than a page return, so the full active set is loaded.
+2. **Bound the volume sensibly so the page stays fast:** always load *all* non-completed cases (`workflow_status != 'completed'`) regardless of age, and cap only `completed` cases to a recent window (e.g. last 90 days) unless the user sets a date filter or switches to the Completed/All tab. Open work can never be truncated again.
+3. **Keep the existing appointment-contact enrichment step** working over the larger result set (it already chunks by 500 ids).
+4. **Add a subtle "showing N of M" indicator** near the bucket tabs when any cap is applied, so a truncated view is visible rather than silent.
+
+## Technical notes
+
+- Only `src/components/admin/QAOperationsQueue.tsx` changes; grouping, filtering, and bucket-count logic stay as-is and simply operate on the complete set.
+- No database or trigger changes needed — the data was always intact.
+- After the change, Paula Cummings will reappear under **Pending / Escalated**.
