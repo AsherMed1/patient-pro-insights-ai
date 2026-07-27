@@ -2239,7 +2239,17 @@ const AppointmentCard = ({
         </DialogContent>
       </Dialog>
 
+      {/* No-Show Eligibility Dialog */}
+      <NoShowEligibilityDialog
+        open={showNoShowDialog}
+        onOpenChange={setShowNoShowDialog}
+        patientName={appointment.lead_name}
+        submitting={submittingNoShow}
+        onConfirm={handleNoShowConfirm}
+      />
+
       {/* Cancellation Reason Dialog */}
+
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
