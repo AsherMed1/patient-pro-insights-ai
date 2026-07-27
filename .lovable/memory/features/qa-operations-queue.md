@@ -11,7 +11,7 @@ Ingestion (DB triggers):
 - `all_appointments.status` UPDATE to OON → `oon` case
 - `all_appointments.status` UPDATE to Confirmed → `confirmed_audit` case (routine auditing of every confirmed appointment)
 - `all_appointments.review_status` = 'pending' (insert or transition into pending) → `review_queue` case. On approve → alert flips to `confirmed_audit`; on OON → flips to `oon`; on declined/dismissed → case completed with resolution "Declined in Review Queue". `review_entered_at` / `review_resolved_at` timestamps capture how long the appointment sat in Review Queue. Reviewer name (profiles.full_name) recorded in qa_case_activity.
-- Cancelled / No Show (post-confirmation) are NO LONGER in the daily queue. They log to `qa_metrics_events` only, for reporting/trend analysis.
+- `all_appointments.status` UPDATE to Cancelled/Canceled → `cancelled` case; to No Show → `no_show` case. Fires on EVERY such transition (no `was_ever_confirmed` requirement). These are hidden by default: only admins and Kathryn Meksavanh (`kathryn.m@patientpromarketing.com`) get a "No-Show / Cancellations" toggle plus matching Alert Type options; everyone else never loads them. Badges use amber (No-Show) / rose (Cancellation) to stand apart. `qa_metrics_events` logging is unchanged and still gated on `was_ever_confirmed`.
 
 Dedup key: (appointment_id OR ghl_contact_id, alert_type) for non-completed cases. A repeat alert on a completed case reopens it.
 
