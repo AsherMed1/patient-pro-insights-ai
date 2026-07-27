@@ -360,14 +360,57 @@ serve(async (req) => {
       }
 
       const isSetterSubmitted = intakeSource === 'setter_submitted';
-      const reviewStatus = (isExempt || isSetterSubmitted) ? 'approved' : 'pending';
-      const bypassReason = isExempt ? 'exempt_project' : (isSetterSubmitted ? 'setter_submitted' : 'none');
+
+      // Reschedule-eligibility guard: patients blocked after repeated no-shows must not be
+      // auto-booked by setters, AI or self-booking flows. Force such bookings into the
+      // Review Queue and flag the record so the portal shows the warning.
+      let blockedPatient: any = null;
+      if (appointmentData.project_name && (webhookData.ghl_id || appointmentData.lead_phone_number)) {
+        try {
+          let blockQuery = supabase
+            .from('patient_reschedule_blocks')
+            .select('reason, blocked_by, ghl_contact_id, lead_phone_number')
+            .eq('project_name', appointmentData.project_name)
+            .eq('is_active', true);
+
+          blockQuery = webhookData.ghl_id
+            ? blockQuery.eq('ghl_contact_id', webhookData.ghl_id)
+            : blockQuery.eq('lead_phone_number', appointmentData.lead_phone_number);
+
+          const { data: blockRows } = await blockQuery.limit(1);
+          blockedPatient = blockRows?.[0] || null;
+        } catch (e) {
+          console.error(`[${requestId}] reschedule-block lookup failed:`, e);
+        }
+      }
+
+      const reviewStatus = blockedPatient
+        ? 'pending'
+        : ((isExempt || isSetterSubmitted) ? 'approved' : 'pending');
+      const bypassReason = blockedPatient
+        ? 'reschedule_blocked'
+        : (isExempt ? 'exempt_project' : (isSetterSubmitted ? 'setter_submitted' : 'none'));
+      if (blockedPatient) {
+        console.warn(`[${requestId}] Patient is blocked from rescheduling — forcing review queue.`);
+      }
       console.log(`[${requestId}] Creating new appointment (review_status=${reviewStatus}, bypass=${bypassReason}, intake_source=${intakeSource || 'unspecified'} [${intakeSourceOrigin}])`)
       let { data, error } = await supabase
         .from('all_appointments')
-        .insert([{ ...appointmentData, review_status: reviewStatus }])
+        .insert([{
+          ...appointmentData,
+          review_status: reviewStatus,
+          ...(blockedPatient
+            ? {
+                reschedule_eligible: false,
+                reschedule_block_reason: blockedPatient.reason || 'Blocked after repeated no-shows',
+                reschedule_blocked_at: new Date().toISOString(),
+                reschedule_blocked_by: blockedPatient.blocked_by || 'System',
+              }
+            : {}),
+        }])
         .select()
         .single()
+
 
       // Race-condition recovery: concurrent webhook may have just inserted the same
       // unscheduled lead. Partial unique index on (project_name, ghl_id) for
