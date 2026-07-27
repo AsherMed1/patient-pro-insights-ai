@@ -254,6 +254,56 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [cancelNotes, setCancelNotes] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
 
+  // No-show reschedule eligibility
+  const [showNoShowDialog, setShowNoShowDialog] = useState(false);
+  const [submittingNoShow, setSubmittingNoShow] = useState(false);
+  const [liftingBlock, setLiftingBlock] = useState(false);
+  const isRescheduleBlocked = (appointment as any).reschedule_eligible === false;
+
+  const blockTarget = {
+    id: appointment.id,
+    project_name: appointment.project_name,
+    lead_name: appointment.lead_name,
+    ghl_id: appointment.ghl_id,
+    lead_phone_number: appointment.lead_phone_number,
+  };
+
+  const handleNoShowConfirm = async (eligible: boolean, notes: string) => {
+    setSubmittingNoShow(true);
+    try {
+      setCurrentStatus('No Show');
+      await handleFieldUpdate({ status: 'No Show' });
+      await applyNoShowEligibility(blockTarget, eligible, notes, userName);
+      setShowNoShowDialog(false);
+      toast.success(
+        eligible
+          ? 'No Show recorded — patient remains eligible for rescheduling'
+          : 'No Show recorded — patient blocked from rescheduling'
+      );
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error recording no-show eligibility:', error);
+      toast.error('Failed to save eligibility decision');
+    } finally {
+      setSubmittingNoShow(false);
+    }
+  };
+
+  const handleLiftBlock = async () => {
+    setLiftingBlock(true);
+    try {
+      await liftRescheduleBlock(blockTarget, userName);
+      toast.success('Patient can be scheduled again');
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error lifting reschedule block:', error);
+      toast.error('Failed to lift block');
+    } finally {
+      setLiftingBlock(false);
+    }
+  };
+
+
   // Sync state when appointment prop changes
   useEffect(() => {
     setCurrentStatus(normalizeStatus(appointment.status));
