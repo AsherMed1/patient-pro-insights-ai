@@ -1083,14 +1083,22 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     {statusOptions.sort().map((status) => {
                       const isCancelled = (currentStatus || '').trim().toLowerCase() === 'cancelled';
                       const isWelcomeCall = status.toLowerCase() === 'welcome call';
-                      const disabled = isCancelled && isWelcomeCall;
+                      const blockedByEligibility = isRescheduleBlocked && status.toLowerCase() === 'rescheduled';
+                      const disabled = (isCancelled && isWelcomeCall) || blockedByEligibility;
                       return (
                         <SelectItem
                           key={status}
                           value={status}
                           disabled={disabled}
-                          title={disabled ? 'Change status to Confirmed first before moving to Welcome Call.' : undefined}
+                          title={
+                            blockedByEligibility
+                              ? 'Patient is not eligible for rescheduling — they must contact the clinic directly.'
+                              : disabled
+                                ? 'Change status to Confirmed first before moving to Welcome Call.'
+                                : undefined
+                          }
                         >
+
                           <div className="flex items-center gap-2">
                             <span className={`h-2 w-2 rounded-full ${getStatusDot(status)}`} />
                             {status}
