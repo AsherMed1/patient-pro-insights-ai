@@ -757,7 +757,7 @@ export default function QAOperationsQueue() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {g.displayAlertTypes.map((t) => (
-                            <Badge key={t} variant={alertVariant(t)}>{ALERT_LABELS[t]}</Badge>
+                            <Badge key={t} variant={alertVariant(t)} className={alertBadgeClass(t)}>{ALERT_LABELS[t]}</Badge>
                           ))}
                           {g.children.length > g.displayAlertTypes.length && (
                             <Badge variant="outline" title="Older alerts moved to history">
@@ -1207,7 +1207,7 @@ function CaseDrawer({
                     Current alert{pinnedShortNotice ? 's' : ''} for this patient
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={alertVariant(caseData.alert_type)} className="cursor-default">
+                    <Badge variant={alertVariant(caseData.alert_type)} className={cn('cursor-default', alertBadgeClass(caseData.alert_type))}>
                       {ALERT_LABELS[caseData.alert_type]} · {caseData.workflow_status.replace('_', ' ')}
                     </Badge>
                     {pinnedShortNotice && (
@@ -1231,7 +1231,7 @@ function CaseDrawer({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm min-w-0">
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Alert</div>
-                  <Badge variant={alertVariant(caseData.alert_type)}>{ALERT_LABELS[caseData.alert_type]}</Badge>
+                  <Badge variant={alertVariant(caseData.alert_type)} className={alertBadgeClass(caseData.alert_type)}>{ALERT_LABELS[caseData.alert_type]}</Badge>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt status</div>
