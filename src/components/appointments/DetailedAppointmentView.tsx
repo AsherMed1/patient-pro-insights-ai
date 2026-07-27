@@ -1412,7 +1412,16 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       </Dialog>
 
       {/* Cancellation Reason Dialog */}
+      <NoShowEligibilityDialog
+        open={showNoShowDialog}
+        onOpenChange={setShowNoShowDialog}
+        patientName={appointment.lead_name}
+        submitting={submittingNoShow}
+        onConfirm={handleNoShowConfirm}
+      />
+
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cancel Appointment</DialogTitle>
