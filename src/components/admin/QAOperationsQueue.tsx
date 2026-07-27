@@ -605,7 +605,7 @@ export default function QAOperationsQueue() {
                     const c = g.primary;
                     const ticket = g.ticketCase;
                     return (
-                    <TableRow key={g.key} className="cursor-pointer" onClick={() => openGroup(g)}>
+                    <TableRow key={g.key}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <span>{c.patient_name || '—'}</span>
