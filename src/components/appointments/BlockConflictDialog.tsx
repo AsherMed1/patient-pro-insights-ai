@@ -221,10 +221,26 @@ export function BlockConflictDialog({
         </div>
 
         <DialogFooter>
-          {hasHard ? (
+          {hasHard && !hasCarveable ? (
             <Button onClick={onCancel} disabled={isSubmitting}>
               Adjust Block
             </Button>
+          ) : hasHard && hasCarveable ? (
+            <>
+              <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+                Adjust Block
+              </Button>
+              <Button onClick={onCarveConfirm} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating blocks around appointments...
+                  </>
+                ) : (
+                  `Create Block Around ${carveablePatients.length} Appointment${carveablePatients.length === 1 ? '' : 's'}`
+                )}
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
@@ -247,6 +263,7 @@ export function BlockConflictDialog({
             </>
           )}
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
