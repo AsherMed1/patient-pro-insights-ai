@@ -93,6 +93,9 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   if (result.name && isSlurp(result.name)) result.name = null;
   if (result.phone && isSlurp(result.phone)) result.phone = null;
 
+  return result;
+}
+
 // Reject placeholder / slurped PCP values (e.g. "Not Collected; Preferred Location: Houston; ...")
 function isUnusablePcpValue(v: unknown): boolean {
   if (v === null || v === undefined) return false;
@@ -105,8 +108,7 @@ function isUnusablePcpValue(v: unknown): boolean {
   return false;
 }
 
-  return result;
-}
+
 
 
 
