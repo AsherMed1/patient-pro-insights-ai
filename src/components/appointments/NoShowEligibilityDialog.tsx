@@ -56,7 +56,7 @@ const NoShowEligibilityDialog = ({
               <Label htmlFor="noshow-eligible-yes" className="cursor-pointer text-sm font-normal">
                 <span className="font-medium">Eligible for rescheduling</span>
                 <span className="block text-xs text-muted-foreground">
-                  Patient stays in normal recapture and outreach workflows.
+                  The patient can be contacted and rescheduled.
                 </span>
               </Label>
             </div>
