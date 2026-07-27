@@ -1494,7 +1494,7 @@ function CaseDrawer({
                             <span className="flex items-start gap-1.5 min-w-0">
                               {isDuration && <Clock className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />}
                               <span className="min-w-0 break-words">
-                                {a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                                {a.description ? humanizeActivityDescription(a.description) : (ACTIVITY_LABELS[a.activity_type] || a.activity_type)}
                                 {durationText && !a.description?.includes(durationText) && (
                                   <span className="ml-1 font-medium">{durationText}</span>
                                 )}
