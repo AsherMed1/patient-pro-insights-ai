@@ -93,6 +93,18 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   if (result.name && isSlurp(result.name)) result.name = null;
   if (result.phone && isSlurp(result.phone)) result.phone = null;
 
+// Reject placeholder / slurped PCP values (e.g. "Not Collected; Preferred Location: Houston; ...")
+function isUnusablePcpValue(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim();
+  if (!s) return true;
+  if (s.length > 60) return true;
+  if (/:/.test(s)) return true;
+  if (/^(none|n\/a|na|unknown|-|--)$/i.test(s)) return true;
+  if (/^(not\s*collected|not\s*provided|no\s*pcp|none\s*provided|not\s*available)/i.test(s)) return true;
+  return false;
+}
+
   return result;
 }
 
