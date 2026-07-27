@@ -1440,14 +1440,17 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   }
   }
   
-  // Numbness/cold feet
+  // Numbness/cold feet — normalize checkbox answers to plain YES/NO
   if (!parsedData.pathology_info.numbness_cold_feet) {
     const ncMatch = intakeNotes.match(/(?:numbness|cold feet|discoloration)[^:]*:\s*([^\n]+)/i);
     if (ncMatch && ncMatch[1]) {
-      parsedData.pathology_info.numbness_cold_feet = ncMatch[1].trim();
+      const raw = ncMatch[1].trim();
+      const cb = raw.match(/^(?:☑️|☑|☐|✅|❌)?\s*(yes|no)\s*$/i);
+      parsedData.pathology_info.numbness_cold_feet = cb ? cb[1].toUpperCase() : raw;
       console.log(`[AUTO-PARSE ENRICH] Extracted numbness_cold_feet via regex: ${parsedData.pathology_info.numbness_cold_feet}`);
     }
   }
+
   
   // Worse when walking
   if (!parsedData.pathology_info.worse_when_walking) {
