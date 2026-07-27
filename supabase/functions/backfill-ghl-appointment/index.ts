@@ -45,7 +45,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { projectName, contactIds } = await req.json();
+    const { projectName, contactIds, dryRun } = await req.json();
     if (!projectName || !Array.isArray(contactIds) || contactIds.length === 0) {
       return new Response(
         JSON.stringify({ error: "projectName and contactIds[] required" }),
