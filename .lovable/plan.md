@@ -1,27 +1,27 @@
 ## What's wrong
 
-Sidney Pye's Davis Vein & Vascular record (`c990df36`, created Jun 15, status Pending) was parsed on Jun 15 — before the markdown-slurp hardening — and stored garbage:
+Mar Ward's Richmond Vascular Center record (`992e0d42`, Jun 3, appointment Jul 6, Confirmed) was stamped as parsed on Jun 3 with everything empty except `procedure_type: GAE`:
 
-- Insurance Provider **and** Plan both literally read `** insurance_provider: UNITEDHEALTHCARE` (the markdown header line got slurped)
-- Insurance ID and Group Number: empty
-- Medical & PCP Information: completely empty (no PCP name/phone, no imaging)
-- Pathology: completely empty (no procedure type, duration, pain level, affected side, OA diagnosis)
+- Insurance Provider / Plan / ID / Group: all blank
+- Medical & PCP Information: blank (no PCP name or phone)
+- Pathology: blank except procedure type (no duration, pain level, OA, symptoms, treatments, imaging)
 
-The intake notes on this record are rich (3,809 chars) and contain everything needed: UnitedHealthcare, ID 976708091-00, Group 90122, Plan HMO/POS (Orbit Advantage), PCP George Stokes / 281-592-2888, GAE, right knee, pain 7–8/10, swelling/limited mobility, steroid + gel injections, prior left knee surgery, no imaging yet, 56 and above, over 1 year, OA yes.
+The intake notes (1,632 chars) contain all of it:
 
-His two later Humble Vascular Surgery Center records (Jul 11 and Jul 15) parsed correctly and can be used as a cross-check.
+- Insurance: provider "Other", Plan Medicare, ID 2NJ8-JAOTQ10
+- PCP: Dr. Charles Barrel — 818501850
+- GAE pathology: 56 and above, over 1 year, OA yes, symptoms grinding sensation / instability or weakness / stiffness, treatments injections + medications/pain pills, trauma onset NO, X-ray/MRI/CT YES, pain 10/10
+- DOB 1952-11-04 (already stored correctly)
+
+This is the same pre-hardening empty-parse pattern fixed for Sheila Evans, LaDonna Mondesir and Sidney Pye.
 
 ## Fix
 
-1. Force a re-parse of appointment `c990df36` through `auto-parse-intake-notes` (the `appointmentId` force parameter). The current hardened parser rejects `**`-prefixed and URL-like insurance candidates, so the corrupted provider/plan will be scrubbed on the write path rather than preserved.
-2. Verify the re-parse result. Fill any field the parser still misses with a direct data update so the card is complete:
-   - Insurance: UnitedHealthcare / HMO POS / ID 976708091-00 / Group 90122
-   - Medical & PCP: Dr. George Stokes, 281-592-2888; imaging not yet done (X-ray/MRI planned)
-   - Pathology: GAE, right knee, over 1 year, OA yes, pain 7–8/10, symptoms swelling + limited mobility, prior treatments steroid injections / gel injections / prior left knee surgery
-3. Keep both top-level columns (`detected_insurance_*`, `dob`) and the `parsed_*` JSONB objects in sync, per the data-integrity rule.
+1. Force a re-parse of appointment `992e0d42` through `auto-parse-intake-notes` using the `appointmentId` parameter.
+2. Verify the result and fill any field the parser still misses with a direct data update:
+   - Insurance: Medicare (plan), ID 2NJ8-JAOTQ10
+   - Medical & PCP: Dr. Charles Barrel / 818501850
+   - Pathology: 56 and above, over 1 year, OA YES, pain 10, symptoms and prior treatments as listed, trauma onset NO, imaging done YES
+3. Keep the top-level `detected_insurance_*` columns in sync with the `parsed_*` JSONB objects, per the data-integrity rule.
 
-No schema or UI changes — this is a data repair plus one forced parser run.
-
-## Note on the record itself
-
-The notes for this Davis record reference Kingwood, TX / Humble locations and the same patient later appears twice under Humble Vascular Surgery Center. Repairing this record won't merge or dedupe anything — tell me if you also want the Davis entry retired as a duplicate rather than filled in.
+No schema or UI changes — data repair plus one forced parser run.
