@@ -1,18 +1,12 @@
 ## Goal
-When admin/agent users log in and reach the main admin dashboard (`/`), the **Projects** tab should be active by default instead of the **Dashboard** tab.
+After login, admins/agents should land on the **Projects** tab, not Dashboard.
 
-## Current State
-- `src/pages/Index.tsx` initializes the tab state with `useState("dashboard")`.
-- `src/hooks/useProjectRedirect.tsx` redirects `admin`/`agent` roles to `/` after login.
-- Project users, review-only users, and QA specialists have separate stripped views and are unaffected.
+## Why it didn't take
+`src/pages/Index.tsx` line 35 still reads `useState("dashboard")` — the earlier change is not present in the current code, so the app still defaults to Dashboard on every load.
 
-## Proposed Change
-1. In `src/pages/Index.tsx`, change the default `activeTab` state from `"dashboard"` to `"projects"`.
+## Change
+In `src/pages/Index.tsx`:
+- Initialize `activeTab` to `"projects"` instead of `"dashboard"`.
+- The Projects tab is rendered unconditionally in the tab list, so every user who reaches this page can see it; role-specific redirects (project users, review-only) run before and are unaffected.
 
-## Files to Modify
-- `src/pages/Index.tsx` (line 35)
-
-## Verification
-- Log in as an admin/agent and confirm the **Projects** tab is selected by default.
-- Confirm other tabs still work normally when clicked.
-- Confirm project users, review-only users, and QA specialists are not impacted.
+No other files change; the Dashboard tab remains available and clickable.
