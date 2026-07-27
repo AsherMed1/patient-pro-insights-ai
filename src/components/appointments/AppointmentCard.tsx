@@ -33,6 +33,10 @@ import { format as formatDateFns } from "date-fns";
 import { useGhlCalendars } from "@/hooks/useGhlCalendars";
 import AvailableTimeSlots from "./AvailableTimeSlots";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import NoShowEligibilityDialog from "./NoShowEligibilityDialog";
+import { applyNoShowEligibility, liftRescheduleBlock } from "@/utils/rescheduleBlock";
+import { useUserAttribution } from "@/hooks/useUserAttribution";
+
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
