@@ -1,20 +1,21 @@
 ## Diagnosis (verified)
 
-Record `7e7be936-3ca5-4f80-b9ac-81cd4939d7c6` (SHEILA Evans, Richmond Vascular Center, Aug 20 appointment, Confirmed) has rich intake notes but was stamped `parsing_completed_at = Jul 14, 2026` with `parse_attempts = 0` — i.e. it was marked parsed by the old pipeline *before* the empty-parse guard existed. Every field in `parsed_insurance_info`, `parsed_medical_info`, and nearly all of `parsed_pathology_info` is null, and `detected_insurance_provider` / `detected_insurance_id` are null, even though the notes clearly contain the data.
+Record `3de04e09-f3c7-40da-92a9-0b08be2b7370` (LaDonna Mondesir, Richmond Vascular Center, Jul 10 appointment, Confirmed) has the same stale-parse problem as Sheila Evans: `parsing_completed_at = Jun 25, 2026`, `parse_attempts = 0`, and every field in `parsed_insurance_info` and `parsed_medical_info` is null, plus `detected_insurance_provider` is null — even though the intake notes contain the data.
 
-The notes contain all the missing values:
-- Insurance: Anthem / plan Anthem, ID `YTW120W06329`, Group `WM2A`; secondary Medicaid, ID `350905893018`
-- PCP: Dr. Richard Jackson / 804-225-7148
-- GAE pathology: both knees, over 1 year, OA diagnosed NO, sharp pain, medications/pain pills, recent trauma yes, imaging yes (MRI), pain 7/10
-- Insurance note describes bilateral knee pain ~1 year, injections and PT tried without relief
+Available in the notes but not parsed:
+- Insurance: Anthem, ID `TJA3320498SF`, Group `JVA011M003`, insurance card image link present
+- Imaging: "Had Imaging Before?: No I had. CT scan" → CT scan
+- Procedure UFE / Fibroids, uterus (already correct)
+
+Note: this GHL submission contains no PCP name/phone and no UFE pathology step answers, so those fields will legitimately stay blank.
 
 ## Fix
 
-1. Run `auto-parse-intake-notes` with `forceAppointmentId = 7e7be936-3ca5-4f80-b9ac-81cd4939d7c6` to re-extract everything from the intake notes with the current hardened parser (deterministic GHL-label regex fills + empty-parse guard).
-2. Verify the resulting `parsed_*` objects and top-level insurance columns against the values listed above; apply a targeted data fix for any field the parser still leaves blank (notably secondary insurance and the "had imaging before: MRI" detail).
-3. Confirm the Patient Portal card renders Insurance, Medical & PCP, and Medical Information sections populated.
+1. Re-run `auto-parse-intake-notes` with `appointmentId = 3de04e09-f3c7-40da-92a9-0b08be2b7370` so the current hardened parser re-extracts from the notes.
+2. Verify the resulting fields against the values above (insurance provider/plan/ID/group, imaging CT scan, insurance card link).
+3. Apply a targeted data fix for anything the parser still leaves blank that is clearly present in the notes.
 
 ## Technical notes
 
-- No code or schema changes expected — this is a data repair using the existing force-reparse path.
-- If the parser still returns empty despite rich notes, that indicates the guard isn't catching this note format, and I'll report the specific failing extractor before changing parser code.
+- Data repair only, no code or schema changes expected.
+- The parser force parameter is `appointmentId` (not `forceAppointmentId`).

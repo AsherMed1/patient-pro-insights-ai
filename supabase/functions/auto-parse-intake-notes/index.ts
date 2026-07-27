@@ -135,13 +135,19 @@ function isInvalidInsuranceValue(v: string | null | undefined): boolean {
   // names but is intentionally NOT applied to insurance_id_number, which can
   // legitimately be all-numeric (e.g. "350244934014").
   if (s.replace(/[^A-Za-z]/g, '').length < 3) return true;
-
+  // Reject URL / markdown-header slurps such as
+  // "** insurance_id_link: https://services.leadconnectorhq.com/..."
+  if (/https?:\/\//i.test(s)) return true;
+  if (/_link\s*:/i.test(s)) return true;
+  if (/^\*+/.test(s)) return true;
+  if (/[{}]/.test(s)) return true;
 
   if (/(GAE Info|PFE Info|UFE Info|PAE Info|HAE Info|PAD Info|FSE Info|TAE Info)/i.test(s)) return true;
   if (/No fields found in your shared list/i.test(s)) return true;
   if (/(Insurance Phone:|Group Number:|Upload Card:|Insurance Notes:|Insurance Plan:|Insurance ID:)/i.test(s)) return true;
   return false;
 }
+
 
 // Strip pathology STEP question lines from prior services when the current
 // procedure differs. Patients sometimes re-opt-in for a different service
@@ -602,15 +608,30 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       /insurance provider:\s*([^\n|]+)/i,
       /insurance:\s*([^\n|]+)/i,
     ];
+    // Reject markdown section headers like "**Insurance:** insurance_id_link: https://..."
+    // which otherwise slurp a URL blob into the Provider field.
+    const isJunkProvider = (v: string) =>
+      !v ||
+      /https?:\/\//i.test(v) ||
+      /_link\s*:/i.test(v) ||
+      /^\*+/.test(v) ||
+      /\{|\}/.test(v) ||
+      v.length > 60;
     for (const pattern of insuranceProviderPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
-        result.insurance_info.insurance_provider = match[1].trim();
-        console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${match[1].trim()}`);
+        const candidate = match[1].replace(/\*+/g, '').trim();
+        if (isJunkProvider(candidate)) {
+          console.log(`[AUTO-PARSE FALLBACK] Skipping junk insurance_provider candidate: ${candidate.substring(0, 60)}`);
+          continue;
+        }
+        result.insurance_info.insurance_provider = candidate;
+        console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${candidate}`);
         break;
       }
     }
   }
+
 
   // Extract Insurance Plan separately - never copy provider into plan
   const planMatch = intakeNotes.match(/^[ \t]*Insurance Plan\s*:\s*([^\n|]+)/im);
@@ -3205,7 +3226,15 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // Non-null merge over existing so an AI miss can never blank values that
           // the webhook (or a prior parse) already populated — critical for
           // insurance_provider / insurance_id_number.
-          updateData.parsed_insurance_info = mergeWithNonNull(record.parsed_insurance_info || {}, parsedData.insurance_info || {});
+          // Scrub corrupted provider/plan already stored on the record so the
+          // non-null merge below can't preserve garbage (e.g. a URL blob).
+          {
+            const existingIns: any = { ...(record.parsed_insurance_info || {}) };
+            if (isInvalidInsuranceValue(existingIns.insurance_provider)) existingIns.insurance_provider = null;
+            if (isInvalidInsuranceValue(existingIns.insurance_plan)) existingIns.insurance_plan = null;
+            updateData.parsed_insurance_info = mergeWithNonNull(existingIns, parsedData.insurance_info || {});
+          }
+
           // Non-null merge for pathology too — protects webhook-extracted Neuropathy
           // STEP data (pain level, affected areas, duration, symptoms, diabetes) from
           // being wiped by an AI parse that returns nulls for those fields.
@@ -3262,9 +3291,11 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
                 parsedData.insurance_info.insurance_id_number = null;
               }
             }
-            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || record.detected_insurance_provider || updateData.parsed_insurance_info?.insurance_provider || null;
-            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || record.detected_insurance_plan || updateData.parsed_insurance_info?.insurance_plan || null;
+            const cleanStored = (v: any) => (isInvalidInsuranceValue(v) ? null : v);
+            updateData.detected_insurance_provider = parsedData.insurance_info?.insurance_provider || cleanStored(record.detected_insurance_provider) || cleanStored(updateData.parsed_insurance_info?.insurance_provider) || null;
+            updateData.detected_insurance_plan = parsedData.insurance_info?.insurance_plan || cleanStored(record.detected_insurance_plan) || cleanStored(updateData.parsed_insurance_info?.insurance_plan) || null;
             updateData.detected_insurance_id = parsedData.insurance_info?.insurance_id_number || record.detected_insurance_id || updateData.parsed_insurance_info?.insurance_id_number || null;
+
           }
           
           // Update insurance_id_link / insurance_back_link with fallback chain:
