@@ -109,6 +109,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         .from('all_appointments')
         .select('calendar_name')
         .not('calendar_name', 'is', null)
+        .or('is_superseded.is.null,is_superseded.eq.false')
         .eq('project_name', project.project_name);
       
       if (data) {
@@ -205,6 +206,7 @@ export const ProjectDetailedDashboard: React.FC<ProjectDetailedDashboardProps> =
         .from('all_appointments')
         .select('*')
         .eq('project_name', project.project_name)
+        .or('is_superseded.is.null,is_superseded.eq.false')
         .limit(50000);
       
       let callsQuery = supabase

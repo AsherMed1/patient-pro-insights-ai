@@ -218,6 +218,8 @@ const AllAppointmentsManager = ({
 
       // Exclude reserved time blocks from appointment management
       countQuery = countQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+      // Exclude superseded (locked duplicate) records from all views
+      countQuery = countQuery.or('is_superseded.is.null,is_superseded.eq.false');
       
       // Apply project filter first
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
@@ -352,6 +354,8 @@ const AllAppointmentsManager = ({
 
       // Exclude reserved time blocks from appointment management
       appointmentsQuery = appointmentsQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+      // Exclude superseded (locked duplicate) records from all views
+      appointmentsQuery = appointmentsQuery.or('is_superseded.is.null,is_superseded.eq.false');
 
       // Apply user-selected sorting for ALL tabs (including "new")
       if (sortBy === 'name_asc' || sortBy === 'name_desc') {
@@ -516,6 +520,7 @@ const AllAppointmentsManager = ({
         
         // Exclude reserved time blocks from appointment management
         query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+        query = query.or('is_superseded.is.null,is_superseded.eq.false');
         
         const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
         if (activeProjectFilter) {
@@ -1565,7 +1570,7 @@ const AllAppointmentsManager = ({
                 try {
                   toast({ title: `Exporting ${tabLabel} appointments…`, description: "Fetching all filtered appointments." });
                   const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
-                  let query = supabase.from('all_appointments').select('*').or('is_reserved_block.is.null,is_reserved_block.eq.false');
+                  let query = supabase.from('all_appointments').select('*').or('is_reserved_block.is.null,is_reserved_block.eq.false').or('is_superseded.is.null,is_superseded.eq.false');
                   const activeProject = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
                   if (activeProject) query = query.eq('project_name', activeProject);
                   if (dateRange.from) query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
