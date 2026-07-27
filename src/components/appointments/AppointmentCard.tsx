@@ -1238,6 +1238,8 @@ const AppointmentCard = ({
   };
 
   const isSuperseded = (appointment as any).is_superseded === true;
+  const isRescheduleBlocked = appointment.reschedule_eligible === false;
+
 
   return <>
       <div className={cn(
