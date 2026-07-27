@@ -24,9 +24,13 @@ import { renderWithLinks } from '@/lib/linkify';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue';
+type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
 
 const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit', 'review_queue'];
+// No-Show / Cancellation alerts are hidden by default and only available to
+// admins and designated Account Managers.
+const TERMINAL_ALERT_TYPES: AlertType[] = ['no_show', 'cancelled'];
+const TERMINAL_ALERT_EMAILS = ['kathryn.m@patientpromarketing.com'];
 
 interface QACase {
   id: string;
@@ -134,6 +138,8 @@ const ALERT_LABELS: Record<AlertType, string> = {
   oon: 'OON',
   confirmed_audit: 'Confirmed Audit',
   review_queue: 'Review Queue',
+  no_show: 'No-Show',
+  cancelled: 'Cancellation',
 };
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
