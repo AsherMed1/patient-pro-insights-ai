@@ -45,7 +45,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { projectName, contactIds } = await req.json();
+    const { projectName, contactIds, dryRun } = await req.json();
     if (!projectName || !Array.isArray(contactIds) || contactIds.length === 0) {
       return new Response(
         JSON.stringify({ error: "projectName and contactIds[] required" }),
@@ -159,6 +159,23 @@ serve(async (req) => {
           customFields: contact?.customFields || [],
         };
 
+        if (dryRun) {
+          perContact.appointments.push({
+            ghl_appointment_id: aptId,
+            startTime: apt.startTime,
+            endTime: apt.endTime,
+            status: apt.appointmentStatus || apt.status,
+            calendarId: apt.calendarId,
+            calendarName: apt.calendarName || apt.calendar?.name,
+            title: apt.title,
+            dateAdded: apt.dateAdded || apt.createdAt,
+            createdBy: apt.createdBy || apt.creator || null,
+            assignedUserId: apt.assignedUserId,
+            dryRun: true,
+          });
+          continue;
+        }
+
         const handlerRes = await fetch(`${supabaseUrl}/functions/v1/ghl-webhook-handler`, {
           method: "POST",
           headers: {
@@ -175,6 +192,8 @@ serve(async (req) => {
           ghl_appointment_id: aptId,
           startTime: apt.startTime,
           status: apt.appointmentStatus || apt.status,
+          calendarName: apt.calendarName || apt.calendar?.name,
+          title: apt.title,
           handlerStatus: handlerRes.status,
           handlerBody,
         });

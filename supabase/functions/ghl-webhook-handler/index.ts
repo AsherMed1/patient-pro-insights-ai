@@ -204,7 +204,7 @@ serve(async (req) => {
     webhookData.project_name = canonicalProjectName // Use canonical name for all operations
 
     // Check if appointment already exists (returns full record for comparison)
-    const existingAppointment = await findExistingAppointment(
+    let existingAppointment = await findExistingAppointment(
       supabase, 
       webhookData.ghl_appointment_id, 
       webhookData.ghl_id,
@@ -212,6 +212,25 @@ serve(async (req) => {
       webhookData.project_name,
       requestId
     )
+
+    // Contradiction guard: never fold a DIFFERENT, live GHL booking into a row that the
+    // portal has already closed with a portal-only terminal status. Doing so silently
+    // dropped the new booking (the status guard preserves the terminal state), so the
+    // clinic saw "Confirmed in GHL / Cancelled in portal". Create a fresh row instead.
+    if (existingAppointment) {
+      const portalOnlyTerminal = ['oon', 'do not call', 'donotcall', 'cancelled', 'canceled']
+      const existingStatus = (existingAppointment.status || '').toLowerCase().trim()
+      const incomingApptId = webhookData.ghl_appointment_id
+      const differentBooking =
+        !!incomingApptId &&
+        !!existingAppointment.ghl_appointment_id &&
+        existingAppointment.ghl_appointment_id !== incomingApptId
+
+      if (differentBooking && portalOnlyTerminal.includes(existingStatus)) {
+        console.log(`[${requestId}] ⛔ Refusing to merge new booking ${incomingApptId} into terminal row ${existingAppointment.id} (status: ${existingAppointment.status}) — creating a separate appointment`)
+        existingAppointment = null
+      }
+    }
 
     const isUpdate = !!existingAppointment
     console.log(`[${requestId}] Operation type: ${isUpdate ? 'UPDATE' : 'CREATE'}`)
@@ -1733,6 +1752,28 @@ async function findExistingAppointment(
   
   // Fall back to GHL contact ID matching only when no ghl_appointment_id was provided.
   // ALWAYS scoped to project_name to prevent cross-tenant collisions.
+  //
+  // IMPORTANT: pick the NEWEST still-open row, never the oldest. A patient can have
+  // several bookings over time; matching the oldest row meant a brand-new booking
+  // mutated a long-closed (often Cancelled) appointment — and because Cancelled is a
+  // portal-only terminal status, the incoming Confirmed status was then discarded,
+  // leaving "confirmed in GHL / cancelled in portal".
+  const TERMINAL_FOR_MATCH = [
+    'cancelled', 'canceled', 'no show', 'noshow', 'no-show',
+    'showed', 'won', 'oon', 'do not call', 'donotcall', 'rescheduled',
+  ]
+  const pickMatch = (rows: any[] | null) => {
+    const usable = (rows || []).filter((r: any) => {
+      if (r.is_superseded) return false
+      if (r.is_reserved_block) return false
+      const rs = (r.review_status || '').toLowerCase().trim()
+      if (rs === 'declined' || rs === 'dismissed') return false
+      return true
+    })
+    const open = usable.find((r: any) => !TERMINAL_FOR_MATCH.includes((r.status || '').toLowerCase().trim()))
+    return open || null
+  }
+
   if (ghlId && projectName) {
     const { data: records } = await supabase
       .from('all_appointments')
@@ -1740,27 +1781,31 @@ async function findExistingAppointment(
       .eq('ghl_id', ghlId)
       .eq('project_name', projectName)
       .eq('lead_name', leadName)
-      .order('created_at', { ascending: true })
-      .limit(1)
-    
-    if (records && records.length > 0) {
-      console.log(`[${requestId}] Found by ghl_id + name + project: ${records[0].id}`)
-      return records[0]
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const byName = pickMatch(records)
+    if (byName) {
+      console.log(`[${requestId}] Found by ghl_id + name + project (newest open): ${byName.id}`)
+      return byName
     }
-    
+
     // Fallback: ghl_id within project (in case name changed)
     const { data: byContactOnly } = await supabase
       .from('all_appointments')
       .select('*')
       .eq('ghl_id', ghlId)
       .eq('project_name', projectName)
-      .order('created_at', { ascending: true })
-      .limit(1)
-    
-    if (byContactOnly && byContactOnly.length > 0) {
-      console.log(`[${requestId}] Found by ghl_id + project: ${byContactOnly[0].id}`)
-      return byContactOnly[0]
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const byContact = pickMatch(byContactOnly)
+    if (byContact) {
+      console.log(`[${requestId}] Found by ghl_id + project (newest open): ${byContact.id}`)
+      return byContact
     }
+
+    console.log(`[${requestId}] Contact ${ghlId} has only closed/terminal rows in '${projectName}' — creating a new row instead of mutating history`)
   }
   
   console.log(`[${requestId}] No existing appointment found in project '${projectName}'`)
