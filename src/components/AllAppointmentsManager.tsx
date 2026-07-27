@@ -218,6 +218,8 @@ const AllAppointmentsManager = ({
 
       // Exclude reserved time blocks from appointment management
       countQuery = countQuery.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+      // Exclude superseded (locked duplicate) records from all views
+      countQuery = countQuery.or('is_superseded.is.null,is_superseded.eq.false');
       
       // Apply project filter first
       const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
