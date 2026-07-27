@@ -1,20 +1,21 @@
 ## Problem
 
-Juan Gonzales, Texas Endovascular - Dallas Vein Clinic, record `17366ebf` (Scheduled, Aug 11) parsed on Jul 15 with several gaps and one wrong value:
+Gregory Washington (Texas Endovascular - Houston Vein Clinic, appointment `afecfa85-83cd-4760-b313-c0c9ff44eba2`, Jul 29 2026) has rich GHL intake notes but the parsed cards are empty. Confirmed in the database:
 
-- Insurance ID (`Y4P255M98158`), group number (`LO6351M210`), and plan (`BCBS`) are all empty even though they are in the notes
-- `insurance_notes` holds an unrelated AI conversation summary ("No specific urinary symptoms... were provided") instead of the real intake note about weak stream, frequent urination, Tamsulosin, enlarged prostate, and an MRI 2 months ago
-- PCP name/phone empty — notes have a combined field "Primary Care Doctor's Name and Phone: Dr Belton, 469 647 4250"
-- Pathology `symptoms` empty despite "Weak urine stream, Erectile dysfunction"; no imaging captured (MRI ~2 months ago with urologist)
+- `parsed_insurance_info` — every field null (notes clearly contain UHC / United Healthcare, ID 523739306)
+- `parsed_medical_info` — every field null (notes contain PCP "philip Johnson")
+- `parsed_pathology_info` — only `procedure_type: FSE`, all clinical fields null
+- `parsing_completed_at` = Jul 20, `parse_attempts` = 0 — the record was parsed before the recent parser hardening and never retried
 
-(The other two Juan records — Juan Jose Gonzalez `aa5ff228`, Cancelled, and Juan Gonzalez `0bbb1437`, Texas Vascular Institute — are separate patients and stay untouched.)
+Demographics (DOB 1964-02-11, age 62) did populate correctly.
 
 ## Fix
 
-1. Force a re-parse of `17366ebf` via `auto-parse-intake-notes` (`{"appointmentId": "..."}`).
-2. Verify, then apply a targeted data update for whatever is still missing, using values from the notes:
-   - Insurance: provider BCBS of TX, plan BCBS, ID `Y4P255M98158`, group `LO6351M210`, and replace the bogus AI summary in insurance notes with the real intake note
-   - Medical & PCP: split the combined field into Dr Belton / 469 647 4250; imaging details "MRI approximately 2 months ago with urologist"
-   - PAE/BPH pathology: symptoms weak urine stream and erectile dysfunction; BPH diagnosed more than 1 year ago; treatments tried daily medication (Tamsulosin/Finasteride/Dutasteride) with no improvement; no catheter; surgery not recommended; unhappy with quality of life; seeking a less invasive option; enlarged prostate worsening over the past month
+1. Force a re-parse of this appointment through the `auto-parse-intake-notes` edge function using `forceAppointmentId`, so the current hardened parser processes the notes.
+2. Verify the resulting JSONB. Where the parser still leaves gaps, apply a targeted SQL update to fill from the intake notes:
+   - Insurance: provider UHC (United Healthcare), plan United Healthcare, ID 523739306
+   - Medical: PCP name Philip Johnson (no phone in notes)
+   - Pathology (FSE): right shoulder, duration 6–12 months, pain 7–10, worse at night / lying on affected side, difficulty with shoulder movement, no recent injury or surgery, no prior treatments, no imaging done
+3. Re-query the record to confirm all three cards populate, and confirm the appointment still shows as Scheduled / approved and non-superseded.
 
-Single-record repair, no app code changes.
+No parser or UI code changes are proposed here — this is a data repair for one record using the existing hardened parser.
