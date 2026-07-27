@@ -259,6 +259,10 @@ export type Database = {
           recapture_detected_at: string | null
           recaptured_from_appointment_id: string | null
           requested_time: string | null
+          reschedule_block_reason: string | null
+          reschedule_blocked_at: string | null
+          reschedule_blocked_by: string | null
+          reschedule_eligible: boolean | null
           reschedule_history: Json | null
           reserved_end_time: string | null
           review_notes: string | null
@@ -324,6 +328,10 @@ export type Database = {
           recapture_detected_at?: string | null
           recaptured_from_appointment_id?: string | null
           requested_time?: string | null
+          reschedule_block_reason?: string | null
+          reschedule_blocked_at?: string | null
+          reschedule_blocked_by?: string | null
+          reschedule_eligible?: boolean | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
           review_notes?: string | null
@@ -389,6 +397,10 @@ export type Database = {
           recapture_detected_at?: string | null
           recaptured_from_appointment_id?: string | null
           requested_time?: string | null
+          reschedule_block_reason?: string | null
+          reschedule_blocked_at?: string | null
+          reschedule_blocked_by?: string | null
+          reschedule_eligible?: boolean | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
           review_notes?: string | null
@@ -2532,6 +2544,76 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_reschedule_blocks: {
+        Row: {
+          blocked_by: string | null
+          created_at: string
+          ghl_contact_id: string | null
+          id: string
+          is_active: boolean
+          lead_phone_number: string | null
+          patient_name: string | null
+          project_name: string
+          reason: string | null
+          source_appointment_id: string | null
+          unblocked_at: string | null
+          unblocked_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          blocked_by?: string | null
+          created_at?: string
+          ghl_contact_id?: string | null
+          id?: string
+          is_active?: boolean
+          lead_phone_number?: string | null
+          patient_name?: string | null
+          project_name: string
+          reason?: string | null
+          source_appointment_id?: string | null
+          unblocked_at?: string | null
+          unblocked_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          blocked_by?: string | null
+          created_at?: string
+          ghl_contact_id?: string | null
+          id?: string
+          is_active?: boolean
+          lead_phone_number?: string | null
+          patient_name?: string | null
+          project_name?: string
+          reason?: string | null
+          source_appointment_id?: string | null
+          unblocked_at?: string | null
+          unblocked_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_reschedule_blocks_source_appointment_id_fkey"
+            columns: ["source_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_reschedule_blocks_source_appointment_id_fkey"
+            columns: ["source_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "patient_reschedule_blocks_source_appointment_id_fkey"
+            columns: ["source_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
       payroll_employees: {
         Row: {
           annual_salary: number | null
@@ -4414,6 +4496,14 @@ export type Database = {
         Returns: boolean
       }
       hash_password: { Args: { password: string }; Returns: string }
+      is_reschedule_blocked: {
+        Args: {
+          _ghl_contact_id: string
+          _phone?: string
+          _project_name: string
+        }
+        Returns: boolean
+      }
       log_audit_event: {
         Args: {
           p_action: string
