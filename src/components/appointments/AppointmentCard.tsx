@@ -1261,6 +1261,25 @@ const AppointmentCard = ({
             </div>
           </div>
         )}
+        {isRescheduleBlocked && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold">Not eligible for rescheduling</p>
+              <p className="mt-0.5 text-destructive/90">
+                Patient must contact the clinic directly.
+                {appointment.reschedule_block_reason ? ` Reason: ${appointment.reschedule_block_reason}.` : ''}
+                {appointment.reschedule_blocked_by ? ` Set by ${appointment.reschedule_blocked_by}.` : ''}
+              </p>
+            </div>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={handleLiftBlock} disabled={liftingBlock}>
+                {liftingBlock ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Allow rescheduling'}
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           {/* Lead Name - Prominent on mobile */}
           <div className="flex items-center justify-between">
