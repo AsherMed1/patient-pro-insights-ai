@@ -1,27 +1,24 @@
-## Problem
+## Goal
+Superseded appointment records (the yellow "Superseded by a newer appointment" cards) should never appear in the portal — for any user, in any list or count.
 
-Rana Asif's **Medical Information / Pathology** card is empty even though the GHL intake notes contain rich Neuropathy answers (pain level 7, feet affected, diabetes yes, symptoms >3 months, etc.). Only `procedure_type: Neuropathy` was captured — every other pathology field is null. The `parsed_medical_info` card (PCP, allergies, medications, imaging) is also fully null.
+## What's happening now
+`src/components/AllAppointmentsManager.tsx` filters out reserved blocks on its main list, but the primary `fetchAppointments()` count query and data query do **not** exclude `is_superseded`, so locked duplicates render in project portals. Several sibling queries (calendar, upcoming events, review queue, some tab counts) already exclude them, which is why it looks inconsistent.
 
-The current pipeline relies entirely on the AI parser for these fields. When the AI parse partially fails (as it did for the insurance card previously), pathology/medical fields are silently left null. This mirrors the insurance issue you just had me fix.
+## Changes
 
-## Plan
+1. **`src/components/AllAppointmentsManager.tsx`**
+   - Add `.or('is_superseded.is.null,is_superseded.eq.false')` to the main `fetchAppointments()` count query and data query.
+   - Audit the remaining `all_appointments` SELECTs in the file (tab counts, search/lookup, export) and add the same exclusion to any read that feeds a visible list, count, or export.
 
-**1. Backfill Rana Asif** with the values clearly present in his intake notes:
-- `pain_level`: 7
-- `affected_areas` / `affected_area`: Feet only
-- `duration`: More than 3 months
-- `symptoms`: Numbness or tingling in feet or hands
-- `previous_treatments`: None tried
-- Diabetes flag: Yes (add to pathology info)
+2. **`src/pages/ProjectPortal.tsx`**
+   - Add the same exclusion to `fetchAppointmentStats()` so headline stats match the visible list.
 
-**2. Harden `ghl-webhook-handler`** — same non-AI extraction pattern already added for insurance. Read the pathology STEP fields directly from GHL custom fields on ingest and write them into `parsed_pathology_info` so data lands even if the AI parser fails or is slow. Cover Neuropathy STEP fields (pain level, affected areas, duration, symptoms, diabetes, ability-to-walk, previous treatments) since The Painless Center is the primary Neuropathy source.
+3. **`src/components/projects/ProjectDetailedDashboard.tsx`**
+   - Add the same exclusion to its two `all_appointments` queries so the detailed stats modal agrees.
 
-**3. Harden `auto-parse-intake-notes`** — apply the same non-null merge guard already in place for insurance/medical to `parsed_pathology_info`, so a subsequent AI run that returns null for a field never wipes a previously-captured value.
+4. **`src/components/appointments/AppointmentCard.tsx`**
+   - Leave the superseded banner/lock code in place (harmless fallback if a superseded row ever reaches the UI), no visual change needed.
 
-**4. Also backfill `parsed_medical_info`** where notes contain values (Rana's intake doesn't list PCP/allergies/meds/imaging, so this stays null for him — no action needed beyond the merge guard above).
-
-### Technical notes
-- Files: `supabase/functions/ghl-webhook-handler/index.ts`, `supabase/functions/auto-parse-intake-notes/index.ts`.
-- Backfill via `supabase--insert` on `all_appointments` for id `ea90030f-0561-46a4-b9c3-348612be4d41`.
-- No schema changes; `parsed_pathology_info` already exists as JSONB.
-- No UI changes — `ParsedIntakeInfo.tsx` already renders `pain_level`, `symptoms`, `affected_areas`, `duration`, etc.
+## Notes
+- Purely a read-filter change: no data is deleted and the `is_superseded` flag/trigger behaviour stays as-is.
+- Since the flag is set by the `mark_superseded_on_change` trigger, historical rows already backfilled will drop out of view immediately.
