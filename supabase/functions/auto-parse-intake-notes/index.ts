@@ -2682,13 +2682,33 @@ Deno.serve(async (req) => {
     // Optional request body: { sweep: true } additionally re-processes records
     // that were previously stamped "parsed" but ended up with an empty payload
     // (OpenAI outage). Off by default so normal runs behave exactly as before.
+    // { appointmentId: "<uuid>" } force-reparses a single appointment even when
+    // it was already stamped as parsed (targeted repair).
     let sweepEmptyParses = false;
+    let forceAppointmentId: string | null = null;
     try {
       const body = req.method === "POST" ? await req.json().catch(() => null) : null;
       sweepEmptyParses = body?.sweep === true;
+      forceAppointmentId = typeof body?.appointmentId === "string" ? body.appointmentId : null;
     } catch (_e) { /* no body */ }
 
     const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
+
+    let forcedAppointments: any[] = [];
+    if (forceAppointmentId) {
+      const { data: forcedRows, error: forcedError } = await supabase
+        .from("all_appointments")
+        .select(APPT_SELECT)
+        .eq("id", forceAppointmentId)
+        .limit(1);
+      if (forcedError) {
+        console.error("[AUTO-PARSE] Error fetching forced appointment:", JSON.stringify(forcedError));
+      } else {
+        forcedAppointments = forcedRows || [];
+        console.log(`[AUTO-PARSE] Forced re-parse requested for ${forceAppointmentId} (${forcedAppointments.length} found)`);
+      }
+    }
+
 
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
