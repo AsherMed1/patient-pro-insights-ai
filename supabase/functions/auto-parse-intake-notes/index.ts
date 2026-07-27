@@ -2682,13 +2682,33 @@ Deno.serve(async (req) => {
     // Optional request body: { sweep: true } additionally re-processes records
     // that were previously stamped "parsed" but ended up with an empty payload
     // (OpenAI outage). Off by default so normal runs behave exactly as before.
+    // { appointmentId: "<uuid>" } force-reparses a single appointment even when
+    // it was already stamped as parsed (targeted repair).
     let sweepEmptyParses = false;
+    let forceAppointmentId: string | null = null;
     try {
       const body = req.method === "POST" ? await req.json().catch(() => null) : null;
       sweepEmptyParses = body?.sweep === true;
+      forceAppointmentId = typeof body?.appointmentId === "string" ? body.appointmentId : null;
     } catch (_e) { /* no body */ }
 
     const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
+
+    let forcedAppointments: any[] = [];
+    if (forceAppointmentId) {
+      const { data: forcedRows, error: forcedError } = await supabase
+        .from("all_appointments")
+        .select(APPT_SELECT)
+        .eq("id", forceAppointmentId)
+        .limit(1);
+      if (forcedError) {
+        console.error("[AUTO-PARSE] Error fetching forced appointment:", JSON.stringify(forcedError));
+      } else {
+        forcedAppointments = forcedRows || [];
+        console.log(`[AUTO-PARSE] Forced re-parse requested for ${forceAppointmentId} (${forcedAppointments.length} found)`);
+      }
+    }
+
 
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
@@ -2742,10 +2762,10 @@ Deno.serve(async (req) => {
 
     const seenApptIds = new Set<string>();
     const allRecordsToProcess = [
-      ...[...(appointmentsNeedingParsing || []), ...staleEmptyParses]
+      ...[...forcedAppointments, ...(appointmentsNeedingParsing || []), ...staleEmptyParses]
         .filter((r) => (seenApptIds.has(r.id) ? false : (seenApptIds.add(r.id), true)))
         .map((r) => ({ ...r, table: "all_appointments" })),
-      ...(leadsNeedingParsing || []).map((r) => ({ ...r, table: "new_leads" })),
+      ...(forceAppointmentId ? [] : (leadsNeedingParsing || []).map((r) => ({ ...r, table: "new_leads" }))),
     ];
 
 
@@ -3011,8 +3031,13 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             // Insurance / PCP data populated even when the AI misses them, without
             // ever overwriting something the AI did extract.
             if (!usedFallback && parsedData) {
-              const isEmptyObj = (o: any) =>
-                !o || Object.values(o).every((v) => v === null || v === undefined || v === '');
+              // procedure_type is calendar-derived and always present, so it is
+              // ignored when deciding whether the AI actually parsed pathology.
+              const isEmptyObj = (o: any, ignoreKeys: string[] = ['procedure_type']) =>
+                !o ||
+                Object.entries(o)
+                  .filter(([k]) => !ignoreKeys.includes(k))
+                  .every(([, v]) => v === null || v === undefined || v === '');
               const notes = record.patient_intake_notes || '';
               const notesLookRich =
                 /STEP\s*\d+\s*\|/i.test(notes) ||
@@ -3312,8 +3337,11 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         // Bounded by parse_attempts so a genuinely unparseable record can't loop.
         const MAX_PARSE_ATTEMPTS = 5;
         if (record.table === "all_appointments") {
-          const isEmptyResult = (o: any) =>
-            !o || Object.values(o).every((v) => v === null || v === undefined || v === '');
+          const isEmptyResult = (o: any, ignoreKeys: string[] = []) =>
+            !o ||
+            Object.entries(o)
+              .filter(([k]) => !ignoreKeys.includes(k))
+              .every(([, v]) => v === null || v === undefined || v === '');
           const notes = record.patient_intake_notes || '';
           const notesLookRich =
             /STEP\s*\d+\s*\|/i.test(notes) ||
@@ -3324,7 +3352,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           const allEmpty =
             isEmptyResult(updateData.parsed_insurance_info) &&
             isEmptyResult(updateData.parsed_medical_info) &&
-            isEmptyResult(updateData.parsed_pathology_info);
+            // procedure_type is derived from the calendar name and is always set,
+            // so it must not make an otherwise-empty pathology payload look parsed.
+            isEmptyResult(updateData.parsed_pathology_info, ['procedure_type']);
           const attempts = Number(record.parse_attempts || 0);
 
           if (notesLookRich && allEmpty) {
