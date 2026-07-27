@@ -631,6 +631,15 @@ export default function QAOperationsQueue() {
           ))}
         </TabsList>
 
+        {hiddenCompletedCount > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            All open cases are shown. {hiddenCompletedCount} completed case
+            {hiddenCompletedCount === 1 ? '' : 's'} older than 90 days are hidden — open the
+            Completed tab or set a date range to include them.
+          </p>
+        )}
+
+
         <TabsContent value={tab} className="mt-4">
           <div className="border rounded-lg overflow-x-auto">
             {loading ? (
