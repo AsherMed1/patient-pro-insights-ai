@@ -383,11 +383,11 @@ export default function QAOperationsQueue() {
   const fetchCasesRef = useRef(fetchCases);
   fetchCasesRef.current = fetchCases;
 
-  // Re-fetch when the visible scope changes (Completed/All tab or a date filter
-  // widens the completed-case window).
+  // Re-fetch when the visible scope changes (Completed/All tab, a date filter
+  // widening the completed-case window, or the No-Show/Cancellation toggle).
   useEffect(() => {
     fetchCasesRef.current();
-  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo]);
+  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo, showTerminalAlerts]);
 
   useEffect(() => {
     const ch = supabase
