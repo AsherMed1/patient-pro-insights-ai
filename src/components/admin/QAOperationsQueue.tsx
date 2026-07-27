@@ -86,6 +86,19 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
 ];
 
+const WORKFLOW_STATUS_LABELS: Record<string, string> = {
+  new: 'New',
+  in_review: 'Opened',
+  pending_escalated: 'Pending / Escalated',
+  completed: 'Completed',
+  reopened: 'Reopened',
+};
+
+// Historical activity rows stored the raw status ("in review"). Display them
+// with the current friendly label.
+const humanizeActivityDescription = (text: string) =>
+  text.replace(/\bin[ _]review\b/gi, 'Opened');
+
 // Calendar reserved/blocked-time entries created via GHL's reserve-time feature
 // come through as contacts named "Reserved" or "Reserved - <something>". These
 // aren't real patients and shouldn't clutter the QA queue.
@@ -509,7 +522,7 @@ export default function QAOperationsQueue() {
     await supabase.from('qa_case_activity' as any).insert({
       case_id: id,
       activity_type: 'status_change',
-      description: `Status changed to ${next.replace('_', ' ')}`,
+      description: `Status changed to ${WORKFLOW_STATUS_LABELS[next] || next.replace('_', ' ')}`,
       actor_user_id: user?.id ?? null,
     } as any);
     toast({ title: 'Status updated' });
@@ -1481,7 +1494,7 @@ function CaseDrawer({
                             <span className="flex items-start gap-1.5 min-w-0">
                               {isDuration && <Clock className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />}
                               <span className="min-w-0 break-words">
-                                {a.description || ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                                {a.description ? humanizeActivityDescription(a.description) : (ACTIVITY_LABELS[a.activity_type] || a.activity_type)}
                                 {durationText && !a.description?.includes(durationText) && (
                                   <span className="ml-1 font-medium">{durationText}</span>
                                 )}
