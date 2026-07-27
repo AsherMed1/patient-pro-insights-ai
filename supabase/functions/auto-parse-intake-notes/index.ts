@@ -3312,8 +3312,11 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         // Bounded by parse_attempts so a genuinely unparseable record can't loop.
         const MAX_PARSE_ATTEMPTS = 5;
         if (record.table === "all_appointments") {
-          const isEmptyResult = (o: any) =>
-            !o || Object.values(o).every((v) => v === null || v === undefined || v === '');
+          const isEmptyResult = (o: any, ignoreKeys: string[] = []) =>
+            !o ||
+            Object.entries(o)
+              .filter(([k]) => !ignoreKeys.includes(k))
+              .every(([, v]) => v === null || v === undefined || v === '');
           const notes = record.patient_intake_notes || '';
           const notesLookRich =
             /STEP\s*\d+\s*\|/i.test(notes) ||
@@ -3324,7 +3327,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           const allEmpty =
             isEmptyResult(updateData.parsed_insurance_info) &&
             isEmptyResult(updateData.parsed_medical_info) &&
-            isEmptyResult(updateData.parsed_pathology_info);
+            // procedure_type is derived from the calendar name and is always set,
+            // so it must not make an otherwise-empty pathology payload look parsed.
+            isEmptyResult(updateData.parsed_pathology_info, ['procedure_type']);
           const attempts = Number(record.parse_attempts || 0);
 
           if (notesLookRich && allEmpty) {
