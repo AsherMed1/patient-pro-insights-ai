@@ -45,7 +45,7 @@ const NoShowEligibilityDialog = ({
         <DialogHeader>
           <DialogTitle>Mark as No Show</DialogTitle>
           <DialogDescription>
-            Is {patientName || 'this patient'} still eligible for rescheduling?
+            Can this patient be rescheduled?
           </DialogDescription>
         </DialogHeader>
 
