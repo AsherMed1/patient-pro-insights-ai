@@ -230,6 +230,8 @@ export default function QAOperationsQueue() {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
   const [selectedSiblings, setSelectedSiblings] = useState<QACase[]>([]);
+  const [hiddenCompletedCount, setHiddenCompletedCount] = useState(0);
+
   
   
 
