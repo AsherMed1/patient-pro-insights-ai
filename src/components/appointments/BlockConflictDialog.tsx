@@ -111,21 +111,34 @@ export function BlockConflictDialog({
           {/* HARD CONFLICTS — must resolve before proceeding */}
           {hasHard && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
-                <ShieldAlert className="h-4 w-4" />
-                Will be cancelled in GoHighLevel — fix before continuing
+              <div className={cn(
+                "flex items-center gap-2 text-sm font-semibold",
+                hasCarveable ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"
+              )}>
+                {hasCarveable ? <Scissors className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+                {hasCarveable
+                  ? "Block will skip these slots — appointments stay booked"
+                  : "Will be cancelled in GoHighLevel — fix before continuing"}
               </div>
-              <ScrollArea className="max-h-[200px] rounded-lg border border-destructive/40 bg-destructive/5">
-                <div className="divide-y divide-destructive/20">
+              <ScrollArea className={cn(
+                "max-h-[200px] rounded-lg border",
+                hasCarveable
+                  ? "border-emerald-500/40 bg-emerald-500/5"
+                  : "border-destructive/40 bg-destructive/5"
+              )}>
+                <div className={cn(
+                  "divide-y",
+                  hasCarveable ? "divide-emerald-500/20" : "divide-destructive/20"
+                )}>
                   {hardConflicts.map((c) => (
-                    <ConflictRow key={c.id} c={c} tone="hard" />
+                    <ConflictRow key={c.id} c={c} tone={hasCarveable ? 'soft' : 'hard'} />
                   ))}
                 </div>
               </ScrollArea>
               <p className="text-xs text-muted-foreground italic px-1">
-                These confirmed appointments would be silently cancelled by GHL if you create this block.
-                Reschedule them first, shrink your block window so it no longer overlaps, or remove the
-                affected calendar(s) from your selection.
+                {hasCarveable
+                  ? "The reserved block will be split around each appointment's 30-minute slot. Existing patients remain confirmed in GHL and on the portal — nothing gets cancelled."
+                  : "These confirmed appointments would be silently cancelled by GHL if you create this block. Reschedule them first, shrink your block window so it no longer overlaps, or remove the affected calendar(s) from your selection."}
               </p>
               {hasCapacityRow && (
                 <p className="text-xs text-destructive/80 px-1">
@@ -137,6 +150,7 @@ export function BlockConflictDialog({
 
             </div>
           )}
+
 
           {/* SOFT CONFLICTS — existing auto-cancel flow */}
           {hasSoft && (
