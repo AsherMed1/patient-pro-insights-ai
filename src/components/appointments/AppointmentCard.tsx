@@ -217,6 +217,13 @@ const AppointmentCard = ({
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
+
+  // No-show reschedule eligibility
+  const { userName } = useUserAttribution();
+  const [showNoShowDialog, setShowNoShowDialog] = useState(false);
+  const [submittingNoShow, setSubmittingNoShow] = useState(false);
+  const [liftingBlock, setLiftingBlock] = useState(false);
+
   
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
