@@ -41,7 +41,7 @@ import {
 } from 'lucide-react';
 import NoShowEligibilityDialog from './NoShowEligibilityDialog';
 import { applyNoShowEligibility, liftRescheduleBlock } from '@/utils/rescheduleBlock';
-import { useUserAttribution } from '@/hooks/useUserAttribution';
+
 
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
