@@ -86,6 +86,19 @@ const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
 ];
 
+const WORKFLOW_STATUS_LABELS: Record<string, string> = {
+  new: 'New',
+  in_review: 'Opened',
+  pending_escalated: 'Pending / Escalated',
+  completed: 'Completed',
+  reopened: 'Reopened',
+};
+
+// Historical activity rows stored the raw status ("in review"). Display them
+// with the current friendly label.
+const humanizeActivityDescription = (text: string) =>
+  text.replace(/\bin[ _]review\b/gi, 'Opened');
+
 // Calendar reserved/blocked-time entries created via GHL's reserve-time feature
 // come through as contacts named "Reserved" or "Reserved - <something>". These
 // aren't real patients and shouldn't clutter the QA queue.
