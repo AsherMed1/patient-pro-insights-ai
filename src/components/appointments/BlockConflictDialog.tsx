@@ -64,9 +64,16 @@ export function BlockConflictDialog({
   autoCancel,
   onAutoCancelChange,
   onConfirm,
+  onCarveConfirm,
   onCancel,
   isSubmitting,
 }: BlockConflictDialogProps) {
+  // Only real patient rows are carve-eligible. Synthetic capacity/existing-block
+  // rows (ids prefixed "block-cap::" / "block-existing::") aren't patients.
+  const carveablePatients = hardConflicts.filter(
+    (c) => !c.id.startsWith('block-cap::') && !c.id.startsWith('block-existing::')
+  );
+  const hasCarveable = carveablePatients.length > 0 && !!onCarveConfirm;
   const hasHard = hardConflicts.length > 0;
   const hasSoft = softConflicts.length > 0;
   const hasCoexist = coexistConflicts.length > 0;
@@ -81,10 +88,13 @@ export function BlockConflictDialog({
       : `${coexistConflicts.length} appointment${coexistConflicts.length === 1 ? '' : 's'} will remain in this slot`;
 
   const description = hasHard
-    ? 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
+    ? hasCarveable
+      ? "These patients are already booked. You can create the block around them — the reserved block will cover the rest of your window and skip each patient's 30-minute slot. No appointment will be cancelled."
+      : 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
     : hasSoft
       ? "These patients have unconfirmed appointments during the time you're blocking. Choose how to handle them."
       : "This calendar allows multiple bookings per slot. The existing appointment(s) below will remain scheduled — creating this block just reserves the next open slot.";
+
 
   return (
     <Dialog open={open} onOpenChange={(v) => !isSubmitting && onOpenChange(v)}>
