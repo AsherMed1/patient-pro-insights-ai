@@ -2969,17 +2969,14 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
               usedFallback = true;
             }
 
-            // Empty-result guard: if the AI returned a valid JSON shell but every
-            // pathology/medical/insurance field is null while the notes clearly
-            // contain STEP / Insurance / Medical content, treat it as a parse
-            // miss and merge in the regex fallback so the record isn't stamped
-            // "parsed" with an empty payload.
+            // Deterministic fill: the GHL "=== GHL Contact Data ===" block uses
+            // fixed labels, so regex extraction is reliable. Always run it and use
+            // it to FILL fields the AI left null (AI values always win). This keeps
+            // Insurance / PCP data populated even when the AI misses them, without
+            // ever overwriting something the AI did extract.
             if (!usedFallback && parsedData) {
               const isEmptyObj = (o: any) =>
                 !o || Object.values(o).every((v) => v === null || v === undefined || v === '');
-              const pathEmpty = isEmptyObj(parsedData.pathology_info);
-              const medEmpty = isEmptyObj(parsedData.medical_info);
-              const insEmpty = isEmptyObj(parsedData.insurance_info);
               const notes = record.patient_intake_notes || '';
               const notesLookRich =
                 /STEP\s*\d+\s*\|/i.test(notes) ||
@@ -2987,16 +2984,25 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
                 /Medical Information\s*:/i.test(notes) ||
                 /Pathology Information\s*:/i.test(notes) ||
                 /Primary Care Doctor/i.test(notes);
-              if (pathEmpty && medEmpty && insEmpty && notesLookRich) {
-                console.log(`[AUTO-PARSE] ⚠ AI returned empty payload for ${recordIdentifier} despite rich notes — merging regex fallback`);
+
+              if (notesLookRich) {
                 const fb = fallbackRegexParsing(record.patient_intake_notes);
-                parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info || {}, fb.pathology_info || {});
-                parsedData.medical_info = mergeWithNonNull(parsedData.medical_info || {}, fb.medical_info || {});
-                parsedData.insurance_info = mergeWithNonNull(parsedData.insurance_info || {}, fb.insurance_info || {});
-                parsedData.contact_info = mergeWithNonNull(parsedData.contact_info || {}, fb.contact_info || {});
-                parsedData.demographics = mergeWithNonNull(parsedData.demographics || {}, fb.demographics || {});
+                // AI wins (overlay), regex only fills the gaps (base).
+                parsedData.insurance_info = mergeWithNonNull(fb.insurance_info || {}, parsedData.insurance_info || {});
+                parsedData.medical_info = mergeWithNonNull(fb.medical_info || {}, parsedData.medical_info || {});
+                parsedData.contact_info = mergeWithNonNull(fb.contact_info || {}, parsedData.contact_info || {});
+                parsedData.demographics = mergeWithNonNull(fb.demographics || {}, parsedData.demographics || {});
+
+                // Pathology is procedure-sensitive (the AI deliberately clears
+                // fields that don't belong to the current procedure), so only
+                // borrow regex pathology when the AI returned nothing at all.
+                if (isEmptyObj(parsedData.pathology_info)) {
+                  console.log(`[AUTO-PARSE] ⚠ AI returned empty pathology for ${recordIdentifier} despite rich notes — merging regex fallback`);
+                  parsedData.pathology_info = mergeWithNonNull(parsedData.pathology_info || {}, fb.pathology_info || {});
+                }
               }
             }
+
           }
         }
         
