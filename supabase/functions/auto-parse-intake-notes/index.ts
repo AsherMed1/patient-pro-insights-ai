@@ -868,21 +868,32 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
     }
   }
 
-  // Extract Pain Level
+  // Extract Pain Level — only from lines that actually contain "pain", and only
+  // accept a real 0-10 scale value. Anything else (zip codes, street numbers,
+  // phone fragments) is junk slurped from neighbouring labels.
   const painPatterns = [
     /Pain Level:\s*(\d+)/i,
-    /pain.*?:\s*(\d+)/i,
+    /pain[^\n:]*:\s*(\d+)/i,
     /pain_level:\s*(\d+)/i
   ];
   
   for (const pattern of painPatterns) {
     const match = intakeNotes.match(pattern);
     if (match && match[1]) {
-      result.pathology_info.pain_level = match[1];
-      console.log(`[AUTO-PARSE FALLBACK] Extracted pain_level: ${match[1]}`);
-      break;
+      const n = parseInt(match[1], 10);
+      if (!Number.isNaN(n) && n >= 0 && n <= 10) {
+        result.pathology_info.pain_level = match[1];
+        console.log(`[AUTO-PARSE FALLBACK] Extracted pain_level: ${match[1]}`);
+        break;
+      }
+      console.log(`[AUTO-PARSE FALLBACK] Rejected out-of-scale pain_level: ${match[1]}`);
     }
   }
+
+  // Checkbox-only answers ("☑️ YES", "YES", "NO") are never valid free-text
+  // values for descriptive fields like duration or symptoms.
+  const isCheckboxOnly = (v: string | null | undefined) =>
+    !!v && /^(?:☑️|☑|☐|✅|❌)?\s*(yes|no)\s*$/i.test(String(v).trim());
 
   // Extract Duration
   const durationPatterns = [
@@ -894,7 +905,9 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
   for (const pattern of durationPatterns) {
     const match = intakeNotes.match(pattern);
     if (match) {
-      result.pathology_info.duration = match[1]?.trim() || match[0];
+      const candidate = match[1]?.trim() || match[0];
+      if (isCheckboxOnly(candidate)) continue;
+      result.pathology_info.duration = candidate;
       console.log(`[AUTO-PARSE FALLBACK] Extracted duration: ${result.pathology_info.duration}`);
       break;
     }
@@ -909,11 +922,14 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
   for (const pattern of symptomsPatterns) {
     const match = intakeNotes.match(pattern);
     if (match && match[1]) {
-      result.pathology_info.symptoms = match[1].trim();
-      console.log(`[AUTO-PARSE FALLBACK] Extracted symptoms: ${match[1].trim()}`);
+      const candidate = match[1].trim();
+      if (isCheckboxOnly(candidate)) continue;
+      result.pathology_info.symptoms = candidate;
+      console.log(`[AUTO-PARSE FALLBACK] Extracted symptoms: ${candidate}`);
       break;
     }
   }
+
 
   // Detect procedure type from keywords
   const upperNotes = intakeNotes.toUpperCase();
