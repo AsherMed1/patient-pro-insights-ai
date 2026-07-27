@@ -522,7 +522,7 @@ export default function QAOperationsQueue() {
     await supabase.from('qa_case_activity' as any).insert({
       case_id: id,
       activity_type: 'status_change',
-      description: `Status changed to ${next.replace('_', ' ')}`,
+      description: `Status changed to ${WORKFLOW_STATUS_LABELS[next] || next.replace('_', ' ')}`,
       actor_user_id: user?.id ?? null,
     } as any);
     toast({ title: 'Status updated' });
