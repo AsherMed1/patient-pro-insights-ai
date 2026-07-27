@@ -67,8 +67,7 @@ const NoShowEligibilityDialog = ({
                   Not eligible for rescheduling
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  Patient must contact the clinic directly. Removes them from recapture,
-                  blocks setters, AI and self-booking, and triggers the clinic-contact text.
+                  The patient must contact the clinic to reschedule.
                 </span>
               </Label>
             </div>
