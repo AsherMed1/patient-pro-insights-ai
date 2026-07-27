@@ -253,20 +253,62 @@ export default function QAOperationsQueue() {
     setErrorCategories(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
   };
 
+  // Paged fetch — never truncate open work. Open (non-completed) cases are always
+  // loaded in full; completed cases are limited to a recent window unless the user
+  // is on the Completed/All tab or has set an explicit date filter.
+  const fetchAllPages = async (
+    build: () => any,
+  ): Promise<any[]> => {
+    const PAGE = 1000;
+    const out: any[] = [];
+    for (let page = 0; page < 50; page++) {
+      const { data, error } = await build().range(page * PAGE, page * PAGE + PAGE - 1);
+      if (error) throw error;
+      const rows = (data as any[]) || [];
+      out.push(...rows);
+      if (rows.length < PAGE) break;
+    }
+    return out;
+  };
+
   const fetchCases = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('qa_cases' as any)
-      .select('*')
-      .in('alert_type', ACTIVE_ALERT_TYPES)
-      .order('entered_queue_at', { ascending: false })
-      .limit(500);
-    if (error) {
-      console.error('QA cases fetch error:', error);
-      toast({ title: 'Failed to load cases', description: error.message, variant: 'destructive' });
-      setCases([]);
-    } else {
-      const rows = ((data as any[]) || []) as QACase[];
+    try {
+      const openRows = await fetchAllPages(() =>
+        supabase
+          .from('qa_cases' as any)
+          .select('*')
+          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .neq('workflow_status', 'completed')
+          .order('entered_queue_at', { ascending: false }),
+      );
+
+      const unbounded = tab === 'completed' || tab === 'all' || !!dateFrom || !!dateTo;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 90);
+      const completedRows = await fetchAllPages(() => {
+        let q = supabase
+          .from('qa_cases' as any)
+          .select('*')
+          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .eq('workflow_status', 'completed')
+          .order('entered_queue_at', { ascending: false });
+        if (!unbounded) q = q.gte('entered_queue_at', cutoff.toISOString());
+        return q;
+      });
+
+      if (!unbounded) {
+        const { count } = await supabase
+          .from('qa_cases' as any)
+          .select('id', { count: 'exact', head: true })
+          .in('alert_type', ACTIVE_ALERT_TYPES)
+          .eq('workflow_status', 'completed');
+        setHiddenCompletedCount(Math.max(0, (count ?? 0) - completedRows.length));
+      } else {
+        setHiddenCompletedCount(0);
+      }
+
+      const rows = [...openRows, ...completedRows] as QACase[];
       // Enrich with lead_phone_number / lead_email for search + drawer header
       const apptIds = Array.from(
         new Set(rows.map((r) => r.appointment_id).filter((v): v is string => !!v)),
@@ -288,9 +330,14 @@ export default function QAOperationsQueue() {
         r.lead_email = c?.email ?? null;
       }
       setCases(rows);
+    } catch (error: any) {
+      console.error('QA cases fetch error:', error);
+      toast({ title: 'Failed to load cases', description: error?.message, variant: 'destructive' });
+      setCases([]);
     }
     setLoading(false);
   };
+
 
   useEffect(() => {
     fetchCases();
