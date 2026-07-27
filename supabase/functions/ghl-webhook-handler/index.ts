@@ -204,7 +204,7 @@ serve(async (req) => {
     webhookData.project_name = canonicalProjectName // Use canonical name for all operations
 
     // Check if appointment already exists (returns full record for comparison)
-    const existingAppointment = await findExistingAppointment(
+    let existingAppointment = await findExistingAppointment(
       supabase, 
       webhookData.ghl_appointment_id, 
       webhookData.ghl_id,
@@ -212,6 +212,25 @@ serve(async (req) => {
       webhookData.project_name,
       requestId
     )
+
+    // Contradiction guard: never fold a DIFFERENT, live GHL booking into a row that the
+    // portal has already closed with a portal-only terminal status. Doing so silently
+    // dropped the new booking (the status guard preserves the terminal state), so the
+    // clinic saw "Confirmed in GHL / Cancelled in portal". Create a fresh row instead.
+    if (existingAppointment) {
+      const portalOnlyTerminal = ['oon', 'do not call', 'donotcall', 'cancelled', 'canceled']
+      const existingStatus = (existingAppointment.status || '').toLowerCase().trim()
+      const incomingApptId = webhookData.ghl_appointment_id
+      const differentBooking =
+        !!incomingApptId &&
+        !!existingAppointment.ghl_appointment_id &&
+        existingAppointment.ghl_appointment_id !== incomingApptId
+
+      if (differentBooking && portalOnlyTerminal.includes(existingStatus)) {
+        console.log(`[${requestId}] ⛔ Refusing to merge new booking ${incomingApptId} into terminal row ${existingAppointment.id} (status: ${existingAppointment.status}) — creating a separate appointment`)
+        existingAppointment = null
+      }
+    }
 
     const isUpdate = !!existingAppointment
     console.log(`[${requestId}] Operation type: ${isUpdate ? 'UPDATE' : 'CREATE'}`)
