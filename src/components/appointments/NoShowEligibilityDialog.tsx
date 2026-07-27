@@ -45,7 +45,7 @@ const NoShowEligibilityDialog = ({
         <DialogHeader>
           <DialogTitle>Mark as No Show</DialogTitle>
           <DialogDescription>
-            Is {patientName || 'this patient'} still eligible for rescheduling?
+            Can this patient be rescheduled?
           </DialogDescription>
         </DialogHeader>
 
@@ -56,7 +56,7 @@ const NoShowEligibilityDialog = ({
               <Label htmlFor="noshow-eligible-yes" className="cursor-pointer text-sm font-normal">
                 <span className="font-medium">Eligible for rescheduling</span>
                 <span className="block text-xs text-muted-foreground">
-                  Patient stays in normal recapture and outreach workflows.
+                  The patient can be contacted and rescheduled.
                 </span>
               </Label>
             </div>
@@ -67,8 +67,7 @@ const NoShowEligibilityDialog = ({
                   Not eligible for rescheduling
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  Patient must contact the clinic directly. Removes them from recapture,
-                  blocks setters, AI and self-booking, and triggers the clinic-contact text.
+                  The patient must contact the clinic to reschedule.
                 </span>
               </Label>
             </div>
@@ -78,7 +77,7 @@ const NoShowEligibilityDialog = ({
             <div className="flex gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" />
               <span>
-                This block applies to the patient across this clinic until an admin lifts it.
+                Warning: This restriction remains in place until an admin removes it.
               </span>
             </div>
           )}
