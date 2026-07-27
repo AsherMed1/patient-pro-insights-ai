@@ -2762,10 +2762,10 @@ Deno.serve(async (req) => {
 
     const seenApptIds = new Set<string>();
     const allRecordsToProcess = [
-      ...[...(appointmentsNeedingParsing || []), ...staleEmptyParses]
+      ...[...forcedAppointments, ...(appointmentsNeedingParsing || []), ...staleEmptyParses]
         .filter((r) => (seenApptIds.has(r.id) ? false : (seenApptIds.add(r.id), true)))
         .map((r) => ({ ...r, table: "all_appointments" })),
-      ...(leadsNeedingParsing || []).map((r) => ({ ...r, table: "new_leads" })),
+      ...(forceAppointmentId ? [] : (leadsNeedingParsing || []).map((r) => ({ ...r, table: "new_leads" }))),
     ];
 
 
