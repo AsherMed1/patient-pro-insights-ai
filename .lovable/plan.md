@@ -1,19 +1,20 @@
 ## Problem
 
-Serrena Lovelace, NG Vascular and Vein Center, record `a426aa7c` (Scheduled, Jul 23 appt) was stamped parsed on Jul 16 but every parsed field except `procedure_type: PAD` is empty:
+Juan Gonzales, Texas Endovascular - Dallas Vein Clinic, record `17366ebf` (Scheduled, Aug 11) parsed on Jul 15 with several gaps and one wrong value:
 
-- Insurance: provider, plan, and ID all empty — notes clearly show Healthy Indiana Plan / ID `100294183799`
-- Medical & PCP: empty — notes show Alfonso Bloom / 219 398 9840, and "Had Imaging Before?: Ultrasounds - Saint Catherine Hospital"
-- Pathology: side, symptoms, wounds, vascular-provider status all empty despite five PAD STEP answers present in the notes
+- Insurance ID (`Y4P255M98158`), group number (`LO6351M210`), and plan (`BCBS`) are all empty even though they are in the notes
+- `insurance_notes` holds an unrelated AI conversation summary ("No specific urinary symptoms... were provided") instead of the real intake note about weak stream, frequent urination, Tamsulosin, enlarged prostate, and an MRI 2 months ago
+- PCP name/phone empty — notes have a combined field "Primary Care Doctor's Name and Phone: Dr Belton, 469 647 4250"
+- Pathology `symptoms` empty despite "Weak urine stream, Erectile dysfunction"; no imaging captured (MRI ~2 months ago with urologist)
 
-The intake notes are complete, so this is the same empty-parse failure already hardened against for newer records — this one predates the fix.
+(The other two Juan records — Juan Jose Gonzalez `aa5ff228`, Cancelled, and Juan Gonzalez `0bbb1437`, Texas Vascular Institute — are separate patients and stay untouched.)
 
 ## Fix
 
-1. Force a re-parse of `a426aa7c` through `auto-parse-intake-notes` (`{"appointmentId": "..."}`) so the current parser rewrites the record from its own notes.
-2. Verify the result, then apply a targeted data update for anything still missing, taken straight from the notes:
-   - Insurance: provider Healthy Indiana Plan, plan Healthy Indiana Plan, ID `100294183799`
-   - Medical & PCP: Alfonso Bloom, 219 398 9840; imaging details "Ultrasounds — Saint Catherine Hospital"
-   - PAD pathology: affected side Both (legs/feet), no open wounds or sores, rest pain in toes when lying down that improves when dangling the leg or sitting, not currently under the care of a vascular provider, age range under 50 at intake, location Merrillville, Indiana
+1. Force a re-parse of `17366ebf` via `auto-parse-intake-notes` (`{"appointmentId": "..."}`).
+2. Verify, then apply a targeted data update for whatever is still missing, using values from the notes:
+   - Insurance: provider BCBS of TX, plan BCBS, ID `Y4P255M98158`, group `LO6351M210`, and replace the bogus AI summary in insurance notes with the real intake note
+   - Medical & PCP: split the combined field into Dr Belton / 469 647 4250; imaging details "MRI approximately 2 months ago with urologist"
+   - PAE/BPH pathology: symptoms weak urine stream and erectile dysfunction; BPH diagnosed more than 1 year ago; treatments tried daily medication (Tamsulosin/Finasteride/Dutasteride) with no improvement; no catheter; surgery not recommended; unhappy with quality of life; seeking a less invasive option; enlarged prostate worsening over the past month
 
-No app code changes needed — this is a single-record repair scoped to one appointment id.
+Single-record repair, no app code changes.
