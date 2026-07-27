@@ -1,11 +1,18 @@
 ## Goal
-The QA Operations activity timeline shows "Status changed to in review". The bucket is already labeled "Opened" everywhere else, so the activity text should match.
+Remove the duplicate portal record for LaQuan Skinner (Texas Endovascular - Dallas Vein Clinic), keeping the clinic-preferred one.
 
-## Changes (all in `src/components/admin/QAOperationsQueue.tsx`)
+## Confirmed current state
+Both rows exist, approved, not superseded, same appointment date Aug 3, 2026:
 
-1. **New activity entries** — in `updateStatus`, replace the raw `next.replace('_', ' ')` with a lookup against the existing status-label list, so the inserted description reads "Status changed to Opened" (and uses the friendly label for the other statuses: New, Pending/Escalated, Completed, Reopened).
+| Portal ID | Time | GHL appt ID | Created |
+|---|---|---|---|
+| 4a70d53a (KEEP) | 10:30 AM | QM3IEIcmby4SYbwwsWRb | Jul 14, 2026 |
+| 17155c32 (DELETE) | 11:00 AM | 3n12T5MAgaC340hDp4Dx | Jul 26, 2026 |
 
-2. **Existing history rows** — old rows already stored "in review" text in the database. At render time in the activity list, map any stored description containing "in review" to "Opened" so historical entries display consistently. No data migration needed.
+## Steps
+1. Delete dependent child rows referencing `17155c32` (appointment notes, QA cases/activity, review history, EMR queue, short-notice alerts, tags) so the delete isn't blocked.
+2. Delete the `all_appointments` row `17155c32-44a8-430f-89ad-c7cf598649dc`.
+3. Verify only `4a70d53a` remains for LaQuan Skinner in that project.
 
 ## Notes
-Display-only change; workflow status values in the database stay `in_review`.
+- Portal-only deletion; nothing is changed in GHL. If the 11:00 AM booking still exists in GHL, a future webhook could recreate it — say the word if you also want that GHL event removed.
