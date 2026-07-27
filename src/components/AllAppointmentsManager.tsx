@@ -520,6 +520,7 @@ const AllAppointmentsManager = ({
         
         // Exclude reserved time blocks from appointment management
         query = query.or('is_reserved_block.is.null,is_reserved_block.eq.false');
+        query = query.or('is_superseded.is.null,is_superseded.eq.false');
         
         const activeProjectFilter = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
         if (activeProjectFilter) {
