@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { type BlockConflict, formatRequestedTime } from './blockConflictScan';
+import { cn } from '@/lib/utils';
+
 
 interface BlockConflictDialogProps {
   open: boolean;
