@@ -1,19 +1,38 @@
-## Findings
+## Findings (verified against the database)
 
-Deon Greenidge (Texas Endovascular - Houston Vein Clinic, appointment `c5e0164a-dc60-4e8a-966e-3e805ac2eb89`, Aug 7 2026, Scheduled/approved, not superseded). Checked the stored record and intake notes:
+Tammy Saxby, Ally Vascular and Pain Centers, has **three** non-superseded records that share the same corrupted parse:
 
-- `parsed_insurance_info` — plan CIGNA OPEN ACCESS PLUS, group 3330967, ID "USE PARTICIPANT SSN 01 (0941)" are present, but `insurance_provider` is null
-- `parsed_medical_info` — all null
-- `parsed_pathology_info` — only `procedure_type: PAE`, everything else null
-- Demographics fine (DOB 1974-07-28)
+- `ec813dea` — Jun 17 2026, No Show (latest)
+- `60e70cf1` — Jun 17 2026, Cancelled
+- `f1184bd9` — May 30 2026
 
-Important: unlike the recent cases, this is **not** a parser failure. The stored intake notes contain no "Pathology Information" or "Medical Information" sections at all — GHL only sent contact + insurance + tracking fields. The notes snapshot is from Jun 22; there is nothing in them for the parser to extract medical or pathology data from.
+The intake notes are complete; the parse is wrong. Confirmed corruption in all three:
+
+- `pain_level: "7810"` — slurped from the street address (7810 Old Tupper Road)
+- `duration` — contains the entire GHL "Patient Summary" one-line blob (address, DOB, insurance, appointment details) instead of "about a year"
+- `symptoms: "☑️ YES"` and `numbness_cold_feet: "☑️ YES"` — checkbox markers copied instead of real symptoms
+- `pcp_name: "Dr. Hameed Dosunmu (210) 593 0390"` with `pcp_phone: null` — name and phone not split
+- `insurance_plan: "WELLCARE"`, group number `null` — GHL's "Insurance Plan: 80174004000" is actually the group number
+- `60e70cf1` has `procedure_type: GAE` — wrong; service is Neuropathy
+- `f1184bd9` is missing the insurance ID entirely
 
 ## Fix
 
-1. Pull the current GHL contact data for this appointment via `fetch-ghl-contact-data`, refreshing `patient_intake_notes` and custom fields. If the patient has since completed pathology/medical intake in GHL, that data lands in the notes.
-2. Force a re-parse via `auto-parse-intake-notes` with `forceAppointmentId` so the refreshed notes are processed.
-3. Fill `insurance_provider` = "Cigna" (derivable from the CIGNA OPEN ACCESS PLUS plan) via a targeted SQL update if the parser doesn't set it.
-4. Re-query and report exactly what populated.
+1. Force a re-parse of all three records via `auto-parse-intake-notes` with `forceAppointmentId`.
+2. Apply a targeted SQL update for anything the parser leaves wrong, using only values present in the notes:
+   - Insurance: WellCare, member ID 40314616, group 80174004000
+   - Medical: PCP name "Dr. Hameed Dosunmu", PCP phone "(210) 593-0390", imaging "None yet"
+   - Pathology (Neuropathy): duration "about a year", symptoms "tingling, burning, numbness, swelling in hands and feet", affected areas hands and feet, treatments tried "Lyrica, ibuprofen, topical cream", imaging none, diabetic/pre-diabetic yes, symptoms interfere with walking/sleep/daily tasks, location Virtual Appointment
+   - Clear the bogus `pain_level` (no pain score is recorded in the notes) and set `procedure_type: Neuropathy` on all three
+3. Re-query all three records and confirm the cards populate.
 
-If the GHL refresh returns no pathology or medical fields, that means the intake was never completed on the GHL side — I'll report that back rather than invent values, since the missing shoulder/urinary detail cannot be sourced from anywhere in the record.
+## Parser hardening (root cause)
+
+The "Patient Summary" single-line blob is the repeat offender — it is one long `Label: value; Label: value` line, so a field regex that grabs "to end of line" swallows everything after it. Memory already records this class of bug for the "Patient Intake Summary" blob; this GHL variant is labelled "Patient Summary" and isn't covered.
+
+In `supabase/functions/auto-parse-intake-notes/index.ts`:
+- Add "Patient Summary" to the blob strip/split list so it is segmented on `;` before fallback regex runs (or excluded from fallback extraction entirely).
+- Reject checkbox-only values (`☑️ YES`, `YES`, `NO`) as candidates for free-text fields like `symptoms` and `numbness_cold_feet`; map them to boolean-style answers instead.
+- Reject purely numeric `pain_level` candidates that don't come from a line containing "pain".
+
+That keeps every future Ally Vascular / Neuropathy lead from arriving with the same slurped fields.
