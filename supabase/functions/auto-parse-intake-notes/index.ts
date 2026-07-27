@@ -2679,10 +2679,21 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Optional request body: { sweep: true } additionally re-processes records
+    // that were previously stamped "parsed" but ended up with an empty payload
+    // (OpenAI outage). Off by default so normal runs behave exactly as before.
+    let sweepEmptyParses = false;
+    try {
+      const body = req.method === "POST" ? await req.json().catch(() => null) : null;
+      sweepEmptyParses = body?.sweep === true;
+    } catch (_e) { /* no body */ }
+
+    const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
+
     // Check for records that need parsing - prioritize recent appointments
     const { data: appointmentsNeedingParsing, error: apptError } = await supabase
       .from("all_appointments")
-      .select("id, patient_intake_notes, lead_name, project_name, created_at, dob, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment")
+      .select(APPT_SELECT)
       .is("parsing_completed_at", null)
       .not("patient_intake_notes", "is", null)
       .neq("patient_intake_notes", "")
@@ -2692,6 +2703,27 @@ Deno.serve(async (req) => {
     if (apptError) {
       console.error("[AUTO-PARSE] Error fetching appointments:", apptError);
       console.error("[AUTO-PARSE] Appointment fetch error details:", JSON.stringify(apptError));
+    }
+
+    // Self-healing sweep: records stamped as parsed but left with no insurance
+    // data despite the notes clearly containing it.
+    let staleEmptyParses: any[] = [];
+    if (sweepEmptyParses) {
+      const { data: staleRows, error: staleError } = await supabase
+        .from("all_appointments")
+        .select(APPT_SELECT)
+        .not("parsing_completed_at", "is", null)
+        .lt("parse_attempts", 5)
+        .ilike("patient_intake_notes", "%Insurance ID Number:%")
+        .is("parsed_insurance_info->>insurance_id_number", null)
+        .order("created_at", { ascending: false })
+        .limit(15);
+      if (staleError) {
+        console.error("[AUTO-PARSE] Error fetching stale empty parses:", JSON.stringify(staleError));
+      } else {
+        staleEmptyParses = staleRows || [];
+        console.log(`[AUTO-PARSE] Sweep found ${staleEmptyParses.length} previously-empty parses to retry`);
+      }
     }
 
     const { data: leadsNeedingParsing, error: leadError } = await supabase
@@ -2708,10 +2740,14 @@ Deno.serve(async (req) => {
       console.error("[AUTO-PARSE] Lead fetch error details:", JSON.stringify(leadError));
     }
 
+    const seenApptIds = new Set<string>();
     const allRecordsToProcess = [
-      ...(appointmentsNeedingParsing || []).map((r) => ({ ...r, table: "all_appointments" })),
+      ...[...(appointmentsNeedingParsing || []), ...staleEmptyParses]
+        .filter((r) => (seenApptIds.has(r.id) ? false : (seenApptIds.add(r.id), true)))
+        .map((r) => ({ ...r, table: "all_appointments" })),
       ...(leadsNeedingParsing || []).map((r) => ({ ...r, table: "new_leads" })),
     ];
+
 
     console.log(`[AUTO-PARSE] Found ${allRecordsToProcess.length} records needing parsing (${appointmentsNeedingParsing?.length || 0} appointments, ${leadsNeedingParsing?.length || 0} leads)`);
 
