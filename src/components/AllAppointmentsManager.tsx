@@ -1570,7 +1570,7 @@ const AllAppointmentsManager = ({
                 try {
                   toast({ title: `Exporting ${tabLabel} appointments…`, description: "Fetching all filtered appointments." });
                   const dateColumn = dateFilterType === 'created' ? 'date_appointment_created' : 'date_of_appointment';
-                  let query = supabase.from('all_appointments').select('*').or('is_reserved_block.is.null,is_reserved_block.eq.false');
+                  let query = supabase.from('all_appointments').select('*').or('is_reserved_block.is.null,is_reserved_block.eq.false').or('is_superseded.is.null,is_superseded.eq.false');
                   const activeProject = localProjectFilter !== 'ALL' ? localProjectFilter : projectFilter;
                   if (activeProject) query = query.eq('project_name', activeProject);
                   if (dateRange.from) query = query.gte(dateColumn, format(dateRange.from, 'yyyy-MM-dd'));
