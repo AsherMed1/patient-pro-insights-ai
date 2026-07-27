@@ -1,21 +1,27 @@
-## Diagnosis (verified)
+## What's wrong
 
-Record `3de04e09-f3c7-40da-92a9-0b08be2b7370` (LaDonna Mondesir, Richmond Vascular Center, Jul 10 appointment, Confirmed) has the same stale-parse problem as Sheila Evans: `parsing_completed_at = Jun 25, 2026`, `parse_attempts = 0`, and every field in `parsed_insurance_info` and `parsed_medical_info` is null, plus `detected_insurance_provider` is null — even though the intake notes contain the data.
+Sidney Pye's Davis Vein & Vascular record (`c990df36`, created Jun 15, status Pending) was parsed on Jun 15 — before the markdown-slurp hardening — and stored garbage:
 
-Available in the notes but not parsed:
-- Insurance: Anthem, ID `TJA3320498SF`, Group `JVA011M003`, insurance card image link present
-- Imaging: "Had Imaging Before?: No I had. CT scan" → CT scan
-- Procedure UFE / Fibroids, uterus (already correct)
+- Insurance Provider **and** Plan both literally read `** insurance_provider: UNITEDHEALTHCARE` (the markdown header line got slurped)
+- Insurance ID and Group Number: empty
+- Medical & PCP Information: completely empty (no PCP name/phone, no imaging)
+- Pathology: completely empty (no procedure type, duration, pain level, affected side, OA diagnosis)
 
-Note: this GHL submission contains no PCP name/phone and no UFE pathology step answers, so those fields will legitimately stay blank.
+The intake notes on this record are rich (3,809 chars) and contain everything needed: UnitedHealthcare, ID 976708091-00, Group 90122, Plan HMO/POS (Orbit Advantage), PCP George Stokes / 281-592-2888, GAE, right knee, pain 7–8/10, swelling/limited mobility, steroid + gel injections, prior left knee surgery, no imaging yet, 56 and above, over 1 year, OA yes.
+
+His two later Humble Vascular Surgery Center records (Jul 11 and Jul 15) parsed correctly and can be used as a cross-check.
 
 ## Fix
 
-1. Re-run `auto-parse-intake-notes` with `appointmentId = 3de04e09-f3c7-40da-92a9-0b08be2b7370` so the current hardened parser re-extracts from the notes.
-2. Verify the resulting fields against the values above (insurance provider/plan/ID/group, imaging CT scan, insurance card link).
-3. Apply a targeted data fix for anything the parser still leaves blank that is clearly present in the notes.
+1. Force a re-parse of appointment `c990df36` through `auto-parse-intake-notes` (the `appointmentId` force parameter). The current hardened parser rejects `**`-prefixed and URL-like insurance candidates, so the corrupted provider/plan will be scrubbed on the write path rather than preserved.
+2. Verify the re-parse result. Fill any field the parser still misses with a direct data update so the card is complete:
+   - Insurance: UnitedHealthcare / HMO POS / ID 976708091-00 / Group 90122
+   - Medical & PCP: Dr. George Stokes, 281-592-2888; imaging not yet done (X-ray/MRI planned)
+   - Pathology: GAE, right knee, over 1 year, OA yes, pain 7–8/10, symptoms swelling + limited mobility, prior treatments steroid injections / gel injections / prior left knee surgery
+3. Keep both top-level columns (`detected_insurance_*`, `dob`) and the `parsed_*` JSONB objects in sync, per the data-integrity rule.
 
-## Technical notes
+No schema or UI changes — this is a data repair plus one forced parser run.
 
-- Data repair only, no code or schema changes expected.
-- The parser force parameter is `appointmentId` (not `forceAppointmentId`).
+## Note on the record itself
+
+The notes for this Davis record reference Kingwood, TX / Humble locations and the same patient later appears twice under Humble Vascular Surgery Center. Repairing this record won't merge or dedupe anything — tell me if you also want the Davis entry retired as a duplicate rather than filled in.
