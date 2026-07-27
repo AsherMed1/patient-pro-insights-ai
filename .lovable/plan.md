@@ -1,28 +1,20 @@
-## What's wrong
+## Problem
 
-Reginald Peterson (Vascular Surgery Associates, GAE, Aug 6 2026, record `7df804ee`) shows blank Insurance, Medical/PCP and Pathology cards even though his intake notes contain everything:
+April Barclay (Fayette Surgical Associates, portal ID `c74c2331`, appt 2026-08-03, GAE at Pasadena Dr, Lexington KY) shows blank Insurance, Medical & PCP, and Pathology cards.
 
-- Insurance: Medicare, Plan "Medicare Part A and B", ID `7V99-K47-TN20`, note about Aetna supplemental (card not received)
-- PCP: Phillip Neubauer, 410-539-2227
-- GAE STEP data: both knees, over 1 year, OA diagnosed YES, imaging YES (two x-rays July 24), pain 8/10, no trauma, treatments Injections + Supplements, full symptom list
+Verified in the database:
+- `parsed_insurance_info`, `parsed_medical_info`, `parsed_pathology_info` exist but every value is `null` — the only non-null key is `procedure_type: "GAE"`.
+- `parsing_completed_at` is stamped (2026-07-26 19:15:18) with `parse_attempts = 0`, so the record was marked "parsed" and will never be retried.
+- `patient_intake_notes` is rich and complete: UHC Commercial / UHC Choice Plus / ID 920328821 / Group 933201, PCP Elizabeth Briggs, NP / 859-624-6366, full GAE STEP 1–2 pathology (right knee, OA yes, over 1 year, pain 5/10, symptoms list, injections + physical therapy, imaging yes, trauma yes), DOB 1972-04-11.
 
-Confirmed in the database: `parsed_insurance_info`, `parsed_medical_info` and `parsed_pathology_info` are all-null skeletons, `parsing_completed_at` was stamped 4 seconds after creation, and `parse_attempts` is 0.
-
-## Why the safety net didn't catch it
-
-The empty-parse guard added earlier only blocks the "parsed" stamp when insurance **and** medical **and** pathology are all empty. Pathology here is not technically empty — it carries `procedure_type: "GAE"`, which the calendar-name override always sets regardless of whether anything was actually parsed. So the record looked "partially parsed", got stamped complete, and never became eligible for the self-healing sweep.
-
-The underlying parse produced nothing (likely an AI call that returned nulls); the deterministic regex fill did not rescue it.
+This is the same `procedure_type`-fools-the-empty-guard case already fixed in `auto-parse-intake-notes` — her row was stamped before that fix went live, so it stayed blank.
 
 ## Fix
 
-1. **Repair the record.** Reset `parsing_completed_at` to null on Reginald's row and re-run the parser for that single record, then verify the three cards populate from the notes above. If the re-run still comes back empty, write the values in directly from the notes (insurance provider/plan/ID/notes, PCP name + phone, and the GAE pathology set including affected side "Both", imaging details, pain level, treatments, symptoms).
+1. Trigger the already-hardened parser against this single record using the targeted `{ appointmentId: "c74c2331-..." }` path, which clears the stale `parsing_completed_at` and re-runs both the AI pass and the deterministic regex fill.
+2. Verify the three parsed objects afterwards; fill any remaining gap (e.g. imaging "Yes, not recently", affected side Right) with a targeted data correction so the portal cards match the intake notes exactly.
+3. No parser code changes needed — the current deployed version already ignores `procedure_type` in the empty-parse guard, so no new records will land in this state.
 
-2. **Close the guard gap** in `supabase/functions/auto-parse-intake-notes/index.ts`: when judging whether the pathology payload is empty, ignore `procedure_type` (and any other calendar-derived-only key). A pathology object whose sole content is the calendar-derived procedure counts as empty, so records like this one are left unstamped and picked up by the retry sweep instead of silently landing blank in the portal.
+## Notes
 
-3. **Find the siblings.** Re-run the "empty parse" audit query with the corrected emptiness rule to see how many other records were stamped complete while holding only `procedure_type`. Report the count and list before touching anything — no bulk re-parse without your go-ahead, same as with the 86-record list.
-
-## Technical detail
-
-- Guard location: the `Empty-parse guard` block near the end of the per-record loop in `auto-parse-intake-notes/index.ts`; also mirror the same "ignore procedure_type" rule in the earlier `isEmptyObj` check that decides whether to merge regex pathology into an empty AI pathology result.
-- No schema changes. Behaviour change is limited to whether `parsing_completed_at` gets stamped — nothing already-populated can be blanked, since all writes stay non-null merges.
+Only April Barclay's row is touched. This is the same repair already applied to Reginald Peterson; the remaining sibling rows from that audit list stay untouched unless you ask for them.
