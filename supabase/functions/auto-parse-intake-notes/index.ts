@@ -1243,6 +1243,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
   // Also handles GHL splitting Name and Phone into two separate labeled lines.
   if (!parsedData.medical_info) parsedData.medical_info = {};
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_name)) parsedData.medical_info.pcp_name = null;
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_phone)) parsedData.medical_info.pcp_phone = null;
   if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
     const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
     if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
