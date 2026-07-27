@@ -3226,7 +3226,15 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // Non-null merge over existing so an AI miss can never blank values that
           // the webhook (or a prior parse) already populated — critical for
           // insurance_provider / insurance_id_number.
-          updateData.parsed_insurance_info = mergeWithNonNull(record.parsed_insurance_info || {}, parsedData.insurance_info || {});
+          // Scrub corrupted provider/plan already stored on the record so the
+          // non-null merge below can't preserve garbage (e.g. a URL blob).
+          {
+            const existingIns: any = { ...(record.parsed_insurance_info || {}) };
+            if (isInvalidInsuranceValue(existingIns.insurance_provider)) existingIns.insurance_provider = null;
+            if (isInvalidInsuranceValue(existingIns.insurance_plan)) existingIns.insurance_plan = null;
+            updateData.parsed_insurance_info = mergeWithNonNull(existingIns, parsedData.insurance_info || {});
+          }
+
           // Non-null merge for pathology too — protects webhook-extracted Neuropathy
           // STEP data (pain level, affected areas, duration, symptoms, diabetes) from
           // being wiped by an AI parse that returns nulls for those fields.
