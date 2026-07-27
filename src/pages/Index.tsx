@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("projects");
   const [unreadCount, setUnreadCount] = useState(0);
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
