@@ -18,33 +18,50 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   if (!intakeNotes) return result;
 
   const PHONE_RE = /(\(?\d{3}\)?[.\-\s]?\d{3}[.\-\s]?\d{4})/;
-  const isBad = (v: string) => !v || /^(none|n\/a|unknown|-|--)$/i.test(v.trim());
+  const isBad = (v: string) => {
+    if (!v) return true;
+    const s = v.trim();
+    if (/^(none|n\/a|na|unknown|-|--)$/i.test(s)) return true;
+    // Placeholder answers coming from GHL intake blobs
+    if (/^(not\s*collected|not\s*provided|no\s*pcp|none\s*provided|not\s*available|n\/a[.,]?)/i.test(s)) return true;
+    return false;
+  };
+  // Guard against a "slurped" value that swallowed the rest of a semicolon blob
+  const isSlurp = (v: string) => !v || v.length > 60 || /:/.test(v);
+  const clean = (v: string) => v.trim().replace(/[,;\-\s]+$/, '');
 
-  // 1) Name-specific labels first.
-  const nameLine = intakeNotes.match(/(?:Primary Care|PCP)[^:\n]*\bName\b[^:\n]*:\s*([^\n|]+)/i);
-  if (nameLine && nameLine[1]) {
-    const v = nameLine[1].trim().replace(/[,\-\s]+$/, '');
-    if (!isBad(v)) {
-      const pm = v.match(PHONE_RE);
-      if (pm) {
-        result.phone = pm[1];
-        const stripped = v.replace(pm[1], '').replace(/[,\-\s]+$/, '').trim();
-        if (stripped && !isBad(stripped)) result.name = stripped;
-      } else {
-        result.name = v;
-      }
+  // Collect ALL matches for a label pattern (values stop at newline, "|" or ";")
+  const allMatches = (re: RegExp): string[] => {
+    const out: string[] = [];
+    let m: RegExpExecArray | null;
+    const rx = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    while ((m = rx.exec(intakeNotes)) !== null) {
+      if (m[1]) out.push(clean(m[1]));
     }
+    return out;
+  };
+
+  // 1) Name-specific labels first — take the first usable (non-placeholder) candidate.
+  for (const raw of allMatches(/(?:Primary Care|PCP)[^:\n]*\bName\b[^:\n;|]*:\s*([^\n|;]+)/i)) {
+    if (isBad(raw) || isSlurp(raw)) continue;
+    const pm = raw.match(PHONE_RE);
+    if (pm) {
+      result.phone = pm[1];
+      const stripped = clean(raw.replace(pm[1], ''));
+      if (stripped && !isBad(stripped) && !isSlurp(stripped)) result.name = stripped;
+    } else {
+      result.name = raw;
+    }
+    if (result.name) break;
   }
 
   // 2) Phone-specific labels.
   if (!result.phone) {
-    const phoneLine = intakeNotes.match(/(?:Primary Care|PCP)[^:\n]*(?:Phone|Number|Tel)[^:\n]*:\s*([^\n|]+)/i);
-    if (phoneLine && phoneLine[1]) {
-      const v = phoneLine[1].trim();
-      if (!isBad(v)) {
-        const pm = v.match(PHONE_RE);
-        result.phone = pm ? pm[1] : v;
-      }
+    for (const raw of allMatches(/(?:Primary Care|PCP)[^:\n]*(?:Phone|Number|Tel)[^:\n;|]*:\s*([^\n|;]+)/i)) {
+      if (isBad(raw) || isSlurp(raw)) continue;
+      const pm = raw.match(PHONE_RE);
+      result.phone = pm ? pm[1] : raw;
+      break;
     }
   }
 
@@ -52,19 +69,19 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   //    but SKIP any line whose label is phone-specific (already handled) so we don't
   //    accidentally treat digits as a name.
   if (!result.name) {
-    const lineRe = /^(?:[ \t]*)([^\n:]*(?:Primary Care|PCP|physician)[^\n:]*):\s*([^\n|]+)$/gim;
+    const lineRe = /^(?:[ \t]*)([^\n:]*(?:Primary Care|PCP|physician)[^\n:]*):\s*([^\n|;]+)/gim;
     let m: RegExpExecArray | null;
     while ((m = lineRe.exec(intakeNotes)) !== null) {
       const label = m[1] || '';
-      const value = (m[2] || '').trim();
-      if (isBad(value)) continue;
+      const value = clean(m[2] || '');
+      if (isBad(value) || isSlurp(value)) continue;
       if (/\b(phone|number|tel)\b/i.test(label)) continue; // handled above
       if (/\bname\b/i.test(label)) { /* already tried */ continue; }
       const pm = value.match(PHONE_RE);
       if (pm) {
         if (!result.phone) result.phone = pm[1];
-        const stripped = value.replace(pm[1], '').replace(/[,\-\s]+$/, '').trim();
-        if (stripped && !isBad(stripped)) { result.name = stripped; break; }
+        const stripped = clean(value.replace(pm[1], ''));
+        if (stripped && !isBad(stripped) && !isSlurp(stripped)) { result.name = stripped; break; }
       } else {
         result.name = value;
         break;
@@ -72,8 +89,27 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
     }
   }
 
+  // Final safety net
+  if (result.name && isSlurp(result.name)) result.name = null;
+  if (result.phone && isSlurp(result.phone)) result.phone = null;
+
   return result;
 }
+
+// Reject placeholder / slurped PCP values (e.g. "Not Collected; Preferred Location: Houston; ...")
+function isUnusablePcpValue(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim();
+  if (!s) return true;
+  if (s.length > 60) return true;
+  if (/:/.test(s)) return true;
+  if (/^(none|n\/a|na|unknown|-|--)$/i.test(s)) return true;
+  if (/^(not\s*collected|not\s*provided|no\s*pcp|none\s*provided|not\s*available)/i.test(s)) return true;
+  return false;
+}
+
+
+
 
 
 // Reject conversational/status text masquerading as group number
@@ -1004,6 +1040,9 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   
   // Extract PCP info if not already populated
   if (!parsedData.medical_info) parsedData.medical_info = {};
+  // Drop AI-supplied placeholder/slurped values so regex can supply the real ones
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_name)) parsedData.medical_info.pcp_name = null;
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_phone)) parsedData.medical_info.pcp_phone = null;
   if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
     const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
     if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
@@ -1204,6 +1243,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
   // Also handles GHL splitting Name and Phone into two separate labeled lines.
   if (!parsedData.medical_info) parsedData.medical_info = {};
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_name)) parsedData.medical_info.pcp_name = null;
+  if (isUnusablePcpValue(parsedData.medical_info.pcp_phone)) parsedData.medical_info.pcp_phone = null;
   if (!parsedData.medical_info.pcp_name || !parsedData.medical_info.pcp_phone) {
     const pcpExtracted = extractPcpNameAndPhone(intakeNotes);
     if (!parsedData.medical_info.pcp_name && pcpExtracted.name) {
