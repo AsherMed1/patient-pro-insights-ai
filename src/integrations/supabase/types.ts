@@ -245,6 +245,7 @@ export type Database = {
           lead_phone_digits: string | null
           lead_phone_number: string | null
           name_last_synced_at: string | null
+          parse_attempts: number
           parsed_contact_info: Json | null
           parsed_demographics: Json | null
           parsed_insurance_info: Json | null
@@ -309,6 +310,7 @@ export type Database = {
           lead_phone_digits?: string | null
           lead_phone_number?: string | null
           name_last_synced_at?: string | null
+          parse_attempts?: number
           parsed_contact_info?: Json | null
           parsed_demographics?: Json | null
           parsed_insurance_info?: Json | null
@@ -373,6 +375,7 @@ export type Database = {
           lead_phone_digits?: string | null
           lead_phone_number?: string | null
           name_last_synced_at?: string | null
+          parse_attempts?: number
           parsed_contact_info?: Json | null
           parsed_demographics?: Json | null
           parsed_insurance_info?: Json | null
