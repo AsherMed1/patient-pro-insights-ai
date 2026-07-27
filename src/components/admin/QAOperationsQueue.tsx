@@ -341,18 +341,27 @@ export default function QAOperationsQueue() {
   };
 
 
+  const fetchCasesRef = useRef(fetchCases);
+  fetchCasesRef.current = fetchCases;
+
+  // Re-fetch when the visible scope changes (Completed/All tab or a date filter
+  // widens the completed-case window).
   useEffect(() => {
-    fetchCases();
+    fetchCasesRef.current();
+  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo]);
+
+  useEffect(() => {
     const ch = supabase
       .channel('qa-cases-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, () => {
-        fetchCases();
+        fetchCasesRef.current();
       })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
   }, []);
+
 
   // Keep the open drawer in sync with realtime refreshes of `cases`
   useEffect(() => {
