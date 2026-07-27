@@ -504,10 +504,233 @@ export function ReserveTimeBlockDialog({
     return cancelledCount;
   };
 
+  // ---------------------------------------------------------------------------
+  // Carve-around-existing-appointments
+  // When confirmed appts overlap the requested window, split each range around
+  // every conflicting appointment's slot (start → start+30min) so GHL never
+  // receives an overlapping block. Nothing gets cancelled.
+  // ---------------------------------------------------------------------------
+  const PATIENT_SLOT_MINUTES = 30;
+  const MIN_SUBRANGE_MINUTES = 5;
+
+  const timeToMin = (t: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t.trim());
+    if (!m) return null;
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  };
+  const minToTime = (m: number): string =>
+    `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+  const carveRangeAroundSlots = (
+    range: TimeRange,
+    blockedStarts: number[]
+  ): TimeRange[] => {
+    const s = timeToMin(range.startTime);
+    const e = timeToMin(range.endTime);
+    if (s === null || e === null || e <= s) return [];
+    let pieces: Array<{ s: number; e: number }> = [{ s, e }];
+    for (const b of blockedStarts) {
+      const bs = b;
+      const be = b + PATIENT_SLOT_MINUTES;
+      const next: Array<{ s: number; e: number }> = [];
+      for (const p of pieces) {
+        if (be <= p.s || bs >= p.e) {
+          next.push(p);
+          continue;
+        }
+        if (bs > p.s) next.push({ s: p.s, e: bs });
+        if (be < p.e) next.push({ s: be, e: p.e });
+      }
+      pieces = next;
+    }
+    return pieces
+      .filter((p) => p.e - p.s >= MIN_SUBRANGE_MINUTES)
+      .map((p, idx) => ({
+        id: `${range.id}-carve-${idx}`,
+        startTime: minToTime(p.s),
+        endTime: minToTime(p.e),
+      }));
+  };
+
+  const executeCarvedBlockCreation = async () => {
+    if (!selectedDate) return;
+
+    // Group carveable patient conflicts by calendar_name.
+    // Ignore synthetic capacity / existing-block companion rows.
+    const patientsByCalendar = new Map<string, BlockConflict[]>();
+    for (const c of hardConflicts) {
+      if (c.id.startsWith('block-cap::') || c.id.startsWith('block-existing::')) continue;
+      if (!c.calendar_name) continue;
+      const list = patientsByCalendar.get(c.calendar_name) || [];
+      list.push(c);
+      patientsByCalendar.set(c.calendar_name, list);
+    }
+
+    // Build per-calendar carved range set. Calendars with no conflicts keep original ranges.
+    const carvedByCalendarId = new Map<string, TimeRange[]>();
+    const skippedCalendars: string[] = [];
+    for (const calId of selectedCalendarIds) {
+      const cal = calendars.find((c) => c.id === calId);
+      const calName = cal?.name || '';
+      const patientConflicts = patientsByCalendar.get(calName) || [];
+      const blockedStarts = patientConflicts
+        .map((c) => timeToMin(c.requested_time || ''))
+        .filter((m): m is number => m !== null);
+
+      let outRanges: TimeRange[] = [];
+      if (blockedStarts.length === 0) {
+        outRanges = timeRanges;
+      } else {
+        for (const r of timeRanges) {
+          outRanges.push(...carveRangeAroundSlots(r, blockedStarts));
+        }
+      }
+      if (outRanges.length === 0) {
+        skippedCalendars.push(calName);
+      } else {
+        carvedByCalendarId.set(calId, outRanges);
+      }
+    }
+
+    if (carvedByCalendarId.size === 0) {
+      toast({
+        title: 'Nothing to Block',
+        description:
+          'Every selected calendar is fully occupied inside your window. Shrink the window or pick different calendars.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const created: Array<{ calendarName: string; range: TimeRange }> = [];
+      const failed: string[] = [];
+      const title = reason ? `Reserved - ${reason}` : 'Reserved';
+      const tz =
+        projectTimezone ||
+        Intl.DateTimeFormat().resolvedOptions().timeZone ||
+        'UTC';
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+      for (const [calendarId, ranges] of carvedByCalendarId.entries()) {
+        const calendarName = calendars.find((c) => c.id === calendarId)?.name || 'Unknown Calendar';
+        for (const range of ranges) {
+          try {
+            const startUtc = fromZonedTime(`${dateStr}T${range.startTime}:00`, tz);
+            const endUtc = fromZonedTime(`${dateStr}T${range.endTime}:00`, tz);
+            const startTimeForGhl = formatInTimeZone(startUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+            const endTimeForGhl = formatInTimeZone(endUtc, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+
+            const { data: ghlResult, error: ghlError } = await supabase.functions.invoke(
+              'create-ghl-appointment',
+              {
+                body: {
+                  project_name: projectName,
+                  calendar_id: calendarId,
+                  start_time: startTimeForGhl,
+                  end_time: endTimeForGhl,
+                  title,
+                  reason: reason
+                    ? `${reason} (carved around existing appointments)`
+                    : 'Carved around existing appointments',
+                  calendar_name: calendarName,
+                  user_name: userName || 'Portal User',
+                  user_id: userId,
+                  create_local_record: true,
+                  // Explicitly empty — we've routed around these, not through them.
+                  overlapping_appointment_ids: [],
+                },
+              }
+            );
+
+            if (ghlError || !ghlResult?.success) {
+              const errorMsg = ghlResult?.error || ghlError?.message || 'Failed to create reservation';
+              console.error('[ReserveTimeBlock:carve] Edge fn failed:', errorMsg, { calendarName, range });
+              throw new Error(errorMsg);
+            }
+            created.push({ calendarName, range });
+          } catch (err) {
+            console.error(`[ReserveTimeBlock:carve] ${calendarName} ${range.startTime}-${range.endTime}:`, err);
+            if (!failed.includes(calendarName)) failed.push(calendarName);
+          }
+        }
+      }
+
+      // Best-effort: internal note on each preserved appointment.
+      const preservedIds = Array.from(patientsByCalendar.values())
+        .flat()
+        .map((c) => c.id);
+      const windowStr = timeRanges
+        .map((r) => {
+          const [sh, sm] = r.startTime.split(':').map(Number);
+          const [eh, em] = r.endTime.split(':').map(Number);
+          const fmt = (h: number, m: number) => {
+            const ampm = h < 12 ? 'AM' : 'PM';
+            const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+            return `${dh}:${String(m).padStart(2, '0')} ${ampm}`;
+          };
+          return `${fmt(sh, sm)}–${fmt(eh, em)}`;
+        })
+        .join(', ');
+      const preservedNote = `Clinic reserved ${windowStr} on ${format(selectedDate, 'PPP')}${reason ? ` (${reason})` : ''} by ${userName || 'Portal User'}; this appointment was kept and the block was routed around it.`;
+      for (const apptId of preservedIds) {
+        supabase
+          .from('appointment_notes')
+          .insert({ appointment_id: apptId, note_text: preservedNote, created_by: userId || null })
+          .then(({ error }) => {
+            if (error) console.warn('[ReserveTimeBlock:carve] preserved-note insert failed', apptId, error);
+          });
+      }
+
+      if (created.length === 0) {
+        throw new Error(`Failed to create any carved blocks: ${failed.join(', ')}`);
+      }
+
+      toast({
+        title: 'Time Blocks Reserved',
+        description: `Created ${created.length} block segment${created.length === 1 ? '' : 's'}; preserved ${preservedIds.length} existing appointment${preservedIds.length === 1 ? '' : 's'}${skippedCalendars.length > 0 ? `; skipped fully-occupied: ${skippedCalendars.join(', ')}` : ''}${failed.length > 0 ? `; failed on: ${failed.join(', ')}` : ''}.`,
+      });
+
+      // Slack notification (fire-and-forget)
+      const successfulCalendarNames = [...new Set(created.map((c) => c.calendarName))];
+      supabase.functions.invoke('notify-calendar-update', {
+        body: {
+          projectName,
+          calendarName: successfulCalendarNames.length > 1
+            ? `${successfulCalendarNames.length} calendars`
+            : successfulCalendarNames[0] || 'Unknown Calendar',
+          calendarNames: successfulCalendarNames,
+          date: format(selectedDate, 'PPPP'),
+          timeRanges: timeRanges.map((r) => `${r.startTime} - ${r.endTime}`),
+          reason: reason
+            ? `${reason} (carved around ${preservedIds.length} appt${preservedIds.length === 1 ? '' : 's'})`
+            : `Carved around ${preservedIds.length} appt${preservedIds.length === 1 ? '' : 's'}`,
+          blockedBy: userName || 'Portal User',
+          isFullDay: false,
+        },
+      }).catch((err) => console.error('[ReserveTimeBlock:carve] Slack notify failed:', err));
+
+      setShowConflictDialog(false);
+      onOpenChange(false);
+      setTimeout(() => onSuccess?.(), 500);
+    } catch (err) {
+      console.error('[ReserveTimeBlock:carve] Error:', err);
+      toast({
+        title: 'Failed to Reserve Time',
+        description: err instanceof Error ? err.message : 'An error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const executeBlockCreation = async (conflictsToHandle: BlockConflict[]) => {
     setIsSubmitting(true);
 
     try {
+
       const allCreatedAppointments: Array<{ calendarId: string; calendarName: string; range: TimeRange; ghlResult: any }> = [];
       const failedCalendars: string[] = [];
       const title = reason ? `Reserved - ${reason}` : 'Reserved';
@@ -826,6 +1049,12 @@ export function ReserveTimeBlockDialog({
           // Coexist conflicts are never cancelled — GHL keeps them alongside the new block.
           executeBlockCreation(autoCancelConflicts ? softConflicts : []);
         }}
+        onCarveConfirm={() => {
+          // Hard conflicts present — split the block around each patient's slot
+          // so nothing gets cancelled in GHL.
+          executeCarvedBlockCreation();
+        }}
+
       />
     </Dialog>
   );

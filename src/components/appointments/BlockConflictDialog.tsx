@@ -9,11 +9,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldAlert, ShieldCheck, Scissors } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { type BlockConflict, formatRequestedTime } from './blockConflictScan';
+import { cn } from '@/lib/utils';
+
 
 interface BlockConflictDialogProps {
   open: boolean;
@@ -24,9 +26,11 @@ interface BlockConflictDialogProps {
   autoCancel: boolean;
   onAutoCancelChange: (v: boolean) => void;
   onConfirm: () => void;
+  onCarveConfirm?: () => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }
+
 
 function ConflictRow({ c, tone }: { c: BlockConflict; tone: 'hard' | 'soft' }) {
   return (
@@ -62,9 +66,16 @@ export function BlockConflictDialog({
   autoCancel,
   onAutoCancelChange,
   onConfirm,
+  onCarveConfirm,
   onCancel,
   isSubmitting,
 }: BlockConflictDialogProps) {
+  // Only real patient rows are carve-eligible. Synthetic capacity/existing-block
+  // rows (ids prefixed "block-cap::" / "block-existing::") aren't patients.
+  const carveablePatients = hardConflicts.filter(
+    (c) => !c.id.startsWith('block-cap::') && !c.id.startsWith('block-existing::')
+  );
+  const hasCarveable = carveablePatients.length > 0 && !!onCarveConfirm;
   const hasHard = hardConflicts.length > 0;
   const hasSoft = softConflicts.length > 0;
   const hasCoexist = coexistConflicts.length > 0;
@@ -79,10 +90,13 @@ export function BlockConflictDialog({
       : `${coexistConflicts.length} appointment${coexistConflicts.length === 1 ? '' : 's'} will remain in this slot`;
 
   const description = hasHard
-    ? 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
+    ? hasCarveable
+      ? "These patients are already booked. You can create the block around them — the reserved block will cover the rest of your window and skip each patient's 30-minute slot. No appointment will be cancelled."
+      : 'GoHighLevel will silently cancel confirmed appointments that overlap a calendar block. Resolve the items below before continuing.'
     : hasSoft
       ? "These patients have unconfirmed appointments during the time you're blocking. Choose how to handle them."
       : "This calendar allows multiple bookings per slot. The existing appointment(s) below will remain scheduled — creating this block just reserves the next open slot.";
+
 
   return (
     <Dialog open={open} onOpenChange={(v) => !isSubmitting && onOpenChange(v)}>
@@ -99,21 +113,34 @@ export function BlockConflictDialog({
           {/* HARD CONFLICTS — must resolve before proceeding */}
           {hasHard && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
-                <ShieldAlert className="h-4 w-4" />
-                Will be cancelled in GoHighLevel — fix before continuing
+              <div className={cn(
+                "flex items-center gap-2 text-sm font-semibold",
+                hasCarveable ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"
+              )}>
+                {hasCarveable ? <Scissors className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+                {hasCarveable
+                  ? "Block will skip these slots — appointments stay booked"
+                  : "Will be cancelled in GoHighLevel — fix before continuing"}
               </div>
-              <ScrollArea className="max-h-[200px] rounded-lg border border-destructive/40 bg-destructive/5">
-                <div className="divide-y divide-destructive/20">
+              <ScrollArea className={cn(
+                "max-h-[200px] rounded-lg border",
+                hasCarveable
+                  ? "border-emerald-500/40 bg-emerald-500/5"
+                  : "border-destructive/40 bg-destructive/5"
+              )}>
+                <div className={cn(
+                  "divide-y",
+                  hasCarveable ? "divide-emerald-500/20" : "divide-destructive/20"
+                )}>
                   {hardConflicts.map((c) => (
-                    <ConflictRow key={c.id} c={c} tone="hard" />
+                    <ConflictRow key={c.id} c={c} tone={hasCarveable ? 'soft' : 'hard'} />
                   ))}
                 </div>
               </ScrollArea>
               <p className="text-xs text-muted-foreground italic px-1">
-                These confirmed appointments would be silently cancelled by GHL if you create this block.
-                Reschedule them first, shrink your block window so it no longer overlaps, or remove the
-                affected calendar(s) from your selection.
+                {hasCarveable
+                  ? "The reserved block will be split around each appointment's 30-minute slot. Existing patients remain confirmed in GHL and on the portal — nothing gets cancelled."
+                  : "These confirmed appointments would be silently cancelled by GHL if you create this block. Reschedule them first, shrink your block window so it no longer overlaps, or remove the affected calendar(s) from your selection."}
               </p>
               {hasCapacityRow && (
                 <p className="text-xs text-destructive/80 px-1">
@@ -125,6 +152,7 @@ export function BlockConflictDialog({
 
             </div>
           )}
+
 
           {/* SOFT CONFLICTS — existing auto-cancel flow */}
           {hasSoft && (
@@ -193,10 +221,26 @@ export function BlockConflictDialog({
         </div>
 
         <DialogFooter>
-          {hasHard ? (
+          {hasHard && !hasCarveable ? (
             <Button onClick={onCancel} disabled={isSubmitting}>
               Adjust Block
             </Button>
+          ) : hasHard && hasCarveable ? (
+            <>
+              <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+                Adjust Block
+              </Button>
+              <Button onClick={onCarveConfirm} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating blocks around appointments...
+                  </>
+                ) : (
+                  `Create Block Around ${carveablePatients.length} Appointment${carveablePatients.length === 1 ? '' : 's'}`
+                )}
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
@@ -219,6 +263,7 @@ export function BlockConflictDialog({
             </>
           )}
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
