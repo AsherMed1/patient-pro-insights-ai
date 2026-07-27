@@ -48,7 +48,12 @@ export interface AllAppointment {
   is_superseded?: boolean;
   time_preference?: string | null;
   is_unscheduled?: boolean | null;
+  reschedule_eligible?: boolean | null;
+  reschedule_block_reason?: string | null;
+  reschedule_blocked_at?: string | null;
+  reschedule_blocked_by?: string | null;
 }
+
 
 export interface AllAppointmentsManagerProps {
   projectFilter?: string;

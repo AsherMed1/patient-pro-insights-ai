@@ -33,6 +33,10 @@ import { format as formatDateFns } from "date-fns";
 import { useGhlCalendars } from "@/hooks/useGhlCalendars";
 import AvailableTimeSlots from "./AvailableTimeSlots";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import NoShowEligibilityDialog from "./NoShowEligibilityDialog";
+import { applyNoShowEligibility, liftRescheduleBlock } from "@/utils/rescheduleBlock";
+import { useUserAttribution } from "@/hooks/useUserAttribution";
+
 interface AppointmentCardProps {
   appointment: AllAppointment;
   projectFilter?: string;
@@ -213,6 +217,13 @@ const AppointmentCard = ({
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
+
+  // No-show reschedule eligibility
+  const { userName } = useUserAttribution();
+  const [showNoShowDialog, setShowNoShowDialog] = useState(false);
+  const [submittingNoShow, setSubmittingNoShow] = useState(false);
+  const [liftingBlock, setLiftingBlock] = useState(false);
+
   
   // Check if status has been updated (primary indicator)
   const isStatusUpdated = appointment.status && appointment.status.trim() !== '';
@@ -821,10 +832,69 @@ const AppointmentCard = ({
     } else if (newStatus.toLowerCase() === 'oon') {
       setOonConfirmText('');
       setShowOonDialog(true);
+    } else if (['no show', 'noshow', 'no-show'].includes(newStatus.toLowerCase())) {
+      setShowNoShowDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
   };
+
+  // No-show eligibility submission
+  const handleNoShowConfirm = async (eligible: boolean, notes: string) => {
+    setSubmittingNoShow(true);
+    try {
+      onUpdateStatus(appointment.id, 'No Show');
+      await applyNoShowEligibility(
+        {
+          id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          ghl_id: appointment.ghl_id,
+          lead_phone_number: appointment.lead_phone_number,
+        },
+        eligible,
+        notes,
+        userName
+      );
+      setShowNoShowDialog(false);
+      toast({
+        title: 'No Show recorded',
+        description: eligible
+          ? 'Patient remains eligible for rescheduling.'
+          : 'Patient blocked from rescheduling — clinic contact text triggered.',
+      });
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error recording no-show eligibility:', error);
+      toast({ title: 'Error', description: 'Failed to save eligibility decision', variant: 'destructive' });
+    } finally {
+      setSubmittingNoShow(false);
+    }
+  };
+
+  const handleLiftBlock = async () => {
+    setLiftingBlock(true);
+    try {
+      await liftRescheduleBlock(
+        {
+          id: appointment.id,
+          project_name: appointment.project_name,
+          lead_name: appointment.lead_name,
+          ghl_id: appointment.ghl_id,
+          lead_phone_number: appointment.lead_phone_number,
+        },
+        userName
+      );
+      toast({ title: 'Block lifted', description: 'Patient can be scheduled again.' });
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error lifting reschedule block:', error);
+      toast({ title: 'Error', description: 'Failed to lift block', variant: 'destructive' });
+    } finally {
+      setLiftingBlock(false);
+    }
+  };
+
 
   // Handle reschedule submission - call GHL directly
   const handleRescheduleSubmit = async () => {
@@ -1168,6 +1238,8 @@ const AppointmentCard = ({
   };
 
   const isSuperseded = (appointment as any).is_superseded === true;
+  const isRescheduleBlocked = appointment.reschedule_eligible === false;
+
 
   return <>
       <div className={cn(
@@ -1189,6 +1261,25 @@ const AppointmentCard = ({
             </div>
           </div>
         )}
+        {isRescheduleBlocked && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold">Not eligible for rescheduling</p>
+              <p className="mt-0.5 text-destructive/90">
+                Patient must contact the clinic directly.
+                {appointment.reschedule_block_reason ? ` Reason: ${appointment.reschedule_block_reason}.` : ''}
+                {appointment.reschedule_blocked_by ? ` Set by ${appointment.reschedule_blocked_by}.` : ''}
+              </p>
+            </div>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={handleLiftBlock} disabled={liftingBlock}>
+                {liftingBlock ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Allow rescheduling'}
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           {/* Lead Name - Prominent on mobile */}
           <div className="flex items-center justify-between">
@@ -1874,18 +1965,27 @@ const AppointmentCard = ({
                 {statusOptions.map((status) => {
                   const isCancelled = (appointment.status || '').trim().toLowerCase() === 'cancelled';
                   const isWelcomeCall = status.toLowerCase() === 'welcome call';
-                  const disabled = isCancelled && isWelcomeCall;
+                  const isRescheduleOption = status.toLowerCase() === 'rescheduled';
+                  const blockedByEligibility = isRescheduleBlocked && isRescheduleOption;
+                  const disabled = (isCancelled && isWelcomeCall) || blockedByEligibility;
                   return (
                     <SelectItem
                       key={status}
                       value={status}
                       disabled={disabled}
-                      title={disabled ? 'Change status to Confirmed first before moving to Welcome Call.' : undefined}
+                      title={
+                        blockedByEligibility
+                          ? 'Patient is not eligible for rescheduling — they must contact the clinic directly.'
+                          : disabled
+                            ? 'Change status to Confirmed first before moving to Welcome Call.'
+                            : undefined
+                      }
                     >
                       {status}
                     </SelectItem>
                   );
                 })}
+
               </SelectContent>
             </Select>
           </div>
@@ -2139,7 +2239,17 @@ const AppointmentCard = ({
         </DialogContent>
       </Dialog>
 
+      {/* No-Show Eligibility Dialog */}
+      <NoShowEligibilityDialog
+        open={showNoShowDialog}
+        onOpenChange={setShowNoShowDialog}
+        patientName={appointment.lead_name}
+        submitting={submittingNoShow}
+        onConfirm={handleNoShowConfirm}
+      />
+
       {/* Cancellation Reason Dialog */}
+
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

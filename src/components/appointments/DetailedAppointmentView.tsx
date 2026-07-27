@@ -36,8 +36,13 @@ import {
   MessageSquare,
   Pencil,
   Check,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
+import NoShowEligibilityDialog from './NoShowEligibilityDialog';
+import { applyNoShowEligibility, liftRescheduleBlock } from '@/utils/rescheduleBlock';
+
+
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
 import AppointmentNotes from './AppointmentNotes';
@@ -248,6 +253,56 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
+
+  // No-show reschedule eligibility
+  const [showNoShowDialog, setShowNoShowDialog] = useState(false);
+  const [submittingNoShow, setSubmittingNoShow] = useState(false);
+  const [liftingBlock, setLiftingBlock] = useState(false);
+  const isRescheduleBlocked = (appointment as any).reschedule_eligible === false;
+
+  const blockTarget = {
+    id: appointment.id,
+    project_name: appointment.project_name,
+    lead_name: appointment.lead_name,
+    ghl_id: appointment.ghl_id,
+    lead_phone_number: appointment.lead_phone_number,
+  };
+
+  const handleNoShowConfirm = async (eligible: boolean, notes: string) => {
+    setSubmittingNoShow(true);
+    try {
+      setCurrentStatus('No Show');
+      await handleFieldUpdate({ status: 'No Show' });
+      await applyNoShowEligibility(blockTarget, eligible, notes, userName);
+      setShowNoShowDialog(false);
+      toast.success(
+        eligible
+          ? 'No Show recorded — patient remains eligible for rescheduling'
+          : 'No Show recorded — patient blocked from rescheduling'
+      );
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error recording no-show eligibility:', error);
+      toast.error('Failed to save eligibility decision');
+    } finally {
+      setSubmittingNoShow(false);
+    }
+  };
+
+  const handleLiftBlock = async () => {
+    setLiftingBlock(true);
+    try {
+      await liftRescheduleBlock(blockTarget, userName);
+      toast.success('Patient can be scheduled again');
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error lifting reschedule block:', error);
+      toast.error('Failed to lift block');
+    } finally {
+      setLiftingBlock(false);
+    }
+  };
+
 
   // Sync state when appointment prop changes
   useEffect(() => {
@@ -977,7 +1032,27 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               </CardContent>
             </Card>
 
+            {isRescheduleBlocked && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm no-print">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">Not eligible for rescheduling</p>
+                  <p className="mt-0.5 text-destructive/90">
+                    Patient must contact the clinic directly.
+                    {(appointment as any).reschedule_block_reason ? ` Reason: ${(appointment as any).reschedule_block_reason}.` : ''}
+                    {(appointment as any).reschedule_blocked_by ? ` Set by ${(appointment as any).reschedule_blocked_by}.` : ''}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Button variant="outline" size="sm" onClick={handleLiftBlock} disabled={liftingBlock}>
+                    {liftingBlock ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Allow rescheduling'}
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Action Row: Insurance, Status, Procedure */}
+
             <div className="flex flex-wrap items-center gap-3 no-print">
               {hasInsuranceInfo() && (
                 <Button
@@ -1014,10 +1089,13 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       setShowRescheduleDialog(true);
                     } else if (value.toLowerCase() === 'cancelled' || value.toLowerCase() === 'canceled') {
                       setShowCancelDialog(true);
+                    } else if (['no show', 'noshow', 'no-show'].includes(value.toLowerCase())) {
+                      setShowNoShowDialog(true);
                     } else {
                       setCurrentStatus(value);
                       handleFieldUpdate({ status: value });
                     }
+
                   }}
                   disabled={isUpdating}
                 >
@@ -1028,14 +1106,22 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     {statusOptions.sort().map((status) => {
                       const isCancelled = (currentStatus || '').trim().toLowerCase() === 'cancelled';
                       const isWelcomeCall = status.toLowerCase() === 'welcome call';
-                      const disabled = isCancelled && isWelcomeCall;
+                      const blockedByEligibility = isRescheduleBlocked && status.toLowerCase() === 'rescheduled';
+                      const disabled = (isCancelled && isWelcomeCall) || blockedByEligibility;
                       return (
                         <SelectItem
                           key={status}
                           value={status}
                           disabled={disabled}
-                          title={disabled ? 'Change status to Confirmed first before moving to Welcome Call.' : undefined}
+                          title={
+                            blockedByEligibility
+                              ? 'Patient is not eligible for rescheduling — they must contact the clinic directly.'
+                              : disabled
+                                ? 'Change status to Confirmed first before moving to Welcome Call.'
+                                : undefined
+                          }
                         >
+
                           <div className="flex items-center gap-2">
                             <span className={`h-2 w-2 rounded-full ${getStatusDot(status)}`} />
                             {status}
@@ -1326,7 +1412,16 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       </Dialog>
 
       {/* Cancellation Reason Dialog */}
+      <NoShowEligibilityDialog
+        open={showNoShowDialog}
+        onOpenChange={setShowNoShowDialog}
+        patientName={appointment.lead_name}
+        submitting={submittingNoShow}
+        onConfirm={handleNoShowConfirm}
+      />
+
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cancel Appointment</DialogTitle>
