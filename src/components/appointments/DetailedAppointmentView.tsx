@@ -1032,7 +1032,27 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               </CardContent>
             </Card>
 
+            {isRescheduleBlocked && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm no-print">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">Not eligible for rescheduling</p>
+                  <p className="mt-0.5 text-destructive/90">
+                    Patient must contact the clinic directly.
+                    {(appointment as any).reschedule_block_reason ? ` Reason: ${(appointment as any).reschedule_block_reason}.` : ''}
+                    {(appointment as any).reschedule_blocked_by ? ` Set by ${(appointment as any).reschedule_blocked_by}.` : ''}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Button variant="outline" size="sm" onClick={handleLiftBlock} disabled={liftingBlock}>
+                    {liftingBlock ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Allow rescheduling'}
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Action Row: Insurance, Status, Procedure */}
+
             <div className="flex flex-wrap items-center gap-3 no-print">
               {hasInsuranceInfo() && (
                 <Button
