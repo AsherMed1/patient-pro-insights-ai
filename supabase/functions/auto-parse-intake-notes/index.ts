@@ -602,15 +602,30 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       /insurance provider:\s*([^\n|]+)/i,
       /insurance:\s*([^\n|]+)/i,
     ];
+    // Reject markdown section headers like "**Insurance:** insurance_id_link: https://..."
+    // which otherwise slurp a URL blob into the Provider field.
+    const isJunkProvider = (v: string) =>
+      !v ||
+      /https?:\/\//i.test(v) ||
+      /_link\s*:/i.test(v) ||
+      /^\*+/.test(v) ||
+      /\{|\}/.test(v) ||
+      v.length > 60;
     for (const pattern of insuranceProviderPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
-        result.insurance_info.insurance_provider = match[1].trim();
-        console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${match[1].trim()}`);
+        const candidate = match[1].replace(/\*+/g, '').trim();
+        if (isJunkProvider(candidate)) {
+          console.log(`[AUTO-PARSE FALLBACK] Skipping junk insurance_provider candidate: ${candidate.substring(0, 60)}`);
+          continue;
+        }
+        result.insurance_info.insurance_provider = candidate;
+        console.log(`[AUTO-PARSE FALLBACK] Extracted insurance_provider (fallback): ${candidate}`);
         break;
       }
     }
   }
+
 
   // Extract Insurance Plan separately - never copy provider into plan
   const planMatch = intakeNotes.match(/^[ \t]*Insurance Plan\s*:\s*([^\n|]+)/im);
