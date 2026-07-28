@@ -1,46 +1,41 @@
-flowchart LR
-    %% Entry points
-    subgraph Entry["Entry points"]
-        Portal["Portal UI<br/>AllAppointmentsManager.handleStatusChange"]
-        ReviewQ["Review Queue<br/>Mark OON (admin)"]
-        GHLin["GHL webhook<br/>ghl-webhook-handler"]
-        Rejected["External REST /<br/>Sheets / Buffalo sync"]
-    end
+flowchart TD
+    Portal["Portal UI<br/>AllAppointmentsManager handleStatusChange"]
+    ReviewQ["Review Queue<br/>Mark OON admin only"]
+    GHLin["GHL webhook<br/>ghl-webhook-handler"]
+    Rejected["External REST<br/>Sheets or Buffalo sync"]
+    Block["REJECTED 403 or SKIPPED"]
 
-    Portal -->|"set OON"| OON_Chain
-    Portal -->|"set Do Not Call"| DNC_Chain
-    ReviewQ -->|"Mark OON<br/>review_status='oon'"| OON_Chain
-    GHLin -->|"status = OON"| OON_Chain
-    GHLin -->|"status = DNC"| DNC_Chain
-    Rejected -.->|"OON / DNC"| Block["REJECTED 403<br/>or SKIPPED"]
+    Portal -->|set OON| O1
+    Portal -->|set Do Not Call| D1
+    ReviewQ -->|review_status oon| O1
+    GHLin -->|status OON| O1
+    GHLin -->|status DNC| D1
+    Rejected -.->|OON or DNC| Block
 
-    %% OON side-effects
-    subgraph OON_Chain["Automatic side-effects — OON"]
+    subgraph OON["Automatic side-effects - OON"]
         direction TB
         O1["notify-slack-oon<br/>ACTION REQUIRED alert"]
         O2["appointment-status-webhook<br/>client GHL OON workflow"]
-        O3["appointment_notes<br/>status change by {user}"]
-        O4["all_appointments.status = 'OON'"]
+        O3["appointment_notes<br/>status change by user"]
+        O4["all_appointments.status = OON"]
         O1 --> O2 --> O3 --> O4
     end
 
-    %% DNC side-effects
-    subgraph DNC_Chain["Automatic side-effects — Do Not Call"]
+    subgraph DNC["Automatic side-effects - Do Not Call"]
         direction TB
-        D1["GHL DND enable +<br/>do-not-reschedule tag"]
+        D1["GHL DND enable plus<br/>do-not-reschedule tag"]
         D2["appointment-status-webhook<br/>client GHL DND workflow"]
-        D3["appointment_notes<br/>status change by {user}"]
-        D4["all_appointments.status = 'Do Not Call'"]
+        D3["appointment_notes<br/>status change by user"]
+        D4["all_appointments.status = Do Not Call"]
         D1 --> D2 --> D3 --> D4
     end
 
-    %% Terminal / triggers
-    subgraph Terminal["Terminal state — DB triggers + routing"]
+    subgraph Terminal["Terminal state - DB triggers and routing"]
         direction TB
         T1["handle_appointment_status_completion<br/>internal_process_complete = true"]
-        T2["qa_ingest_terminal_status<br/>qa_cases alert_type = 'oon' | 'do_not_call'"]
-        T3["auto_resolve_emr_queue_on_terminal_status<br/>pending → completed"]
-        T4["Routes to Completed tab<br/>hidden from New / Needs Review / client views"]
+        T2["qa_ingest_terminal_status<br/>qa_cases alert_type oon or do_not_call"]
+        T3["auto_resolve_emr_queue_on_terminal_status<br/>pending to completed"]
+        T4["Routes to Completed tab<br/>hidden from New, Needs Review, client views"]
         T1 --> T4
         T2 --> T4
         T3 --> T4
@@ -53,11 +48,10 @@ flowchart LR
     D4 --> T2
     D4 --> T3
 
-    %% Protections
     subgraph Protections["Protections"]
         direction TB
-        P1["update-appointment-status<br/>returns 403 for OON/DNC"]
-        P2["ghl-webhook-handler<br/>refuses to overwrite<br/>existing OON / DNC / Cancelled"]
+        P1["update-appointment-status<br/>returns 403 for OON or DNC"]
+        P2["ghl-webhook-handler<br/>refuses to overwrite<br/>existing OON, DNC, Cancelled"]
         P3["120s echo-back debounce"]
         P4["Reschedule blocked unless<br/>admin override via<br/>patient_reschedule_blocks"]
     end
