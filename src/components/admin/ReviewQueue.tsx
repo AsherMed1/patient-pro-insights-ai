@@ -19,6 +19,8 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
+import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
+import { DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel } from './declineReasons';
 
 interface ReviewAppointment {
   id: string;
@@ -42,6 +44,7 @@ interface ReviewAppointment {
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   review_notes?: string | null;
+  decline_reason?: string | null;
 }
 
 interface DuplicateAppt {
@@ -68,6 +71,7 @@ const ReviewQueue: React.FC = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
   const [actionNotes, setActionNotes] = useState('');
+  const [declineReason, setDeclineReason] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
@@ -256,7 +260,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
       .eq('review_status', queueView)
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -585,19 +589,26 @@ const ReviewQueue: React.FC = () => {
 
 
 
-  const performAction = async (id: string, action: ActionType, notes?: string) => {
+  const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
     setProcessing(true);
     try {
       const { data: priorRow } = await supabase
         .from('all_appointments')
-        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id')
+        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id, ghl_appointment_id, decline_notified_at')
         .eq('id', id)
         .single();
+
+      const reasonOption = action === 'declined' ? getDeclineReason(reasonValue) : undefined;
+      const explanation = (notes || '').trim();
+      const combinedNotes =
+        action === 'declined'
+          ? [reasonOption?.label, explanation].filter(Boolean).join(' — ') || null
+          : notes || null;
 
       const update: any = {
         review_status: action,
         reviewed_at: new Date().toISOString(),
-        review_notes: notes || null,
+        review_notes: combinedNotes,
       };
       const { data: { user } } = await supabase.auth.getUser();
       if (user) update.reviewed_by = user.id;
@@ -606,6 +617,10 @@ const ReviewQueue: React.FC = () => {
         update.status = 'OON';
         update.internal_process_complete = true;
         update.procedure_ordered = false;
+      }
+
+      if (action === 'declined') {
+        update.decline_reason = reasonValue || null;
       }
 
       const { error: updErr } = await supabase
@@ -620,7 +635,7 @@ const ReviewQueue: React.FC = () => {
         prior_status: priorRow?.review_status ?? null,
         actor_id: user?.id ?? null,
         actor_name: userName || user?.email || 'Unknown',
-        notes: notes || null,
+        notes: combinedNotes,
       });
 
       // Audit log
@@ -630,11 +645,17 @@ const ReviewQueue: React.FC = () => {
           p_action: `review_${action}`,
           p_description: `${action === 'oon' ? 'Marked as OON' : action === 'approved' ? 'Approved' : 'Declined'}: ${priorRow?.lead_name ?? id} by ${userName || 'Unknown'}`,
           p_source: 'review_queue',
-          p_metadata: { appointment_id: id, project_name: priorRow?.project_name, notes: notes || null },
+          p_metadata: {
+            appointment_id: id,
+            project_name: priorRow?.project_name,
+            notes: combinedNotes,
+            decline_reason: action === 'declined' ? reasonValue || null : undefined,
+          },
         });
       } catch (e) {
         console.warn('audit log failed', e);
       }
+
 
       // Approved side effect: add 'approved' tag to GHL contact
       if (action === 'approved') {
@@ -792,6 +813,112 @@ const ReviewQueue: React.FC = () => {
           });
         }
       }
+
+      // Decline side effects: auto-cancel through the SINGLE canonical status
+      // path, log the reason, and notify the patient via GHL tags — exactly once.
+      if (action === 'declined' && priorRow) {
+        const reasonLabel = reasonOption?.label ?? 'Declined';
+        const stamp = new Date().toISOString();
+        const actor = userName || user?.email || 'Review Queue';
+
+        // 1. Cancel (skipped when the row is already Cancelled — no duplicate push)
+        if ((priorRow.status || '').toLowerCase() !== 'cancelled') {
+          try {
+            await changeAppointmentStatus({
+              appointmentId: id,
+              newStatus: 'Cancelled',
+              userName: actor,
+              currentAppointment: priorRow as any,
+              onWarning: ({ title, description, severe }) =>
+                toast({ title, description, variant: severe ? 'destructive' : undefined }),
+            });
+          } catch (err) {
+            console.error('Decline auto-cancel failed:', err);
+            toast({
+              title: 'Declined, but cancel failed',
+              description: 'The decline was saved but the appointment could not be cancelled. Cancel it manually.',
+              variant: 'destructive',
+            });
+          }
+        }
+
+        // 2. Portal note with attribution
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} by ${actor} - [[timestamp:${stamp}]]`;
+        try {
+          await supabase.from('appointment_notes').insert({
+            appointment_id: id,
+            note_text: declineNote,
+            created_by: actor,
+          });
+        } catch (e) {
+          console.warn('Decline note insert failed', e);
+        }
+
+        // 3 + 4. GHL contact note + reason tag — guarded against duplicates
+        if (!priorRow.decline_notified_at && priorRow.ghl_id) {
+          let notified = false;
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('ghl_api_key')
+            .eq('project_name', priorRow.project_name)
+            .maybeSingle();
+
+          const localStamp = new Date().toLocaleString('en-US');
+          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nBy: ${actor}\nDate/Time: ${localStamp}`;
+
+          try {
+            const { error: noteErr } = await supabase.functions.invoke('add-ghl-contact-note', {
+              body: {
+                ghl_contact_id: priorRow.ghl_id,
+                project_name: priorRow.project_name,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                note: ghlNote,
+              },
+            });
+            if (noteErr) throw noteErr;
+            notified = true;
+          } catch (err) {
+            console.error('add-ghl-contact-note failed:', err);
+            toast({
+              title: 'Declined — GHL note failed',
+              description: 'The decline was saved, but the reason could not be written to the GHL contact.',
+              variant: 'destructive',
+            });
+          }
+
+          try {
+            const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: priorRow.ghl_id,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag].filter(Boolean),
+                action: 'add',
+              },
+            });
+            if (tagErr) throw tagErr;
+            notified = true;
+          } catch (err) {
+            console.error('decline tag push failed:', err);
+            toast({
+              title: 'Declined — patient message not triggered',
+              description: 'The decline was saved, but the GHL tag failed so the text/email may not send.',
+              variant: 'destructive',
+            });
+          }
+
+          if (notified) {
+            await supabase
+              .from('all_appointments')
+              .update({ decline_notified_at: new Date().toISOString() })
+              .eq('id', id);
+          }
+        } else if (!priorRow.ghl_id) {
+          toast({
+            title: 'Declined — no GHL contact linked',
+            description: 'No text/email was triggered because this appointment has no GHL contact.',
+          });
+        }
+      }
     } catch (e: any) {
       toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
       setProcessing(false);
@@ -801,16 +928,18 @@ const ReviewQueue: React.FC = () => {
     return true;
   };
 
-  const handleSingleAction = async (id: string, action: ActionType, notes?: string) => {
-    const ok = await performAction(id, action, notes);
+  const handleSingleAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
+    const ok = await performAction(id, action, notes, reasonValue);
     if (ok) {
-      toast({ title: `Appointment ${action === 'oon' ? 'marked as OON' : action}` });
+      toast({ title: `Appointment ${action === 'oon' ? 'marked as OON' : action === 'declined' ? 'declined and cancelled' : action}` });
       setRows(prev => prev.filter(r => r.id !== id));
       setActionRow(null);
       setActionNotes('');
+      setDeclineReason('');
       fetchCounts();
     }
   };
+
 
   const handleRestore = async (row: ReviewAppointment) => {
     setProcessing(true);
@@ -823,6 +952,8 @@ const ReviewQueue: React.FC = () => {
           reviewed_at: null,
           reviewed_by: null,
           review_notes: null,
+          decline_reason: null,
+          decline_notified_at: null,
         })
         .eq('id', row.id);
       if (updErr) throw updErr;
@@ -900,19 +1031,24 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
-  const handleBulk = async (action: ActionType) => {
+  const handleBulk = async (action: ActionType, notes?: string, reasonValue?: string) => {
     if (selected.size === 0) return;
+    // Set already de-dupes; processed sequentially so the notify guard is authoritative.
     const ids = Array.from(selected);
     let ok = 0;
     for (const id of ids) {
-      const success = await performAction(id, action);
+      const success = await performAction(id, action, notes, reasonValue);
       if (success) ok++;
     }
     toast({ title: `${ok} of ${ids.length} ${action === 'oon' ? 'marked OON' : action}` });
     setRows(prev => prev.filter(r => !selected.has(r.id)));
     setSelected(new Set());
+    setActionRow(null);
+    setActionNotes('');
+    setDeclineReason('');
     fetchCounts();
   };
+
 
   const toggleExpand = (id: string) =>
     setExpanded(e => ({ ...e, [id]: !e[id] }));
@@ -1011,7 +1147,7 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
               <Check className="h-4 w-4 mr-1" /> Approve
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => handleBulk('declined')} disabled={processing}>
+            <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
@@ -1195,7 +1331,7 @@ const ReviewQueue: React.FC = () => {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); }}
+                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); setDeclineReason(''); }}
                             disabled={processing}
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
@@ -1293,11 +1429,13 @@ const ReviewQueue: React.FC = () => {
                           <div className="break-words">{ins.provider || ins.plan || '—'}</div>
                         </div>
                       </div>
-                      {isDeclinedView && row.review_notes && (
+                      {isDeclinedView && (row.decline_reason || row.review_notes) && (
                         <div>
                           <div className="font-medium text-muted-foreground mb-1">Decline reason</div>
                           <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-background p-2 rounded border max-w-full overflow-hidden">
-                            {row.review_notes}
+                            {row.decline_reason ? declineReasonLabel(row.decline_reason) : null}
+                            {row.decline_reason && row.review_notes ? <div className="text-muted-foreground mt-1">{row.review_notes}</div> : null}
+                            {!row.decline_reason ? row.review_notes : null}
                           </div>
                         </div>
                       )}
@@ -1317,37 +1455,77 @@ const ReviewQueue: React.FC = () => {
           </div>
         )}
 
-        {/* Confirm dialog for Decline / OON with notes */}
-        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); } }}>
+        {/* Confirm dialog for Decline / OON */}
+        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); setDeclineReason(''); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {actionRow?.action === 'oon' ? 'Mark as OON' : 'Decline appointment'}
+                {actionRow?.action === 'oon'
+                  ? 'Mark as OON'
+                  : actionRow?.id === '__BULK__'
+                    ? `Decline ${selected.size} appointment${selected.size === 1 ? '' : 's'}`
+                    : 'Decline appointment'}
               </DialogTitle>
               <DialogDescription>
                 {actionRow?.action === 'oon'
                   ? 'Sets status to OON, keeps the appointment hidden from the project portal (admin-only via Review Queue → OON tab), and fires the OON Slack alert.'
-                  : 'Hides this appointment from the client portal and reports. The record stays in the database for audit and can be restored from the Declined tab.'}
+                  : 'Cancels the appointment, syncs the cancellation to GHL, writes the reason to the patient’s GHL contact, and tags the contact so the reason-appropriate text and email are sent. The record stays hidden from the client portal and can be restored from the Declined tab.'}
               </DialogDescription>
             </DialogHeader>
+
+            {actionRow?.action === 'declined' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Decline reason <span className="text-destructive">*</span></label>
+                <Select value={declineReason} onValueChange={setDeclineReason}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a reason…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DECLINE_REASONS.map(r => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <Textarea
-              placeholder={actionRow?.action === 'oon' ? 'Optional note…' : 'Reason (duplicate, spam, wrong project, test, other)…'}
+              placeholder={
+                actionRow?.action === 'oon'
+                  ? 'Optional note…'
+                  : getDeclineReason(declineReason)?.requiresExplanation
+                    ? 'Explanation (required)…'
+                    : 'Additional details (optional)…'
+              }
               value={actionNotes}
               onChange={e => setActionNotes(e.target.value)}
               rows={3}
             />
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); setDeclineReason(''); }}>Cancel</Button>
               <Button
                 variant={actionRow?.action === 'oon' ? 'default' : 'destructive'}
-                onClick={() => actionRow && handleSingleAction(actionRow.id, actionRow.action, actionNotes)}
-                disabled={processing}
+                onClick={() => {
+                  if (!actionRow) return;
+                  if (actionRow.id === '__BULK__') {
+                    handleBulk('declined', actionNotes, declineReason);
+                  } else {
+                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, declineReason);
+                  }
+                }}
+                disabled={
+                  processing ||
+                  (actionRow?.action === 'declined' &&
+                    (!declineReason ||
+                      (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim())))
+                }
               >
                 Confirm
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {/* Duplicate action dialog */}
         <Dialog open={!!dupActionRow} onOpenChange={(o) => { if (!o) setDupActionRow(null); }}>

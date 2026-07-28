@@ -218,6 +218,8 @@ export type Database = {
           created_at: string
           date_appointment_created: string
           date_of_appointment: string | null
+          decline_notified_at: string | null
+          decline_reason: string | null
           detected_insurance_id: string | null
           detected_insurance_plan: string | null
           detected_insurance_provider: string | null
@@ -287,6 +289,8 @@ export type Database = {
           created_at?: string
           date_appointment_created: string
           date_of_appointment?: string | null
+          decline_notified_at?: string | null
+          decline_reason?: string | null
           detected_insurance_id?: string | null
           detected_insurance_plan?: string | null
           detected_insurance_provider?: string | null
@@ -356,6 +360,8 @@ export type Database = {
           created_at?: string
           date_appointment_created?: string
           date_of_appointment?: string | null
+          decline_notified_at?: string | null
+          decline_reason?: string | null
           detected_insurance_id?: string | null
           detected_insurance_plan?: string | null
           detected_insurance_provider?: string | null
