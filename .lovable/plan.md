@@ -1,33 +1,44 @@
 ## Goal
 
-Produce a fresh CSV (plus an Excel companion) listing every non-superseded appointment, across all projects, whose intake notes contain data that never made it into the parsed fields — i.e. records that are still fixable by a re-parse.
+Re-issue the Prospero Vascular and Interventional Q2 2026 (Apr 1 – Jun 30) Welcome Call timing export, adding a cancellation-source breakdown so Dean/Duncan can see how many cancellations came from GHL vs the portal — and how that affects the Welcome Call rate.
 
-## What the data shows right now
+## What the data shows (verified)
 
-Queried `all_appointments` (non-superseded, intake notes present and substantive):
+For Prospero, non-superseded, appointment date in Q2 2026, status = Cancelled: **57 records** (the earlier 54 reflected the report's Reserved-block exclusion; the new file will reconcile the exact set to match the original export's row universe).
 
-- 24,110 records have usable intake notes.
-- Gaps: insurance 6,424 · PCP/medical 10,819 · pathology 6 · DOB 4,278.
-- Narrowing to **fixable** (the notes actually contain the missing item — an insurance/payer keyword, a PCP label, pathology markers, or a DOB label): **3,160 records**, of which 1,188 were created in the last 90 days and 351 in the last 30.
+Every portal status change writes an `appointment_notes` row: `Status changed from "X" to "Cancelled" by <name>`. GHL-driven changes write the same note with `created_by = 'GoHighLevel'`. For these cancellations:
 
-Pathology is essentially clean (6 records), so the batch is driven by insurance, PCP, and DOB gaps.
+- 54 attributed to a portal user (Alicia Garcia Corral)
+- 2 attributed to GoHighLevel
+- 1 has no status-change note (will be labeled "Unknown")
+
+So the answer is already visible: cancellations are overwhelmingly portal-driven, not GHL — meaning GHL cancellations are not the reason Welcome Calls were skipped. The export will make that explicit rather than asserted.
 
 ## Output
 
-One row per appointment, columns:
+Same row universe as the original export, with new columns on the main sheet:
 
-Portal ID · Patient Name · Project · Appointment Date · Status · Date Created · Missing Insurance (Y/N) · Missing PCP/Medical (Y/N) · Missing Pathology (Y/N) · Missing DOB (Y/N) · Missing Count · Notes Length · Parse Attempts · Last Parsed At
+- Cancellation Source (Portal / GHL / Unknown)
+- Cancelled By (name or "GoHighLevel")
+- Cancelled At (project timezone)
+- Cancelled Before Welcome Call? (Y/N/n/a)
+- Cancellation Reason (from the System "Cancellation Reason:" note where present)
 
-Sorted by project, then most recent created date first.
+Plus a new **Cancellation Source** sheet:
+
+- Counts and % by source (Portal / GHL / Unknown)
+- Within each source: how many had a Welcome Call vs none
+- Welcome Call rate by source, and how many cancellations happened before any Welcome Call attempt was possible
+- Short read-out line answering the ticket question directly
 
 Delivered as:
 
-1. `missing_info_batch_2026-07-28.csv` — all 3,160 fixable rows
-2. `missing_info_batch_2026-07-28.xlsx` — same data on a **Fixable Records** sheet, plus a **Summary by Project** sheet (rows per project, counts per missing category) and a **Recent 90 Days** sheet for triage priority
+1. `prospero_welcome_call_timing_q2_2026_v2.csv`
+2. `prospero_welcome_call_timing_q2_2026_v2.xlsx` — Detail, Summary, and new Cancellation Source sheets
 
 ## Technical notes
 
-- Pull via SQL against `all_appointments` in chunks (the read tool caps result size), then assemble with pandas/openpyxl.
-- "Fixable" filter = field empty in both the top-level column and the `parsed_*` JSONB, AND the corresponding keyword pattern present in `patient_intake_notes`.
-- Excludes `is_superseded = true` rows and records with fewer than ~80 characters of notes.
-- Read-only — no app code, schema, or record changes.
+- Read-only. SQL against `all_appointments` + `appointment_notes` (+ `audit_logs` as a cross-check on portal attribution), assembled with pandas/openpyxl.
+- Source classification: `created_by = 'GoHighLevel'` → GHL; any other author on a `Status changed ... to "Cancelled"` note → Portal; no such note → Unknown.
+- Welcome Call timestamps reuse the same extraction logic as the original export so the two files stay comparable.
+- No app code, schema, or record changes.
