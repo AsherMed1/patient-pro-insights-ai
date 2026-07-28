@@ -1,43 +1,34 @@
-## Situation
+## Goal
 
-Today the QA Operations Queue has no reporting or export — audit fields (`qa_name`, `error_category`, `error_source`, `caught_before_clinic`, `resolution_type`, `date_resolved`, timestamps) are captured per case in `qa_cases` but can only be read one record at a time. There is no way to see totals, averages, or trends.
+Produce a one-off Excel + CSV dataset for **Prospero Vascular and Interventional**, appointments **created (set) between Apr 1 and Jun 30, 2026** — 127 records — measuring the gap between appointment creation and Welcome Call completion, against final outcome.
 
-## What to build
+## Where the data comes from
 
-A new **Reports** sub-tab inside the QA Operations module, **visible only to users with the `admin` role**. Agents, QA specialists, VAs, and everyone else do not see the tab and cannot reach the reporting view.
+- `all_appointments` (Prospero, `date_appointment_created` in range) — patient name, set date/time (`created_at`), scheduled date/time (`date_of_appointment` + `requested_time`), current `status`, `cancellation_reason`.
+- **Welcome Call timestamp**: there is no dedicated column. Welcome Call is a *status*, and each transition is written to `appointment_notes` as `Status changed from "X" to "Welcome Call" by <user>`. The earliest such note per appointment is the Welcome Call completion time. Verified: 41 of the 127 Prospero Q2 appointments have one; the remaining 86 count as "Welcome Call not completed".
+- Cross-check against `audit_logs` portal_update rows for the same transition to catch any note-less cases.
 
-### 1. Filters
-- Date range (defaults to last 30 days), driven by `first_entered_at`/`entered_queue_at`
-- Clinic (project), QA specialist, alert type, error category
+## Output columns
 
-### 2. Summary cards
-- Total audits completed
-- Total errors found (cases with an `error_category`)
-- Error rate (errors ÷ audits)
-- Average turnaround time (queue entry → `date_resolved`/`completed_at`), humanized ("4h 12m")
-- % caught before clinic
-- Tickets created (ControlHub)
+Patient Name · Project · Appointment Set Date/Time · Scheduled Appointment Date/Time · Welcome Call Completed Date/Time · Hours Elapsed (creation → Welcome Call, 1 decimal) · Elapsed Bucket · Final Outcome · Cancellation/Disqualification Reason · Welcome Call Before Scheduled Appointment (Yes/No/N-A) · Portal ID
 
-### 3. Breakdown tables (each sortable, each with its own export)
-- **By clinic** — audits, errors, error rate, avg turnaround, caught-before-clinic %
-- **By QA specialist** — audits completed, errors found, avg turnaround, tickets created
-- **By error category** — count, % of all errors, top clinics for that category (the training view)
-- **By error source** — count and % of all errors
-- **By resolution type** — Resolved by QA / Escalated to AM / Escalated to Tech, etc.
+**Elapsed buckets:** Under 24h · 24–48h · 48–72h · More than 72h · Welcome Call not completed
 
-### 4. Trend chart
-Errors per week (or per day for short ranges), optionally split by error category, using the chart components already in the project.
+**Outcome mapping** (current Q2 status counts): Showed 9 · Cancelled 54 · No Show 14 · Disqualified = OON 40 · plus still-open records (Welcome Call 4, Confirmed 4, Scheduled 2) reported as "Open / No final outcome" so they don't distort the analysis.
 
-### 5. Export
-- **Export to Excel** button producing a workbook with one sheet per breakdown plus a "Raw Cases" sheet containing every filtered case row (patient, clinic, service line, alert type, QA name, error category, error source, caught before clinic, resolution, entered, resolved, turnaround hours, ticket id/url).
-- Same data also available as a single CSV.
-- Filenames stamped with the date range.
+All timestamps rendered in the project's timezone (falling back to Central), matching portal display.
 
-## Technical notes
+## Deliverables
 
-- New component `src/components/admin/QAReports.tsx`, rendered as a tab alongside the existing queue inside `QAOperationsQueue.tsx` (queue logic untouched).
-- Access gate: tab trigger and content both wrapped in `isAdmin()` from `useRole` — since admins already see every clinic, no project scoping is needed inside the report.
-- Data pulled from `qa_cases` with the existing paged fetch helper so results aren't capped at 1000 rows; aggregation done client-side so filters stay instant.
-- Turnaround = `coalesce(date_resolved, completed_at) − coalesce(first_entered_at, entered_queue_at)`; still-open cases are excluded from turnaround averages but counted in an "open" tally.
-- QA attribution prefers the typed `qa_name` audit field, falling back to the completing user's `profiles.full_name`.
-- Export built with the existing spreadsheet tooling; no schema changes and no new tables required.
+1. `prospero_welcome_call_timing_q2_2026.xlsx`
+   - **Raw Data** — one row per appointment, all columns above
+   - **Summary by Bucket** — count and % per elapsed bucket, cross-tabbed by outcome with show rate per bucket
+   - **Summary by Outcome** — counts, avg/median hours to Welcome Call, % with Welcome Call completed before the appointment
+2. `prospero_welcome_call_timing_q2_2026.csv` — the Raw Data sheet only
+
+Both written to your documents area for download. No app code or schema changes.
+
+## Caveats to flag on delivery
+
+- Welcome Call timing only exists where the status actually passed through "Welcome Call" in the portal; calls logged only in GHL won't appear.
+- 86 of 127 have no Welcome Call event recorded, so the correlation sample is 41 appointments.
