@@ -44,6 +44,7 @@ interface ReviewAppointment {
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   review_notes?: string | null;
+  decline_reason?: string | null;
 }
 
 interface DuplicateAppt {
