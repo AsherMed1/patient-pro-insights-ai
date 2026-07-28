@@ -19,6 +19,8 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
+import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
+import { DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel } from './declineReasons';
 
 interface ReviewAppointment {
   id: string;
