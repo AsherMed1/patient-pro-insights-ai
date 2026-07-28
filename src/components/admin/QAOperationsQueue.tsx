@@ -840,9 +840,10 @@ export default function QAOperationsQueue() {
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); }}
       />
-
-
+      </>
+      )}
     </div>
+
   );
 }
 
