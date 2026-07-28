@@ -77,7 +77,10 @@ Deno.serve(async (req) => {
         r.parse_attempts ?? "",
         r.parsing_completed_at ?? "",
       ]);
+      }
+      if (data.length < pageSize) break;
     }
+
 
     out.sort((a, b) =>
       a[2].localeCompare(b[2]) || b[6].localeCompare(a[6]) || a[0].localeCompare(b[0])
