@@ -1029,19 +1029,24 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
-  const handleBulk = async (action: ActionType) => {
+  const handleBulk = async (action: ActionType, notes?: string, reasonValue?: string) => {
     if (selected.size === 0) return;
+    // Set already de-dupes; processed sequentially so the notify guard is authoritative.
     const ids = Array.from(selected);
     let ok = 0;
     for (const id of ids) {
-      const success = await performAction(id, action);
+      const success = await performAction(id, action, notes, reasonValue);
       if (success) ok++;
     }
     toast({ title: `${ok} of ${ids.length} ${action === 'oon' ? 'marked OON' : action}` });
     setRows(prev => prev.filter(r => !selected.has(r.id)));
     setSelected(new Set());
+    setActionRow(null);
+    setActionNotes('');
+    setDeclineReason('');
     fetchCounts();
   };
+
 
   const toggleExpand = (id: string) =>
     setExpanded(e => ({ ...e, [id]: !e[id] }));
