@@ -71,6 +71,7 @@ const ReviewQueue: React.FC = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
   const [actionNotes, setActionNotes] = useState('');
+  const [declineReason, setDeclineReason] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
@@ -259,7 +260,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
       .eq('review_status', queueView)
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
