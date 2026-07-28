@@ -813,6 +813,112 @@ const ReviewQueue: React.FC = () => {
           });
         }
       }
+
+      // Decline side effects: auto-cancel through the SINGLE canonical status
+      // path, log the reason, and notify the patient via GHL tags — exactly once.
+      if (action === 'declined' && priorRow) {
+        const reasonLabel = reasonOption?.label ?? 'Declined';
+        const stamp = new Date().toISOString();
+        const actor = userName || user?.email || 'Review Queue';
+
+        // 1. Cancel (skipped when the row is already Cancelled — no duplicate push)
+        if ((priorRow.status || '').toLowerCase() !== 'cancelled') {
+          try {
+            await changeAppointmentStatus({
+              appointmentId: id,
+              newStatus: 'Cancelled',
+              userName: actor,
+              currentAppointment: priorRow as any,
+              onWarning: ({ title, description, severe }) =>
+                toast({ title, description, variant: severe ? 'destructive' : undefined }),
+            });
+          } catch (err) {
+            console.error('Decline auto-cancel failed:', err);
+            toast({
+              title: 'Declined, but cancel failed',
+              description: 'The decline was saved but the appointment could not be cancelled. Cancel it manually.',
+              variant: 'destructive',
+            });
+          }
+        }
+
+        // 2. Portal note with attribution
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} by ${actor} - [[timestamp:${stamp}]]`;
+        try {
+          await supabase.from('appointment_notes').insert({
+            appointment_id: id,
+            note_text: declineNote,
+            created_by: actor,
+          });
+        } catch (e) {
+          console.warn('Decline note insert failed', e);
+        }
+
+        // 3 + 4. GHL contact note + reason tag — guarded against duplicates
+        if (!priorRow.decline_notified_at && priorRow.ghl_id) {
+          let notified = false;
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('ghl_api_key')
+            .eq('project_name', priorRow.project_name)
+            .maybeSingle();
+
+          const localStamp = new Date().toLocaleString('en-US');
+          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nBy: ${actor}\nDate/Time: ${localStamp}`;
+
+          try {
+            const { error: noteErr } = await supabase.functions.invoke('add-ghl-contact-note', {
+              body: {
+                ghl_contact_id: priorRow.ghl_id,
+                project_name: priorRow.project_name,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                note: ghlNote,
+              },
+            });
+            if (noteErr) throw noteErr;
+            notified = true;
+          } catch (err) {
+            console.error('add-ghl-contact-note failed:', err);
+            toast({
+              title: 'Declined — GHL note failed',
+              description: 'The decline was saved, but the reason could not be written to the GHL contact.',
+              variant: 'destructive',
+            });
+          }
+
+          try {
+            const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: priorRow.ghl_id,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag].filter(Boolean),
+                action: 'add',
+              },
+            });
+            if (tagErr) throw tagErr;
+            notified = true;
+          } catch (err) {
+            console.error('decline tag push failed:', err);
+            toast({
+              title: 'Declined — patient message not triggered',
+              description: 'The decline was saved, but the GHL tag failed so the text/email may not send.',
+              variant: 'destructive',
+            });
+          }
+
+          if (notified) {
+            await supabase
+              .from('all_appointments')
+              .update({ decline_notified_at: new Date().toISOString() })
+              .eq('id', id);
+          }
+        } else if (!priorRow.ghl_id) {
+          toast({
+            title: 'Declined — no GHL contact linked',
+            description: 'No text/email was triggered because this appointment has no GHL contact.',
+          });
+        }
+      }
     } catch (e: any) {
       toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
       setProcessing(false);
@@ -822,16 +928,18 @@ const ReviewQueue: React.FC = () => {
     return true;
   };
 
-  const handleSingleAction = async (id: string, action: ActionType, notes?: string) => {
-    const ok = await performAction(id, action, notes);
+  const handleSingleAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
+    const ok = await performAction(id, action, notes, reasonValue);
     if (ok) {
-      toast({ title: `Appointment ${action === 'oon' ? 'marked as OON' : action}` });
+      toast({ title: `Appointment ${action === 'oon' ? 'marked as OON' : action === 'declined' ? 'declined and cancelled' : action}` });
       setRows(prev => prev.filter(r => r.id !== id));
       setActionRow(null);
       setActionNotes('');
+      setDeclineReason('');
       fetchCounts();
     }
   };
+
 
   const handleRestore = async (row: ReviewAppointment) => {
     setProcessing(true);
