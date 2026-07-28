@@ -589,19 +589,26 @@ const ReviewQueue: React.FC = () => {
 
 
 
-  const performAction = async (id: string, action: ActionType, notes?: string) => {
+  const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
     setProcessing(true);
     try {
       const { data: priorRow } = await supabase
         .from('all_appointments')
-        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id')
+        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id, ghl_appointment_id, decline_notified_at')
         .eq('id', id)
         .single();
+
+      const reasonOption = action === 'declined' ? getDeclineReason(reasonValue) : undefined;
+      const explanation = (notes || '').trim();
+      const combinedNotes =
+        action === 'declined'
+          ? [reasonOption?.label, explanation].filter(Boolean).join(' — ') || null
+          : notes || null;
 
       const update: any = {
         review_status: action,
         reviewed_at: new Date().toISOString(),
-        review_notes: notes || null,
+        review_notes: combinedNotes,
       };
       const { data: { user } } = await supabase.auth.getUser();
       if (user) update.reviewed_by = user.id;
@@ -610,6 +617,10 @@ const ReviewQueue: React.FC = () => {
         update.status = 'OON';
         update.internal_process_complete = true;
         update.procedure_ordered = false;
+      }
+
+      if (action === 'declined') {
+        update.decline_reason = reasonValue || null;
       }
 
       const { error: updErr } = await supabase
@@ -624,7 +635,7 @@ const ReviewQueue: React.FC = () => {
         prior_status: priorRow?.review_status ?? null,
         actor_id: user?.id ?? null,
         actor_name: userName || user?.email || 'Unknown',
-        notes: notes || null,
+        notes: combinedNotes,
       });
 
       // Audit log
@@ -634,11 +645,17 @@ const ReviewQueue: React.FC = () => {
           p_action: `review_${action}`,
           p_description: `${action === 'oon' ? 'Marked as OON' : action === 'approved' ? 'Approved' : 'Declined'}: ${priorRow?.lead_name ?? id} by ${userName || 'Unknown'}`,
           p_source: 'review_queue',
-          p_metadata: { appointment_id: id, project_name: priorRow?.project_name, notes: notes || null },
+          p_metadata: {
+            appointment_id: id,
+            project_name: priorRow?.project_name,
+            notes: combinedNotes,
+            decline_reason: action === 'declined' ? reasonValue || null : undefined,
+          },
         });
       } catch (e) {
         console.warn('audit log failed', e);
       }
+
 
       // Approved side effect: add 'approved' tag to GHL contact
       if (action === 'approved') {
