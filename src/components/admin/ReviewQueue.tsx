@@ -952,6 +952,8 @@ const ReviewQueue: React.FC = () => {
           reviewed_at: null,
           reviewed_by: null,
           review_notes: null,
+          decline_reason: null,
+          decline_notified_at: null,
         })
         .eq('id', row.id);
       if (updErr) throw updErr;
@@ -1145,7 +1147,7 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
               <Check className="h-4 w-4 mr-1" /> Approve
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => handleBulk('declined')} disabled={processing}>
+            <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
@@ -1329,7 +1331,7 @@ const ReviewQueue: React.FC = () => {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); }}
+                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); setDeclineReason(''); }}
                             disabled={processing}
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
@@ -1427,11 +1429,13 @@ const ReviewQueue: React.FC = () => {
                           <div className="break-words">{ins.provider || ins.plan || '—'}</div>
                         </div>
                       </div>
-                      {isDeclinedView && row.review_notes && (
+                      {isDeclinedView && (row.decline_reason || row.review_notes) && (
                         <div>
                           <div className="font-medium text-muted-foreground mb-1">Decline reason</div>
                           <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-background p-2 rounded border max-w-full overflow-hidden">
-                            {row.review_notes}
+                            {row.decline_reason ? declineReasonLabel(row.decline_reason) : null}
+                            {row.decline_reason && row.review_notes ? <div className="text-muted-foreground mt-1">{row.review_notes}</div> : null}
+                            {!row.decline_reason ? row.review_notes : null}
                           </div>
                         </div>
                       )}
