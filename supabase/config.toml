@@ -165,6 +165,3 @@ verify_jwt = false
 [functions.notify-slack-short-notice]
 verify_jwt = false
 # Send Slack alert when appointment is booked within short-notice threshold
-[functions.export-missing-info]
-verify_jwt = false
-# One-off CSV export of appointments with missing parsed info that is still recoverable from intake notes
