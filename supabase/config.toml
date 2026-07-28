@@ -142,6 +142,10 @@ verify_jwt = false
 verify_jwt = false
 # Add/remove tags on a GHL contact (e.g. 'approved' tag from Review Queue)
 
+[functions.add-ghl-contact-note]
+verify_jwt = false
+# Write a note onto a GHL contact (e.g. decline reason from Review Queue)
+
 [functions.backfill-ally-insurance]
 verify_jwt = false
 # One-time function to re-parse Ally Vascular appointments for insurance extraction
