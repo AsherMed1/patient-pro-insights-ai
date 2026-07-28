@@ -23,3 +23,6 @@ UI filters: clinic, alert type, assignment (mine/unassigned/all), entered-queue 
 `qa_specialist` app_role. Scoped to clinics via `project_user_access`. Stripped Index.tsx layout for that role. Admin/agent get a "QA Operations" tab.
 
 ControlHub tickets: `create-controlhub-ticket` edge function. Real API when `CONTROLHUB_API_KEY` and `CONTROLHUB_BASE_URL` secrets are set; otherwise records `STUB-<ts>` id so workflow is unblocked.
+
+Reports (admin only): a "Reports" toggle in the QA Operations header renders `QAReports.tsx` — manager view over `qa_cases` with date range + clinic/QA/alert/category filters, summary cards (audits, errors, error rate, avg turnaround, caught-before-clinic, tickets), breakdowns by clinic / QA specialist / error category / error source / resolution, a weekly errors chart, and Excel (multi-sheet + Raw Cases) / CSV export. Turnaround = coalesce(date_resolved, completed_at) − coalesce(first_entered_at, entered_queue_at). Non-admins never see the toggle.
+
