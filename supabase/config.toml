@@ -165,7 +165,3 @@ verify_jwt = false
 [functions.notify-slack-short-notice]
 verify_jwt = false
 # Send Slack alert when appointment is booked within short-notice threshold
-
-[functions.export-prospero-wc-v2]
-verify_jwt = false
-# Temporary one-off export for Prospero Q2 2026 welcome call + cancellation source
