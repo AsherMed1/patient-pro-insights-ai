@@ -19,8 +19,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const rows: any[] = [];
-    const pageSize = 1000;
+    const out: string[][] = [];
+    const pageSize = 400;
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
         .from("all_appointments")
@@ -33,14 +33,11 @@ Deno.serve(async (req) => {
         .range(from, from + pageSize - 1);
       if (error) throw error;
       if (!data || data.length === 0) break;
-      rows.push(...data);
-      if (data.length < pageSize) break;
-    }
 
-    const out: string[][] = [];
-    for (const r of rows) {
+      for (const r of data) {
       const notes: string = r.patient_intake_notes ?? "";
       if (notes.trim().length <= 80) continue;
+
 
       const ins = (r.parsed_insurance_info ?? {}) as any;
       const med = (r.parsed_medical_info ?? {}) as any;
