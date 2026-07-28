@@ -1,34 +1,33 @@
 ## Goal
 
-Produce a one-off Excel + CSV dataset for **Prospero Vascular and Interventional**, appointments **created (set) between Apr 1 and Jun 30, 2026** — 127 records — measuring the gap between appointment creation and Welcome Call completion, against final outcome.
+Produce a fresh CSV (plus an Excel companion) listing every non-superseded appointment, across all projects, whose intake notes contain data that never made it into the parsed fields — i.e. records that are still fixable by a re-parse.
 
-## Where the data comes from
+## What the data shows right now
 
-- `all_appointments` (Prospero, `date_appointment_created` in range) — patient name, set date/time (`created_at`), scheduled date/time (`date_of_appointment` + `requested_time`), current `status`, `cancellation_reason`.
-- **Welcome Call timestamp**: there is no dedicated column. Welcome Call is a *status*, and each transition is written to `appointment_notes` as `Status changed from "X" to "Welcome Call" by <user>`. The earliest such note per appointment is the Welcome Call completion time. Verified: 41 of the 127 Prospero Q2 appointments have one; the remaining 86 count as "Welcome Call not completed".
-- Cross-check against `audit_logs` portal_update rows for the same transition to catch any note-less cases.
+Queried `all_appointments` (non-superseded, intake notes present and substantive):
 
-## Output columns
+- 24,110 records have usable intake notes.
+- Gaps: insurance 6,424 · PCP/medical 10,819 · pathology 6 · DOB 4,278.
+- Narrowing to **fixable** (the notes actually contain the missing item — an insurance/payer keyword, a PCP label, pathology markers, or a DOB label): **3,160 records**, of which 1,188 were created in the last 90 days and 351 in the last 30.
 
-Patient Name · Project · Appointment Set Date/Time · Scheduled Appointment Date/Time · Welcome Call Completed Date/Time · Hours Elapsed (creation → Welcome Call, 1 decimal) · Elapsed Bucket · Final Outcome · Cancellation/Disqualification Reason · Welcome Call Before Scheduled Appointment (Yes/No/N-A) · Portal ID
+Pathology is essentially clean (6 records), so the batch is driven by insurance, PCP, and DOB gaps.
 
-**Elapsed buckets:** Under 24h · 24–48h · 48–72h · More than 72h · Welcome Call not completed
+## Output
 
-**Outcome mapping** (current Q2 status counts): Showed 9 · Cancelled 54 · No Show 14 · Disqualified = OON 40 · plus still-open records (Welcome Call 4, Confirmed 4, Scheduled 2) reported as "Open / No final outcome" so they don't distort the analysis.
+One row per appointment, columns:
 
-All timestamps rendered in the project's timezone (falling back to Central), matching portal display.
+Portal ID · Patient Name · Project · Appointment Date · Status · Date Created · Missing Insurance (Y/N) · Missing PCP/Medical (Y/N) · Missing Pathology (Y/N) · Missing DOB (Y/N) · Missing Count · Notes Length · Parse Attempts · Last Parsed At
 
-## Deliverables
+Sorted by project, then most recent created date first.
 
-1. `prospero_welcome_call_timing_q2_2026.xlsx`
-   - **Raw Data** — one row per appointment, all columns above
-   - **Summary by Bucket** — count and % per elapsed bucket, cross-tabbed by outcome with show rate per bucket
-   - **Summary by Outcome** — counts, avg/median hours to Welcome Call, % with Welcome Call completed before the appointment
-2. `prospero_welcome_call_timing_q2_2026.csv` — the Raw Data sheet only
+Delivered as:
 
-Both written to your documents area for download. No app code or schema changes.
+1. `missing_info_batch_2026-07-28.csv` — all 3,160 fixable rows
+2. `missing_info_batch_2026-07-28.xlsx` — same data on a **Fixable Records** sheet, plus a **Summary by Project** sheet (rows per project, counts per missing category) and a **Recent 90 Days** sheet for triage priority
 
-## Caveats to flag on delivery
+## Technical notes
 
-- Welcome Call timing only exists where the status actually passed through "Welcome Call" in the portal; calls logged only in GHL won't appear.
-- 86 of 127 have no Welcome Call event recorded, so the correlation sample is 41 appointments.
+- Pull via SQL against `all_appointments` in chunks (the read tool caps result size), then assemble with pandas/openpyxl.
+- "Fixable" filter = field empty in both the top-level column and the `parsed_*` JSONB, AND the corresponding keyword pattern present in `patient_intake_notes`.
+- Excludes `is_superseded = true` rows and records with fewer than ~80 characters of notes.
+- Read-only — no app code, schema, or record changes.
