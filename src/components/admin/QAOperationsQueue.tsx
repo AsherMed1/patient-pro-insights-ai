@@ -260,7 +260,9 @@ export default function QAOperationsQueue() {
       : ACTIVE_ALERT_TYPES),
     [canSeeTerminalAlerts, showTerminalAlerts],
   );
+  const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
+
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
