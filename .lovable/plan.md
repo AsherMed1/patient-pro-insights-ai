@@ -1,24 +1,43 @@
-Update the copy in the **Mark as No Show** modal (`src/components/appointments/NoShowEligibilityDialog.tsx`) to the simplified wording requested by the clinic.
+## Situation
 
-### Changes
+Today the QA Operations Queue has no reporting or export — audit fields (`qa_name`, `error_category`, `error_source`, `caught_before_clinic`, `resolution_type`, `date_resolved`, timestamps) are captured per case in `qa_cases` but can only be read one record at a time. There is no way to see totals, averages, or trends.
 
-1. **Dialog title / question**
-   - From: `Mark as No Show` + `Is {patientName} still eligible for rescheduling?`
-   - To: `Mark as No Show` + `Can this patient be rescheduled?`
+## What to build
 
-2. **"Eligible" option subtext**
-   - From: `Patient stays in normal recapture and outreach workflows.`
-   - To: `The patient can be contacted and rescheduled.`
+A new **Reports** sub-tab inside the QA Operations module, **visible only to users with the `admin` role**. Agents, QA specialists, VAs, and everyone else do not see the tab and cannot reach the reporting view.
 
-3. **"Not eligible" option subtext**
-   - From: `Patient must contact the clinic directly. Removes them from recapture, blocks setters, AI and self-booking, and triggers the clinic-contact text.`
-   - To: `The patient must contact the clinic to reschedule.`
+### 1. Filters
+- Date range (defaults to last 30 days), driven by `first_entered_at`/`entered_queue_at`
+- Clinic (project), QA specialist, alert type, error category
 
-4. **Warning banner (shown when "Not eligible" is selected)**
-   - From: `This block applies to the patient across this clinic until an admin lifts it.`
-   - To: `This restriction remains in place until an admin removes it.`
+### 2. Summary cards
+- Total audits completed
+- Total errors found (cases with an `error_category`)
+- Error rate (errors ÷ audits)
+- Average turnaround time (queue entry → `date_resolved`/`completed_at`), humanized ("4h 12m")
+- % caught before clinic
+- Tickets created (ControlHub)
 
-### Verification
+### 3. Breakdown tables (each sortable, each with its own export)
+- **By clinic** — audits, errors, error rate, avg turnaround, caught-before-clinic %
+- **By QA specialist** — audits completed, errors found, avg turnaround, tickets created
+- **By error category** — count, % of all errors, top clinics for that category (the training view)
+- **By error source** — count and % of all errors
+- **By resolution type** — Resolved by QA / Escalated to AM / Escalated to Tech, etc.
 
-- Run the project typecheck/build to ensure no TypeScript errors.
-- Optionally preview the modal in the UI to confirm the new copy renders correctly.
+### 4. Trend chart
+Errors per week (or per day for short ranges), optionally split by error category, using the chart components already in the project.
+
+### 5. Export
+- **Export to Excel** button producing a workbook with one sheet per breakdown plus a "Raw Cases" sheet containing every filtered case row (patient, clinic, service line, alert type, QA name, error category, error source, caught before clinic, resolution, entered, resolved, turnaround hours, ticket id/url).
+- Same data also available as a single CSV.
+- Filenames stamped with the date range.
+
+## Technical notes
+
+- New component `src/components/admin/QAReports.tsx`, rendered as a tab alongside the existing queue inside `QAOperationsQueue.tsx` (queue logic untouched).
+- Access gate: tab trigger and content both wrapped in `isAdmin()` from `useRole` — since admins already see every clinic, no project scoping is needed inside the report.
+- Data pulled from `qa_cases` with the existing paged fetch helper so results aren't capped at 1000 rows; aggregation done client-side so filters stay instant.
+- Turnaround = `coalesce(date_resolved, completed_at) − coalesce(first_entered_at, entered_queue_at)`; still-open cases are excluded from turnaround averages but counted in an "open" tally.
+- QA attribution prefers the typed `qa_name` audit field, falling back to the completing user's `profiles.full_name`.
+- Export built with the existing spreadsheet tooling; no schema changes and no new tables required.
