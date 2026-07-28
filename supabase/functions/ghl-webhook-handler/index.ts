@@ -298,6 +298,39 @@ serve(async (req) => {
       )
     }
 
+    // Guard: refuse to CREATE a brand-new appointment whose date_of_appointment
+    // is already in the past. Blocks the GHL "reconfirm a cancelled past appointment"
+    // flow (patient uploads insurance days after auto-cancel, the original date has
+    // already passed) from silently resurrecting as a fresh Confirmed row.
+    if (!isUpdate && webhookData.date_of_appointment) {
+      const rawDate = String(webhookData.date_of_appointment).trim()
+      const rawTime = webhookData.requested_time ? String(webhookData.requested_time).trim() : '23:59:59'
+      const timeWithSecs = rawTime.length === 5 ? `${rawTime}:00` : rawTime
+      const parsed = new Date(`${rawDate}T${timeWithSecs}`)
+      if (!isNaN(parsed.getTime())) {
+        const cushionMs = 6 * 60 * 60 * 1000 // 6h skew cushion for timezone / same-day earlier bookings
+        if (parsed.getTime() < Date.now() - cushionMs) {
+          console.log(`[${requestId}] ⛔ Refusing to CREATE new appointment with past date_of_appointment=${rawDate} ${rawTime} — likely a GHL reconfirm-after-cancel event`)
+          console.log(`[${requestId}] Lead: ${webhookData.lead_name}, Project: ${webhookData.project_name}, ghl_appointment_id: ${webhookData.ghl_appointment_id}`)
+          return new Response(
+            JSON.stringify({
+              success: true,
+              operation: 'skipped',
+              reason: 'past_date_new_appointment',
+              status: webhookData.status,
+              lead_name: webhookData.lead_name,
+              date_of_appointment: rawDate,
+              requested_time: rawTime,
+              ghl_appointment_id: webhookData.ghl_appointment_id,
+              message: 'New appointment not created — date_of_appointment is already in the past. Likely a reconfirmed cancelled appointment; patient needs to be rescheduled.',
+              requestId,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+    }
+
     // Get appropriate fields based on operation type (selective updates for existing appointments)
     const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote } = getUpdateableFields(webhookData, existingAppointment)
 
