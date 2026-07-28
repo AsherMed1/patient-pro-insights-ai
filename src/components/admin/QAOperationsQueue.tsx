@@ -19,8 +19,10 @@ import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3 } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
+import QAReports from '@/components/admin/QAReports';
+
 import { renderWithLinks } from '@/lib/linkify';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
@@ -258,7 +260,9 @@ export default function QAOperationsQueue() {
       : ACTIVE_ALERT_TYPES),
     [canSeeTerminalAlerts, showTerminalAlerts],
   );
+  const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
+
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -594,9 +598,32 @@ export default function QAOperationsQueue() {
             Centralized workspace for reviewing appointment quality alerts and auditing confirmed appointments.
           </p>
         </div>
+        {isAdmin() && (
+          <div className="flex gap-2">
+            <Button
+              variant={view === 'queue' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setView('queue')}
+            >
+              Queue
+            </Button>
+            <Button
+              variant={view === 'reports' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setView('reports')}
+            >
+              <BarChart3 className="h-3 w-3 mr-1" /> Reports
+            </Button>
+          </div>
+        )}
       </div>
 
+      {isAdmin() && view === 'reports' ? (
+        <QAReports />
+      ) : (
+      <>
       <div className="flex flex-wrap gap-2 items-center">
+
         <Input
           placeholder="Search patient, phone, email, project, service, error…"
           value={search}
@@ -817,9 +844,10 @@ export default function QAOperationsQueue() {
         onStatusChange={updateStatus}
         onRefresh={() => { fetchCases(); }}
       />
-
-
+      </>
+      )}
     </div>
+
   );
 }
 
