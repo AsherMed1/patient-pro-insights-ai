@@ -1455,37 +1455,77 @@ const ReviewQueue: React.FC = () => {
           </div>
         )}
 
-        {/* Confirm dialog for Decline / OON with notes */}
-        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); } }}>
+        {/* Confirm dialog for Decline / OON */}
+        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); setDeclineReason(''); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {actionRow?.action === 'oon' ? 'Mark as OON' : 'Decline appointment'}
+                {actionRow?.action === 'oon'
+                  ? 'Mark as OON'
+                  : actionRow?.id === '__BULK__'
+                    ? `Decline ${selected.size} appointment${selected.size === 1 ? '' : 's'}`
+                    : 'Decline appointment'}
               </DialogTitle>
               <DialogDescription>
                 {actionRow?.action === 'oon'
                   ? 'Sets status to OON, keeps the appointment hidden from the project portal (admin-only via Review Queue → OON tab), and fires the OON Slack alert.'
-                  : 'Hides this appointment from the client portal and reports. The record stays in the database for audit and can be restored from the Declined tab.'}
+                  : 'Cancels the appointment, syncs the cancellation to GHL, writes the reason to the patient’s GHL contact, and tags the contact so the reason-appropriate text and email are sent. The record stays hidden from the client portal and can be restored from the Declined tab.'}
               </DialogDescription>
             </DialogHeader>
+
+            {actionRow?.action === 'declined' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Decline reason <span className="text-destructive">*</span></label>
+                <Select value={declineReason} onValueChange={setDeclineReason}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a reason…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DECLINE_REASONS.map(r => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <Textarea
-              placeholder={actionRow?.action === 'oon' ? 'Optional note…' : 'Reason (duplicate, spam, wrong project, test, other)…'}
+              placeholder={
+                actionRow?.action === 'oon'
+                  ? 'Optional note…'
+                  : getDeclineReason(declineReason)?.requiresExplanation
+                    ? 'Explanation (required)…'
+                    : 'Additional details (optional)…'
+              }
               value={actionNotes}
               onChange={e => setActionNotes(e.target.value)}
               rows={3}
             />
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); setDeclineReason(''); }}>Cancel</Button>
               <Button
                 variant={actionRow?.action === 'oon' ? 'default' : 'destructive'}
-                onClick={() => actionRow && handleSingleAction(actionRow.id, actionRow.action, actionNotes)}
-                disabled={processing}
+                onClick={() => {
+                  if (!actionRow) return;
+                  if (actionRow.id === '__BULK__') {
+                    handleBulk('declined', actionNotes, declineReason);
+                  } else {
+                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, declineReason);
+                  }
+                }}
+                disabled={
+                  processing ||
+                  (actionRow?.action === 'declined' &&
+                    (!declineReason ||
+                      (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim())))
+                }
               >
                 Confirm
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {/* Duplicate action dialog */}
         <Dialog open={!!dupActionRow} onOpenChange={(o) => { if (!o) setDupActionRow(null); }}>
