@@ -224,7 +224,8 @@ const AppointmentCard = ({
   const [oonConfirmText, setOonConfirmText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
-  const [submittingCancel, setSubmittingCancel] = useState(false);
+  const [welcomeCallCompleted, setWelcomeCallCompleted] = useState<boolean | null>(null);
+
 
   // No-show reschedule eligibility
   const { userName } = useUserAttribution();
