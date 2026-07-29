@@ -938,7 +938,7 @@ const ReviewQueue: React.FC = () => {
       setRows(prev => prev.filter(r => r.id !== id));
       setActionRow(null);
       setActionNotes('');
-      setDeclineReason('');
+      setDeclineReason(''); setOtherNeedsReschedule(null);
       fetchCounts();
     }
   };
@@ -1048,7 +1048,7 @@ const ReviewQueue: React.FC = () => {
     setSelected(new Set());
     setActionRow(null);
     setActionNotes('');
-    setDeclineReason('');
+    setDeclineReason(''); setOtherNeedsReschedule(null);
     fetchCounts();
   };
 
@@ -1150,7 +1150,7 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
               <Check className="h-4 w-4 mr-1" /> Approve
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); }} disabled={processing}>
+            <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
@@ -1334,7 +1334,7 @@ const ReviewQueue: React.FC = () => {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); setDeclineReason(''); }}
+                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }}
                             disabled={processing}
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
@@ -1459,7 +1459,7 @@ const ReviewQueue: React.FC = () => {
         )}
 
         {/* Confirm dialog for Decline / OON */}
-        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); setDeclineReason(''); } }}>
+        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
