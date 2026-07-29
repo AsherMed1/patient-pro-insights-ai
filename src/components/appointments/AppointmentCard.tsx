@@ -36,6 +36,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import NoShowEligibilityDialog from "./NoShowEligibilityDialog";
 import { applyNoShowEligibility, liftRescheduleBlock } from "@/utils/rescheduleBlock";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
+import {
+  NO_RESCHEDULE_REASON_OPTIONS,
+  ALLOW_RESCHEDULE_REASON_OPTIONS,
+  isNoRescheduleReason,
+  reasonRequiresNotes,
+  welcomeCallLabel,
+} from "./cancellationReasons";
+
 
 interface AppointmentCardProps {
   appointment: AllAppointment;
@@ -216,7 +224,10 @@ const AppointmentCard = ({
   const [oonConfirmText, setOonConfirmText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
+  const [welcomeCallCompleted, setWelcomeCallCompleted] = useState<boolean | null>(null);
   const [submittingCancel, setSubmittingCancel] = useState(false);
+
+
 
   // No-show reschedule eligibility
   const { userName } = useUserAttribution();
@@ -685,44 +696,36 @@ const AppointmentCard = ({
     return timezoneMap[tz] || tz;
   };
 
-  const NO_RESCHEDULE_REASONS = [
-    'Not Interested Anymore',
-    'Seeking Treatment Elsewhere',
-    'Lives Too Far / Travel Not Feasible',
-    'Does Not Want to Be Contacted',
-    'Unhappy with Service / Experience',
-    'Disqualified / Do Not Re-engage',
-  ];
-
-  const ALLOW_RESCHEDULE_REASONS = [
-    'Unable to Reach (Multiple Attempts)',
-    'Scheduling Conflict',
-    'Missing Required Information',
-    'Other',
-  ];
-
-  const CANCELLATION_REASONS = [...NO_RESCHEDULE_REASONS, ...ALLOW_RESCHEDULE_REASONS];
-
   const handleCancelSubmit = async () => {
     if (!cancelReason) {
       toast({ title: "Error", description: "Please select a cancellation reason", variant: "destructive" });
       return;
     }
-    if (cancelReason === 'Other' && !cancelNotes.trim()) {
+    if (welcomeCallCompleted === null) {
+      toast({ title: "Error", description: "Please indicate whether a Welcome Call was completed", variant: "destructive" });
+      return;
+    }
+    if (reasonRequiresNotes(cancelReason) && !cancelNotes.trim()) {
       toast({ title: "Error", description: "Please provide notes for 'Other' reason", variant: "destructive" });
       return;
     }
+
 
     setSubmittingCancel(true);
     try {
       // Save cancellation reason to DB
       await supabase
         .from('all_appointments')
-        .update({ cancellation_reason: cancelReason, updated_at: new Date().toISOString() })
+        .update({
+          cancellation_reason: cancelReason,
+          welcome_call_completed: welcomeCallCompleted,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', appointment.id);
 
       // Create cancellation reason note
-      const noteText = `Cancellation Reason: ${cancelReason}${cancelNotes.trim() ? `. Notes: ${cancelNotes.trim()}` : ''}`;
+      const noteText = `Cancellation Reason: ${cancelReason}. Welcome Call completed: ${welcomeCallLabel(welcomeCallCompleted)}${cancelNotes.trim() ? `. Notes: ${cancelNotes.trim()}` : ''}`;
+
       await supabase.from('appointment_notes').insert({
         appointment_id: appointment.id,
         note_text: noteText,
@@ -730,7 +733,7 @@ const AppointmentCard = ({
       });
 
       // Build cancellation notes string for GHL
-      const ghlCancelNotes = `${cancelReason}${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
+      const ghlCancelNotes = `${cancelReason} (Welcome Call completed: ${welcomeCallLabel(welcomeCallCompleted)})${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
 
       // Trigger the actual status update (which handles GHL sync)
       // Pass cancellation data via a custom event on the appointment object
@@ -753,7 +756,7 @@ const AppointmentCard = ({
       }
 
       // For "no reschedule" reasons, enable DND + add do-not-reschedule tag to stop outreach
-      const shouldEnableDND = NO_RESCHEDULE_REASONS.includes(cancelReason);
+      const shouldEnableDND = isNoRescheduleReason(cancelReason);
       if (shouldEnableDND) {
         try {
           const { data: appointmentData } = await supabase
@@ -797,6 +800,8 @@ const AppointmentCard = ({
       setShowCancelDialog(false);
       setCancelReason('');
       setCancelNotes('');
+      setWelcomeCallCompleted(null);
+
       toast({ title: "Success", description: "Appointment cancelled with reason recorded" });
     } catch (error) {
       console.error('Error submitting cancellation:', error);
@@ -2260,26 +2265,46 @@ const AppointmentCard = ({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            <div className="rounded-md border p-3 space-y-2">
+              <Label className="text-sm font-semibold">
+                Was a Welcome Call completed? <span className="text-destructive">*</span>
+              </Label>
+              <RadioGroup
+                value={welcomeCallCompleted === null ? '' : welcomeCallCompleted ? 'yes' : 'no'}
+                onValueChange={(v) => setWelcomeCallCompleted(v === 'yes')}
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="yes" id="cancel-welcome-call-yes" />
+                  <Label htmlFor="cancel-welcome-call-yes" className="cursor-pointer text-sm">Yes</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="no" id="cancel-welcome-call-no" />
+                  <Label htmlFor="cancel-welcome-call-no" className="cursor-pointer text-sm">No</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Do Not Reschedule</p>
-              {NO_RESCHEDULE_REASONS.map((reason) => (
-                <div key={reason} className="flex items-center space-x-2">
-                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
-                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+              {NO_RESCHEDULE_REASON_OPTIONS.map((reason) => (
+                <div key={reason.value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason.value} id={`cancel-reason-${reason.value}`} />
+                  <Label htmlFor={`cancel-reason-${reason.value}`} className="cursor-pointer text-sm">{reason.label}</Label>
                 </div>
               ))}
               <Separator className="my-2" />
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Eligible for Reschedule</p>
-              {ALLOW_RESCHEDULE_REASONS.map((reason) => (
-                <div key={reason} className="flex items-center space-x-2">
-                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
-                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+              {ALLOW_RESCHEDULE_REASON_OPTIONS.map((reason) => (
+                <div key={reason.value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason.value} id={`cancel-reason-${reason.value}`} />
+                  <Label htmlFor={`cancel-reason-${reason.value}`} className="cursor-pointer text-sm">{reason.label}</Label>
                 </div>
               ))}
             </RadioGroup>
             
             <div>
-              <Label>{cancelReason === 'Other' ? 'Notes (Required)' : 'Notes (Optional)'}</Label>
+              <Label>{reasonRequiresNotes(cancelReason) ? 'Notes (Required)' : 'Notes (Optional)'}</Label>
               <Textarea
                 value={cancelNotes}
                 onChange={(e) => setCancelNotes(e.target.value)}
@@ -2297,6 +2322,7 @@ const AppointmentCard = ({
                 setShowCancelDialog(false);
                 setCancelReason('');
                 setCancelNotes('');
+                setWelcomeCallCompleted(null);
               }}
               disabled={submittingCancel}
             >
@@ -2305,8 +2331,9 @@ const AppointmentCard = ({
             <Button 
               variant="destructive"
               onClick={handleCancelSubmit} 
-              disabled={!cancelReason || (cancelReason === 'Other' && !cancelNotes.trim()) || submittingCancel}
+              disabled={!cancelReason || welcomeCallCompleted === null || (reasonRequiresNotes(cancelReason) && !cancelNotes.trim()) || submittingCancel}
             >
+
               {submittingCancel ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

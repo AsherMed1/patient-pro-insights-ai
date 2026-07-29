@@ -276,6 +276,7 @@ export type Database = {
           time_preference: string | null
           updated_at: string
           was_ever_confirmed: boolean
+          welcome_call_completed: boolean | null
         }
         Insert: {
           agent?: string | null
@@ -347,6 +348,7 @@ export type Database = {
           time_preference?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
+          welcome_call_completed?: boolean | null
         }
         Update: {
           agent?: string | null
@@ -418,6 +420,7 @@ export type Database = {
           time_preference?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
+          welcome_call_completed?: boolean | null
         }
         Relationships: [
           {
