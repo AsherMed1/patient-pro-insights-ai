@@ -1273,6 +1273,17 @@ const ReviewQueue: React.FC = () => {
                             </span>
                           </Badge>
                         )}
+                        {!isDeclinedView && isInvalidDob(row) && (
+                          <Badge
+                            variant="outline"
+                            className="border-destructive/50 text-destructive bg-destructive/5 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title="Date of birth uses the current year — please correct before approving."
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                            <span>Invalid DOB</span>
+                          </Badge>
+                        )}
+
                       </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
