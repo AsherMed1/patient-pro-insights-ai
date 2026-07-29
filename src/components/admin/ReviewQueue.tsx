@@ -1153,6 +1153,18 @@ const ReviewQueue: React.FC = () => {
               <Badge variant="secondary" className="ml-2">{Object.keys(shortNoticeByRowId).length}</Badge>
             </Button>
           )}
+          {!isDeclinedView && (
+            <Badge
+              variant="outline"
+              className="h-9 px-3 border-destructive/40 text-destructive bg-destructive/5 gap-1"
+              title="Appointments whose date of birth uses the current year (or a future year)"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Invalid DOB
+              <Badge variant="secondary" className="ml-1">{rows.filter(isInvalidDob).length}</Badge>
+            </Badge>
+          )}
+
         </div>
 
 
