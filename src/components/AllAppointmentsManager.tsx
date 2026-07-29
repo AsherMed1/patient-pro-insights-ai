@@ -450,7 +450,7 @@ const AllAppointmentsManager = ({
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
         appointmentsQuery = appointmentsQuery
-          .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
+          .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),${getOverdueOrFragment()},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
