@@ -81,6 +81,19 @@ export async function changeAppointmentStatus({
     updateData.internal_process_complete = true;
   }
 
+  // A stale/expired session silently downgrades the request to the `anon`
+  // role, which has no grants on all_appointments — Postgres then answers
+  // "permission denied" and the clinic sees an unexplained red error.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
+    onWarning?.({
+      title: 'Session expired',
+      description: 'Your sign-in expired. Please refresh the page and sign in again, then retry the status change.',
+      severe: true,
+    });
+    return { ok: false, blocked: true, oldStatus };
+  }
+
   const { data: updatedRow, error } = await supabase
     .from('all_appointments')
     .update(updateData)
@@ -90,6 +103,15 @@ export async function changeAppointmentStatus({
 
   if (error) {
     console.error('❌ API error:', error);
+    const msg = `${(error as any)?.code || ''} ${error.message || ''}`.toLowerCase();
+    if (msg.includes('42501') || msg.includes('permission denied') || msg.includes('jwt')) {
+      onWarning?.({
+        title: 'Session expired',
+        description: 'Your sign-in expired. Please refresh the page and sign in again, then retry the status change.',
+        severe: true,
+      });
+      return { ok: false, blocked: true, oldStatus };
+    }
     throw error;
   }
 
@@ -102,6 +124,7 @@ export async function changeAppointmentStatus({
     });
     return { ok: false, blocked: true, oldStatus };
   }
+
 
   // Sync status to GoHighLevel ALWAYS (critical operation)
   let syncData: any = baseRow;
