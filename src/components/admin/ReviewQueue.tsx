@@ -20,7 +20,8 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
-import { DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel } from './declineReasons';
+import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface ReviewAppointment {
   id: string;
@@ -72,6 +73,7 @@ const ReviewQueue: React.FC = () => {
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
   const [actionNotes, setActionNotes] = useState('');
   const [declineReason, setDeclineReason] = useState<string>('');
+  const [otherNeedsReschedule, setOtherNeedsReschedule] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
@@ -843,7 +845,8 @@ const ReviewQueue: React.FC = () => {
         }
 
         // 2. Portal note with attribution
-        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} by ${actor} - [[timestamp:${stamp}]]`;
+        const rescheduleWord = reasonOption?.reschedulable ? 'yes' : 'no';
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor} - [[timestamp:${stamp}]]`;
         try {
           await supabase.from('appointment_notes').insert({
             appointment_id: id,
@@ -864,7 +867,7 @@ const ReviewQueue: React.FC = () => {
             .maybeSingle();
 
           const localStamp = new Date().toLocaleString('en-US');
-          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nBy: ${actor}\nDate/Time: ${localStamp}`;
+          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nReschedule: ${reasonOption?.reschedulable ? 'Patient needs to be rescheduled' : 'Patient should not be rescheduled'}\nBy: ${actor}\nDate/Time: ${localStamp}`;
 
           try {
             const { error: noteErr } = await supabase.functions.invoke('add-ghl-contact-note', {
@@ -891,7 +894,7 @@ const ReviewQueue: React.FC = () => {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
                 ghl_api_key: projectData?.ghl_api_key || undefined,
-                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag].filter(Boolean),
+                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagFor(reasonValue)].filter(Boolean),
                 action: 'add',
               },
             });
@@ -935,7 +938,7 @@ const ReviewQueue: React.FC = () => {
       setRows(prev => prev.filter(r => r.id !== id));
       setActionRow(null);
       setActionNotes('');
-      setDeclineReason('');
+      setDeclineReason(''); setOtherNeedsReschedule(null);
       fetchCounts();
     }
   };
@@ -1045,7 +1048,7 @@ const ReviewQueue: React.FC = () => {
     setSelected(new Set());
     setActionRow(null);
     setActionNotes('');
-    setDeclineReason('');
+    setDeclineReason(''); setOtherNeedsReschedule(null);
     fetchCounts();
   };
 
@@ -1147,7 +1150,7 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
               <Check className="h-4 w-4 mr-1" /> Approve
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); }} disabled={processing}>
+            <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
@@ -1331,7 +1334,7 @@ const ReviewQueue: React.FC = () => {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); setDeclineReason(''); }}
+                            onClick={() => { setActionRow({ id: row.id, action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }}
                             disabled={processing}
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
@@ -1456,7 +1459,7 @@ const ReviewQueue: React.FC = () => {
         )}
 
         {/* Confirm dialog for Decline / OON */}
-        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); setDeclineReason(''); } }}>
+        <Dialog open={!!actionRow} onOpenChange={(o) => { if (!o) { setActionRow(null); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
@@ -1481,7 +1484,7 @@ const ReviewQueue: React.FC = () => {
                     <SelectValue placeholder="Select a reason…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DECLINE_REASONS.map(r => (
+                    {SELECTABLE_DECLINE_REASONS.map(r => (
                       <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1501,23 +1504,50 @@ const ReviewQueue: React.FC = () => {
               onChange={e => setActionNotes(e.target.value)}
               rows={3}
             />
+
+            {actionRow?.action === 'declined' && declineReason === 'other' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Rescheduling <span className="text-destructive">*</span></label>
+                <RadioGroup
+                  value={otherNeedsReschedule === null ? '' : otherNeedsReschedule ? 'yes' : 'no'}
+                  onValueChange={(v) => setOtherNeedsReschedule(v === 'yes')}
+                  className="gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id="other-reschedule-yes" />
+                    <label htmlFor="other-reschedule-yes" className="text-sm">Patient needs to be rescheduled</label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="no" id="other-reschedule-no" />
+                    <label htmlFor="other-reschedule-no" className="text-sm">Patient should not be rescheduled</label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  The rescheduling workflow only runs when “Patient needs to be rescheduled” is selected.
+                </p>
+              </div>
+            )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); setDeclineReason(''); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }}>Cancel</Button>
               <Button
                 variant={actionRow?.action === 'oon' ? 'default' : 'destructive'}
                 onClick={() => {
                   if (!actionRow) return;
+                  const resolved = actionRow.action === 'declined'
+                    ? resolveDeclineReasonValue(declineReason, otherNeedsReschedule)
+                    : declineReason;
                   if (actionRow.id === '__BULK__') {
-                    handleBulk('declined', actionNotes, declineReason);
+                    handleBulk('declined', actionNotes, resolved);
                   } else {
-                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, declineReason);
+                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, resolved);
                   }
                 }}
                 disabled={
                   processing ||
                   (actionRow?.action === 'declined' &&
                     (!declineReason ||
-                      (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim())))
+                      (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim()) ||
+                      (declineReason === 'other' && otherNeedsReschedule === null)))
                 }
               >
                 Confirm
