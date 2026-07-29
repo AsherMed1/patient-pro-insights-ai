@@ -128,14 +128,20 @@ export async function changeAppointmentStatus({
 
   // Sync status to GoHighLevel ALWAYS (critical operation)
   let syncData: any = baseRow;
-  if (!syncData?.ghl_appointment_id) {
+  if (!syncData?.ghl_appointment_id || !syncData?.date_of_appointment) {
     const { data } = await supabase
       .from('all_appointments')
-      .select('ghl_appointment_id, project_name')
+      .select('ghl_appointment_id, project_name, date_of_appointment')
       .eq('id', appointmentId)
-      .single();
-    syncData = data as any;
+      .maybeSingle();
+    syncData = { ...(syncData || {}), ...(data || {}) };
   }
+
+  // Past-dated visits routinely reject GHL edits (closed slots / team-member
+  // validation). Saving locally is the expected outcome there, so surface it
+  // as an informational note rather than a red failure.
+  const apptDate = syncData?.date_of_appointment ? String(syncData.date_of_appointment).slice(0, 10) : null;
+  const isPastAppointment = !!apptDate && apptDate < new Date().toISOString().slice(0, 10);
 
   if (syncData?.ghl_appointment_id) {
     try {
@@ -151,12 +157,14 @@ export async function changeAppointmentStatus({
     } catch (ghlErr) {
       console.error('⚠️ GHL status sync failed:', ghlErr);
       onWarning?.({
-        title: 'GHL Sync Warning',
-        description:
-          'Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.',
-        severe: true,
+        title: isPastAppointment ? 'Saved — GHL not updated' : 'GHL Sync Warning',
+        description: isPastAppointment
+          ? 'Status saved in the portal. GoHighLevel did not accept the change because the appointment date has already passed.'
+          : 'Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.',
+        severe: !isPastAppointment,
       });
     }
+
   } else {
     console.warn('⚠️ No ghl_appointment_id found, GHL sync skipped');
     onWarning?.({
