@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { Download } from 'lucide-react';
 import { exportAppointmentsToExcel } from '@/utils/exportAppointmentsToExcel';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
-import { statusOptions } from './appointments/utils';
+import { statusOptions, getOverdueOrFragment, getUpcomingOrFragment } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
 import { updateTyroneBillingsIntake } from '@/utils/updateTyroneBillingsIntake';
@@ -312,7 +312,7 @@ const AllAppointmentsManager = ({
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
         countQuery = countQuery
-          .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
+          .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),${getOverdueOrFragment()},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
@@ -327,7 +327,7 @@ const AllAppointmentsManager = ({
         countQuery = countQuery
           .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
-          .gte('date_of_appointment', todayString)
+          .or(getUpcomingOrFragment())
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
@@ -450,7 +450,7 @@ const AllAppointmentsManager = ({
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
         appointmentsQuery = appointmentsQuery
-          .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
+          .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),${getOverdueOrFragment()},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
@@ -465,7 +465,7 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery
           .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
-          .gte('date_of_appointment', todayString)
+          .or(getUpcomingOrFragment())
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
@@ -609,7 +609,7 @@ const AllAppointmentsManager = ({
       
       // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
       const needsReviewQuery = getBaseQuery()
-        .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
+        .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),${getOverdueOrFragment()},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
         .not('status', 'ilike', 'cancelled')
         .not('status', 'ilike', 'no show')
         .not('status', 'ilike', 'noshow')
@@ -624,7 +624,7 @@ const AllAppointmentsManager = ({
         const futureQuery = getBaseQuery()
           .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
-          .gte('date_of_appointment', todayString)
+          .or(getUpcomingOrFragment())
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
@@ -1405,7 +1405,7 @@ const AllAppointmentsManager = ({
                       .or('is_superseded.is.null,is_superseded.eq.false');
                   } else if (activeTab === 'needs-review') {
                     query = query
-                      .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),date_of_appointment.lt.${todayString},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
+                      .or(`and(status.ilike.pending,or(is_unscheduled.is.null,is_unscheduled.eq.false)),${getOverdueOrFragment()},and(date_of_appointment.is.null,or(is_unscheduled.is.null,is_unscheduled.is.false))`)
                       .not('status', 'ilike', 'cancelled')
                       .not('status', 'ilike', 'no show')
                       .not('status', 'ilike', 'noshow')
@@ -1419,7 +1419,7 @@ const AllAppointmentsManager = ({
                     query = query
                       .eq('internal_process_complete', true)
                       .not('date_of_appointment', 'is', null)
-                      .gte('date_of_appointment', todayString)
+                      .or(getUpcomingOrFragment())
                       .not('status', 'ilike', 'cancelled')
                       .not('status', 'ilike', 'no show')
                       .not('status', 'ilike', 'noshow')

@@ -81,6 +81,19 @@ export async function changeAppointmentStatus({
     updateData.internal_process_complete = true;
   }
 
+  // A stale/expired session silently downgrades the request to the `anon`
+  // role, which has no grants on all_appointments — Postgres then answers
+  // "permission denied" and the clinic sees an unexplained red error.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
+    onWarning?.({
+      title: 'Session expired',
+      description: 'Your sign-in expired. Please refresh the page and sign in again, then retry the status change.',
+      severe: true,
+    });
+    return { ok: false, blocked: true, oldStatus };
+  }
+
   const { data: updatedRow, error } = await supabase
     .from('all_appointments')
     .update(updateData)
@@ -90,6 +103,15 @@ export async function changeAppointmentStatus({
 
   if (error) {
     console.error('❌ API error:', error);
+    const msg = `${(error as any)?.code || ''} ${error.message || ''}`.toLowerCase();
+    if (msg.includes('42501') || msg.includes('permission denied') || msg.includes('jwt')) {
+      onWarning?.({
+        title: 'Session expired',
+        description: 'Your sign-in expired. Please refresh the page and sign in again, then retry the status change.',
+        severe: true,
+      });
+      return { ok: false, blocked: true, oldStatus };
+    }
     throw error;
   }
 
@@ -103,16 +125,23 @@ export async function changeAppointmentStatus({
     return { ok: false, blocked: true, oldStatus };
   }
 
+
   // Sync status to GoHighLevel ALWAYS (critical operation)
   let syncData: any = baseRow;
-  if (!syncData?.ghl_appointment_id) {
+  if (!syncData?.ghl_appointment_id || !syncData?.date_of_appointment) {
     const { data } = await supabase
       .from('all_appointments')
-      .select('ghl_appointment_id, project_name')
+      .select('ghl_appointment_id, project_name, date_of_appointment')
       .eq('id', appointmentId)
-      .single();
-    syncData = data as any;
+      .maybeSingle();
+    syncData = { ...(syncData || {}), ...(data || {}) };
   }
+
+  // Past-dated visits routinely reject GHL edits (closed slots / team-member
+  // validation). Saving locally is the expected outcome there, so surface it
+  // as an informational note rather than a red failure.
+  const apptDate = syncData?.date_of_appointment ? String(syncData.date_of_appointment).slice(0, 10) : null;
+  const isPastAppointment = !!apptDate && apptDate < new Date().toISOString().slice(0, 10);
 
   if (syncData?.ghl_appointment_id) {
     try {
@@ -128,12 +157,14 @@ export async function changeAppointmentStatus({
     } catch (ghlErr) {
       console.error('⚠️ GHL status sync failed:', ghlErr);
       onWarning?.({
-        title: 'GHL Sync Warning',
-        description:
-          'Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.',
-        severe: true,
+        title: isPastAppointment ? 'Saved — GHL not updated' : 'GHL Sync Warning',
+        description: isPastAppointment
+          ? 'Status saved in the portal. GoHighLevel did not accept the change because the appointment date has already passed.'
+          : 'Status saved locally but failed to sync to GoHighLevel. The appointment may need manual update in GHL.',
+        severe: !isPastAppointment,
       });
     }
+
   } else {
     console.warn('⚠️ No ghl_appointment_id found, GHL sync skipped');
     onWarning?.({

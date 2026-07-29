@@ -2,11 +2,48 @@
 import { AllAppointment } from './types';
 import { formatDateInCentralTime, toCentralTime, getCTStartOfDayUTC } from '@/utils/dateTimeUtils';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+
+const CENTRAL_TIME_ZONE = 'America/Chicago';
+
+/**
+ * Grace period (minutes) after the scheduled start before an appointment is
+ * treated as overdue. Prevents an in-progress visit from flagging immediately.
+ */
+export const NEEDS_REVIEW_GRACE_MINUTES = 30;
+
+/**
+ * Central-Time "overdue cutoff": everything scheduled at or before this
+ * date+time is considered past its appointment slot.
+ */
+export const getOverdueCutoff = () => {
+  const cutoff = new Date(Date.now() - NEEDS_REVIEW_GRACE_MINUTES * 60 * 1000);
+  return {
+    cutoffDate: formatInTimeZone(cutoff, CENTRAL_TIME_ZONE, 'yyyy-MM-dd'),
+    cutoffTime: formatInTimeZone(cutoff, CENTRAL_TIME_ZONE, 'HH:mm:ss'),
+  };
+};
+
+/**
+ * PostgREST `.or()` fragment matching rows whose appointment slot has already
+ * passed (previous days, or today with the scheduled time behind us).
+ */
+export const getOverdueOrFragment = () => {
+  const { cutoffDate, cutoffTime } = getOverdueCutoff();
+  return `date_of_appointment.lt.${cutoffDate},and(date_of_appointment.eq.${cutoffDate},requested_time.lte.${cutoffTime})`;
+};
+
+/** PostgREST `.or()` fragment matching rows still ahead of their slot. */
+export const getUpcomingOrFragment = () => {
+  const { cutoffDate, cutoffTime } = getOverdueCutoff();
+  return `date_of_appointment.gt.${cutoffDate},and(date_of_appointment.eq.${cutoffDate},or(requested_time.is.null,requested_time.gt.${cutoffTime}))`;
+};
 
 export const formatDate = (dateString: string | null) => {
   if (!dateString) return 'Not set';
   return formatDateInCentralTime(dateString);
 };
+
 
 export const formatDateTime = (dateTimeString: string | null) => {
   if (!dateTimeString) return 'Not set';
@@ -85,6 +122,23 @@ export const isAppointmentInFuture = (appointmentDate: string | null) => {
   }
 };
 
+/**
+ * Time-aware overdue check: the appointment slot (date + scheduled time) has
+ * passed in Central Time, allowing for the grace period.
+ */
+export const isAppointmentOverdue = (
+  appointmentDate: string | null,
+  requestedTime?: string | null
+) => {
+  if (!appointmentDate) return false;
+  const { cutoffDate, cutoffTime } = getOverdueCutoff();
+  const apptDate = appointmentDate.slice(0, 10);
+  if (apptDate < cutoffDate) return true;
+  if (apptDate > cutoffDate) return false;
+  if (!requestedTime) return false;
+  return requestedTime.slice(0, 8) <= cutoffTime;
+};
+
 export const isStatusUpdated = (appointment: AllAppointment) => {
   return appointment.status && appointment.status.trim() !== '';
 };
@@ -98,8 +152,8 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
   
   return appointments.filter(appointment => {
     const normalizedStatus = appointment.status?.trim().toLowerCase();
-    const isInPast = isAppointmentInPast(appointment.date_of_appointment);
-    const isInFuture = isAppointmentInFuture(appointment.date_of_appointment);
+    const isInPast = isAppointmentOverdue(appointment.date_of_appointment, appointment.requested_time);
+    const isInFuture = !!appointment.date_of_appointment && !isInPast;
     
     // Always move cancelled appointments to completed stage
     const isCompleted = appointment.status && completedStatuses.includes(normalizedStatus);
@@ -115,11 +169,12 @@ export const filterAppointments = (appointments: AllAppointment[], filterType: s
         // New: IPC not true AND not terminal AND (not Pending OR is an unscheduled lead)
         return !isCompleted && (!isPendingStatus || isUnscheduledLead) && (appointment.internal_process_complete === false || appointment.internal_process_complete === null || appointment.internal_process_complete === undefined);
       case 'needs-review':
-        // Needs Review: Pending status OR (past/null date + not updated) - BUT NOT cancelled, NOT unscheduled-lead
+        // Needs Review: Pending status OR (overdue/null date + not updated) - BUT NOT cancelled, NOT unscheduled-lead
         return !isCompleted && !isUnscheduledLead && (isPendingStatus || isInPast || !appointment.date_of_appointment) && (!appointment.status || appointment.status.trim() === '' || normalizedStatus === 'new' || isPendingStatus);
       case 'future':
-        // Future: appointment in the future + internal_process_complete is TRUE (two-point trigger) - BUT NOT cancelled
+        // Future: appointment slot still ahead + internal_process_complete is TRUE (two-point trigger) - BUT NOT cancelled
         return !isCompleted && isInFuture && appointment.internal_process_complete === true;
+
       case 'past':
         // Completed: Final status (Showed / No-show / Cancelled)
         return isCompleted;
