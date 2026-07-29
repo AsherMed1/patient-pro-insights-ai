@@ -705,11 +705,16 @@ const AppointmentCard = ({
       // Save cancellation reason to DB
       await supabase
         .from('all_appointments')
-        .update({ cancellation_reason: cancelReason, updated_at: new Date().toISOString() })
+        .update({
+          cancellation_reason: cancelReason,
+          welcome_call_completed: welcomeCallCompleted,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', appointment.id);
 
       // Create cancellation reason note
-      const noteText = `Cancellation Reason: ${cancelReason}${cancelNotes.trim() ? `. Notes: ${cancelNotes.trim()}` : ''}`;
+      const noteText = `Cancellation Reason: ${cancelReason}. Welcome Call completed: ${welcomeCallLabel(welcomeCallCompleted)}${cancelNotes.trim() ? `. Notes: ${cancelNotes.trim()}` : ''}`;
+
       await supabase.from('appointment_notes').insert({
         appointment_id: appointment.id,
         note_text: noteText,
