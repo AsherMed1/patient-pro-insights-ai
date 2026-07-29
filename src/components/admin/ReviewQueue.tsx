@@ -199,6 +199,19 @@ const ReviewQueue: React.FC = () => {
     return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
 
+  /** DOB is invalid when the birth year is the current year or in the future. */
+  const isInvalidDob = (row: ReviewAppointment): boolean => {
+    const raw = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
+    if (!raw) return false;
+    const parsed = new Date(raw);
+    const year = Number.isNaN(parsed.getTime())
+      ? Number((raw.match(/(19|20)\d{2}/) || [])[0])
+      : parsed.getFullYear();
+    if (!year) return false;
+    return year >= new Date().getFullYear();
+  };
+
+
   const sortedRows = useMemo(() => {
     const base = shortNoticeOnly ? rows.filter(r => shortNoticeByRowId[r.id] !== undefined) : rows;
     let ordered = base;
@@ -1140,6 +1153,18 @@ const ReviewQueue: React.FC = () => {
               <Badge variant="secondary" className="ml-2">{Object.keys(shortNoticeByRowId).length}</Badge>
             </Button>
           )}
+          {!isDeclinedView && (
+            <Badge
+              variant="outline"
+              className="h-9 px-3 border-destructive/40 text-destructive bg-destructive/5 gap-1"
+              title="Appointments whose date of birth uses the current year (or a future year)"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Invalid DOB
+              <Badge variant="secondary" className="ml-1">{rows.filter(isInvalidDob).length}</Badge>
+            </Badge>
+          )}
+
         </div>
 
 
@@ -1248,6 +1273,17 @@ const ReviewQueue: React.FC = () => {
                             </span>
                           </Badge>
                         )}
+                        {!isDeclinedView && isInvalidDob(row) && (
+                          <Badge
+                            variant="outline"
+                            className="border-destructive/50 text-destructive bg-destructive/5 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title="Date of birth uses the current year — please correct before approving."
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                            <span>Invalid DOB</span>
+                          </Badge>
+                        )}
+
                       </div>
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
@@ -1421,8 +1457,12 @@ const ReviewQueue: React.FC = () => {
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">DOB</div>
-                          <div className="break-words">{row.dob || demo.dob || '—'}</div>
+                          <div className={`break-words ${isInvalidDob(row) ? 'text-destructive font-medium' : ''}`}>
+                            {row.dob || demo.dob || '—'}
+                            {isInvalidDob(row) && <span className="ml-1 text-[10px]">(Invalid — check birth year)</span>}
+                          </div>
                         </div>
+
                         <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">Location</div>
                           <div className="break-words">{path.location || '—'}</div>
