@@ -1602,6 +1602,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   setShowCancelDialog(false);
                   setCancelReason('');
                   setCancelNotes('');
+                  setWelcomeCallCompleted(null);
+
                   toast.success("Appointment cancelled with reason recorded");
                   onDataRefresh?.();
                 } catch (error) {
