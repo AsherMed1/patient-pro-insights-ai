@@ -72,6 +72,7 @@ const ReviewQueue: React.FC = () => {
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
   const [actionNotes, setActionNotes] = useState('');
   const [declineReason, setDeclineReason] = useState<string>('');
+  const [otherNeedsReschedule, setOtherNeedsReschedule] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
@@ -1481,7 +1482,7 @@ const ReviewQueue: React.FC = () => {
                     <SelectValue placeholder="Select a reason…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DECLINE_REASONS.map(r => (
+                    {SELECTABLE_DECLINE_REASONS.map(r => (
                       <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                     ))}
                   </SelectContent>
