@@ -2,11 +2,48 @@
 import { AllAppointment } from './types';
 import { formatDateInCentralTime, toCentralTime, getCTStartOfDayUTC } from '@/utils/dateTimeUtils';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+
+const CENTRAL_TIME_ZONE = 'America/Chicago';
+
+/**
+ * Grace period (minutes) after the scheduled start before an appointment is
+ * treated as overdue. Prevents an in-progress visit from flagging immediately.
+ */
+export const NEEDS_REVIEW_GRACE_MINUTES = 30;
+
+/**
+ * Central-Time "overdue cutoff": everything scheduled at or before this
+ * date+time is considered past its appointment slot.
+ */
+export const getOverdueCutoff = () => {
+  const cutoff = new Date(Date.now() - NEEDS_REVIEW_GRACE_MINUTES * 60 * 1000);
+  return {
+    cutoffDate: formatInTimeZone(cutoff, CENTRAL_TIME_ZONE, 'yyyy-MM-dd'),
+    cutoffTime: formatInTimeZone(cutoff, CENTRAL_TIME_ZONE, 'HH:mm:ss'),
+  };
+};
+
+/**
+ * PostgREST `.or()` fragment matching rows whose appointment slot has already
+ * passed (previous days, or today with the scheduled time behind us).
+ */
+export const getOverdueOrFragment = () => {
+  const { cutoffDate, cutoffTime } = getOverdueCutoff();
+  return `date_of_appointment.lt.${cutoffDate},and(date_of_appointment.eq.${cutoffDate},requested_time.lte.${cutoffTime})`;
+};
+
+/** PostgREST `.or()` fragment matching rows still ahead of their slot. */
+export const getUpcomingOrFragment = () => {
+  const { cutoffDate, cutoffTime } = getOverdueCutoff();
+  return `date_of_appointment.gt.${cutoffDate},and(date_of_appointment.eq.${cutoffDate},or(requested_time.is.null,requested_time.gt.${cutoffTime}))`;
+};
 
 export const formatDate = (dateString: string | null) => {
   if (!dateString) return 'Not set';
   return formatDateInCentralTime(dateString);
 };
+
 
 export const formatDateTime = (dateTimeString: string | null) => {
   if (!dateTimeString) return 'Not set';
