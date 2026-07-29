@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { Download } from 'lucide-react';
 import { exportAppointmentsToExcel } from '@/utils/exportAppointmentsToExcel';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
-import { statusOptions } from './appointments/utils';
+import { statusOptions, getOverdueOrFragment, getUpcomingOrFragment } from './appointments/utils';
 import { updateStarHigginsIntake } from '@/utils/updateStarHigginsIntake';
 import { updateDebraDuncanIntake } from '@/utils/updateDebraDuncanIntake';
 import { updateTyroneBillingsIntake } from '@/utils/updateTyroneBillingsIntake';
