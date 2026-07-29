@@ -844,7 +844,8 @@ const ReviewQueue: React.FC = () => {
         }
 
         // 2. Portal note with attribution
-        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} by ${actor} - [[timestamp:${stamp}]]`;
+        const rescheduleWord = reasonOption?.reschedulable ? 'yes' : 'no';
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor} - [[timestamp:${stamp}]]`;
         try {
           await supabase.from('appointment_notes').insert({
             appointment_id: id,
@@ -865,7 +866,7 @@ const ReviewQueue: React.FC = () => {
             .maybeSingle();
 
           const localStamp = new Date().toLocaleString('en-US');
-          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nBy: ${actor}\nDate/Time: ${localStamp}`;
+          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nReschedule: ${reasonOption?.reschedulable ? 'Patient needs to be rescheduled' : 'Patient should not be rescheduled'}\nBy: ${actor}\nDate/Time: ${localStamp}`;
 
           try {
             const { error: noteErr } = await supabase.functions.invoke('add-ghl-contact-note', {
@@ -892,7 +893,7 @@ const ReviewQueue: React.FC = () => {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
                 ghl_api_key: projectData?.ghl_api_key || undefined,
-                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag].filter(Boolean),
+                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagFor(reasonValue)].filter(Boolean),
                 action: 'add',
               },
             });
