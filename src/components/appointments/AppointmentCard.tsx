@@ -756,7 +756,7 @@ const AppointmentCard = ({
       }
 
       // For "no reschedule" reasons, enable DND + add do-not-reschedule tag to stop outreach
-      const shouldEnableDND = NO_RESCHEDULE_REASONS.includes(cancelReason);
+      const shouldEnableDND = isNoRescheduleReason(cancelReason);
       if (shouldEnableDND) {
         try {
           const { data: appointmentData } = await supabase
