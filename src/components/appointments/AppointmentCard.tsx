@@ -685,33 +685,20 @@ const AppointmentCard = ({
     return timezoneMap[tz] || tz;
   };
 
-  const NO_RESCHEDULE_REASONS = [
-    'Not Interested Anymore',
-    'Seeking Treatment Elsewhere',
-    'Lives Too Far / Travel Not Feasible',
-    'Does Not Want to Be Contacted',
-    'Unhappy with Service / Experience',
-    'Disqualified / Do Not Re-engage',
-  ];
-
-  const ALLOW_RESCHEDULE_REASONS = [
-    'Unable to Reach (Multiple Attempts)',
-    'Scheduling Conflict',
-    'Missing Required Information',
-    'Other',
-  ];
-
-  const CANCELLATION_REASONS = [...NO_RESCHEDULE_REASONS, ...ALLOW_RESCHEDULE_REASONS];
-
   const handleCancelSubmit = async () => {
     if (!cancelReason) {
       toast({ title: "Error", description: "Please select a cancellation reason", variant: "destructive" });
       return;
     }
-    if (cancelReason === 'Other' && !cancelNotes.trim()) {
+    if (welcomeCallCompleted === null) {
+      toast({ title: "Error", description: "Please indicate whether a Welcome Call was completed", variant: "destructive" });
+      return;
+    }
+    if (reasonRequiresNotes(cancelReason) && !cancelNotes.trim()) {
       toast({ title: "Error", description: "Please provide notes for 'Other' reason", variant: "destructive" });
       return;
     }
+
 
     setSubmittingCancel(true);
     try {
