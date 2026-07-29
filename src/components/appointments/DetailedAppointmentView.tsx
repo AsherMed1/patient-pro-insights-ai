@@ -260,7 +260,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
+  const [welcomeCallCompleted, setWelcomeCallCompleted] = useState<boolean | null>(null);
   const [submittingCancel, setSubmittingCancel] = useState(false);
+
 
   // No-show reschedule eligibility
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
