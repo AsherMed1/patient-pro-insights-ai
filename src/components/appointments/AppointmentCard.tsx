@@ -733,7 +733,7 @@ const AppointmentCard = ({
       });
 
       // Build cancellation notes string for GHL
-      const ghlCancelNotes = `${cancelReason}${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
+      const ghlCancelNotes = `${cancelReason} (Welcome Call completed: ${welcomeCallLabel(welcomeCallCompleted)})${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;
 
       // Trigger the actual status update (which handles GHL sync)
       // Pass cancellation data via a custom event on the appointment object
