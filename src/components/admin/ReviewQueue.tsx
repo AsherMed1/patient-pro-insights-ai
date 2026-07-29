@@ -1503,23 +1503,50 @@ const ReviewQueue: React.FC = () => {
               onChange={e => setActionNotes(e.target.value)}
               rows={3}
             />
+
+            {actionRow?.action === 'declined' && declineReason === 'other' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Rescheduling <span className="text-destructive">*</span></label>
+                <RadioGroup
+                  value={otherNeedsReschedule === null ? '' : otherNeedsReschedule ? 'yes' : 'no'}
+                  onValueChange={(v) => setOtherNeedsReschedule(v === 'yes')}
+                  className="gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id="other-reschedule-yes" />
+                    <label htmlFor="other-reschedule-yes" className="text-sm">Patient needs to be rescheduled</label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="no" id="other-reschedule-no" />
+                    <label htmlFor="other-reschedule-no" className="text-sm">Patient should not be rescheduled</label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  The rescheduling workflow only runs when “Patient needs to be rescheduled” is selected.
+                </p>
+              </div>
+            )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); setDeclineReason(''); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setActionRow(null); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }}>Cancel</Button>
               <Button
                 variant={actionRow?.action === 'oon' ? 'default' : 'destructive'}
                 onClick={() => {
                   if (!actionRow) return;
+                  const resolved = actionRow.action === 'declined'
+                    ? resolveDeclineReasonValue(declineReason, otherNeedsReschedule)
+                    : declineReason;
                   if (actionRow.id === '__BULK__') {
-                    handleBulk('declined', actionNotes, declineReason);
+                    handleBulk('declined', actionNotes, resolved);
                   } else {
-                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, declineReason);
+                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, resolved);
                   }
                 }}
                 disabled={
                   processing ||
                   (actionRow?.action === 'declined' &&
                     (!declineReason ||
-                      (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim())))
+                      (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim()) ||
+                      (declineReason === 'other' && otherNeedsReschedule === null)))
                 }
               >
                 Confirm
