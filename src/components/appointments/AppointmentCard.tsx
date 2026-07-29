@@ -36,6 +36,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import NoShowEligibilityDialog from "./NoShowEligibilityDialog";
 import { applyNoShowEligibility, liftRescheduleBlock } from "@/utils/rescheduleBlock";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
+import {
+  NO_RESCHEDULE_REASON_OPTIONS,
+  ALLOW_RESCHEDULE_REASON_OPTIONS,
+  isNoRescheduleReason,
+  reasonRequiresNotes,
+  welcomeCallLabel,
+} from "./cancellationReasons";
+
 
 interface AppointmentCardProps {
   appointment: AllAppointment;
