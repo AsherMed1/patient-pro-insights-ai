@@ -1562,7 +1562,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   }
                   
                   // For all "no reschedule" reasons, enable DND
-                  if (NO_RESCHEDULE_REASONS.includes(cancelReason)) {
+                  if (isNoRescheduleReason(cancelReason)) {
                     try {
                       const { data: appointmentData } = await supabase
                         .from('all_appointments')
