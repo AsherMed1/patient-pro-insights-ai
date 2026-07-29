@@ -1457,8 +1457,12 @@ const ReviewQueue: React.FC = () => {
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">DOB</div>
-                          <div className="break-words">{row.dob || demo.dob || '—'}</div>
+                          <div className={`break-words ${isInvalidDob(row) ? 'text-destructive font-medium' : ''}`}>
+                            {row.dob || demo.dob || '—'}
+                            {isInvalidDob(row) && <span className="ml-1 text-[10px]">(Invalid — check birth year)</span>}
+                          </div>
                         </div>
+
                         <div className="min-w-0">
                           <div className="font-medium text-muted-foreground">Location</div>
                           <div className="break-words">{path.location || '—'}</div>
