@@ -800,6 +800,8 @@ const AppointmentCard = ({
       setShowCancelDialog(false);
       setCancelReason('');
       setCancelNotes('');
+      setWelcomeCallCompleted(null);
+
       toast({ title: "Success", description: "Appointment cancelled with reason recorded" });
     } catch (error) {
       console.error('Error submitting cancellation:', error);
