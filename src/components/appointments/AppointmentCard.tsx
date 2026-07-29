@@ -2263,26 +2263,46 @@ const AppointmentCard = ({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            <div className="rounded-md border p-3 space-y-2">
+              <Label className="text-sm font-semibold">
+                Was a Welcome Call completed? <span className="text-destructive">*</span>
+              </Label>
+              <RadioGroup
+                value={welcomeCallCompleted === null ? '' : welcomeCallCompleted ? 'yes' : 'no'}
+                onValueChange={(v) => setWelcomeCallCompleted(v === 'yes')}
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="yes" id="cancel-welcome-call-yes" />
+                  <Label htmlFor="cancel-welcome-call-yes" className="cursor-pointer text-sm">Yes</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="no" id="cancel-welcome-call-no" />
+                  <Label htmlFor="cancel-welcome-call-no" className="cursor-pointer text-sm">No</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <RadioGroup value={cancelReason} onValueChange={setCancelReason}>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Do Not Reschedule</p>
-              {NO_RESCHEDULE_REASONS.map((reason) => (
-                <div key={reason} className="flex items-center space-x-2">
-                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
-                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+              {NO_RESCHEDULE_REASON_OPTIONS.map((reason) => (
+                <div key={reason.value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason.value} id={`cancel-reason-${reason.value}`} />
+                  <Label htmlFor={`cancel-reason-${reason.value}`} className="cursor-pointer text-sm">{reason.label}</Label>
                 </div>
               ))}
               <Separator className="my-2" />
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Eligible for Reschedule</p>
-              {ALLOW_RESCHEDULE_REASONS.map((reason) => (
-                <div key={reason} className="flex items-center space-x-2">
-                  <RadioGroupItem value={reason} id={`cancel-reason-${reason}`} />
-                  <Label htmlFor={`cancel-reason-${reason}`} className="cursor-pointer text-sm">{reason}</Label>
+              {ALLOW_RESCHEDULE_REASON_OPTIONS.map((reason) => (
+                <div key={reason.value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={reason.value} id={`cancel-reason-${reason.value}`} />
+                  <Label htmlFor={`cancel-reason-${reason.value}`} className="cursor-pointer text-sm">{reason.label}</Label>
                 </div>
               ))}
             </RadioGroup>
             
             <div>
-              <Label>{cancelReason === 'Other' ? 'Notes (Required)' : 'Notes (Optional)'}</Label>
+              <Label>{reasonRequiresNotes(cancelReason) ? 'Notes (Required)' : 'Notes (Optional)'}</Label>
               <Textarea
                 value={cancelNotes}
                 onChange={(e) => setCancelNotes(e.target.value)}
@@ -2300,6 +2320,7 @@ const AppointmentCard = ({
                 setShowCancelDialog(false);
                 setCancelReason('');
                 setCancelNotes('');
+                setWelcomeCallCompleted(null);
               }}
               disabled={submittingCancel}
             >
@@ -2308,8 +2329,9 @@ const AppointmentCard = ({
             <Button 
               variant="destructive"
               onClick={handleCancelSubmit} 
-              disabled={!cancelReason || (cancelReason === 'Other' && !cancelNotes.trim()) || submittingCancel}
+              disabled={!cancelReason || welcomeCallCompleted === null || (reasonRequiresNotes(cancelReason) && !cancelNotes.trim()) || submittingCancel}
             >
+
               {submittingCancel ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
