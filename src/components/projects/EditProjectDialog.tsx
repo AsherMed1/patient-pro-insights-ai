@@ -300,6 +300,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                       <SelectItem value="120">120 hours (5 days)</SelectItem>
                       <SelectItem value="132">132 hours (5.5 days)</SelectItem>
                       <SelectItem value="168">168 hours (7 days)</SelectItem>
+                      <SelectItem value="240">240 hours (10 days)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-muted-foreground">
