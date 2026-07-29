@@ -465,7 +465,7 @@ const AllAppointmentsManager = ({
         appointmentsQuery = appointmentsQuery
           .eq('internal_process_complete', true)
           .not('date_of_appointment', 'is', null)
-          .gte('date_of_appointment', todayString)
+          .or(getUpcomingOrFragment())
           .not('status', 'ilike', 'cancelled')
           .not('status', 'ilike', 'no show')
           .not('status', 'ilike', 'noshow')
