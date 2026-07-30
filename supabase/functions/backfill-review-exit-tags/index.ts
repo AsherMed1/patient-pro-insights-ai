@@ -22,14 +22,16 @@ serve(async (req) => {
 
   const since = new Date(Date.now() - days * 86400_000).toISOString();
 
-  const { data: rows, error } = await supabase
+  const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
+  let q = supabase
     .from("all_appointments")
     .select("id, lead_name, project_name, ghl_id, review_status")
     .in("review_status", ["oon", "declined"])
     .not("ghl_id", "is", null)
-    .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(batchSize);
+  q = ids.length > 0 ? q.in("id", ids) : q.gte("created_at", since);
+  const { data: rows, error } = await q;
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
