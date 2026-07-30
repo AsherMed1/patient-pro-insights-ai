@@ -561,6 +561,18 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
 
+    // De-duplication: one GHL contact should surface exactly one active row per project.
+    // When a brand-new booking row is created, retire the contact's older/closed rows.
+    if (!isUpdate && appointmentRecord?.ghl_id && appointmentRecord?.project_name) {
+      await supersedeOlderContactRows(supabase, appointmentRecord, requestId)
+    }
+
+    // Keep the patient's name consistent across every active row for the contact.
+    if (appointmentRecord?.ghl_id && appointmentRecord?.project_name && appointmentRecord?.lead_name) {
+      await syncContactNameAcrossRows(supabase, appointmentRecord, requestId)
+    }
+
+
     // Check for short-notice appointment and fire alert if needed
     checkShortNoticeAlert(supabase, appointmentRecord, requestId)
 
