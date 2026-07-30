@@ -24,7 +24,21 @@ Deno.serve(async (req) => {
       submitted_by_email,
       assignee_name,
       assignee_names,
+      attachments,
     } = body ?? {};
+
+    const normalizedAttachments = Array.isArray(attachments)
+      ? attachments
+          .filter((a: any) => a && typeof a === 'object' && typeof a.name === 'string')
+          .map((a: any) => ({
+            name: String(a.name),
+            path: typeof a.path === 'string' ? a.path : null,
+            size: Number.isFinite(a.size) ? a.size : null,
+            type: typeof a.type === 'string' ? a.type : null,
+            url: typeof a.url === 'string' ? a.url : null,
+          }))
+      : [];
+
 
     if (!case_id || typeof case_id !== 'string') {
       return new Response(JSON.stringify({ error: 'case_id is required' }), {
