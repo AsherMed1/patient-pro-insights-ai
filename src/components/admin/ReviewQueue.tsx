@@ -1313,9 +1313,9 @@ const ReviewQueue: React.FC = () => {
                                 className="bg-amber-600 hover:bg-amber-700"
                                 onClick={() => setDupActionRow({ row, action: 'replace' })}
                                 disabled={processing}
-                                title="Approve new appt and cancel the existing duplicate(s)"
+                                title="Approve new appt and supersede the existing duplicate(s)"
                               >
-                                <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Replace
+                                <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Approve & Supersede
                               </Button>
                               <Button
                                 size="sm"
