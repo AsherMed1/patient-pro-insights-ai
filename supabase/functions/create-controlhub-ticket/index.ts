@@ -129,7 +129,10 @@ Deno.serve(async (req) => {
           client_name: client_name.trim(),
           service_involved: (typeof service_involved === 'string' && service_involved.trim()) ? service_involved.trim() : null,
           issue_type: normalizedIssueType,
-          description: description.trim(),
+          description: normalizedAttachments.length
+            ? `${description.trim()}\n\nAttachments:\n${normalizedAttachments.map((a) => `- ${a.name}${a.url ? ` — ${a.url}` : ''}`).join('\n')}`
+            : description.trim(),
+          attachments: normalizedAttachments,
           submitted_by: normalizedSubmittedBy,
           submitted_by_email: (typeof submitted_by_email === 'string' && submitted_by_email.trim())
             ? submitted_by_email.trim()
