@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
             ghl_contact_id: qaCase.ghl_contact_id,
             assignee_name: normalizedAssignee,
             assignees: normalizedAssignees,
+            attachments: normalizedAttachments,
           },
         }),
       });
