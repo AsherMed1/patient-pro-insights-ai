@@ -1,37 +1,63 @@
-## One-off XLSX export: duplicates + missing info
+## Problem
 
-Read-only query against `all_appointments` (active rows only, `is_superseded IS NOT TRUE`), delivered as a single workbook to `/mnt/documents`.
+When a lead already has an active appointment in the portal and a new record for the same contact sits in the Review Queue, clicking **Approve** currently leaves **both rows active**. The existing one is not superseded because:
 
-### Verified current counts (active rows: 23,217)
-| Bucket | Count |
-|---|---|
-| Duplicate groups by GHL contact + project | 4 |
-| Duplicate groups by patient name + project | 251 |
-| Missing Insurance Information | 192 |
-| Missing Medical / PCP Information | 2,040 |
-| Missing Pathology Information | 12 |
-| Missing DOB | 4,320 |
+- `ghl-webhook-handler/supersedeOlderContactRows` only runs on new GHL booking events.
+- `mark_superseded_on_change` only fires on `status` column changes, not `review_status`.
+- `ReviewQueue.tsx/performAction` only updates `review_status` to `approved` and pushes the `approved` GHL tag.
 
-### Workbook: `portal_duplicates_and_missing_info.xlsx`
+The duplicate banner offers **Replace** (deletes the old row) and **Keep Existing** (dismisses the new row), but a plain **Approve** creates a duplicate active record.
 
-**Sheet 1 — Summary**
-Counts per bucket, plus a per-clinic breakdown so you can see which projects drive the totals.
+## Goal
 
-**Sheet 2 — Duplicates**
-One row per duplicate record, grouped so the set is visually adjacent. Columns: Group Key, Project, Patient Name, Portal ID, GHL Contact ID, GHL Appointment ID, Appointment Date, Status, Review Status, Created At, Has Intake Notes, Suggested Keep (the newest non-terminal row in each group).
-Two match types flagged in a `Match Type` column: `contact_id` (same GHL contact, same project) and `name` (same normalized name, same project) so you can trust the contact-ID matches and eyeball the name matches.
+Make Review Queue approval automatically supersede older active sibling records for the same contact/project, so the portal always surfaces exactly one active row per contact per project after approval.
 
-**Sheet 3 — Missing Info**
-One row per record with at least one empty card. Columns: Project, Patient Name, Portal ID, Appointment Date, Status, plus a Yes/No column for each of Insurance, Medical/PCP, Pathology, DOB, and a `Fixable` flag (Yes = intake notes contain text the parser could still extract; No = the source notes genuinely lack the data).
+## Plan
 
-**Sheet 4 — Missing Info by Clinic**
-Pivot of the above: clinic × missing-field counts, sorted worst-first, for prioritizing remediation.
+### 1. Database trigger on `review_status` approval
 
-### Notes
-- Purely read-only — no records are modified, no statuses touched.
-- Superseded rows are excluded so the duplicate list reflects only what clinics actually see.
-- QA of the workbook before delivery: verify row counts match the SQL totals and that no sheet has clipped or misaligned columns.
+Create a new migration that adds `trg_supersede_on_review_approval` on `public.all_appointments`:
 
-### Open scope choices (I'll use these defaults unless you say otherwise)
-- All projects (including small/inactive ones), excluding `PPM - Test Account`.
-- No date limit — full history rather than just recent appointments.
+- Fire `BEFORE UPDATE OF review_status` when `NEW.review_status = 'approved'` and `OLD.review_status = 'pending'`.
+- Skip if `NEW.is_superseded = true` or `NEW.is_reserved_block = true`.
+- Find older active sibling rows in the same `project_name` with the same `ghl_id` (or matching `lead_phone_number` + normalized `lead_name` when `ghl_id` is null).
+- "Older active sibling" means: `is_superseded = false`, `is_reserved_block = false`, status is non-terminal, `review_status` is `approved` or null (not `pending`), and `created_at < NEW.created_at`.
+- Mark those siblings `is_superseded = true` and `updated_at = now()`.
+- Insert an `appointment_notes` row on each superseded record: "Superseded by newer approved Review Queue appointment {NEW.id} on {date} — System".
+
+This mirrors the existing webhook superseding rules and keeps history non-destructive.
+
+### 2. Update Review Queue UI to match the new behavior
+
+In `src/components/admin/ReviewQueue.tsx`:
+
+- Keep the duplicate detection banner so admins still see that an existing record exists.
+- Change the **Replace** button so it triggers a normal **Approve** (the trigger will supersede the old row) and then, optionally, copies the old slot to the new row if the admin wants to preserve the appointment time. Stop hard-deleting the old rows via `handleReplaceExisting`; instead, rely on the trigger for superseding and only delete if the user explicitly chooses "Use this slot" and the old row is truly redundant after slot adoption.
+- Keep **Keep Existing** as-is (dismisses the new row).
+- Plain **Approve** now safely supersedes older active siblings automatically.
+- Add a toast note when duplicates were superseded: "Approved and superseded N existing appointment(s)."
+
+### 3. Audit logging
+
+Ensure each auto-supersede writes:
+
+- An `appointment_notes` audit note on the superseded row (see step 1).
+- An `audit_logs` event via `log_audit_event` from the frontend/trigger describing the approval and how many rows were superseded.
+
+### 4. Backfill verification (read-only)
+
+After deployment, query active duplicate groups where both `review_status = 'approved'` and `review_status = 'pending'` exist for the same contact/project. This will confirm the trigger is firing and identify any stragglers that were approved before the fix.
+
+### 5. Documentation update
+
+Update `.lovable/memory/data-integrity/one-active-row-per-contact.md` to note that Review Queue approvals also trigger superseding, not just GHL webhook bookings.
+
+## Outcome
+
+Approving a Review Queue record will behave like a new GHL booking: older active portal rows for the same contact/project are superseded automatically, the portal shows only the newest approved row, and history is preserved in the Activity timeline.
+
+## Questions
+
+1. Should the trigger also supersede older rows when the new appointment date is **in the past** relative to the existing active row, or should it always supersede the older `created_at` row regardless of appointment date?
+2. Do you want to keep the **Replace** button label, or rename it to **Approve & Supersede** now that the behavior is automatic?
+3. Should the same auto-supersede logic apply when a row is marked **OON** from the Review Queue, or only on **Approve**?
