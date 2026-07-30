@@ -1657,6 +1657,26 @@ function CaseDrawer({
                 )}
               </div>
 
+              {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
+                <div>
+                  <div className="text-sm font-semibold mb-2">Ticket attachments</div>
+                  <div className="space-y-1">
+                    {((caseData as any).attachments as TicketAttachment[]).map((att) => (
+                      <button
+                        key={att.path}
+                        type="button"
+                        onClick={() => openAttachment(att)}
+                        className="flex w-full items-center gap-2 rounded border px-2 py-1 text-xs hover:bg-accent text-left"
+                      >
+                        <Paperclip className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{att.name}</span>
+                        <span className="text-muted-foreground shrink-0 ml-auto">{formatBytes(att.size)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <div className="text-sm font-semibold mb-2">Notes</div>
                 <Textarea
