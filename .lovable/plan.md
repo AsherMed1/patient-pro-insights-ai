@@ -1,41 +1,25 @@
-## Goal
+## What's wrong
 
-Stop the portal from showing the same patient multiple times. One GHL contact should surface exactly one active appointment row per project; older bookings stay in the database as history but drop out of portal views.
+Samara Valle (`6c824802`, Ally Vascular and Pain Centers, Neuropathy, Aug 4) has complete raw intake notes in the portal — insurance (Tri-Care, University Health CARELINK, ID 71556634), PCP (Dr. Ladapo MD, 210-358-5100), and full Neuropathy pathology (pain 10, both feet and hands, symptoms list, diabetes YES).
 
-## What I verified
+But the parsed cards are empty:
+- `parsed_insurance_info` = `{}`
+- `parsed_medical_info` = `{}`
+- `parsed_pathology_info` = only `{procedure_type: "Neuropathy"}`
 
-Orlando Gonzales (contact `NJEuukP87bjduMnIZFI7`, Ally Vascular and Pain Centers) has three rows, each from a *different* GHL appointment event:
+Contact and demographics parsed fine, and the parse is marked complete (17:10 today), so the parse run returned partial/empty results rather than never running.
 
-```text
-Apr 10, 2026  10:00  Showed      appt 40mZxCbWEM7LzHZ4fU9p   name "Rolando Gonzalez"
-Jul 16, 2026  10:00  Cancelled   appt 7BK71KaQAYje8XpxTzJ9   name "Rolando Gonzalez"
-Aug  8, 2026  10:30  Confirmed   appt wRnHwjWlKgiUqqz3ro7M   name "Orlando Gonzales"
-```
+This is not systemic: of 58 recent Ally Neuropathy records, only 1 has empty insurance and 4 have empty medical info — so it's a one-off failure of that parse run, not a broken rule.
 
-All three have `is_superseded = false`, so all three render. The existing reactivation logic in `ghl-webhook-handler` only reuses a closed row when `was_ever_confirmed = false`; these were all confirmed, so each rebooking created a fresh row. The name also drifted because only the newest row picked up the corrected GHL contact name.
+## Fix
 
-## Changes
+1. Re-run `trigger-reparse` for Samara Valle after clearing `parsing_completed_at` so the parser re-processes from scratch.
+2. Verify the resulting `parsed_insurance_info`, `parsed_medical_info`, and `parsed_pathology_info` against the raw notes above; if any field is still missed, patch it directly so the portal card is complete.
+3. Re-parse the 4 sibling Ally Neuropathy records with empty `parsed_medical_info` in the same pass, then re-check them.
+4. No parser code changes unless step 2 shows a label the regex/AI genuinely cannot read (e.g. the "Neuropathy insurance provider:" prefix or the curly-apostrophe "Primary Care Doctor's Name") — in that case add the matching fallback pattern in `auto-parse-intake-notes`.
 
-**1. Auto-supersede prior rows on new booking (`supabase/functions/ghl-webhook-handler/index.ts`)**
+## Technical notes
 
-When a webhook creates a brand-new appointment row (new `ghl_appointment_id`) for a contact that already has rows in the same project:
-
-- Find all other non-superseded, non-reserved rows with the same `ghl_id` + `project_name`.
-- Mark each as `is_superseded = true` when its status is terminal (Cancelled/Canceled/No Show/Showed/Won/OON/Do Not Call/Rescheduled) **or** its appointment date is before the new booking's date.
-- Never supersede a row that is still open *and* dated on/after the new booking (a genuine second future appointment stays visible).
-- Never touch rows in Review Queue `pending` state — those must stay in the queue for a decision.
-- Write an `appointment_notes` audit row on each superseded record: "Superseded by newer GHL booking {appt id} on {date} — System".
-
-**2. Sync contact name across all rows**
-
-In the same handler, whenever an incoming payload carries a contact name that differs from the stored `lead_name`, update `lead_name` on every non-superseded row for that `ghl_id` + `project_name`, not just the matched row. Log the rename as a status/audit note on the active row only, so history rows don't get noise.
-
-**3. One-time backfill**
-
-Run a read-only audit query first to count affected contacts, then a single migration that applies the same rule to existing data: for each `(ghl_id, project_name)` with more than one non-superseded row, keep the newest row by appointment date (falling back to `created_at`) and set `is_superseded = true` on the older ones, skipping `review_status = 'pending'` rows and reserved blocks. Also normalizes `lead_name` to the newest row's name per contact. Orlando's two older rows are covered by this.
-
-## Notes
-
-- Superseding is non-destructive: rows stay queryable, and the Activity/History timeline already reads superseded rows, so the patient's full booking history remains visible on the surviving record.
-- Dashboards and portal lists already exclude `is_superseded = true`, so no UI changes are needed.
-- Rescheduling through the portal is unaffected — it updates in place and doesn't create a second row.
+- Records are identified by `id`; no schema changes.
+- Direct field patching (if needed) updates the `parsed_*` JSONB objects together with any corresponding top-level columns, per the existing data-integrity rule.
+- Re-parsing does not alter status, review status, or appointment dates.
