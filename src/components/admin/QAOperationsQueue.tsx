@@ -204,6 +204,17 @@ interface QAGroup {
   ticketCase: QACase | null;
 }
 
+type SortKey =
+  | 'patient' | 'clinic' | 'service' | 'alerts' | 'self_booked' | 'error'
+  | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket' | 'status';
+
+interface TicketAttachment {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+}
+
 const normalizeName = (n: string | null): string =>
   (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
