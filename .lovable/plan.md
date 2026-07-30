@@ -1,44 +1,47 @@
-## What I found (verified in the database)
+## 1. Column sorting in the QA Operations Queue
 
-Every contact you listed is Premier Vascular, and each falls into one of two buckets:
+Add click-to-sort on the queue table headers (`src/components/admin/QAOperationsQueue.tsx`).
 
-**Bucket A — Approved in the Review Queue, but the "approved" tag never landed in GHL**
-Luis Gonzalez, Angela Rivera, Navpreet Kaur, Penprapa/Pam Ratanavong, Raponsa Farley. All have `review_status='approved'` (approved by real people: Staecy Peña, Lucas Gianoli, Katherine A., Dean Lunderstedt) but `ghl_approved_tag_sent_at` is NULL — the portal never confirmed the tag.
+Sortable columns and their sort semantics:
 
-**Bucket B — Never approved at all, so no tag will ever come**
-- OON: Sophia Williams, Marie Smith, Rose Daniel
-- Declined: M. Lynn Doane, Walter Banks
+| Column | Type | Sort |
+|---|---|---|
+| Patient | text | A–Z / Z–A (case-insensitive, blanks last) |
+| Clinic | text | A–Z / Z–A |
+| Service | text | A–Z / Z–A |
+| Alerts | status | groups matching alert types together, using a fixed alert-priority order |
+| Self-Booked | status | Yes / No / — grouped |
+| Error, Error Source, Resolution | text | A–Z / Z–A, blanks last |
+| Date Created | date | oldest ↔ newest (uses group `earliestCreated`) |
+| Latest Alert | date | oldest ↔ newest (uses group `latestActivity`) |
+| Resolved | date | oldest ↔ newest, blanks last |
+| Ticket | text | ticket ID A–Z, "None" last |
 
-These are correctly not approved — but the GHL workflow's Wait step only listens for `approved`, so they sit there forever with no exit path.
+Behavior:
+- One `sortKey` + `sortDir` state; clicking a header cycles ascending → descending → back to the default (Date Created descending / current behavior).
+- Sorting applies to the already-filtered, already-grouped list, so grouping by contact and bucket counts are unchanged.
+- Visual indicator: header text becomes a button with an up/down chevron (`ArrowUp`/`ArrowDown`); inactive columns show a faint `ArrowUpDown` on hover. Active header is emphasized.
+- Sort persists across tab switches within the session; resets on reload.
 
-### Root causes
+## 2. Multiple ticket attachments
 
-1. **The hourly retry sweep skips the exact projects that need it.** `retry-missing-ghl-approved-tags` has a hardcoded `EXEMPT_PROJECTS` list: ECCO Medical, Premier Vascular, Premier Vascular Surgery, Davis Vein & Vascular. That exemption is stale — those projects used to bypass the Review Queue, but they now route through it. So when the UI tag push fails, nothing ever retries it. The numbers confirm this exactly: over the last 90 days, missing approved tags are **ECCO 37, Premier Vascular 35, Davis 31**, and essentially **0 everywhere else** (1 for Georgia Endovascular). 103 stuck rows, all in the exempt list.
+**Storage:** a new private `qa-ticket-attachments` bucket (screenshots can contain PHI), with policies allowing authenticated staff to upload and read. Files stored under `{case_id}/{timestamp}-{filename}`.
 
-2. **No exit tag on OON.** Decline already pushes `appointment-declined` + reason tags to GHL. OON pushes Slack + status webhook + a note, but **no GHL tag**, so OON contacts have nothing to break them out of the Wait step.
+**Schema:** add `attachments jsonb` (array of `{name, path, size, type, url}`) to `qa_cases`, plus records in the ticket activity metadata so the ticket history shows what was attached.
 
-3. **A stamped row can still be untagged.** Raponsa Farley has a stamp dated 2026-06-08 (from an earlier backfill) yet is still stuck — meaning the stamp was written without the tag actually being present in GHL. The sweep only re-verifies these when explicitly asked (`include_backfilled`).
+**Ticket dialog (`QAOperationsQueue.tsx` → Create ControlHub Ticket):**
+- New "Attachments" field with a multi-select file input (and drag-and-drop) — `multiple` enabled.
+- Selecting files again appends to the list rather than replacing it.
+- Each pending file shows its name, size, and an X to remove it before submitting.
+- Client-side limits: max 10 files, 20 MB each, images/PDF/doc types.
+- On submit: files upload to storage first, signed URLs (long-lived) are generated, then the ticket is created with the attachment list; upload failure aborts ticket creation with a clear toast.
 
-## The fix
+**Edge function (`create-controlhub-ticket`):**
+- Accepts an `attachments` array, validates it, forwards it to ControlHub in the payload (top-level `attachments` plus in `metadata`), persists it on the `qa_cases` row, and includes it in the `qa_case_activity` metadata.
 
-**1. Remove the stale exemption (root cause)**
-Delete `EXEMPT_PROJECTS` from `supabase/functions/retry-missing-ghl-approved-tags/index.ts` and its query filter. Every approved row with a `ghl_id` becomes eligible for the hourly retry, regardless of project. The function already verifies against GHL before pushing, so re-including these projects is safe and idempotent.
+**Viewing:** the case drawer's ticket section lists all submitted attachments as clickable links (name + size), opening in a new tab.
 
-**2. Add a GHL exit tag for OON**
-In `ReviewQueue.tsx`, the OON branch gets the same treatment the decline branch already has: push an `appointment-oon` tag (plus the existing Slack/webhook/note side effects, unchanged). This gives GHL a signal to route OON contacts out of the Wait step.
-
-**3. Drain the current backlog**
-Run the sweep with a large batch and `include_backfilled: true` so it re-verifies stamped-but-untagged rows like Raponsa Farley, then re-run until the count of approved rows with a NULL stamp reaches zero. Verify by re-querying the per-project missing counts.
-
-**4. Make silent failures visible**
-Add a `ghl_tag_last_error` text column, written by the sweep when a push or verification fails. Surface a small amber "GHL tag pending" indicator on approved rows in the Review Queue so a stuck tag is visible in the portal instead of only in GHL.
-
-## On the GHL side
-
-Your Wait step should not wait on `approved` alone. Change it to continue on **any** of: `approved`, `appointment-declined`, or `appointment-oon`, then branch — confirmation messaging on `approved`, cancellation messaging on `appointment-declined`, and OON handling on `appointment-oon`. Add a max-wait (e.g. 7 days) as a safety valve so nothing can park indefinitely again.
-
-## Technical notes
-
-- Files: `supabase/functions/retry-missing-ghl-approved-tags/index.ts`, `src/components/admin/ReviewQueue.tsx`, one migration for `ghl_tag_last_error`.
-- Existing hourly pg_cron job (`retry-missing-ghl-approved-tags-hourly`, `7 * * * *`) stays as-is; only the function's filtering changes.
-- No appointment statuses, dates, review decisions, or parsed intake data are touched.
+### Technical notes
+- Sorting is pure presentation over `filteredGroups` — no query or grouping changes.
+- ControlHub receives attachment URLs, not binaries, so no change is needed on their upload API; if they later support binary intake we can swap the transport without touching the UI.
+- A migration is required for the bucket, its policies, and the `attachments` column; it will be submitted for your approval before any code that depends on it.
