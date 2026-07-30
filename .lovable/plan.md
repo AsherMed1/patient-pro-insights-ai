@@ -1,25 +1,44 @@
-## What's wrong
+## Goal
 
-Samara Valle (`6c824802`, Ally Vascular and Pain Centers, Neuropathy, Aug 4) has complete raw intake notes in the portal — insurance (Tri-Care, University Health CARELINK, ID 71556634), PCP (Dr. Ladapo MD, 210-358-5100), and full Neuropathy pathology (pain 10, both feet and hands, symptoms list, diabetes YES).
+Keep OpenAI (`OPENAI_API_KEY`) as the primary parser, and fall back to the Lovable AI Gateway (`google/gemini-3-flash`) whenever OpenAI fails — so a credit-exhausted or rate-limited OpenAI account no longer silently degrades parsing to regex-only.
 
-But the parsed cards are empty:
-- `parsed_insurance_info` = `{}`
-- `parsed_medical_info` = `{}`
-- `parsed_pathology_info` = only `{procedure_type: "Neuropathy"}`
+## What changes
 
-Contact and demographics parsed fine, and the parse is marked complete (17:10 today), so the parse run returned partial/empty results rather than never running.
+### 1. Two-tier AI call in `auto-parse-intake-notes`
 
-This is not systemic: of 58 recent Ally Neuropathy records, only 1 has empty insurance and 4 have empty medical info — so it's a one-off failure of that parse run, not a broken rule.
+Wrap the current OpenAI call in a small `callAI()` helper:
 
-## Fix
+```text
+1. OpenAI (gpt-4o-mini / current model)  ← primary, unchanged prompt
+   ↓ on 429 / 401 / 402 / 5xx / missing key / unparseable JSON
+2. Lovable AI Gateway (google/gemini-3-flash) ← same system+user prompt
+   ↓ on failure
+3. Existing regex fallback ← last resort only
+```
 
-1. Re-run `trigger-reparse` for Samara Valle after clearing `parsing_completed_at` so the parser re-processes from scratch.
-2. Verify the resulting `parsed_insurance_info`, `parsed_medical_info`, and `parsed_pathology_info` against the raw notes above; if any field is still missed, patch it directly so the portal card is complete.
-3. Re-parse the 4 sibling Ally Neuropathy records with empty `parsed_medical_info` in the same pass, then re-check them.
-4. No parser code changes unless step 2 shows a label the regex/AI genuinely cannot read (e.g. the "Neuropathy insurance provider:" prefix or the curly-apostrophe "Primary Care Doctor's Name") — in that case add the matching fallback pattern in `auto-parse-intake-notes`.
+- Gateway call: `POST https://ai.gateway.lovable.dev/v1/chat/completions`, header `Lovable-API-Key: ${LOVABLE_API_KEY}`, same messages, JSON response.
+- Log which tier produced the result (`[AUTO-PARSE] source=openai|gateway|regex`) so future failures are visible in Edge Function logs.
+- Surface 429/402 from the gateway as terminal (no retry loop).
+
+### 2. Harden the "parse succeeded" guard
+
+Today a record gets stamped `parsing_completed_at = now()` even when insurance, medical, and pathology all come back empty. Change to: if the notes are substantive (> ~200 chars) but every semantic bucket is empty, do **not** stamp completion — leave it unparsed and increment `parse_attempts` so a later run retries it.
+
+### 3. Regex fallback improvements (still needed as tier 3)
+
+- Strip leading markdown (`**`, `##`) before capturing values — fixes `"** insurance_provider: MEDICARE"` garbage.
+- Handle procedure-prefixed labels (e.g. `Neuropathy insurance provider:`).
+- Handle curly apostrophe in `Primary Care Doctor's Name`.
+
+### 4. Repair the affected records
+
+- Re-parse Orlando Gonzales (`840235fc`) and verify insurance + pathology.
+- Sweep records created during the OpenAI outage window whose `parsed_insurance_info` / `parsed_medical_info` / `parsed_pathology_info` are empty or contain markdown artifacts, clear `parsing_completed_at`, and re-run through the new two-tier path in batches.
+- Spot-check a sample against raw notes afterwards.
 
 ## Technical notes
 
-- Records are identified by `id`; no schema changes.
-- Direct field patching (if needed) updates the `parsed_*` JSONB objects together with any corresponding top-level columns, per the existing data-integrity rule.
-- Re-parsing does not alter status, review status, or appointment dates.
+- No schema changes; `parse_attempts` already exists.
+- `LOVABLE_API_KEY` is a managed secret — provisioned automatically if absent.
+- Prompt text is shared between both tiers so output shape stays identical.
+- Batch the backfill with `EdgeRuntime.waitUntil()` + delays to stay inside the 60s function limit.

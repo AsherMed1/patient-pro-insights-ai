@@ -516,6 +516,123 @@ function stripPatientIntakeSummary(intakeNotes: string): string {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Two-tier AI call: OpenAI (primary) → Lovable AI Gateway / Gemini (fallback).
+// Returns the raw assistant content plus which tier produced it, or null when
+// both tiers failed (caller then drops to regex parsing).
+// ---------------------------------------------------------------------------
+async function callChatModel(
+  systemPrompt: string,
+  userPrompt: string,
+  openAIApiKey: string | undefined,
+  recordIdentifier: string,
+): Promise<{ content: string | null; source: 'openai' | 'gateway' | 'none' }> {
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ];
+
+  // ---- Tier 1: OpenAI ----
+  if (openAIApiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages,
+          temperature: 0.1,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const content = json.choices?.[0]?.message?.content;
+        if (content) {
+          console.log(`[AUTO-PARSE] source=openai for ${recordIdentifier}`);
+          return { content, source: 'openai' };
+        }
+        console.error(`[AUTO-PARSE] OpenAI returned empty content for ${recordIdentifier} — falling back to gateway`);
+      } else {
+        const errorText = await res.text();
+        console.error(`[AUTO-PARSE] OpenAI API error for ${recordIdentifier}: ${res.status} ${errorText.substring(0, 300)}`);
+      }
+    } catch (e) {
+      console.error(`[AUTO-PARSE] OpenAI request threw for ${recordIdentifier}:`, e);
+    }
+  } else {
+    console.log(`[AUTO-PARSE] No OPENAI_API_KEY configured — going straight to gateway for ${recordIdentifier}`);
+  }
+
+  // ---- Tier 2: Lovable AI Gateway (Gemini) ----
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+  if (!lovableApiKey) {
+    console.error(`[AUTO-PARSE] LOVABLE_API_KEY missing — cannot use gateway fallback for ${recordIdentifier}`);
+    return { content: null, source: 'none' };
+  }
+
+  try {
+    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Lovable-API-Key': lovableApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      if (res.status === 429) {
+        console.error(`[AUTO-PARSE] Gateway rate limited (429) for ${recordIdentifier} — terminal, using regex`);
+      } else if (res.status === 402) {
+        console.error(`[AUTO-PARSE] Gateway credits exhausted (402) for ${recordIdentifier} — terminal, using regex`);
+      } else {
+        console.error(`[AUTO-PARSE] Gateway error for ${recordIdentifier}: ${res.status} ${errorText.substring(0, 300)}`);
+      }
+      return { content: null, source: 'none' };
+    }
+
+    const json = await res.json();
+    const content = json.choices?.[0]?.message?.content;
+    if (content) {
+      console.log(`[AUTO-PARSE] source=gateway (gemini) for ${recordIdentifier}`);
+      return { content, source: 'gateway' };
+    }
+    console.error(`[AUTO-PARSE] Gateway returned empty content for ${recordIdentifier}`);
+  } catch (e) {
+    console.error(`[AUTO-PARSE] Gateway request threw for ${recordIdentifier}:`, e);
+  }
+
+  return { content: null, source: 'none' };
+}
+
+// Strips markdown fences / prose around a JSON payload so both tiers parse the
+// same way (Gemini occasionally wraps JSON in ```json ... ```).
+function extractJsonPayload(raw: string): any | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (_e) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch (_e2) { /* fall through */ }
+    }
+  }
+  return null;
+}
+
 function fallbackRegexParsing(rawIntakeNotes: string): any {
   console.log('[AUTO-PARSE FALLBACK] Using regex-based fallback parsing...');
   const intakeNotes = stripPatientIntakeSummary(rawIntakeNotes);
@@ -602,13 +719,25 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
   // Extract insurance provider
   // PRIORITY 1: explicit "Insurance Provider:" line (real carrier from intake form)
   // Skip lines that are screening questions like "Please select your GAE insurance provider:"
-  const realProviderMatch = intakeNotes.match(/^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im);
+  // Markdown-tolerant: GHL notes sometimes arrive as "** Insurance Provider: MEDICARE"
+  // or "**Insurance Provider:** MEDICARE", which previously leaked the asterisks
+  // (or the label itself) into the stored value.
+  const stripMd = (v: string) =>
+    v.replace(/\*+/g, '').replace(/^#+\s*/, '').replace(/^[\s:_-]+/, '').trim();
+  const realProviderMatch = intakeNotes.match(
+    /^[ \t]*[*#_]*\s*(?:insurance[ _]provider|Insurance Provider)[*#_]*\s*:\s*([^\n|]+)/im,
+  );
   if (realProviderMatch && realProviderMatch[1]) {
-    const val = realProviderMatch[1].trim();
-    result.insurance_info.insurance_provider = val;
-    console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
-  } else {
-    // PRIORITY 2: fall back to screening / generic patterns
+    const val = stripMd(realProviderMatch[1]);
+    if (val) {
+      result.insurance_info.insurance_provider = val;
+      console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
+    }
+  }
+  if (!result.insurance_info.insurance_provider) {
+    // PRIORITY 2: fall back to screening / generic patterns.
+    // The generic pattern also covers procedure-prefixed labels such as
+    // "Neuropathy insurance provider:" and "Please select your GAE insurance provider:".
     const insuranceProviderPatterns = [
       /Please select your[^:\n]*insurance provider:\s*([^\n|]+)/i,
       /insurance provider:\s*([^\n|]+)/i,
@@ -620,13 +749,13 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       !v ||
       /https?:\/\//i.test(v) ||
       /_link\s*:/i.test(v) ||
-      /^\*+/.test(v) ||
       /\{|\}/.test(v) ||
+      /^insurance[ _]provider\b/i.test(v) ||
       v.length > 60;
     for (const pattern of insuranceProviderPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
-        const candidate = match[1].replace(/\*+/g, '').trim();
+        const candidate = stripMd(match[1]);
         if (isJunkProvider(candidate)) {
           console.log(`[AUTO-PARSE FALLBACK] Skipping junk insurance_provider candidate: ${candidate.substring(0, 60)}`);
           continue;
@@ -637,6 +766,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       }
     }
   }
+
 
 
   // Extract Insurance Plan separately - never copy provider into plan
@@ -2716,10 +2846,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // OpenAI is the primary parser; the Lovable AI Gateway (Gemini) is the
+    // fallback, so a missing/exhausted OpenAI key is no longer fatal.
     const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openAIApiKey) {
-      throw new Error("OpenAI API key not configured");
+    if (!openAIApiKey && !Deno.env.get("LOVABLE_API_KEY")) {
+      throw new Error("No AI provider configured (OPENAI_API_KEY / LOVABLE_API_KEY both missing)");
     }
+
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -3015,61 +3148,29 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         const sanitizedNotesForAI = stripPatientIntakeSummary(record.patient_intake_notes || '');
         const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${sanitizedNotesForAI}`;
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openAIApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.1,
-            max_tokens: 1000,
-          }),
-        });
+        // Two-tier AI: OpenAI first, Lovable AI Gateway (Gemini) as fallback,
+        // regex only when both fail.
+        const aiCall = await callChatModel(systemPrompt, userPrompt, openAIApiKey, recordIdentifier);
 
-        let parsedData;
+        let parsedData: any;
         let usedFallback = false;
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[AUTO-PARSE] OpenAI API error for ${recordIdentifier}:`, response.status, errorText);
-          
-          // Check for rate limit error (429) - use fallback regex parsing
-          if (response.status === 429) {
-            console.log(`[AUTO-PARSE] OpenAI rate limited (429), using regex fallback for ${recordIdentifier}`);
+        if (!aiCall.content) {
+          console.log(`[AUTO-PARSE] source=regex for ${recordIdentifier} (both AI tiers unavailable)`);
+          parsedData = fallbackRegexParsing(record.patient_intake_notes);
+          usedFallback = true;
+        } else {
+          parsedData = extractJsonPayload(aiCall.content);
+          if (!parsedData) {
+            console.error(`[AUTO-PARSE] Unparseable AI JSON from ${aiCall.source} for ${recordIdentifier} — using regex fallback`);
             parsedData = fallbackRegexParsing(record.patient_intake_notes);
             usedFallback = true;
-          } else {
-            throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
           }
         }
-        
-        if (!usedFallback) {
-          const aiResponse = await response.json();
-          const parsedContent = aiResponse.choices[0]?.message?.content;
 
-          if (!parsedContent) {
-            console.error(`[AUTO-PARSE] No content returned for ${recordIdentifier}`);
-            // Fall back to regex parsing instead of throwing
-            console.log(`[AUTO-PARSE] Using regex fallback due to empty AI response for ${recordIdentifier}`);
-            parsedData = fallbackRegexParsing(record.patient_intake_notes);
-            usedFallback = true;
-          } else {
-            // Parse the JSON response
-            try {
-              parsedData = JSON.parse(parsedContent);
-            } catch (parseError) {
-              console.error(`[AUTO-PARSE] Failed to parse AI response for ${recordIdentifier}:`, parsedContent);
-              // Fall back to regex parsing instead of throwing
-              console.log(`[AUTO-PARSE] Using regex fallback due to invalid JSON for ${recordIdentifier}`);
-              parsedData = fallbackRegexParsing(record.patient_intake_notes);
-              usedFallback = true;
-            }
+        if (!usedFallback) {
+          {
+
 
             // Deterministic fill: the GHL "=== GHL Contact Data ===" block uses
             // fixed labels, so regex extraction is reliable. Always run it and use
