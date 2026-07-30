@@ -516,6 +516,123 @@ function stripPatientIntakeSummary(intakeNotes: string): string {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Two-tier AI call: OpenAI (primary) → Lovable AI Gateway / Gemini (fallback).
+// Returns the raw assistant content plus which tier produced it, or null when
+// both tiers failed (caller then drops to regex parsing).
+// ---------------------------------------------------------------------------
+async function callChatModel(
+  systemPrompt: string,
+  userPrompt: string,
+  openAIApiKey: string | undefined,
+  recordIdentifier: string,
+): Promise<{ content: string | null; source: 'openai' | 'gateway' | 'none' }> {
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ];
+
+  // ---- Tier 1: OpenAI ----
+  if (openAIApiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages,
+          temperature: 0.1,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const content = json.choices?.[0]?.message?.content;
+        if (content) {
+          console.log(`[AUTO-PARSE] source=openai for ${recordIdentifier}`);
+          return { content, source: 'openai' };
+        }
+        console.error(`[AUTO-PARSE] OpenAI returned empty content for ${recordIdentifier} — falling back to gateway`);
+      } else {
+        const errorText = await res.text();
+        console.error(`[AUTO-PARSE] OpenAI API error for ${recordIdentifier}: ${res.status} ${errorText.substring(0, 300)}`);
+      }
+    } catch (e) {
+      console.error(`[AUTO-PARSE] OpenAI request threw for ${recordIdentifier}:`, e);
+    }
+  } else {
+    console.log(`[AUTO-PARSE] No OPENAI_API_KEY configured — going straight to gateway for ${recordIdentifier}`);
+  }
+
+  // ---- Tier 2: Lovable AI Gateway (Gemini) ----
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+  if (!lovableApiKey) {
+    console.error(`[AUTO-PARSE] LOVABLE_API_KEY missing — cannot use gateway fallback for ${recordIdentifier}`);
+    return { content: null, source: 'none' };
+  }
+
+  try {
+    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Lovable-API-Key': lovableApiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash',
+        messages,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      if (res.status === 429) {
+        console.error(`[AUTO-PARSE] Gateway rate limited (429) for ${recordIdentifier} — terminal, using regex`);
+      } else if (res.status === 402) {
+        console.error(`[AUTO-PARSE] Gateway credits exhausted (402) for ${recordIdentifier} — terminal, using regex`);
+      } else {
+        console.error(`[AUTO-PARSE] Gateway error for ${recordIdentifier}: ${res.status} ${errorText.substring(0, 300)}`);
+      }
+      return { content: null, source: 'none' };
+    }
+
+    const json = await res.json();
+    const content = json.choices?.[0]?.message?.content;
+    if (content) {
+      console.log(`[AUTO-PARSE] source=gateway (gemini) for ${recordIdentifier}`);
+      return { content, source: 'gateway' };
+    }
+    console.error(`[AUTO-PARSE] Gateway returned empty content for ${recordIdentifier}`);
+  } catch (e) {
+    console.error(`[AUTO-PARSE] Gateway request threw for ${recordIdentifier}:`, e);
+  }
+
+  return { content: null, source: 'none' };
+}
+
+// Strips markdown fences / prose around a JSON payload so both tiers parse the
+// same way (Gemini occasionally wraps JSON in ```json ... ```).
+function extractJsonPayload(raw: string): any | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (_e) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch (_e2) { /* fall through */ }
+    }
+  }
+  return null;
+}
+
 function fallbackRegexParsing(rawIntakeNotes: string): any {
   console.log('[AUTO-PARSE FALLBACK] Using regex-based fallback parsing...');
   const intakeNotes = stripPatientIntakeSummary(rawIntakeNotes);
