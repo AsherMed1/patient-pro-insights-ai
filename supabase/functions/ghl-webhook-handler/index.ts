@@ -1707,7 +1707,120 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
   }
 }
 
+// ---------------------------------------------------------------------------
+// Duplicate suppression: a single GHL contact should only surface one active
+// appointment row per project. Every GHL reschedule/rebooking produces a NEW
+// appointment event id, which historically created a brand-new portal row while
+// the old ones stayed visible (e.g. Orlando Gonzales showed 3 times).
+// ---------------------------------------------------------------------------
+const SUPERSEDE_TERMINAL_STATUSES = [
+  'cancelled', 'canceled', 'no show', 'noshow', 'no-show',
+  'showed', 'won', 'oon', 'do not call', 'donotcall', 'rescheduled',
+]
+
+async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: string) {
+  try {
+    const { data: siblings, error } = await supabase
+      .from('all_appointments')
+      .select('id, status, review_status, date_of_appointment, created_at, is_reserved_block, ghl_appointment_id')
+      .eq('ghl_id', newRow.ghl_id)
+      .eq('project_name', newRow.project_name)
+      .eq('is_superseded', false)
+      .neq('id', newRow.id)
+      .limit(50)
+
+    if (error) {
+      console.warn(`[${requestId}] supersede lookup failed:`, error)
+      return
+    }
+    if (!siblings?.length) return
+
+    const newDate = newRow.date_of_appointment ? String(newRow.date_of_appointment) : null
+
+    const toSupersede = (siblings as any[]).filter((r) => {
+      if (r.is_reserved_block) return false
+      // Rows awaiting a Review Queue decision must stay in the queue.
+      if ((r.review_status || '').toLowerCase().trim() === 'pending') return false
+      const status = (r.status || '').toLowerCase().trim()
+      if (SUPERSEDE_TERMINAL_STATUSES.includes(status)) return true
+      // Still-open row: retire it only if it's dated before the new booking.
+      if (newDate && r.date_of_appointment && String(r.date_of_appointment) < newDate) return true
+      if (newDate && !r.date_of_appointment) return true
+      return false
+    })
+
+    if (!toSupersede.length) return
+
+    const ids = toSupersede.map((r) => r.id)
+    const { error: updErr } = await supabase
+      .from('all_appointments')
+      .update({ is_superseded: true })
+      .in('id', ids)
+
+    if (updErr) {
+      console.warn(`[${requestId}] supersede update failed:`, updErr)
+      return
+    }
+
+    console.log(`[${requestId}] 🧹 Superseded ${ids.length} older row(s) for contact ${newRow.ghl_id} in ${newRow.project_name}`)
+
+    try {
+      await supabase.from('appointment_notes').insert(
+        ids.map((id: string) => ({
+          appointment_id: id,
+          note_text: `Superseded by newer GHL booking ${newRow.ghl_appointment_id || '(no event id)'} on ${newDate || 'unscheduled'} — System`,
+          created_by: 'System',
+        }))
+      )
+    } catch (noteErr) {
+      console.warn(`[${requestId}] supersede note insert failed:`, noteErr)
+    }
+  } catch (e) {
+    console.error(`[${requestId}] supersedeOlderContactRows threw:`, e)
+  }
+}
+
+// Keep lead_name aligned across every active row for a GHL contact so a corrected
+// contact name in GHL doesn't leave the portal showing two different people.
+async function syncContactNameAcrossRows(supabase: any, newRow: any, requestId: string) {
+  try {
+    const name = String(newRow.lead_name || '').trim()
+    if (!name) return
+
+    const { data: stale, error } = await supabase
+      .from('all_appointments')
+      .select('id, lead_name')
+      .eq('ghl_id', newRow.ghl_id)
+      .eq('project_name', newRow.project_name)
+      .eq('is_superseded', false)
+      .neq('id', newRow.id)
+      .neq('lead_name', name)
+      .limit(50)
+
+    if (error) {
+      console.warn(`[${requestId}] name-sync lookup failed:`, error)
+      return
+    }
+    if (!stale?.length) return
+
+    const ids = (stale as any[]).map((r) => r.id)
+    const { error: updErr } = await supabase
+      .from('all_appointments')
+      .update({ lead_name: name })
+      .in('id', ids)
+
+    if (updErr) {
+      console.warn(`[${requestId}] name-sync update failed:`, updErr)
+      return
+    }
+    console.log(`[${requestId}] 🔤 Synced lead_name "${name}" onto ${ids.length} row(s) for contact ${newRow.ghl_id}`)
+  } catch (e) {
+    console.error(`[${requestId}] syncContactNameAcrossRows threw:`, e)
+  }
+}
+
 // Find existing appointment (returns full record for field comparison)
+
 async function findExistingAppointment(
   supabase: any, 
   ghlAppointmentId: string | null, 
