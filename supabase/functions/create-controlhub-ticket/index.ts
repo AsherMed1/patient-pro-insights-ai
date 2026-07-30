@@ -24,7 +24,21 @@ Deno.serve(async (req) => {
       submitted_by_email,
       assignee_name,
       assignee_names,
+      attachments,
     } = body ?? {};
+
+    const normalizedAttachments = Array.isArray(attachments)
+      ? attachments
+          .filter((a: any) => a && typeof a === 'object' && typeof a.name === 'string')
+          .map((a: any) => ({
+            name: String(a.name),
+            path: typeof a.path === 'string' ? a.path : null,
+            size: Number.isFinite(a.size) ? a.size : null,
+            type: typeof a.type === 'string' ? a.type : null,
+            url: typeof a.url === 'string' ? a.url : null,
+          }))
+      : [];
+
 
     if (!case_id || typeof case_id !== 'string') {
       return new Response(JSON.stringify({ error: 'case_id is required' }), {
@@ -115,7 +129,10 @@ Deno.serve(async (req) => {
           client_name: client_name.trim(),
           service_involved: (typeof service_involved === 'string' && service_involved.trim()) ? service_involved.trim() : null,
           issue_type: normalizedIssueType,
-          description: description.trim(),
+          description: normalizedAttachments.length
+            ? `${description.trim()}\n\nAttachments:\n${normalizedAttachments.map((a) => `- ${a.name}${a.url ? ` — ${a.url}` : ''}`).join('\n')}`
+            : description.trim(),
+          attachments: normalizedAttachments,
           submitted_by: normalizedSubmittedBy,
           submitted_by_email: (typeof submitted_by_email === 'string' && submitted_by_email.trim())
             ? submitted_by_email.trim()
@@ -131,6 +148,7 @@ Deno.serve(async (req) => {
             ghl_contact_id: qaCase.ghl_contact_id,
             assignee_name: normalizedAssignee,
             assignees: normalizedAssignees,
+            attachments: normalizedAttachments,
           },
         }),
       });
@@ -196,6 +214,7 @@ Deno.serve(async (req) => {
         submitted_by: normalizedSubmittedBy,
         assignee_name: normalizedAssignee,
         assignees: normalizedAssignees,
+        attachments: normalizedAttachments,
       },
     });
 

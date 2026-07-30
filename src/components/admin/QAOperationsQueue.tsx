@@ -19,7 +19,7 @@ import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3 } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
 
@@ -66,6 +66,7 @@ interface QACase {
   review_resolved_at: string | null;
   lead_phone_number?: string | null;
   lead_email?: string | null;
+  attachments?: any[] | null;
 }
 
 interface QANote {
@@ -204,6 +205,17 @@ interface QAGroup {
   ticketCase: QACase | null;
 }
 
+type SortKey =
+  | 'patient' | 'clinic' | 'service' | 'alerts' | 'self_booked' | 'error'
+  | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket' | 'status';
+
+interface TicketAttachment {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+}
+
 const normalizeName = (n: string | null): string =>
   (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -262,6 +274,8 @@ export default function QAOperationsQueue() {
   );
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -506,9 +520,76 @@ export default function QAOperationsQueue() {
     return counts;
   }, [groupedNoStatus]);
 
-  const filteredGroups = useMemo(() => (
+  const statusFilteredGroups = useMemo(() => (
     tab === 'all' ? groupedNoStatus : groupedNoStatus.filter((g) => g.primary.workflow_status === tab)
   ), [groupedNoStatus, tab]);
+
+  // --- Column sorting -------------------------------------------------------
+  const sortValue = (g: QAGroup, key: SortKey): string | number => {
+    const c = g.primary;
+    switch (key) {
+      case 'patient': return (c.patient_name || '').toLowerCase();
+      case 'clinic': return c.project_name.toLowerCase();
+      case 'service': return (c.service_line || '').toLowerCase();
+      case 'alerts': return (ALERT_LABELS[g.primary.alert_type] || '').toLowerCase();
+      case 'self_booked': return c.self_booked === null ? 2 : c.self_booked ? 0 : 1;
+      case 'error': return (c.error_category || '').toLowerCase();
+      case 'error_source': return (c.error_source || '').toLowerCase();
+      case 'resolution': return (c.resolution_type || '').toLowerCase();
+      case 'created': return new Date(g.earliestCreated).getTime();
+      case 'latest': return new Date(g.latestActivity).getTime();
+      case 'resolved': return c.date_resolved ? new Date(c.date_resolved).getTime() : 0;
+      case 'ticket': return (g.ticketCase?.controlhub_ticket_id || '').toLowerCase();
+      case 'status': return c.workflow_status;
+      default: return '';
+    }
+  };
+
+  const filteredGroups = useMemo(() => {
+    if (!sortKey) return statusFilteredGroups;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...statusFilteredGroups].sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      const as = String(av);
+      const bs = String(bv);
+      // Blanks always sort last regardless of direction
+      if (as === '' && bs !== '') return 1;
+      if (bs === '' && as !== '') return -1;
+      return as.localeCompare(bs) * dir;
+    });
+  }, [statusFilteredGroups, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const SortableHead = ({ column, label }: { column: SortKey; label: string }) => (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => toggleSort(column)}
+        className="inline-flex items-center gap-1 font-medium hover:text-foreground text-left"
+      >
+        {label}
+        {sortKey === column ? (
+          sortDir === 'asc'
+            ? <ArrowUp className="h-3 w-3" />
+            : <ArrowDown className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  );
+
+
 
 
   // When a search/filter is active and the current bucket has no matches, auto-switch
@@ -741,18 +822,18 @@ export default function QAOperationsQueue() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Clinic</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Alerts</TableHead>
-                    <TableHead>Self-Booked</TableHead>
-                    <TableHead>Error</TableHead>
-                    <TableHead>Error Source</TableHead>
-                    <TableHead>Resolution</TableHead>
-                    <TableHead>Date Created</TableHead>
-                    <TableHead>Latest Alert</TableHead>
-                    <TableHead>Resolved</TableHead>
-                    <TableHead>Ticket</TableHead>
+                    <SortableHead column="patient" label="Patient" />
+                    <SortableHead column="clinic" label="Clinic" />
+                    <SortableHead column="service" label="Service" />
+                    <SortableHead column="alerts" label="Alerts" />
+                    <SortableHead column="self_booked" label="Self-Booked" />
+                    <SortableHead column="error" label="Error" />
+                    <SortableHead column="error_source" label="Error Source" />
+                    <SortableHead column="resolution" label="Resolution" />
+                    <SortableHead column="created" label="Date Created" />
+                    <SortableHead column="latest" label="Latest Alert" />
+                    <SortableHead column="resolved" label="Resolved" />
+                    <SortableHead column="ticket" label="Ticket" />
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -1096,6 +1177,64 @@ function CaseDrawer({
     assignee_names: [] as string[],
   });
   const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [ticketFiles, setTicketFiles] = useState<File[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+  const addTicketFiles = (list: FileList | null) => {
+    if (!list) return;
+    const incoming = Array.from(list);
+    const tooBig = incoming.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
+    if (tooBig.length) {
+      toast({
+        title: 'File too large',
+        description: `${tooBig.map((f) => f.name).join(', ')} exceeds the 20MB limit.`,
+        variant: 'destructive',
+      });
+    }
+    const accepted = incoming.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
+    setTicketFiles((prev) => {
+      const existing = new Set(prev.map((f) => `${f.name}:${f.size}`));
+      return [...prev, ...accepted.filter((f) => !existing.has(`${f.name}:${f.size}`))];
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeTicketFile = (index: number) =>
+    setTicketFiles((prev) => prev.filter((_, i) => i !== index));
+
+  const formatBytes = (bytes: number) =>
+    bytes < 1024 ? `${bytes} B`
+      : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB`
+        : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+  const uploadTicketAttachments = async (caseId: string): Promise<TicketAttachment[]> => {
+    const uploaded: TicketAttachment[] = [];
+    for (const file of ticketFiles) {
+      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `${caseId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+      const { error } = await supabase.storage
+        .from('qa-ticket-attachments')
+        .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+      if (error) throw new Error(`${file.name}: ${error.message}`);
+      uploaded.push({ name: file.name, path, size: file.size, type: file.type || 'application/octet-stream' });
+    }
+    return uploaded;
+  };
+
+  const openAttachment = async (att: TicketAttachment) => {
+    const { data, error } = await supabase.storage
+      .from('qa-ticket-attachments')
+      .createSignedUrl(att.path, 3600);
+    if (error || !data?.signedUrl) {
+      toast({ title: 'Unable to open attachment', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
 
   const stripTypePrefix = (name: string) =>
     name.replace(/^QA:\s+[^—]+\s—\s/, '').replace(/^(VA|Tech)\s+(Ticket\s+)?—\s*/, '');
@@ -1142,6 +1281,7 @@ function CaseDrawer({
       submitted_by: submittedBy,
       assignee_names: [],
     });
+    setTicketFiles([]);
     setTicketDialogOpen(true);
   };
 
@@ -1156,6 +1296,32 @@ function CaseDrawer({
       return;
     }
     setCreatingTicket(true);
+
+    let attachments: TicketAttachment[] = [];
+    if (ticketFiles.length) {
+      setUploadingAttachments(true);
+      try {
+        attachments = await uploadTicketAttachments(caseData.id);
+      } catch (e: any) {
+        setUploadingAttachments(false);
+        setCreatingTicket(false);
+        toast({ title: 'Attachment upload failed', description: e?.message, variant: 'destructive' });
+        return;
+      }
+      setUploadingAttachments(false);
+
+      // Signed links so ControlHub can open the evidence (valid 7 days).
+      const signed = await Promise.all(
+        attachments.map(async (a) => {
+          const { data } = await supabase.storage
+            .from('qa-ticket-attachments')
+            .createSignedUrl(a.path, 60 * 60 * 24 * 7);
+          return { ...a, url: data?.signedUrl ?? null };
+        }),
+      );
+      attachments = signed as TicketAttachment[];
+    }
+
     const { data, error } = await supabase.functions.invoke('create-controlhub-ticket', {
       body: {
         case_id: caseData.id,
@@ -1169,6 +1335,7 @@ function CaseDrawer({
         submitted_by_email: user?.email ?? null,
         assignee_names: ticketForm.assignee_names,
         assignee_name: ticketForm.assignee_names[0] || null,
+        attachments,
       },
     });
     setCreatingTicket(false);
@@ -1176,7 +1343,19 @@ function CaseDrawer({
       toast({ title: 'Ticket creation failed', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'ControlHub ticket created', description: (data as any)?.ticket_id });
+
+    if (attachments.length) {
+      await supabase
+        .from('qa_cases' as any)
+        .update({ attachments } as any)
+        .eq('id', caseData.id);
+    }
+
+    toast({
+      title: 'ControlHub ticket created',
+      description: `${(data as any)?.ticket_id ?? ''}${attachments.length ? ` • ${attachments.length} attachment${attachments.length === 1 ? '' : 's'}` : ''}`,
+    });
+    setTicketFiles([]);
     setTicketDialogOpen(false);
     onRefresh();
   };
@@ -1479,6 +1658,26 @@ function CaseDrawer({
                 )}
               </div>
 
+              {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
+                <div>
+                  <div className="text-sm font-semibold mb-2">Ticket attachments</div>
+                  <div className="space-y-1">
+                    {((caseData as any).attachments as TicketAttachment[]).map((att) => (
+                      <button
+                        key={att.path}
+                        type="button"
+                        onClick={() => openAttachment(att)}
+                        className="flex w-full items-center gap-2 rounded border px-2 py-1 text-xs hover:bg-accent text-left"
+                      >
+                        <Paperclip className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{att.name}</span>
+                        <span className="text-muted-foreground shrink-0 ml-auto">{formatBytes(att.size)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <div className="text-sm font-semibold mb-2">Notes</div>
                 <Textarea
@@ -1774,6 +1973,56 @@ function CaseDrawer({
             </div>
 
             <div>
+              <Label className="text-xs">Attachments (optional)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => addTicketFiles(e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-start font-normal"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-3 w-3 mr-2" />
+                {ticketFiles.length ? 'Add more files…' : 'Select files…'}
+              </Button>
+              {ticketFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {ticketFiles.map((f, i) => (
+                    <div
+                      key={`${f.name}-${f.size}-${i}`}
+                      className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs"
+                    >
+                      <span className="flex items-center gap-1 min-w-0">
+                        <Paperclip className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{f.name}</span>
+                        <span className="text-muted-foreground shrink-0">({formatBytes(f.size)})</span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        aria-label={`Remove ${f.name}`}
+                        onClick={() => removeTicketFile(i)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    {ticketFiles.length} file{ticketFiles.length === 1 ? '' : 's'} selected • max 20MB each
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
               <Label className="text-xs">Submitted by</Label>
               <Input value={ticketForm.submitted_by} readOnly className="bg-muted" />
             </div>
@@ -1785,7 +2034,7 @@ function CaseDrawer({
             </Button>
             <Button onClick={submitTicket} disabled={creatingTicket || !ticketForm.issue_type || !ticketForm.task_name.trim()}>
               {creatingTicket && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-              {creatingTicket ? 'Creating…' : 'Create ticket'}
+              {uploadingAttachments ? 'Uploading files…' : creatingTicket ? 'Creating…' : 'Create ticket'}
             </Button>
           </DialogFooter>
         </DialogContent>
