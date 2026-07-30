@@ -273,6 +273,8 @@ export default function QAOperationsQueue() {
   );
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
