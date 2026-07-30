@@ -1,37 +1,41 @@
 ## Goal
 
-In the Cancel Appointment pop-up, require the setter to answer **Was a Welcome Call completed? (Yes / No)** before confirming, and add an **Other** option under the *Do Not Reschedule* reason group.
+Stop the portal from showing the same patient multiple times. One GHL contact should surface exactly one active appointment row per project; older bookings stay in the database as history but drop out of portal views.
 
-## What changes
+## What I verified
 
-**1. Welcome Call question (required)**
-- New Yes/No radio group at the top of the dialog, above the reason list, matching the mockup.
-- Confirm Cancellation stays disabled until Yes or No is selected (alongside the existing reason and Other-notes requirements).
-- Resets when the dialog closes.
+Orlando Gonzales (contact `NJEuukP87bjduMnIZFI7`, Ally Vascular and Pain Centers) has three rows, each from a *different* GHL appointment event:
 
-**2. "Other" under Do Not Reschedule**
-- Displayed label: "Other" in the Do Not Reschedule group; stored value `Other (Do Not Reschedule)` so it stays distinct from the existing reschedulable "Other".
-- Both Others require notes.
-- The Do-Not-Reschedule branch (GHL DND enable + `do-not-reschedule` tag) fires for the new option, exactly like the other reasons in that group.
+```text
+Apr 10, 2026  10:00  Showed      appt 40mZxCbWEM7LzHZ4fU9p   name "Rolando Gonzalez"
+Jul 16, 2026  10:00  Cancelled   appt 7BK71KaQAYje8XpxTzJ9   name "Rolando Gonzalez"
+Aug  8, 2026  10:30  Confirmed   appt wRnHwjWlKgiUqqz3ro7M   name "Orlando Gonzales"
+```
 
-**3. Recording the answer**
-- Saved to a new `welcome_call_completed` boolean column on `all_appointments` (nullable — existing rows stay `null`, meaning "not asked").
-- Also written into the cancellation note and the GHL cancellation note text, e.g. `Cancellation Reason: Scheduling Conflict. Welcome Call completed: Yes. Notes: ...`, so it shows in the portal activity timeline and in GHL.
+All three have `is_superseded = false`, so all three render. The existing reactivation logic in `ghl-webhook-handler` only reuses a closed row when `was_ever_confirmed = false`; these were all confirmed, so each rebooking created a fresh row. The name also drifted because only the newest row picked up the corrected GHL contact name.
 
-## Where
+## Changes
 
-The cancellation dialog exists in two places and both are updated identically:
-- `src/components/appointments/AppointmentCard.tsx` (dialog around line 2253, submit handler `handleCancelSubmit` line 706, reason arrays lines 688-704)
-- `src/components/appointments/DetailedAppointmentView.tsx` (dialog around line 1423, inline submit handler, inline reason arrays lines 1436-1456)
+**1. Auto-supersede prior rows on new booking (`supabase/functions/ghl-webhook-handler/index.ts`)**
 
-The reason lists and the "is this a do-not-reschedule reason" test are currently duplicated across both files. They will be extracted into a small shared module (`src/components/appointments/cancellationReasons.ts`) so the two dialogs can't drift again.
+When a webhook creates a brand-new appointment row (new `ghl_appointment_id`) for a contact that already has rows in the same project:
 
-## Not included
+- Find all other non-superseded, non-reserved rows with the same `ghl_id` + `project_name`.
+- Mark each as `is_superseded = true` when its status is terminal (Cancelled/Canceled/No Show/Showed/Won/OON/Do Not Call/Rescheduled) **or** its appointment date is before the new booking's date.
+- Never supersede a row that is still open *and* dated on/after the new booking (a genuine second future appointment stays visible).
+- Never touch rows in Review Queue `pending` state — those must stay in the queue for a decision.
+- Write an `appointment_notes` audit row on each superseded record: "Superseded by newer GHL booking {appt id} on {date} — System".
 
-- No change to the Review Queue decline flow (separate reason set, `declineReasons.ts`).
-- No new GHL tag for the Welcome Call answer — say the word if you want one (e.g. `cancelled-during-welcome-call`) for workflow branching.
-- No reporting/export column for the new field yet.
+**2. Sync contact name across all rows**
 
-## Technical notes
+In the same handler, whenever an incoming payload carries a contact name that differs from the stored `lead_name`, update `lead_name` on every non-superseded row for that `ghl_id` + `project_name`, not just the matched row. Log the rename as a status/audit note on the active row only, so history rows don't get noise.
 
-One migration adds `welcome_call_completed boolean` to `all_appointments`. Everything else is frontend: shared reason constants, two dialog updates, and the note/GHL string builders.
+**3. One-time backfill**
+
+Run a read-only audit query first to count affected contacts, then a single migration that applies the same rule to existing data: for each `(ghl_id, project_name)` with more than one non-superseded row, keep the newest row by appointment date (falling back to `created_at`) and set `is_superseded = true` on the older ones, skipping `review_status = 'pending'` rows and reserved blocks. Also normalizes `lead_name` to the newest row's name per contact. Orlando's two older rows are covered by this.
+
+## Notes
+
+- Superseding is non-destructive: rows stay queryable, and the Activity/History timeline already reads superseded rows, so the patient's full booking history remains visible on the surviving record.
+- Dashboards and portal lists already exclude `is_superseded = true`, so no UI changes are needed.
+- Rescheduling through the portal is unaffected — it updates in place and doesn't create a second row.
