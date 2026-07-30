@@ -506,9 +506,76 @@ export default function QAOperationsQueue() {
     return counts;
   }, [groupedNoStatus]);
 
-  const filteredGroups = useMemo(() => (
+  const statusFilteredGroups = useMemo(() => (
     tab === 'all' ? groupedNoStatus : groupedNoStatus.filter((g) => g.primary.workflow_status === tab)
   ), [groupedNoStatus, tab]);
+
+  // --- Column sorting -------------------------------------------------------
+  const sortValue = (g: QAGroup, key: SortKey): string | number => {
+    const c = g.primary;
+    switch (key) {
+      case 'patient': return (c.patient_name || '').toLowerCase();
+      case 'clinic': return c.project_name.toLowerCase();
+      case 'service': return (c.service_line || '').toLowerCase();
+      case 'alerts': return (ALERT_LABELS[g.primary.alert_type] || '').toLowerCase();
+      case 'self_booked': return c.self_booked === null ? 2 : c.self_booked ? 0 : 1;
+      case 'error': return (c.error_category || '').toLowerCase();
+      case 'error_source': return (c.error_source || '').toLowerCase();
+      case 'resolution': return (c.resolution_type || '').toLowerCase();
+      case 'created': return new Date(g.earliestCreated).getTime();
+      case 'latest': return new Date(g.latestActivity).getTime();
+      case 'resolved': return c.date_resolved ? new Date(c.date_resolved).getTime() : 0;
+      case 'ticket': return (g.ticketCase?.controlhub_ticket_id || '').toLowerCase();
+      case 'status': return c.workflow_status;
+      default: return '';
+    }
+  };
+
+  const filteredGroups = useMemo(() => {
+    if (!sortKey) return statusFilteredGroups;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...statusFilteredGroups].sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      const as = String(av);
+      const bs = String(bv);
+      // Blanks always sort last regardless of direction
+      if (as === '' && bs !== '') return 1;
+      if (bs === '' && as !== '') return -1;
+      return as.localeCompare(bs) * dir;
+    });
+  }, [statusFilteredGroups, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const SortableHead = ({ column, label }: { column: SortKey; label: string }) => (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => toggleSort(column)}
+        className="inline-flex items-center gap-1 font-medium hover:text-foreground text-left"
+      >
+        {label}
+        {sortKey === column ? (
+          sortDir === 'asc'
+            ? <ArrowUp className="h-3 w-3" />
+            : <ArrowDown className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  );
+
+
 
 
   // When a search/filter is active and the current bucket has no matches, auto-switch
