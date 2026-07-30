@@ -1586,11 +1586,11 @@ const ReviewQueue: React.FC = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {dupActionRow?.action === 'replace' ? 'Replace existing appointment(s)' : 'Keep existing, dismiss new'}
+                {dupActionRow?.action === 'replace' ? 'Approve and supersede existing appointment(s)' : 'Keep existing, dismiss new'}
               </DialogTitle>
               <DialogDescription>
                 {dupActionRow?.action === 'replace'
-                  ? 'This will APPROVE the new appointment and DELETE the existing duplicate(s) listed below. A note will be added to the approved record.'
+                  ? 'This will APPROVE the new appointment and move the existing duplicate(s) listed below to history (superseded). No cancellation workflow will be triggered.'
                   : 'This will DISMISS the new queue item and leave the existing appointment untouched. No cancellation will be triggered.'}
               </DialogDescription>
             </DialogHeader>
@@ -1602,7 +1602,7 @@ const ReviewQueue: React.FC = () => {
                   <div className="text-xs text-muted-foreground">{dupActionRow.row.calendar_name || '—'}</div>
                 </div>
                 <div className="font-medium mt-2">
-                  {dupActionRow.action === 'replace' ? 'Will delete:' : 'Will keep:'}
+                  {dupActionRow.action === 'replace' ? 'Will be moved to history:' : 'Will keep:'}
                 </div>
                 <div className="space-y-1">
                   {(duplicatesByRowId[dupActionRow.row.id] || []).map(d => (
