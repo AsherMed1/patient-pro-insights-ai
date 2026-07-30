@@ -72,7 +72,6 @@ serve(async (req) => {
     .eq("review_status", "approved")
     .not("ghl_id", "is", null)
     .order("created_at", { ascending: false })
-    .order("created_at", { ascending: false })
     .limit(batchSize);
 
   if (forceIds.length > 0) {
