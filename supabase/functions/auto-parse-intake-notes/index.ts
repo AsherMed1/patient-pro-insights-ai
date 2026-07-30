@@ -719,13 +719,25 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
   // Extract insurance provider
   // PRIORITY 1: explicit "Insurance Provider:" line (real carrier from intake form)
   // Skip lines that are screening questions like "Please select your GAE insurance provider:"
-  const realProviderMatch = intakeNotes.match(/^[ \t]*Insurance Provider\s*:\s*([^\n|]+)/im);
+  // Markdown-tolerant: GHL notes sometimes arrive as "** Insurance Provider: MEDICARE"
+  // or "**Insurance Provider:** MEDICARE", which previously leaked the asterisks
+  // (or the label itself) into the stored value.
+  const stripMd = (v: string) =>
+    v.replace(/\*+/g, '').replace(/^#+\s*/, '').replace(/^[\s:_-]+/, '').trim();
+  const realProviderMatch = intakeNotes.match(
+    /^[ \t]*[*#_]*\s*(?:insurance[ _]provider|Insurance Provider)[*#_]*\s*:\s*([^\n|]+)/im,
+  );
   if (realProviderMatch && realProviderMatch[1]) {
-    const val = realProviderMatch[1].trim();
-    result.insurance_info.insurance_provider = val;
-    console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
-  } else {
-    // PRIORITY 2: fall back to screening / generic patterns
+    const val = stripMd(realProviderMatch[1]);
+    if (val) {
+      result.insurance_info.insurance_provider = val;
+      console.log(`[AUTO-PARSE FALLBACK] Extracted real insurance_provider: ${val}`);
+    }
+  }
+  if (!result.insurance_info.insurance_provider) {
+    // PRIORITY 2: fall back to screening / generic patterns.
+    // The generic pattern also covers procedure-prefixed labels such as
+    // "Neuropathy insurance provider:" and "Please select your GAE insurance provider:".
     const insuranceProviderPatterns = [
       /Please select your[^:\n]*insurance provider:\s*([^\n|]+)/i,
       /insurance provider:\s*([^\n|]+)/i,
@@ -737,13 +749,13 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       !v ||
       /https?:\/\//i.test(v) ||
       /_link\s*:/i.test(v) ||
-      /^\*+/.test(v) ||
       /\{|\}/.test(v) ||
+      /^insurance[ _]provider\b/i.test(v) ||
       v.length > 60;
     for (const pattern of insuranceProviderPatterns) {
       const match = intakeNotes.match(pattern);
       if (match && match[1]) {
-        const candidate = match[1].replace(/\*+/g, '').trim();
+        const candidate = stripMd(match[1]);
         if (isJunkProvider(candidate)) {
           console.log(`[AUTO-PARSE FALLBACK] Skipping junk insurance_provider candidate: ${candidate.substring(0, 60)}`);
           continue;
@@ -754,6 +766,7 @@ function fallbackRegexParsing(rawIntakeNotes: string): any {
       }
     }
   }
+
 
 
   // Extract Insurance Plan separately - never copy provider into plan
