@@ -6,13 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Exempt projects: auto-approved without tagging GHL (per project rules)
-const EXEMPT_PROJECTS = [
-  "ECCO Medical",
-  "Premier Vascular",
-  "Premier Vascular Surgery",
-  "Davis Vein & Vascular",
-];
+// NOTE: no project exemptions. Premier Vascular / Premier Vascular Surgery /
+// ECCO Medical / Davis Vein & Vascular used to bypass the Review Queue and were
+// skipped here; they now route through it, so skipping them left approved rows
+// permanently untagged in GHL (contacts stuck in the "wait for approved" step).
+
 
 const APPROVED_TAG = "approved";
 
