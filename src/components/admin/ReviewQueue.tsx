@@ -1337,7 +1337,7 @@ const ReviewQueue: React.FC = () => {
                             size="sm"
                             variant="default"
                             className="bg-green-600 hover:bg-green-700"
-                            onClick={() => handleSingleAction(row.id, 'approved')}
+                            onClick={() => handleSingleAction(row.id, 'approved', undefined, undefined, duplicatesByRowId[row.id]?.length || 0)}
                             disabled={processing}
                           >
                             <Check className="h-3.5 w-3.5 mr-1" /> Approve
