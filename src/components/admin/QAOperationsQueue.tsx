@@ -1952,6 +1952,56 @@ function CaseDrawer({
             </div>
 
             <div>
+              <Label className="text-xs">Attachments (optional)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => addTicketFiles(e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-start font-normal"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-3 w-3 mr-2" />
+                {ticketFiles.length ? 'Add more files…' : 'Select files…'}
+              </Button>
+              {ticketFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {ticketFiles.map((f, i) => (
+                    <div
+                      key={`${f.name}-${f.size}-${i}`}
+                      className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs"
+                    >
+                      <span className="flex items-center gap-1 min-w-0">
+                        <Paperclip className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{f.name}</span>
+                        <span className="text-muted-foreground shrink-0">({formatBytes(f.size)})</span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        aria-label={`Remove ${f.name}`}
+                        onClick={() => removeTicketFile(i)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    {ticketFiles.length} file{ticketFiles.length === 1 ? '' : 's'} selected • max 20MB each
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
               <Label className="text-xs">Submitted by</Label>
               <Input value={ticketForm.submitted_by} readOnly className="bg-muted" />
             </div>
