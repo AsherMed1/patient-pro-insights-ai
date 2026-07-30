@@ -426,46 +426,26 @@ const ReviewQueue: React.FC = () => {
     const dups = duplicatesByRowId[row.id] || [];
     setProcessing(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      // Approve the new row first
-      const ok = await performAction(row.id, 'approved', 'Replaced existing duplicate appointment(s)');
+      // Approve the new row; the DB trigger will supersede older active siblings.
+      const ok = await performAction(row.id, 'approved', 'Approved via Replace existing; older active rows superseded.');
       if (!ok) { setProcessing(false); return; }
 
       const newWhen = `${row.date_of_appointment || 'unscheduled'} ${row.requested_time || ''}`.trim();
-      const deletedIds: string[] = [];
-      for (const d of dups) {
-        try {
-          const utcTimestamp = new Date().toISOString();
-          await supabase.from('appointment_notes').insert({
-            appointment_id: row.id,
-            note_text: `Replaced existing duplicate (deleted appt ${d.id}, was ${d.date_of_appointment || 'unscheduled'} ${d.requested_time || ''} · ${d.calendar_name || '—'}) by ${userName || 'Unknown'} - [[timestamp:${utcTimestamp}]]`,
-            created_by: userName || 'Review Queue',
-          });
-
-          const { error: delErr } = await supabase
-            .from('all_appointments')
-            .delete()
-            .eq('id', d.id);
-          if (delErr) throw delErr;
-          deletedIds.push(d.id);
-        } catch (e) {
-          console.warn('replace-existing per-duplicate failed', e);
-        }
-      }
+      const supersededIds = dups.map(d => d.id);
 
       try {
         await supabase.rpc('log_audit_event', {
           p_entity: 'appointment',
           p_action: 'replace_existing_duplicate',
-          p_description: `Replaced existing duplicate(s) via Review Queue: ${row.lead_name} (${row.project_name}); deleted ${deletedIds.length} prior appt(s) by ${userName || 'Unknown'}`,
+          p_description: `Replaced existing duplicate(s) via Review Queue: ${row.lead_name} (${row.project_name}); ${supersededIds.length} prior appt(s) superseded by ${userName || 'Unknown'}`,
           p_source: 'review_queue',
-          p_metadata: { surviving_appointment_id: row.id, deleted_appointment_ids: deletedIds, new_when: newWhen },
+          p_metadata: { surviving_appointment_id: row.id, superseded_appointment_ids: supersededIds, new_when: newWhen },
         });
       } catch (e) {
         console.warn('audit log failed', e);
       }
 
-      toast({ title: 'Replaced existing', description: `Approved new; deleted ${deletedIds.length} prior appt(s)` });
+      toast({ title: 'Approved and superseded', description: `Approved new; ${supersededIds.length} existing appt(s) moved to history.` });
       setRows(prev => prev.filter(r => r.id !== row.id));
       setDupActionRow(null);
       fetchCounts();
