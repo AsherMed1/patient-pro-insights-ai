@@ -807,7 +807,39 @@ const ReviewQueue: React.FC = () => {
             variant: 'destructive',
           });
         }
+
+        // GHL exit tag: without this, contacts sit forever in the GHL workflow
+        // Wait step that only listens for the 'approved' tag.
+        if (priorRow.ghl_id) {
+          try {
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', priorRow.project_name)
+              .maybeSingle();
+
+            const { error: oonTagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: priorRow.ghl_id,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                tags: ['appointment-oon'],
+                action: 'add',
+              },
+            });
+            if (oonTagErr) {
+              console.error('OON GHL tag failed:', oonTagErr);
+              toast({
+                title: 'OON saved — GHL tag failed',
+                description: 'The "appointment-oon" tag could not be added in GHL.',
+                variant: 'destructive',
+              });
+            }
+          } catch (err) {
+            console.error('OON GHL tag threw:', err);
+          }
+        }
       }
+
 
       // Decline side effects: auto-cancel through the SINGLE canonical status
       // path, log the reason, and notify the patient via GHL tags — exactly once.

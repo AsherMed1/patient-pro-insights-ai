@@ -6,13 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Exempt projects: auto-approved without tagging GHL (per project rules)
-const EXEMPT_PROJECTS = [
-  "ECCO Medical",
-  "Premier Vascular",
-  "Premier Vascular Surgery",
-  "Davis Vein & Vascular",
-];
+// NOTE: no project exemptions. Premier Vascular / Premier Vascular Surgery /
+// ECCO Medical / Davis Vein & Vascular used to bypass the Review Queue and were
+// skipped here; they now route through it, so skipping them left approved rows
+// permanently untagged in GHL (contacts stuck in the "wait for approved" step).
+
 
 const APPROVED_TAG = "approved";
 
@@ -73,7 +71,6 @@ serve(async (req) => {
     .select("id, lead_name, project_name, ghl_id, ghl_approved_tag_sent_at, updated_at")
     .eq("review_status", "approved")
     .not("ghl_id", "is", null)
-    .not("project_name", "in", `(${EXEMPT_PROJECTS.map((p) => `"${p}"`).join(",")})`)
     .order("created_at", { ascending: false })
     .limit(batchSize);
 
@@ -116,6 +113,13 @@ serve(async (req) => {
   let skipped = 0;
   const failures: Array<{ id: string; reason: string }> = [];
 
+  const recordError = async (id: string, reason: string) => {
+    await supabase
+      .from("all_appointments")
+      .update({ ghl_tag_last_error: `${new Date().toISOString()}: ${reason}`.slice(0, 500) })
+      .eq("id", id);
+  };
+
   for (const row of rows) {
     try {
       if (!projectKeys.has(row.project_name)) {
@@ -131,6 +135,7 @@ serve(async (req) => {
       if (!apiKey) {
         skipped++;
         failures.push({ id: row.id, reason: "no project ghl_api_key" });
+        await recordError(row.id, "no project ghl_api_key");
         continue;
       }
 
@@ -138,7 +143,9 @@ serve(async (req) => {
       const verify = await fetchGhlContactTags(row.ghl_id!, apiKey);
       if (!verify.ok) {
         failed++;
-        failures.push({ id: row.id, reason: `GET contact failed: ${verify.status} ${verify.error ?? ""}`.trim() });
+        const reason = `GET contact failed: ${verify.status} ${verify.error ?? ""}`.trim();
+        failures.push({ id: row.id, reason });
+        await recordError(row.id, reason);
         console.error(`[retry-tags] verify failed for ${row.id}:`, verify);
         continue;
       }
@@ -148,7 +155,7 @@ serve(async (req) => {
         if (!row.ghl_approved_tag_sent_at) {
           await supabase
             .from("all_appointments")
-            .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
+            .update({ ghl_approved_tag_sent_at: new Date().toISOString(), ghl_tag_last_error: null })
             .eq("id", row.id);
         }
         alreadyTagged++;
@@ -172,19 +179,22 @@ serve(async (req) => {
 
       if (tagErr || !(tagData as any)?.success) {
         failed++;
-        failures.push({ id: row.id, reason: tagErr?.message || JSON.stringify(tagData) });
+        const reason = tagErr?.message || JSON.stringify(tagData);
+        failures.push({ id: row.id, reason });
+        await recordError(row.id, reason);
         console.error(`[retry-tags] tag push failed for ${row.id} (${row.lead_name}):`, tagErr || tagData);
         continue;
       }
 
       await supabase
         .from("all_appointments")
-        .update({ ghl_approved_tag_sent_at: new Date().toISOString() })
+        .update({ ghl_approved_tag_sent_at: new Date().toISOString(), ghl_tag_last_error: null })
         .eq("id", row.id);
 
       succeeded++;
       console.log(`[retry-tags] tagged ${row.id} (${row.lead_name} / ${row.project_name})`);
       await new Promise((r) => setTimeout(r, 150));
+
     } catch (e) {
       failed++;
       failures.push({ id: row.id, reason: (e as Error).message });

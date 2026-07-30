@@ -228,6 +228,7 @@ export type Database = {
           ghl_approved_tag_sent_at: string | null
           ghl_id: string | null
           ghl_location_id: string | null
+          ghl_tag_last_error: string | null
           id: string
           insurance_back_link: string | null
           insurance_detection_confidence: number | null
@@ -300,6 +301,7 @@ export type Database = {
           ghl_approved_tag_sent_at?: string | null
           ghl_id?: string | null
           ghl_location_id?: string | null
+          ghl_tag_last_error?: string | null
           id?: string
           insurance_back_link?: string | null
           insurance_detection_confidence?: number | null
@@ -372,6 +374,7 @@ export type Database = {
           ghl_approved_tag_sent_at?: string | null
           ghl_id?: string | null
           ghl_location_id?: string | null
+          ghl_tag_last_error?: string | null
           id?: string
           insurance_back_link?: string | null
           insurance_detection_confidence?: number | null
