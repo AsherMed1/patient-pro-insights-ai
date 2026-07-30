@@ -71,7 +71,7 @@ serve(async (req) => {
     .select("id, lead_name, project_name, ghl_id, ghl_approved_tag_sent_at, updated_at")
     .eq("review_status", "approved")
     .not("ghl_id", "is", null)
-    .not("project_name", "in", `(${EXEMPT_PROJECTS.map((p) => `"${p}"`).join(",")})`)
+    .order("created_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(batchSize);
 
