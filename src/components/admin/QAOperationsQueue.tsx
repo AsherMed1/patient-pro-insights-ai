@@ -2034,7 +2034,7 @@ function CaseDrawer({
             </Button>
             <Button onClick={submitTicket} disabled={creatingTicket || !ticketForm.issue_type || !ticketForm.task_name.trim()}>
               {creatingTicket && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-              {creatingTicket ? 'Creating…' : 'Create ticket'}
+              {uploadingAttachments ? 'Uploading files…' : creatingTicket ? 'Creating…' : 'Create ticket'}
             </Button>
           </DialogFooter>
         </DialogContent>
