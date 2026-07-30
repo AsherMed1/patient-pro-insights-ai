@@ -66,6 +66,7 @@ interface QACase {
   review_resolved_at: string | null;
   lead_phone_number?: string | null;
   lead_email?: string | null;
+  attachments?: any[] | null;
 }
 
 interface QANote {
