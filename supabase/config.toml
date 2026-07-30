@@ -169,7 +169,3 @@ verify_jwt = false
 [functions.notify-slack-short-notice]
 verify_jwt = false
 # Send Slack alert when appointment is booked within short-notice threshold
-
-[functions.export-dup-missing]
-verify_jwt = false
-# Temporary one-off export of duplicate + missing-info appointment rows
