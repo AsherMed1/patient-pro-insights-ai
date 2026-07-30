@@ -2833,10 +2833,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // OpenAI is the primary parser; the Lovable AI Gateway (Gemini) is the
+    // fallback, so a missing/exhausted OpenAI key is no longer fatal.
     const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openAIApiKey) {
-      throw new Error("OpenAI API key not configured");
+    if (!openAIApiKey && !Deno.env.get("LOVABLE_API_KEY")) {
+      throw new Error("No AI provider configured (OPENAI_API_KEY / LOVABLE_API_KEY both missing)");
     }
+
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
