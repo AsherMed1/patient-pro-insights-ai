@@ -924,10 +924,14 @@ const ReviewQueue: React.FC = () => {
     return true;
   };
 
-  const handleSingleAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
+  const handleSingleAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string, duplicateCount?: number) => {
     const ok = await performAction(id, action, notes, reasonValue);
     if (ok) {
-      toast({ title: `Appointment ${action === 'oon' ? 'marked as OON' : action === 'declined' ? 'declined and cancelled' : action}` });
+      if (action === 'approved' && duplicateCount && duplicateCount > 0) {
+        toast({ title: 'Approved and superseded', description: `${duplicateCount} existing appointment(s) moved to history.` });
+      } else {
+        toast({ title: `Appointment ${action === 'oon' ? 'marked as OON' : action === 'declined' ? 'declined and cancelled' : action}` });
+      }
       setRows(prev => prev.filter(r => r.id !== id));
       setActionRow(null);
       setActionNotes('');
