@@ -821,18 +821,18 @@ export default function QAOperationsQueue() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Clinic</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Alerts</TableHead>
-                    <TableHead>Self-Booked</TableHead>
-                    <TableHead>Error</TableHead>
-                    <TableHead>Error Source</TableHead>
-                    <TableHead>Resolution</TableHead>
-                    <TableHead>Date Created</TableHead>
-                    <TableHead>Latest Alert</TableHead>
-                    <TableHead>Resolved</TableHead>
-                    <TableHead>Ticket</TableHead>
+                    <SortableHead column="patient" label="Patient" />
+                    <SortableHead column="clinic" label="Clinic" />
+                    <SortableHead column="service" label="Service" />
+                    <SortableHead column="alerts" label="Alerts" />
+                    <SortableHead column="self_booked" label="Self-Booked" />
+                    <SortableHead column="error" label="Error" />
+                    <SortableHead column="error_source" label="Error Source" />
+                    <SortableHead column="resolution" label="Resolution" />
+                    <SortableHead column="created" label="Date Created" />
+                    <SortableHead column="latest" label="Latest Alert" />
+                    <SortableHead column="resolved" label="Resolved" />
+                    <SortableHead column="ticket" label="Ticket" />
                     <TableHead />
                   </TableRow>
                 </TableHeader>
