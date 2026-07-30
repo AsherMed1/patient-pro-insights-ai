@@ -3132,61 +3132,29 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         const sanitizedNotesForAI = stripPatientIntakeSummary(record.patient_intake_notes || '');
         const userPrompt = `${procedureContext}Patient Intake Notes:\n\n${sanitizedNotesForAI}`;
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openAIApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.1,
-            max_tokens: 1000,
-          }),
-        });
+        // Two-tier AI: OpenAI first, Lovable AI Gateway (Gemini) as fallback,
+        // regex only when both fail.
+        const aiCall = await callChatModel(systemPrompt, userPrompt, openAIApiKey, recordIdentifier);
 
-        let parsedData;
+        let parsedData: any;
         let usedFallback = false;
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[AUTO-PARSE] OpenAI API error for ${recordIdentifier}:`, response.status, errorText);
-          
-          // Check for rate limit error (429) - use fallback regex parsing
-          if (response.status === 429) {
-            console.log(`[AUTO-PARSE] OpenAI rate limited (429), using regex fallback for ${recordIdentifier}`);
+        if (!aiCall.content) {
+          console.log(`[AUTO-PARSE] source=regex for ${recordIdentifier} (both AI tiers unavailable)`);
+          parsedData = fallbackRegexParsing(record.patient_intake_notes);
+          usedFallback = true;
+        } else {
+          parsedData = extractJsonPayload(aiCall.content);
+          if (!parsedData) {
+            console.error(`[AUTO-PARSE] Unparseable AI JSON from ${aiCall.source} for ${recordIdentifier} — using regex fallback`);
             parsedData = fallbackRegexParsing(record.patient_intake_notes);
             usedFallback = true;
-          } else {
-            throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
           }
         }
-        
-        if (!usedFallback) {
-          const aiResponse = await response.json();
-          const parsedContent = aiResponse.choices[0]?.message?.content;
 
-          if (!parsedContent) {
-            console.error(`[AUTO-PARSE] No content returned for ${recordIdentifier}`);
-            // Fall back to regex parsing instead of throwing
-            console.log(`[AUTO-PARSE] Using regex fallback due to empty AI response for ${recordIdentifier}`);
-            parsedData = fallbackRegexParsing(record.patient_intake_notes);
-            usedFallback = true;
-          } else {
-            // Parse the JSON response
-            try {
-              parsedData = JSON.parse(parsedContent);
-            } catch (parseError) {
-              console.error(`[AUTO-PARSE] Failed to parse AI response for ${recordIdentifier}:`, parsedContent);
-              // Fall back to regex parsing instead of throwing
-              console.log(`[AUTO-PARSE] Using regex fallback due to invalid JSON for ${recordIdentifier}`);
-              parsedData = fallbackRegexParsing(record.patient_intake_notes);
-              usedFallback = true;
-            }
+        if (!usedFallback) {
+          {
+
 
             // Deterministic fill: the GHL "=== GHL Contact Data ===" block uses
             // fixed labels, so regex extraction is reliable. Always run it and use
