@@ -1280,6 +1280,7 @@ function CaseDrawer({
       submitted_by: submittedBy,
       assignee_names: [],
     });
+    setTicketFiles([]);
     setTicketDialogOpen(true);
   };
 
@@ -1294,6 +1295,32 @@ function CaseDrawer({
       return;
     }
     setCreatingTicket(true);
+
+    let attachments: TicketAttachment[] = [];
+    if (ticketFiles.length) {
+      setUploadingAttachments(true);
+      try {
+        attachments = await uploadTicketAttachments(caseData.id);
+      } catch (e: any) {
+        setUploadingAttachments(false);
+        setCreatingTicket(false);
+        toast({ title: 'Attachment upload failed', description: e?.message, variant: 'destructive' });
+        return;
+      }
+      setUploadingAttachments(false);
+
+      // Signed links so ControlHub can open the evidence (valid 7 days).
+      const signed = await Promise.all(
+        attachments.map(async (a) => {
+          const { data } = await supabase.storage
+            .from('qa-ticket-attachments')
+            .createSignedUrl(a.path, 60 * 60 * 24 * 7);
+          return { ...a, url: data?.signedUrl ?? null };
+        }),
+      );
+      attachments = signed as TicketAttachment[];
+    }
+
     const { data, error } = await supabase.functions.invoke('create-controlhub-ticket', {
       body: {
         case_id: caseData.id,
@@ -1307,6 +1334,7 @@ function CaseDrawer({
         submitted_by_email: user?.email ?? null,
         assignee_names: ticketForm.assignee_names,
         assignee_name: ticketForm.assignee_names[0] || null,
+        attachments,
       },
     });
     setCreatingTicket(false);
@@ -1314,7 +1342,19 @@ function CaseDrawer({
       toast({ title: 'Ticket creation failed', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'ControlHub ticket created', description: (data as any)?.ticket_id });
+
+    if (attachments.length) {
+      await supabase
+        .from('qa_cases' as any)
+        .update({ attachments } as any)
+        .eq('id', caseData.id);
+    }
+
+    toast({
+      title: 'ControlHub ticket created',
+      description: `${(data as any)?.ticket_id ?? ''}${attachments.length ? ` • ${attachments.length} attachment${attachments.length === 1 ? '' : 's'}` : ''}`,
+    });
+    setTicketFiles([]);
     setTicketDialogOpen(false);
     onRefresh();
   };
