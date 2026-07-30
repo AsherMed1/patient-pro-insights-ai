@@ -1176,6 +1176,64 @@ function CaseDrawer({
     assignee_names: [] as string[],
   });
   const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [ticketFiles, setTicketFiles] = useState<File[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+  const addTicketFiles = (list: FileList | null) => {
+    if (!list) return;
+    const incoming = Array.from(list);
+    const tooBig = incoming.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
+    if (tooBig.length) {
+      toast({
+        title: 'File too large',
+        description: `${tooBig.map((f) => f.name).join(', ')} exceeds the 20MB limit.`,
+        variant: 'destructive',
+      });
+    }
+    const accepted = incoming.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
+    setTicketFiles((prev) => {
+      const existing = new Set(prev.map((f) => `${f.name}:${f.size}`));
+      return [...prev, ...accepted.filter((f) => !existing.has(`${f.name}:${f.size}`))];
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeTicketFile = (index: number) =>
+    setTicketFiles((prev) => prev.filter((_, i) => i !== index));
+
+  const formatBytes = (bytes: number) =>
+    bytes < 1024 ? `${bytes} B`
+      : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB`
+        : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+  const uploadTicketAttachments = async (caseId: string): Promise<TicketAttachment[]> => {
+    const uploaded: TicketAttachment[] = [];
+    for (const file of ticketFiles) {
+      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `${caseId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+      const { error } = await supabase.storage
+        .from('qa-ticket-attachments')
+        .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+      if (error) throw new Error(`${file.name}: ${error.message}`);
+      uploaded.push({ name: file.name, path, size: file.size, type: file.type || 'application/octet-stream' });
+    }
+    return uploaded;
+  };
+
+  const openAttachment = async (att: TicketAttachment) => {
+    const { data, error } = await supabase.storage
+      .from('qa-ticket-attachments')
+      .createSignedUrl(att.path, 3600);
+    if (error || !data?.signedUrl) {
+      toast({ title: 'Unable to open attachment', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
 
   const stripTypePrefix = (name: string) =>
     name.replace(/^QA:\s+[^—]+\s—\s/, '').replace(/^(VA|Tech)\s+(Ticket\s+)?—\s*/, '');
