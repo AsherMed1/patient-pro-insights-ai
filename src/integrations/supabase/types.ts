@@ -3200,6 +3200,7 @@ export type Database = {
           appointment_id: string | null
           appointment_status: string | null
           assigned_qs_user_id: string | null
+          attachments: Json
           caught_before_clinic: boolean | null
           completed_at: string | null
           completed_by_user_id: string | null
@@ -3236,6 +3237,7 @@ export type Database = {
           appointment_id?: string | null
           appointment_status?: string | null
           assigned_qs_user_id?: string | null
+          attachments?: Json
           caught_before_clinic?: boolean | null
           completed_at?: string | null
           completed_by_user_id?: string | null
@@ -3272,6 +3274,7 @@ export type Database = {
           appointment_id?: string | null
           appointment_status?: string | null
           assigned_qs_user_id?: string | null
+          attachments?: Json
           caught_before_clinic?: boolean | null
           completed_at?: string | null
           completed_by_user_id?: string | null
