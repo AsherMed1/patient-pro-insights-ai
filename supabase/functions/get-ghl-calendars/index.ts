@@ -23,17 +23,36 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_location_id, ghl_api_key } = await req.json();
+    const { ghl_location_id, ghl_api_key, project_name } = await req.json();
 
-    if (!ghl_location_id) {
+    // Resolve location id / api key from the project record when not supplied.
+    let locationId: string | null = ghl_location_id || null;
+    let apiKey: string | null = ghl_api_key || null;
+
+    if ((!locationId || !apiKey) && (project_name || locationId)) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+      const query = supabase.from('projects').select('ghl_location_id, ghl_api_key');
+      const { data } = project_name
+        ? await query.eq('project_name', project_name).maybeSingle()
+        : await query.eq('ghl_location_id', locationId).maybeSingle();
+      if (data) {
+        locationId = locationId || data.ghl_location_id;
+        apiKey = apiKey || data.ghl_api_key;
+      }
+    }
+
+    if (!locationId) {
       return new Response(
         JSON.stringify({ error: 'Missing ghl_location_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Use project-specific API key if provided, otherwise fall back to global key
-    const apiKey = ghl_api_key || Deno.env.get('GHL_LOCATION_API_KEY');
+    // Fall back to the global key when no project-specific key is available
+    apiKey = apiKey || Deno.env.get('GHL_LOCATION_API_KEY') || null;
     if (!apiKey) {
       console.error('No GHL API key available');
       return new Response(
@@ -41,6 +60,8 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const ghl_location_id_resolved = locationId;
+
 
     console.log('Fetching calendars for location:', ghl_location_id);
 
