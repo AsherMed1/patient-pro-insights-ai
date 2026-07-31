@@ -63,11 +63,11 @@ serve(async (req) => {
     const ghl_location_id_resolved = locationId;
 
 
-    console.log('Fetching calendars for location:', ghl_location_id);
+    console.log('Fetching calendars for location:', ghl_location_id_resolved);
 
     // Fetch calendars from GHL API
     const ghlResponse = await fetch(
-      `https://services.leadconnectorhq.com/calendars/?locationId=${ghl_location_id}`,
+      `https://services.leadconnectorhq.com/calendars/?locationId=${ghl_location_id_resolved}`,
       {
         method: 'GET',
         headers: {
