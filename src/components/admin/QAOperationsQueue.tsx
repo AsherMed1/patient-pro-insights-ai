@@ -19,7 +19,8 @@ import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload, Columns3 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
 
