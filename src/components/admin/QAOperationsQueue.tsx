@@ -827,6 +827,29 @@ export default function QAOperationsQueue() {
         {(dateFrom || dateTo) && (
           <Button variant="ghost" size="sm" onClick={clearDateFilters}>Clear dates</Button>
         )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Columns3 className="h-3 w-3 mr-1" /> Columns
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52 bg-popover z-50">
+            <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {OPTIONAL_COLUMNS.map((c) => (
+              <DropdownMenuCheckboxItem
+                key={c.key}
+                checked={visibleColumns.includes(c.key)}
+                onCheckedChange={(v) => toggleColumn(c.key, !!v)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {c.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {false && (
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
