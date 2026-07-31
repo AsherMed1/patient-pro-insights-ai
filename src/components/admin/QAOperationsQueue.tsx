@@ -1526,7 +1526,7 @@ function CaseDrawer({
         {caseData && (
           <>
             <SheetHeader className="min-w-0 pr-6">
-              <SheetTitle className="break-words">{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
+              <SheetTitle className="break-words font-sans not-italic">{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
               <div className="text-sm text-muted-foreground break-words">
                 {caseData.project_name} • {caseData.service_line || 'No service'}
               </div>
