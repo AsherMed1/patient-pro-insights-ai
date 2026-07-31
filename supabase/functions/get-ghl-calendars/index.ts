@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,17 +23,36 @@ serve(async (req) => {
   }
 
   try {
-    const { ghl_location_id, ghl_api_key } = await req.json();
+    const { ghl_location_id, ghl_api_key, project_name } = await req.json();
 
-    if (!ghl_location_id) {
+    // Resolve location id / api key from the project record when not supplied.
+    let locationId: string | null = ghl_location_id || null;
+    let apiKey: string | null = ghl_api_key || null;
+
+    if ((!locationId || !apiKey) && (project_name || locationId)) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+      const query = supabase.from('projects').select('ghl_location_id, ghl_api_key');
+      const { data } = project_name
+        ? await query.eq('project_name', project_name).maybeSingle()
+        : await query.eq('ghl_location_id', locationId).maybeSingle();
+      if (data) {
+        locationId = locationId || data.ghl_location_id;
+        apiKey = apiKey || data.ghl_api_key;
+      }
+    }
+
+    if (!locationId) {
       return new Response(
         JSON.stringify({ error: 'Missing ghl_location_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Use project-specific API key if provided, otherwise fall back to global key
-    const apiKey = ghl_api_key || Deno.env.get('GHL_LOCATION_API_KEY');
+    // Fall back to the global key when no project-specific key is available
+    apiKey = apiKey || Deno.env.get('GHL_LOCATION_API_KEY') || null;
     if (!apiKey) {
       console.error('No GHL API key available');
       return new Response(
@@ -39,12 +60,14 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const ghl_location_id_resolved = locationId;
 
-    console.log('Fetching calendars for location:', ghl_location_id);
+
+    console.log('Fetching calendars for location:', ghl_location_id_resolved);
 
     // Fetch calendars from GHL API
     const ghlResponse = await fetch(
-      `https://services.leadconnectorhq.com/calendars/?locationId=${ghl_location_id}`,
+      `https://services.leadconnectorhq.com/calendars/?locationId=${ghl_location_id_resolved}`,
       {
         method: 'GET',
         headers: {
@@ -71,9 +94,10 @@ serve(async (req) => {
     const data = await ghlResponse.json();
     console.log('GHL calendars response:', JSON.stringify(data).substring(0, 500));
 
-    // Extract active calendars
+    // Map every calendar the location exposes. Some sub-accounts return
+    // isActive:false on calendars that are still live/bookable (Horizon), so we
+    // no longer drop them — inactive ones are simply sorted last and flagged.
     const calendars: GHLCalendar[] = (data.calendars || [])
-      .filter((cal: any) => cal.isActive !== false)
       .map((cal: any) => {
         // GHL exposes the double-booking limit under a few possible field names
         // depending on calendar type. Read all known variants and default to 1.
@@ -90,9 +114,13 @@ serve(async (req) => {
           isActive: cal.isActive ?? true,
           appointmentPerSlot: Number.isFinite(perSlot) && perSlot >= 1 ? perSlot : 1,
         };
-      });
+      })
+      .filter((cal: GHLCalendar) => !!cal.id && !!cal.name)
+      .sort((a: GHLCalendar, b: GHLCalendar) =>
+        (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1));
 
-    console.log(`Found ${calendars.length} active calendars`);
+    console.log(`Found ${calendars.length} calendars (${calendars.filter(c => c.isActive).length} active)`);
+
 
     return new Response(
       JSON.stringify({ calendars }),
