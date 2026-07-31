@@ -1208,7 +1208,11 @@ function CaseDrawer({
       description: 'Audit fields updated',
       actor_user_id: user?.id ?? null,
     } as any);
+    savedSnapshotRef.current = { ...audit };
+    clearDraft(caseData.id);
+    setExternalUpdate(false);
     toast({ title: 'Audit details saved' });
+
     onRefresh();
   };
 
