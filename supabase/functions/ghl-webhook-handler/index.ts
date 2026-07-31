@@ -1587,6 +1587,89 @@ function getUpdateableFields(
   return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote }
 }
 
+// ---- Calendar recovery for unscheduled-capture leads -----------------------
+// Cache of locationId -> [{id, name}] for the lifetime of the isolate.
+const calendarListCache = new Map<string, Array<{ id: string; name: string }>>()
+
+async function fetchLocationCalendars(
+  supabase: any,
+  projectName: string | null | undefined,
+  locationId: string | null | undefined,
+): Promise<Array<{ id: string; name: string }>> {
+  let resolvedLocationId = locationId || null
+  let apiKey: string | null = null
+
+  try {
+    const query = supabase.from('projects').select('ghl_location_id, ghl_api_key')
+    const { data } = projectName
+      ? await query.eq('project_name', projectName).maybeSingle()
+      : await query.eq('ghl_location_id', resolvedLocationId).maybeSingle()
+    if (data) {
+      resolvedLocationId = resolvedLocationId || data.ghl_location_id
+      apiKey = data.ghl_api_key || null
+    }
+  } catch (_e) { /* fall through to global key */ }
+
+  if (!resolvedLocationId) return []
+  const cached = calendarListCache.get(resolvedLocationId)
+  if (cached) return cached
+
+  apiKey = apiKey || Deno.env.get('GHL_LOCATION_API_KEY') || null
+  if (!apiKey) return []
+
+  try {
+    const res = await fetch(
+      `https://services.leadconnectorhq.com/calendars/?locationId=${resolvedLocationId}`,
+      { headers: { Authorization: `Bearer ${apiKey}`, Version: '2021-04-15', Accept: 'application/json' } },
+    )
+    if (!res.ok) {
+      console.error('Calendar recovery: GHL calendars fetch failed', res.status, await res.text())
+      return []
+    }
+    const body = await res.json()
+    const list = (body.calendars || [])
+      .map((c: any) => ({ id: c.id, name: c.name }))
+      .filter((c: any) => c.id && c.name)
+    calendarListCache.set(resolvedLocationId, list)
+    return list
+  } catch (e) {
+    console.error('Calendar recovery: fetch error', e)
+    return []
+  }
+}
+
+async function resolveCalendarNameFromNotes(
+  supabase: any,
+  projectName: string | null | undefined,
+  locationId: string | null | undefined,
+  notes: string | null | undefined,
+): Promise<string | null> {
+  if (!notes) return null
+
+  const calendarIdMatch = notes.match(/calendar\s*id\s*[:=]\s*([A-Za-z0-9_-]{10,})/i)
+  const locationPickerMatch = notes.match(/location\s*picker\s*[:=]\s*([^\n|]{1,60})/i)
+  if (!calendarIdMatch && !locationPickerMatch) return null
+
+  const calendars = await fetchLocationCalendars(supabase, projectName, locationId)
+  if (calendars.length === 0) return null
+
+  if (calendarIdMatch) {
+    const byId = calendars.find((c) => c.id === calendarIdMatch[1].trim())
+    if (byId) return byId.name
+  }
+
+  if (locationPickerMatch) {
+    const needle = locationPickerMatch[1].trim().toLowerCase()
+    if (needle) {
+      const matches = calendars.filter((c) => c.name.toLowerCase().includes(needle))
+      if (matches.length === 1) return matches[0].name
+    }
+  }
+
+  return null
+}
+
+
 // Extract time-of-day preference from intake notes (Premier Vascular)
 function extractTimePreference(notes: string | null | undefined): string | null {
   if (!notes) return null;
