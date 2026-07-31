@@ -1310,7 +1310,7 @@ const ReviewQueue: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <div className="text-xs">{row.project_name}</div>
+                    <div className="text-xs min-w-0 break-words">{row.project_name}</div>
                     <div className="text-xs">
                       <div>{path.procedure_type || '—'}</div>
                       <div className="text-muted-foreground truncate">{row.calendar_name || '—'}</div>
