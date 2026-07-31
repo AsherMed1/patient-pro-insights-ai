@@ -94,9 +94,10 @@ serve(async (req) => {
     const data = await ghlResponse.json();
     console.log('GHL calendars response:', JSON.stringify(data).substring(0, 500));
 
-    // Extract active calendars
+    // Map every calendar the location exposes. Some sub-accounts return
+    // isActive:false on calendars that are still live/bookable (Horizon), so we
+    // no longer drop them — inactive ones are simply sorted last and flagged.
     const calendars: GHLCalendar[] = (data.calendars || [])
-      .filter((cal: any) => cal.isActive !== false)
       .map((cal: any) => {
         // GHL exposes the double-booking limit under a few possible field names
         // depending on calendar type. Read all known variants and default to 1.
@@ -113,9 +114,13 @@ serve(async (req) => {
           isActive: cal.isActive ?? true,
           appointmentPerSlot: Number.isFinite(perSlot) && perSlot >= 1 ? perSlot : 1,
         };
-      });
+      })
+      .filter((cal: GHLCalendar) => !!cal.id && !!cal.name)
+      .sort((a: GHLCalendar, b: GHLCalendar) =>
+        (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1));
 
-    console.log(`Found ${calendars.length} active calendars`);
+    console.log(`Found ${calendars.length} calendars (${calendars.filter(c => c.isActive).length} active)`);
+
 
     return new Response(
       JSON.stringify({ calendars }),
