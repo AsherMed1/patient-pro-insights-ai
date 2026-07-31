@@ -1312,12 +1312,12 @@ const AppointmentCard = ({
                       setEditingName(appointment.lead_name);
                     }
                   }}
-                  className="font-medium text-base md:text-sm"
+                  className="font-sans not-italic font-medium text-base md:text-sm"
                   autoFocus
                 />
               ) : (
                 <>
-                  <span className="font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
+                  <span className="font-sans not-italic font-medium text-base md:text-sm break-words">{appointment.lead_name}</span>
                   <span className="text-xs text-muted-foreground ml-2">ID: {appointment.id.substring(0, 8)}</span>
                   {(isAdmin() || isVA()) && appointment.ghl_id && (appointment.ghl_location_id || projectLocationMap?.[appointment.project_name] || fetchedLocationId) && (
                     <TooltipProvider>

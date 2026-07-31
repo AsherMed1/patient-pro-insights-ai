@@ -909,7 +909,7 @@ export default function QAOperationsQueue() {
                     <TableRow key={g.key} className="group">
                       <TableCell className="font-medium px-2 py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 border-r">
                         <div className="flex items-center gap-1.5">
-                          <span className="whitespace-normal">{c.patient_name || '—'}</span>
+                          <span className="whitespace-normal font-sans not-italic">{c.patient_name || '—'}</span>
                           {ghlUrlFor(c) && (
                             <a
                               href={ghlUrlFor(c)!}
@@ -1526,7 +1526,7 @@ function CaseDrawer({
         {caseData && (
           <>
             <SheetHeader className="min-w-0 pr-6">
-              <SheetTitle className="break-words">{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
+              <SheetTitle className="break-words font-sans not-italic">{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
               <div className="text-sm text-muted-foreground break-words">
                 {caseData.project_name} • {caseData.service_line || 'No service'}
               </div>

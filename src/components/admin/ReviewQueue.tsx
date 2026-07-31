@@ -1264,7 +1264,7 @@ const ReviewQueue: React.FC = () => {
                         </button>
                         <button
                           onClick={() => openDetail(row.id)}
-                          className="font-medium hover:underline text-left text-primary"
+                          className="font-sans not-italic font-medium hover:underline text-left text-primary"
                           disabled={detailLoading === row.id}
                         >
                           {row.lead_name}{detailLoading === row.id ? '…' : ''}
