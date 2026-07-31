@@ -932,6 +932,43 @@ export default function QAOperationsQueue() {
   );
 }
 
+// --- Audit Details draft helpers -------------------------------------------
+const AUDIT_DRAFT_PREFIX = 'qa-audit-draft:';
+
+const auditFromCase = (c: QACase, defaultName = ''): Partial<QACase> => ({
+  qa_name: c.qa_name ?? (defaultName || ''),
+  self_booked: c.self_booked,
+  error_category: c.error_category,
+  error_source: c.error_source,
+  caught_before_clinic: c.caught_before_clinic,
+  resolution_type: c.resolution_type,
+});
+
+const normalizeAudit = (a: Partial<QACase>) => JSON.stringify({
+  qa_name: (a.qa_name ?? '') || '',
+  self_booked: a.self_booked ?? null,
+  error_category: a.error_category ?? null,
+  error_source: a.error_source ?? null,
+  caught_before_clinic: a.caught_before_clinic ?? null,
+  resolution_type: a.resolution_type ?? null,
+});
+
+const sameAudit = (a: Partial<QACase>, b: Partial<QACase>) => normalizeAudit(a) === normalizeAudit(b);
+
+const readDraft = (caseId: string): Partial<QACase> | null => {
+  try {
+    const raw = localStorage.getItem(AUDIT_DRAFT_PREFIX + caseId);
+    return raw ? (JSON.parse(raw) as Partial<QACase>) : null;
+  } catch { return null; }
+};
+const writeDraft = (caseId: string, a: Partial<QACase>) => {
+  try { localStorage.setItem(AUDIT_DRAFT_PREFIX + caseId, JSON.stringify(a)); } catch { /* ignore */ }
+};
+const clearDraft = (caseId: string) => {
+  try { localStorage.removeItem(AUDIT_DRAFT_PREFIX + caseId); } catch { /* ignore */ }
+};
+
+
 function CaseDrawer({
   caseData,
   siblings,
@@ -964,6 +1001,9 @@ function CaseDrawer({
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
+  const savedSnapshotRef = useRef<Partial<QACase>>({});
+  const [externalUpdate, setExternalUpdate] = useState(false);
+
   const [savingAudit, setSavingAudit] = useState(false);
   const [clearingAudit, setClearingAudit] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -1049,8 +1089,13 @@ function CaseDrawer({
     onRefresh();
   };
 
+  // Initialize the Audit Details form ONLY when a different case is opened.
+  // Background realtime refreshes replace `caseData` with a new object for the
+  // same case — re-seeding here would wipe unsaved entries.
   useEffect(() => {
     if (!caseData) return;
+    const caseId = caseData.id;
+    let cancelled = false;
     (async () => {
       let defaultName = '';
       if (user?.id) {
@@ -1061,25 +1106,64 @@ function CaseDrawer({
           .maybeSingle();
         defaultName = ((prof as any)?.full_name || '').trim() || (user as any)?.user_metadata?.full_name || '';
       }
+      if (cancelled) return;
       setAuthorDisplayName(defaultName || user?.email || '');
-      setAudit({
-        qa_name: caseData.qa_name ?? (defaultName || ''),
-        self_booked: caseData.self_booked,
-        error_category: caseData.error_category,
-        error_source: caseData.error_source,
-        caught_before_clinic: caseData.caught_before_clinic,
-        resolution_type: caseData.resolution_type,
-      });
+      const base = auditFromCase(caseData, defaultName);
+      savedSnapshotRef.current = base;
+      const draft = readDraft(caseId);
+      setAudit(draft && !sameAudit(draft, base) ? draft : base);
+      setExternalUpdate(false);
     })();
     (async () => {
       const [n, a] = await Promise.all([
-        supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false }),
-        supabase.from('qa_case_activity' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false }),
+        supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseId).order('created_at', { ascending: false }),
+        supabase.from('qa_case_activity' as any).select('*').eq('case_id', caseId).order('created_at', { ascending: false }),
       ]);
+      if (cancelled) return;
       setNotes(((n.data as any) || []) as QANote[]);
       setActivity(((a.data as any) || []) as QAActivity[]);
     })();
-  }, [caseData, user?.email]);
+    return () => { cancelled = true; };
+  }, [caseData?.id, user?.email]);
+
+  const isDirty = !!caseData && !sameAudit(audit, savedSnapshotRef.current);
+
+  // Persist an in-progress audit as a local draft so a reload or accidental
+  // close doesn't lose typed entries.
+  useEffect(() => {
+    if (!caseData) return;
+    if (isDirty) writeDraft(caseData.id, audit);
+    else clearDraft(caseData.id);
+  }, [audit, isDirty, caseData?.id]);
+
+  // Detect the case being changed elsewhere while the user has unsaved edits.
+  useEffect(() => {
+    if (!caseData) return;
+    const latest = auditFromCase(caseData, authorDisplayName);
+    if (!sameAudit(latest, savedSnapshotRef.current)) {
+      if (isDirty) setExternalUpdate(true);
+      else {
+        savedSnapshotRef.current = latest;
+        setAudit(latest);
+      }
+    }
+  }, [caseData]);
+
+  const loadLatestAudit = () => {
+    if (!caseData) return;
+    const latest = auditFromCase(caseData, authorDisplayName);
+    savedSnapshotRef.current = latest;
+    setAudit(latest);
+    setExternalUpdate(false);
+    clearDraft(caseData.id);
+  };
+
+  const requestClose = () => {
+    if (isDirty && !window.confirm('You have unsaved Audit Details. Discard them?')) return;
+    if (caseData) clearDraft(caseData.id);
+    onClose();
+  };
+
 
   const addNote = async () => {
     if (!caseData || !noteDraft.trim()) return;
@@ -1124,7 +1208,11 @@ function CaseDrawer({
       description: 'Audit fields updated',
       actor_user_id: user?.id ?? null,
     } as any);
+    savedSnapshotRef.current = { ...audit };
+    clearDraft(caseData.id);
+    setExternalUpdate(false);
     toast({ title: 'Audit details saved' });
+
     onRefresh();
   };
 
@@ -1147,14 +1235,19 @@ function CaseDrawer({
       toast({ title: 'Clear failed', description: error.message, variant: 'destructive' });
       return;
     }
-    setAudit({
+    const cleared = {
       qa_name: authorDisplayName || '',
       self_booked: null,
       error_category: null,
       error_source: null,
       caught_before_clinic: null,
       resolution_type: null,
-    });
+    };
+    setAudit(cleared);
+    savedSnapshotRef.current = cleared;
+    clearDraft(caseData.id);
+    setExternalUpdate(false);
+
     await supabase.from('qa_case_activity' as any).insert({
       case_id: caseData.id,
       activity_type: 'audit_cleared',
@@ -1362,7 +1455,7 @@ function CaseDrawer({
 
 
   return (
-    <Sheet open={!!caseData} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={!!caseData} onOpenChange={(open) => !open && requestClose()}>
       <SheetContent className="w-full sm:max-w-xl min-w-0 overflow-y-auto overflow-x-hidden">
         {caseData && (
           <>
@@ -1510,7 +1603,20 @@ function CaseDrawer({
               </div>
 
               <div className="border rounded-lg p-3 space-y-3 min-w-0 overflow-hidden">
-                <div className="text-sm font-semibold">Audit Details</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold">Audit Details</div>
+                  {isDirty && <span className="text-[11px] text-muted-foreground">Unsaved changes</span>}
+                </div>
+
+                {externalUpdate && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    This record was updated elsewhere — your entries are preserved.{' '}
+                    <button type="button" onClick={loadLatestAudit} className="underline font-medium">
+                      Load latest
+                    </button>
+                  </div>
+                )}
+
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                   <div className="min-w-0">
