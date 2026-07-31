@@ -210,6 +210,34 @@ type SortKey =
   | 'patient' | 'clinic' | 'service' | 'alerts' | 'self_booked' | 'error'
   | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket' | 'status';
 
+type OptionalColumn = 'service' | 'self_booked' | 'error' | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket';
+
+const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
+  { key: 'service', label: 'Service' },
+  { key: 'self_booked', label: 'Self-Booked' },
+  { key: 'error', label: 'Error' },
+  { key: 'error_source', label: 'Error Source' },
+  { key: 'resolution', label: 'Resolution' },
+  { key: 'created', label: 'Date Created' },
+  { key: 'latest', label: 'Latest Alert' },
+  { key: 'resolved', label: 'Resolved' },
+  { key: 'ticket', label: 'Ticket' },
+];
+
+const COLUMNS_STORAGE_KEY = 'qa-queue-columns';
+
+const readVisibleColumns = (): OptionalColumn[] => {
+  try {
+    const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
+    if (!raw) return OPTIONAL_COLUMNS.map((c) => c.key);
+    const parsed = JSON.parse(raw) as string[];
+    const valid = OPTIONAL_COLUMNS.map((c) => c.key);
+    return valid.filter((k) => parsed.includes(k));
+  } catch {
+    return OPTIONAL_COLUMNS.map((c) => c.key);
+  }
+};
+
 interface TicketAttachment {
   name: string;
   path: string;
