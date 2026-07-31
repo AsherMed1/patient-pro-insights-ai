@@ -883,22 +883,22 @@ export default function QAOperationsQueue() {
             ) : filteredGroups.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">No cases in this view.</div>
             ) : (
-              <Table>
+              <Table className="text-xs w-full">
                 <TableHeader>
                   <TableRow>
-                    <SortableHead column="patient" label="Patient" />
-                    <SortableHead column="clinic" label="Clinic" />
-                    <SortableHead column="service" label="Service" />
-                    <SortableHead column="alerts" label="Alerts" />
-                    <SortableHead column="self_booked" label="Self-Booked" />
-                    <SortableHead column="error" label="Error" />
-                    <SortableHead column="error_source" label="Error Source" />
-                    <SortableHead column="resolution" label="Resolution" />
-                    <SortableHead column="created" label="Date Created" />
-                    <SortableHead column="latest" label="Latest Alert" />
-                    <SortableHead column="resolved" label="Resolved" />
-                    <SortableHead column="ticket" label="Ticket" />
-                    <TableHead />
+                    <SortableHead column="patient" label="Patient" className="sticky left-0 z-20 bg-background border-r min-w-[150px]" />
+                    <SortableHead column="clinic" label="Clinic" className="min-w-[130px]" />
+                    {showCol('service') && <SortableHead column="service" label="Service" className="min-w-[140px]" />}
+                    <SortableHead column="alerts" label="Alerts" className="min-w-[110px]" />
+                    {showCol('self_booked') && <SortableHead column="self_booked" label="Self-Booked" className="w-[70px]" />}
+                    {showCol('error') && <SortableHead column="error" label="Error" className="min-w-[110px]" />}
+                    {showCol('error_source') && <SortableHead column="error_source" label="Error Source" className="min-w-[110px]" />}
+                    {showCol('resolution') && <SortableHead column="resolution" label="Resolution" className="min-w-[110px]" />}
+                    {showCol('created') && <SortableHead column="created" label="Date Created" className="w-[95px]" />}
+                    {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
+                    {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
+                    {showCol('ticket') && <SortableHead column="ticket" label="Ticket" className="w-[90px]" />}
+                    <TableHead className="sticky right-0 z-20 bg-background border-l w-[70px] px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -906,17 +906,17 @@ export default function QAOperationsQueue() {
                     const c = g.primary;
                     const ticket = g.ticketCase;
                     return (
-                    <TableRow key={g.key}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span>{c.patient_name || '—'}</span>
+                    <TableRow key={g.key} className="group">
+                      <TableCell className="font-medium px-2 py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 border-r">
+                        <div className="flex items-center gap-1.5">
+                          <span className="whitespace-normal">{c.patient_name || '—'}</span>
                           {ghlUrlFor(c) && (
                             <a
                               href={ghlUrlFor(c)!}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-primary hover:text-primary/80"
+                              className="text-primary hover:text-primary/80 shrink-0"
                               title="Open in GHL"
                             >
                               <ExternalLink className="h-3.5 w-3.5" />
@@ -924,27 +924,27 @@ export default function QAOperationsQueue() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{c.project_name}</TableCell>
-                      <TableCell>{c.service_line || '—'}</TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-2">{c.project_name}</TableCell>
+                      {showCol('service') && <TableCell className="px-2 py-2">{c.service_line || '—'}</TableCell>}
+                      <TableCell className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
                           {g.displayAlertTypes.map((t) => (
-                            <Badge key={t} variant={alertVariant(t)} className={alertBadgeClass(t)}>{ALERT_LABELS[t]}</Badge>
+                            <Badge key={t} variant={alertVariant(t)} className={cn('text-[10px] px-1.5 py-0', alertBadgeClass(t))}>{ALERT_LABELS[t]}</Badge>
                           ))}
                           {g.children.length > g.displayAlertTypes.length && (
-                            <Badge variant="outline" title="Older alerts moved to history">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0" title="Older alerts moved to history">
                               +{g.children.length - g.displayAlertTypes.length}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>
-                      <TableCell>{c.error_category || '—'}</TableCell>
-                      <TableCell>{c.error_source || '—'}</TableCell>
-                      <TableCell>{c.resolution_type || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>
-                      <TableCell>{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>
-                      <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
+                      {showCol('self_booked') && <TableCell className="px-2 py-2">{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>}
+                      {showCol('error') && <TableCell className="px-2 py-2">{c.error_category || '—'}</TableCell>}
+                      {showCol('error_source') && <TableCell className="px-2 py-2">{c.error_source || '—'}</TableCell>}
+                      {showCol('resolution') && <TableCell className="px-2 py-2">{c.resolution_type || '—'}</TableCell>}
+                      {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
                       <TableCell>
                         {ticket?.controlhub_ticket_id ? (
                           <a
