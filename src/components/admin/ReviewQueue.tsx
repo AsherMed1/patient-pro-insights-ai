@@ -1254,21 +1254,24 @@ const ReviewQueue: React.FC = () => {
                       />
                     )}
                     <div className="min-w-0">
-                      <div className="flex items-start gap-1 min-w-0">
-                        <button
-                          onClick={() => toggleExpand(row.id)}
-                          className="text-muted-foreground hover:text-foreground mt-1 shrink-0"
-                          aria-label="Toggle inline details"
-                        >
-                          {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        </button>
-                        <button
-                          onClick={() => openDetail(row.id)}
-                          className="font-sans not-italic font-medium hover:underline text-left text-primary break-words min-w-0"
-                          disabled={detailLoading === row.id}
-                        >
-                          {row.lead_name}{detailLoading === row.id ? '…' : ''}
-                        </button>
+                      <div className="flex flex-wrap items-start gap-x-2 gap-y-0 min-w-0">
+                        <div className="flex items-start gap-1 min-w-0">
+                          <button
+                            onClick={() => toggleExpand(row.id)}
+                            className="text-muted-foreground hover:text-foreground mt-1 shrink-0"
+                            aria-label="Toggle inline details"
+                          >
+                            {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
+                          <button
+                            onClick={() => openDetail(row.id)}
+                            className="font-sans not-italic font-medium hover:underline text-left text-primary break-words min-w-0"
+                            disabled={detailLoading === row.id}
+                          >
+                            {row.lead_name}{detailLoading === row.id ? '…' : ''}
+                          </button>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">{row.lead_phone_number || '—'}</div>
                       </div>
                       <div className="flex flex-wrap items-center gap-1 mt-1">
                         {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
@@ -1303,7 +1306,6 @@ const ReviewQueue: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
                           Declined {row.reviewed_at ? formatDate(row.reviewed_at) : '—'} by {reviewerLabel}
