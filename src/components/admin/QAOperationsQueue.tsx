@@ -1455,7 +1455,7 @@ function CaseDrawer({
 
 
   return (
-    <Sheet open={!!caseData} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={!!caseData} onOpenChange={(open) => !open && requestClose()}>
       <SheetContent className="w-full sm:max-w-xl min-w-0 overflow-y-auto overflow-x-hidden">
         {caseData && (
           <>
