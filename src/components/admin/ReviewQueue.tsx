@@ -1253,22 +1253,24 @@ const ReviewQueue: React.FC = () => {
                         className="cursor-pointer"
                       />
                     )}
-                    <div>
-                      <div className="flex items-center gap-1">
+                    <div className="min-w-0">
+                      <div className="flex items-start gap-1 min-w-0">
                         <button
                           onClick={() => toggleExpand(row.id)}
-                          className="text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground mt-1 shrink-0"
                           aria-label="Toggle inline details"
                         >
                           {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                         </button>
                         <button
                           onClick={() => openDetail(row.id)}
-                          className="font-sans not-italic font-medium hover:underline text-left text-primary"
+                          className="font-sans not-italic font-medium hover:underline text-left text-primary break-words min-w-0"
                           disabled={detailLoading === row.id}
                         >
                           {row.lead_name}{detailLoading === row.id ? '…' : ''}
                         </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
                         {!isDeclinedView && duplicatesByRowId[row.id]?.length > 0 && (
                           <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1">
                             <Copy className="h-2.5 w-2.5 shrink-0" />
@@ -1299,8 +1301,8 @@ const ReviewQueue: React.FC = () => {
                             <span>Invalid DOB</span>
                           </Badge>
                         )}
-
                       </div>
+
                       <div className="text-xs text-muted-foreground">{row.lead_phone_number || '—'}</div>
                       {isDeclinedView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
