@@ -848,8 +848,6 @@ export default function QAOperationsQueue() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        {false && (
-        )}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
