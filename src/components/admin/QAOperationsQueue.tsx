@@ -1001,6 +1001,9 @@ function CaseDrawer({
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
+  const savedSnapshotRef = useRef<Partial<QACase>>({});
+  const [externalUpdate, setExternalUpdate] = useState(false);
+
   const [savingAudit, setSavingAudit] = useState(false);
   const [clearingAudit, setClearingAudit] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
