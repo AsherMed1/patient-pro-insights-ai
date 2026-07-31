@@ -3514,7 +3514,17 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             isEmptyResult(updateData.parsed_pathology_info, ['procedure_type']);
           const attempts = Number(record.parse_attempts || 0);
 
-          if (notesLookRich && allEmpty) {
+          // Procedure-marker guard: the notes clearly name a procedure (GAE, UFE,
+          // PAE, PAD, HAE, PFE, TAE, neuropathy) but the parse produced no
+          // procedure at all — treat that as a failed parse worth retrying too.
+          const notesNameProcedure =
+            /\b(GAE|UFE|UAE|PAE|PAD|HAE|PFE|TAE)\b/i.test(notes) || /neuropathy/i.test(notes);
+          const pathology: any = updateData.parsed_pathology_info || {};
+          const missingProcedure =
+            !pathology.procedure && !pathology.procedure_type;
+
+          if (notesLookRich && (allEmpty || (notesNameProcedure && missingProcedure))) {
+
             updateData.parse_attempts = attempts + 1;
             if (attempts + 1 < MAX_PARSE_ATTEMPTS) {
               console.error(`[AUTO-PARSE] ⚠ Empty payload for ${recordIdentifier} despite rich notes — leaving unparsed for retry (attempt ${attempts + 1}/${MAX_PARSE_ATTEMPTS})`);
