@@ -599,24 +599,27 @@ export default function QAOperationsQueue() {
     }
   };
 
-  const SortableHead = ({ column, label }: { column: SortKey; label: string }) => (
-    <TableHead>
+  const SortableHead = ({ column, label, className }: { column: SortKey; label: string; className?: string }) => (
+    <TableHead className={cn('px-2 py-2 align-bottom', className)}>
       <button
         type="button"
         onClick={() => toggleSort(column)}
-        className="inline-flex items-center gap-1 font-medium hover:text-foreground text-left"
+        className="inline-flex items-start gap-1 font-medium hover:text-foreground text-left leading-tight"
       >
-        {label}
+        <span className="whitespace-normal">{label}</span>
         {sortKey === column ? (
           sortDir === 'asc'
-            ? <ArrowUp className="h-3 w-3" />
-            : <ArrowDown className="h-3 w-3" />
+            ? <ArrowUp className="h-3 w-3 shrink-0 mt-0.5" />
+            : <ArrowDown className="h-3 w-3 shrink-0 mt-0.5" />
         ) : (
-          <ArrowUpDown className="h-3 w-3 opacity-40" />
+          <ArrowUpDown className="h-3 w-3 shrink-0 mt-0.5 opacity-40" />
         )}
       </button>
     </TableHead>
   );
+
+  const showCol = (k: OptionalColumn) => visibleColumns.includes(k);
+
 
 
 
