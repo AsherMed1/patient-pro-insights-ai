@@ -202,7 +202,7 @@ const Index = () => {
   if (isQASpecialist()) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-        <div className="max-w-7xl mx-auto space-y-4">
+        <div className="w-full mx-auto space-y-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <img src={patientProLogo} alt="Patient Pro Logo" className="h-8 w-auto" />

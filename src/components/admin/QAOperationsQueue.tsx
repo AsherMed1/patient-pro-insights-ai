@@ -19,7 +19,8 @@ import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload, Columns3 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
 
@@ -208,6 +209,34 @@ interface QAGroup {
 type SortKey =
   | 'patient' | 'clinic' | 'service' | 'alerts' | 'self_booked' | 'error'
   | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket' | 'status';
+
+type OptionalColumn = 'service' | 'self_booked' | 'error' | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket';
+
+const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
+  { key: 'service', label: 'Service' },
+  { key: 'self_booked', label: 'Self-Booked' },
+  { key: 'error', label: 'Error' },
+  { key: 'error_source', label: 'Error Source' },
+  { key: 'resolution', label: 'Resolution' },
+  { key: 'created', label: 'Date Created' },
+  { key: 'latest', label: 'Latest Alert' },
+  { key: 'resolved', label: 'Resolved' },
+  { key: 'ticket', label: 'Ticket' },
+];
+
+const COLUMNS_STORAGE_KEY = 'qa-queue-columns';
+
+const readVisibleColumns = (): OptionalColumn[] => {
+  try {
+    const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
+    if (!raw) return OPTIONAL_COLUMNS.map((c) => c.key);
+    const parsed = JSON.parse(raw) as string[];
+    const valid = OPTIONAL_COLUMNS.map((c) => c.key);
+    return valid.filter((k) => parsed.includes(k));
+  } catch {
+    return OPTIONAL_COLUMNS.map((c) => c.key);
+  }
+};
 
 interface TicketAttachment {
   name: string;
@@ -570,24 +599,27 @@ export default function QAOperationsQueue() {
     }
   };
 
-  const SortableHead = ({ column, label }: { column: SortKey; label: string }) => (
-    <TableHead>
+  const SortableHead = ({ column, label, className }: { column: SortKey; label: string; className?: string }) => (
+    <TableHead className={cn('px-2 py-2 align-bottom', className)}>
       <button
         type="button"
         onClick={() => toggleSort(column)}
-        className="inline-flex items-center gap-1 font-medium hover:text-foreground text-left"
+        className="inline-flex items-start gap-1 font-medium hover:text-foreground text-left leading-tight"
       >
-        {label}
+        <span className="whitespace-normal">{label}</span>
         {sortKey === column ? (
           sortDir === 'asc'
-            ? <ArrowUp className="h-3 w-3" />
-            : <ArrowDown className="h-3 w-3" />
+            ? <ArrowUp className="h-3 w-3 shrink-0 mt-0.5" />
+            : <ArrowDown className="h-3 w-3 shrink-0 mt-0.5" />
         ) : (
-          <ArrowUpDown className="h-3 w-3 opacity-40" />
+          <ArrowUpDown className="h-3 w-3 shrink-0 mt-0.5 opacity-40" />
         )}
       </button>
     </TableHead>
   );
+
+  const showCol = (k: OptionalColumn) => visibleColumns.includes(k);
+
 
 
 
@@ -664,6 +696,17 @@ export default function QAOperationsQueue() {
     setSelectedCase(c);
   };
 
+
+  const [visibleColumns, setVisibleColumns] = useState<OptionalColumn[]>(() => readVisibleColumns());
+
+  const toggleColumn = (key: OptionalColumn, on: boolean) => {
+    setVisibleColumns((prev) => {
+      const next = on ? [...new Set([...prev, key])] : prev.filter((k) => k !== key);
+      const ordered = OPTIONAL_COLUMNS.map((c) => c.key).filter((k) => next.includes(k));
+      try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(ordered)); } catch { /* ignore */ }
+      return ordered;
+    });
+  };
 
   const clearDateFilters = () => {
     setDateFrom(undefined);
@@ -784,6 +827,27 @@ export default function QAOperationsQueue() {
         {(dateFrom || dateTo) && (
           <Button variant="ghost" size="sm" onClick={clearDateFilters}>Clear dates</Button>
         )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Columns3 className="h-3 w-3 mr-1" /> Columns
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52 bg-popover z-50">
+            <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {OPTIONAL_COLUMNS.map((c) => (
+              <DropdownMenuCheckboxItem
+                key={c.key}
+                checked={visibleColumns.includes(c.key)}
+                onCheckedChange={(v) => toggleColumn(c.key, !!v)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {c.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
@@ -819,22 +883,22 @@ export default function QAOperationsQueue() {
             ) : filteredGroups.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">No cases in this view.</div>
             ) : (
-              <Table>
+              <Table className="text-xs w-full">
                 <TableHeader>
                   <TableRow>
-                    <SortableHead column="patient" label="Patient" />
-                    <SortableHead column="clinic" label="Clinic" />
-                    <SortableHead column="service" label="Service" />
-                    <SortableHead column="alerts" label="Alerts" />
-                    <SortableHead column="self_booked" label="Self-Booked" />
-                    <SortableHead column="error" label="Error" />
-                    <SortableHead column="error_source" label="Error Source" />
-                    <SortableHead column="resolution" label="Resolution" />
-                    <SortableHead column="created" label="Date Created" />
-                    <SortableHead column="latest" label="Latest Alert" />
-                    <SortableHead column="resolved" label="Resolved" />
-                    <SortableHead column="ticket" label="Ticket" />
-                    <TableHead />
+                    <SortableHead column="patient" label="Patient" className="sticky left-0 z-20 bg-background border-r min-w-[150px]" />
+                    <SortableHead column="clinic" label="Clinic" className="min-w-[130px]" />
+                    {showCol('service') && <SortableHead column="service" label="Service" className="min-w-[140px]" />}
+                    <SortableHead column="alerts" label="Alerts" className="min-w-[110px]" />
+                    {showCol('self_booked') && <SortableHead column="self_booked" label="Self-Booked" className="w-[70px]" />}
+                    {showCol('error') && <SortableHead column="error" label="Error" className="min-w-[110px]" />}
+                    {showCol('error_source') && <SortableHead column="error_source" label="Error Source" className="min-w-[110px]" />}
+                    {showCol('resolution') && <SortableHead column="resolution" label="Resolution" className="min-w-[110px]" />}
+                    {showCol('created') && <SortableHead column="created" label="Date Created" className="w-[95px]" />}
+                    {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
+                    {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
+                    {showCol('ticket') && <SortableHead column="ticket" label="Ticket" className="w-[90px]" />}
+                    <TableHead className="sticky right-0 z-20 bg-background border-l w-[70px] px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -842,17 +906,17 @@ export default function QAOperationsQueue() {
                     const c = g.primary;
                     const ticket = g.ticketCase;
                     return (
-                    <TableRow key={g.key}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span>{c.patient_name || '—'}</span>
+                    <TableRow key={g.key} className="group">
+                      <TableCell className="font-medium px-2 py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 border-r">
+                        <div className="flex items-center gap-1.5">
+                          <span className="whitespace-normal">{c.patient_name || '—'}</span>
                           {ghlUrlFor(c) && (
                             <a
                               href={ghlUrlFor(c)!}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-primary hover:text-primary/80"
+                              className="text-primary hover:text-primary/80 shrink-0"
                               title="Open in GHL"
                             >
                               <ExternalLink className="h-3.5 w-3.5" />
@@ -860,44 +924,46 @@ export default function QAOperationsQueue() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{c.project_name}</TableCell>
-                      <TableCell>{c.service_line || '—'}</TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-2">{c.project_name}</TableCell>
+                      {showCol('service') && <TableCell className="px-2 py-2">{c.service_line || '—'}</TableCell>}
+                      <TableCell className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
                           {g.displayAlertTypes.map((t) => (
-                            <Badge key={t} variant={alertVariant(t)} className={alertBadgeClass(t)}>{ALERT_LABELS[t]}</Badge>
+                            <Badge key={t} variant={alertVariant(t)} className={cn('text-[10px] px-1.5 py-0', alertBadgeClass(t))}>{ALERT_LABELS[t]}</Badge>
                           ))}
                           {g.children.length > g.displayAlertTypes.length && (
-                            <Badge variant="outline" title="Older alerts moved to history">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0" title="Older alerts moved to history">
                               +{g.children.length - g.displayAlertTypes.length}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>
-                      <TableCell>{c.error_category || '—'}</TableCell>
-                      <TableCell>{c.error_source || '—'}</TableCell>
-                      <TableCell>{c.resolution_type || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>
-                      <TableCell>{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>
-                      <TableCell>{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>
-                      <TableCell>
+                      {showCol('self_booked') && <TableCell className="px-2 py-2">{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>}
+                      {showCol('error') && <TableCell className="px-2 py-2">{c.error_category || '—'}</TableCell>}
+                      {showCol('error_source') && <TableCell className="px-2 py-2">{c.error_source || '—'}</TableCell>}
+                      {showCol('resolution') && <TableCell className="px-2 py-2">{c.resolution_type || '—'}</TableCell>}
+                      {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
+                      {showCol('ticket') && (
+                      <TableCell className="px-2 py-2">
                         {ticket?.controlhub_ticket_id ? (
                           <a
                             href={ticket.controlhub_ticket_url ?? '#'}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary underline"
+                            className="inline-flex items-center gap-1 text-primary underline break-all"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
+                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3 shrink-0" />
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-xs">None</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
+                      )}
+                      <TableCell className="px-2 py-2 sticky right-0 z-10 bg-background group-hover:bg-muted/50 border-l">
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
                           Open
                         </Button>
                       </TableCell>
