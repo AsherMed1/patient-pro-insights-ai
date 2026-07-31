@@ -697,6 +697,17 @@ export default function QAOperationsQueue() {
   };
 
 
+  const [visibleColumns, setVisibleColumns] = useState<OptionalColumn[]>(() => readVisibleColumns());
+
+  const toggleColumn = (key: OptionalColumn, on: boolean) => {
+    setVisibleColumns((prev) => {
+      const next = on ? [...new Set([...prev, key])] : prev.filter((k) => k !== key);
+      const ordered = OPTIONAL_COLUMNS.map((c) => c.key).filter((k) => next.includes(k));
+      try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(ordered)); } catch { /* ignore */ }
+      return ordered;
+    });
+  };
+
   const clearDateFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
