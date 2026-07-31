@@ -1,29 +1,30 @@
-# Prevent spurious GHL cancellations (Lisa Lowe case)
+# Angela Young (Horizon) — no calendar, missing from GAE filter
 
-## What happened
-Lisa Lowe's appointment was created as Confirmed from a GoHighLevel webhook, then cancelled 36 seconds later by a second GoHighLevel webhook. No portal user touched it. GoHighLevel still shows the appointment as confirmed for Jul 29, so the cancel signal was spurious. Once the portal recorded "Cancelled" (a terminal status), later GoHighLevel updates were blocked from restoring it, so the clinic lost the patient off their schedule while the patient kept getting confirmation messages.
+## What I found
+
+Record `d2fe5c89` (Angela Young, Horizon Vascular Specialists):
+
+- `calendar_name` = `Unknown`
+- `parsed_pathology_info.procedure_type` = null (and no `procedure` key)
+- No `ghl_appointment_id`, no date — Horizon is an unscheduled-capture project, so GHL sends a contact-only payload with no calendar object. The webhook handler falls back to `'Unknown'`.
+
+The GAE filter matches on `procedure_type = 'GAE'`, or (when `procedure_type` is null) a calendar name containing "GAE"/"In-person". Angela fails both, so she is excluded.
+
+Note: the intake payload DOES carry the calendar — `Calendar ID: PpBNj2YGXka8PP5drkNE` and `Location Picker: Germantown` — plus full `GAE STEP 1/2` pathology. The parser produced a nearly empty pathology object (only `imaging_done`), so `procedure_type` never got set. Of 41 Horizon rows, 38 have `calendar_name='Unknown'` but only this one has a null `procedure_type` — the parse is the outlier, the missing calendar name is systemic.
+
+Separately, the "No calendars available" dropdown is the live GHL calendar list for location `Wv6kylvdxrV4w87fBInd`. The project has a `pit-` API key configured; whether GHL returns calendars for it still needs a live check.
 
 ## Fix
 
-### 1. Restore Lisa Lowe
-Set the appointment back to Confirmed and add an explanatory note on the record so the clinic sees why it changed.
+1. **Re-parse Angela's record** so `parsed_pathology_info.procedure_type = 'GAE'` and the rest of the GAE STEP 1/2 fields (side: Both, duration: Over 1 year, pain level 5, trauma: YES, treatments: Physical therapy, symptoms: Instability or weakness) populate. She then appears under the GAE filter immediately.
 
-### 2. Log every inbound GoHighLevel webhook
-Add a `ghl_webhook_events` table capturing the raw payload, detected format, contact and appointment IDs, project, incoming status, and what the portal did with it. Admin-only visibility. Without this we cannot identify which GoHighLevel workflow is emitting the bogus cancel.
+2. **Backfill calendar name for unscheduled Horizon rows.** In `ghl-webhook-handler`, when there is no calendar object on the payload, read the `Calendar ID` custom field (and `Location Picker`) out of the GHL contact data and resolve it to the real calendar name via the project's GHL calendar list, instead of writing `'Unknown'`. Apply the same resolution as a one-time backfill for the 38 existing Horizon rows.
 
-### 3. Harden the cancel path in `ghl-webhook-handler`
-Two guards, applied only to incoming cancellations:
+3. **Harden the parser guard** so a pathology object that comes back with every field null but with `GAE STEP`/`UFE`/`PAE` markers present in the source notes is treated as a failed parse and retried, rather than saved as-is.
 
-- **Fresh-booking guard:** if a cancel arrives within 10 minutes of the appointment row being created and the appointment date is still in the future, call the GoHighLevel appointment API and read the live status. Apply the cancel only if GoHighLevel actually reports cancelled. Otherwise ignore it and log the rejection.
-- **Source guard:** only accept a cancellation from an appointment-scoped event (payload carries an appointment object / appointment id). Generic contact or workflow payloads that merely happen to include a "cancelled" string no longer flip a confirmed appointment.
-
-Any rejected cancel is written to the webhook log and to a note on the appointment so it is visible instead of silent.
-
-### 4. Sweep for other victims
-Run the existing `verify-ghl-appointment-status` function in sweep mode across future-dated appointments the portal marked Cancelled, list every record where GoHighLevel still says booked, and restore them with an audit note.
+4. **Diagnose the empty calendar dropdown**: call `get-ghl-calendars` with the Horizon project key. If GHL returns calendars, the UI path is at fault; if it returns none or errors, the project's GHL token/permissions need updating and I will report exactly what GHL said. Also note that for unscheduled rows there is no `ghl_appointment_id`, so "transfer to calendar" cannot write back to GHL — the selection would only set the portal's calendar/location. I'll confirm the desired behavior there once the diagnosis is in.
 
 ## Technical notes
-- New table `public.ghl_webhook_events` with indexes on contact id, appointment id, and received time; RLS restricted to admins; service role writes.
-- Guard logic sits in `supabase/functions/ghl-webhook-handler/index.ts` just before the status field is applied in `getUpdateableFields` / the update branch.
-- Live verification reuses the `GET /calendars/events/appointments/{id}` call already implemented in `verify-ghl-appointment-status`.
-- Verification failures (API error, no key) fall back to the current behavior of accepting the cancel, so we never drop a real cancellation.
+
+- Files: `supabase/functions/ghl-webhook-handler/index.ts` (calendar fallback at lines ~872/932/955), `supabase/functions/auto-parse-intake-notes/index.ts` (empty-parse guard), plus a one-off backfill script.
+- No change to the GAE filter query itself in `AllAppointmentsManager.tsx` — it is correct; the data feeding it was wrong.
