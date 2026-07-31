@@ -142,7 +142,25 @@ serve(async (req) => {
       )
     }
 
+    // Unscheduled-capture leads arrive without a calendar object, so calendar_name
+    // lands as 'Unknown' and the row drops out of service/procedure filters.
+    // Recover the real calendar from the "Calendar ID" / "Location Picker" intake
+    // fields by matching against the sub-account's calendar list.
+    if (!webhookData.calendar_name || webhookData.calendar_name === 'Unknown') {
+      const recovered = await resolveCalendarNameFromNotes(
+        supabase,
+        webhookData.project_name,
+        webhookData.ghl_location_id,
+        webhookData.patient_intake_notes,
+      )
+      if (recovered) {
+        console.log(`[${requestId}] Recovered calendar name from intake fields: ${recovered}`)
+        webhookData.calendar_name = recovered
+      }
+    }
+
     console.log(`[${requestId}] Extracted webhook data:`, webhookData)
+
 
     // Lead-only GHL workflows may omit location.name/calendar and only send location.id.
     // Resolve that ID to the canonical project before validation/project creation so we
