@@ -1312,7 +1312,7 @@ const AppointmentCard = ({
                       setEditingName(appointment.lead_name);
                     }
                   }}
-                  className="font-medium text-base md:text-sm"
+                  className="font-sans not-italic font-medium text-base md:text-sm"
                   autoFocus
                 />
               ) : (
