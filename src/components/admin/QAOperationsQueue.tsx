@@ -932,6 +932,43 @@ export default function QAOperationsQueue() {
   );
 }
 
+// --- Audit Details draft helpers -------------------------------------------
+const AUDIT_DRAFT_PREFIX = 'qa-audit-draft:';
+
+const auditFromCase = (c: QACase, defaultName = ''): Partial<QACase> => ({
+  qa_name: c.qa_name ?? (defaultName || ''),
+  self_booked: c.self_booked,
+  error_category: c.error_category,
+  error_source: c.error_source,
+  caught_before_clinic: c.caught_before_clinic,
+  resolution_type: c.resolution_type,
+});
+
+const normalizeAudit = (a: Partial<QACase>) => JSON.stringify({
+  qa_name: (a.qa_name ?? '') || '',
+  self_booked: a.self_booked ?? null,
+  error_category: a.error_category ?? null,
+  error_source: a.error_source ?? null,
+  caught_before_clinic: a.caught_before_clinic ?? null,
+  resolution_type: a.resolution_type ?? null,
+});
+
+const sameAudit = (a: Partial<QACase>, b: Partial<QACase>) => normalizeAudit(a) === normalizeAudit(b);
+
+const readDraft = (caseId: string): Partial<QACase> | null => {
+  try {
+    const raw = localStorage.getItem(AUDIT_DRAFT_PREFIX + caseId);
+    return raw ? (JSON.parse(raw) as Partial<QACase>) : null;
+  } catch { return null; }
+};
+const writeDraft = (caseId: string, a: Partial<QACase>) => {
+  try { localStorage.setItem(AUDIT_DRAFT_PREFIX + caseId, JSON.stringify(a)); } catch { /* ignore */ }
+};
+const clearDraft = (caseId: string) => {
+  try { localStorage.removeItem(AUDIT_DRAFT_PREFIX + caseId); } catch { /* ignore */ }
+};
+
+
 function CaseDrawer({
   caseData,
   siblings,
