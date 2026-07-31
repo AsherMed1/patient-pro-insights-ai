@@ -945,23 +945,25 @@ export default function QAOperationsQueue() {
                       {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
-                      <TableCell>
+                      {showCol('ticket') && (
+                      <TableCell className="px-2 py-2">
                         {ticket?.controlhub_ticket_id ? (
                           <a
                             href={ticket.controlhub_ticket_url ?? '#'}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary underline"
+                            className="inline-flex items-center gap-1 text-primary underline break-all"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
+                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3 shrink-0" />
                           </a>
                         ) : (
                           <span className="text-muted-foreground text-xs">None</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
+                      )}
+                      <TableCell className="px-2 py-2 sticky right-0 z-10 bg-background group-hover:bg-muted/50 border-l">
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
                           Open
                         </Button>
                       </TableCell>
