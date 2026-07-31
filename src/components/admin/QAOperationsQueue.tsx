@@ -1049,8 +1049,13 @@ function CaseDrawer({
     onRefresh();
   };
 
+  // Initialize the Audit Details form ONLY when a different case is opened.
+  // Background realtime refreshes replace `caseData` with a new object for the
+  // same case — re-seeding here would wipe unsaved entries.
   useEffect(() => {
     if (!caseData) return;
+    const caseId = caseData.id;
+    let cancelled = false;
     (async () => {
       let defaultName = '';
       if (user?.id) {
@@ -1061,25 +1066,64 @@ function CaseDrawer({
           .maybeSingle();
         defaultName = ((prof as any)?.full_name || '').trim() || (user as any)?.user_metadata?.full_name || '';
       }
+      if (cancelled) return;
       setAuthorDisplayName(defaultName || user?.email || '');
-      setAudit({
-        qa_name: caseData.qa_name ?? (defaultName || ''),
-        self_booked: caseData.self_booked,
-        error_category: caseData.error_category,
-        error_source: caseData.error_source,
-        caught_before_clinic: caseData.caught_before_clinic,
-        resolution_type: caseData.resolution_type,
-      });
+      const base = auditFromCase(caseData, defaultName);
+      savedSnapshotRef.current = base;
+      const draft = readDraft(caseId);
+      setAudit(draft && !sameAudit(draft, base) ? draft : base);
+      setExternalUpdate(false);
     })();
     (async () => {
       const [n, a] = await Promise.all([
-        supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false }),
-        supabase.from('qa_case_activity' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false }),
+        supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseId).order('created_at', { ascending: false }),
+        supabase.from('qa_case_activity' as any).select('*').eq('case_id', caseId).order('created_at', { ascending: false }),
       ]);
+      if (cancelled) return;
       setNotes(((n.data as any) || []) as QANote[]);
       setActivity(((a.data as any) || []) as QAActivity[]);
     })();
-  }, [caseData, user?.email]);
+    return () => { cancelled = true; };
+  }, [caseData?.id, user?.email]);
+
+  const isDirty = !!caseData && !sameAudit(audit, savedSnapshotRef.current);
+
+  // Persist an in-progress audit as a local draft so a reload or accidental
+  // close doesn't lose typed entries.
+  useEffect(() => {
+    if (!caseData) return;
+    if (isDirty) writeDraft(caseData.id, audit);
+    else clearDraft(caseData.id);
+  }, [audit, isDirty, caseData?.id]);
+
+  // Detect the case being changed elsewhere while the user has unsaved edits.
+  useEffect(() => {
+    if (!caseData) return;
+    const latest = auditFromCase(caseData, authorDisplayName);
+    if (!sameAudit(latest, savedSnapshotRef.current)) {
+      if (isDirty) setExternalUpdate(true);
+      else {
+        savedSnapshotRef.current = latest;
+        setAudit(latest);
+      }
+    }
+  }, [caseData]);
+
+  const loadLatestAudit = () => {
+    if (!caseData) return;
+    const latest = auditFromCase(caseData, authorDisplayName);
+    savedSnapshotRef.current = latest;
+    setAudit(latest);
+    setExternalUpdate(false);
+    clearDraft(caseData.id);
+  };
+
+  const requestClose = () => {
+    if (isDirty && !window.confirm('You have unsaved Audit Details. Discard them?')) return;
+    if (caseData) clearDraft(caseData.id);
+    onClose();
+  };
+
 
   const addNote = async () => {
     if (!caseData || !noteDraft.trim()) return;
