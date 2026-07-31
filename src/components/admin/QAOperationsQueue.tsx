@@ -1603,7 +1603,20 @@ function CaseDrawer({
               </div>
 
               <div className="border rounded-lg p-3 space-y-3 min-w-0 overflow-hidden">
-                <div className="text-sm font-semibold">Audit Details</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold">Audit Details</div>
+                  {isDirty && <span className="text-[11px] text-muted-foreground">Unsaved changes</span>}
+                </div>
+
+                {externalUpdate && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    This record was updated elsewhere — your entries are preserved.{' '}
+                    <button type="button" onClick={loadLatestAudit} className="underline font-medium">
+                      Load latest
+                    </button>
+                  </div>
+                )}
+
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                   <div className="min-w-0">
