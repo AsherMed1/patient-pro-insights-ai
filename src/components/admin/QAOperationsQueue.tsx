@@ -1235,14 +1235,19 @@ function CaseDrawer({
       toast({ title: 'Clear failed', description: error.message, variant: 'destructive' });
       return;
     }
-    setAudit({
+    const cleared = {
       qa_name: authorDisplayName || '',
       self_booked: null,
       error_category: null,
       error_source: null,
       caught_before_clinic: null,
       resolution_type: null,
-    });
+    };
+    setAudit(cleared);
+    savedSnapshotRef.current = cleared;
+    clearDraft(caseData.id);
+    setExternalUpdate(false);
+
     await supabase.from('qa_case_activity' as any).insert({
       case_id: caseData.id,
       activity_type: 'audit_cleared',
