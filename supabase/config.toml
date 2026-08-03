@@ -142,6 +142,11 @@ verify_jwt = false
 verify_jwt = false
 # Add/remove tags on a GHL contact (e.g. 'approved' tag from Review Queue)
 
+[functions.recover-stub-intake-notes]
+verify_jwt = false
+# Re-pull GHL contact data for appointments left with stub intake notes
+
+
 [functions.add-ghl-contact-note]
 verify_jwt = false
 # Write a note onto a GHL contact (e.g. decline reason from Review Queue)
