@@ -913,8 +913,12 @@ const AppointmentCard = ({
     }
 
     setSubmittingReschedule(true);
-    
+
+    // Kept outside the try so the catch below can record the failure on the request row
+    let createdRescheduleId: string | null = null;
+
     try {
+
       const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
       const newTime = rescheduleTime || appointment.requested_time || '09:00';
       
