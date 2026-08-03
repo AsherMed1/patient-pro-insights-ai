@@ -1011,7 +1011,11 @@ const AppointmentCard = ({
           ? `${appointment.date_of_appointment}${appointment.requested_time ? ' ' + appointment.requested_time : ''}`.trim()
           : 'Unknown';
         const newDateTime = `${newDate}${newTime ? ' ' + newTime : ''}`.trim();
-        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${noteUserName}`;
+        const locationPart = isCalendarMove
+          ? ` | LOCATION: ${appointment.calendar_name || 'Unknown'} -> ${newCalendarName}`
+          : '';
+        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime}${locationPart} | By: ${noteUserName}`;
+
         await supabase.from('appointment_notes').insert({
           appointment_id: appointment.id,
           note_text: rescheduleNoteText,
