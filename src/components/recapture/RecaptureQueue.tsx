@@ -564,7 +564,7 @@ export default function RecaptureQueue() {
           </div>
 
           <div className="rounded-md border overflow-x-auto">
-            <Table>
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead>Patient</TableHead>
@@ -576,7 +576,9 @@ export default function RecaptureQueue() {
                   <TableHead>Attempts</TableHead>
                   <TableHead>Assignee</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right whitespace-nowrap min-w-[220px]">Actions</TableHead>
+                  <TableHead className="sticky right-0 z-20 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -615,7 +617,7 @@ export default function RecaptureQueue() {
                             {WORK_STATUS_LABELS[c.work_status]}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right whitespace-nowrap min-w-[220px]">
+                        <TableCell className="sticky right-0 z-10 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2 flex-nowrap">
                             <Button variant="outline" size="sm" onClick={() => { setSelectedCase(c); setAttemptDialogOpen(true); }}>
                               Log Attempt
