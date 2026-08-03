@@ -616,31 +616,41 @@ export default function RecaptureQueue() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1 flex-wrap">
-                            {c.appointment_id && (
-                              <Button variant="ghost" size="sm" onClick={() => openPortalRecord(c)}>
-                                Open
-                              </Button>
-                            )}
-                            {ghlUrl && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                                <a href={ghlUrl} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-4 w-4" />
-                                </a>
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="sm" onClick={() => { setSelectedCase(c); setAssigneeId(c.assigned_user_id || ''); setAssignDialogOpen(true); }}>
-                              {c.assigned_user_id ? 'Reassign' : 'Claim'}
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => { setSelectedCase(c); setNewStatus(c.work_status); setStatusDialogOpen(true); }}>
-                              Status
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => { setSelectedCase(c); setAttemptDialogOpen(true); }}>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => { setSelectedCase(c); setAttemptDialogOpen(true); }}>
                               Log Attempt
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedCase(c); setCompleteDialogOpen(true); }}>
+                            <Button variant="default" size="sm" onClick={() => { setSelectedCase(c); setCompleteDialogOpen(true); }}>
                               Complete
                             </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {c.appointment_id && (
+                                  <DropdownMenuItem onClick={() => openPortalRecord(c)}>
+                                    Open record
+                                  </DropdownMenuItem>
+                                )}
+                                {ghlUrl && (
+                                  <DropdownMenuItem asChild>
+                                    <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 cursor-pointer">
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                      Open in GHL
+                                    </a>
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => { setSelectedCase(c); setAssigneeId(c.assigned_user_id || ''); setAssignDialogOpen(true); }}>
+                                  {c.assigned_user_id ? 'Reassign' : 'Claim'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setSelectedCase(c); setNewStatus(c.work_status); setStatusDialogOpen(true); }}>
+                                  Change status
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
