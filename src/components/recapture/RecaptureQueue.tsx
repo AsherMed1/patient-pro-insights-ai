@@ -603,7 +603,7 @@ export default function RecaptureQueue() {
                         </TableCell>
                         <TableCell className="text-sm">{c.project_name}</TableCell>
                         <TableCell>{lostTypeBadge(c.lost_type)}</TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell className="text-sm whitespace-nowrap">
                           {c.appointment_date ? format(parseISO(c.appointment_date), 'MMM d, yyyy') : '—'}
                         </TableCell>
                         <TableCell className="text-sm">{days !== null ? `${days}d` : '—'}</TableCell>
