@@ -203,6 +203,8 @@ const AppointmentCard = ({
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
   const [rescheduleTime, setRescheduleTime] = useState<string>('');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [rescheduleCalendarId, setRescheduleCalendarId] = useState<string>('');
+
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [retryingGhlSync, setRetryingGhlSync] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState<string>(
@@ -393,6 +395,24 @@ const AppointmentCard = ({
       fetchCalendars(projectGhlCredentials.ghl_location_id, projectGhlCredentials.ghl_api_key || undefined);
     }
   }, [calendarDropdownOpen, projectGhlCredentials, calendars.length, fetchCalendars]);
+
+  // Fetch calendars when the reschedule dialog opens so the location can be changed too
+  useEffect(() => {
+    if (showRescheduleDialog && projectGhlCredentials.ghl_location_id && calendars.length === 0) {
+      fetchCalendars(projectGhlCredentials.ghl_location_id, projectGhlCredentials.ghl_api_key || undefined);
+    }
+  }, [showRescheduleDialog, projectGhlCredentials, calendars.length, fetchCalendars]);
+
+  // Default the reschedule location to the appointment's current calendar
+  useEffect(() => {
+    if (!showRescheduleDialog || calendars.length === 0 || rescheduleCalendarId) return;
+    const current = calendars.find(
+      (c) => c.name.toLowerCase() === (appointment.calendar_name || '').toLowerCase()
+    );
+    if (current) setRescheduleCalendarId(current.id);
+  }, [showRescheduleDialog, calendars, appointment.calendar_name, rescheduleCalendarId]);
+
+
 
   // Extract location from calendar name (e.g., "Request your PAE Consultation at Miami, FL" -> "Miami, FL")
   const extractLocationFromCalendarName = (calendarName: string): string => {
@@ -921,6 +941,17 @@ const AppointmentCard = ({
 
       const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
       const newTime = rescheduleTime || appointment.requested_time || '09:00';
+
+      // Optional location/calendar move as part of the same reschedule
+      const targetCalendar = rescheduleCalendarId
+        ? calendars.find((c) => c.id === rescheduleCalendarId)
+        : undefined;
+      const isCalendarMove =
+        !!targetCalendar &&
+        (targetCalendar.name || '').toLowerCase() !== (appointment.calendar_name || '').toLowerCase();
+      const newCalendarName = isCalendarMove ? targetCalendar!.name : null;
+      const newCalendarTitle = isCalendarMove ? buildAppointmentTitle(targetCalendar!.name) : null;
+
       
       // Get current user ID
       const { data: { user } } = await supabase.auth.getUser();
@@ -980,7 +1011,11 @@ const AppointmentCard = ({
           ? `${appointment.date_of_appointment}${appointment.requested_time ? ' ' + appointment.requested_time : ''}`.trim()
           : 'Unknown';
         const newDateTime = `${newDate}${newTime ? ' ' + newTime : ''}`.trim();
-        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${noteUserName}`;
+        const locationPart = isCalendarMove
+          ? ` | LOCATION: ${appointment.calendar_name || 'Unknown'} -> ${newCalendarName}`
+          : '';
+        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime}${locationPart} | By: ${noteUserName}`;
+
         await supabase.from('appointment_notes').insert({
           appointment_id: appointment.id,
           note_text: rescheduleNoteText,
@@ -1006,7 +1041,7 @@ const AppointmentCard = ({
             throw new Error('GHL location ID not configured for this project');
           }
           
-          // Call GHL update function
+          // Call GHL update function (date/time, plus calendar transfer when the location changed)
           const { error: ghlError } = await supabase.functions.invoke(
             'update-ghl-appointment',
             {
@@ -1017,21 +1052,29 @@ const AppointmentCard = ({
                 new_time: newTime,
                 timezone: projectData.timezone || 'America/Chicago',
                 ghl_api_key: projectData.ghl_api_key,
+                ...(isCalendarMove
+                  ? { calendar_id: rescheduleCalendarId, title: newCalendarTitle }
+                  : {}),
               },
             }
           );
           
           if (ghlError) throw ghlError;
           
-          // Update sync status on success
+          // Update sync status on success (and apply the location move only once GHL accepted it)
           await supabase
             .from('all_appointments')
             .update({
               last_ghl_sync_status: 'success',
               last_ghl_sync_at: new Date().toISOString(),
               last_ghl_sync_error: null,
+              ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
             })
             .eq('id', appointment.id);
+
+          if (isCalendarMove && onUpdateCalendarLocation) {
+            onUpdateCalendarLocation(appointment.id, newCalendarName!);
+          }
           
           // Update reschedule record
           const { error: recordErr } = await supabase
@@ -1052,11 +1095,14 @@ const AppointmentCard = ({
           
           toast({
             title: "Success",
-            description: "Appointment rescheduled in GoHighLevel successfully"
+            description: isCalendarMove
+              ? `Appointment rescheduled and moved to ${newCalendarName} in GoHighLevel`
+              : "Appointment rescheduled in GoHighLevel successfully"
           });
           
         } catch (ghlError: any) {
           console.error('GHL sync error:', ghlError);
+
           
           // Log error but appointment was still updated locally
           await supabase
@@ -1080,7 +1126,7 @@ const AppointmentCard = ({
           
           toast({
             title: "Partial Success",
-            description: "Appointment updated locally but GHL sync failed. You can retry from the appointment card.",
+            description: `Appointment date/time updated locally${isCalendarMove ? ', but the location was NOT moved' : ''}. GoHighLevel sync failed: ${ghlError.message || String(ghlError)}`,
             variant: "destructive"
           });
         }
@@ -1091,8 +1137,13 @@ const AppointmentCard = ({
           .update({
             last_ghl_sync_status: null,
             last_ghl_sync_error: 'No GHL appointment ID',
+            ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
           })
           .eq('id', appointment.id);
+
+        if (isCalendarMove && onUpdateCalendarLocation) {
+          onUpdateCalendarLocation(appointment.id, newCalendarName!);
+        }
         
         // Update reschedule record
         await supabase
@@ -1120,6 +1171,8 @@ const AppointmentCard = ({
       setRescheduleDate(undefined);
       setRescheduleTime('');
       setRescheduleNotes('');
+      setRescheduleCalendarId('');
+
       
     } catch (error: any) {
       console.error('Error submitting reschedule:', error);
@@ -2188,7 +2241,7 @@ const AppointmentCard = ({
           
           <div className="space-y-4 py-4">
             {/* Current Appointment Info */}
-            {(appointment.date_of_appointment || appointment.requested_time) && (
+            {(appointment.date_of_appointment || appointment.requested_time || appointment.calendar_name) && (
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-sm font-medium mb-1">Current Appointment:</p>
                 <p className="text-sm">
@@ -2196,8 +2249,14 @@ const AppointmentCard = ({
                   {appointment.date_of_appointment && appointment.requested_time && ' at '}
                   {appointment.requested_time && formatTime(appointment.requested_time)}
                 </p>
+                {appointment.calendar_name && (
+                  <p className="text-xs text-muted-foreground mt-1 break-words">
+                    Location: {appointment.calendar_name}
+                  </p>
+                )}
               </div>
             )}
+
             
             {/* New Date Picker */}
             <div>
@@ -2235,6 +2294,40 @@ const AppointmentCard = ({
               />
             </div>
             
+            {/* Location / Calendar */}
+            {projectGhlCredentials.ghl_location_id && (
+              <div>
+                <Label>Location / Calendar</Label>
+                <p className="text-xs text-muted-foreground mb-1 mt-1">
+                  Only change this if the appointment is also moving to a different location.
+                </p>
+                <Select
+                  value={rescheduleCalendarId}
+                  onValueChange={setRescheduleCalendarId}
+                  disabled={loadingCalendars || calendars.length === 0}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={
+                        loadingCalendars
+                          ? 'Loading calendars...'
+                          : calendars.length === 0
+                            ? 'No calendars available'
+                            : (appointment.calendar_name || 'Select location')
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999] max-h-72">
+                    {calendars.map((calendar) => (
+                      <SelectItem key={calendar.id} value={calendar.id}>
+                        {calendar.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Notes */}
             <div>
               <Label>Notes (Optional)</Label>
@@ -2256,9 +2349,11 @@ const AppointmentCard = ({
                 setRescheduleDate(undefined);
                 setRescheduleTime('');
                 setRescheduleNotes('');
+                setRescheduleCalendarId('');
               }}
               disabled={submittingReschedule}
             >
+
               Cancel
             </Button>
             <Button 
