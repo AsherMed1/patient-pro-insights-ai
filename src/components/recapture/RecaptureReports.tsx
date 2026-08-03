@@ -25,39 +25,59 @@ interface UserMap {
 
 export default function RecaptureReports() {
   const { isAdmin, hasManagementAccess, isReviewOnly, accessibleProjects } = useRole();
-  const [cases, setCases] = useState<RecaptureCase[]>([]);
+  const [allCases, setAllCases] = useState<RecaptureCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserMap>({});
+  const fetchedRef = useRef(false);
 
+  // Fetch once on mount. Role-based filtering happens at render time so that
+  // unstable hook identities can never restart this effect (infinite spinner).
   useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     (async () => {
-      setLoading(true);
-      const { data: rows, error } = await supabase.from('recapture_cases' as any).select('*');
-      if (error) {
-        console.error('Recapture reports fetch error:', error);
-        setCases([]);
-      } else {
-        let list = ((rows as any) || []) as RecaptureCase[];
-        if (isReviewOnly() && accessibleProjects.length > 0) {
-          list = list.filter((c) => accessibleProjects.includes(c.project_name));
+      try {
+        const { data: rows, error } = await supabase.from('recapture_cases' as any).select('*');
+        if (error) {
+          console.error('Recapture reports fetch error:', error);
+          setAllCases([]);
+        } else {
+          setAllCases(((rows as any) || []) as RecaptureCase[]);
         }
-        setCases(list);
+      } catch (e) {
+        console.error('Recapture reports fetch error:', e);
+        setAllCases([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
-  }, [isReviewOnly, accessibleProjects]);
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data } = await supabase.from('profiles').select('id, full_name, email');
+      if (cancelled) return;
       const map: UserMap = {};
       for (const u of (data as any[]) || []) map[u.id] = { full_name: u.full_name, email: u.email };
       setUsers(map);
     })();
+    return () => { cancelled = true; };
   }, []);
+
+  const projectKey = accessibleProjects.join(',');
+  const reviewOnly = isReviewOnly();
+  const cases = useMemo(() => {
+    if (reviewOnly && accessibleProjects.length > 0) {
+      return allCases.filter((c) => accessibleProjects.includes(c.project_name));
+    }
+    return allCases;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allCases, reviewOnly, projectKey]);
 
   const stats = useMemo(() => {
     const total = cases.length;
+
     const completed = cases.filter((c) => c.work_status === 'completed').length;
     const recovered = cases.filter((c) => c.recovered).length;
     const pending = cases.filter((c) => c.work_status === 'pending').length;
