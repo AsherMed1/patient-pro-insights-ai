@@ -141,7 +141,7 @@ export default function RecaptureQueue() {
   const { user } = useAuth();
   const { isAdmin, hasManagementAccess, isReviewOnly, accessibleProjects } = useRole();
   const canManage = hasManagementAccess() || isAdmin();
-  const isSetter = isReviewOnly();
+  const isSetter = isReviewOnly;
 
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkStatus | 'all'>('pending');
