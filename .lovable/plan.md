@@ -6,7 +6,7 @@ Verified in the database for Shunn Morrise (Nashville Vascular & Vein Institute,
 
 - The appointment **is now** on Wed 8/5 at 1:40 PM, and the GoHighLevel sync for that change is recorded as successful (16:40 UTC today).
 - Five earlier attempts between 15:10 and 15:13 today created reschedule-request rows but never touched the appointment — that matches the "it says failed" the setter saw and her note: "8/3 gm would not let me reschedule kept saying failed."
-- The calendar on the record is still **"Request Your GAE Consultation at Nashville, TN"**, not Hendersonville. The project does have a "Request Your GAE Consultation at Hendersonville, TN" calendar.
+- The calendar on the record — and in GHL — is still **"Request Your GAE Consultation at Nashville, TN"**. Nothing has moved it yet. The project does have a "Request Your GAE Consultation at Hendersonville, TN" calendar, and you confirmed Hendersonville is the correct destination.
 - All six reschedule-request rows are still marked "pending / not processed", including the one that succeeded.
 
 Root cause of the 15:10–15:13 failures is **not confirmed** — the portal's error message discards the real database error, so nothing was recorded. The most likely candidate is the recapture trigger bug fixed earlier today (it raised "invalid input syntax for type uuid" on appointment updates), which would explain why the same action succeeded at 16:40. Confirming this is the first step below, not an assumption.
