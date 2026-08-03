@@ -297,7 +297,7 @@ export default function RecaptureQueue() {
       toast({ title: 'Failed to load attempts', variant: 'destructive' });
       setAttempts([]);
     } else {
-      setAttempts((data as RecaptureAttempt[]) || []);
+      setAttempts(((data as any) || []) as RecaptureAttempt[]);
     }
     setLoadingAttempts(false);
   };
