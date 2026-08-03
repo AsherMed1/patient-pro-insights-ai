@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Calendar as CalendarIcon, Phone, ArrowUpDown, RotateCcw, CheckCircle2, BarChart3, User, X, MoreHorizontal } from 'lucide-react';
+import { Loader2, ExternalLink, Calendar as CalendarIcon, Phone, ArrowUpDown, CheckCircle2, BarChart3, User, X, MoreHorizontal } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
@@ -467,7 +467,6 @@ export default function RecaptureQueue() {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <RotateCcw className="h-5 w-5 text-primary" />
           <h2 className="text-2xl font-bold">Recapture Worklist</h2>
         </div>
         <div className="flex items-center gap-2">
