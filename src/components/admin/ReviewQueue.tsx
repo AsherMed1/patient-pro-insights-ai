@@ -1263,6 +1263,15 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleMoveStage(Array.from(selected), isNewView ? 'pending_review' : 'new')}
+              disabled={processing}
+            >
+              <ArrowRightLeft className="h-4 w-4 mr-1" />
+              {isNewView ? 'Move to Pending Review' : 'Move back to New'}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
@@ -1274,7 +1283,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isDeclinedView ? 'No declined appointments.' : '🎉 No appointments waiting for review.'}
+            {isDeclinedView ? 'No declined appointments.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
