@@ -1473,6 +1473,17 @@ const ReviewQueue: React.FC = () => {
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleMoveStage([row.id], isNewView ? 'pending_review' : 'new')}
+                            disabled={processing}
+                            title={isNewView ? 'Needs more info or follow-up — move to Pending Review' : 'Move back to the New bucket'}
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                            {isNewView ? 'Pending Review' : 'Back to New'}
+                          </Button>
                         </>
                       )}
                     </div>
