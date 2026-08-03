@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Calendar as CalendarIcon, Phone, ArrowUpDown, RotateCcw, CheckCircle2, BarChart3, User, X } from 'lucide-react';
+import { Loader2, ExternalLink, Calendar as CalendarIcon, Phone, ArrowUpDown, RotateCcw, CheckCircle2, BarChart3, User, X, MoreHorizontal } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
