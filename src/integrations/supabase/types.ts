@@ -3612,6 +3612,8 @@ export type Database = {
           ghl_contact_id: string | null
           id: string
           last_attempt_at: string | null
+          lead_email: string | null
+          lead_phone_number: string | null
           lost_status_at_entry: string | null
           lost_type: string
           outcome: string | null
@@ -3639,6 +3641,8 @@ export type Database = {
           ghl_contact_id?: string | null
           id?: string
           last_attempt_at?: string | null
+          lead_email?: string | null
+          lead_phone_number?: string | null
           lost_status_at_entry?: string | null
           lost_type: string
           outcome?: string | null
@@ -3666,6 +3670,8 @@ export type Database = {
           ghl_contact_id?: string | null
           id?: string
           last_attempt_at?: string | null
+          lead_email?: string | null
+          lead_phone_number?: string | null
           lost_status_at_entry?: string | null
           lost_type?: string
           outcome?: string | null
@@ -4801,19 +4807,35 @@ export type Database = {
         }
         Returns: string
       }
-      recapture_upsert_case: {
-        Args: {
-          _appointment_date: string
-          _appointment_id: string
-          _ghl_contact_id: string
-          _lost_status_at_entry: string
-          _lost_type: string
-          _patient_name: string
-          _project_name: string
-          _service_line: string
-        }
-        Returns: string
-      }
+      recapture_upsert_case:
+        | {
+            Args: {
+              _appointment_date: string
+              _appointment_id: string
+              _ghl_contact_id: string
+              _lead_email: string
+              _lead_phone_number: string
+              _lost_status_at_entry: string
+              _lost_type: string
+              _patient_name: string
+              _project_name: string
+              _service_line: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _appointment_date: string
+              _appointment_id: string
+              _ghl_contact_id: string
+              _lost_status_at_entry: string
+              _lost_type: string
+              _patient_name: string
+              _project_name: string
+              _service_line: string
+            }
+            Returns: string
+          }
       refresh_performance_views: { Args: never; Returns: undefined }
       sync_lead_data_to_appointments: {
         Args: { batch_size?: number }
