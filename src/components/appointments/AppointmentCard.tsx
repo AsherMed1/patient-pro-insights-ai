@@ -1041,7 +1041,7 @@ const AppointmentCard = ({
             throw new Error('GHL location ID not configured for this project');
           }
           
-          // Call GHL update function
+          // Call GHL update function (date/time, plus calendar transfer when the location changed)
           const { error: ghlError } = await supabase.functions.invoke(
             'update-ghl-appointment',
             {
@@ -1052,21 +1052,29 @@ const AppointmentCard = ({
                 new_time: newTime,
                 timezone: projectData.timezone || 'America/Chicago',
                 ghl_api_key: projectData.ghl_api_key,
+                ...(isCalendarMove
+                  ? { calendar_id: rescheduleCalendarId, title: newCalendarTitle }
+                  : {}),
               },
             }
           );
           
           if (ghlError) throw ghlError;
           
-          // Update sync status on success
+          // Update sync status on success (and apply the location move only once GHL accepted it)
           await supabase
             .from('all_appointments')
             .update({
               last_ghl_sync_status: 'success',
               last_ghl_sync_at: new Date().toISOString(),
               last_ghl_sync_error: null,
+              ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
             })
             .eq('id', appointment.id);
+
+          if (isCalendarMove && onUpdateCalendarLocation) {
+            onUpdateCalendarLocation(appointment.id, newCalendarName!);
+          }
           
           // Update reschedule record
           const { error: recordErr } = await supabase
@@ -1087,11 +1095,14 @@ const AppointmentCard = ({
           
           toast({
             title: "Success",
-            description: "Appointment rescheduled in GoHighLevel successfully"
+            description: isCalendarMove
+              ? `Appointment rescheduled and moved to ${newCalendarName} in GoHighLevel`
+              : "Appointment rescheduled in GoHighLevel successfully"
           });
           
         } catch (ghlError: any) {
           console.error('GHL sync error:', ghlError);
+
           
           // Log error but appointment was still updated locally
           await supabase
