@@ -23,6 +23,18 @@ import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
+// Surface the full Postgres/Supabase error so failures are diagnosable from a screenshot
+const describeError = (e: any): string => {
+  if (!e) return 'Unknown error';
+  const parts = [e.message || String(e)];
+  if (e.details) parts.push(`Details: ${e.details}`);
+  if (e.hint) parts.push(`Hint: ${e.hint}`);
+  if (e.code) parts.push(`Code: ${e.code}`);
+  const msg = parts.join(' | ');
+  console.error('[ReviewQueue] Action failed:', { message: e.message, code: e.code, details: e.details, hint: e.hint, error: e });
+  return msg;
+};
+
 interface ReviewAppointment {
   id: string;
   lead_name: string;
