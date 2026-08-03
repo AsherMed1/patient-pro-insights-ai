@@ -32,11 +32,8 @@ const ProjectPortalWithAuth = () => {
 const queryClient = new QueryClient();
 
 const App = () => {
-  useEffect(() => {
-    retriggerCathTestParsing();
-  }, []);
-
   return (
+
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
