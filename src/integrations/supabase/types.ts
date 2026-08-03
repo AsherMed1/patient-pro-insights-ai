@@ -269,6 +269,7 @@ export type Database = {
           reschedule_history: Json | null
           reserved_end_time: string | null
           review_notes: string | null
+          review_stage: string
           review_status: string
           reviewed_at: string | null
           reviewed_by: string | null
@@ -342,6 +343,7 @@ export type Database = {
           reschedule_history?: Json | null
           reserved_end_time?: string | null
           review_notes?: string | null
+          review_stage?: string
           review_status?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -415,6 +417,7 @@ export type Database = {
           reschedule_history?: Json | null
           reserved_end_time?: string | null
           review_notes?: string | null
+          review_stage?: string
           review_status?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
