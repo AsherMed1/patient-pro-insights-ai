@@ -410,7 +410,11 @@ const Index = () => {
             </TabsContent>
           )}
 
-
+          {hasRecaptureAccess() && (
+            <TabsContent value="recapture" className="space-y-6">
+              <RecaptureQueue />
+            </TabsContent>
+          )}
 
           <TabsContent value="emr-queue" className="space-y-6">
             <EmrProcessingQueue />
