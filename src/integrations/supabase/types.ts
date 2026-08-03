@@ -4780,6 +4780,12 @@ export type Database = {
         }
         Returns: string
       }
+      merge_older_active_siblings: {
+        Args: {
+          new_row: Database["public"]["Tables"]["all_appointments"]["Row"]
+        }
+        Returns: undefined
+      }
       process_insurance_fetch_queue: {
         Args: { batch_size?: number }
         Returns: {
