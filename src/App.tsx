@@ -17,7 +17,7 @@ import UserSettings from "./pages/UserSettings";
 import BlockIncidentRecovery from "./pages/admin/BlockIncidentRecovery";
 import AccountPerformanceHeatmap from "./pages/admin/AccountPerformanceHeatmap";
 import NotFound from "./pages/NotFound";
-import { retriggerCathTestParsing } from "./utils/retriggerCathTestParsing";
+
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
