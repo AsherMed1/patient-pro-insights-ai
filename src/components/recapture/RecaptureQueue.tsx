@@ -712,6 +712,18 @@ export default function RecaptureQueue() {
         </SheetContent>
       </Sheet>
 
+      {detailAppt && (
+        <DetailedAppointmentView
+          isOpen={!!detailAppt}
+          appointment={detailAppt}
+          onClose={() => setDetailAppt(null)}
+          onDataRefresh={() => {
+            if (selectedCase) loadAttempts(selectedCase.id);
+            fetchCases();
+          }}
+        />
+      )}
+
       {/* Log Attempt Dialog */}
       <Dialog open={attemptDialogOpen} onOpenChange={setAttemptDialogOpen}>
         <DialogContent>
