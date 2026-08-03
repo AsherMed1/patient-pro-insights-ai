@@ -33,6 +33,8 @@ interface RecaptureCase {
   ghl_contact_id: string | null;
   project_name: string;
   patient_name: string | null;
+  lead_phone_number?: string | null;
+  lead_email?: string | null;
   service_line: string | null;
   lost_type: LostType;
   lost_status_at_entry: string | null;
