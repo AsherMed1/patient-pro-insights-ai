@@ -161,7 +161,7 @@ const Index = () => {
     );
   }
 
-  // Review-only users: stripped dashboard showing only the Review Queue
+  // Review-only users: stripped dashboard showing Review Queue and Recapture Worklist
   if (isReviewOnly()) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -171,7 +171,7 @@ const Index = () => {
               <img src={patientProLogo} alt="Patient Pro Logo" className="h-8 w-auto" />
               <div>
                 <h1 className="text-lg font-semibold leading-none">Patient Pro Client Portal</h1>
-                <p className="text-sm text-muted-foreground">Review Queue</p>
+                <p className="text-sm text-muted-foreground">Setter Worklist</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -187,13 +187,23 @@ const Index = () => {
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-1">
-            <h2 className="text-base font-semibold">Review Queue</h2>
-            {reviewPendingCount > 0 && (
-              <Badge variant="destructive">{reviewPendingCount}</Badge>
-            )}
-          </div>
-          <ReviewQueue />
+          <Tabs defaultValue="review-queue" className="w-full">
+            <TabsList>
+              <TabsTrigger value="review-queue">
+                Review Queue
+                {reviewPendingCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">{reviewPendingCount}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="recapture">Recapture</TabsTrigger>
+            </TabsList>
+            <TabsContent value="review-queue" className="space-y-6">
+              <ReviewQueue />
+            </TabsContent>
+            <TabsContent value="recapture" className="space-y-6">
+              <RecaptureQueue />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     );
