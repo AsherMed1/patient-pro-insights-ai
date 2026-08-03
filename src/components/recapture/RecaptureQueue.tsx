@@ -653,7 +653,7 @@ export default function RecaptureQueue() {
       )}
 
       {/* Detail Drawer */}
-      <Sheet open={!!selectedCase && !attemptDialogOpen && !statusDialogOpen && !completeDialogOpen && !assignDialogOpen} onOpenChange={(open) => { if (!open) { setSelectedCase(null); setDetailAppt(null); setAttempts([]); } }}>
+      <Sheet open={!!selectedCase && !attemptDialogOpen && !statusDialogOpen && !completeDialogOpen && !assignDialogOpen && !detailAppt} onOpenChange={(open) => { if (!open) { setSelectedCase(null); setDetailAppt(null); setAttempts([]); } }}>
         <SheetContent className="sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{selectedCase?.patient_name}</SheetTitle>
