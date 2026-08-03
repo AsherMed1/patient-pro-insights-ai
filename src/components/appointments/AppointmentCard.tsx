@@ -203,6 +203,8 @@ const AppointmentCard = ({
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
   const [rescheduleTime, setRescheduleTime] = useState<string>('');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [rescheduleCalendarId, setRescheduleCalendarId] = useState<string>('');
+
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [retryingGhlSync, setRetryingGhlSync] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState<string>(
