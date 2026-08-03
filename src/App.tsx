@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,7 +17,7 @@ import UserSettings from "./pages/UserSettings";
 import BlockIncidentRecovery from "./pages/admin/BlockIncidentRecovery";
 import AccountPerformanceHeatmap from "./pages/admin/AccountPerformanceHeatmap";
 import NotFound from "./pages/NotFound";
-import { retriggerCathTestParsing } from "./utils/retriggerCathTestParsing";
+
 
 // Wrapper component for project portal with auth guard
 const ProjectPortalWithAuth = () => {
@@ -32,11 +32,8 @@ const ProjectPortalWithAuth = () => {
 const queryClient = new QueryClient();
 
 const App = () => {
-  useEffect(() => {
-    retriggerCathTestParsing();
-  }, []);
-
   return (
+
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
