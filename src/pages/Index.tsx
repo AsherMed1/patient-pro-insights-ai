@@ -27,6 +27,7 @@ import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
 import HelpVideoManager from "@/components/HelpVideoManager";
 import ReviewQueue from "@/components/admin/ReviewQueue";
 import QAOperationsQueue from "@/components/admin/QAOperationsQueue";
+import RecaptureQueue from "@/components/recapture/RecaptureQueue";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +38,7 @@ const Index = () => {
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
   const { user, signOut } = useAuth();
-  const { role, hasManagementAccess, isProjectUser, isReviewOnly, isQASpecialist, accessibleProjects, loading: roleLoading } = useRole();
+  const { role, hasManagementAccess, isProjectUser, isReviewOnly, isQASpecialist, hasRecaptureAccess, accessibleProjects, loading: roleLoading } = useRole();
   const navigate = useNavigate();
   
   // Initialize automatic intake notes parsing
@@ -160,7 +161,7 @@ const Index = () => {
     );
   }
 
-  // Review-only users: stripped dashboard showing only the Review Queue
+  // Review-only users: stripped dashboard showing Review Queue and Recapture Worklist
   if (isReviewOnly()) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -170,7 +171,7 @@ const Index = () => {
               <img src={patientProLogo} alt="Patient Pro Logo" className="h-8 w-auto" />
               <div>
                 <h1 className="text-lg font-semibold leading-none">Patient Pro Client Portal</h1>
-                <p className="text-sm text-muted-foreground">Review Queue</p>
+                <p className="text-sm text-muted-foreground">Setter Worklist</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -186,13 +187,23 @@ const Index = () => {
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-1">
-            <h2 className="text-base font-semibold">Review Queue</h2>
-            {reviewPendingCount > 0 && (
-              <Badge variant="destructive">{reviewPendingCount}</Badge>
-            )}
-          </div>
-          <ReviewQueue />
+          <Tabs defaultValue="review-queue" className="w-full">
+            <TabsList>
+              <TabsTrigger value="review-queue">
+                Review Queue
+                {reviewPendingCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">{reviewPendingCount}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="recapture">Recapture</TabsTrigger>
+            </TabsList>
+            <TabsContent value="review-queue" className="space-y-6">
+              <ReviewQueue />
+            </TabsContent>
+            <TabsContent value="recapture" className="space-y-6">
+              <RecaptureQueue />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     );
@@ -349,6 +360,9 @@ const Index = () => {
             {(hasManagementAccess() || role === 'va') && (
               <TabsTrigger value="qa-queue">QA Operations</TabsTrigger>
             )}
+            {hasRecaptureAccess() && (
+              <TabsTrigger value="recapture">Recapture</TabsTrigger>
+            )}
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
@@ -406,7 +420,11 @@ const Index = () => {
             </TabsContent>
           )}
 
-
+          {hasRecaptureAccess() && (
+            <TabsContent value="recapture" className="space-y-6">
+              <RecaptureQueue />
+            </TabsContent>
+          )}
 
           <TabsContent value="emr-queue" className="space-y-6">
             <EmrProcessingQueue />

@@ -3551,6 +3551,180 @@ export type Database = {
         }
         Relationships: []
       }
+      recapture_attempts: {
+        Row: {
+          attempted_at: string
+          case_id: string
+          channel: string
+          created_at: string
+          id: string
+          note: string | null
+          result: string | null
+          updated_at: string
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          case_id: string
+          channel: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          result?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          case_id?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          result?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recapture_attempts_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recapture_cases: {
+        Row: {
+          appointment_date: string | null
+          appointment_id: string | null
+          assigned_user_id: string | null
+          attempt_count: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          entered_worklist_at: string
+          first_attempt_at: string | null
+          ghl_contact_id: string | null
+          id: string
+          last_attempt_at: string | null
+          lost_status_at_entry: string | null
+          lost_type: string
+          outcome: string | null
+          outcome_notes: string | null
+          patient_name: string | null
+          project_name: string
+          rebooked_appointment_id: string | null
+          recovered: boolean
+          service_line: string | null
+          stale: boolean
+          updated_at: string
+          work_started_at: string | null
+          work_status: string
+        }
+        Insert: {
+          appointment_date?: string | null
+          appointment_id?: string | null
+          assigned_user_id?: string | null
+          attempt_count?: number
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          entered_worklist_at?: string
+          first_attempt_at?: string | null
+          ghl_contact_id?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          lost_status_at_entry?: string | null
+          lost_type: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          patient_name?: string | null
+          project_name: string
+          rebooked_appointment_id?: string | null
+          recovered?: boolean
+          service_line?: string | null
+          stale?: boolean
+          updated_at?: string
+          work_started_at?: string | null
+          work_status?: string
+        }
+        Update: {
+          appointment_date?: string | null
+          appointment_id?: string | null
+          assigned_user_id?: string | null
+          attempt_count?: number
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          entered_worklist_at?: string
+          first_attempt_at?: string | null
+          ghl_contact_id?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          lost_status_at_entry?: string | null
+          lost_type?: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          patient_name?: string | null
+          project_name?: string
+          rebooked_appointment_id?: string | null
+          recovered?: boolean
+          service_line?: string | null
+          stale?: boolean
+          updated_at?: string
+          work_started_at?: string | null
+          work_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recapture_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recapture_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "recapture_cases_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+          {
+            foreignKeyName: "recapture_cases_rebooked_appointment_id_fkey"
+            columns: ["rebooked_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recapture_cases_rebooked_appointment_id_fkey"
+            columns: ["rebooked_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "recapture_cases_rebooked_appointment_id_fkey"
+            columns: ["rebooked_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
       resources: {
         Row: {
           access_count: number
@@ -4506,6 +4680,10 @@ export type Database = {
         Returns: boolean
       }
       has_qa_case_access: { Args: { _case_id: string }; Returns: boolean }
+      has_recapture_case_access: {
+        Args: { _case_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4617,6 +4795,19 @@ export type Database = {
           _appointment_id: string
           _appointment_status: string
           _ghl_contact_id: string
+          _patient_name: string
+          _project_name: string
+          _service_line: string
+        }
+        Returns: string
+      }
+      recapture_upsert_case: {
+        Args: {
+          _appointment_date: string
+          _appointment_id: string
+          _ghl_contact_id: string
+          _lost_status_at_entry: string
+          _lost_type: string
           _patient_name: string
           _project_name: string
           _service_line: string

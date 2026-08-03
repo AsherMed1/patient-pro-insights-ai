@@ -292,15 +292,7 @@ function groupCases(list: QACase[]): QAGroup[] {
 export default function QAOperationsQueue() {
   const { user } = useAuth();
   const { isAdmin } = useRole();
-  const canSeeTerminalAlerts =
-    isAdmin() || TERMINAL_ALERT_EMAILS.includes((user?.email || '').toLowerCase());
-  const [showTerminalAlerts, setShowTerminalAlerts] = useState(false);
-  const visibleAlertTypes = useMemo<AlertType[]>(
-    () => (canSeeTerminalAlerts && showTerminalAlerts
-      ? [...ACTIVE_ALERT_TYPES, ...TERMINAL_ALERT_TYPES]
-      : ACTIVE_ALERT_TYPES),
-    [canSeeTerminalAlerts, showTerminalAlerts],
-  );
+  const visibleAlertTypes = useMemo<AlertType[]>(() => ACTIVE_ALERT_TYPES, []);
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -430,11 +422,10 @@ export default function QAOperationsQueue() {
   const fetchCasesRef = useRef(fetchCases);
   fetchCasesRef.current = fetchCases;
 
-  // Re-fetch when the visible scope changes (Completed/All tab, a date filter
-  // widening the completed-case window, or the No-Show/Cancellation toggle).
+  // Re-fetch when the visible scope changes (Completed/All tab or date filter).
   useEffect(() => {
     fetchCasesRef.current();
-  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo, showTerminalAlerts]);
+  }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo]);
 
   useEffect(() => {
     const ch = supabase
@@ -769,31 +760,8 @@ export default function QAOperationsQueue() {
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
-            {canSeeTerminalAlerts && showTerminalAlerts && (
-              <>
-                <SelectItem value="no_show">No-Show</SelectItem>
-                <SelectItem value="cancelled">Cancellation</SelectItem>
-              </>
-            )}
           </SelectContent>
         </Select>
-        {canSeeTerminalAlerts && (
-          <div className="flex items-center gap-2 rounded-md border px-3 py-1.5">
-            <Switch
-              id="show-terminal-alerts"
-              checked={showTerminalAlerts}
-              onCheckedChange={(v) => {
-                setShowTerminalAlerts(v);
-                if (!v && (alertFilter === 'no_show' || alertFilter === 'cancelled')) {
-                  setAlertFilter('all');
-                }
-              }}
-            />
-            <Label htmlFor="show-terminal-alerts" className="text-xs cursor-pointer">
-              No-Show / Cancellations
-            </Label>
-          </div>
-        )}
         <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Assignment" /></SelectTrigger>
           <SelectContent>
