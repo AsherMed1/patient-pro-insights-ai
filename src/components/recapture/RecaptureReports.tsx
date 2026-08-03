@@ -37,7 +37,7 @@ export default function RecaptureReports() {
         console.error('Recapture reports fetch error:', error);
         setCases([]);
       } else {
-        let list = (rows || []) as RecaptureCase[];
+        let list = ((rows as any) || []) as RecaptureCase[];
         if (isReviewOnly() && accessibleProjects.length > 0) {
           list = list.filter((c) => accessibleProjects.includes(c.project_name));
         }
