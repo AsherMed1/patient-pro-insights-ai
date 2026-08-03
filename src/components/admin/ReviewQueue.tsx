@@ -697,6 +697,8 @@ const ReviewQueue: React.FC = () => {
                 ghl_api_key: projectData?.ghl_api_key || undefined,
                 tags: ['approved'],
                 action: 'add',
+                source: `Review Queue manual approve by ${userName || 'a portal user'}`,
+
               },
             });
             console.log('update-ghl-contact-tags response:', { tagData, tagErr });

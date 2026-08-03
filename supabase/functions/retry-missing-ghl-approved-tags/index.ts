@@ -173,6 +173,8 @@ serve(async (req) => {
             ghl_api_key: apiKey,
             tags: [APPROVED_TAG],
             action: "add",
+            source: "hourly approved-tag retry sweep",
+
           },
         },
       );

@@ -523,6 +523,8 @@ serve(async (req) => {
               ghl_api_key: projectData?.ghl_api_key || undefined,
               tags: ['approved'],
               action: 'add',
+              source: 'GHL webhook setter-submitted auto-approve',
+
             },
           })
             .then(async ({ error: tagErr }) => {
@@ -1567,17 +1569,42 @@ function getUpdateableFields(
     updateFields.insurance_id_link = webhookData.insurance_id_link
   }
   
-  // Patient intake notes - enrich existing notes with GHL data
+  // Patient intake notes - enrich existing notes with GHL data.
+  //
+  // Historically this only appended when the stored notes did NOT contain the
+  // '**Contact:**' marker. Booking webhooks that fire before the intake form is
+  // attached to the GHL contact store a ~90 char stub that DOES contain that
+  // marker, so every richer payload afterwards was silently discarded and the
+  // record stayed permanently blank in the portal (e.g. Kristy Theodore /
+  // Rafael Paulino, Vivid Vascular). Compare content instead of markers.
   if (webhookData.patient_intake_notes) {
-    // If local notes are empty, set them
-    if (!existingAppointment.patient_intake_notes) {
-      updateFields.patient_intake_notes = webhookData.patient_intake_notes
-    } 
-    // If local notes exist but don't have GHL structured data, append it
-    else if (!existingAppointment.patient_intake_notes.includes('**Contact:**')) {
-      updateFields.patient_intake_notes = existingAppointment.patient_intake_notes + '\n\n' + webhookData.patient_intake_notes
+    const incoming: string = webhookData.patient_intake_notes
+    const stored: string = existingAppointment.patient_intake_notes || ''
+
+    const SECTION_MARKERS = [
+      /Insurance Information\s*:/i,
+      /Medical Information\s*:/i,
+      /Pathology Information\s*:/i,
+      /Primary Care Doctor/i,
+      /STEP\s*\d+\s*\|/i,
+    ]
+    const sectionsMissingLocally = SECTION_MARKERS.some(
+      (re) => re.test(incoming) && !re.test(stored),
+    )
+    // A stub is anything materially thinner than what GHL now has to offer.
+    const incomingIsRicher = incoming.trim().length > stored.trim().length + 200
+
+    if (!stored) {
+      updateFields.patient_intake_notes = incoming
+    } else if (sectionsMissingLocally || incomingIsRicher) {
+      // Never shorten or replace: always append so clinic-entered content and
+      // any earlier GHL data are preserved.
+      if (!stored.includes(incoming.trim())) {
+        updateFields.patient_intake_notes = `${stored}\n\n${incoming}`
+      }
     }
   }
+
   
   // was_ever_confirmed - only set to true, never back to false
   if (webhookData.status?.toLowerCase() === 'confirmed' && !existingAppointment.was_ever_confirmed) {
