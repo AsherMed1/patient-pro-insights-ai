@@ -1126,7 +1126,7 @@ const AppointmentCard = ({
           
           toast({
             title: "Partial Success",
-            description: "Appointment updated locally but GHL sync failed. You can retry from the appointment card.",
+            description: `Appointment date/time updated locally${isCalendarMove ? ', but the location was NOT moved' : ''}. GoHighLevel sync failed: ${ghlError.message || String(ghlError)}`,
             variant: "destructive"
           });
         }
@@ -1137,8 +1137,13 @@ const AppointmentCard = ({
           .update({
             last_ghl_sync_status: null,
             last_ghl_sync_error: 'No GHL appointment ID',
+            ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
           })
           .eq('id', appointment.id);
+
+        if (isCalendarMove && onUpdateCalendarLocation) {
+          onUpdateCalendarLocation(appointment.id, newCalendarName!);
+        }
         
         // Update reschedule record
         await supabase
@@ -1166,6 +1171,8 @@ const AppointmentCard = ({
       setRescheduleDate(undefined);
       setRescheduleTime('');
       setRescheduleNotes('');
+      setRescheduleCalendarId('');
+
       
     } catch (error: any) {
       console.error('Error submitting reschedule:', error);
