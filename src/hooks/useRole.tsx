@@ -65,8 +65,8 @@ export const useRole = () => {
         console.log('✅ [useRole] Role fetched successfully:', userRole);
         setRole(userRole);
 
-        // If project_user or qa_specialist, get accessible projects
-        if (userRole === 'project_user' || userRole === 'qa_specialist') {
+        // If project_user, qa_specialist, or review_only, get accessible projects
+        if (userRole === 'project_user' || userRole === 'qa_specialist' || userRole === 'review_only') {
           console.log('👤 [useRole] Fetching project access for scoped user');
           const { data: projectAccess, error: projectError } = await supabase
             .from('project_user_access')
