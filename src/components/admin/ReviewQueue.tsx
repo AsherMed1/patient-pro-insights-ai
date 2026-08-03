@@ -321,13 +321,21 @@ const ReviewQueue: React.FC = () => {
   }, [projectFilter, search, toast, queueView]);
 
   const fetchCounts = useCallback(async () => {
-    const base = (status: string) =>
-      supabase
+    const base = (status: string, stage?: string) => {
+      let q = supabase
         .from('all_appointments')
         .select('id', { count: 'exact', head: true })
         .eq('review_status', status)
         .or('is_reserved_block.is.null,is_reserved_block.eq.false');
-    const [{ count: pc }, { count: dc }] = await Promise.all([base('pending'), base('declined')]);
+      if (stage) q = q.eq('review_stage', stage);
+      return q;
+    };
+    const [{ count: nc }, { count: pc }, { count: dc }] = await Promise.all([
+      base('pending', 'new'),
+      base('pending', 'pending_review'),
+      base('declined'),
+    ]);
+    setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
   }, []);
