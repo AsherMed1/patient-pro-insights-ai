@@ -523,6 +523,8 @@ serve(async (req) => {
               ghl_api_key: projectData?.ghl_api_key || undefined,
               tags: ['approved'],
               action: 'add',
+              source: 'GHL webhook setter-submitted auto-approve',
+
             },
           })
             .then(async ({ error: tagErr }) => {
