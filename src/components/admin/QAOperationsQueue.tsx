@@ -290,6 +290,8 @@ function groupCases(list: QACase[]): QAGroup[] {
 }
 
 export default function QAOperationsQueue() {
+  const { user } = useAuth();
+  const { isAdmin } = useRole();
   const visibleAlertTypes = useMemo<AlertType[]>(() => ACTIVE_ALERT_TYPES, []);
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
