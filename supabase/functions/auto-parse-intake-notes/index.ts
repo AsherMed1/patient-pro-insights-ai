@@ -3324,13 +3324,18 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // Determine final DOB (prefer existing DB column, then AI-parsed)
           const finalDob = existingDob || dobIso || parsedData.contact_info?.dob || parsedData.demographics?.dob;
           
-          // Calculate age from final DOB if age not in parsed data
-          let finalAge = parsedData.demographics?.age;
-          if (!finalAge && finalDob) {
-            const calculatedAge = calculateAgeFromDob(finalDob);
-            if (calculatedAge !== null) {
-              finalAge = calculatedAge.toString();
-            }
+          // Age must be a real number. Intake forms often collect an age BRACKET
+          // ("46 to 55", "55-64", "65+") — never let that land in the Age field
+          // when a DOB is known; always prefer the DOB-derived age.
+          const isNumericAge = (v: any) => v !== null && v !== undefined && /^\d{1,3}$/.test(String(v).trim());
+          const dobAge = finalDob ? calculateAgeFromDob(finalDob) : null;
+          let finalAge: string | null = null;
+          if (dobAge !== null) {
+            finalAge = dobAge.toString();
+          } else if (isNumericAge(parsedData.demographics?.age)) {
+            finalAge = String(parsedData.demographics.age).trim();
+          } else if (isNumericAge(existingParsedDemo.age)) {
+            finalAge = String(existingParsedDemo.age).trim();
           }
           
           // Merge demographics: preserve existing, add AI-parsed, ensure DOB and age
@@ -3338,8 +3343,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
             ...existingParsedDemo,
             ...parsedData.demographics,
             dob: finalDob,
-            age: finalAge || existingParsedDemo.age
+            age: finalAge
           };
+          
           
           // Merge contact info: preserve existing, add AI-parsed
           updateData.parsed_contact_info = {
