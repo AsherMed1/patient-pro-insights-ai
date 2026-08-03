@@ -946,6 +946,8 @@ const AppointmentCard = ({
         .single();
       
       if (rescheduleError) throw rescheduleError;
+      createdRescheduleId = rescheduleRecord?.id ?? null;
+
       
       // Update local appointment - reset IPC and status for re-processing
       const { error: updateError } = await supabase
