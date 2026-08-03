@@ -1159,6 +1159,7 @@ const ReviewQueue: React.FC = () => {
   };
 
   const isDeclinedView = queueView === 'declined';
+  const isNewView = queueView === 'new';
 
   return (
     <Card>
