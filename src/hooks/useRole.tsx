@@ -165,6 +165,7 @@ export const useRole = () => {
     isQASpecialist,
     hasManagementAccess,
     hasQAAccess,
+    hasRecaptureAccess,
     canEditNotes
   };
 };
