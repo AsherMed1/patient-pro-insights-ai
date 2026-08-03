@@ -396,6 +396,24 @@ const AppointmentCard = ({
     }
   }, [calendarDropdownOpen, projectGhlCredentials, calendars.length, fetchCalendars]);
 
+  // Fetch calendars when the reschedule dialog opens so the location can be changed too
+  useEffect(() => {
+    if (showRescheduleDialog && projectGhlCredentials.ghl_location_id && calendars.length === 0) {
+      fetchCalendars(projectGhlCredentials.ghl_location_id, projectGhlCredentials.ghl_api_key || undefined);
+    }
+  }, [showRescheduleDialog, projectGhlCredentials, calendars.length, fetchCalendars]);
+
+  // Default the reschedule location to the appointment's current calendar
+  useEffect(() => {
+    if (!showRescheduleDialog || calendars.length === 0 || rescheduleCalendarId) return;
+    const current = calendars.find(
+      (c) => c.name.toLowerCase() === (appointment.calendar_name || '').toLowerCase()
+    );
+    if (current) setRescheduleCalendarId(current.id);
+  }, [showRescheduleDialog, calendars, appointment.calendar_name, rescheduleCalendarId]);
+
+
+
   // Extract location from calendar name (e.g., "Request your PAE Consultation at Miami, FL" -> "Miami, FL")
   const extractLocationFromCalendarName = (calendarName: string): string => {
     // Try "at Location" format first
