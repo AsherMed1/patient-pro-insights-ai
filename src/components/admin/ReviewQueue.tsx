@@ -41,6 +41,7 @@ interface ReviewAppointment {
   dob: string | null;
   ghl_id: string | null;
   review_status: string;
+  review_stage?: string | null;
   created_at: string;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
