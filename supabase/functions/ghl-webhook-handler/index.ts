@@ -2348,7 +2348,7 @@ async function enrichAppointmentWithGHLData(
     // Get current patient intake notes
     const { data: appointment } = await supabase
       .from('all_appointments')
-      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, insurance_id_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id')
+      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id')
       .eq('id', appointmentId)
       .single()
     
@@ -2557,10 +2557,29 @@ async function enrichAppointmentWithGHLData(
     // Update appointment with enriched notes AND parsed fields.
     // Only write dob / parsed_demographics when GHL actually returned a DOB —
     // otherwise a subsequent enrichment could blank a previously-known DOB.
+    // Never clobber previously-known contact/demographic values with nulls:
+    // a GHL contact payload that omits phone/email/DOB/address must not blank
+    // fields a prior sync or the parser already populated.
+    const mergeNonNull = (base: Record<string, any>, patch: Record<string, any>) => {
+      const out: Record<string, any> = { ...(base || {}) };
+      for (const [k, v] of Object.entries(patch || {})) {
+        if (v !== null && v !== undefined && v !== '') out[k] = v;
+      }
+      return out;
+    };
+    const existingParsedContact = ((appointment as any)?.parsed_contact_info && typeof (appointment as any).parsed_contact_info === 'object')
+      ? (appointment as any).parsed_contact_info as Record<string, any>
+      : {};
+    const existingParsedDemo = ((appointment as any)?.parsed_demographics && typeof (appointment as any).parsed_demographics === 'object')
+      ? (appointment as any).parsed_demographics as Record<string, any>
+      : {};
+    const mergedParsedContact = mergeNonNull(existingParsedContact, parsedContactInfo);
+    const mergedParsedDemographics = mergeNonNull(existingParsedDemo, parsedDemographics);
+
     const enrichmentUpdate: Record<string, unknown> = {
       patient_intake_notes: updatedNotes,
-      parsed_contact_info: parsedContactInfo,
-      ...(contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: parsedDemographics } : {}),
+      parsed_contact_info: mergedParsedContact,
+      ...(contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: mergedParsedDemographics } : {}),
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
