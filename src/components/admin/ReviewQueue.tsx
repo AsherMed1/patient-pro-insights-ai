@@ -41,6 +41,7 @@ interface ReviewAppointment {
   dob: string | null;
   ghl_id: string | null;
   review_status: string;
+  review_stage?: string | null;
   created_at: string;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
@@ -59,7 +60,7 @@ interface DuplicateAppt {
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
-type QueueView = 'pending' | 'declined';
+type QueueView = 'new' | 'pending' | 'declined';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
@@ -79,7 +80,8 @@ const ReviewQueue: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [queueView, setQueueView] = useState<QueueView>('pending');
+  const [queueView, setQueueView] = useState<QueueView>('new');
+  const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
@@ -275,14 +277,15 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
-      .eq('review_status', queueView)
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
+      .eq('review_status', queueView === 'declined' ? 'declined' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
 
     if (queueView === 'declined') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
     } else {
+      q = q.eq('review_stage', queueView === 'new' ? 'new' : 'pending_review');
       q = q.order('created_at', { ascending: false });
     }
 
@@ -318,13 +321,21 @@ const ReviewQueue: React.FC = () => {
   }, [projectFilter, search, toast, queueView]);
 
   const fetchCounts = useCallback(async () => {
-    const base = (status: string) =>
-      supabase
+    const base = (status: string, stage?: string) => {
+      let q = supabase
         .from('all_appointments')
         .select('id', { count: 'exact', head: true })
         .eq('review_status', status)
         .or('is_reserved_block.is.null,is_reserved_block.eq.false');
-    const [{ count: pc }, { count: dc }] = await Promise.all([base('pending'), base('declined')]);
+      if (stage) q = q.eq('review_stage', stage);
+      return q;
+    };
+    const [{ count: nc }, { count: pc }, { count: dc }] = await Promise.all([
+      base('pending', 'new'),
+      base('pending', 'pending_review'),
+      base('declined'),
+    ]);
+    setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
   }, []);
@@ -973,6 +984,54 @@ const ReviewQueue: React.FC = () => {
   };
 
 
+  const handleMoveStage = async (ids: string[], stage: 'new' | 'pending_review') => {
+    if (ids.length === 0) return;
+    setProcessing(true);
+    try {
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({ review_stage: stage })
+        .in('id', ids);
+      if (updErr) throw updErr;
+
+      const label = stage === 'pending_review' ? 'Pending Review' : 'New';
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      try {
+        await supabase.from('appointment_notes').insert(
+          ids.map(id => ({
+            appointment_id: id,
+            note_text: `Review Queue: moved to ${label} by ${actor} - [[timestamp:${stamp}]]`,
+            created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+          }))
+        );
+      } catch (e) {
+        console.warn('stage move note insert failed', e);
+      }
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_stage_changed',
+          p_description: `Moved ${ids.length} appointment(s) to ${label} in Review Queue by ${actor}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_ids: ids, review_stage: stage },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: `Moved to ${label}`, description: `${ids.length} appointment(s)` });
+      setRows(prev => prev.filter(r => !ids.includes(r.id)));
+      setSelected(new Set());
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Move failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleRestore = async (row: ReviewAppointment) => {
     setProcessing(true);
     try {
@@ -981,6 +1040,7 @@ const ReviewQueue: React.FC = () => {
         .from('all_appointments')
         .update({
           review_status: 'pending',
+          review_stage: 'new',
           reviewed_at: null,
           reviewed_by: null,
           review_notes: null,
@@ -1099,6 +1159,7 @@ const ReviewQueue: React.FC = () => {
   };
 
   const isDeclinedView = queueView === 'declined';
+  const isNewView = queueView === 'new';
 
   return (
     <Card>
@@ -1109,7 +1170,7 @@ const ReviewQueue: React.FC = () => {
               Review Queue
             </CardTitle>
             <CardDescription>
-              New appointments wait here until you Approve, Decline, or mark them as OON. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
+              New appointments land in the <strong>New</strong> bucket. Move one to <strong>Pending Review</strong> when it needs more investigation or follow-up, so the next shift knows what is already being worked. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => { fetch(); fetchCounts(); }} disabled={loading}>
@@ -1117,7 +1178,15 @@ const ReviewQueue: React.FC = () => {
             Refresh
           </Button>
         </div>
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <Button
+            variant={queueView === 'new' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setQueueView('new'); setSelected(new Set()); }}
+          >
+            New
+            <Badge variant="secondary" className="ml-2">{newCount}</Badge>
+          </Button>
           <Button
             variant={queueView === 'pending' ? 'default' : 'outline'}
             size="sm"
@@ -1194,6 +1263,15 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleMoveStage(Array.from(selected), isNewView ? 'pending_review' : 'new')}
+              disabled={processing}
+            >
+              <ArrowRightLeft className="h-4 w-4 mr-1" />
+              {isNewView ? 'Move to Pending Review' : 'Move back to New'}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
@@ -1205,7 +1283,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isDeclinedView ? 'No declined appointments.' : '🎉 No appointments waiting for review.'}
+            {isDeclinedView ? 'No declined appointments.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
@@ -1394,6 +1472,17 @@ const ReviewQueue: React.FC = () => {
                             disabled={processing}
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleMoveStage([row.id], isNewView ? 'pending_review' : 'new')}
+                            disabled={processing}
+                            title={isNewView ? 'Needs more info or follow-up — move to Pending Review' : 'Move back to the New bucket'}
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                            {isNewView ? 'Pending Review' : 'Back to New'}
                           </Button>
                         </>
                       )}
