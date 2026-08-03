@@ -27,7 +27,6 @@ import { StatusFilterLegend, DEFAULT_CALENDAR_STATUSES } from '@/components/appo
 import { ReserveTimeBlockDialog } from '@/components/appointments/ReserveTimeBlockDialog';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
-import '@/utils/retriggerVividVascularParsing';
 
 interface Project {
   id: string;
