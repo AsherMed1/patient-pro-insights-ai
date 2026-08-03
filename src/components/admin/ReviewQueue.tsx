@@ -984,6 +984,54 @@ const ReviewQueue: React.FC = () => {
   };
 
 
+  const handleMoveStage = async (ids: string[], stage: 'new' | 'pending_review') => {
+    if (ids.length === 0) return;
+    setProcessing(true);
+    try {
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({ review_stage: stage })
+        .in('id', ids);
+      if (updErr) throw updErr;
+
+      const label = stage === 'pending_review' ? 'Pending Review' : 'New';
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      try {
+        await supabase.from('appointment_notes').insert(
+          ids.map(id => ({
+            appointment_id: id,
+            note_text: `Review Queue: moved to ${label} by ${actor} - [[timestamp:${stamp}]]`,
+            created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+          }))
+        );
+      } catch (e) {
+        console.warn('stage move note insert failed', e);
+      }
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'review_stage_changed',
+          p_description: `Moved ${ids.length} appointment(s) to ${label} in Review Queue by ${actor}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_ids: ids, review_stage: stage },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: `Moved to ${label}`, description: `${ids.length} appointment(s)` });
+      setRows(prev => prev.filter(r => !ids.includes(r.id)));
+      setSelected(new Set());
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Move failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleRestore = async (row: ReviewAppointment) => {
     setProcessing(true);
     try {
