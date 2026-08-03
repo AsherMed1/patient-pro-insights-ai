@@ -350,6 +350,9 @@ const Index = () => {
             {(hasManagementAccess() || role === 'va') && (
               <TabsTrigger value="qa-queue">QA Operations</TabsTrigger>
             )}
+            {hasRecaptureAccess() && (
+              <TabsTrigger value="recapture">Recapture</TabsTrigger>
+            )}
             <TabsTrigger value="emr-queue">EMR Queue</TabsTrigger>
             <TabsTrigger value="calls">Calls</TabsTrigger>
             <TabsTrigger value="call-team">Call Team</TabsTrigger>
