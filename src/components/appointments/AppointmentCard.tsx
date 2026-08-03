@@ -2241,7 +2241,7 @@ const AppointmentCard = ({
           
           <div className="space-y-4 py-4">
             {/* Current Appointment Info */}
-            {(appointment.date_of_appointment || appointment.requested_time) && (
+            {(appointment.date_of_appointment || appointment.requested_time || appointment.calendar_name) && (
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-sm font-medium mb-1">Current Appointment:</p>
                 <p className="text-sm">
@@ -2249,8 +2249,14 @@ const AppointmentCard = ({
                   {appointment.date_of_appointment && appointment.requested_time && ' at '}
                   {appointment.requested_time && formatTime(appointment.requested_time)}
                 </p>
+                {appointment.calendar_name && (
+                  <p className="text-xs text-muted-foreground mt-1 break-words">
+                    Location: {appointment.calendar_name}
+                  </p>
+                )}
               </div>
             )}
+
             
             {/* New Date Picker */}
             <div>
