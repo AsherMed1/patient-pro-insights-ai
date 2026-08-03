@@ -277,14 +277,15 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
-      .eq('review_status', queueView)
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
+      .eq('review_status', queueView === 'declined' ? 'declined' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
 
     if (queueView === 'declined') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
     } else {
+      q = q.eq('review_stage', queueView === 'new' ? 'new' : 'pending_review');
       q = q.order('created_at', { ascending: false });
     }
 
