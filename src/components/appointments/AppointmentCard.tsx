@@ -1121,14 +1121,37 @@ const AppointmentCard = ({
       setRescheduleTime('');
       setRescheduleNotes('');
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting reschedule:', error);
+
+      const details =
+        error?.message ||
+        error?.error_description ||
+        error?.details ||
+        (typeof error === 'string' ? error : JSON.stringify(error));
+
+      // Record the real reason on the reschedule request so it is diagnosable later
+      if (createdRescheduleId) {
+        try {
+          await supabase
+            .from('appointment_reschedules')
+            .update({
+              ghl_sync_status: 'failed',
+              ghl_sync_error: String(details).slice(0, 1000),
+            })
+            .eq('id', createdRescheduleId);
+        } catch (logErr) {
+          console.error('Failed to log reschedule error:', logErr);
+        }
+      }
+
       toast({
-        title: "Error",
-        description: "Failed to reschedule appointment",
+        title: "Reschedule failed",
+        description: `Failed to reschedule appointment: ${details}`,
         variant: "destructive"
       });
     } finally {
+
       setSubmittingReschedule(false);
     }
   };
