@@ -1040,6 +1040,7 @@ const ReviewQueue: React.FC = () => {
         .from('all_appointments')
         .update({
           review_status: 'pending',
+          review_stage: 'new',
           reviewed_at: null,
           reviewed_by: null,
           review_notes: null,
