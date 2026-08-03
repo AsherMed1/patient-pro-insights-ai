@@ -290,17 +290,7 @@ function groupCases(list: QACase[]): QAGroup[] {
 }
 
 export default function QAOperationsQueue() {
-  const { user } = useAuth();
-  const { isAdmin } = useRole();
-  const canSeeTerminalAlerts =
-    isAdmin() || TERMINAL_ALERT_EMAILS.includes((user?.email || '').toLowerCase());
-  const [showTerminalAlerts, setShowTerminalAlerts] = useState(false);
-  const visibleAlertTypes = useMemo<AlertType[]>(
-    () => (canSeeTerminalAlerts && showTerminalAlerts
-      ? [...ACTIVE_ALERT_TYPES, ...TERMINAL_ALERT_TYPES]
-      : ACTIVE_ALERT_TYPES),
-    [canSeeTerminalAlerts, showTerminalAlerts],
-  );
+  const visibleAlertTypes = useMemo<AlertType[]>(() => ACTIVE_ALERT_TYPES, []);
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
