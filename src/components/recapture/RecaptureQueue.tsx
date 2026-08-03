@@ -576,7 +576,7 @@ export default function RecaptureQueue() {
                   <TableHead>Attempts</TableHead>
                   <TableHead>Assignee</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right whitespace-nowrap min-w-[220px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -615,8 +615,8 @@ export default function RecaptureQueue() {
                             {WORK_STATUS_LABELS[c.work_status]}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <TableCell className="text-right whitespace-nowrap min-w-[220px]">
+                          <div className="flex items-center justify-end gap-2 flex-nowrap">
                             <Button variant="outline" size="sm" onClick={() => { setSelectedCase(c); setAttemptDialogOpen(true); }}>
                               Log Attempt
                             </Button>
