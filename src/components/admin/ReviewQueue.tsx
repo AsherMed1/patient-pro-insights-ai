@@ -1170,7 +1170,7 @@ const ReviewQueue: React.FC = () => {
               Review Queue
             </CardTitle>
             <CardDescription>
-              New appointments wait here until you Approve, Decline, or mark them as OON. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
+              New appointments land in the <strong>New</strong> bucket. Move one to <strong>Pending Review</strong> when it needs more investigation or follow-up, so the next shift knows what is already being worked. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => { fetch(); fetchCounts(); }} disabled={loading}>
@@ -1178,7 +1178,15 @@ const ReviewQueue: React.FC = () => {
             Refresh
           </Button>
         </div>
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <Button
+            variant={queueView === 'new' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setQueueView('new'); setSelected(new Set()); }}
+          >
+            New
+            <Badge variant="secondary" className="ml-2">{newCount}</Badge>
+          </Button>
           <Button
             variant={queueView === 'pending' ? 'default' : 'outline'}
             size="sm"
