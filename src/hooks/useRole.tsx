@@ -148,6 +148,7 @@ export const useRole = () => {
   const isQASpecialist = () => hasRole('qa_specialist');
   const hasManagementAccess = () => hasRole(['admin', 'agent']);
   const hasQAAccess = () => hasRole(['admin', 'agent', 'qa_specialist']);
+  const hasRecaptureAccess = () => hasRole(['admin', 'agent', 'va', 'review_only']);
   const canEditNotes = () => hasRole(['admin', 'agent', 'va']);
 
   return {
