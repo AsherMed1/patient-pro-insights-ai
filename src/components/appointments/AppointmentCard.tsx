@@ -1028,7 +1028,7 @@ const AppointmentCard = ({
             .eq('id', appointment.id);
           
           // Update reschedule record
-          await supabase
+          const { error: recordErr } = await supabase
             .from('appointment_reschedules')
             .update({
               ghl_sync_status: 'success',
@@ -1038,6 +1038,11 @@ const AppointmentCard = ({
               processed_at: new Date().toISOString()
             })
             .eq('id', rescheduleRecord.id);
+
+          if (recordErr) {
+            console.error('Failed to mark reschedule record processed:', recordErr);
+          }
+
           
           toast({
             title: "Success",
