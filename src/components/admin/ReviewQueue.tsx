@@ -520,7 +520,7 @@ const ReviewQueue: React.FC = () => {
       setDupActionRow(null);
       fetchCounts();
     } catch (e: any) {
-      toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
+      toast({ title: 'Action failed', description: describeError(e), variant: 'destructive' });
     } finally {
       setProcessing(false);
     }
@@ -971,7 +971,7 @@ const ReviewQueue: React.FC = () => {
         }
       }
     } catch (e: any) {
-      toast({ title: 'Action failed', description: e.message, variant: 'destructive' });
+      toast({ title: 'Action failed', description: describeError(e), variant: 'destructive' });
       setProcessing(false);
       return false;
     }
