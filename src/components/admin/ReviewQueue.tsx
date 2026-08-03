@@ -80,7 +80,8 @@ const ReviewQueue: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [queueView, setQueueView] = useState<QueueView>('pending');
+  const [queueView, setQueueView] = useState<QueueView>('new');
+  const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
