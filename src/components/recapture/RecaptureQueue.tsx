@@ -680,9 +680,7 @@ export default function RecaptureQueue() {
 
                 {detailLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
-                ) : detailAppt ? (
-                  <DetailedAppointmentView appointment={detailAppt} onClose={() => setDetailAppt(null)} />
-                ) : selectedCase.appointment_id ? (
+                ) : selectedCase.appointment_id && !detailAppt ? (
                   <p className="text-sm text-muted-foreground">Could not load appointment details.</p>
                 ) : null}
 
