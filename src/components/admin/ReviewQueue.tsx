@@ -22,6 +22,7 @@ import { formatDate, formatTime } from '@/components/appointments/utils';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
 
 // Surface the full Postgres/Supabase error so failures are diagnosable from a screenshot
 const describeError = (e: any): string => {

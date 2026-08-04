@@ -22,6 +22,7 @@ import { updateHollyParkerIntake } from '@/utils/updateHollyParkerIntake';
 import { updateEricCareyIntake } from '@/utils/updateEricCareyIntake';
 import { applySearchFilter } from '@/utils/appointmentSearchFilters';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
+import { rewriteDobInNotes } from '@/lib/dobNotes';
 
 
 
