@@ -157,7 +157,13 @@ const ReviewQueue: React.FC = () => {
         parsed_demographics: mergedDemo,
         updated_at: new Date().toISOString(),
       };
-      if (newDob) updatePayload.dob = newDob;
+      if (newDob) {
+        updatePayload.dob = newDob;
+        updatePayload.dob_verified_at = new Date().toISOString();
+        // Rewrite the raw intake notes DOB line too — that text is what clinics read.
+        const rewritten = rewriteDobInNotes(row.patient_intake_notes, newDob);
+        if (rewritten) updatePayload.patient_intake_notes = rewritten;
+      }
 
       const { error: updErr } = await supabase
         .from('all_appointments')

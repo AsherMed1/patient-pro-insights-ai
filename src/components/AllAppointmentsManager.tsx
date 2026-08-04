@@ -982,7 +982,7 @@ const AllAppointmentsManager = ({
       // 1. Fetch current JSONB fields
       const { data: current } = await supabase
         .from('all_appointments')
-        .select('parsed_demographics, parsed_contact_info')
+        .select('parsed_demographics, parsed_contact_info, patient_intake_notes')
         .eq('id', appointmentId)
         .single();
 
@@ -1007,6 +1007,10 @@ const AllAppointmentsManager = ({
         dob 
       };
 
+      // Keep the raw intake notes in sync — clinics read that text, so a stale
+      // "Date of Birth: ..." line there would still show the wrong DOB.
+      const rewrittenNotes = rewriteDobInNotes((current as any)?.patient_intake_notes, dob);
+
       // 4. Single update with all fields
       const { error } = await supabase
         .from('all_appointments')
@@ -1014,6 +1018,8 @@ const AllAppointmentsManager = ({
           dob,
           parsed_demographics: updatedDemographics,
           parsed_contact_info: updatedContact,
+          ...(rewrittenNotes ? { patient_intake_notes: rewrittenNotes } : {}),
+          ...(dob ? { dob_verified_at: new Date().toISOString() } : {}),
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId);
