@@ -1561,6 +1561,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     }
                   }
                   
+                  // Push cancellation reason tags to GHL for workflow branching
+                  await pushCancellationTags(appointment.id, cancelReason);
+
                   // For all "no reschedule" reasons, enable DND
                   if (isNoRescheduleReason(cancelReason)) {
                     try {
@@ -1579,25 +1582,13 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                           await supabase.functions.invoke('update-ghl-contact-dnd', {
                             body: { ghl_contact_id: appointmentData.ghl_id, ghl_api_key: projectData.ghl_api_key, enable_dnd: true }
                           });
-                          // Also tag contact so GHL workflows can filter on it
-                          try {
-                            await supabase.functions.invoke('update-ghl-contact-tags', {
-                              body: {
-                                ghl_contact_id: appointmentData.ghl_id,
-                                ghl_api_key: projectData.ghl_api_key,
-                                tags: ['do-not-reschedule'],
-                                action: 'add',
-                              }
-                            });
-                          } catch (tagErr) {
-                            console.error('Tag add failed (non-critical):', tagErr);
-                          }
                         }
                       }
                     } catch (dndErr) {
                       console.error('DND enable failed:', dndErr);
                     }
                   }
+
                   
                   setShowCancelDialog(false);
                   setCancelReason('');
