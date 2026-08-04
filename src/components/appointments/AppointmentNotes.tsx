@@ -99,7 +99,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
         <div className="flex items-center space-x-2">
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">
-            Internal Notes ({notes.length})
+            Internal Notes ({visibleNotes.length})
           </span>
         </div>
         {!showAddForm && (
@@ -157,9 +157,9 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
         <div className="text-sm text-muted-foreground text-center py-4">
           Loading notes...
         </div>
-      ) : notes.length > 0 ? (
+      ) : visibleNotes.length > 0 ? (
         <div className="space-y-2">
-          {notes.map((note) => {
+          {visibleNotes.map((note) => {
             const isSystemNote = note.created_by === 'System';
             const isEditing = editingNoteId === note.id;
             return (
