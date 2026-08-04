@@ -1909,7 +1909,7 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
       await supabase.from('appointment_notes').insert(
         ids.map((id: string) => ({
           appointment_id: id,
-          note_text: `Superseded by newer GHL booking ${newRow.ghl_appointment_id || '(no event id)'} on ${newDate || 'unscheduled'} — System`,
+          note_text: `Superseded by newer GHL booking ${newRow.ghl_appointment_id || '(no event id)'} on ${newDate || 'unscheduled'}${newTime ? ` at ${newTime}` : ''} — System`,
           created_by: 'System',
         }))
       )
