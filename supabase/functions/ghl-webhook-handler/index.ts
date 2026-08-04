@@ -1850,7 +1850,7 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
   try {
     const { data: siblings, error } = await supabase
       .from('all_appointments')
-      .select('id, status, review_status, date_of_appointment, created_at, is_reserved_block, ghl_appointment_id')
+      .select('id, status, review_status, date_of_appointment, requested_time, created_at, is_reserved_block, ghl_appointment_id')
       .eq('ghl_id', newRow.ghl_id)
       .eq('project_name', newRow.project_name)
       .eq('is_superseded', false)
@@ -1864,6 +1864,7 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
     if (!siblings?.length) return
 
     const newDate = newRow.date_of_appointment ? String(newRow.date_of_appointment) : null
+    const newTime = newRow.requested_time ? String(newRow.requested_time) : null
 
     const toSupersede = (siblings as any[]).filter((r) => {
       if (r.is_reserved_block) return false
@@ -1871,11 +1872,23 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
       if ((r.review_status || '').toLowerCase().trim() === 'pending') return false
       const status = (r.status || '').toLowerCase().trim()
       if (SUPERSEDE_TERMINAL_STATUSES.includes(status)) return true
-      // Still-open row: retire it only if it's dated before the new booking.
-      if (newDate && r.date_of_appointment && String(r.date_of_appointment) < newDate) return true
-      if (newDate && !r.date_of_appointment) return true
+      if (!newDate) return false
+      // Unscheduled older row is always replaced by a real booking.
+      if (!r.date_of_appointment) return true
+      const oldDate = String(r.date_of_appointment)
+      // Older row dated before the new booking.
+      if (oldDate < newDate) return true
+      // Same-day reschedule (time moved either direction, or GHL re-issued the
+      // event id): a contact must never hold two open rows for the same day.
+      if (oldDate === newDate) {
+        const oldTime = r.requested_time ? String(r.requested_time) : null
+        if (oldTime !== newTime) return true
+        // Same date and same time — retire the older-created row.
+        if (r.created_at && newRow.created_at && String(r.created_at) < String(newRow.created_at)) return true
+      }
       return false
     })
+
 
     if (!toSupersede.length) return
 
