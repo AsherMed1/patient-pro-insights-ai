@@ -2606,16 +2606,22 @@ async function enrichAppointmentWithGHLData(
     // A DOB corrected by a human in the Portal wins over whatever GHL still holds,
     // otherwise a later contact sync would revert it (and the clinic sees the bad date).
     const dobLocked = !!(appointment as any)?.dob_verified_at && !!(appointment as any)?.dob;
+    let notesForUpdate = updatedNotes;
     if (dobLocked) {
       const lockedDob = (appointment as any).dob;
       mergedParsedContact.dob = lockedDob;
       mergedParsedDemographics.dob = lockedDob;
       mergedParsedDemographics.age = calculateAge(lockedDob);
+      // Keep the raw notes text (what clinics read) consistent with the verified DOB.
+      notesForUpdate = String(notesForUpdate || '').replace(
+        /^([ \t>*\-•]*)(date of birth|dob|birth date|birthdate)([ \t]*[:\-][ \t]*)(.*)$/gim,
+        (_m, p1, p2, p3) => `${p1}${p2}${p3}${lockedDob}`
+      );
       console.log(`[${requestId}] DOB is human-verified (${lockedDob}) — ignoring GHL dateOfBirth ${contact.dateOfBirth}`);
     }
 
     const enrichmentUpdate: Record<string, unknown> = {
-      patient_intake_notes: updatedNotes,
+      patient_intake_notes: notesForUpdate,
       parsed_contact_info: mergedParsedContact,
       ...(dobLocked
         ? { parsed_demographics: mergedParsedDemographics }
