@@ -220,16 +220,15 @@ const ReviewQueue: React.FC = () => {
     return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
 
-  /** DOB is invalid when the birth year is the current year or in the future. */
+  /**
+   * DOB is invalid when the birth year is the current year or in the future —
+   * checked on the structured DOB AND on the DOB written in the raw intake notes,
+   * since clinics read that text too.
+   */
   const isInvalidDob = (row: ReviewAppointment): boolean => {
-    const raw = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
-    if (!raw) return false;
-    const parsed = new Date(raw);
-    const year = Number.isNaN(parsed.getTime())
-      ? Number((raw.match(/(19|20)\d{2}/) || [])[0])
-      : parsed.getFullYear();
-    if (!year) return false;
-    return year >= new Date().getFullYear();
+    const structured = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
+    if (isImpossibleDobValue(structured)) return true;
+    return isImpossibleDobValue(extractDobFromNotes(row.patient_intake_notes));
   };
 
 
