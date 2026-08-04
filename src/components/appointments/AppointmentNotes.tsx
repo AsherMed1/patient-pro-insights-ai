@@ -44,8 +44,11 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   }, [externalShowForm]);
   const { notes, loading, submitting, addNote, updateNote, deleteNote } = useAppointmentNotes(appointmentId);
   const { userName } = useUserAttribution();
-  const { canEditNotes } = useRole();
+  const { canEditNotes, isAdmin } = useRole();
   const canModify = canEditNotes();
+  // System (blue) notes are admin-only; they stay in the DB for audit either way.
+  const visibleNotes = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
+
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
