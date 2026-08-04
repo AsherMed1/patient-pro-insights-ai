@@ -2871,7 +2871,7 @@ Deno.serve(async (req) => {
       forceAppointmentId = typeof body?.appointmentId === "string" ? body.appointmentId : null;
     } catch (_e) { /* no body */ }
 
-    const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
+    const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, dob_verified_at, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
 
     let forcedAppointments: any[] = [];
     if (forceAppointmentId) {
@@ -3320,9 +3320,18 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           const existingDob = record.dob;
           const existingParsedDemo = record.parsed_demographics || {};
           const existingParsedContact = record.parsed_contact_info || {};
-          
+
+          // A human-verified DOB (corrected in the Portal / Review Queue) is
+          // authoritative — never let a re-parse of stale notes text revert it.
+          const dobVerified = !!record.dob_verified_at && !!existingDob;
+
           // Determine final DOB (prefer existing DB column, then AI-parsed)
-          const finalDob = existingDob || dobIso || parsedData.contact_info?.dob || parsedData.demographics?.dob;
+          const finalDob = dobVerified
+            ? existingDob
+            : (existingDob || dobIso || parsedData.contact_info?.dob || parsedData.demographics?.dob);
+          if (dobVerified) {
+            console.log(`[AUTO-PARSE] DOB is human-verified (${existingDob}) — skipping parsed DOB overwrite`);
+          }
           
           // Age must be a real number. Intake forms often collect an age BRACKET
           // ("46 to 55", "55-64", "65+") — never let that land in the Age field

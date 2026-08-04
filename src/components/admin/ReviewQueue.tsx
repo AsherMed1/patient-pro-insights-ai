@@ -22,6 +22,7 @@ import { formatDate, formatTime } from '@/components/appointments/utils';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
 
 // Surface the full Postgres/Supabase error so failures are diagnosable from a screenshot
 const describeError = (e: any): string => {
@@ -157,7 +158,13 @@ const ReviewQueue: React.FC = () => {
         parsed_demographics: mergedDemo,
         updated_at: new Date().toISOString(),
       };
-      if (newDob) updatePayload.dob = newDob;
+      if (newDob) {
+        updatePayload.dob = newDob;
+        updatePayload.dob_verified_at = new Date().toISOString();
+        // Rewrite the raw intake notes DOB line too — that text is what clinics read.
+        const rewritten = rewriteDobInNotes(row.patient_intake_notes, newDob);
+        if (rewritten) updatePayload.patient_intake_notes = rewritten;
+      }
 
       const { error: updErr } = await supabase
         .from('all_appointments')
@@ -213,16 +220,15 @@ const ReviewQueue: React.FC = () => {
     return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
 
-  /** DOB is invalid when the birth year is the current year or in the future. */
+  /**
+   * DOB is invalid when the birth year is the current year or in the future —
+   * checked on the structured DOB AND on the DOB written in the raw intake notes,
+   * since clinics read that text too.
+   */
   const isInvalidDob = (row: ReviewAppointment): boolean => {
-    const raw = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
-    if (!raw) return false;
-    const parsed = new Date(raw);
-    const year = Number.isNaN(parsed.getTime())
-      ? Number((raw.match(/(19|20)\d{2}/) || [])[0])
-      : parsed.getFullYear();
-    if (!year) return false;
-    return year >= new Date().getFullYear();
+    const structured = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
+    if (isImpossibleDobValue(structured)) return true;
+    return isImpossibleDobValue(extractDobFromNotes(row.patient_intake_notes));
   };
 
 

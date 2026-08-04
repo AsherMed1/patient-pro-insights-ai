@@ -2375,7 +2375,7 @@ async function enrichAppointmentWithGHLData(
     // Get current patient intake notes
     const { data: appointment } = await supabase
       .from('all_appointments')
-      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id')
+      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, dob, dob_verified_at')
       .eq('id', appointmentId)
       .single()
     
@@ -2603,10 +2603,29 @@ async function enrichAppointmentWithGHLData(
     const mergedParsedContact = mergeNonNull(existingParsedContact, parsedContactInfo);
     const mergedParsedDemographics = mergeNonNull(existingParsedDemo, parsedDemographics);
 
+    // A DOB corrected by a human in the Portal wins over whatever GHL still holds,
+    // otherwise a later contact sync would revert it (and the clinic sees the bad date).
+    const dobLocked = !!(appointment as any)?.dob_verified_at && !!(appointment as any)?.dob;
+    let notesForUpdate = updatedNotes;
+    if (dobLocked) {
+      const lockedDob = (appointment as any).dob;
+      mergedParsedContact.dob = lockedDob;
+      mergedParsedDemographics.dob = lockedDob;
+      mergedParsedDemographics.age = calculateAge(lockedDob);
+      // Keep the raw notes text (what clinics read) consistent with the verified DOB.
+      notesForUpdate = String(notesForUpdate || '').replace(
+        /^([ \t>*\-•]*)(date of birth|dob|birth date|birthdate)([ \t]*[:\-][ \t]*)(.*)$/gim,
+        (_m, p1, p2, p3) => `${p1}${p2}${p3}${lockedDob}`
+      );
+      console.log(`[${requestId}] DOB is human-verified (${lockedDob}) — ignoring GHL dateOfBirth ${contact.dateOfBirth}`);
+    }
+
     const enrichmentUpdate: Record<string, unknown> = {
-      patient_intake_notes: updatedNotes,
+      patient_intake_notes: notesForUpdate,
       parsed_contact_info: mergedParsedContact,
-      ...(contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: mergedParsedDemographics } : {}),
+      ...(dobLocked
+        ? { parsed_demographics: mergedParsedDemographics }
+        : (contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: mergedParsedDemographics } : {})),
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
