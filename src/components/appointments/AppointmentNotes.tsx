@@ -44,8 +44,11 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   }, [externalShowForm]);
   const { notes, loading, submitting, addNote, updateNote, deleteNote } = useAppointmentNotes(appointmentId);
   const { userName } = useUserAttribution();
-  const { canEditNotes } = useRole();
+  const { canEditNotes, isAdmin } = useRole();
   const canModify = canEditNotes();
+  // System (blue) notes are admin-only; they stay in the DB for audit either way.
+  const visibleNotes = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
+
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
@@ -96,7 +99,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
         <div className="flex items-center space-x-2">
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">
-            Internal Notes ({notes.length})
+            Internal Notes ({visibleNotes.length})
           </span>
         </div>
         {!showAddForm && (
@@ -154,9 +157,9 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
         <div className="text-sm text-muted-foreground text-center py-4">
           Loading notes...
         </div>
-      ) : notes.length > 0 ? (
+      ) : visibleNotes.length > 0 ? (
         <div className="space-y-2">
-          {notes.map((note) => {
+          {visibleNotes.map((note) => {
             const isSystemNote = note.created_by === 'System';
             const isEditing = editingNoteId === note.id;
             return (
