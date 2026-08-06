@@ -1017,6 +1017,7 @@ export default function QAOperationsQueue() {
 
       <CaseDrawer
         caseData={selectedCase}
+        focusNoteId={focusNoteId}
         siblings={selectedSiblings}
         onSwitchCase={switchToSibling}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
