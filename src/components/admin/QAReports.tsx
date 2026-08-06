@@ -373,8 +373,18 @@ export default function QAReports() {
     { label: 'Tickets created', value: String(ticketsCreated) },
   ];
 
+  if (view === 'activity') {
+    return (
+      <div className="space-y-4">
+        <ViewToggle />
+        <QAActivityReport />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      <ViewToggle />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-lg font-semibold">QA Audit Report</h3>
