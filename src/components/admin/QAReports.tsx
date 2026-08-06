@@ -366,6 +366,25 @@ export default function QAReports() {
     </Popover>
   );
 
+  const ViewToggle = () => (
+    <div className="inline-flex rounded-md border p-0.5">
+      <Button
+        size="sm"
+        variant={view === 'cases' ? 'default' : 'ghost'}
+        onClick={() => setView('cases')}
+      >
+        Case Metrics
+      </Button>
+      <Button
+        size="sm"
+        variant={view === 'activity' ? 'default' : 'ghost'}
+        onClick={() => setView('activity')}
+      >
+        Specialist Activity
+      </Button>
+    </div>
+  );
+
   const metricCards = [
     { label: 'Total cases', value: String(filtered.length), hint: `${open} still open` },
     { label: 'Completed audits', value: String(completed.length) },
