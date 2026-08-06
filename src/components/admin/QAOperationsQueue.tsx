@@ -872,9 +872,16 @@ export default function QAOperationsQueue() {
             <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
           </PopoverContent>
         </Popover>
-        {(dateFrom || dateTo) && (
-          <Button variant="ghost" size="sm" onClick={clearDateFilters}>Clear dates</Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAllFilters}
+          disabled={!hasActiveFilter}
+          className="gap-1"
+        >
+          <X className="h-3 w-3" />
+          Clear all filters
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
