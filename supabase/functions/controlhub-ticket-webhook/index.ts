@@ -292,7 +292,70 @@ Deno.serve(async (req) => {
       },
     });
 
-    return json({ ok: true, case_id: qaCase.id, status: status ?? null, resolved: isResolved });
+    // --- @mentions inside Control Hub comments -> QA note + in-app notification
+    let mentionedCount = 0;
+    if (bodyText) {
+      try {
+        const qaUsers = await loadQaUsers(supabase);
+        const { text, matched } = resolveMentions(
+          bodyText,
+          (payload as any).mentions,
+          qaUsers,
+        );
+        if (matched.length > 0) {
+          const author = authorName || 'Control Hub';
+          const { data: note, error: noteErr } = await supabase
+            .from('qa_case_notes')
+            .insert({
+              case_id: qaCase.id,
+              note: `[Control Hub] ${text}`.slice(0, 5000),
+              author_name: author,
+            })
+            .select('id')
+            .single();
+
+          if (noteErr || !note) {
+            console.error('Failed to insert mention note:', noteErr?.message);
+          } else {
+            const { error: mErr } = await supabase.from('qa_note_mentions').insert(
+              matched.map((u) => ({
+                note_id: note.id,
+                case_id: qaCase.id,
+                mentioned_user_id: u.id,
+                mentioned_by_user_id: null,
+                mentioned_by_name: author,
+              })),
+            );
+            if (mErr) console.error('Failed to insert mentions:', mErr.message);
+            else mentionedCount = matched.length;
+
+            await supabase.from('qa_case_activity').insert(
+              matched.map((u) => ({
+                case_id: qaCase.id,
+                activity_type: 'mention',
+                description: `Mentioned ${u.name} in a Control Hub ticket comment`,
+                metadata: {
+                  ticket_id: effectiveTicketId,
+                  source: 'controlhub',
+                  mentioned_user_id: u.id,
+                  author_name: author,
+                },
+              })),
+            );
+          }
+        }
+      } catch (mentionErr) {
+        console.error('Mention processing failed:', mentionErr);
+      }
+    }
+
+    return json({
+      ok: true,
+      case_id: qaCase.id,
+      status: status ?? null,
+      resolved: isResolved,
+      mentioned: mentionedCount,
+    });
   } catch (err) {
     console.error('controlhub-ticket-webhook error:', err);
     return json(
