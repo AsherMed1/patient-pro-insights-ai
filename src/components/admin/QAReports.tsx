@@ -84,6 +84,7 @@ const avg = (values: number[]) => (values.length ? values.reduce((a, b) => a + b
 const qaOf = (c: ReportCase) => (c.qa_name || '').trim() || 'Unassigned';
 
 export default function QAReports() {
+  const [view, setView] = useState<'cases' | 'activity'>('cases');
   const [rows, setRows] = useState<ReportCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
