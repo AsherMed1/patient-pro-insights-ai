@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Download, Loader2, RefreshCw } from 'lucide-react';
+import QAActivityReport from '@/components/admin/QAActivityReport';
 import {
   Bar,
   BarChart,
@@ -83,6 +84,7 @@ const avg = (values: number[]) => (values.length ? values.reduce((a, b) => a + b
 const qaOf = (c: ReportCase) => (c.qa_name || '').trim() || 'Unassigned';
 
 export default function QAReports() {
+  const [view, setView] = useState<'cases' | 'activity'>('cases');
   const [rows, setRows] = useState<ReportCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
@@ -364,6 +366,25 @@ export default function QAReports() {
     </Popover>
   );
 
+  const ViewToggle = () => (
+    <div className="inline-flex rounded-md border p-0.5">
+      <Button
+        size="sm"
+        variant={view === 'cases' ? 'default' : 'ghost'}
+        onClick={() => setView('cases')}
+      >
+        Case Metrics
+      </Button>
+      <Button
+        size="sm"
+        variant={view === 'activity' ? 'default' : 'ghost'}
+        onClick={() => setView('activity')}
+      >
+        Specialist Activity
+      </Button>
+    </div>
+  );
+
   const metricCards = [
     { label: 'Total cases', value: String(filtered.length), hint: `${open} still open` },
     { label: 'Completed audits', value: String(completed.length) },
@@ -373,8 +394,18 @@ export default function QAReports() {
     { label: 'Tickets created', value: String(ticketsCreated) },
   ];
 
+  if (view === 'activity') {
+    return (
+      <div className="space-y-4">
+        <ViewToggle />
+        <QAActivityReport />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      <ViewToggle />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-lg font-semibold">QA Audit Report</h3>
