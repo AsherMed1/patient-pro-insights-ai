@@ -1103,6 +1103,7 @@ function CaseDrawer({
 
   const { user } = useAuth();
   const [notes, setNotes] = useState<QANote[]>([]);
+  const focusedNoteRef = useRef<HTMLDivElement | null>(null);
   const [activity, setActivity] = useState<QAActivity[]>([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
