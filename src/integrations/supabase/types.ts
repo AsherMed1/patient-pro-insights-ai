@@ -3440,6 +3440,54 @@ export type Database = {
           },
         ]
       }
+      qa_note_mentions: {
+        Row: {
+          case_id: string
+          created_at: string
+          id: string
+          mentioned_by_name: string | null
+          mentioned_by_user_id: string | null
+          mentioned_user_id: string
+          note_id: string
+          read_at: string | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          id?: string
+          mentioned_by_name?: string | null
+          mentioned_by_user_id?: string | null
+          mentioned_user_id: string
+          note_id: string
+          read_at?: string | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          id?: string
+          mentioned_by_name?: string | null
+          mentioned_by_user_id?: string | null
+          mentioned_user_id?: string
+          note_id?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_note_mentions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "qa_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_note_mentions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "qa_case_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quarterly_strategy_submissions: {
         Row: {
           accountability: Json | null
