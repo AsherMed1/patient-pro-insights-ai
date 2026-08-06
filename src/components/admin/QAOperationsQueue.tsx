@@ -26,7 +26,7 @@ import QAReports from '@/components/admin/QAReports';
 
 import { useSearchParams } from 'react-router-dom';
 import { renderWithLinks } from '@/lib/linkify';
-import { renderNoteWithMentions, parseMentions, stripMentionTokens } from '@/lib/mentions';
+import { renderNoteWithMentions, parseMentions } from '@/lib/mentions';
 import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
