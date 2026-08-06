@@ -36,6 +36,12 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   const [activeTab, setActiveTab] = useState("projects");
   const [searchParams] = useSearchParams();
+
+  // Deep links (e.g. mention notifications) can request a specific tab.
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
