@@ -526,8 +526,9 @@ export default function QAOperationsQueue() {
     projectFilter.length > 0 ||
     alertFilter !== 'all' ||
     assignmentFilter !== 'all' ||
-    !!dateFrom || !!dateTo
-  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
+    !!dateFrom || !!dateTo ||
+    tab !== 'new'
+  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, tab]);
 
   // Apply row-level filters that are patient-agnostic (project, assignment, date,
   // reserved-block, search). Alert Type is intentionally NOT applied here —
@@ -744,6 +745,16 @@ export default function QAOperationsQueue() {
     setDateTo(undefined);
   };
 
+  const clearAllFilters = () => {
+    setSearch('');
+    setProjectFilter([]);
+    setAlertFilter('all');
+    setAssignmentFilter('all');
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setTab('new');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -861,9 +872,16 @@ export default function QAOperationsQueue() {
             <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
           </PopoverContent>
         </Popover>
-        {(dateFrom || dateTo) && (
-          <Button variant="ghost" size="sm" onClick={clearDateFilters}>Clear dates</Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAllFilters}
+          disabled={!hasActiveFilter}
+          className="gap-1"
+        >
+          <X className="h-3 w-3" />
+          Clear all filters
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
