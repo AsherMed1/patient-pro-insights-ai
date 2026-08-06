@@ -1104,6 +1104,15 @@ function CaseDrawer({
   const { user } = useAuth();
   const [notes, setNotes] = useState<QANote[]>([]);
   const focusedNoteRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll a mention-linked note into view once notes have loaded.
+  useEffect(() => {
+    if (!focusNoteId || notes.length === 0) return;
+    const t = setTimeout(() => {
+      focusedNoteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [focusNoteId, notes]);
   const [activity, setActivity] = useState<QAActivity[]>([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
