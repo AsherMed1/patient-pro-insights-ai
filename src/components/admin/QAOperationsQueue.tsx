@@ -1075,6 +1075,7 @@ const clearDraft = (caseId: string) => {
 
 function CaseDrawer({
   caseData,
+  focusNoteId,
   siblings,
   onSwitchCase,
   ghlUrl,
@@ -1087,6 +1088,7 @@ function CaseDrawer({
   onRefresh,
 }: {
   caseData: QACase | null;
+  focusNoteId?: string | null;
   siblings: QACase[];
   onSwitchCase: (c: QACase) => void;
   ghlUrl: string | null;
