@@ -1265,6 +1265,14 @@ function CaseDrawer({
       toast({ title: 'Save failed', description: error.message, variant: 'destructive' });
       return;
     }
+    if (patch.assigned_qs_user_id) {
+      await supabase.from('qa_case_activity' as any).insert({
+        case_id: caseData.id,
+        activity_type: 'assignment',
+        description: 'Alert claimed',
+        actor_user_id: user?.id ?? null,
+      } as any);
+    }
     await supabase.from('qa_case_activity' as any).insert({
       case_id: caseData.id,
       activity_type: 'audit_update',
