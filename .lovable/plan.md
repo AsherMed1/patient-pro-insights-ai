@@ -1,8 +1,8 @@
-# Verify the Control Hub ticket sync
+# Verify the Control Hub ticket sync (throwaway case only)
 
-Two ways to check it: a quick visual check you can do now, and an end-to-end test I run against the live webhook (needs your go-ahead, since it writes real data).
+No real QA case is touched. I create a disposable test case, drive it through the webhook, then delete it.
 
-## 1. Visual check (no data written) — 1 minute
+## 1. Visual check you can do now (no data written) — 1 minute
 
 1. Open QA Operations Queue.
 2. Look at the Ticket column: cases with a ticket now show the ticket id plus a status badge ("Open" for all 19 existing ones, since Control Hub hasn't sent anything yet).
@@ -10,23 +10,25 @@ Two ways to check it: a quick visual check you can do now, and an end-to-end tes
 
 That confirms the UI half. It cannot confirm the inbound half, because no real events have arrived.
 
-## 2. End-to-end test (writes data) — needs approval
+## 2. End-to-end test on a throwaway case
 
-Using a real case that already has a ticket (`b5216d24-515e-4f78-8725-9facd89034ae`, ticket `45fd68df…`, currently `pending_escalated`), I would:
+1. **Create** a test QA case (clearly labelled, e.g. patient name "ZZ Webhook Test", a test ticket id, status `open`). No real appointment or patient is linked.
+2. **Comment event** — POST to the webhook; confirm a `qa_ticket_events` row appears, the case's latest activity text and unread flag update.
+3. **Status change to In Progress** — confirm the badge changes in both the queue row and the drawer panel, and the activity list updates live while the drawer is open.
+4. **Duplicate delivery** — re-POST the same event; confirm the response is `{ duplicate: true }` and no second row is inserted.
+5. **Resolved event** — confirm the case auto-completes (`workflow_status = completed`, `completed_at`, `date_resolved` set, default resolution) and a `ticket_resolved` row lands in `qa_case_activity`.
+6. **Unauthorized check** — POST with a wrong secret; expect 401.
+7. **Clean up** — delete the test case plus its `qa_ticket_events` and `qa_case_activity` rows. Verify nothing remains in the queue.
 
-1. POST a `comment` event to the webhook and confirm: a row appears in `qa_ticket_events`, the case's latest activity and unread flag update, and the drawer's activity list updates live while open.
-2. POST a `status_change` to `in_progress` and confirm the badge changes in both the queue and the drawer.
-3. Re-POST the same event to confirm the duplicate guard returns `{ duplicate: true }` and does not double-insert.
-4. POST a `resolved` event and confirm the case auto-completes (`workflow_status = completed`, `date_resolved` set) and a `ticket_resolved` row lands in `qa_case_activity`.
-5. Roll everything back: delete the test `qa_ticket_events` and `qa_case_activity` rows and restore the case to `pending_escalated` with its original ticket fields.
+I'll report each step's result plus a screenshot of the drawer showing live ticket activity.
 
-Two things to decide:
+## Prerequisite
 
-- Testing against a real case briefly moves it to completed before rollback. Safer alternative: I create a throwaway QA case, run the same 4 steps against it, then delete it — no real record is touched.
-- The webhook requires `CONTROLHUB_WEBHOOK_SECRET`. If it isn't set yet, the endpoint returns 500 and nothing can be tested until it's saved.
+The webhook needs `CONTROLHUB_WEBHOOK_SECRET` saved. If it isn't set yet the endpoint returns 500 and step 2 can't run — I'll request it before starting.
 
 ## Technical details
 
 - Endpoint: `POST https://bhabbokbhnqioykjimix.supabase.co/functions/v1/controlhub-ticket-webhook`, header `x-webhook-secret`.
-- Test bodies use `external_case_id` (the QA case UUID) so the lookup path Control Hub will actually use gets exercised.
+- Test bodies use `external_case_id` (the throwaway case UUID) so the lookup path Control Hub will actually use gets exercised.
 - Verification reads: `qa_ticket_events`, the `controlhub_ticket_*` columns on `qa_cases`, `qa_case_activity`, plus edge function logs for any 4xx/5xx.
+- Deletes are scoped by the throwaway case id only.
