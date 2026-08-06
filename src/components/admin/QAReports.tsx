@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Download, Loader2, RefreshCw } from 'lucide-react';
+import QAActivityReport from '@/components/admin/QAActivityReport';
 import {
   Bar,
   BarChart,
