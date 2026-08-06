@@ -3210,8 +3210,13 @@ export type Database = {
           caught_before_clinic: boolean | null
           completed_at: string | null
           completed_by_user_id: string | null
+          controlhub_ticket_assignee: string | null
           controlhub_ticket_id: string | null
+          controlhub_ticket_last_activity: string | null
+          controlhub_ticket_last_activity_at: string | null
+          controlhub_ticket_seen_at: string | null
           controlhub_ticket_status: string | null
+          controlhub_ticket_unread: boolean
           controlhub_ticket_url: string | null
           created_at: string
           date_resolved: string | null
@@ -3247,8 +3252,13 @@ export type Database = {
           caught_before_clinic?: boolean | null
           completed_at?: string | null
           completed_by_user_id?: string | null
+          controlhub_ticket_assignee?: string | null
           controlhub_ticket_id?: string | null
+          controlhub_ticket_last_activity?: string | null
+          controlhub_ticket_last_activity_at?: string | null
+          controlhub_ticket_seen_at?: string | null
           controlhub_ticket_status?: string | null
+          controlhub_ticket_unread?: boolean
           controlhub_ticket_url?: string | null
           created_at?: string
           date_resolved?: string | null
@@ -3284,8 +3294,13 @@ export type Database = {
           caught_before_clinic?: boolean | null
           completed_at?: string | null
           completed_by_user_id?: string | null
+          controlhub_ticket_assignee?: string | null
           controlhub_ticket_id?: string | null
+          controlhub_ticket_last_activity?: string | null
+          controlhub_ticket_last_activity_at?: string | null
+          controlhub_ticket_seen_at?: string | null
           controlhub_ticket_status?: string | null
+          controlhub_ticket_unread?: boolean
           controlhub_ticket_url?: string | null
           created_at?: string
           date_resolved?: string | null
@@ -3484,6 +3499,53 @@ export type Database = {
             columns: ["note_id"]
             isOneToOne: false
             referencedRelation: "qa_case_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qa_ticket_events: {
+        Row: {
+          author_name: string | null
+          body: string | null
+          case_id: string
+          created_at: string
+          event_type: string
+          id: string
+          occurred_at: string
+          raw: Json
+          status: string | null
+          ticket_id: string
+        }
+        Insert: {
+          author_name?: string | null
+          body?: string | null
+          case_id: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          raw?: Json
+          status?: string | null
+          ticket_id: string
+        }
+        Update: {
+          author_name?: string | null
+          body?: string | null
+          case_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          raw?: Json
+          status?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_ticket_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "qa_cases"
             referencedColumns: ["id"]
           },
         ]
