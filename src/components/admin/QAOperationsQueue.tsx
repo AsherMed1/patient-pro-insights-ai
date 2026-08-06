@@ -483,7 +483,7 @@ export default function QAOperationsQueue() {
 
   const hasActiveFilter = useMemo(() => (
     search.trim() !== '' ||
-    projectFilter !== 'all' ||
+    projectFilter.length > 0 ||
     alertFilter !== 'all' ||
     assignmentFilter !== 'all' ||
     !!dateFrom || !!dateTo
