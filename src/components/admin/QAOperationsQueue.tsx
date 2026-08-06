@@ -57,6 +57,12 @@ interface QACase {
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
+  controlhub_ticket_status?: string | null;
+  controlhub_ticket_last_activity?: string | null;
+  controlhub_ticket_last_activity_at?: string | null;
+  controlhub_ticket_assignee?: string | null;
+  controlhub_ticket_unread?: boolean | null;
+  controlhub_ticket_seen_at?: string | null;
   qa_name: string | null;
   self_booked: boolean | null;
   patient_link: string | null;
