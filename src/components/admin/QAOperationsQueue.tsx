@@ -24,7 +24,10 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
 
+import { useSearchParams } from 'react-router-dom';
 import { renderWithLinks } from '@/lib/linkify';
+import { renderNoteWithMentions, parseMentions } from '@/lib/mentions';
+import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
@@ -451,6 +454,43 @@ export default function QAOperationsQueue() {
       ss.map((s) => cases.find((c) => c.id === s.id) || s)
     );
   }, [cases]);
+
+  // Deep link from a mention notification: ?qaCase=<id>&note=<note id>
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
+  const handledDeepLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const caseId = searchParams.get('qaCase');
+    if (!caseId || handledDeepLinkRef.current === caseId) return;
+    handledDeepLinkRef.current = caseId;
+    const noteId = searchParams.get('note');
+    setFocusNoteId(noteId);
+    setView('queue');
+    (async () => {
+      const existing = cases.find((c) => c.id === caseId);
+      if (existing) {
+        setSelectedCase(existing);
+        setSelectedSiblings([]);
+      } else {
+        const { data } = await supabase
+          .from('qa_cases' as any)
+          .select('*')
+          .eq('id', caseId)
+          .maybeSingle();
+        if (data) {
+          setSelectedCase(data as any as QACase);
+          setSelectedSiblings([]);
+        } else {
+          toast({ title: 'QA record not found', variant: 'destructive' });
+        }
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete('qaCase');
+      next.delete('note');
+      setSearchParams(next, { replace: true });
+    })();
+  }, [searchParams, cases, setSearchParams]);
 
 
 
@@ -977,6 +1017,7 @@ export default function QAOperationsQueue() {
 
       <CaseDrawer
         caseData={selectedCase}
+        focusNoteId={focusNoteId}
         siblings={selectedSiblings}
         onSwitchCase={switchToSibling}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
@@ -1034,6 +1075,7 @@ const clearDraft = (caseId: string) => {
 
 function CaseDrawer({
   caseData,
+  focusNoteId,
   siblings,
   onSwitchCase,
   ghlUrl,
@@ -1046,6 +1088,7 @@ function CaseDrawer({
   onRefresh,
 }: {
   caseData: QACase | null;
+  focusNoteId?: string | null;
   siblings: QACase[];
   onSwitchCase: (c: QACase) => void;
   ghlUrl: string | null;
@@ -1060,6 +1103,16 @@ function CaseDrawer({
 
   const { user } = useAuth();
   const [notes, setNotes] = useState<QANote[]>([]);
+  const focusedNoteRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll a mention-linked note into view once notes have loaded.
+  useEffect(() => {
+    if (!focusNoteId || notes.length === 0) return;
+    const t = setTimeout(() => {
+      focusedNoteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [focusNoteId, notes]);
   const [activity, setActivity] = useState<QAActivity[]>([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
@@ -1230,20 +1283,54 @@ function CaseDrawer({
 
   const addNote = async () => {
     if (!caseData || !noteDraft.trim()) return;
-    const { error } = await supabase.from('qa_case_notes' as any).insert({
-      case_id: caseData.id,
-      note: noteDraft.trim(),
-      author_user_id: user?.id ?? null,
-      author_name: authorDisplayName || user?.email || null,
-    } as any);
+    const text = noteDraft.trim();
+    const authorName = authorDisplayName || user?.email || null;
+    const { data: inserted, error } = await supabase
+      .from('qa_case_notes' as any)
+      .insert({
+        case_id: caseData.id,
+        note: text,
+        author_user_id: user?.id ?? null,
+        author_name: authorName,
+      } as any)
+      .select('id')
+      .maybeSingle();
     if (error) {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
       return;
     }
+
+    // Notify any tagged teammates (skip self-mentions).
+    const mentioned = parseMentions(text).filter((m) => m.userId !== user?.id);
+    const noteId = (inserted as any)?.id;
+    if (mentioned.length > 0 && noteId) {
+      const { error: mErr } = await supabase.from('qa_note_mentions' as any).insert(
+        mentioned.map((m) => ({
+          note_id: noteId,
+          case_id: caseData.id,
+          mentioned_user_id: m.userId,
+          mentioned_by_user_id: user?.id ?? null,
+          mentioned_by_name: authorName,
+        })) as any,
+      );
+      if (mErr) {
+        toast({ title: 'Note saved, but mentions failed', description: mErr.message, variant: 'destructive' });
+      } else {
+        await supabase.from('qa_case_activity' as any).insert({
+          case_id: caseData.id,
+          activity_type: 'mention',
+          description: `Mentioned ${mentioned.map((m) => m.name).join(', ')} in a note`,
+          actor_user_id: user?.id ?? null,
+        } as any);
+        toast({ title: `Tagged ${mentioned.length} teammate${mentioned.length > 1 ? 's' : ''}` });
+      }
+    }
+
     setNoteDraft('');
     const { data } = await supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false });
     setNotes(((data as any) || []) as QANote[]);
   };
+
 
   const saveAudit = async () => {
     if (!caseData) return;
@@ -1857,28 +1944,37 @@ function CaseDrawer({
 
               <div>
                 <div className="text-sm font-semibold mb-2">Notes</div>
-                <Textarea
+                <MentionTextarea
                   value={noteDraft}
-                  onChange={(e) => setNoteDraft(e.target.value)}
-                  placeholder="Add an internal QA note…"
+                  onChange={setNoteDraft}
+                  placeholder="Add an internal QA note… (type @ to tag a teammate)"
                   rows={3}
                 />
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Type @ to tag a teammate — they get an in-app notification.</span>
                   <Button size="sm" onClick={addNote} disabled={!noteDraft.trim()}>Add note</Button>
                 </div>
                 <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
                   {notes.map((n) => (
-                    <div key={n.id} className="border rounded p-2 text-sm">
+                    <div
+                      key={n.id}
+                      ref={n.id === focusNoteId ? focusedNoteRef : undefined}
+                      className={cn(
+                        'border rounded p-2 text-sm transition-colors',
+                        n.id === focusNoteId && 'border-primary bg-primary/5',
+                      )}
+                    >
                       <div className="text-xs text-muted-foreground flex justify-between">
                         <span>{n.author_name || 'Unknown'}</span>
                         <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
                       </div>
-                      <div className="whitespace-pre-wrap break-words">{renderWithLinks(n.note)}</div>
+                      <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
                     </div>
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
                 </div>
               </div>
+
 
               <div>
                 <div className="text-sm font-semibold mb-2">Activity</div>
