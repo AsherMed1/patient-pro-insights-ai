@@ -13,6 +13,97 @@ const json = (body: unknown, status = 200) =>
 
 const RESOLVED = new Set(['resolved', 'closed', 'complete', 'completed', 'done']);
 
+// Roles that can reach QA Operations — only these can be tagged.
+const QA_ROLES = ['admin', 'agent', 'qa_specialist', 'va'];
+
+interface QaUser { id: string; name: string; email: string }
+
+const loadQaUsers = async (supabase: any): Promise<QaUser[]> => {
+  const { data: roles } = await supabase
+    .from('user_roles')
+    .select('user_id, role')
+    .in('role', QA_ROLES);
+  const ids = [...new Set((roles || []).map((r: any) => r.user_id))];
+  if (ids.length === 0) return [];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', ids);
+  return (profiles || []).map((p: any) => ({
+    id: p.id,
+    name: (p.full_name || p.email || '').trim(),
+    email: (p.email || '').trim(),
+  }));
+};
+
+/**
+ * Resolve mentions from an explicit payload array and/or "@name" tokens in the
+ * comment body, against the QA-role user list. Returns the rewritten note text
+ * (with @[Name](uuid) tokens) plus the matched users.
+ */
+const resolveMentions = (
+  body: string,
+  payloadMentions: unknown,
+  users: QaUser[],
+): { text: string; matched: QaUser[] } => {
+  const byEmail = new Map<string, QaUser>();
+  const byName = new Map<string, QaUser[]>();
+  for (const u of users) {
+    if (u.email) byEmail.set(u.email.toLowerCase(), u);
+    if (u.name) {
+      const k = u.name.toLowerCase();
+      byName.set(k, [...(byName.get(k) || []), u]);
+    }
+  }
+
+  const matched = new Map<string, QaUser>();
+  const find = (raw: string): QaUser | null => {
+    const v = raw.trim().toLowerCase();
+    if (!v) return null;
+    const e = byEmail.get(v);
+    if (e) return e;
+    const n = byName.get(v);
+    if (n && n.length === 1) return n[0];
+    return null;
+  };
+
+  if (Array.isArray(payloadMentions)) {
+    for (const m of payloadMentions) {
+      const cand =
+        typeof m === 'string'
+          ? m
+          : m && typeof m === 'object'
+            ? String((m as any).email || (m as any).name || (m as any).full_name || '')
+            : '';
+      const u = find(cand);
+      if (u) matched.set(u.id, u);
+    }
+  }
+
+  // Longest names first so "@Jane Doe Smith" wins over "@Jane Doe".
+  const sorted = [...users].filter((u) => u.name).sort((a, b) => b.name.length - a.name.length);
+  let text = body;
+
+  // Email-style mentions: @jane@example.com
+  text = text.replace(/@([^\s@]+@[^\s@]+\.[^\s@,;]+)/g, (all, email: string) => {
+    const u = find(email);
+    if (!u) return all;
+    matched.set(u.id, u);
+    return `@[${u.name}](${u.id})`;
+  });
+
+  for (const u of sorted) {
+    const escaped = u.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`@${escaped}\\b`, 'gi');
+    if (re.test(text)) {
+      matched.set(u.id, u);
+      text = text.replace(re, `@[${u.name}](${u.id})`);
+    }
+  }
+
+  return { text, matched: [...matched.values()] };
+};
+
 const normalizeStatus = (s: unknown): string | null => {
   if (typeof s !== 'string' || !s.trim()) return null;
   const v = s.trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -201,7 +292,70 @@ Deno.serve(async (req) => {
       },
     });
 
-    return json({ ok: true, case_id: qaCase.id, status: status ?? null, resolved: isResolved });
+    // --- @mentions inside Control Hub comments -> QA note + in-app notification
+    let mentionedCount = 0;
+    if (bodyText) {
+      try {
+        const qaUsers = await loadQaUsers(supabase);
+        const { text, matched } = resolveMentions(
+          bodyText,
+          (payload as any).mentions,
+          qaUsers,
+        );
+        if (matched.length > 0) {
+          const author = authorName || 'Control Hub';
+          const { data: note, error: noteErr } = await supabase
+            .from('qa_case_notes')
+            .insert({
+              case_id: qaCase.id,
+              note: `[Control Hub] ${text}`.slice(0, 5000),
+              author_name: author,
+            })
+            .select('id')
+            .single();
+
+          if (noteErr || !note) {
+            console.error('Failed to insert mention note:', noteErr?.message);
+          } else {
+            const { error: mErr } = await supabase.from('qa_note_mentions').insert(
+              matched.map((u) => ({
+                note_id: note.id,
+                case_id: qaCase.id,
+                mentioned_user_id: u.id,
+                mentioned_by_user_id: null,
+                mentioned_by_name: author,
+              })),
+            );
+            if (mErr) console.error('Failed to insert mentions:', mErr.message);
+            else mentionedCount = matched.length;
+
+            await supabase.from('qa_case_activity').insert(
+              matched.map((u) => ({
+                case_id: qaCase.id,
+                activity_type: 'mention',
+                description: `Mentioned ${u.name} in a Control Hub ticket comment`,
+                metadata: {
+                  ticket_id: effectiveTicketId,
+                  source: 'controlhub',
+                  mentioned_user_id: u.id,
+                  author_name: author,
+                },
+              })),
+            );
+          }
+        }
+      } catch (mentionErr) {
+        console.error('Mention processing failed:', mentionErr);
+      }
+    }
+
+    return json({
+      ok: true,
+      case_id: qaCase.id,
+      status: status ?? null,
+      resolved: isResolved,
+      mentioned: mentionedCount,
+    });
   } catch (err) {
     console.error('controlhub-ticket-webhook error:', err);
     return json(
