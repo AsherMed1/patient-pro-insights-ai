@@ -24,7 +24,10 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
 
+import { useSearchParams } from 'react-router-dom';
 import { renderWithLinks } from '@/lib/linkify';
+import { renderNoteWithMentions, parseMentions, stripMentionTokens } from '@/lib/mentions';
+import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
