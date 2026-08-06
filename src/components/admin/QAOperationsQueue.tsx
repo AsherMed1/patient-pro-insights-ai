@@ -745,6 +745,16 @@ export default function QAOperationsQueue() {
     setDateTo(undefined);
   };
 
+  const clearAllFilters = () => {
+    setSearch('');
+    setProjectFilter([]);
+    setAlertFilter('all');
+    setAssignmentFilter('all');
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setTab('new');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
