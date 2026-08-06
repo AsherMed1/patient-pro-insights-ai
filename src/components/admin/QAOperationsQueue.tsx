@@ -745,13 +745,42 @@ export default function QAOperationsQueue() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
         />
-        <Select value={projectFilter} onValueChange={setProjectFilter}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Project" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All projects</SelectItem>
-            {projects.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
-          </SelectContent>
-        </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-48 justify-start">
+              {projectFilter.length === 0
+                ? 'All projects'
+                : projectFilter.length === 1
+                ? projectFilter[0]
+                : `${projectFilter.length} clinics selected`}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64 bg-popover z-50 max-h-96 overflow-y-auto">
+            <DropdownMenuLabel>Clinics</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={projectFilter.length === 0}
+              onCheckedChange={() => setProjectFilter([])}
+              onSelect={(e) => e.preventDefault()}
+            >
+              All projects
+            </DropdownMenuCheckboxItem>
+            {projects.map((p) => (
+              <DropdownMenuCheckboxItem
+                key={p}
+                checked={projectFilter.includes(p)}
+                onCheckedChange={(checked) => {
+                  setProjectFilter((prev) =>
+                    checked ? [...new Set([...prev, p])] : prev.filter((x) => x !== p)
+                  );
+                }}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {p}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Select value={alertFilter} onValueChange={setAlertFilter}>
           <SelectTrigger className="w-56"><SelectValue placeholder="Alert type" /></SelectTrigger>
           <SelectContent>
