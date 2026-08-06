@@ -455,6 +455,43 @@ export default function QAOperationsQueue() {
     );
   }, [cases]);
 
+  // Deep link from a mention notification: ?qaCase=<id>&note=<note id>
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
+  const handledDeepLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const caseId = searchParams.get('qaCase');
+    if (!caseId || handledDeepLinkRef.current === caseId) return;
+    handledDeepLinkRef.current = caseId;
+    const noteId = searchParams.get('note');
+    setFocusNoteId(noteId);
+    setView('queue');
+    (async () => {
+      const existing = cases.find((c) => c.id === caseId);
+      if (existing) {
+        setSelectedCase(existing);
+        setSelectedSiblings([]);
+      } else {
+        const { data } = await supabase
+          .from('qa_cases' as any)
+          .select('*')
+          .eq('id', caseId)
+          .maybeSingle();
+        if (data) {
+          setSelectedCase(data as any as QACase);
+          setSelectedSiblings([]);
+        } else {
+          toast({ title: 'QA record not found', variant: 'destructive' });
+        }
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete('qaCase');
+      next.delete('note');
+      setSearchParams(next, { replace: true });
+    })();
+  }, [searchParams, cases, setSearchParams]);
+
 
 
   useEffect(() => {
