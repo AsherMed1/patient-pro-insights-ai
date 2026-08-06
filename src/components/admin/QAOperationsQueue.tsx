@@ -496,7 +496,7 @@ export default function QAOperationsQueue() {
   const rowFilteredNoAlert = useMemo(() => {
     const t = search.trim().toLowerCase();
     return cases.filter((c) => {
-      if (projectFilter !== 'all' && c.project_name !== projectFilter) return false;
+      if (projectFilter.length > 0 && !projectFilter.includes(c.project_name)) return false;
       if (assignmentFilter === 'mine' && c.assigned_qs_user_id !== user?.id) return false;
       if (assignmentFilter === 'unassigned' && c.assigned_qs_user_id) return false;
       if (dateFrom && new Date(c.entered_queue_at) < dateFrom) return false;
