@@ -435,7 +435,8 @@ const ReviewQueue: React.FC = () => {
       const { data, error } = await supabase
         .from('short_notice_alerts')
         .select('appointment_id, hours_difference')
-        .in('appointment_id', ids);
+        .in('appointment_id', ids)
+        .is('resolved_at', null);
       if (error) {
         console.warn('short-notice fetch failed', error);
         return;
