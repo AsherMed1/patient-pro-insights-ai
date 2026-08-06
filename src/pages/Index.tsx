@@ -7,7 +7,8 @@ import { LogOut, User, Settings } from "lucide-react";
 import patientProLogo from "@/assets/patient-pro-logo.png";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import MentionsBell from "@/components/notifications/MentionsBell";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AllCallsManager from "@/components/AllCallsManager";
@@ -34,6 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("projects");
+  const [searchParams] = useSearchParams();
   const [unreadCount, setUnreadCount] = useState(0);
   const [supportWaitingCount, setSupportWaitingCount] = useState(0);
   const [reviewPendingCount, setReviewPendingCount] = useState(0);
@@ -179,7 +181,9 @@ const Index = () => {
                 <User className="h-3.5 w-3.5" />
                 {user?.email} ({role})
               </span>
-              <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
+              <MentionsBell />
+              <MentionsBell />
+            <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
                 <Settings className="h-5 w-5" />
               </Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={handleSignOut}>
@@ -227,7 +231,9 @@ const Index = () => {
                 <User className="h-3.5 w-3.5" />
                 {user?.email} ({role})
               </span>
-              <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
+              <MentionsBell />
+              <MentionsBell />
+            <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
                 <Settings className="h-5 w-5" />
               </Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={handleSignOut}>
@@ -335,6 +341,7 @@ const Index = () => {
               <User className="h-3.5 w-3.5" />
               {user?.email} ({role})
             </span>
+            <MentionsBell />
             <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
               <Settings className="h-5 w-5" />
             </Button>
