@@ -526,8 +526,9 @@ export default function QAOperationsQueue() {
     projectFilter.length > 0 ||
     alertFilter !== 'all' ||
     assignmentFilter !== 'all' ||
-    !!dateFrom || !!dateTo
-  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
+    !!dateFrom || !!dateTo ||
+    tab !== 'new'
+  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, tab]);
 
   // Apply row-level filters that are patient-agnostic (project, assignment, date,
   // reserved-block, search). Alert Type is intentionally NOT applied here —
