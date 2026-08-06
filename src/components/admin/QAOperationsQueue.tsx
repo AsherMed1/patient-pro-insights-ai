@@ -29,6 +29,7 @@ import { renderWithLinks } from '@/lib/linkify';
 import { renderNoteWithMentions, parseMentions } from '@/lib/mentions';
 import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
+import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
@@ -57,6 +58,12 @@ interface QACase {
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
+  controlhub_ticket_status?: string | null;
+  controlhub_ticket_last_activity?: string | null;
+  controlhub_ticket_last_activity_at?: string | null;
+  controlhub_ticket_assignee?: string | null;
+  controlhub_ticket_unread?: boolean | null;
+  controlhub_ticket_seen_at?: string | null;
   qa_name: string | null;
   self_booked: boolean | null;
   patient_link: string | null;
@@ -1003,15 +1010,26 @@ export default function QAOperationsQueue() {
                       {showCol('ticket') && (
                       <TableCell className="px-2 py-2">
                         {ticket?.controlhub_ticket_id ? (
-                          <a
-                            href={ticket.controlhub_ticket_url ?? '#'}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary underline break-all"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3 shrink-0" />
-                          </a>
+                          <div className="flex flex-col gap-1">
+                            <a
+                              href={ticket.controlhub_ticket_url ?? '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-primary underline break-all"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {ticket.controlhub_ticket_unread && (
+                                <span className="h-2 w-2 rounded-full bg-primary shrink-0" title="New ticket activity" />
+                              )}
+                              {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                            <Badge
+                              variant="outline"
+                              className={cn('w-fit text-[10px]', ticketStatusClass(ticket.controlhub_ticket_status))}
+                            >
+                              {ticketStatusLabel(ticket.controlhub_ticket_status)}
+                            </Badge>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-xs">None</span>
                         )}
@@ -1931,14 +1949,21 @@ function CaseDrawer({
                     Create ControlHub Ticket
                   </Button>
                 )}
-                {caseData.controlhub_ticket_id && (
-                  <a href={caseData.controlhub_ticket_url ?? '#'} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline">
-                      Ticket {caseData.controlhub_ticket_id} <ExternalLink className="h-3 w-3 ml-1" />
-                    </Button>
-                  </a>
-                )}
               </div>
+
+              {caseData.controlhub_ticket_id && (
+                <QATicketPanel
+                  caseId={caseData.id}
+                  ticketId={caseData.controlhub_ticket_id}
+                  ticketUrl={caseData.controlhub_ticket_url}
+                  ticketStatus={caseData.controlhub_ticket_status ?? null}
+                  assignee={caseData.controlhub_ticket_assignee ?? null}
+                  lastActivity={caseData.controlhub_ticket_last_activity ?? null}
+                  lastActivityAt={caseData.controlhub_ticket_last_activity_at ?? null}
+                  unread={!!caseData.controlhub_ticket_unread}
+                  onSeen={onRefresh}
+                />
+              )}
 
               {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
                 <div>
