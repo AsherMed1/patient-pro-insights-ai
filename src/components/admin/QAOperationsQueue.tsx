@@ -1934,28 +1934,37 @@ function CaseDrawer({
 
               <div>
                 <div className="text-sm font-semibold mb-2">Notes</div>
-                <Textarea
+                <MentionTextarea
                   value={noteDraft}
-                  onChange={(e) => setNoteDraft(e.target.value)}
-                  placeholder="Add an internal QA note…"
+                  onChange={setNoteDraft}
+                  placeholder="Add an internal QA note… (type @ to tag a teammate)"
                   rows={3}
                 />
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Type @ to tag a teammate — they get an in-app notification.</span>
                   <Button size="sm" onClick={addNote} disabled={!noteDraft.trim()}>Add note</Button>
                 </div>
                 <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
                   {notes.map((n) => (
-                    <div key={n.id} className="border rounded p-2 text-sm">
+                    <div
+                      key={n.id}
+                      ref={n.id === focusNoteId ? focusedNoteRef : undefined}
+                      className={cn(
+                        'border rounded p-2 text-sm transition-colors',
+                        n.id === focusNoteId && 'border-primary bg-primary/5',
+                      )}
+                    >
                       <div className="text-xs text-muted-foreground flex justify-between">
                         <span>{n.author_name || 'Unknown'}</span>
                         <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
                       </div>
-                      <div className="whitespace-pre-wrap break-words">{renderWithLinks(n.note)}</div>
+                      <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
                     </div>
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
                 </div>
               </div>
+
 
               <div>
                 <div className="text-sm font-semibold mb-2">Activity</div>
