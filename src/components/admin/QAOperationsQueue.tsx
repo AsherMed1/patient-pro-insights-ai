@@ -1010,15 +1010,26 @@ export default function QAOperationsQueue() {
                       {showCol('ticket') && (
                       <TableCell className="px-2 py-2">
                         {ticket?.controlhub_ticket_id ? (
-                          <a
-                            href={ticket.controlhub_ticket_url ?? '#'}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary underline break-all"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3 shrink-0" />
-                          </a>
+                          <div className="flex flex-col gap-1">
+                            <a
+                              href={ticket.controlhub_ticket_url ?? '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-primary underline break-all"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {ticket.controlhub_ticket_unread && (
+                                <span className="h-2 w-2 rounded-full bg-primary shrink-0" title="New ticket activity" />
+                              )}
+                              {ticket.controlhub_ticket_id} <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                            <Badge
+                              variant="outline"
+                              className={cn('w-fit text-[10px]', ticketStatusClass(ticket.controlhub_ticket_status))}
+                            >
+                              {ticketStatusLabel(ticket.controlhub_ticket_status)}
+                            </Badge>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-xs">None</span>
                         )}
