@@ -4006,6 +4006,9 @@ export type Database = {
           id: string
           lead_name: string
           project_name: string
+          resolved_at: string | null
+          resolved_hours_difference: number | null
+          resolved_reason: string | null
           slack_sent: boolean | null
         }
         Insert: {
@@ -4019,6 +4022,9 @@ export type Database = {
           id?: string
           lead_name: string
           project_name: string
+          resolved_at?: string | null
+          resolved_hours_difference?: number | null
+          resolved_reason?: string | null
           slack_sent?: boolean | null
         }
         Update: {
@@ -4032,6 +4038,9 @@ export type Database = {
           id?: string
           lead_name?: string
           project_name?: string
+          resolved_at?: string | null
+          resolved_hours_difference?: number | null
+          resolved_reason?: string | null
           slack_sent?: boolean | null
         }
         Relationships: [
