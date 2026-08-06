@@ -1273,20 +1273,54 @@ function CaseDrawer({
 
   const addNote = async () => {
     if (!caseData || !noteDraft.trim()) return;
-    const { error } = await supabase.from('qa_case_notes' as any).insert({
-      case_id: caseData.id,
-      note: noteDraft.trim(),
-      author_user_id: user?.id ?? null,
-      author_name: authorDisplayName || user?.email || null,
-    } as any);
+    const text = noteDraft.trim();
+    const authorName = authorDisplayName || user?.email || null;
+    const { data: inserted, error } = await supabase
+      .from('qa_case_notes' as any)
+      .insert({
+        case_id: caseData.id,
+        note: text,
+        author_user_id: user?.id ?? null,
+        author_name: authorName,
+      } as any)
+      .select('id')
+      .maybeSingle();
     if (error) {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
       return;
     }
+
+    // Notify any tagged teammates (skip self-mentions).
+    const mentioned = parseMentions(text).filter((m) => m.userId !== user?.id);
+    const noteId = (inserted as any)?.id;
+    if (mentioned.length > 0 && noteId) {
+      const { error: mErr } = await supabase.from('qa_note_mentions' as any).insert(
+        mentioned.map((m) => ({
+          note_id: noteId,
+          case_id: caseData.id,
+          mentioned_user_id: m.userId,
+          mentioned_by_user_id: user?.id ?? null,
+          mentioned_by_name: authorName,
+        })) as any,
+      );
+      if (mErr) {
+        toast({ title: 'Note saved, but mentions failed', description: mErr.message, variant: 'destructive' });
+      } else {
+        await supabase.from('qa_case_activity' as any).insert({
+          case_id: caseData.id,
+          activity_type: 'mention',
+          description: `Mentioned ${mentioned.map((m) => m.name).join(', ')} in a note`,
+          actor_user_id: user?.id ?? null,
+        } as any);
+        toast({ title: `Tagged ${mentioned.length} teammate${mentioned.length > 1 ? 's' : ''}` });
+      }
+    }
+
     setNoteDraft('');
     const { data } = await supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false });
     setNotes(((data as any) || []) as QANote[]);
   };
+
 
   const saveAudit = async () => {
     if (!caseData) return;
