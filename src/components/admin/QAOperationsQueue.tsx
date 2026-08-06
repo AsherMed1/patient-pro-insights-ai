@@ -1949,14 +1949,21 @@ function CaseDrawer({
                     Create ControlHub Ticket
                   </Button>
                 )}
-                {caseData.controlhub_ticket_id && (
-                  <a href={caseData.controlhub_ticket_url ?? '#'} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline">
-                      Ticket {caseData.controlhub_ticket_id} <ExternalLink className="h-3 w-3 ml-1" />
-                    </Button>
-                  </a>
-                )}
               </div>
+
+              {caseData.controlhub_ticket_id && (
+                <QATicketPanel
+                  caseId={caseData.id}
+                  ticketId={caseData.controlhub_ticket_id}
+                  ticketUrl={caseData.controlhub_ticket_url}
+                  ticketStatus={caseData.controlhub_ticket_status ?? null}
+                  assignee={caseData.controlhub_ticket_assignee ?? null}
+                  lastActivity={caseData.controlhub_ticket_last_activity ?? null}
+                  lastActivityAt={caseData.controlhub_ticket_last_activity_at ?? null}
+                  unread={!!caseData.controlhub_ticket_unread}
+                  onSeen={onRefresh}
+                />
+              )}
 
               {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
                 <div>
