@@ -182,7 +182,6 @@ const Index = () => {
                 {user?.email} ({role})
               </span>
               <MentionsBell />
-              <MentionsBell />
             <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
                 <Settings className="h-5 w-5" />
               </Button>
@@ -231,7 +230,6 @@ const Index = () => {
                 <User className="h-3.5 w-3.5" />
                 {user?.email} ({role})
               </span>
-              <MentionsBell />
               <MentionsBell />
             <Button variant="ghost" size="icon" className="h-9 w-9 border-none" onClick={() => navigate('/settings')}>
                 <Settings className="h-5 w-5" />
