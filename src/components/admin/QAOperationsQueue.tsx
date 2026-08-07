@@ -718,10 +718,66 @@ export default function QAOperationsQueue() {
       description: `Status changed to ${WORKFLOW_STATUS_LABELS[next] || next.replace('_', ' ')}`,
       actor_user_id: user?.id ?? null,
     } as any);
+
+    // Notify the escalation owner / escalator on completion and reopen.
+    if (next === 'completed' || next === 'reopened') {
+      const target = cases.find((c) => c.id === id) || selectedCase;
+      if (target?.escalated_at) {
+        await notifyQAUsers({
+          userIds: [target.escalation_owner_user_id, target.escalated_by_user_id],
+          caseId: id,
+          kind: 'case_status',
+          title: next === 'completed' ? 'Escalation completed' : 'Escalation reopened',
+          body:
+            next === 'completed'
+              ? `${target.patient_name || 'Case'} was marked Completed — escalation resolved.`
+              : `${target.patient_name || 'Case'} was reopened — follow-up required.`,
+          actorId: user?.id ?? null,
+          actorName: actorName,
+        });
+      }
+    }
+
     toast({ title: 'Status updated' });
     fetchCases();
 
   };
+
+  const updateEscalationStatus = async (id: string, next: string) => {
+    const target = cases.find((c) => c.id === id) || selectedCase;
+    const patch: any = { escalation_status: next };
+    if (!target?.escalated_at) {
+      patch.escalated_at = new Date().toISOString();
+      patch.escalated_by_user_id = user?.id ?? null;
+    }
+    setCases((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    setSelectedCase((sc) => (sc && sc.id === id ? { ...sc, ...patch } : sc));
+
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+      fetchCases();
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: id,
+      activity_type: 'escalation_status_change',
+      description: `Escalation status changed to ${next}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    await notifyQAUsers({
+      userIds: [target?.escalation_owner_user_id, target?.escalated_by_user_id],
+      caseId: id,
+      kind: 'escalation_status',
+      title: `Escalation status: ${next}`,
+      body: `${target?.patient_name || 'Case'}${target?.project_name ? ` • ${target.project_name}` : ''}`,
+      actorId: user?.id ?? null,
+      actorName,
+    });
+    toast({ title: 'Escalation status updated' });
+    fetchCases();
+  };
+
 
   const openCase = (c: QACase, siblings: QACase[] = []) => {
     setSelectedSiblings(siblings.filter((s) => s.id !== c.id));
