@@ -38,6 +38,11 @@ import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
 
+// Column headers pin beneath the portal header, nav, title row and filter strip.
+const STICKY_HEAD_STYLE: React.CSSProperties = {
+  top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px) + var(--qa-title-h, 0px) + var(--qa-filters-h, 0px))',
+};
+
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
 
