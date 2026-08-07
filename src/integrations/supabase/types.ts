@@ -29,7 +29,7 @@ export type Database = {
           status: string
           updated_at: string
           uploaded_at: string
-          uploaded_by: string
+          uploaded_by: string | null
         }
         Insert: {
           appointment_date: string
@@ -45,7 +45,7 @@ export type Database = {
           status: string
           updated_at?: string
           uploaded_at?: string
-          uploaded_by: string
+          uploaded_by?: string | null
         }
         Update: {
           appointment_date?: string
@@ -61,7 +61,7 @@ export type Database = {
           status?: string
           updated_at?: string
           uploaded_at?: string
-          uploaded_by?: string
+          uploaded_by?: string | null
         }
         Relationships: []
       }
@@ -1469,7 +1469,7 @@ export type Database = {
           skipped_duplicates: number
           successful_imports: number
           total_rows: number
-          uploaded_by: string
+          uploaded_by: string | null
         }
         Insert: {
           created_at?: string
@@ -1480,7 +1480,7 @@ export type Database = {
           skipped_duplicates?: number
           successful_imports?: number
           total_rows?: number
-          uploaded_by: string
+          uploaded_by?: string | null
         }
         Update: {
           created_at?: string
@@ -1491,7 +1491,7 @@ export type Database = {
           skipped_duplicates?: number
           successful_imports?: number
           total_rows?: number
-          uploaded_by?: string
+          uploaded_by?: string | null
         }
         Relationships: []
       }
@@ -2532,7 +2532,7 @@ export type Database = {
           project_name: string
           purpose: string | null
           session_id: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           access_type: string
@@ -2545,7 +2545,7 @@ export type Database = {
           project_name: string
           purpose?: string | null
           session_id?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           access_type?: string
@@ -2558,7 +2558,7 @@ export type Database = {
           project_name?: string
           purpose?: string | null
           session_id?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -4659,7 +4659,7 @@ export type Database = {
           session_token: string
           terminated_reason: string | null
           user_agent: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -4671,7 +4671,7 @@ export type Database = {
           session_token: string
           terminated_reason?: string | null
           user_agent?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -4683,7 +4683,7 @@ export type Database = {
           session_token?: string
           terminated_reason?: string | null
           user_agent?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
