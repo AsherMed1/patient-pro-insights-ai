@@ -188,29 +188,44 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               }
 
             }
-            
-            // Extract service: text between quotes or after "your " and before " Consultation"
-            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
-            if (serviceMatch && serviceMatch[1]) {
-              let service = serviceMatch[1].trim();
-              // Strip modality modifiers (Virtual / In-Person / In Person) from either end
-              service = service
-                .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
-                .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
-                .trim();
-              // Skip if nothing meaningful remains (pure modality)
-              if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
-                services.add(service);
+
+            // Service source of truth: parsed procedure_type, fallback to calendar name text
+            const parsed = (item as any).parsed_pathology_info;
+            const parsedType = parsed && typeof parsed === 'object'
+              ? (parsed.procedure_type || parsed.procedure)
+              : null;
+            if (parsedType && typeof parsedType === 'string' && parsedType.trim()) {
+              services.add(parsedType.trim());
+            } else {
+              // Extract service: text between quotes or after "your " and before " Consultation"
+              const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
+              if (serviceMatch && serviceMatch[1]) {
+                let service = serviceMatch[1].trim();
+                // Strip modality modifiers (Virtual / In-Person / In Person) from either end
+                service = service
+                  .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
+                  .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
+                  .trim();
+                // Skip if nothing meaningful remains (pure modality)
+                if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
+                  services.add(service);
+                }
               }
             }
           }
         });
         
-        // Merge known project services (ensures services appear even with no appointments yet)
-        if (projectFilter && projectFilter !== 'ALL') {
+        // Merge known project services only when no date range narrows the view
+        if (!hasDateRange && projectFilter && projectFilter !== 'ALL') {
           const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
           knownServices.forEach(s => services.add(s));
         }
+
+        // Never drop the currently selected service from the list
+        if (serviceFilter && serviceFilter !== 'ALL') {
+          services.add(serviceFilter);
+        }
+
 
         setLocationOptions(Array.from(locations).sort());
         setServiceOptions(Array.from(services).sort());
