@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
     if (ticketId) {
       const { data } = await supabase
         .from('qa_cases')
-        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved, escalation_owner_user_id, escalated_by_user_id, patient_name, project_name, escalated_at')
+        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved, assigned_qs_user_id, escalation_owner_user_id, escalated_by_user_id, patient_name, project_name, escalated_at')
         .eq('controlhub_ticket_id', ticketId)
         .maybeSingle();
       qaCase = data;
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
     if (!qaCase && externalCaseId) {
       const { data } = await supabase
         .from('qa_cases')
-        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved, escalation_owner_user_id, escalated_by_user_id, patient_name, project_name, escalated_at')
+        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved, assigned_qs_user_id, escalation_owner_user_id, escalated_by_user_id, patient_name, project_name, escalated_at')
         .eq('id', externalCaseId)
         .maybeSingle();
       qaCase = data;
