@@ -1782,19 +1782,43 @@ function CaseDrawer({
               )}
 
 
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Workflow status</div>
-                <Select value={caseData.workflow_status} onValueChange={(v) => onStatusChange(caseData.id, v as WorkflowStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in_review">Opened</SelectItem>
-                    <SelectItem value="pending_escalated">Pending / Escalated</SelectItem>
-                    <SelectItem value="reopened">Reopened</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Workflow status</div>
+                  <Select value={caseData.workflow_status} onValueChange={(v) => onStatusChange(caseData.id, v as WorkflowStatus)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="in_review">Opened</SelectItem>
+                      <SelectItem value="pending_escalated">Pending / Escalated</SelectItem>
+                      <SelectItem value="reopened">Reopened</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Escalation status</div>
+                  <Select
+                    value={caseData.escalation_status ?? ''}
+                    onValueChange={(v) => onEscalationStatusChange(caseData.id, v)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Not escalated" /></SelectTrigger>
+                    <SelectContent>
+                      {ESCALATION_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {caseData.escalated_at && (
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      Escalated {format(new Date(caseData.escalated_at), 'MMM d, yyyy h:mm a')}
+                      {escalatedByName ? ` by ${escalatedByName}` : ''}
+                      {ownerName ? ` • Owner: ${ownerName}` : ''}
+                    </div>
+                  )}
+                </div>
               </div>
+
 
               <div className="border rounded-lg p-3 space-y-3 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between gap-2">
