@@ -101,9 +101,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
 
   const fetchLocationAndServiceOptions = async () => {
     try {
+      const hasDateRange = Boolean(dateRange.from || dateRange.to);
       let query = supabase
         .from('all_appointments')
-        .select('calendar_name')
+        .select('calendar_name, parsed_pathology_info')
         .not('calendar_name', 'is', null);
       
       // Filter by project if we're in a project-specific view
@@ -115,8 +116,32 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           query = query.eq('project_name', projectFilter);
         }
       }
+
+      // Scope options to the selected date range (Appt Date vs Created Date)
+      if (hasDateRange) {
+        if (dateFilterType === 'created') {
+          if (dateRange.from) {
+            const start = new Date(dateRange.from);
+            start.setHours(0, 0, 0, 0);
+            query = query.gte('created_at', start.toISOString());
+          }
+          if (dateRange.to) {
+            const end = new Date(dateRange.to);
+            end.setHours(23, 59, 59, 999);
+            query = query.lte('created_at', end.toISOString());
+          }
+        } else {
+          if (dateRange.from) {
+            query = query.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
+          }
+          if (dateRange.to) {
+            query = query.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+          }
+        }
+      }
       
       const { data } = await query;
+
       
       if (data) {
         const locations = new Set<string>();
