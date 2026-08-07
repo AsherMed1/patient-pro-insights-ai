@@ -20,7 +20,7 @@ import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload, Columns3 } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload, Columns3, RefreshCw } from 'lucide-react';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
@@ -357,6 +357,7 @@ export default function QAOperationsQueue() {
 
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
   const [alertFilter, setAlertFilter] = useState<string>('all');
@@ -408,8 +409,14 @@ export default function QAOperationsQueue() {
     return out;
   };
 
-  const fetchCases = async () => {
-    setLoading(true);
+  const hasLoadedRef = useRef(false);
+
+  // `background: true` keeps the table on screen (no full-page spinner) while a
+  // fresh pull runs — only the very first load blanks the view.
+  const fetchCases = async (opts?: { background?: boolean }) => {
+    const background = opts?.background ?? hasLoadedRef.current;
+    if (background) setRefreshing(true);
+    else setLoading(true);
     try {
       const openRows = await fetchAllPages(() =>
         supabase
@@ -467,12 +474,14 @@ export default function QAOperationsQueue() {
         r.lead_email = c?.email ?? null;
       }
       setCases(rows);
+      hasLoadedRef.current = true;
     } catch (error: any) {
       console.error('QA cases fetch error:', error);
       toast({ title: 'Failed to load cases', description: error?.message, variant: 'destructive' });
-      setCases([]);
+      if (!background) setCases([]);
     }
     setLoading(false);
+    setRefreshing(false);
   };
 
 
@@ -484,17 +493,77 @@ export default function QAOperationsQueue() {
     fetchCasesRef.current();
   }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo]);
 
+  // Live, row-level updates. We patch the in-memory list from the realtime
+  // payload instead of reloading the entire queue, so the table never unmounts
+  // and scroll position / open drawer stay put.
+  const scopeRef = useRef({ unbounded: false, visibleAlertTypes });
+  scopeRef.current = {
+    unbounded: tab === 'completed' || tab === 'all' || !!dateFrom || !!dateTo,
+    visibleAlertTypes,
+  };
+
   useEffect(() => {
+    const isVisibleRow = (row: any) => {
+      if (!row) return false;
+      if (!scopeRef.current.visibleAlertTypes.includes(row.alert_type)) return false;
+      if (row.workflow_status === 'completed' && !scopeRef.current.unbounded) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 90);
+        if (!row.entered_queue_at || new Date(row.entered_queue_at) < cutoff) return false;
+      }
+      return true;
+    };
+
+    const enrichContact = async (row: any) => {
+      if (!row?.appointment_id) return row;
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('lead_phone_number, lead_email')
+        .eq('id', row.appointment_id)
+        .maybeSingle();
+      return {
+        ...row,
+        lead_phone_number: (data as any)?.lead_phone_number ?? null,
+        lead_email: (data as any)?.lead_email ?? null,
+      };
+    };
+
     const ch = supabase
       .channel('qa-cases-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, () => {
-        fetchCasesRef.current();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, async (payload) => {
+        const newRow: any = payload.new;
+        const oldRow: any = payload.old;
+
+        if (payload.eventType === 'DELETE') {
+          setCases((cs) => cs.filter((c) => c.id !== oldRow?.id));
+          return;
+        }
+
+        if (!isVisibleRow(newRow)) {
+          setCases((cs) => cs.filter((c) => c.id !== newRow?.id));
+          return;
+        }
+
+        // Patch the row in place; a row that just moved into scope gets prepended.
+
+
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const enriched = await enrichContact(newRow);
+          setCases((cs) => {
+            const idx = cs.findIndex((c) => c.id === enriched.id);
+            if (idx === -1) return [enriched as QACase, ...cs];
+            const next = [...cs];
+            next[idx] = { ...next[idx], ...enriched } as QACase;
+            return next;
+          });
+        }
       })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
   }, []);
+
 
 
   // Keep the open drawer in sync with realtime refreshes of `cases`
@@ -801,7 +870,7 @@ export default function QAOperationsQueue() {
     }
 
     toast({ title: 'Status updated' });
-    fetchCases();
+    fetchCases({ background: true });
 
   };
 
@@ -834,7 +903,7 @@ export default function QAOperationsQueue() {
     const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
     if (error) {
       toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
-      fetchCases();
+      fetchCases({ background: true });
       return;
     }
     await supabase.from('qa_case_activity' as any).insert(
@@ -887,7 +956,7 @@ export default function QAOperationsQueue() {
           ? 'Escalation reopened'
           : 'Escalation status updated',
     });
-    fetchCases();
+    fetchCases({ background: true });
   };
 
 
@@ -960,7 +1029,25 @@ export default function QAOperationsQueue() {
             Centralized workspace for reviewing appointment quality alerts and auditing confirmed appointments.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {view === 'queue' && (
+            <>
+              {refreshing && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Updating…
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchCases({ background: true })}
+                disabled={refreshing}
+                title="Refresh queue"
+              >
+                <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+              </Button>
+            </>
+          )}
           <Button
             variant={view === 'queue' ? 'default' : 'outline'}
             size="sm"
@@ -1156,7 +1243,7 @@ export default function QAOperationsQueue() {
 
         <TabsContent value={tab} className="mt-4">
           <div className="border rounded-lg overflow-hidden">
-            {loading ? (
+            {loading && cases.length === 0 ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
@@ -1316,7 +1403,7 @@ export default function QAOperationsQueue() {
         onStatusChange={updateStatus}
         onEscalationStatusChange={updateEscalationStatus}
         actorName={actorName}
-        onRefresh={() => { fetchCases(); }}
+        onRefresh={() => { fetchCases({ background: true }); }}
       />
       </>
       )}
