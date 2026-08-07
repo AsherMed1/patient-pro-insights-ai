@@ -29,7 +29,7 @@ export default function MentionsBell() {
     setOpen(false);
     if (!m.read_at) await markRead(m.id);
     const noteParam = m.note_id ? `&note=${m.note_id}` : '';
-    navigate(`/?tab=qa-queue&qaCase=${m.case_id}${noteParam}`);
+    navigate(`/?tab=qa-queue&qaCase=${m.case_id}${noteParam}&n=${m.id}-${Date.now()}`);
   };
 
   const headline = (m: QAMention) => {
