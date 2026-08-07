@@ -1029,7 +1029,25 @@ export default function QAOperationsQueue() {
             Centralized workspace for reviewing appointment quality alerts and auditing confirmed appointments.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {view === 'queue' && (
+            <>
+              {refreshing && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Updating…
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchCases({ background: true })}
+                disabled={refreshing}
+                title="Refresh queue"
+              >
+                <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+              </Button>
+            </>
+          )}
           <Button
             variant={view === 'queue' ? 'default' : 'outline'}
             size="sm"
