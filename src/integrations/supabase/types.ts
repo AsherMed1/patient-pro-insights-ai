@@ -3469,8 +3469,10 @@ export type Database = {
       }
       qa_note_mentions: {
         Row: {
+          appointment_id: string | null
+          appointment_note_id: string | null
           body: string | null
-          case_id: string
+          case_id: string | null
           created_at: string
           id: string
           kind: string
@@ -3482,8 +3484,10 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          appointment_id?: string | null
+          appointment_note_id?: string | null
           body?: string | null
-          case_id: string
+          case_id?: string | null
           created_at?: string
           id?: string
           kind?: string
@@ -3495,8 +3499,10 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          appointment_id?: string | null
+          appointment_note_id?: string | null
           body?: string | null
-          case_id?: string
+          case_id?: string | null
           created_at?: string
           id?: string
           kind?: string
