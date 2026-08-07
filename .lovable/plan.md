@@ -1,24 +1,25 @@
-# Recapture role: keep one role per user, make the labels honest
+# Services dropdown: show all project services, disable inactive ones in date range
 
-## Situation
+## What changes
 
-The portal assigns exactly one role per user (the app reads a single role row), so the dropdown can only offer one choice. True multi-select would mean reworking how every screen decides what a user can see — a large change across the whole portal.
+Update the **Services** dropdown in `AppointmentFilters.tsx` so that, when a date range is active, every service line for the clinic is still visible but services with no appointments in the selected range are **disabled and greyed out** instead of being hidden.
 
-The good news: no merge is needed for your setters. "Review Queue Only" already grants Recapture access as well. The only thing missing is that the dropdown label doesn't say so, which is why it looks like a choice between the two.
-
-## Proposed change (small, label + clarity only)
-
-- Rename the dropdown option "Review Queue Only" to **"Review Queue + Recapture"**, with a short helper line: "Setters — access to both Review Queue and Recapture."
-- Keep **"Recapture"** as-is, with helper text: "Recapture worklist only."
-- Update the role badge shown in the user list so those two roles read the same way ("Review Queue + Recapture" / "Recapture").
-
-Setters get assigned "Review Queue + Recapture" and can work both queues today; users who should only chase cancelled/no-show get "Recapture".
-
-## If you truly want multi-select later
-
-Full multi-role support means: the role hook returning a list instead of one role, every permission check and dashboard-routing branch updated to work off that list, the User Management dialogs saving multiple role rows, and access rules re-verified for each combination. That is a separate, larger piece of work — worth doing only if you need combinations beyond the setter case (for example a QA specialist who is also a setter).
+- **No date range set:** behavior stays the same as today (all services for the clinic are enabled).
+- **Date range set:**
+  - Services with ≥1 appointment in the range remain selectable.
+  - Services with 0 appointments in the range are visible but disabled/greyed out and cannot be selected.
+  - The currently selected service always stays enabled, even if it has no appointments in the range, so the active filter and its chip never break silently.
+- The hard-coded fallback service lists (`KNOWN_PROJECT_SERVICES`) continue to supply the full clinic service list when no date range is active; with a date range they provide the "all services" baseline against which active services are compared.
+- Locations dropdown is not changed.
 
 ## Technical notes
 
-- `src/components/UserManagement.tsx`: update the three role `SelectItem` label sets and the badge label mapping (around lines 520, 608, 662, 872). No database change.
-- No changes to `useRole.tsx`, `Index.tsx`, or RLS — `hasRecaptureAccess()` already includes `review_only`.
+In `src/components/appointments/AppointmentFilters.tsx`:
+
+1. Keep the existing date-range-aware query that resolves active services from `parsed_pathology_info->>procedure_type` (falling back to calendar-name matching), scoped to `date_of_appointment` or `created_at` based on `dateFilterType`.
+2. Add a second state/set for the **full** service list:
+   - When `projectFilter` is a specific project, start from `KNOWN_PROJECT_SERVICES[projectFilter]` plus any services observed in the unscoped project data.
+   - When `projectFilter` is `ALL`, use all observed services across the current appointment set (or keep current behavior).
+3. In the Services `SelectContent`, render the full list. Use a conditional style/class to grey out items that are not in the active set. Use `SelectItem` `disabled` prop or a wrapper that prevents selection for inactive items.
+4. Ensure the selected `serviceFilter` is always present in the full list and is not disabled.
+5. Keep `dateRange`, `dateFilterType`, and `projectFilter` in the effect dependencies so options refresh correctly.
