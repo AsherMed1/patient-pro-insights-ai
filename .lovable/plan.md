@@ -1,21 +1,20 @@
-# Setter role: Review Queue + Recapture
+# Freeze the QA Operations column headers too
 
-## Status
-This is already live in the portal, exactly as shown in your screenshot.
+## Goal
+Keep the table's column header row (Patient, Clinic, Service, Alerts, … Ticket) — the row boxed in red — pinned along with the header, tab bar, title and filter strip, so the sortable column labels stay usable while scrolling the queue.
 
-- The role dropdowns (add user, edit user, inline change) and the "All Roles" filter list **Setter** and **Recapture Only**.
-- The role badge on the user list shows **Setter**.
-- A Setter signs in to a stripped portal with two tabs: **Review Queue** and **Recapture** — nothing else.
-- **Recapture Only** users get the Recapture Worklist alone, no Review Queue.
-- Both are scoped to the clinics assigned to that user.
-
-## Proposed action
-No code changes needed. If you want, I can do a quick verification pass instead:
-
-1. Assign the Setter role to a test user in User Management.
-2. Confirm the badge reads "Setter" and both tabs load with only their assigned clinics.
-3. Confirm no admin surfaces (Appointments, QA Operations, Projects) are reachable for that user.
+## What changes
+- The column header row sticks directly beneath the filter/status-tab block instead of scrolling away.
+- The two pinned columns (Patient on the left, the Open button on the right) keep working; their header cells stay pinned in both directions.
+- Header row gets a solid background and bottom border so rows scroll cleanly underneath it.
 
 ## Technical notes
-- Stored role value stays `review_only`; "Setter" is the display label only, so existing users keep their access with no migration.
-- `recapture` remains a separate enum value for Recapture Only.
+- Publish the filter/tab strip height as a new CSS variable (`--qa-filters-h`) using the existing `useStickyHeight` hook, alongside `--qa-title-h`.
+- Make `TableHeader`'s row cells `sticky` with `top: calc(var(--portal-header-h) + var(--portal-nav-h) + var(--qa-title-h) + var(--qa-filters-h))`, applied on the `th` cells (sticky on `<thead>` does not work reliably inside a scroll container).
+- Raise the header cells' z-index above the body's sticky first/last columns (header z-[3], corner cells z-[4]) but keep them under the filter block (z-20).
+- The table wrapper at `src/components/admin/QAOperationsQueue.tsx:1137` uses `overflow-x-auto`; keep it that way — no vertical overflow container, so page-level sticky continues to work.
+
+Files: `src/components/admin/QAOperationsQueue.tsx` (filter block ref, `SortableHead` className, right-side spacer head).
+
+## Validation
+Scroll the queue: header, nav, title, filters and the column header row all remain visible; sorting arrows stay clickable and the Patient/Open columns stay aligned during horizontal scroll.
