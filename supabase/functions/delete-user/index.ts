@@ -63,6 +63,34 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Snapshot the departed user's identity into HIPAA audit metadata before the FK link is cleared
+    try {
+      const { data: targetProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('email, full_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const { data: auditRows } = await supabaseAdmin
+        .from('hipaa_audit_log')
+        .select('id, metadata')
+        .eq('user_id', userId);
+
+      if (auditRows?.length) {
+        for (const row of auditRows) {
+          const merged = {
+            ...(row.metadata && typeof row.metadata === 'object' ? row.metadata : {}),
+            deleted_user_id: userId,
+            deleted_user_email: targetProfile?.email ?? null,
+            deleted_user_name: targetProfile?.full_name ?? null,
+          };
+          await supabaseAdmin.from('hipaa_audit_log').update({ metadata: merged }).eq('id', row.id);
+        }
+      }
+    } catch (stampError) {
+      console.error('Failed to stamp HIPAA audit metadata:', stampError);
+    }
+
     // Delete from project_user_access first (foreign key constraints)
     await supabaseAdmin
       .from('project_user_access')
@@ -86,11 +114,12 @@ Deno.serve(async (req) => {
     
     if (authError) {
       console.error('Error deleting auth user:', authError);
-      return new Response(JSON.stringify({ error: 'Failed to delete user from auth', details: authError.message }), {
+      return new Response(JSON.stringify({ error: `Failed to delete user from auth: ${authError.message}`, details: authError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     // Log audit event
     try {
