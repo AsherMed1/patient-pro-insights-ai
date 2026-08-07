@@ -1711,6 +1711,53 @@ async function resolveCalendarNameFromNotes(
   return null
 }
 
+// Single active location per unscheduled-capture project (retired locations excluded).
+const PROJECT_DEFAULT_LOCATIONS: Record<string, string> = {
+  'premier vascular': 'Macon, GA',
+}
+
+const KNOWN_SERVICE_CODES = ['GAE', 'PFE', 'UFE', 'PAE', 'HAE', 'PAD', 'TAE', 'FSE']
+
+/**
+ * Deterministic fallback when the GHL calendar list can't resolve the calendar:
+ * build "Request your <SERVICE> Consultation at <LOCATION>" from the funnel's
+ * "Service Name" intake field and the project's location.
+ */
+function deriveCalendarNameFromIntake(
+  projectName: string | null | undefined,
+  notes: string | null | undefined,
+): string | null {
+  if (!notes) return null
+
+  let service: string | null = null
+  const serviceMatch = notes.match(/service\s*name\s*[:=]\s*([A-Za-z ]{2,40})/i)
+  if (serviceMatch) {
+    const raw = serviceMatch[1].trim()
+    const code = KNOWN_SERVICE_CODES.find((c) => new RegExp(`\\b${c}\\b`, 'i').test(raw))
+    service = code || (raw.length <= 20 ? raw : null)
+  }
+  if (!service) {
+    const procMatch = notes.match(/procedure(?:_type)?\s*[:=]\s*([A-Za-z]{2,10})/i)
+    const code = procMatch
+      ? KNOWN_SERVICE_CODES.find((c) => c.toLowerCase() === procMatch[1].trim().toLowerCase())
+      : null
+    service = code || null
+  }
+  if (!service) return null
+
+  const key = normalizeProjectName(String(projectName || '')).toLowerCase()
+  let location: string | null = PROJECT_DEFAULT_LOCATIONS[key] || null
+  if (!location) {
+    const picker = notes.match(/location\s*picker\s*[:=]\s*([^\n|]{2,60})/i)
+    if (picker) location = picker[1].trim()
+  }
+  if (!location) return null
+
+  return `Request your ${service.toUpperCase()} Consultation at ${location}`
+}
+
+
+
 
 // Extract time-of-day preference from intake notes (Premier Vascular)
 function extractTimePreference(notes: string | null | undefined): string | null {
