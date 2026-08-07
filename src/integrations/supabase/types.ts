@@ -3241,6 +3241,7 @@ export type Database = {
           review_started_at: string | null
           self_booked: boolean | null
           service_line: string | null
+          short_notice_cleared_at: string | null
           ticket_created: boolean
           updated_at: string
           workflow_status: string
@@ -3287,6 +3288,7 @@ export type Database = {
           review_started_at?: string | null
           self_booked?: boolean | null
           service_line?: string | null
+          short_notice_cleared_at?: string | null
           ticket_created?: boolean
           updated_at?: string
           workflow_status?: string
@@ -3333,6 +3335,7 @@ export type Database = {
           review_started_at?: string | null
           self_booked?: boolean | null
           service_line?: string | null
+          short_notice_cleared_at?: string | null
           ticket_created?: boolean
           updated_at?: string
           workflow_status?: string

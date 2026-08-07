@@ -81,6 +81,8 @@ interface QACase {
   escalation_owner_user_id: string | null;
   escalated_by_user_id: string | null;
   escalated_at: string | null;
+  /** Set when a reschedule moved the appointment outside the clinic's short-notice window. */
+  short_notice_cleared_at?: string | null;
 
   date_resolved: string | null;
   ticket_created: boolean;
@@ -228,6 +230,7 @@ interface QAGroup {
   primary: QACase;
   children: QACase[];
   displayAlertTypes: AlertType[];
+  shortNoticeCorrected: boolean;
   earliestCreated: string;
   latestActivity: string;
   ticketCase: QACase | null;
@@ -297,7 +300,15 @@ function groupCases(list: QACase[]): QAGroup[] {
     const primary = sorted[0];
     const latest = primary.alert_type;
     const hasOpenShortNotice = sorted.some(
-      (c) => c.alert_type === 'short_notice' && c.workflow_status !== 'completed',
+      (c) =>
+        c.alert_type === 'short_notice' &&
+        c.workflow_status !== 'completed' &&
+        !c.short_notice_cleared_at,
+    );
+    // A short-notice case whose timing was corrected by a reschedule stays open
+    // for audit, but must no longer read as an active short-notice alert.
+    const shortNoticeCorrected = sorted.some(
+      (c) => c.alert_type === 'short_notice' && !!c.short_notice_cleared_at,
     );
     const displayAlertTypes: AlertType[] =
       latest === 'short_notice' || !hasOpenShortNotice
@@ -308,7 +319,7 @@ function groupCases(list: QACase[]): QAGroup[] {
       .sort()[0];
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
-    groups.push({ key, primary, children: sorted, displayAlertTypes, earliestCreated, latestActivity, ticketCase });
+    groups.push({ key, primary, children: sorted, displayAlertTypes, shortNoticeCorrected, earliestCreated, latestActivity, ticketCase });
   }
   groups.sort(
     (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
@@ -1112,9 +1123,20 @@ export default function QAOperationsQueue() {
                       {showCol('service') && <TableCell className="px-2 py-2">{displayService(c.service_line) || '—'}</TableCell>}
                       <TableCell className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
-                          {g.displayAlertTypes.map((t) => (
-                            <Badge key={t} variant={alertVariant(t)} className={cn('text-[10px] px-1.5 py-0', alertBadgeClass(t))}>{ALERT_LABELS[t]}</Badge>
-                          ))}
+                          {g.displayAlertTypes.map((t) =>
+                            t === 'short_notice' && g.shortNoticeCorrected ? (
+                              <Badge
+                                key={t}
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 text-muted-foreground"
+                                title="Rescheduled outside the clinic's short-notice window — still open for audit"
+                              >
+                                Short-Notice (corrected)
+                              </Badge>
+                            ) : (
+                              <Badge key={t} variant={alertVariant(t)} className={cn('text-[10px] px-1.5 py-0', alertBadgeClass(t))}>{ALERT_LABELS[t]}</Badge>
+                            ),
+                          )}
                           {g.children.length > g.displayAlertTypes.length && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0" title="Older alerts moved to history">
                               +{g.children.length - g.displayAlertTypes.length}
@@ -1902,7 +1924,7 @@ function CaseDrawer({
               const pinnedShortNotice =
                 caseData.alert_type !== 'short_notice'
                   ? siblings.find(
-                      (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
+                      (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed' && !s.short_notice_cleared_at,
                     )
                   : undefined;
               return (
@@ -2260,7 +2282,7 @@ function CaseDrawer({
                     const pinnedShortNoticeId =
                       caseData.alert_type !== 'short_notice'
                         ? siblings.find(
-                            (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
+                            (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed' && !s.short_notice_cleared_at,
                           )?.id
                         : undefined;
                     const siblingEntries = siblings
