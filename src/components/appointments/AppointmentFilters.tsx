@@ -394,9 +394,19 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Services</SelectItem>
-              {serviceOptions.map(service => (
-                <SelectItem key={service} value={service}>{service}</SelectItem>
-              ))}
+              {serviceOptions.map(service => {
+                const isActive = activeServiceOptions.includes(service);
+                return (
+                  <SelectItem
+                    key={service}
+                    value={service}
+                    disabled={!isActive}
+                    className={!isActive ? "text-muted-foreground" : undefined}
+                  >
+                    {service}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
 
