@@ -509,6 +509,27 @@ const UserManagement = () => {
     }
   };
 
+  const getRoleLabel = (role: UserRole | string) => {
+    switch (role) {
+      case 'admin':
+        return 'Admin';
+      case 'agent':
+        return 'Agent';
+      case 'va':
+        return 'VA';
+      case 'review_only':
+        return 'Setter';
+      case 'recapture':
+        return 'Recapture Only';
+      case 'qa_specialist':
+        return 'QA Specialist';
+      case 'project_user':
+        return 'Project User';
+      default:
+        return String(role);
+    }
+  };
+
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
       case 'admin':
@@ -527,6 +548,7 @@ const UserManagement = () => {
         return 'outline';
     }
   };
+
 
   if (initialLoading) {
     return (
@@ -605,11 +627,14 @@ const UserManagement = () => {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="agent">Agent</SelectItem>
                           <SelectItem value="va">VA</SelectItem>
-                          <SelectItem value="review_only">Review Queue Only</SelectItem>
-                  <SelectItem value="recapture">Recapture</SelectItem>
+                          <SelectItem value="review_only">Setter</SelectItem>
+                          <SelectItem value="recapture">Recapture Only</SelectItem>
                           <SelectItem value="project_user">Project User</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Setter — access to Review Queue and Recapture.
+                      </p>
                     </div>
                     {newUser.role === 'project_user' && (
                       <div className="space-y-2">
@@ -659,8 +684,8 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
-                  <SelectItem value="review_only">Review Queue Only</SelectItem>
-                  <SelectItem value="recapture">Recapture</SelectItem>
+                  <SelectItem value="review_only">Setter</SelectItem>
+                  <SelectItem value="recapture">Recapture Only</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
@@ -756,7 +781,7 @@ const UserManagement = () => {
                   <TableCell>{user.full_name}</TableCell>
                   <TableCell>
                     <Badge variant={getRoleBadgeVariant(user.role || 'project_user')}>
-                      {user.role || 'project_user'}
+                      {getRoleLabel(user.role || "project_user")}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -869,12 +894,16 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
-                  <SelectItem value="review_only">Review Queue Only</SelectItem>
-                  <SelectItem value="recapture">Recapture</SelectItem>
+                  <SelectItem value="review_only">Setter</SelectItem>
+                  <SelectItem value="recapture">Recapture Only</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Setter — access to Review Queue and Recapture.
+              </p>
             </div>
+
             <div className="flex space-x-2">
               <Button onClick={updateUser} className="flex-1" disabled={updating}>
                 {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
