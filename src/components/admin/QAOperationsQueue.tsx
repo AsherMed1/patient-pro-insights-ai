@@ -81,6 +81,8 @@ interface QACase {
   escalation_owner_user_id: string | null;
   escalated_by_user_id: string | null;
   escalated_at: string | null;
+  /** Set when a reschedule moved the appointment outside the clinic's short-notice window. */
+  short_notice_cleared_at?: string | null;
 
   date_resolved: string | null;
   ticket_created: boolean;
