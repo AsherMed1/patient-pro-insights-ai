@@ -3223,6 +3223,10 @@ export type Database = {
           entered_queue_at: string
           error_category: string | null
           error_source: string | null
+          escalated_at: string | null
+          escalated_by_user_id: string | null
+          escalation_owner_user_id: string | null
+          escalation_status: string | null
           first_entered_at: string
           ghl_contact_id: string | null
           id: string
@@ -3265,6 +3269,10 @@ export type Database = {
           entered_queue_at?: string
           error_category?: string | null
           error_source?: string | null
+          escalated_at?: string | null
+          escalated_by_user_id?: string | null
+          escalation_owner_user_id?: string | null
+          escalation_status?: string | null
           first_entered_at?: string
           ghl_contact_id?: string | null
           id?: string
@@ -3307,6 +3315,10 @@ export type Database = {
           entered_queue_at?: string
           error_category?: string | null
           error_source?: string | null
+          escalated_at?: string | null
+          escalated_by_user_id?: string | null
+          escalation_owner_user_id?: string | null
+          escalation_status?: string | null
           first_entered_at?: string
           ghl_contact_id?: string | null
           id?: string
@@ -3457,34 +3469,43 @@ export type Database = {
       }
       qa_note_mentions: {
         Row: {
+          body: string | null
           case_id: string
           created_at: string
           id: string
+          kind: string
           mentioned_by_name: string | null
           mentioned_by_user_id: string | null
           mentioned_user_id: string
-          note_id: string
+          note_id: string | null
           read_at: string | null
+          title: string | null
         }
         Insert: {
+          body?: string | null
           case_id: string
           created_at?: string
           id?: string
+          kind?: string
           mentioned_by_name?: string | null
           mentioned_by_user_id?: string | null
           mentioned_user_id: string
-          note_id: string
+          note_id?: string | null
           read_at?: string | null
+          title?: string | null
         }
         Update: {
+          body?: string | null
           case_id?: string
           created_at?: string
           id?: string
+          kind?: string
           mentioned_by_name?: string | null
           mentioned_by_user_id?: string | null
           mentioned_user_id?: string
-          note_id?: string
+          note_id?: string | null
           read_at?: string | null
+          title?: string | null
         }
         Relationships: [
           {
