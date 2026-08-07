@@ -2046,32 +2046,83 @@ async function findExistingAppointment(
   // EXCLUDE rows that were declined or dismissed in the Review Queue — those are
   // frozen snapshots. Any subsequent GHL edit should produce a new row so the
   // declined record stays history-accurate and admins get a fresh queue entry.
+  //
+  // IMPORTANT: multiple rows can legitimately share one ghl_appointment_id (declined
+  // snapshots, superseded history). A single-row query FAILS in that situation and the
+  // caller then treats the booking as brand new, inserting yet another duplicate.
+  // Fetch ALL matches, pick the newest usable one, and retire extra active siblings.
   if (ghlAppointmentId && projectName) {
-    const { data } = await supabase
+    const { data: matches } = await supabase
       .from('all_appointments')
       .select('*')
       .eq('ghl_appointment_id', ghlAppointmentId)
       .eq('project_name', projectName)
-      .maybeSingle()
+      .order('created_at', { ascending: false })
 
-    if (data) {
-      const rs = (data.review_status || '').toLowerCase().trim()
-      if (rs === 'declined' || rs === 'dismissed') {
-        console.log(`[${requestId}] Found declined/dismissed snapshot ${data.id} for ghl_appointment_id ${ghlAppointmentId} — superseding and creating a new row`)
+    const rows = (matches || []) as any[]
+
+    if (rows.length > 0) {
+      const isSnapshot = (r: any) => {
+        const rs = (r.review_status || '').toLowerCase().trim()
+        return rs === 'declined' || rs === 'dismissed'
+      }
+
+      const usable = rows.filter(r => !isSnapshot(r) && !r.is_reserved_block)
+
+      if (usable.length === 0) {
+        // Every row for this event ID is a frozen snapshot — supersede them and create fresh.
+        const snapshotIds = rows.filter(isSnapshot).map(r => r.id)
+        console.log(`[${requestId}] Found ${snapshotIds.length} declined/dismissed snapshot(s) for ghl_appointment_id ${ghlAppointmentId} — superseding and creating a new row`)
+        if (snapshotIds.length > 0) {
+          try {
+            await supabase
+              .from('all_appointments')
+              .update({ is_superseded: true })
+              .in('id', snapshotIds)
+          } catch (e) {
+            console.warn(`[${requestId}] Failed to mark declined snapshot(s) superseded:`, e)
+          }
+        }
+        return null
+      }
+
+      // Newest usable row wins: a single GHL event cannot hold two live bookings.
+      const chosen = usable.find(r => r.is_superseded !== true) || usable[0]
+
+      // SELF-HEAL: retire any other active row sharing this event ID.
+      const staleIds = usable
+        .filter(r => r.id !== chosen.id && r.is_superseded !== true)
+        .map(r => r.id)
+
+      if (staleIds.length > 0) {
+        console.log(`[${requestId}] 🧹 Retiring ${staleIds.length} duplicate active row(s) sharing ghl_appointment_id ${ghlAppointmentId}`)
         try {
           await supabase
             .from('all_appointments')
             .update({ is_superseded: true })
-            .eq('id', data.id)
+            .in('id', staleIds)
+
+          const survivingWhen = [chosen.date_of_appointment, chosen.requested_time]
+            .filter(Boolean)
+            .join(' ') || 'unscheduled'
+
+          await supabase.from('appointment_notes').insert(
+            staleIds.map((id: string) => ({
+              appointment_id: id,
+              note_text: `Superseded — duplicate of the same GoHighLevel booking (${ghlAppointmentId}). Active record: ${chosen.id} (${survivingWhen}) — System`,
+              created_by: 'System',
+            }))
+          )
         } catch (e) {
-          console.warn(`[${requestId}] Failed to mark declined snapshot superseded:`, e)
+          console.warn(`[${requestId}] Failed to retire duplicate rows for event ${ghlAppointmentId}:`, e)
         }
-        return null
       }
-      console.log(`[${requestId}] Found by ghl_appointment_id (project-scoped): ${data.id}`)
-      return data
+
+      console.log(`[${requestId}] Found by ghl_appointment_id (project-scoped): ${chosen.id}`)
+      return chosen
     }
   }
+
 
   // PLACEHOLDER PROMOTION: hybrid projects (Davis) can produce an unscheduled placeholder row
   // from a contact-only webhook (ghl_appointment_id NULL, is_unscheduled=true) followed later
