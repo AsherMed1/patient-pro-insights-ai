@@ -76,6 +76,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [serviceOptions, setServiceOptions] = useState<string[]>([]);
+  const [activeServiceOptions, setActiveServiceOptions] = useState<string[]>([]);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   useEffect(() => {
     fetchProjects();
