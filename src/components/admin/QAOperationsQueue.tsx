@@ -862,6 +862,13 @@ export default function QAOperationsQueue() {
               Queue
             </Button>
             <Button
+              variant={view === 'escalations' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setView('escalations')}
+            >
+              Escalations
+            </Button>
+            <Button
               variant={view === 'reports' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setView('reports')}
@@ -874,6 +881,22 @@ export default function QAOperationsQueue() {
 
       {isAdmin() && view === 'reports' ? (
         <QAReports />
+      ) : isAdmin() && view === 'escalations' ? (
+        <QAEscalationWorklist
+          currentUserId={user?.id ?? null}
+          onOpenCase={async (row: any) => {
+            const { data } = await supabase
+              .from('qa_cases' as any)
+              .select('*')
+              .eq('id', row.id)
+              .maybeSingle();
+            if (data) {
+              setView('queue');
+              setSelectedSiblings([]);
+              setSelectedCase(data as any as QACase);
+            }
+          }}
+        />
       ) : (
       <>
       <div className="flex flex-wrap gap-2 items-center">
