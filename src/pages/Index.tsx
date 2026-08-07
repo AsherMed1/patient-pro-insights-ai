@@ -360,7 +360,7 @@ const Index = () => {
               <TabsTrigger value="help-videos">Help Videos</TabsTrigger>
             )}
             </TabsList>
-          </div>
+          </StickyNav>
 
           <TabsContent value="dashboard" className="space-y-6">
             <MasterDatabaseStats />
