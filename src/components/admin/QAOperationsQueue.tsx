@@ -1924,7 +1924,7 @@ function CaseDrawer({
               const pinnedShortNotice =
                 caseData.alert_type !== 'short_notice'
                   ? siblings.find(
-                      (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
+                      (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed' && !s.short_notice_cleared_at,
                     )
                   : undefined;
               return (
@@ -2282,7 +2282,7 @@ function CaseDrawer({
                     const pinnedShortNoticeId =
                       caseData.alert_type !== 'short_notice'
                         ? siblings.find(
-                            (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed',
+                            (s) => s.alert_type === 'short_notice' && s.workflow_status !== 'completed' && !s.short_notice_cleared_at,
                           )?.id
                         : undefined;
                     const siblingEntries = siblings
