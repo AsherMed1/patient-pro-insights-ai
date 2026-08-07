@@ -44,6 +44,16 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const { user } = useAuth();
   const focusNoteId =
     searchParams.get('appointment') === appointmentId ? searchParams.get('note') : null;
+  const focusRef = useRef<HTMLDivElement | null>(null);
+
+  // Deep link from a mention notification: reveal and scroll to the note.
+  useEffect(() => {
+    if (!focusNoteId) return;
+    const t = setTimeout(() => {
+      focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [focusNoteId, notes.length]);
 
   // Sync with external trigger
   useEffect(() => {
@@ -286,7 +296,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                       <p className={`text-sm whitespace-pre-wrap ${
                         isSystemNote ? "text-blue-800 font-medium" : "text-foreground"
                       }`}>
-                        {renderNoteWithMentions(formatEmbeddedTimestamps(note.note_text) as any)}
+                        {renderNoteWithMentions(formatEmbeddedTimestamps(note.note_text))}
                       </p>
                     )}
                   </div>
