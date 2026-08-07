@@ -604,6 +604,7 @@ const UserManagement = () => {
                           <SelectItem value="agent">Agent</SelectItem>
                           <SelectItem value="va">VA</SelectItem>
                           <SelectItem value="review_only">Review Queue Only</SelectItem>
+                  <SelectItem value="recapture">Recapture</SelectItem>
                           <SelectItem value="project_user">Project User</SelectItem>
                         </SelectContent>
                       </Select>
@@ -657,6 +658,7 @@ const UserManagement = () => {
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
                   <SelectItem value="review_only">Review Queue Only</SelectItem>
+                  <SelectItem value="recapture">Recapture</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
@@ -866,6 +868,7 @@ const UserManagement = () => {
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
                   <SelectItem value="review_only">Review Queue Only</SelectItem>
+                  <SelectItem value="recapture">Recapture</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
