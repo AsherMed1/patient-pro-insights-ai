@@ -1142,7 +1142,13 @@ export default function QAOperationsQueue() {
 
 
         <TabsContent value={tab} className="mt-4">
-          <div className="border rounded-lg overflow-x-auto">
+          <div
+            className="border rounded-lg overflow-auto"
+            style={{
+              maxHeight:
+                'calc(100vh - var(--portal-header-h, 0px) - var(--portal-nav-h, 0px) - var(--qa-title-h, 0px) - var(--qa-filters-h, 0px) - 5rem)',
+            }}
+          >
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
