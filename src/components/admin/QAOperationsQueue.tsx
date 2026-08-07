@@ -474,12 +474,14 @@ export default function QAOperationsQueue() {
         r.lead_email = c?.email ?? null;
       }
       setCases(rows);
+      hasLoadedRef.current = true;
     } catch (error: any) {
       console.error('QA cases fetch error:', error);
       toast({ title: 'Failed to load cases', description: error?.message, variant: 'destructive' });
-      setCases([]);
+      if (!background) setCases([]);
     }
     setLoading(false);
+    setRefreshing(false);
   };
 
 
@@ -491,17 +493,93 @@ export default function QAOperationsQueue() {
     fetchCasesRef.current();
   }, [tab === 'completed' || tab === 'all', !!dateFrom, !!dateTo]);
 
+  // Live, row-level updates. We patch the in-memory list from the realtime
+  // payload instead of reloading the entire queue, so the table never unmounts
+  // and scroll position / open drawer stay put.
+  const scopeRef = useRef({ unbounded: false, visibleAlertTypes });
+  scopeRef.current = {
+    unbounded: tab === 'completed' || tab === 'all' || !!dateFrom || !!dateTo,
+    visibleAlertTypes,
+  };
+
   useEffect(() => {
+    const isVisibleRow = (row: any) => {
+      if (!row) return false;
+      if (!scopeRef.current.visibleAlertTypes.includes(row.alert_type)) return false;
+      if (row.workflow_status === 'completed' && !scopeRef.current.unbounded) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 90);
+        if (!row.entered_queue_at || new Date(row.entered_queue_at) < cutoff) return false;
+      }
+      return true;
+    };
+
+    const enrichContact = async (row: any) => {
+      if (!row?.appointment_id) return row;
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('lead_phone_number, lead_email')
+        .eq('id', row.appointment_id)
+        .maybeSingle();
+      return {
+        ...row,
+        lead_phone_number: (data as any)?.lead_phone_number ?? null,
+        lead_email: (data as any)?.lead_email ?? null,
+      };
+    };
+
     const ch = supabase
       .channel('qa-cases-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, () => {
-        fetchCasesRef.current();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'qa_cases' }, async (payload) => {
+        const newRow: any = payload.new;
+        const oldRow: any = payload.old;
+
+        if (payload.eventType === 'DELETE') {
+          setCases((cs) => cs.filter((c) => c.id !== oldRow?.id));
+          return;
+        }
+
+        if (!isVisibleRow(newRow)) {
+          setCases((cs) => cs.filter((c) => c.id !== newRow?.id));
+          return;
+        }
+
+        if (payload.eventType === 'UPDATE') {
+          setCases((cs) => {
+            const exists = cs.some((c) => c.id === newRow.id);
+            if (!exists) return cs;
+            return cs.map((c) =>
+              c.id === newRow.id
+                ? ({
+                    ...c,
+                    ...newRow,
+                    lead_phone_number: c.lead_phone_number,
+                    lead_email: c.lead_email,
+                  } as QACase)
+                : c,
+            );
+          });
+          // Row we didn't have yet (e.g. it just moved into scope) — pull it in.
+          setCases((cs) => cs);
+        }
+
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const enriched = await enrichContact(newRow);
+          setCases((cs) => {
+            const idx = cs.findIndex((c) => c.id === enriched.id);
+            if (idx === -1) return [enriched as QACase, ...cs];
+            const next = [...cs];
+            next[idx] = { ...next[idx], ...enriched } as QACase;
+            return next;
+          });
+        }
       })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
   }, []);
+
 
 
   // Keep the open drawer in sync with realtime refreshes of `cases`
