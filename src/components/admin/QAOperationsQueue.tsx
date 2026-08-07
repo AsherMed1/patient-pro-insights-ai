@@ -1153,7 +1153,7 @@ export default function QAOperationsQueue() {
               <Table className="text-xs w-full">
                 <TableHeader>
                   <TableRow>
-                    <SortableHead column="patient" label="Patient" className="sticky left-0 z-[2] bg-background border-r min-w-[150px]" />
+                    <SortableHead column="patient" label="Patient" className="left-0 z-[4] border-r min-w-[150px]" />
                     <SortableHead column="clinic" label="Clinic" className="min-w-[130px]" />
                     {showCol('service') && <SortableHead column="service" label="Service" className="min-w-[140px]" />}
                     <SortableHead column="alerts" label="Alerts" className="min-w-[110px]" />
