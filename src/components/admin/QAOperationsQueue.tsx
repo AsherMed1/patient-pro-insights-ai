@@ -996,6 +996,7 @@ export default function QAOperationsQueue() {
       <>
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
       <div
+        ref={filtersRef}
         style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px) + var(--qa-title-h, 0px))' }}
         className="sticky z-20 -mx-4 max-h-[45vh] space-y-3 overflow-y-auto border-b bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:px-6"
       >
