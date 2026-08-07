@@ -2253,12 +2253,20 @@ function CaseDrawer({
                         ts: s.last_alert_activity_at || s.entered_queue_at,
                         sibling: s,
                       }));
-                    const activityEntries = activity.map((a) => ({
-                      kind: 'activity' as const,
-                      id: a.id,
-                      ts: a.created_at,
-                      activity: a,
-                    }));
+                    // Ticket traffic lives in the ControlHub ticket panel — keep it out of Activity
+                    const activityEntries = activity
+                      .filter((a) => {
+                        if (a.activity_type === 'ticket_update' || a.activity_type === 'ticket_resolved') return false;
+                        if (a.activity_type === 'mention' && (a.metadata as any)?.source === 'controlhub') return false;
+                        return true;
+                      })
+                      .map((a) => ({
+                        kind: 'activity' as const,
+                        id: a.id,
+                        ts: a.created_at,
+                        activity: a,
+                      }));
+
                     const merged = [...activityEntries, ...siblingEntries].sort(
                       (x, y) => new Date(x.ts).getTime() - new Date(y.ts).getTime(),
                     );
