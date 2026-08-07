@@ -10,6 +10,7 @@ import { useRole } from "@/hooks/useRole";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import MentionsBell from "@/components/notifications/MentionsBell";
 import PortalHeader from "@/components/layout/PortalHeader";
+import StickyNav from "@/components/layout/StickyNav";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AllCallsManager from "@/components/AllCallsManager";
@@ -189,6 +190,7 @@ const Index = () => {
         <div className="max-w-7xl mx-auto space-y-4">
           <PortalHeader subtitle="Setter Worklist" email={user?.email} role={role} onSignOut={handleSignOut} />
           <Tabs defaultValue="review-queue" className="w-full">
+            <StickyNav>
             <TabsList>
               <TabsTrigger value="review-queue">
                 Review Queue
@@ -198,6 +200,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger value="recapture">Recapture</TabsTrigger>
             </TabsList>
+            </StickyNav>
             <TabsContent value="review-queue" className="space-y-6">
               <ReviewQueue />
             </TabsContent>
@@ -306,7 +309,7 @@ const Index = () => {
         <PortalHeader subtitle="Admin Dashboard" email={user?.email} role={role} onSignOut={handleSignOut} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="overflow-x-auto -mx-4 px-4 md:-mx-6 md:px-6">
+          <StickyNav>
             <TabsList className="inline-flex w-auto min-w-full whitespace-nowrap gap-1 h-auto p-1">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
