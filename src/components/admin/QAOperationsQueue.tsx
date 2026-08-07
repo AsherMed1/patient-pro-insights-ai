@@ -230,6 +230,7 @@ interface QAGroup {
   primary: QACase;
   children: QACase[];
   displayAlertTypes: AlertType[];
+  shortNoticeCorrected: boolean;
   earliestCreated: string;
   latestActivity: string;
   ticketCase: QACase | null;
