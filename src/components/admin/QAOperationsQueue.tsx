@@ -1144,6 +1144,8 @@ export default function QAOperationsQueue() {
         onErrorCategoriesRefresh={refreshErrorCategories}
         onClose={() => { setSelectedCase(null); setSelectedSiblings([]); }}
         onStatusChange={updateStatus}
+        onEscalationStatusChange={updateEscalationStatus}
+        actorName={actorName}
         onRefresh={() => { fetchCases(); }}
       />
       </>
@@ -1202,6 +1204,8 @@ function CaseDrawer({
   onErrorCategoriesRefresh,
   onClose,
   onStatusChange,
+  onEscalationStatusChange,
+  actorName,
   onRefresh,
 }: {
   caseData: QACase | null;
@@ -1215,6 +1219,8 @@ function CaseDrawer({
   onErrorCategoriesRefresh: () => Promise<void>;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
+  onEscalationStatusChange: (id: string, next: string) => Promise<void>;
+  actorName: string;
   onRefresh: () => void;
 }) {
 
