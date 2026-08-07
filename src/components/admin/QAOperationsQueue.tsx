@@ -1192,7 +1192,7 @@ export default function QAOperationsQueue() {
         onErrorSourcesRefresh={refreshErrorSources}
         errorCategories={errorCategories}
         onErrorCategoriesRefresh={refreshErrorCategories}
-        onClose={() => { setSelectedCase(null); setSelectedSiblings([]); }}
+        onClose={() => { setSelectedCase(null); setSelectedSiblings([]); setFocusNoteId(null); handledDeepLinkRef.current = null; }}
         onStatusChange={updateStatus}
         onEscalationStatusChange={updateEscalationStatus}
         actorName={actorName}
