@@ -592,9 +592,9 @@ export default function QAOperationsQueue() {
     projectFilter.length > 0 ||
     alertFilter !== 'all' ||
     assignmentFilter !== 'all' ||
-    !!dateFrom || !!dateTo ||
-    tab !== 'new'
-  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo, tab]);
+    !!dateFrom || !!dateTo
+  ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
+
 
   // Apply row-level filters that are patient-agnostic (project, assignment, date,
   // reserved-block, search). Alert Type is intentionally NOT applied here —
@@ -722,9 +722,22 @@ export default function QAOperationsQueue() {
 
 
 
-  // When a search/filter is active and the current bucket has no matches, auto-switch
-  // to the first bucket that does. Only reacts to filter changes, not manual tab clicks.
+  // When the search/filter inputs change and the current bucket has no matches,
+  // auto-switch to the first bucket that does. Keyed off a signature of the filter
+  // inputs only — a manual tab click never triggers a redirect, so an empty bucket
+  // the user deliberately opened stays open.
+  const filterSigRef = useRef<string | null>(null);
+  const filterSig = JSON.stringify([
+    search.trim(),
+    [...projectFilter].sort(),
+    alertFilter,
+    assignmentFilter,
+    dateFrom ?? null,
+    dateTo ?? null,
+  ]);
   useEffect(() => {
+    if (filterSigRef.current === filterSig) return;
+    filterSigRef.current = filterSig;
     if (!hasActiveFilter) return;
     if (tab === 'all') return;
     if (bucketCounts[tab] > 0) return;
@@ -732,7 +745,8 @@ export default function QAOperationsQueue() {
     const next = order.find((s) => bucketCounts[s] > 0);
     if (next && next !== tab) setTab(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActiveFilter, bucketCounts]);
+  }, [filterSig, bucketCounts]);
+
 
 
   const updateStatus = async (id: string, next: WorkflowStatus) => {
@@ -1121,7 +1135,7 @@ export default function QAOperationsQueue() {
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}
               <Badge
-                variant={hasActiveFilter && bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
+                variant={bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
                 className="ml-2"
               >
                 {bucketCounts[t.value] ?? 0}
