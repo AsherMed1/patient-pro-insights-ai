@@ -299,7 +299,15 @@ function groupCases(list: QACase[]): QAGroup[] {
     const primary = sorted[0];
     const latest = primary.alert_type;
     const hasOpenShortNotice = sorted.some(
-      (c) => c.alert_type === 'short_notice' && c.workflow_status !== 'completed',
+      (c) =>
+        c.alert_type === 'short_notice' &&
+        c.workflow_status !== 'completed' &&
+        !c.short_notice_cleared_at,
+    );
+    // A short-notice case whose timing was corrected by a reschedule stays open
+    // for audit, but must no longer read as an active short-notice alert.
+    const shortNoticeCorrected = sorted.some(
+      (c) => c.alert_type === 'short_notice' && !!c.short_notice_cleared_at,
     );
     const displayAlertTypes: AlertType[] =
       latest === 'short_notice' || !hasOpenShortNotice
