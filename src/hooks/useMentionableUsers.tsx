@@ -47,25 +47,34 @@ const sortByName = (list: MentionableUser[]) =>
 
 /** Direct fallback used when the security-definer RPC returns 0-1 people. */
 const loadFallback = async (): Promise<MentionableUser[]> => {
-  const { data, error } = await supabase
+  const { data: roleRows, error } = await supabase
     .from('user_roles')
-    .select('user_id, role, profiles:profiles!user_roles_user_id_fkey(id, full_name, email)')
+    .select('user_id, role')
     .in('role', QA_ROLES as any);
 
-  if (error) {
-    console.warn('[mentions] fallback teammate query failed:', error.message);
+  if (error || !roleRows?.length) {
+    if (error) console.warn('[mentions] fallback role query failed:', error.message);
     return [];
   }
 
-  const seen = new Set<string>();
-  const people: MentionableUser[] = [];
-  for (const row of (data as any[]) || []) {
-    const p = row.profiles;
-    if (!p?.id || seen.has(p.id)) continue;
-    seen.add(p.id);
-    people.push(toUser({ ...p, role: row.role }));
+  const roleByUser = new Map<string, string>();
+  for (const r of roleRows as any[]) {
+    if (!roleByUser.has(r.user_id)) roleByUser.set(r.user_id, r.role);
   }
-  return sortByName(people);
+
+  const { data: profs, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', [...roleByUser.keys()]);
+
+  if (pErr) {
+    console.warn('[mentions] fallback profile query failed:', pErr.message);
+    return [];
+  }
+
+  return sortByName(
+    ((profs as any[]) || []).map((p) => toUser({ ...p, role: roleByUser.get(p.id) })),
+  );
 };
 
 const withGroups = (people: MentionableUser[]): MentionableUser[] => {
