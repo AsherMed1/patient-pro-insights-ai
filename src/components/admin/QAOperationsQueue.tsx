@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useStickyHeight } from '@/hooks/useStickyHeight';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -913,6 +914,9 @@ export default function QAOperationsQueue() {
     setDateTo(undefined);
   };
 
+  // Height of the sticky title row so the filter/tab strip can stack under it.
+  const titleRef = useStickyHeight<HTMLDivElement>('--qa-title-h');
+
   const clearAllFilters = () => {
     setSearch('');
     setProjectFilter([]);
@@ -925,7 +929,11 @@ export default function QAOperationsQueue() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div
+        ref={titleRef}
+        style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px))' }}
+        className="sticky z-20 -mx-4 flex items-center justify-between border-b bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:px-6"
+      >
         <div>
           <h2 className="text-xl font-semibold">QA Operations Queue</h2>
           <p className="text-sm text-muted-foreground">
@@ -979,6 +987,11 @@ export default function QAOperationsQueue() {
         />
       ) : (
       <>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      <div
+        style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px) + var(--qa-title-h, 0px))' }}
+        className="sticky z-10 -mx-4 max-h-[45vh] space-y-3 overflow-y-auto border-b bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:px-6"
+      >
       <div className="flex flex-wrap gap-2 items-center">
 
         <Input
@@ -1096,7 +1109,6 @@ export default function QAOperationsQueue() {
         </DropdownMenu>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
         <TabsList>
           {STATUS_TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
@@ -1110,6 +1122,7 @@ export default function QAOperationsQueue() {
             </TabsTrigger>
           ))}
         </TabsList>
+      </div>
 
         {hiddenCompletedCount > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
