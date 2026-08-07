@@ -170,7 +170,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
 
-const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to Tech', 'Escalated to AM', 'Escalated to Gloria', 'Other'];
+const RESOLUTION_TYPES = ESCALATION_TYPES;
 
 const VA_ASSIGNEES = [
   'Ivy Simeon',
@@ -1879,7 +1879,7 @@ function CaseDrawer({
                     />
                   </div>
                   <div className="min-w-0">
-                    <Label className="text-xs">Resolution Type</Label>
+                    <Label className="text-xs">Escalation Type</Label>
                     <Select
                       value={audit.resolution_type ?? ''}
                       onValueChange={(v) => setAudit((a) => ({ ...a, resolution_type: v }))}
