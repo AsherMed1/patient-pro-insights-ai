@@ -38,6 +38,10 @@ import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
 
+// Column headers pin to the top of the table's own scroll container, which
+// itself sits below the frozen portal header, nav, title row and filter strip.
+const STICKY_HEAD_STYLE: React.CSSProperties = { top: 0 };
+
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
 type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
 
@@ -694,7 +698,7 @@ export default function QAOperationsQueue() {
   };
 
   const SortableHead = ({ column, label, className }: { column: SortKey; label: string; className?: string }) => (
-    <TableHead className={cn('px-2 py-2 align-bottom', className)}>
+    <TableHead style={STICKY_HEAD_STYLE} className={cn('sticky z-[3] bg-background border-b px-2 py-2 align-bottom', className)}>
       <button
         type="button"
         onClick={() => toggleSort(column)}
@@ -916,6 +920,8 @@ export default function QAOperationsQueue() {
 
   // Height of the sticky title row so the filter/tab strip can stack under it.
   const titleRef = useStickyHeight<HTMLDivElement>('--qa-title-h');
+  // Height of the filter/status-tab strip so the table headers can stack under it.
+  const filtersRef = useStickyHeight<HTMLDivElement>('--qa-filters-h');
 
   const clearAllFilters = () => {
     setSearch('');
@@ -989,6 +995,7 @@ export default function QAOperationsQueue() {
       <>
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
       <div
+        ref={filtersRef}
         style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px) + var(--qa-title-h, 0px))' }}
         className="sticky z-20 -mx-4 max-h-[45vh] space-y-3 overflow-y-auto border-b bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:px-6"
       >
@@ -1134,7 +1141,13 @@ export default function QAOperationsQueue() {
 
 
         <TabsContent value={tab} className="mt-4">
-          <div className="border rounded-lg overflow-x-auto">
+          <div
+            className="border rounded-lg overflow-auto"
+            style={{
+              maxHeight:
+                'calc(100vh - var(--portal-header-h, 0px) - var(--portal-nav-h, 0px) - var(--qa-title-h, 0px) - var(--qa-filters-h, 0px) - 5rem)',
+            }}
+          >
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1145,7 +1158,7 @@ export default function QAOperationsQueue() {
               <Table className="text-xs w-full">
                 <TableHeader>
                   <TableRow>
-                    <SortableHead column="patient" label="Patient" className="sticky left-0 z-[2] bg-background border-r min-w-[150px]" />
+                    <SortableHead column="patient" label="Patient" className="left-0 z-[4] border-r min-w-[150px]" />
                     <SortableHead column="clinic" label="Clinic" className="min-w-[130px]" />
                     {showCol('service') && <SortableHead column="service" label="Service" className="min-w-[140px]" />}
                     <SortableHead column="alerts" label="Alerts" className="min-w-[110px]" />
@@ -1157,7 +1170,7 @@ export default function QAOperationsQueue() {
                     {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
                     {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
                     {showCol('ticket') && <SortableHead column="ticket" label="Ticket" className="w-[90px]" />}
-                    <TableHead className="sticky right-0 z-[2] bg-background border-l w-[70px] px-2" />
+                    <TableHead style={STICKY_HEAD_STYLE} className="sticky right-0 z-[4] bg-background border-b border-l w-[70px] px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
