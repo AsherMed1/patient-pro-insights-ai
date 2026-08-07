@@ -921,6 +921,8 @@ export default function QAOperationsQueue() {
 
   // Height of the sticky title row so the filter/tab strip can stack under it.
   const titleRef = useStickyHeight<HTMLDivElement>('--qa-title-h');
+  // Height of the filter/status-tab strip so the table headers can stack under it.
+  const filtersRef = useStickyHeight<HTMLDivElement>('--qa-filters-h');
 
   const clearAllFilters = () => {
     setSearch('');
