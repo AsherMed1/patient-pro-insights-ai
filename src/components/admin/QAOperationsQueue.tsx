@@ -23,6 +23,12 @@ import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clo
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
+import QAEscalationWorklist from '@/components/admin/QAEscalationWorklist';
+import {
+  ESCALATION_STATUSES, ESCALATION_TYPES, escalationStatusClass,
+  isEscalationType, resolveFixedOwnerId, notifyQAUsers,
+} from '@/lib/qaEscalation';
+
 
 import { useSearchParams } from 'react-router-dom';
 import { renderWithLinks } from '@/lib/linkify';
