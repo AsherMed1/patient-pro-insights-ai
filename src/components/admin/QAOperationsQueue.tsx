@@ -694,7 +694,7 @@ export default function QAOperationsQueue() {
   };
 
   const SortableHead = ({ column, label, className }: { column: SortKey; label: string; className?: string }) => (
-    <TableHead className={cn('px-2 py-2 align-bottom', className)}>
+    <TableHead style={STICKY_HEAD_STYLE} className={cn('sticky z-[3] bg-background border-b px-2 py-2 align-bottom', className)}>
       <button
         type="button"
         onClick={() => toggleSort(column)}
