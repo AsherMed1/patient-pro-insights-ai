@@ -1165,7 +1165,7 @@ export default function QAOperationsQueue() {
                     {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
                     {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
                     {showCol('ticket') && <SortableHead column="ticket" label="Ticket" className="w-[90px]" />}
-                    <TableHead className="sticky right-0 z-[2] bg-background border-l w-[70px] px-2" />
+                    <TableHead style={STICKY_HEAD_STYLE} className="sticky right-0 z-[4] bg-background border-b border-l w-[70px] px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
