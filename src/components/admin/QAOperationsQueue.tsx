@@ -1135,7 +1135,7 @@ export default function QAOperationsQueue() {
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}
               <Badge
-                variant={hasActiveFilter && bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
+                variant={bucketCounts[t.value] > 0 ? 'default' : 'secondary'}
                 className="ml-2"
               >
                 {bucketCounts[t.value] ?? 0}
