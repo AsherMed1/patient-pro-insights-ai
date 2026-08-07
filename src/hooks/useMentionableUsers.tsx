@@ -10,8 +10,8 @@ export interface MentionableUser {
   members?: MentionableUser[];
 }
 
-// Roles that can reach QA Operations.
-const QA_ROLES = ['admin', 'agent', 'qa_specialist', 'va'];
+// Roles that can reach QA Operations (enforced inside get_mentionable_users()).
+
 
 /** Team aliases: tagging @AM / @Tech notifies everyone in the group. */
 export const MENTION_GROUPS: Record<string, string[]> = {
