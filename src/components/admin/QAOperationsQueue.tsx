@@ -409,8 +409,14 @@ export default function QAOperationsQueue() {
     return out;
   };
 
-  const fetchCases = async () => {
-    setLoading(true);
+  const hasLoadedRef = useRef(false);
+
+  // `background: true` keeps the table on screen (no full-page spinner) while a
+  // fresh pull runs — only the very first load blanks the view.
+  const fetchCases = async (opts?: { background?: boolean }) => {
+    const background = opts?.background ?? hasLoadedRef.current;
+    if (background) setRefreshing(true);
+    else setLoading(true);
     try {
       const openRows = await fetchAllPages(() =>
         supabase
