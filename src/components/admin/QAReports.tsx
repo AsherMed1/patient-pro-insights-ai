@@ -695,6 +695,73 @@ export default function QAReports() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Escalations</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {[
+                    { label: 'Escalated cases', value: String(escalations.length) },
+                    { label: 'Still open', value: String(openEscalations.length) },
+                    { label: 'Avg resolution time', value: humanizeHours(avgEscalationHours) },
+                    {
+                      label: 'Avg outstanding age',
+                      value: avgOutstandingDays === null ? '—' : `${avgOutstandingDays.toFixed(1)}d`,
+                    },
+                  ].map((m) => (
+                    <div key={m.label} className="rounded-lg border p-3">
+                      <div className="text-xs text-muted-foreground">{m.label}</div>
+                      <div className="text-xl font-semibold">{m.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Escalation status</TableHead>
+                          <TableHead className="text-right">Count</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {byEscalationStatus.map((c) => (
+                          <TableRow key={c.key}>
+                            <TableCell className="font-medium">{c.key}</TableCell>
+                            <TableCell className="text-right">{c.count}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!byEscalationStatus.length && (
+                          <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Assigned owner</TableHead>
+                          <TableHead className="text-right">Count</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {byEscalationOwner.map((c) => (
+                          <TableRow key={c.key}>
+                            <TableCell className="font-medium">{c.key}</TableCell>
+                            <TableCell className="text-right">{c.count}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!byEscalationOwner.length && (
+                          <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </>
       )}
