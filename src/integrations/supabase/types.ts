@@ -4836,6 +4836,15 @@ export type Database = {
           leads_count: number
         }[]
       }
+      get_mentionable_users: {
+        Args: never
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+          role: string
+        }[]
+      }
       get_project_call_summary: {
         Args: { p_date_from?: string; p_date_to?: string }
         Returns: {
