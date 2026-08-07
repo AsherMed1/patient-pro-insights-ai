@@ -494,35 +494,47 @@ export default function QAOperationsQueue() {
 
   useEffect(() => {
     const caseId = searchParams.get('qaCase');
-    if (!caseId || handledDeepLinkRef.current === caseId) return;
-    handledDeepLinkRef.current = caseId;
+    if (!caseId) return;
     const noteId = searchParams.get('note');
+    const nonce = searchParams.get('n');
+    const key = `${caseId}:${noteId || ''}:${nonce || ''}`;
+    if (handledDeepLinkRef.current === key) return;
+    handledDeepLinkRef.current = key;
     setFocusNoteId(noteId);
     setView('queue');
     (async () => {
       const existing = cases.find((c) => c.id === caseId);
-      if (existing) {
-        setSelectedCase(existing);
-        setSelectedSiblings([]);
-      } else {
+      let target: QACase | null = (existing as any) || null;
+      if (!target) {
         const { data } = await supabase
           .from('qa_cases' as any)
           .select('*')
           .eq('id', caseId)
           .maybeSingle();
-        if (data) {
-          setSelectedCase(data as any as QACase);
-          setSelectedSiblings([]);
-        } else {
-          toast({ title: 'QA record not found', variant: 'destructive' });
-        }
+        target = data ? (data as any as QACase) : null;
+      }
+      if (target) {
+        // Make sure the record isn't hidden behind the current filters/tab
+        setSearch('');
+        setProjectFilter([]);
+        setAlertFilter('all');
+        setAssignmentFilter('all');
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        setTab('all');
+        setSelectedCase(target);
+        setSelectedSiblings([]);
+      } else {
+        toast({ title: 'QA record not found', variant: 'destructive' });
       }
       const next = new URLSearchParams(searchParams);
       next.delete('qaCase');
       next.delete('note');
+      next.delete('n');
       setSearchParams(next, { replace: true });
     })();
   }, [searchParams, cases, setSearchParams]);
+
 
 
 
