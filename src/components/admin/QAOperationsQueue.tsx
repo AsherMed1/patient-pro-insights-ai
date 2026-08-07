@@ -357,6 +357,7 @@ export default function QAOperationsQueue() {
 
   const [cases, setCases] = useState<QACase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
   const [alertFilter, setAlertFilter] = useState<string>('all');
