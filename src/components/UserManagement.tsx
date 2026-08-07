@@ -627,9 +627,15 @@ const UserManagement = () => {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="agent">Agent</SelectItem>
                           <SelectItem value="va">VA</SelectItem>
-                          <SelectItem value="review_only">Review Queue Only</SelectItem>
-                  <SelectItem value="recapture">Recapture</SelectItem>
+                          <SelectItem value="review_only">Setter</SelectItem>
+                          <SelectItem value="recapture">Recapture Only</SelectItem>
                           <SelectItem value="project_user">Project User</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Setter — access to Review Queue and Recapture.
+                      </p>
+
                         </SelectContent>
                       </Select>
                     </div>
