@@ -852,22 +852,22 @@ export default function QAOperationsQueue() {
             Centralized workspace for reviewing appointment quality alerts and auditing confirmed appointments.
           </p>
         </div>
-        {isAdmin() && (
-          <div className="flex gap-2">
-            <Button
-              variant={view === 'queue' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setView('queue')}
-            >
-              Queue
-            </Button>
-            <Button
-              variant={view === 'escalations' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setView('escalations')}
-            >
-              Escalations
-            </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={view === 'queue' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('queue')}
+          >
+            Queue
+          </Button>
+          <Button
+            variant={view === 'escalations' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('escalations')}
+          >
+            Escalations
+          </Button>
+          {isAdmin() && (
             <Button
               variant={view === 'reports' ? 'default' : 'outline'}
               size="sm"
@@ -875,13 +875,13 @@ export default function QAOperationsQueue() {
             >
               <BarChart3 className="h-3 w-3 mr-1" /> Reports
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {isAdmin() && view === 'reports' ? (
         <QAReports />
-      ) : isAdmin() && view === 'escalations' ? (
+      ) : view === 'escalations' ? (
         <QAEscalationWorklist
           currentUserId={user?.id ?? null}
           onOpenCase={async (row: any) => {
