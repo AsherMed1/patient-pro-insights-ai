@@ -395,8 +395,9 @@ const UserManagement = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete user');
+        throw new Error(result.details || result.error || 'Failed to delete user');
       }
+
 
       toast({
         title: "Success",
