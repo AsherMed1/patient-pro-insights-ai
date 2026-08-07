@@ -46,6 +46,13 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
     searchParams.get('appointment') === appointmentId ? searchParams.get('note') : null;
   const focusRef = useRef<HTMLDivElement | null>(null);
 
+  // Sync with external trigger
+  useEffect(() => {
+    if (externalShowForm && !showAddForm) {
+      setShowAddForm(true);
+    }
+  }, [externalShowForm]);
+  const { notes, loading, submitting, addNote, updateNote, deleteNote } = useAppointmentNotes(appointmentId);
   // Deep link from a mention notification: reveal and scroll to the note.
   useEffect(() => {
     if (!focusNoteId) return;
@@ -55,13 +62,6 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
     return () => clearTimeout(t);
   }, [focusNoteId, notes.length]);
 
-  // Sync with external trigger
-  useEffect(() => {
-    if (externalShowForm && !showAddForm) {
-      setShowAddForm(true);
-    }
-  }, [externalShowForm]);
-  const { notes, loading, submitting, addNote, updateNote, deleteNote } = useAppointmentNotes(appointmentId);
   const { userName } = useUserAttribution();
   const { canEditNotes, isAdmin } = useRole();
   const canModify = canEditNotes();
