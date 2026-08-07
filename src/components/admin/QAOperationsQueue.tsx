@@ -1107,7 +1107,22 @@ export default function QAOperationsQueue() {
                       {showCol('self_booked') && <TableCell className="px-2 py-2">{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>}
                       {showCol('error') && <TableCell className="px-2 py-2">{c.error_category || '—'}</TableCell>}
                       {showCol('error_source') && <TableCell className="px-2 py-2">{c.error_source || '—'}</TableCell>}
-                      {showCol('resolution') && <TableCell className="px-2 py-2">{c.resolution_type || '—'}</TableCell>}
+                      {showCol('resolution') && (
+                        <TableCell className="px-2 py-2">
+                          <div className="flex flex-col gap-1">
+                            <span>{c.resolution_type || '—'}</span>
+                            {c.escalation_status && (
+                              <Badge
+                                variant="outline"
+                                className={cn('w-fit text-[10px]', escalationStatusClass(c.escalation_status))}
+                              >
+                                {c.escalation_status}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+
                       {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
