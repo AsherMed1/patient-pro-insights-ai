@@ -92,7 +92,7 @@ export default function MentionsBell() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <span className="text-sm font-semibold">Mentions</span>
+          <span className="text-sm font-semibold">Notifications</span>
           {unreadCount > 0 && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => markAllRead()}>
               <Check className="mr-1 h-3 w-3" /> Mark all read
@@ -105,10 +105,10 @@ export default function MentionsBell() {
             <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
           <TabsContent value="unread" className="mt-0">
-            {renderList(unread, 'No unread mentions.')}
+            {renderList(unread, 'No unread notifications.')}
           </TabsContent>
           <TabsContent value="all" className="mt-0">
-            {renderList(mentions, 'No mentions yet.')}
+            {renderList(mentions, 'No notifications yet.')}
           </TabsContent>
         </Tabs>
       </PopoverContent>
