@@ -1,7 +1,7 @@
-# Add a "Recapture Only" role
+# Add a "Recapture" role
 
 ## Goal
-Give User Management a new role option, **Recapture Only**, for setters who should work cancelled and no-show appointments but not the Review Queue. The existing **Review Queue Only** role keeps both Review Queue and Recapture, unchanged.
+Give User Management a new role option, **Recapture**, for setters who should work cancelled and no-show appointments but not the Review Queue. The existing **Review Queue Only** role keeps both Review Queue and Recapture, unchanged.
 
 ## What changes
 
@@ -9,15 +9,15 @@ Give User Management a new role option, **Recapture Only**, for setters who shou
    - Add `recapture_only` to the app role list in the database.
 
 2. **Access rules**
-   - Recapture-only users can view and update recapture cases and log outreach attempts, scoped to the projects assigned to them (same project scoping the setter role already uses).
+   - Recapture-role users can view and update recapture cases and log outreach attempts, scoped to the projects assigned to them (same project scoping the setter role already uses).
    - They can read the appointment records those recapture cases point to, plus read/add appointment notes, so outreach context and logging work.
    - They get no Review Queue access, no approve/decline rights, no admin surfaces.
 
 3. **User Management dropdown**
-   - Add "Recapture Only" to the three role selects (add user, edit user, inline role change) and to the role badge/label mapping.
+   - Add "Recapture" to the three role selects (add user, edit user, inline role change) and to the role badge/label mapping.
 
 4. **Portal layout**
-   - Recapture-only users land on a stripped page like the setter view, but with just the Recapture Worklist (no Review Queue tab, no pending-review count fetch).
+   - Recapture-role users land on a stripped page like the setter view, but with just the Recapture Worklist (no Review Queue tab, no pending-review count fetch).
    - Recapture components treat this role the same as a setter for project filtering and permitted actions.
 
 ## Technical notes
