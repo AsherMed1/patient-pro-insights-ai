@@ -194,6 +194,12 @@ const TECH_ASSIGNEES = [
   'Mohsin',
 ];
 
+/** Never surface the literal placeholder "Unknown" as a service line. */
+const displayService = (s: string | null | undefined): string =>
+  !s || s.trim().toLowerCase() === 'unknown' ? '' : s;
+
+
+
 const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
   if (t === 'short_notice') return 'default';
