@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
     if (ticketId) {
       const { data } = await supabase
         .from('qa_cases')
-        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved')
+        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved, escalation_owner_user_id, escalated_by_user_id, patient_name, project_name, escalated_at')
         .eq('controlhub_ticket_id', ticketId)
         .maybeSingle();
       qaCase = data;
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
     if (!qaCase && externalCaseId) {
       const { data } = await supabase
         .from('qa_cases')
-        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved')
+        .select('id, workflow_status, resolution_type, controlhub_ticket_id, date_resolved, escalation_owner_user_id, escalated_by_user_id, patient_name, project_name, escalated_at')
         .eq('id', externalCaseId)
         .maybeSingle();
       qaCase = data;
@@ -291,6 +291,30 @@ Deno.serve(async (req) => {
         occurred_at: occurredAt,
       },
     });
+
+    // --- Notify the escalation owner / escalator about ticket activity
+    if (qaCase.escalated_at) {
+      const targets = [...new Set(
+        [qaCase.escalation_owner_user_id, qaCase.escalated_by_user_id].filter(Boolean),
+      )] as string[];
+      if (targets.length > 0) {
+        const { error: notifyErr } = await supabase.from('qa_note_mentions').insert(
+          targets.map((uid) => ({
+            case_id: qaCase.id,
+            note_id: null,
+            kind: 'ticket_update',
+            title: isResolved
+              ? `Ticket ${effectiveTicketId} resolved`
+              : `Ticket ${effectiveTicketId} updated`,
+            body: `${qaCase.patient_name || 'Case'}${qaCase.project_name ? ` • ${qaCase.project_name}` : ''} — ${summary}`.slice(0, 1000),
+            mentioned_user_id: uid,
+            mentioned_by_user_id: null,
+            mentioned_by_name: authorName || 'Control Hub',
+          })),
+        );
+        if (notifyErr) console.error('Failed to notify escalation owner:', notifyErr.message);
+      }
+    }
 
     // --- @mentions inside Control Hub comments -> QA note + in-app notification
     let mentionedCount = 0;

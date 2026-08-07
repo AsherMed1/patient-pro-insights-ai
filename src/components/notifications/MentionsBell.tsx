@@ -28,7 +28,18 @@ export default function MentionsBell() {
   const openMention = async (m: QAMention) => {
     setOpen(false);
     if (!m.read_at) await markRead(m.id);
-    navigate(`/?tab=qa-queue&qaCase=${m.case_id}&note=${m.note_id}`);
+    const noteParam = m.note_id ? `&note=${m.note_id}` : '';
+    navigate(`/?tab=qa-queue&qaCase=${m.case_id}${noteParam}`);
+  };
+
+  const headline = (m: QAMention) => {
+    if (m.title) return m.title;
+    return `${m.mentioned_by_name || 'Someone'} mentioned you`;
+  };
+
+  const detail = (m: QAMention) => {
+    if (m.kind === 'mention' || m.note) return stripMentionTokens(m.note || '');
+    return m.body || '';
   };
 
   const renderList = (list: QAMention[], emptyText: string) => (
@@ -45,9 +56,7 @@ export default function MentionsBell() {
         >
           <div className="flex w-full items-center gap-2">
             {!m.read_at && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-            <span className="truncate text-sm font-medium">
-              {m.mentioned_by_name || 'Someone'} mentioned you
-            </span>
+            <span className="truncate text-sm font-medium">{headline(m)}</span>
             <span className="ml-auto shrink-0 text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
             </span>
@@ -57,13 +66,14 @@ export default function MentionsBell() {
             {m.project_name ? ` • ${m.project_name}` : ''}
             {m.alert_type ? ` • ${ALERT_LABELS[m.alert_type] || m.alert_type}` : ''}
           </div>
-          <div className="line-clamp-2 text-xs text-foreground/80">
-            {stripMentionTokens(m.note || '')}
-          </div>
+          {detail(m) && (
+            <div className="line-clamp-2 text-xs text-foreground/80">{detail(m)}</div>
+          )}
         </button>
       ))}
     </div>
   );
+
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -82,7 +92,7 @@ export default function MentionsBell() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <span className="text-sm font-semibold">Mentions</span>
+          <span className="text-sm font-semibold">Notifications</span>
           {unreadCount > 0 && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => markAllRead()}>
               <Check className="mr-1 h-3 w-3" /> Mark all read
@@ -95,10 +105,10 @@ export default function MentionsBell() {
             <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
           <TabsContent value="unread" className="mt-0">
-            {renderList(unread, 'No unread mentions.')}
+            {renderList(unread, 'No unread notifications.')}
           </TabsContent>
           <TabsContent value="all" className="mt-0">
-            {renderList(mentions, 'No mentions yet.')}
+            {renderList(mentions, 'No notifications yet.')}
           </TabsContent>
         </Tabs>
       </PopoverContent>

@@ -23,6 +23,12 @@ import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clo
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
+import QAEscalationWorklist from '@/components/admin/QAEscalationWorklist';
+import {
+  ESCALATION_STATUSES, ESCALATION_TYPES, escalationStatusClass,
+  isEscalationType, resolveFixedOwnerId, notifyQAUsers,
+} from '@/lib/qaEscalation';
+
 
 import { useSearchParams } from 'react-router-dom';
 import { renderWithLinks } from '@/lib/linkify';
@@ -71,6 +77,11 @@ interface QACase {
   error_source: string | null;
   caught_before_clinic: boolean | null;
   resolution_type: string | null;
+  escalation_status: string | null;
+  escalation_owner_user_id: string | null;
+  escalated_by_user_id: string | null;
+  escalated_at: string | null;
+
   date_resolved: string | null;
   ticket_created: boolean;
   review_entered_at: string | null;
@@ -159,7 +170,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
 
 // Error Category options are stored in the qa_error_categories table (editable master list)
 
-const RESOLUTION_TYPES = ['Resolved by QA', 'Escalated to Tech', 'Escalated to AM', 'Escalated to Gloria', 'Other'];
+const RESOLUTION_TYPES = ESCALATION_TYPES;
 
 const VA_ASSIGNEES = [
   'Ivy Simeon',
@@ -227,7 +238,7 @@ const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: 'self_booked', label: 'Self-Booked' },
   { key: 'error', label: 'Error' },
   { key: 'error_source', label: 'Error Source' },
-  { key: 'resolution', label: 'Resolution' },
+  { key: 'resolution', label: 'Escalation Type' },
   { key: 'created', label: 'Date Created' },
   { key: 'latest', label: 'Latest Alert' },
   { key: 'resolved', label: 'Resolved' },
@@ -303,7 +314,21 @@ export default function QAOperationsQueue() {
   const { user } = useAuth();
   const { isAdmin } = useRole();
   const visibleAlertTypes = useMemo<AlertType[]>(() => ACTIVE_ALERT_TYPES, []);
-  const [view, setView] = useState<'queue' | 'reports'>('queue');
+  const [view, setView] = useState<'queue' | 'escalations' | 'reports'>('queue');
+  const [actorName, setActorName] = useState<string>('');
+
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+      setActorName(((data as any)?.full_name || (data as any)?.email || user.email || '').trim());
+    })();
+  }, [user?.id, user?.email]);
+
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -707,10 +732,66 @@ export default function QAOperationsQueue() {
       description: `Status changed to ${WORKFLOW_STATUS_LABELS[next] || next.replace('_', ' ')}`,
       actor_user_id: user?.id ?? null,
     } as any);
+
+    // Notify the escalation owner / escalator on completion and reopen.
+    if (next === 'completed' || next === 'reopened') {
+      const target = cases.find((c) => c.id === id) || selectedCase;
+      if (target?.escalated_at) {
+        await notifyQAUsers({
+          userIds: [target.escalation_owner_user_id, target.escalated_by_user_id],
+          caseId: id,
+          kind: 'case_status',
+          title: next === 'completed' ? 'Escalation completed' : 'Escalation reopened',
+          body:
+            next === 'completed'
+              ? `${target.patient_name || 'Case'} was marked Completed — escalation resolved.`
+              : `${target.patient_name || 'Case'} was reopened — follow-up required.`,
+          actorId: user?.id ?? null,
+          actorName: actorName,
+        });
+      }
+    }
+
     toast({ title: 'Status updated' });
     fetchCases();
 
   };
+
+  const updateEscalationStatus = async (id: string, next: string) => {
+    const target = cases.find((c) => c.id === id) || selectedCase;
+    const patch: any = { escalation_status: next };
+    if (!target?.escalated_at) {
+      patch.escalated_at = new Date().toISOString();
+      patch.escalated_by_user_id = user?.id ?? null;
+    }
+    setCases((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    setSelectedCase((sc) => (sc && sc.id === id ? { ...sc, ...patch } : sc));
+
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+      fetchCases();
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: id,
+      activity_type: 'escalation_status_change',
+      description: `Escalation status changed to ${next}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    await notifyQAUsers({
+      userIds: [target?.escalation_owner_user_id, target?.escalated_by_user_id],
+      caseId: id,
+      kind: 'escalation_status',
+      title: `Escalation status: ${next}`,
+      body: `${target?.patient_name || 'Case'}${target?.project_name ? ` • ${target.project_name}` : ''}`,
+      actorId: user?.id ?? null,
+      actorName,
+    });
+    toast({ title: 'Escalation status updated' });
+    fetchCases();
+  };
+
 
   const openCase = (c: QACase, siblings: QACase[] = []) => {
     setSelectedSiblings(siblings.filter((s) => s.id !== c.id));
@@ -771,15 +852,22 @@ export default function QAOperationsQueue() {
             Centralized workspace for reviewing appointment quality alerts and auditing confirmed appointments.
           </p>
         </div>
-        {isAdmin() && (
-          <div className="flex gap-2">
-            <Button
-              variant={view === 'queue' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setView('queue')}
-            >
-              Queue
-            </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={view === 'queue' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('queue')}
+          >
+            Queue
+          </Button>
+          <Button
+            variant={view === 'escalations' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('escalations')}
+          >
+            Escalations
+          </Button>
+          {isAdmin() && (
             <Button
               variant={view === 'reports' ? 'default' : 'outline'}
               size="sm"
@@ -787,12 +875,28 @@ export default function QAOperationsQueue() {
             >
               <BarChart3 className="h-3 w-3 mr-1" /> Reports
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {isAdmin() && view === 'reports' ? (
         <QAReports />
+      ) : view === 'escalations' ? (
+        <QAEscalationWorklist
+          currentUserId={user?.id ?? null}
+          onOpenCase={async (row: any) => {
+            const { data } = await supabase
+              .from('qa_cases' as any)
+              .select('*')
+              .eq('id', row.id)
+              .maybeSingle();
+            if (data) {
+              setView('queue');
+              setSelectedSiblings([]);
+              setSelectedCase(data as any as QACase);
+            }
+          }}
+        />
       ) : (
       <>
       <div className="flex flex-wrap gap-2 items-center">
@@ -955,7 +1059,7 @@ export default function QAOperationsQueue() {
                     {showCol('self_booked') && <SortableHead column="self_booked" label="Self-Booked" className="w-[70px]" />}
                     {showCol('error') && <SortableHead column="error" label="Error" className="min-w-[110px]" />}
                     {showCol('error_source') && <SortableHead column="error_source" label="Error Source" className="min-w-[110px]" />}
-                    {showCol('resolution') && <SortableHead column="resolution" label="Resolution" className="min-w-[110px]" />}
+                    {showCol('resolution') && <SortableHead column="resolution" label="Escalation Type" className="min-w-[110px]" />}
                     {showCol('created') && <SortableHead column="created" label="Date Created" className="w-[95px]" />}
                     {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
                     {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
@@ -1003,7 +1107,22 @@ export default function QAOperationsQueue() {
                       {showCol('self_booked') && <TableCell className="px-2 py-2">{c.self_booked === null ? '—' : c.self_booked ? 'Yes' : 'No'}</TableCell>}
                       {showCol('error') && <TableCell className="px-2 py-2">{c.error_category || '—'}</TableCell>}
                       {showCol('error_source') && <TableCell className="px-2 py-2">{c.error_source || '—'}</TableCell>}
-                      {showCol('resolution') && <TableCell className="px-2 py-2">{c.resolution_type || '—'}</TableCell>}
+                      {showCol('resolution') && (
+                        <TableCell className="px-2 py-2">
+                          <div className="flex flex-col gap-1">
+                            <span>{c.resolution_type || '—'}</span>
+                            {c.escalation_status && (
+                              <Badge
+                                variant="outline"
+                                className={cn('w-fit text-[10px]', escalationStatusClass(c.escalation_status))}
+                              >
+                                {c.escalation_status}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+
                       {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
@@ -1063,6 +1182,8 @@ export default function QAOperationsQueue() {
         onErrorCategoriesRefresh={refreshErrorCategories}
         onClose={() => { setSelectedCase(null); setSelectedSiblings([]); }}
         onStatusChange={updateStatus}
+        onEscalationStatusChange={updateEscalationStatus}
+        actorName={actorName}
         onRefresh={() => { fetchCases(); }}
       />
       </>
@@ -1121,6 +1242,8 @@ function CaseDrawer({
   onErrorCategoriesRefresh,
   onClose,
   onStatusChange,
+  onEscalationStatusChange,
+  actorName,
   onRefresh,
 }: {
   caseData: QACase | null;
@@ -1134,6 +1257,8 @@ function CaseDrawer({
   onErrorCategoriesRefresh: () => Promise<void>;
   onClose: () => void;
   onStatusChange: (id: string, next: WorkflowStatus) => Promise<void>;
+  onEscalationStatusChange: (id: string, next: string) => Promise<void>;
+  actorName: string;
   onRefresh: () => void;
 }) {
 
@@ -1155,6 +1280,30 @@ function CaseDrawer({
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const savedSnapshotRef = useRef<Partial<QACase>>({});
   const [externalUpdate, setExternalUpdate] = useState(false);
+  const [ownerName, setOwnerName] = useState<string>('');
+  const [escalatedByName, setEscalatedByName] = useState<string>('');
+
+  useEffect(() => {
+    const ids = [caseData?.escalation_owner_user_id, caseData?.escalated_by_user_id].filter(
+      Boolean,
+    ) as string[];
+    if (ids.length === 0) {
+      setOwnerName('');
+      setEscalatedByName('');
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', ids);
+      const map: Record<string, string> = {};
+      (data || []).forEach((p: any) => { map[p.id] = p.full_name || p.email; });
+      setOwnerName(map[caseData?.escalation_owner_user_id || ''] || '');
+      setEscalatedByName(map[caseData?.escalated_by_user_id || ''] || '');
+    })();
+  }, [caseData?.escalation_owner_user_id, caseData?.escalated_by_user_id]);
+
 
   const [savingAudit, setSavingAudit] = useState(false);
   const [clearingAudit, setClearingAudit] = useState(false);
@@ -1382,6 +1531,26 @@ function CaseDrawer({
     if (!caseData.assigned_qs_user_id && user?.id) {
       patch.assigned_qs_user_id = user.id;
     }
+
+    // --- Escalation side effects -------------------------------------------
+    const nextType = audit.resolution_type ?? null;
+    const typeChanged = nextType !== (caseData.resolution_type ?? null);
+    const escalating = isEscalationType(nextType) && typeChanged;
+    let newOwnerId: string | null = caseData.escalation_owner_user_id ?? null;
+    if (escalating) {
+      const fixedOwner = await resolveFixedOwnerId(nextType);
+      if (fixedOwner) {
+        newOwnerId = fixedOwner;
+        patch.escalation_owner_user_id = fixedOwner;
+      }
+      patch.escalated_by_user_id = caseData.escalated_by_user_id ?? user?.id ?? null;
+      patch.escalated_at = caseData.escalated_at ?? new Date().toISOString();
+      if (caseData.workflow_status !== 'completed') patch.workflow_status = 'pending_escalated';
+      if (!caseData.escalation_status || caseData.escalation_status === 'Resolved') {
+        patch.escalation_status = 'Awaiting Review';
+      }
+    }
+
     const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', caseData.id);
     setSavingAudit(false);
     if (error) {
@@ -1402,6 +1571,29 @@ function CaseDrawer({
       description: 'Audit fields updated',
       actor_user_id: user?.id ?? null,
     } as any);
+    if (escalating) {
+      await supabase.from('qa_case_activity' as any).insert({
+        case_id: caseData.id,
+        activity_type: 'escalation',
+        description: `${nextType}${actorName ? ` by ${actorName}` : ''}`,
+        actor_user_id: user?.id ?? null,
+        metadata: {
+          escalation_type: nextType,
+          owner_user_id: newOwnerId,
+          escalation_status: patch.escalation_status ?? caseData.escalation_status,
+        },
+      } as any);
+      await notifyQAUsers({
+        userIds: [newOwnerId],
+        caseId: caseData.id,
+        kind: 'assignment',
+        title: `${nextType} — assigned to you`,
+        body: `${caseData.patient_name || 'Patient'}${caseData.project_name ? ` • ${caseData.project_name}` : ''}`,
+        actorId: user?.id ?? null,
+        actorName,
+      });
+    }
+
     savedSnapshotRef.current = { ...audit };
     clearDraft(caseData.id);
     setExternalUpdate(false);
@@ -1782,19 +1974,43 @@ function CaseDrawer({
               )}
 
 
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Workflow status</div>
-                <Select value={caseData.workflow_status} onValueChange={(v) => onStatusChange(caseData.id, v as WorkflowStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in_review">Opened</SelectItem>
-                    <SelectItem value="pending_escalated">Pending / Escalated</SelectItem>
-                    <SelectItem value="reopened">Reopened</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Workflow status</div>
+                  <Select value={caseData.workflow_status} onValueChange={(v) => onStatusChange(caseData.id, v as WorkflowStatus)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="in_review">Opened</SelectItem>
+                      <SelectItem value="pending_escalated">Pending / Escalated</SelectItem>
+                      <SelectItem value="reopened">Reopened</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Escalation status</div>
+                  <Select
+                    value={caseData.escalation_status ?? ''}
+                    onValueChange={(v) => onEscalationStatusChange(caseData.id, v)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Not escalated" /></SelectTrigger>
+                    <SelectContent>
+                      {ESCALATION_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {caseData.escalated_at && (
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      Escalated {format(new Date(caseData.escalated_at), 'MMM d, yyyy h:mm a')}
+                      {escalatedByName ? ` by ${escalatedByName}` : ''}
+                      {ownerName ? ` • Owner: ${ownerName}` : ''}
+                    </div>
+                  )}
+                </div>
               </div>
+
 
               <div className="border rounded-lg p-3 space-y-3 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between gap-2">
@@ -1844,7 +2060,7 @@ function CaseDrawer({
                     />
                   </div>
                   <div className="min-w-0">
-                    <Label className="text-xs">Resolution Type</Label>
+                    <Label className="text-xs">Escalation Type</Label>
                     <Select
                       value={audit.resolution_type ?? ''}
                       onValueChange={(v) => setAudit((a) => ({ ...a, resolution_type: v }))}

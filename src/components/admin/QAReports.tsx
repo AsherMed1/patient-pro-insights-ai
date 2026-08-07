@@ -37,6 +37,10 @@ interface ReportCase {
   error_source: string | null;
   caught_before_clinic: boolean | null;
   resolution_type: string | null;
+  escalation_status: string | null;
+  escalation_owner_user_id: string | null;
+  escalated_by_user_id: string | null;
+  escalated_at: string | null;
   date_resolved: string | null;
   completed_at: string | null;
   entered_queue_at: string;
@@ -108,7 +112,7 @@ export default function QAReports() {
         const { data, error } = await supabase
           .from('qa_cases' as any)
           .select(
-            'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, date_resolved, completed_at, entered_queue_at, first_entered_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
+            'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, escalation_status, escalation_owner_user_id, escalated_by_user_id, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
           )
           .gte('entered_queue_at', from.toISOString())
           .lte('entered_queue_at', to.toISOString())
@@ -216,6 +220,52 @@ export default function QAReports() {
   const bySource = useMemo(() => countBy(errors, (r) => r.error_source || ''), [errors]);
   const byResolution = useMemo(() => countBy(filtered, (r) => r.resolution_type || ''), [filtered]);
 
+  // --- Escalations ---------------------------------------------------------
+  const escalations = useMemo(() => filtered.filter((r) => !!r.escalated_at), [filtered]);
+
+  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const ids = [...new Set(escalations.map((r) => r.escalation_owner_user_id).filter(Boolean))] as string[];
+    if (ids.length === 0) return;
+    (async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name, email').in('id', ids);
+      const map: Record<string, string> = {};
+      (data || []).forEach((p: any) => { map[p.id] = p.full_name || p.email; });
+      setOwnerNames(map);
+    })();
+  }, [escalations]);
+
+  const escalationHours = (r: ReportCase): number | null => {
+    if (!r.escalated_at) return null;
+    const end = resolvedAt(r);
+    if (!end) return null;
+    return (new Date(end).getTime() - new Date(r.escalated_at).getTime()) / 3600000;
+  };
+
+  const openEscalations = escalations.filter(
+    (r) => r.escalation_status !== 'Resolved' && r.workflow_status !== 'completed',
+  );
+
+  const avgEscalationHours = avg(
+    escalations.map(escalationHours).filter((h): h is number => h !== null),
+  );
+
+  const avgOutstandingDays = openEscalations.length
+    ? openEscalations.reduce(
+        (sum, r) => sum + (Date.now() - new Date(r.escalated_at as string).getTime()) / 86400000,
+        0,
+      ) / openEscalations.length
+    : null;
+
+  const byEscalationStatus = useMemo(
+    () => countBy(escalations, (r) => r.escalation_status || ''),
+    [escalations],
+  );
+  const byEscalationOwner = useMemo(
+    () => countBy(escalations, (r) => ownerNames[r.escalation_owner_user_id || ''] || 'Unassigned'),
+    [escalations, ownerNames],
+  );
+
   const trend = useMemo(() => {
     const map = new Map<string, { label: string; errors: number; audits: number }>();
     filtered.forEach((r) => {
@@ -243,7 +293,9 @@ export default function QAReports() {
       'Error Category': r.error_category || '',
       'Error Source': r.error_source || '',
       'Caught Before Clinic': r.caught_before_clinic === null ? '' : r.caught_before_clinic ? 'Yes' : 'No',
-      Resolution: r.resolution_type || '',
+      'Escalation Type': r.resolution_type || '',
+      'Escalation Status': r.escalation_status || '',
+      'Escalated At': r.escalated_at ? format(new Date(r.escalated_at), 'yyyy-MM-dd HH:mm') : '',
       'Appointment Date': r.appointment_date ? format(new Date(r.appointment_date), 'yyyy-MM-dd HH:mm') : '',
       'Appointment Status': r.appointment_status || '',
       Entered: format(new Date(enteredAt(r)), 'yyyy-MM-dd HH:mm'),
@@ -324,7 +376,7 @@ export default function QAReports() {
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(
-        byResolution.map((c) => ({ Resolution: c.key, Count: c.count, '% of Cases': pct(c.count, filtered.length) })),
+        byResolution.map((c) => ({ 'Escalation Type': c.key, Count: c.count, '% of Cases': pct(c.count, filtered.length) })),
       ),
       'By Resolution',
     );
@@ -617,12 +669,12 @@ export default function QAReports() {
               </Card>
 
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-base">By resolution</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-base">By escalation type</CardTitle></CardHeader>
                 <CardContent className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Resolution</TableHead>
+                        <TableHead>Escalation type</TableHead>
                         <TableHead className="text-right">Count</TableHead>
                         <TableHead className="text-right">% of cases</TableHead>
                       </TableRow>
@@ -643,6 +695,73 @@ export default function QAReports() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Escalations</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {[
+                    { label: 'Escalated cases', value: String(escalations.length) },
+                    { label: 'Still open', value: String(openEscalations.length) },
+                    { label: 'Avg resolution time', value: humanizeHours(avgEscalationHours) },
+                    {
+                      label: 'Avg outstanding age',
+                      value: avgOutstandingDays === null ? '—' : `${avgOutstandingDays.toFixed(1)}d`,
+                    },
+                  ].map((m) => (
+                    <div key={m.label} className="rounded-lg border p-3">
+                      <div className="text-xs text-muted-foreground">{m.label}</div>
+                      <div className="text-xl font-semibold">{m.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Escalation status</TableHead>
+                          <TableHead className="text-right">Count</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {byEscalationStatus.map((c) => (
+                          <TableRow key={c.key}>
+                            <TableCell className="font-medium">{c.key}</TableCell>
+                            <TableCell className="text-right">{c.count}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!byEscalationStatus.length && (
+                          <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Assigned owner</TableHead>
+                          <TableHead className="text-right">Count</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {byEscalationOwner.map((c) => (
+                          <TableRow key={c.key}>
+                            <TableCell className="font-medium">{c.key}</TableCell>
+                            <TableCell className="text-right">{c.count}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!byEscalationOwner.length && (
+                          <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No data</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </>
       )}
