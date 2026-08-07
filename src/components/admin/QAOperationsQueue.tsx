@@ -1242,6 +1242,30 @@ function CaseDrawer({
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const savedSnapshotRef = useRef<Partial<QACase>>({});
   const [externalUpdate, setExternalUpdate] = useState(false);
+  const [ownerName, setOwnerName] = useState<string>('');
+  const [escalatedByName, setEscalatedByName] = useState<string>('');
+
+  useEffect(() => {
+    const ids = [caseData?.escalation_owner_user_id, caseData?.escalated_by_user_id].filter(
+      Boolean,
+    ) as string[];
+    if (ids.length === 0) {
+      setOwnerName('');
+      setEscalatedByName('');
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', ids);
+      const map: Record<string, string> = {};
+      (data || []).forEach((p: any) => { map[p.id] = p.full_name || p.email; });
+      setOwnerName(map[caseData?.escalation_owner_user_id || ''] || '');
+      setEscalatedByName(map[caseData?.escalated_by_user_id || ''] || '');
+    })();
+  }, [caseData?.escalation_owner_user_id, caseData?.escalated_by_user_id]);
+
 
   const [savingAudit, setSavingAudit] = useState(false);
   const [clearingAudit, setClearingAudit] = useState(false);
