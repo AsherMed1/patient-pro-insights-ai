@@ -238,7 +238,7 @@ const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: 'self_booked', label: 'Self-Booked' },
   { key: 'error', label: 'Error' },
   { key: 'error_source', label: 'Error Source' },
-  { key: 'resolution', label: 'Resolution' },
+  { key: 'resolution', label: 'Escalation Type' },
   { key: 'created', label: 'Date Created' },
   { key: 'latest', label: 'Latest Alert' },
   { key: 'resolved', label: 'Resolved' },
@@ -966,7 +966,7 @@ export default function QAOperationsQueue() {
                     {showCol('self_booked') && <SortableHead column="self_booked" label="Self-Booked" className="w-[70px]" />}
                     {showCol('error') && <SortableHead column="error" label="Error" className="min-w-[110px]" />}
                     {showCol('error_source') && <SortableHead column="error_source" label="Error Source" className="min-w-[110px]" />}
-                    {showCol('resolution') && <SortableHead column="resolution" label="Resolution" className="min-w-[110px]" />}
+                    {showCol('resolution') && <SortableHead column="resolution" label="Escalation Type" className="min-w-[110px]" />}
                     {showCol('created') && <SortableHead column="created" label="Date Created" className="w-[95px]" />}
                     {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
                     {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
