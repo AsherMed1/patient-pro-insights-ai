@@ -1109,7 +1109,7 @@ export default function QAOperationsQueue() {
                         </div>
                       </TableCell>
                       <TableCell className="px-2 py-2">{c.project_name}</TableCell>
-                      {showCol('service') && <TableCell className="px-2 py-2">{c.service_line || '—'}</TableCell>}
+                      {showCol('service') && <TableCell className="px-2 py-2">{displayService(c.service_line) || '—'}</TableCell>}
                       <TableCell className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
                           {g.displayAlertTypes.map((t) => (
@@ -1750,7 +1750,7 @@ function CaseDrawer({
         : 'Appointment: Not scheduled';
     const lines = [
       `Patient: ${c.patient_name || 'Unknown'}`,
-      `Service line: ${c.service_line || 'n/a'}`,
+      `Service line: ${displayService(c.service_line) || 'n/a'}`,
       apptLine,
     ];
     if (ghlUrl) lines.push(`GHL: ${ghlUrl}`);
@@ -1771,7 +1771,7 @@ function CaseDrawer({
     setTicketForm({
       task_name: '',
       client_name: caseData.project_name || '',
-      service_involved: caseData.service_line || '',
+      service_involved: displayService(caseData.service_line),
       issue_type: '',
       priority: 'medium',
       description: buildDefaultDescription(caseData),
@@ -1866,7 +1866,7 @@ function CaseDrawer({
             <SheetHeader className="min-w-0 pr-6">
               <SheetTitle className="break-words font-sans not-italic">{caseData.patient_name || 'Unnamed patient'}</SheetTitle>
               <div className="text-sm text-muted-foreground break-words">
-                {caseData.project_name} • {caseData.service_line || 'No service'}
+                {caseData.project_name} • {displayService(caseData.service_line) || 'No service'}
               </div>
               {(() => {
                 const phone = liveAppt?.phone ?? caseData.lead_phone_number ?? null;
