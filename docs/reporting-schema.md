@@ -249,6 +249,22 @@ alter default privileges in schema public grant select on tables to reporting_ro
 
 Then connect with the session-pooler URI from Supabase dashboard → Project Settings → Database, substituting `reporting_ro` and that password.
 
+**In-app module (no credentials at all).** `src/lib/reporting.ts` implements these metrics on top of the existing Supabase client, with the mandatory §4 filters and 1000-row pagination already applied:
+
+```ts
+import { getTotals, getMetricsByClient } from "@/lib/reporting";
+
+const totals = await getTotals({ from: "2026-07-01", to: "2026-07-31" });
+const perClient = await getMetricsByClient({
+  from: "2026-07-01",
+  to: "2026-07-31",
+  basis: "date_appointment_created", // pipeline volume instead of visit date
+});
+```
+
+Each row returns `{ project_name, booked, showed, procedures_ordered, show_rate_pct }`. Pass `includeCompletedProcedures: true` to count `procedure_complete` alongside `ordered`, or `projectName` to scope to one client.
+
+
 ---
 
 ## 8. Gotchas
