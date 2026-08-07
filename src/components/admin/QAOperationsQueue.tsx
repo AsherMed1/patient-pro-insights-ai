@@ -870,7 +870,7 @@ export default function QAOperationsQueue() {
     }
 
     toast({ title: 'Status updated' });
-    fetchCases();
+    fetchCases({ background: true });
 
   };
 
@@ -903,7 +903,7 @@ export default function QAOperationsQueue() {
     const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
     if (error) {
       toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
-      fetchCases();
+      fetchCases({ background: true });
       return;
     }
     await supabase.from('qa_case_activity' as any).insert(
@@ -956,7 +956,7 @@ export default function QAOperationsQueue() {
           ? 'Escalation reopened'
           : 'Escalation status updated',
     });
-    fetchCases();
+    fetchCases({ background: true });
   };
 
 
@@ -1385,7 +1385,7 @@ export default function QAOperationsQueue() {
         onStatusChange={updateStatus}
         onEscalationStatusChange={updateEscalationStatus}
         actorName={actorName}
-        onRefresh={() => { fetchCases(); }}
+        onRefresh={() => { fetchCases({ background: true }); }}
       />
       </>
       )}
