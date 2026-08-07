@@ -684,8 +684,8 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
-                  <SelectItem value="review_only">Review Queue Only</SelectItem>
-                  <SelectItem value="recapture">Recapture</SelectItem>
+                  <SelectItem value="review_only">Setter</SelectItem>
+                  <SelectItem value="recapture">Recapture Only</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
@@ -781,7 +781,7 @@ const UserManagement = () => {
                   <TableCell>{user.full_name}</TableCell>
                   <TableCell>
                     <Badge variant={getRoleBadgeVariant(user.role || 'project_user')}>
-                      {user.role || 'project_user'}
+                      {getRoleLabel(user.role || "project_user")}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -894,8 +894,8 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
                   <SelectItem value="va">VA</SelectItem>
-                  <SelectItem value="review_only">Review Queue Only</SelectItem>
-                  <SelectItem value="recapture">Recapture</SelectItem>
+                  <SelectItem value="review_only">Setter</SelectItem>
+                  <SelectItem value="recapture">Recapture Only</SelectItem>
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
