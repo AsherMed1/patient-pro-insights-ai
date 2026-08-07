@@ -314,7 +314,21 @@ export default function QAOperationsQueue() {
   const { user } = useAuth();
   const { isAdmin } = useRole();
   const visibleAlertTypes = useMemo<AlertType[]>(() => ACTIVE_ALERT_TYPES, []);
-  const [view, setView] = useState<'queue' | 'reports'>('queue');
+  const [view, setView] = useState<'queue' | 'escalations' | 'reports'>('queue');
+  const [actorName, setActorName] = useState<string>('');
+
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+      setActorName(((data as any)?.full_name || (data as any)?.email || user.email || '').trim());
+    })();
+  }, [user?.id, user?.email]);
+
   const [tab, setTab] = useState<WorkflowStatus | 'all'>('new');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
