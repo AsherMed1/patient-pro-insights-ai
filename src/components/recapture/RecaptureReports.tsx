@@ -24,7 +24,7 @@ interface UserMap {
 }
 
 export default function RecaptureReports() {
-  const { isAdmin, hasManagementAccess, isReviewOnly, accessibleProjects } = useRole();
+  const { isAdmin, hasManagementAccess, isReviewOnly, isRecaptureRole, accessibleProjects } = useRole();
   const [allCases, setAllCases] = useState<RecaptureCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserMap>({});
@@ -66,7 +66,7 @@ export default function RecaptureReports() {
   }, []);
 
   const projectKey = accessibleProjects.join(',');
-  const reviewOnly = isReviewOnly();
+  const reviewOnly = isReviewOnly() || isRecaptureRole();
   const cases = useMemo(() => {
     if (reviewOnly && accessibleProjects.length > 0) {
       return allCases.filter((c) => accessibleProjects.includes(c.project_name));

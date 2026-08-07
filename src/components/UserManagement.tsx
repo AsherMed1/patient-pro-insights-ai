@@ -519,6 +519,8 @@ const UserManagement = () => {
         return 'default';
       case 'review_only':
         return 'outline';
+      case 'recapture':
+        return 'outline';
       case 'project_user':
         return 'secondary';
       default:
