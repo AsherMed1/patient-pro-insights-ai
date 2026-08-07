@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import MentionsBell from "@/components/notifications/MentionsBell";
+import PortalHeader from "@/components/layout/PortalHeader";
 import CallCenterDashboard from "@/components/CallCenterDashboard";
 import AllAppointmentsManager from "@/components/AllAppointmentsManager";
 import AllCallsManager from "@/components/AllCallsManager";
