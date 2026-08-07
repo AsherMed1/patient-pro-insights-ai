@@ -1225,7 +1225,7 @@ export default function QAOperationsQueue() {
 
         <TabsContent value={tab} className="mt-4">
           <div className="border rounded-lg overflow-hidden">
-            {loading ? (
+            {loading && cases.length === 0 ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
