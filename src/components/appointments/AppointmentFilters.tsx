@@ -103,134 +103,154 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
   const fetchLocationAndServiceOptions = async () => {
     try {
       const hasDateRange = Boolean(dateRange.from || dateRange.to);
-      let query = supabase
-        .from('all_appointments')
-        .select('calendar_name, parsed_pathology_info')
-        .not('calendar_name', 'is', null);
-      
-      // Filter by project if we're in a project-specific view
-      if (projectFilter && projectFilter !== 'ALL') {
-        const normalizedProject = projectFilter.trim();
-        if (normalizedProject !== projectFilter) {
-          query = query.or(`project_name.eq.${projectFilter},project_name.eq.${normalizedProject}`);
-        } else {
-          query = query.eq('project_name', projectFilter);
-        }
-      }
 
-      // Scope options to the selected date range (Appt Date vs Created Date)
-      if (hasDateRange) {
-        if (dateFilterType === 'created') {
-          if (dateRange.from) {
-            const start = new Date(dateRange.from);
-            start.setHours(0, 0, 0, 0);
-            query = query.gte('created_at', start.toISOString());
-          }
-          if (dateRange.to) {
-            const end = new Date(dateRange.to);
-            end.setHours(23, 59, 59, 999);
-            query = query.lte('created_at', end.toISOString());
-          }
-        } else {
-          if (dateRange.from) {
-            query = query.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
-          }
-          if (dateRange.to) {
-            query = query.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+      const buildBaseQuery = (applyDateFilter: boolean) => {
+        let query = supabase
+          .from('all_appointments')
+          .select('calendar_name, parsed_pathology_info')
+          .not('calendar_name', 'is', null);
+
+        // Filter by project if we're in a project-specific view
+        if (projectFilter && projectFilter !== 'ALL') {
+          const normalizedProject = projectFilter.trim();
+          if (normalizedProject !== projectFilter) {
+            query = query.or(`project_name.eq.${projectFilter},project_name.eq.${normalizedProject}`);
+          } else {
+            query = query.eq('project_name', projectFilter);
           }
         }
-      }
-      
-      const { data } = await query;
 
-      
-      if (data) {
-        const locations = new Set<string>();
-        const services = new Set<string>();
-        const isNeuroService = serviceFilter?.toLowerCase() === 'neuropathy' || serviceFilter?.toLowerCase() === 'neuro';
-        
-        data.forEach(item => {
-          if (item.calendar_name) {
-            // Extract location — "Virtual" is treated as a location across all projects (incl. VSNC)
-            if (/\bvirtual\b/i.test(item.calendar_name)) {
-              // Skip Virtual only when Neuro service is selected (UX preference for non-VSNC)
-              if (!isNeuroService) {
-                locations.add('Virtual');
-              }
-            } else {
-              // Try parenthesized format: "(San Antonio, TX – Knee Pain Treatment)"
-              const parenMatch = item.calendar_name.match(/\(([^)]+)\)/);
-              let locationExtracted: string | null = null;
-              if (parenMatch) {
-                // Take city portion before " – " or " - "
-                const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
-                locationExtracted = inner.replace(/,\s*[A-Z]{2}$/, '').trim();
-              } else {
-                // Existing patterns: " - ", " at ", "Consultation "
-                let locationMatch = item.calendar_name.match(/ - (.+)$/);
-                if (!locationMatch) locationMatch = item.calendar_name.match(/at\s+(.+)$/);
-                if (!locationMatch) locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
-                if (locationMatch && locationMatch[1]) {
-                  locationExtracted = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').trim();
-                }
-              }
-              if (locationExtracted 
-                && !locationExtracted.toLowerCase().includes('somerset') 
-                && !locationExtracted.toLowerCase().includes('milledgeville')
-                && !/^for\s+/i.test(locationExtracted)
-                && !/^\(/.test(locationExtracted)) {
-                // Normalize: strip trailing " Office" to prevent duplicates
-                locationExtracted = locationExtracted.replace(/\s+Office$/i, '').trim();
-                // Ally Vascular: hide the ambiguous bare "San Antonio" bucket (real offices are Amber Street / Stonehue)
-                const isAlly = projectFilter && /^ally vascular\s+and pain centers$/i.test(projectFilter.trim());
-                if (!(isAlly && locationExtracted.toLowerCase() === 'san antonio')) {
-                  locations.add(locationExtracted);
-                }
-              }
-
+        // Scope options to the selected date range (Appt Date vs Created Date)
+        if (applyDateFilter && hasDateRange) {
+          if (dateFilterType === 'created') {
+            if (dateRange.from) {
+              const start = new Date(dateRange.from);
+              start.setHours(0, 0, 0, 0);
+              query = query.gte('created_at', start.toISOString());
             }
+            if (dateRange.to) {
+              const end = new Date(dateRange.to);
+              end.setHours(23, 59, 59, 999);
+              query = query.lte('created_at', end.toISOString());
+            }
+          } else {
+            if (dateRange.from) {
+              query = query.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
+            }
+            if (dateRange.to) {
+              query = query.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+            }
+          }
+        }
 
-            // Service source of truth: parsed procedure_type, fallback to calendar name text
-            const parsed = (item as any).parsed_pathology_info;
-            const parsedType = parsed && typeof parsed === 'object'
-              ? (parsed.procedure_type || parsed.procedure)
-              : null;
-            if (parsedType && typeof parsedType === 'string' && parsedType.trim()) {
-              services.add(parsedType.trim());
-            } else {
-              // Extract service: text between quotes or after "your " and before " Consultation"
-              const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
-              if (serviceMatch && serviceMatch[1]) {
-                let service = serviceMatch[1].trim();
-                // Strip modality modifiers (Virtual / In-Person / In Person) from either end
-                service = service
-                  .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
-                  .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
-                  .trim();
-                // Skip if nothing meaningful remains (pure modality)
-                if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
-                  services.add(service);
-                }
+        return query;
+      };
+
+      const [activeResult, allResult] = await Promise.all([
+        buildBaseQuery(true),
+        buildBaseQuery(false)
+      ]);
+
+      const activeData = activeResult.data;
+      const allData = allResult.data;
+
+      const extractServices = (items: any[]) => {
+        const services = new Set<string>();
+        items.forEach(item => {
+          if (!item.calendar_name) return;
+          // Service source of truth: parsed procedure_type, fallback to calendar name text
+          const parsed = (item as any).parsed_pathology_info;
+          const parsedType = parsed && typeof parsed === 'object'
+            ? (parsed.procedure_type || parsed.procedure)
+            : null;
+          if (parsedType && typeof parsedType === 'string' && parsedType.trim()) {
+            services.add(parsedType.trim());
+          } else {
+            // Extract service: text between quotes or after "your " and before " Consultation"
+            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
+            if (serviceMatch && serviceMatch[1]) {
+              let service = serviceMatch[1].trim();
+              // Strip modality modifiers (Virtual / In-Person / In Person) from either end
+              service = service
+                .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
+                .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
+                .trim();
+              // Skip if nothing meaningful remains (pure modality)
+              if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
+                services.add(service);
               }
             }
           }
         });
-        
-        // Merge known project services only when no date range narrows the view
-        if (!hasDateRange && projectFilter && projectFilter !== 'ALL') {
-          const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
-          knownServices.forEach(s => services.add(s));
-        }
+        return services;
+      };
 
-        // Never drop the currently selected service from the list
-        if (serviceFilter && serviceFilter !== 'ALL') {
-          services.add(serviceFilter);
-        }
+      const activeServices = extractServices(activeData || []);
+      const allServices = extractServices(allData || []);
 
+      // Merge known project services into the full list so every clinic service line is visible
+      if (projectFilter && projectFilter !== 'ALL') {
+        const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
+        knownServices.forEach(s => allServices.add(s));
+      }
+
+      // Never drop the currently selected service from either list
+      if (serviceFilter && serviceFilter !== 'ALL') {
+        allServices.add(serviceFilter);
+        activeServices.add(serviceFilter);
+      }
+
+      // Locations are driven by the date-filtered dataset (current behavior)
+      if (activeData) {
+        const locations = new Set<string>();
+        const isNeuroService = serviceFilter?.toLowerCase() === 'neuropathy' || serviceFilter?.toLowerCase() === 'neuro';
+
+        activeData.forEach(item => {
+          if (!item.calendar_name) return;
+          // Extract location — "Virtual" is treated as a location across all projects (incl. VSNC)
+          if (/\bvirtual\b/i.test(item.calendar_name)) {
+            // Skip Virtual only when Neuro service is selected (UX preference for non-VSNC)
+            if (!isNeuroService) {
+              locations.add('Virtual');
+            }
+          } else {
+            // Try parenthesized format: "(San Antonio, TX – Knee Pain Treatment)"
+            const parenMatch = item.calendar_name.match(/\(([^)]+)\)/);
+            let locationExtracted: string | null = null;
+            if (parenMatch) {
+              // Take city portion before " – " or " - "
+              const inner = parenMatch[1].split(/\s[–-]\s/)[0].trim();
+              locationExtracted = inner.replace(/,\s*[A-Z]{2}$/, '').trim();
+            } else {
+              // Existing patterns: " - ", " at ", "Consultation "
+              let locationMatch = item.calendar_name.match(/ - (.+)$/);
+              if (!locationMatch) locationMatch = item.calendar_name.match(/at\s+(.+)$/);
+              if (!locationMatch) locationMatch = item.calendar_name.match(/Consultation\s+(.+)$/i);
+              if (locationMatch && locationMatch[1]) {
+                locationExtracted = locationMatch[1].trim().replace(/,\s*[A-Z]{2}$/, '').trim();
+              }
+            }
+            if (locationExtracted
+              && !locationExtracted.toLowerCase().includes('somerset')
+              && !locationExtracted.toLowerCase().includes('milledgeville')
+              && !/^for\s+/i.test(locationExtracted)
+              && !/^\(/.test(locationExtracted)) {
+              // Normalize: strip trailing " Office" to prevent duplicates
+              locationExtracted = locationExtracted.replace(/\s+Office$/i, '').trim();
+              // Ally Vascular: hide the ambiguous bare "San Antonio" bucket (real offices are Amber Street / Stonehue)
+              const isAlly = projectFilter && /^ally vascular\s+and pain centers$/i.test(projectFilter.trim());
+              if (!(isAlly && locationExtracted.toLowerCase() === 'san antonio')) {
+                locations.add(locationExtracted);
+              }
+            }
+          }
+        });
 
         setLocationOptions(Array.from(locations).sort());
-        setServiceOptions(Array.from(services).sort());
       }
+
+      setServiceOptions(Array.from(allServices).sort());
+      setActiveServiceOptions(Array.from(activeServices).sort());
     } catch (error) {
       console.error('Error fetching location/service options:', error);
     }
