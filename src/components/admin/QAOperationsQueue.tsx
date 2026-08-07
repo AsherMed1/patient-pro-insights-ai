@@ -1141,13 +1141,7 @@ export default function QAOperationsQueue() {
 
 
         <TabsContent value={tab} className="mt-4">
-          <div
-            className="border rounded-lg overflow-auto"
-            style={{
-              maxHeight:
-                'calc(100vh - var(--portal-header-h, 0px) - var(--portal-nav-h, 0px) - var(--qa-title-h, 0px) - var(--qa-filters-h, 0px) - 5rem)',
-            }}
-          >
+          <div className="border rounded-lg overflow-hidden">
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1155,7 +1149,14 @@ export default function QAOperationsQueue() {
             ) : filteredGroups.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">No cases in this view.</div>
             ) : (
-              <Table className="text-xs w-full">
+              <Table
+                className="text-xs w-full"
+                containerClassName="overflow-auto"
+                containerStyle={{
+                  maxHeight:
+                    'calc(100vh - var(--portal-header-h, 0px) - var(--portal-nav-h, 0px) - var(--qa-title-h, 0px) - var(--qa-filters-h, 0px) - 5rem)',
+                }}
+              >
                 <TableHeader>
                   <TableRow>
                     <SortableHead column="patient" label="Patient" className="left-0 z-[4] border-r min-w-[150px]" />
