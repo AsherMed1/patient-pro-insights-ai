@@ -20,6 +20,11 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
 import { formatDistanceToNow } from 'date-fns';
 import { formatEmbeddedTimestamps } from '@/utils/dateTimeUtils';
+import { useSearchParams } from 'react-router-dom';
+import MentionTextarea from '@/components/admin/MentionTextarea';
+import { parseMentions, renderNoteWithMentions } from '@/lib/mentions';
+import { notifyQAUsers } from '@/lib/qaEscalation';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AppointmentNotesProps {
   appointmentId: string;
@@ -35,6 +40,10 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const focusNoteId =
+    searchParams.get('appointment') === appointmentId ? searchParams.get('note') : null;
 
   // Sync with external trigger
   useEffect(() => {
@@ -53,8 +62,25 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
     
-    const success = await addNote(newNote, userName);
-    if (success) {
+    const created = await addNote(newNote, userName);
+    if (created) {
+      const mentioned = parseMentions(newNote);
+      if (mentioned.length > 0) {
+        try {
+          await notifyQAUsers({
+            userIds: mentioned.map((m) => m.userId),
+            appointmentId,
+            appointmentNoteId: (created as any).id,
+            kind: 'mention',
+            title: `${userName || 'Someone'} mentioned you — ${leadName || 'Patient'}`,
+            body: `${projectName || ''}`.trim() || null,
+            actorId: user?.id ?? null,
+            actorName: userName || null,
+          });
+        } catch (e) {
+          console.error('Failed to send note mention notifications', e);
+        }
+      }
       setNewNote('');
       setShowAddForm(false);
       onFormToggled?.(false);
@@ -122,10 +148,10 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
             <CardTitle className="text-sm">Add Internal Note</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Textarea
-              placeholder="Enter your internal note here..."
+            <MentionTextarea
+              placeholder="Enter your internal note here… type @ to tag a teammate (@AM, @Tech)"
               value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
+              onChange={setNewNote}
               className="min-h-[80px] resize-none"
             />
             <div className="flex items-center space-x-2">
@@ -165,10 +191,13 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
             return (
               <Card 
                 key={note.id} 
-                className={isSystemNote 
+                id={`appt-note-${note.id}`}
+                ref={note.id === focusNoteId ? focusRef : undefined}
+                className={`${isSystemNote 
                   ? "bg-blue-50 border-blue-200" 
-                  : "bg-yellow-50 border-yellow-200"
-                }
+                  : "bg-yellow-50 border-yellow-200"} ${
+                  note.id === focusNoteId ? 'ring-2 ring-primary' : ''
+                }`}
               >
                 <CardContent className="p-3">
                   <div className="space-y-2">
@@ -239,9 +268,9 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
 
                     {isEditing ? (
                       <div className="space-y-2">
-                        <Textarea
+                        <MentionTextarea
                           value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
+                          onChange={setEditingText}
                           className="min-h-[80px] resize-none"
                         />
                         <div className="flex items-center space-x-2">
@@ -257,7 +286,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                       <p className={`text-sm whitespace-pre-wrap ${
                         isSystemNote ? "text-blue-800 font-medium" : "text-foreground"
                       }`}>
-                        {formatEmbeddedTimestamps(note.note_text)}
+                        {renderNoteWithMentions(formatEmbeddedTimestamps(note.note_text) as any)}
                       </p>
                     )}
                   </div>
