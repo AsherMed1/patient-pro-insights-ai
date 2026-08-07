@@ -67,7 +67,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
         description: "Note added successfully",
       });
 
-      return true;
+      return data as AppointmentNote;
     } catch (error) {
       console.error('Error adding note:', error);
       toast({
@@ -75,7 +75,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
         description: "Failed to add note",
         variant: "destructive"
       });
-      return false;
+      return null;
     } finally {
       setSubmitting(false);
     }

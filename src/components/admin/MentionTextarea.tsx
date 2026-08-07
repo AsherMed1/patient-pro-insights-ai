@@ -64,7 +64,11 @@ export default function MentionTextarea({
   const select = (u: MentionableUser) => {
     if (triggerIndex === null) return;
     const caret = ref.current?.selectionStart ?? value.length;
-    const next = `${value.slice(0, triggerIndex)}${buildMentionToken(u.name, u.id)} ${value.slice(caret)}`;
+    // Group entries (@AM, @Tech) expand into a token per member.
+    const tokens = (u.members && u.members.length > 0 ? u.members : [u])
+      .map((m) => buildMentionToken(m.name, m.id))
+      .join(' ');
+    const next = `${value.slice(0, triggerIndex)}${tokens} ${value.slice(caret)}`;
     onChange(next);
     closePicker();
     setTimeout(() => ref.current?.focus(), 0);

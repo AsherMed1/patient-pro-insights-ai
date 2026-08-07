@@ -6,10 +6,25 @@ export interface MentionableUser {
   name: string;
   email: string;
   role: string;
+  /** Populated for group entries (@AM, @Tech). */
+  members?: MentionableUser[];
 }
 
 // Roles that can reach QA Operations.
 const QA_ROLES = ['admin', 'agent', 'qa_specialist', 'va'];
+
+/** Team aliases: tagging @AM / @Tech notifies everyone in the group. */
+export const MENTION_GROUPS: Record<string, string[]> = {
+  AM: ['marissa.k@patientpromarketing.com', 'duncan.d@patientpromarketing.com'],
+  Tech: [
+    'luis.d@patientpromarketing.com',
+    'johann.p@patientpromarketing.com',
+    'althea.r@patientpromarketing.com',
+    'mohsin.l@patientpromarketing.com',
+  ],
+};
+
+export const GROUP_PREFIX = 'group:';
 
 let cache: MentionableUser[] | null = null;
 let inflight: Promise<MentionableUser[]> | null = null;
@@ -30,7 +45,7 @@ const load = async (): Promise<MentionableUser[]> => {
     .select('id, full_name, email')
     .in('id', ids);
 
-  return (profiles || [])
+  const people: MentionableUser[] = (profiles || [])
     .map((p: any) => ({
       id: p.id,
       name: p.full_name || p.email,
@@ -38,6 +53,21 @@ const load = async (): Promise<MentionableUser[]> => {
       role: roleMap.get(p.id) || '',
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  const groups: MentionableUser[] = Object.entries(MENTION_GROUPS).map(([label, emails]) => {
+    const members = people.filter((u) =>
+      emails.some((e) => e.toLowerCase() === u.email?.toLowerCase()),
+    );
+    return {
+      id: `${GROUP_PREFIX}${label}`,
+      name: label,
+      email: members.map((m) => m.name).join(', ') || 'no members',
+      role: 'team',
+      members,
+    };
+  });
+
+  return [...groups.filter((g) => (g.members || []).length > 0), ...people];
 };
 
 export const useMentionableUsers = () => {

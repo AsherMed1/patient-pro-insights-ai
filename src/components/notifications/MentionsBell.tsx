@@ -28,6 +28,14 @@ export default function MentionsBell() {
   const openMention = async (m: QAMention) => {
     setOpen(false);
     if (!m.read_at) await markRead(m.id);
+    if (m.appointment_id) {
+      // Mention lives on a patient record note in the Appointments portal.
+      const noteParam = m.appointment_note_id ? `&note=${m.appointment_note_id}` : '';
+      navigate(
+        `/?tab=appointments&appointment=${m.appointment_id}${noteParam}&n=${m.id}-${Date.now()}`,
+      );
+      return;
+    }
     const noteParam = m.note_id ? `&note=${m.note_id}` : '';
     navigate(`/?tab=qa-queue&qaCase=${m.case_id}${noteParam}&n=${m.id}-${Date.now()}`);
   };

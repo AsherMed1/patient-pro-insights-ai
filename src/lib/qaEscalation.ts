@@ -71,7 +71,9 @@ export type NotificationKind =
 
 interface NotifyParams {
   userIds: (string | null | undefined)[];
-  caseId: string;
+  caseId?: string | null;
+  appointmentId?: string | null;
+  appointmentNoteId?: string | null;
   kind: NotificationKind;
   title: string;
   body?: string | null;
@@ -86,7 +88,9 @@ interface NotifyParams {
  */
 export const notifyQAUsers = async ({
   userIds,
-  caseId,
+  caseId = null,
+  appointmentId = null,
+  appointmentNoteId = null,
   kind,
   title,
   body = null,
@@ -101,6 +105,8 @@ export const notifyQAUsers = async ({
   await supabase.from('qa_note_mentions' as any).insert(
     targets.map((uid) => ({
       case_id: caseId,
+      appointment_id: appointmentId,
+      appointment_note_id: appointmentNoteId,
       note_id: noteId,
       kind,
       title,

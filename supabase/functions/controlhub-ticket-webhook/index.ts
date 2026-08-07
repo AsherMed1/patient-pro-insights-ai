@@ -41,6 +41,17 @@ const loadQaUsers = async (supabase: any): Promise<QaUser[]> => {
  * comment body, against the QA-role user list. Returns the rewritten note text
  * (with @[Name](uuid) tokens) plus the matched users.
  */
+/** Team aliases: @AM / @Tech notify everyone in the group. */
+const MENTION_GROUPS: Record<string, string[]> = {
+  am: ['marissa.k@patientpromarketing.com', 'duncan.d@patientpromarketing.com'],
+  tech: [
+    'luis.d@patientpromarketing.com',
+    'johann.p@patientpromarketing.com',
+    'althea.r@patientpromarketing.com',
+    'mohsin.l@patientpromarketing.com',
+  ],
+};
+
 const resolveMentions = (
   body: string,
   payloadMentions: unknown,
@@ -56,7 +67,20 @@ const resolveMentions = (
     }
   }
 
+  // First-name index (only usable when unambiguous).
+  const byFirst = new Map<string, QaUser[]>();
+  for (const u of users) {
+    const first = (u.name || '').split(/\s+/)[0]?.toLowerCase();
+    if (first) byFirst.set(first, [...(byFirst.get(first) || []), u]);
+  }
+
   const matched = new Map<string, QaUser>();
+  const groupMembers = (label: string): QaUser[] => {
+    const emails = MENTION_GROUPS[label.trim().toLowerCase()];
+    if (!emails) return [];
+    return emails.map((e) => byEmail.get(e.toLowerCase())).filter(Boolean) as QaUser[];
+  };
+
   const find = (raw: string): QaUser | null => {
     const v = raw.trim().toLowerCase();
     if (!v) return null;
@@ -64,6 +88,8 @@ const resolveMentions = (
     if (e) return e;
     const n = byName.get(v);
     if (n && n.length === 1) return n[0];
+    const f = byFirst.get(v);
+    if (f && f.length === 1) return f[0];
     return null;
   };
 
@@ -80,6 +106,14 @@ const resolveMentions = (
     }
   }
 
+  // Group aliases: @AM, @Tech
+  text = text.replace(/@(AM|Tech)\b/gi, (all, label: string) => {
+    const members = groupMembers(label);
+    if (members.length === 0) return all;
+    for (const u of members) matched.set(u.id, u);
+    return members.map((u) => `@[${u.name}](${u.id})`).join(' ');
+  });
+
   // Longest names first so "@Jane Doe Smith" wins over "@Jane Doe".
   const sorted = [...users].filter((u) => u.name).sort((a, b) => b.name.length - a.name.length);
   let text = body;
@@ -95,6 +129,17 @@ const resolveMentions = (
   for (const u of sorted) {
     const escaped = u.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`@${escaped}\\b`, 'gi');
+    if (re.test(text)) {
+      matched.set(u.id, u);
+      text = text.replace(re, `@[${u.name}](${u.id})`);
+    }
+  }
+
+  // Unambiguous first names: @Marissa
+  for (const [first, list] of byFirst) {
+    if (list.length !== 1) continue;
+    const u = list[0];
+    const re = new RegExp(`@${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
     if (re.test(text)) {
       matched.set(u.id, u);
       text = text.replace(re, `@[${u.name}](${u.id})`);

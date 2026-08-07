@@ -5,7 +5,9 @@ import { useAuth } from '@/hooks/useAuth';
 export interface QAMention {
   id: string;
   note_id: string | null;
-  case_id: string;
+  case_id: string | null;
+  appointment_id: string | null;
+  appointment_note_id: string | null;
   kind: string;
   title: string | null;
   body: string | null;
@@ -19,22 +21,24 @@ export interface QAMention {
 }
 
 const SELECT =
-  '*, qa_case_notes(note), qa_cases(patient_name, project_name, alert_type)';
+  '*, qa_case_notes(note), qa_cases(patient_name, project_name, alert_type), all_appointments(lead_name, project_name), appointment_notes(note_text)';
 
 const shape = (rows: any[]): QAMention[] =>
   (rows || []).map((r) => ({
     id: r.id,
     note_id: r.note_id,
     case_id: r.case_id,
+    appointment_id: r.appointment_id ?? null,
+    appointment_note_id: r.appointment_note_id ?? null,
     kind: r.kind || 'mention',
     title: r.title ?? null,
     body: r.body ?? null,
     mentioned_by_name: r.mentioned_by_name,
     read_at: r.read_at,
     created_at: r.created_at,
-    note: r.qa_case_notes?.note ?? null,
-    patient_name: r.qa_cases?.patient_name ?? null,
-    project_name: r.qa_cases?.project_name ?? null,
+    note: r.qa_case_notes?.note ?? r.appointment_notes?.note_text ?? null,
+    patient_name: r.qa_cases?.patient_name ?? r.all_appointments?.lead_name ?? null,
+    project_name: r.qa_cases?.project_name ?? r.all_appointments?.project_name ?? null,
     alert_type: r.qa_cases?.alert_type ?? null,
   }));
 
