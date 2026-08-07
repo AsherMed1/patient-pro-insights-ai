@@ -81,7 +81,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     fetchProjects();
     fetchStatusOptions();
     fetchLocationAndServiceOptions();
-  }, [projectFilter, serviceFilter]);
+  }, [projectFilter, serviceFilter, dateRange.from, dateRange.to, dateFilterType]);
   const fetchProjects = async () => {
     try {
       const { data } = await supabase.from('projects').select('project_name').order('project_name');
