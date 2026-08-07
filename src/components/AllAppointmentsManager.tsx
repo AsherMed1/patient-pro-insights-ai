@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
@@ -76,6 +77,33 @@ const AllAppointmentsManager = ({
   const [serviceFilter, setServiceFilter] = useState('ALL');
   const [dateFilterType, setDateFilterType] = useState<'appointment' | 'created'>('created');
   const [sortBy, setSortBy] = useState<'date_asc' | 'date_desc' | 'procedure_ordered' | 'project' | 'name_asc' | 'name_desc'>('date_desc');
+  const [searchParams] = useSearchParams();
+
+  // Deep link from a note-mention notification: surface that patient record.
+  useEffect(() => {
+    const apptId = searchParams.get('appointment');
+    if (!apptId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('all_appointments')
+        .select('lead_name, project_name')
+        .eq('id', apptId)
+        .maybeSingle();
+      if (cancelled || !data?.lead_name) return;
+      setActiveTab('all');
+      setSearchType('name');
+      setSearchTerm(data.lead_name);
+      setStatusFilter('ALL');
+      setProcedureOrderFilter('ALL');
+      setLocationFilter('ALL');
+      setServiceFilter('ALL');
+      setLocalProjectFilter('ALL');
+      setDateRange({ from: undefined, to: undefined });
+      setCurrentPage(1);
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams]);
   const { toast } = useToast();
   const { userName } = useUserAttribution();
   
