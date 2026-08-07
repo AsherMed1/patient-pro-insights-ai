@@ -1493,6 +1493,26 @@ function CaseDrawer({
     if (!caseData.assigned_qs_user_id && user?.id) {
       patch.assigned_qs_user_id = user.id;
     }
+
+    // --- Escalation side effects -------------------------------------------
+    const nextType = audit.resolution_type ?? null;
+    const typeChanged = nextType !== (caseData.resolution_type ?? null);
+    const escalating = isEscalationType(nextType) && typeChanged;
+    let newOwnerId: string | null = caseData.escalation_owner_user_id ?? null;
+    if (escalating) {
+      const fixedOwner = await resolveFixedOwnerId(nextType);
+      if (fixedOwner) {
+        newOwnerId = fixedOwner;
+        patch.escalation_owner_user_id = fixedOwner;
+      }
+      patch.escalated_by_user_id = caseData.escalated_by_user_id ?? user?.id ?? null;
+      patch.escalated_at = caseData.escalated_at ?? new Date().toISOString();
+      if (caseData.workflow_status !== 'completed') patch.workflow_status = 'pending_escalated';
+      if (!caseData.escalation_status || caseData.escalation_status === 'Resolved') {
+        patch.escalation_status = 'Awaiting Review';
+      }
+    }
+
     const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', caseData.id);
     setSavingAudit(false);
     if (error) {
@@ -1513,6 +1533,29 @@ function CaseDrawer({
       description: 'Audit fields updated',
       actor_user_id: user?.id ?? null,
     } as any);
+    if (escalating) {
+      await supabase.from('qa_case_activity' as any).insert({
+        case_id: caseData.id,
+        activity_type: 'escalation',
+        description: `${nextType}${actorName ? ` by ${actorName}` : ''}`,
+        actor_user_id: user?.id ?? null,
+        metadata: {
+          escalation_type: nextType,
+          owner_user_id: newOwnerId,
+          escalation_status: patch.escalation_status ?? caseData.escalation_status,
+        },
+      } as any);
+      await notifyQAUsers({
+        userIds: [newOwnerId],
+        caseId: caseData.id,
+        kind: 'assignment',
+        title: `${nextType} — assigned to you`,
+        body: `${caseData.patient_name || 'Patient'}${caseData.project_name ? ` • ${caseData.project_name}` : ''}`,
+        actorId: user?.id ?? null,
+        actorName,
+      });
+    }
+
     savedSnapshotRef.current = { ...audit };
     clearDraft(caseData.id);
     setExternalUpdate(false);
