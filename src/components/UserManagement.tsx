@@ -899,7 +899,11 @@ const UserManagement = () => {
                   <SelectItem value="project_user">Project User</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Setter — access to Review Queue and Recapture.
+              </p>
             </div>
+
             <div className="flex space-x-2">
               <Button onClick={updateUser} className="flex-1" disabled={updating}>
                 {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
