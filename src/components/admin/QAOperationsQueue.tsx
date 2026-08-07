@@ -1123,9 +1123,20 @@ export default function QAOperationsQueue() {
                       {showCol('service') && <TableCell className="px-2 py-2">{displayService(c.service_line) || '—'}</TableCell>}
                       <TableCell className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
-                          {g.displayAlertTypes.map((t) => (
-                            <Badge key={t} variant={alertVariant(t)} className={cn('text-[10px] px-1.5 py-0', alertBadgeClass(t))}>{ALERT_LABELS[t]}</Badge>
-                          ))}
+                          {g.displayAlertTypes.map((t) =>
+                            t === 'short_notice' && g.shortNoticeCorrected ? (
+                              <Badge
+                                key={t}
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 text-muted-foreground"
+                                title="Rescheduled outside the clinic's short-notice window — still open for audit"
+                              >
+                                Short-Notice (corrected)
+                              </Badge>
+                            ) : (
+                              <Badge key={t} variant={alertVariant(t)} className={cn('text-[10px] px-1.5 py-0', alertBadgeClass(t))}>{ALERT_LABELS[t]}</Badge>
+                            ),
+                          )}
                           {g.children.length > g.displayAlertTypes.length && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0" title="Older alerts moved to history">
                               +{g.children.length - g.displayAlertTypes.length}
