@@ -292,29 +292,37 @@ Deno.serve(async (req) => {
       },
     });
 
-    // --- Notify the escalation owner / escalator about ticket activity
-    if (qaCase.escalated_at) {
+    // --- Notify the assigned QA specialist, escalation owner and escalator
+    {
       const targets = [...new Set(
-        [qaCase.escalation_owner_user_id, qaCase.escalated_by_user_id].filter(Boolean),
+        [
+          qaCase.assigned_qs_user_id,
+          qaCase.escalation_owner_user_id,
+          qaCase.escalated_by_user_id,
+        ].filter(Boolean),
       )] as string[];
       if (targets.length > 0) {
+        const who = `${qaCase.patient_name || 'Case'}${qaCase.project_name ? ` • ${qaCase.project_name}` : ''}`;
         const { error: notifyErr } = await supabase.from('qa_note_mentions').insert(
           targets.map((uid) => ({
             case_id: qaCase.id,
             note_id: null,
-            kind: 'ticket_update',
+            kind: isResolved ? 'case_status' : 'ticket_update',
             title: isResolved
-              ? `Ticket ${effectiveTicketId} resolved`
+              ? `Ticket ${effectiveTicketId} resolved — audit completed`
               : `Ticket ${effectiveTicketId} updated`,
-            body: `${qaCase.patient_name || 'Case'}${qaCase.project_name ? ` • ${qaCase.project_name}` : ''} — ${summary}`.slice(0, 1000),
+            body: isResolved
+              ? `${who} — Control Hub ticket resolved, this audit record moved to Completed.`
+              : `${who} — ${summary}`.slice(0, 1000),
             mentioned_user_id: uid,
             mentioned_by_user_id: null,
             mentioned_by_name: authorName || 'Control Hub',
           })),
         );
-        if (notifyErr) console.error('Failed to notify escalation owner:', notifyErr.message);
+        if (notifyErr) console.error('Failed to notify QA users:', notifyErr.message);
       }
     }
+
 
     // --- @mentions inside Control Hub comments -> QA note + in-app notification
     let mentionedCount = 0;
