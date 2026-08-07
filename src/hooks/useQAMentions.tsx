@@ -4,8 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 
 export interface QAMention {
   id: string;
-  note_id: string;
+  note_id: string | null;
   case_id: string;
+  kind: string;
+  title: string | null;
+  body: string | null;
   mentioned_by_name: string | null;
   read_at: string | null;
   created_at: string;
@@ -23,6 +26,9 @@ const shape = (rows: any[]): QAMention[] =>
     id: r.id,
     note_id: r.note_id,
     case_id: r.case_id,
+    kind: r.kind || 'mention',
+    title: r.title ?? null,
+    body: r.body ?? null,
     mentioned_by_name: r.mentioned_by_name,
     read_at: r.read_at,
     created_at: r.created_at,
