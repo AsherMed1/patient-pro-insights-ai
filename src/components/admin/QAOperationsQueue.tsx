@@ -71,6 +71,11 @@ interface QACase {
   error_source: string | null;
   caught_before_clinic: boolean | null;
   resolution_type: string | null;
+  escalation_status: string | null;
+  escalation_owner_user_id: string | null;
+  escalated_by_user_id: string | null;
+  escalated_at: string | null;
+
   date_resolved: string | null;
   ticket_created: boolean;
   review_entered_at: string | null;
