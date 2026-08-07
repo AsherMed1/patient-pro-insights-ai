@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import MentionsBell from '@/components/notifications/MentionsBell';
 import patientProLogo from '@/assets/patient-pro-logo.png';
+import { useStickyHeight, PORTAL_HEADER_VAR } from '@/hooks/useStickyHeight';
 
 interface PortalHeaderProps {
   /** Small line under the portal title, e.g. "QA Operations Queue". */
@@ -19,9 +20,11 @@ interface PortalHeaderProps {
  */
 export default function PortalHeader({ subtitle, email, role, onSignOut }: PortalHeaderProps) {
   const navigate = useNavigate();
+  // Publishes its own height so the nav/toolbar below can stack under it.
+  const ref = useStickyHeight<HTMLDivElement>(PORTAL_HEADER_VAR);
 
   return (
-    <div className="sticky top-0 z-40 -mx-4 -mt-4 mb-0 flex items-center justify-between border-b bg-gray-50/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:-mt-6 md:px-6">
+    <div ref={ref} className="sticky top-0 z-40 -mx-4 -mt-4 mb-0 flex items-center justify-between border-b bg-gray-50/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:-mt-6 md:px-6">
       <div className="flex items-center gap-3">
         <img src={patientProLogo} alt="Patient Pro Logo" className="h-8 w-auto" />
         <div>

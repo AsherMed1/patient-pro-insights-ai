@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useStickyHeight } from '@/hooks/useStickyHeight';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -913,6 +914,9 @@ export default function QAOperationsQueue() {
     setDateTo(undefined);
   };
 
+  // Height of the sticky title row so the filter/tab strip can stack under it.
+  const titleRef = useStickyHeight<HTMLDivElement>('--qa-title-h');
+
   const clearAllFilters = () => {
     setSearch('');
     setProjectFilter([]);
@@ -925,7 +929,11 @@ export default function QAOperationsQueue() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div
+        ref={titleRef}
+        style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px))' }}
+        className="sticky z-20 -mx-4 flex items-center justify-between border-b bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:px-6"
+      >
         <div>
           <h2 className="text-xl font-semibold">QA Operations Queue</h2>
           <p className="text-sm text-muted-foreground">
@@ -979,6 +987,11 @@ export default function QAOperationsQueue() {
         />
       ) : (
       <>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      <div
+        style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px) + var(--qa-title-h, 0px))' }}
+        className="sticky z-20 -mx-4 max-h-[45vh] space-y-3 overflow-y-auto border-b bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 md:-mx-6 md:px-6"
+      >
       <div className="flex flex-wrap gap-2 items-center">
 
         <Input
@@ -1096,7 +1109,6 @@ export default function QAOperationsQueue() {
         </DropdownMenu>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
         <TabsList>
           {STATUS_TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
@@ -1110,6 +1122,7 @@ export default function QAOperationsQueue() {
             </TabsTrigger>
           ))}
         </TabsList>
+      </div>
 
         {hiddenCompletedCount > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
@@ -1132,7 +1145,7 @@ export default function QAOperationsQueue() {
               <Table className="text-xs w-full">
                 <TableHeader>
                   <TableRow>
-                    <SortableHead column="patient" label="Patient" className="sticky left-0 z-20 bg-background border-r min-w-[150px]" />
+                    <SortableHead column="patient" label="Patient" className="sticky left-0 z-[2] bg-background border-r min-w-[150px]" />
                     <SortableHead column="clinic" label="Clinic" className="min-w-[130px]" />
                     {showCol('service') && <SortableHead column="service" label="Service" className="min-w-[140px]" />}
                     <SortableHead column="alerts" label="Alerts" className="min-w-[110px]" />
@@ -1144,7 +1157,7 @@ export default function QAOperationsQueue() {
                     {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
                     {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
                     {showCol('ticket') && <SortableHead column="ticket" label="Ticket" className="w-[90px]" />}
-                    <TableHead className="sticky right-0 z-20 bg-background border-l w-[70px] px-2" />
+                    <TableHead className="sticky right-0 z-[2] bg-background border-l w-[70px] px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1153,7 +1166,7 @@ export default function QAOperationsQueue() {
                     const ticket = g.ticketCase;
                     return (
                     <TableRow key={g.key} className="group">
-                      <TableCell className="font-medium px-2 py-2 sticky left-0 z-10 bg-background group-hover:bg-muted/50 border-r">
+                      <TableCell className="font-medium px-2 py-2 sticky left-0 z-[1] bg-background group-hover:bg-muted/50 border-r">
                         <div className="flex items-center gap-1.5">
                           <span className="whitespace-normal font-sans not-italic">{c.patient_name || '—'}</span>
                           {ghlUrlFor(c) && (
@@ -1245,7 +1258,7 @@ export default function QAOperationsQueue() {
                         )}
                       </TableCell>
                       )}
-                      <TableCell className="px-2 py-2 sticky right-0 z-10 bg-background group-hover:bg-muted/50 border-l">
+                      <TableCell className="px-2 py-2 sticky right-0 z-[1] bg-background group-hover:bg-muted/50 border-l">
                         <Button size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); openGroup(g); }}>
                           Open
                         </Button>
