@@ -156,8 +156,23 @@ serve(async (req) => {
       if (recovered) {
         console.log(`[${requestId}] Recovered calendar name from intake fields: ${recovered}`)
         webhookData.calendar_name = recovered
+      } else {
+        // Deterministic fallback: build the label from the funnel's "Service Name"
+        // plus the project's location so Service/Location filters keep working.
+        const derived = deriveCalendarNameFromIntake(
+          webhookData.project_name,
+          webhookData.patient_intake_notes,
+        )
+        if (derived) {
+          console.log(`[${requestId}] Derived calendar name from intake service/location: ${derived}`)
+          webhookData.calendar_name = derived
+        } else if (webhookData.calendar_name === 'Unknown') {
+          console.log(`[${requestId}] Could not resolve service/location; clearing 'Unknown' calendar name`)
+          webhookData.calendar_name = null
+        }
       }
     }
+
 
     console.log(`[${requestId}] Extracted webhook data:`, webhookData)
 
