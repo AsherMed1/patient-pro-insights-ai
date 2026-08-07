@@ -140,9 +140,9 @@ function formatPhone(p: string | null): string {
 
 export default function RecaptureQueue() {
   const { user } = useAuth();
-  const { isAdmin, hasManagementAccess, isReviewOnly, accessibleProjects } = useRole();
+  const { isAdmin, hasManagementAccess, isReviewOnly, isRecaptureRole, accessibleProjects } = useRole();
   const canManage = hasManagementAccess() || isAdmin();
-  const isSetter = isReviewOnly;
+  const isSetter = () => isReviewOnly() || isRecaptureRole();
 
   const [view, setView] = useState<'queue' | 'reports'>('queue');
   const [tab, setTab] = useState<WorkStatus | 'all'>('pending');
