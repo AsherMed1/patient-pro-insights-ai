@@ -509,6 +509,27 @@ const UserManagement = () => {
     }
   };
 
+  const getRoleLabel = (role: UserRole | string) => {
+    switch (role) {
+      case 'admin':
+        return 'Admin';
+      case 'agent':
+        return 'Agent';
+      case 'va':
+        return 'VA';
+      case 'review_only':
+        return 'Setter';
+      case 'recapture':
+        return 'Recapture Only';
+      case 'qa_specialist':
+        return 'QA Specialist';
+      case 'project_user':
+        return 'Project User';
+      default:
+        return String(role);
+    }
+  };
+
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
       case 'admin':
@@ -527,6 +548,7 @@ const UserManagement = () => {
         return 'outline';
     }
   };
+
 
   if (initialLoading) {
     return (
