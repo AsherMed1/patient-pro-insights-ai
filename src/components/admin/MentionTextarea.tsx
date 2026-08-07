@@ -25,7 +25,7 @@ export default function MentionTextarea({
   className,
   disabled,
 }: MentionTextareaProps) {
-  const users = useMentionableUsers();
+  const { users, error, loading } = useMentionableUsers();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [triggerIndex, setTriggerIndex] = useState<number | null>(null);
@@ -35,7 +35,11 @@ export default function MentionTextarea({
     if (query === null) return [];
     const q = query.toLowerCase();
     return users
-      .filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .filter(
+        (u) =>
+          (u.name || '').toLowerCase().includes(q) ||
+          (u.email || '').toLowerCase().includes(q),
+      )
       .slice(0, 6);
   }, [query, users]);
 
