@@ -174,3 +174,7 @@ verify_jwt = false
 [functions.notify-slack-short-notice]
 verify_jwt = false
 # Send Slack alert when appointment is booked within short-notice threshold
+
+[functions.patient-outcomes]
+verify_jwt = false
+# Read-only outcomes API for Nexus; authenticated via PATIENT_OUTCOMES_SECRET
