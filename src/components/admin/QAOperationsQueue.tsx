@@ -318,7 +318,7 @@ function groupCases(list: QACase[]): QAGroup[] {
       .sort()[0];
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
-    groups.push({ key, primary, children: sorted, displayAlertTypes, earliestCreated, latestActivity, ticketCase });
+    groups.push({ key, primary, children: sorted, displayAlertTypes, shortNoticeCorrected, earliestCreated, latestActivity, ticketCase });
   }
   groups.sort(
     (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
