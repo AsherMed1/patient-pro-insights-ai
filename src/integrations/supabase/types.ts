@@ -3515,6 +3515,34 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "qa_note_mentions_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_note_mentions_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "qa_note_mentions_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+          {
+            foreignKeyName: "qa_note_mentions_appointment_note_id_fkey"
+            columns: ["appointment_note_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_notes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "qa_note_mentions_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
