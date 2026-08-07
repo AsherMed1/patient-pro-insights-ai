@@ -635,9 +635,6 @@ const UserManagement = () => {
                       <p className="text-xs text-muted-foreground">
                         Setter — access to Review Queue and Recapture.
                       </p>
-
-                        </SelectContent>
-                      </Select>
                     </div>
                     {newUser.role === 'project_user' && (
                       <div className="space-y-2">
