@@ -788,11 +788,27 @@ export default function QAOperationsQueue() {
 
   const updateEscalationStatus = async (id: string, next: string) => {
     const target = cases.find((c) => c.id === id) || selectedCase;
+    const nowIso = new Date().toISOString();
     const patch: any = { escalation_status: next };
     if (!target?.escalated_at) {
-      patch.escalated_at = new Date().toISOString();
+      patch.escalated_at = nowIso;
       patch.escalated_by_user_id = user?.id ?? null;
     }
+
+    // Resolving the escalation closes the audit record; reopening it puts the
+    // record back into the Pending / Escalated bucket.
+    const wasCompleted = target?.workflow_status === 'completed';
+    const closing = next === 'Resolved' && !wasCompleted;
+    const reopening = next !== 'Resolved' && wasCompleted;
+    if (closing) {
+      patch.workflow_status = 'completed';
+      patch.completed_at = nowIso;
+      patch.date_resolved = (target as any)?.date_resolved ?? nowIso;
+    } else if (reopening) {
+      patch.workflow_status = 'pending_escalated';
+      patch.completed_at = null;
+    }
+
     setCases((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     setSelectedCase((sc) => (sc && sc.id === id ? { ...sc, ...patch } : sc));
 
@@ -802,24 +818,59 @@ export default function QAOperationsQueue() {
       fetchCases();
       return;
     }
-    await supabase.from('qa_case_activity' as any).insert({
-      case_id: id,
-      activity_type: 'escalation_status_change',
-      description: `Escalation status changed to ${next}`,
-      actor_user_id: user?.id ?? null,
-    } as any);
+    await supabase.from('qa_case_activity' as any).insert(
+      [
+        {
+          case_id: id,
+          activity_type: 'escalation_status_change',
+          description: `Escalation status changed to ${next}`,
+          actor_user_id: user?.id ?? null,
+        },
+        ...(closing
+          ? [{
+              case_id: id,
+              activity_type: 'status_change',
+              description: 'Completed via escalation resolution',
+              actor_user_id: user?.id ?? null,
+            }]
+          : []),
+        ...(reopening
+          ? [{
+              case_id: id,
+              activity_type: 'status_change',
+              description: 'Reopened to Pending / Escalated — escalation no longer resolved',
+              actor_user_id: user?.id ?? null,
+            }]
+          : []),
+      ] as any,
+    );
     await notifyQAUsers({
-      userIds: [target?.escalation_owner_user_id, target?.escalated_by_user_id],
+      userIds: [
+        (target as any)?.assigned_qs_user_id,
+        target?.escalation_owner_user_id,
+        target?.escalated_by_user_id,
+      ],
       caseId: id,
-      kind: 'escalation_status',
-      title: `Escalation status: ${next}`,
+      kind: closing || reopening ? 'case_status' : 'escalation_status',
+      title: closing
+        ? 'Escalation resolved — audit completed'
+        : reopening
+          ? 'Escalation reopened — audit back in Pending / Escalated'
+          : `Escalation status: ${next}`,
       body: `${target?.patient_name || 'Case'}${target?.project_name ? ` • ${target.project_name}` : ''}`,
       actorId: user?.id ?? null,
       actorName,
     });
-    toast({ title: 'Escalation status updated' });
+    toast({
+      title: closing
+        ? 'Escalation resolved — moved to Completed'
+        : reopening
+          ? 'Escalation reopened'
+          : 'Escalation status updated',
+    });
     fetchCases();
   };
+
 
 
   const openCase = (c: QACase, siblings: QACase[] = []) => {
