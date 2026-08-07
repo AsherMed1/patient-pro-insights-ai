@@ -108,8 +108,19 @@ export default function MentionTextarea({
         disabled={disabled}
         className={className}
       />
-      {query !== null && matches.length > 0 && (
+      {query !== null && (matches.length > 0 || loading || error || users.length === 0) && (
         <div className="absolute z-50 mt-1 w-72 overflow-hidden rounded-md border bg-popover shadow-md">
+          {matches.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              {loading
+                ? 'Loading teammates…'
+                : error
+                  ? error
+                  : users.length === 0
+                    ? 'No teammates found — refresh and try again.'
+                    : 'No match'}
+            </div>
+          )}
           {matches.map((u, i) => (
             <button
               key={u.id}
