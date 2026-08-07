@@ -81,7 +81,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
     fetchProjects();
     fetchStatusOptions();
     fetchLocationAndServiceOptions();
-  }, [projectFilter, serviceFilter]);
+  }, [projectFilter, serviceFilter, dateRange.from, dateRange.to, dateFilterType]);
   const fetchProjects = async () => {
     try {
       const { data } = await supabase.from('projects').select('project_name').order('project_name');
@@ -101,9 +101,10 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
 
   const fetchLocationAndServiceOptions = async () => {
     try {
+      const hasDateRange = Boolean(dateRange.from || dateRange.to);
       let query = supabase
         .from('all_appointments')
-        .select('calendar_name')
+        .select('calendar_name, parsed_pathology_info')
         .not('calendar_name', 'is', null);
       
       // Filter by project if we're in a project-specific view
@@ -115,8 +116,32 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           query = query.eq('project_name', projectFilter);
         }
       }
+
+      // Scope options to the selected date range (Appt Date vs Created Date)
+      if (hasDateRange) {
+        if (dateFilterType === 'created') {
+          if (dateRange.from) {
+            const start = new Date(dateRange.from);
+            start.setHours(0, 0, 0, 0);
+            query = query.gte('created_at', start.toISOString());
+          }
+          if (dateRange.to) {
+            const end = new Date(dateRange.to);
+            end.setHours(23, 59, 59, 999);
+            query = query.lte('created_at', end.toISOString());
+          }
+        } else {
+          if (dateRange.from) {
+            query = query.gte('date_of_appointment', format(dateRange.from, 'yyyy-MM-dd'));
+          }
+          if (dateRange.to) {
+            query = query.lte('date_of_appointment', format(dateRange.to, 'yyyy-MM-dd'));
+          }
+        }
+      }
       
       const { data } = await query;
+
       
       if (data) {
         const locations = new Set<string>();
@@ -163,29 +188,44 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
               }
 
             }
-            
-            // Extract service: text between quotes or after "your " and before " Consultation"
-            const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
-            if (serviceMatch && serviceMatch[1]) {
-              let service = serviceMatch[1].trim();
-              // Strip modality modifiers (Virtual / In-Person / In Person) from either end
-              service = service
-                .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
-                .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
-                .trim();
-              // Skip if nothing meaningful remains (pure modality)
-              if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
-                services.add(service);
+
+            // Service source of truth: parsed procedure_type, fallback to calendar name text
+            const parsed = (item as any).parsed_pathology_info;
+            const parsedType = parsed && typeof parsed === 'object'
+              ? (parsed.procedure_type || parsed.procedure)
+              : null;
+            if (parsedType && typeof parsedType === 'string' && parsedType.trim()) {
+              services.add(parsedType.trim());
+            } else {
+              // Extract service: text between quotes or after "your " and before " Consultation"
+              const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
+              if (serviceMatch && serviceMatch[1]) {
+                let service = serviceMatch[1].trim();
+                // Strip modality modifiers (Virtual / In-Person / In Person) from either end
+                service = service
+                  .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
+                  .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
+                  .trim();
+                // Skip if nothing meaningful remains (pure modality)
+                if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
+                  services.add(service);
+                }
               }
             }
           }
         });
         
-        // Merge known project services (ensures services appear even with no appointments yet)
-        if (projectFilter && projectFilter !== 'ALL') {
+        // Merge known project services only when no date range narrows the view
+        if (!hasDateRange && projectFilter && projectFilter !== 'ALL') {
           const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
           knownServices.forEach(s => services.add(s));
         }
+
+        // Never drop the currently selected service from the list
+        if (serviceFilter && serviceFilter !== 'ALL') {
+          services.add(serviceFilter);
+        }
+
 
         setLocationOptions(Array.from(locations).sort());
         setServiceOptions(Array.from(services).sort());
