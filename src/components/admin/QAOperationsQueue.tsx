@@ -544,24 +544,8 @@ export default function QAOperationsQueue() {
           return;
         }
 
-        if (payload.eventType === 'UPDATE') {
-          setCases((cs) => {
-            const exists = cs.some((c) => c.id === newRow.id);
-            if (!exists) return cs;
-            return cs.map((c) =>
-              c.id === newRow.id
-                ? ({
-                    ...c,
-                    ...newRow,
-                    lead_phone_number: c.lead_phone_number,
-                    lead_email: c.lead_email,
-                  } as QACase)
-                : c,
-            );
-          });
-          // Row we didn't have yet (e.g. it just moved into scope) — pull it in.
-          setCases((cs) => cs);
-        }
+        // Patch the row in place; a row that just moved into scope gets prepended.
+
 
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           const enriched = await enrichContact(newRow);
