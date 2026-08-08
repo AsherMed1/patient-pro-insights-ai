@@ -152,7 +152,9 @@ export default function QATicketPanel({
       )}
 
       <div>
-        <div className="text-xs font-semibold mb-1 text-muted-foreground">Ticket activity</div>
+        <div className="text-xs font-semibold mb-1 text-muted-foreground">
+          ControlHub Ticket Comments
+        </div>
         {events.length === 0 ? (
           <div className="text-xs text-muted-foreground">
             No updates received from ControlHub yet.
@@ -160,20 +162,55 @@ export default function QATicketPanel({
         ) : (
           <div className="space-y-2 max-h-56 overflow-y-auto">
             {events.map((e) => (
-              <div key={e.id} className="text-xs border-l-2 pl-2 border-muted">
+              <div
+                key={e.id}
+                className={cn(
+                  'text-xs border-l-2 pl-2',
+                  e.direction === 'outbound' ? 'border-primary' : 'border-muted',
+                )}
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{eventLabel(e)}</span>
                   {e.author_name && <span className="text-muted-foreground">{e.author_name}</span>}
                   <span className="text-muted-foreground">
                     {format(new Date(e.occurred_at), 'MMM d, h:mm a')}
                   </span>
+                  {e.direction === 'outbound' && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Sent from QA Operations
+                    </Badge>
+                  )}
                 </div>
-                {e.body && <div className="mt-0.5 whitespace-pre-wrap">{renderWithLinks(e.body)}</div>}
+                {e.body && (
+                  <div className="mt-0.5 whitespace-pre-wrap break-words">
+                    {renderNoteWithMentions(e.body)}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <div className="border-t pt-3">
+        <MentionTextarea
+          value={draft}
+          onChange={setDraft}
+          rows={3}
+          disabled={sending}
+          placeholder="Reply on the ControlHub ticket… (type @ to tag a teammate)"
+        />
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            Shared with ControlHub — visible to Tech, AMs and Gloria.
+          </span>
+          <Button size="sm" onClick={postComment} disabled={sending || !draft.trim()}>
+            <Send className="h-3 w-3 mr-1" />
+            {sending ? 'Posting…' : 'Post comment'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
+
