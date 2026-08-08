@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Ticket } from 'lucide-react';
+import { ExternalLink, Send, Ticket } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { renderWithLinks } from '@/lib/linkify';
+import MentionTextarea from '@/components/admin/MentionTextarea';
+import { parseMentions, renderNoteWithMentions } from '@/lib/mentions';
+import { useUserAttribution } from '@/hooks/useUserAttribution';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { FunctionsHttpError } from '@supabase/supabase-js';
+
 
 export const TICKET_STATUS_LABELS: Record<string, string> = {
   open: 'Open',
@@ -41,7 +48,9 @@ export interface QATicketEvent {
   author_name: string | null;
   body: string | null;
   occurred_at: string;
+  direction?: string | null;
 }
+
 
 const eventLabel = (e: QATicketEvent) => {
   if (e.event_type === 'status_change') return `Status → ${ticketStatusLabel(e.status)}`;
@@ -71,6 +80,44 @@ export default function QATicketPanel({
   onSeen: () => void;
 }) {
   const [events, setEvents] = useState<QATicketEvent[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const { userName } = useUserAttribution();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const postComment = async () => {
+    const text = draft.trim();
+    if (!text || !ticketId) return;
+    setSending(true);
+    const mentions = parseMentions(text).map((m) => ({ id: m.userId, name: m.name }));
+    const { error } = await supabase.functions.invoke('post-controlhub-comment', {
+      body: {
+        case_id: caseId,
+        body: text,
+        author_name: userName,
+        author_email: user?.email ?? null,
+        mentions,
+      },
+    });
+    setSending(false);
+    if (error) {
+      let details = error.message;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const parsed = JSON.parse(await error.context.text());
+          details = parsed.details || parsed.error || details;
+        } catch {
+          /* keep default */
+        }
+      }
+      toast({ title: 'Comment not sent', description: details, variant: 'destructive' });
+      return;
+    }
+    setDraft('');
+    toast({ title: 'Comment posted to ControlHub' });
+  };
+
 
   useEffect(() => {
     if (!ticketId) return;
@@ -152,7 +199,9 @@ export default function QATicketPanel({
       )}
 
       <div>
-        <div className="text-xs font-semibold mb-1 text-muted-foreground">Ticket activity</div>
+        <div className="text-xs font-semibold mb-1 text-muted-foreground">
+          ControlHub Ticket Comments
+        </div>
         {events.length === 0 ? (
           <div className="text-xs text-muted-foreground">
             No updates received from ControlHub yet.
@@ -160,20 +209,55 @@ export default function QATicketPanel({
         ) : (
           <div className="space-y-2 max-h-56 overflow-y-auto">
             {events.map((e) => (
-              <div key={e.id} className="text-xs border-l-2 pl-2 border-muted">
+              <div
+                key={e.id}
+                className={cn(
+                  'text-xs border-l-2 pl-2',
+                  e.direction === 'outbound' ? 'border-primary' : 'border-muted',
+                )}
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{eventLabel(e)}</span>
                   {e.author_name && <span className="text-muted-foreground">{e.author_name}</span>}
                   <span className="text-muted-foreground">
                     {format(new Date(e.occurred_at), 'MMM d, h:mm a')}
                   </span>
+                  {e.direction === 'outbound' && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Sent from QA Operations
+                    </Badge>
+                  )}
                 </div>
-                {e.body && <div className="mt-0.5 whitespace-pre-wrap">{renderWithLinks(e.body)}</div>}
+                {e.body && (
+                  <div className="mt-0.5 whitespace-pre-wrap break-words">
+                    {renderNoteWithMentions(e.body)}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <div className="border-t pt-3">
+        <MentionTextarea
+          value={draft}
+          onChange={setDraft}
+          rows={3}
+          disabled={sending}
+          placeholder="Reply on the ControlHub ticket… (type @ to tag a teammate)"
+        />
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            Shared with ControlHub — visible to Tech, AMs and Gloria.
+          </span>
+          <Button size="sm" onClick={postComment} disabled={sending || !draft.trim()}>
+            <Send className="h-3 w-3 mr-1" />
+            {sending ? 'Posting…' : 'Post comment'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
+
