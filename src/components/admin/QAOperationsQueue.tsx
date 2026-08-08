@@ -2421,7 +2421,11 @@ function CaseDrawer({
               )}
 
               <div>
-                <div className="text-sm font-semibold mb-2">Notes</div>
+                <div className="text-sm font-semibold">Internal Patient Notes</div>
+                <div className="text-xs text-muted-foreground mb-2">
+                  Portal-only — not shared with ControlHub.
+                </div>
+
                 <MentionTextarea
                   value={noteDraft}
                   onChange={setNoteDraft}
