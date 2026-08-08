@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Ticket } from 'lucide-react';
+import { ExternalLink, Send, Ticket } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { renderWithLinks } from '@/lib/linkify';
+import MentionTextarea from '@/components/admin/MentionTextarea';
+import { parseMentions, renderNoteWithMentions } from '@/lib/mentions';
+import { useUserAttribution } from '@/hooks/useUserAttribution';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { FunctionsHttpError } from '@supabase/supabase-js';
+
 
 export const TICKET_STATUS_LABELS: Record<string, string> = {
   open: 'Open',
