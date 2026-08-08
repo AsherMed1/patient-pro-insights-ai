@@ -80,6 +80,44 @@ export default function QATicketPanel({
   onSeen: () => void;
 }) {
   const [events, setEvents] = useState<QATicketEvent[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const { userName } = useUserAttribution();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const postComment = async () => {
+    const text = draft.trim();
+    if (!text || !ticketId) return;
+    setSending(true);
+    const mentions = parseMentions(text).map((m) => ({ id: m.userId, name: m.name }));
+    const { error } = await supabase.functions.invoke('post-controlhub-comment', {
+      body: {
+        case_id: caseId,
+        body: text,
+        author_name: userName,
+        author_email: user?.email ?? null,
+        mentions,
+      },
+    });
+    setSending(false);
+    if (error) {
+      let details = error.message;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const parsed = JSON.parse(await error.context.text());
+          details = parsed.details || parsed.error || details;
+        } catch {
+          /* keep default */
+        }
+      }
+      toast({ title: 'Comment not sent', description: details, variant: 'destructive' });
+      return;
+    }
+    setDraft('');
+    toast({ title: 'Comment posted to ControlHub' });
+  };
+
 
   useEffect(() => {
     if (!ticketId) return;
