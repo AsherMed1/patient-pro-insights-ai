@@ -273,7 +273,24 @@ Deno.serve(async (req) => {
           ? `Assigned to ${assignee ?? 'unassigned'}`
           : (bodyText ?? 'Ticket updated');
 
+    // Skip echo-backs of comments we just posted from QA Operations.
+    if (eventType === 'comment' && bodyText) {
+      const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const { data: echo } = await supabase
+        .from('qa_ticket_events')
+        .select('id')
+        .eq('case_id', qaCase.id)
+        .eq('direction', 'outbound')
+        .eq('body', bodyText)
+        .gte('occurred_at', since)
+        .limit(1);
+      if (echo && echo.length > 0) {
+        return json({ ok: true, duplicate: true, echo: true, case_id: qaCase.id });
+      }
+    }
+
     const { error: eventErr } = await supabase.from('qa_ticket_events').insert({
+
       case_id: qaCase.id,
       ticket_id: effectiveTicketId,
       event_type: eventType,
