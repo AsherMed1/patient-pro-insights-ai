@@ -48,7 +48,9 @@ export interface QATicketEvent {
   author_name: string | null;
   body: string | null;
   occurred_at: string;
+  direction?: string | null;
 }
+
 
 const eventLabel = (e: QATicketEvent) => {
   if (e.event_type === 'status_change') return `Status → ${ticketStatusLabel(e.status)}`;
