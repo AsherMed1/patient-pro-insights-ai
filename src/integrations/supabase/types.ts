@@ -3567,6 +3567,7 @@ export type Database = {
           body: string | null
           case_id: string
           created_at: string
+          direction: string
           event_type: string
           id: string
           occurred_at: string
@@ -3579,6 +3580,7 @@ export type Database = {
           body?: string | null
           case_id: string
           created_at?: string
+          direction?: string
           event_type?: string
           id?: string
           occurred_at?: string
@@ -3591,6 +3593,7 @@ export type Database = {
           body?: string | null
           case_id?: string
           created_at?: string
+          direction?: string
           event_type?: string
           id?: string
           occurred_at?: string
