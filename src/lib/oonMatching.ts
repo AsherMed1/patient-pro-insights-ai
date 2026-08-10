@@ -121,3 +121,80 @@ export function evaluateRules(rules: BlockRule[], input: MatchInput): OonMatch[]
   }
   return matches;
 }
+
+// ---------------------------------------------------------------------------
+// Allowlist mode: per-clinic supported insurances synced from the GHL
+// "Please select your insurance provider" dropdown.
+// ---------------------------------------------------------------------------
+
+export interface SupportedInsurance {
+  project_name: string;
+  raw_option: string;
+  normalized: string;
+  is_unknown_option: boolean;
+  active: boolean;
+}
+
+const UNKNOWN_OPTION_TERMS = [
+  'other',
+  'none',
+  'no insurance',
+  'not sure',
+  'i m not sure',
+  'unsure',
+  'unknown',
+  'self pay',
+  'cash pay',
+  'n a',
+  'prefer not to say',
+  'not listed',
+  'my insurance is not listed',
+];
+
+/** Generic dropdown choices that must never whitelist a patient. */
+export function isUnknownInsuranceOption(value: unknown): boolean {
+  const n = normalizePlan(value);
+  if (!n) return true;
+  if (UNKNOWN_OPTION_TERMS.includes(n)) return true;
+  // Handles combined choices like "Self pay/ Cash" or "None / Not sure".
+  return UNKNOWN_OPTION_TERMS.some((t) =>
+    new RegExp(`(^|\\s)${t}(\\s|$)`).test(n)
+  );
+}
+
+/**
+ * Allowlist evaluation: flag when none of the stated plans map to an active,
+ * non-generic supported insurance for the clinic. An empty insurance value is
+ * never flagged here — that is a data-quality gap, not an OON signal.
+ */
+export function evaluateAllowlist(
+  supported: SupportedInsurance[],
+  input: MatchInput,
+): OonMatch[] {
+  const list = supported.filter((s) => s.active && !s.is_unknown_option);
+  if (!list.length) return [];
+
+  const plans = (input.plans || []).map((p) => (p || '').trim()).filter(Boolean);
+  if (!plans.length) return [];
+
+  const terms = list.map((s) => s.normalized).filter(Boolean);
+  const isSupported = (raw: string) => {
+    const subject = normalizePlan(raw);
+    if (!subject) return true; // unreadable — do not flag
+    return terms.some((t) => subject === t || subject.includes(t) || t.includes(subject));
+  };
+
+  if (plans.some(isSupported)) return [];
+
+  return [{
+    rule_id: 'allowlist',
+    rule_type: 'plan',
+    match_method: 'exact',
+    matched_on: 'plan',
+    matched_value: plans[0],
+    matched_term: 'not on clinic accepted list',
+    plan_name: null,
+    note: 'Insurance is not in the clinic\u2019s accepted list (synced from GHL).',
+  }];
+}
+

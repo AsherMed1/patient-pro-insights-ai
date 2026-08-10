@@ -10,8 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, ShieldAlert } from 'lucide-react';
-import { evaluateRules, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
+import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
+import { evaluateRules, evaluateAllowlist, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
 
 interface CanonicalPlan { id: string; canonical_name: string; }
 interface PlanAlias { id: string; plan_id: string; alias: string; }
@@ -20,6 +20,12 @@ interface RuleRow {
   id: string; rule_type: RuleType; plan_id: string | null; value: string | null;
   match_method: MatchMethod; is_active: boolean; note: string | null;
 }
+interface SupportedRow {
+  id: string; project_name: string; raw_option: string; normalized: string;
+  plan_id: string | null; source: string; is_unknown_option: boolean;
+  active: boolean; last_synced_at: string;
+}
+interface ProjectRow { project_name: string; oon_mode: string; }
 
 const MATCH_METHODS: MatchMethod[] = ['exact', 'prefix', 'contains', 'regex'];
 
@@ -49,20 +55,32 @@ const InsuranceRulesConfig = () => {
   const [testPlan, setTestPlan] = useState('');
   const [testGroup, setTestGroup] = useState('');
 
+  // supported-insurance state
+  const [projectRows, setProjectRows] = useState<ProjectRow[]>([]);
+  const [supported, setSupported] = useState<SupportedRow[]>([]);
+  const [supportedClinic, setSupportedClinic] = useState<string>('');
+  const [manualOption, setManualOption] = useState('');
+  const [syncing, setSyncing] = useState(false);
+
   const loadAll = async () => {
     setLoading(true);
-    const [p, a, r, s, proj] = await Promise.all([
+    const [p, a, r, s, proj, sup] = await Promise.all([
       supabase.from('insurance_canonical_plans').select('*').order('canonical_name'),
       supabase.from('insurance_plan_aliases').select('*').order('alias'),
       supabase.from('insurance_block_rules').select('*').order('created_at', { ascending: false }),
       supabase.from('insurance_block_rule_scopes').select('*'),
-      supabase.from('projects').select('project_name').order('project_name'),
+      supabase.from('projects').select('project_name, oon_mode').order('project_name'),
+      supabase.from('clinic_supported_insurances').select('*').order('raw_option'),
     ]);
     setPlans((p.data as CanonicalPlan[]) || []);
     setAliases((a.data as PlanAlias[]) || []);
     setRules((r.data as RuleRow[]) || []);
     setScopes((s.data as RuleScope[]) || []);
-    setProjects(((proj.data as { project_name: string }[]) || []).map((x) => x.project_name).filter(Boolean));
+    const projRows = ((proj.data as ProjectRow[]) || []).filter((x) => x.project_name);
+    setProjectRows(projRows);
+    setProjects(projRows.map((x) => x.project_name));
+    setSupported((sup.data as SupportedRow[]) || []);
+    setSupportedClinic((c) => c || projRows[0]?.project_name || '');
     setLoading(false);
   };
 
@@ -96,14 +114,24 @@ const InsuranceRulesConfig = () => {
 
   const testMatches = useMemo(() => {
     if (!testPlan.trim() && !testGroup.trim()) return [];
-    return evaluateRules(compiledRules, {
+    const input = {
       projectName: testProject === '__all__' ? null : testProject,
       location: testLocation || null,
       calendarName: testLocation || null,
       plans: [testPlan],
       groupNumbers: [testGroup],
-    });
-  }, [compiledRules, testProject, testLocation, testPlan, testGroup]);
+    };
+    const matches = evaluateRules(compiledRules, input);
+    const mode = projectRows.find((p) => p.project_name === testProject)?.oon_mode;
+    if (testProject !== '__all__' && mode === 'allowlist') {
+      matches.push(...evaluateAllowlist(
+        supported.filter((s) => s.project_name === testProject),
+        input,
+      ));
+    }
+    return matches;
+  }, [compiledRules, testProject, testLocation, testPlan, testGroup, projectRows, supported]);
+
 
   const addPlan = async () => {
     if (!newPlan.trim()) return;
@@ -171,6 +199,73 @@ const InsuranceRulesConfig = () => {
     return list.map((s) => [s.project_name, s.location, s.calendar_name].filter(Boolean).join(' · ')).join(' | ');
   };
 
+  const clinicSupported = useMemo(
+    () => supported.filter((s) => s.project_name === supportedClinic),
+    [supported, supportedClinic],
+  );
+
+  const currentMode = projectRows.find((p) => p.project_name === supportedClinic)?.oon_mode ?? 'denylist';
+
+  const runSync = async (allClinics: boolean) => {
+    setSyncing(true);
+    const { data, error } = await supabase.functions.invoke('sync-ghl-insurance-options', {
+      body: allClinics ? {} : { project_name: supportedClinic },
+    });
+    setSyncing(false);
+    if (error) return toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+    const results = (data?.results || []) as { status: string }[];
+    const synced = results.filter((r) => r.status === 'synced').length;
+    const missing = results.filter((r) => r.status !== 'synced').length;
+    toast({
+      title: 'Sync complete',
+      description: `${synced} clinic(s) synced${missing ? `, ${missing} skipped (no credentials or field not found)` : ''}.`,
+    });
+    loadAll();
+  };
+
+  const setOonMode = async (mode: string) => {
+    const { error } = await supabase.from('projects').update({ oon_mode: mode }).eq('project_name', supportedClinic);
+    if (error) return toast({ title: 'Could not change mode', description: error.message, variant: 'destructive' });
+    setProjectRows((rows) => rows.map((r) => (r.project_name === supportedClinic ? { ...r, oon_mode: mode } : r)));
+  };
+
+  const addManualOption = async () => {
+    const raw = manualOption.trim();
+    if (!raw || !supportedClinic) return;
+    const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const { error } = await supabase.from('clinic_supported_insurances').insert({
+      project_name: supportedClinic, raw_option: raw, normalized, source: 'manual', active: true,
+    });
+    if (error) return toast({ title: 'Could not add', description: error.message, variant: 'destructive' });
+    setManualOption('');
+    loadAll();
+  };
+
+  const updateSupported = async (row: SupportedRow, patch: Partial<SupportedRow>) => {
+    const { error } = await supabase.from('clinic_supported_insurances').update(patch).eq('id', row.id);
+    if (error) return toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+    setSupported((rows) => rows.map((r) => (r.id === row.id ? { ...r, ...patch } : r)));
+  };
+
+  const linkPlan = async (row: SupportedRow, planId: string) => {
+    const value = planId === '__none__' ? null : planId;
+    await updateSupported(row, { plan_id: value });
+    // Attaching a plan also teaches the matcher this spelling variant.
+    if (value) {
+      const exists = aliases.some((a) => a.plan_id === value && a.alias.toLowerCase() === row.raw_option.toLowerCase());
+      if (!exists) {
+        await supabase.from('insurance_plan_aliases').insert({ plan_id: value, alias: row.raw_option });
+        loadAll();
+      }
+    }
+  };
+
+  const deleteSupported = async (id: string) => {
+    const { error } = await supabase.from('clinic_supported_insurances').delete().eq('id', id);
+    if (error) return toast({ title: 'Delete failed', description: error.message, variant: 'destructive' });
+    setSupported((rows) => rows.filter((r) => r.id !== id));
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -187,8 +282,106 @@ const InsuranceRulesConfig = () => {
           <TabsList>
             <TabsTrigger value="plans">Canonical plans</TabsTrigger>
             <TabsTrigger value="rules">Block rules</TabsTrigger>
+            <TabsTrigger value="supported">Supported insurances</TabsTrigger>
             <TabsTrigger value="tester">Rule tester</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="supported" className="space-y-4 pt-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1 min-w-[240px]">
+                <Label>Clinic</Label>
+                <Select value={supportedClinic} onValueChange={setSupportedClinic}>
+                  <SelectTrigger><SelectValue placeholder="Select clinic" /></SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>OON mode</Label>
+                <Select value={currentMode} onValueChange={setOonMode}>
+                  <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="denylist">Block rules only</SelectItem>
+                    <SelectItem value="allowlist">Allowlist (flag anything not accepted)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" disabled={syncing || !supportedClinic} onClick={() => runSync(false)}>
+                <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />Sync from GHL
+              </Button>
+              <Button variant="outline" disabled={syncing} onClick={() => runSync(true)}>
+                Sync all clinics
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Options are pulled from the “Please select your insurance provider” custom field in the clinic’s GHL
+              sub-account. Generic choices (Other, Not sure, Self pay) never count as accepted insurance.
+            </p>
+
+            <div className="flex gap-2 max-w-md">
+              <Input placeholder="Add an accepted insurance manually" value={manualOption}
+                onChange={(e) => setManualOption(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addManualOption(); }} />
+              <Button variant="outline" onClick={addManualOption}><Plus className="h-4 w-4 mr-1" />Add</Button>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Option</TableHead>
+                  <TableHead>Canonical plan</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Generic</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Last synced</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clinicSupported.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium">{row.raw_option}</TableCell>
+                    <TableCell>
+                      <Select value={row.plan_id ?? '__none__'} onValueChange={(v) => linkPlan(row, v)}>
+                        <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not linked</SelectItem>
+                          {plans.map((p) => <SelectItem key={p.id} value={p.id}>{p.canonical_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-xs uppercase text-muted-foreground">{row.source}</TableCell>
+                    <TableCell>
+                      <Switch checked={row.is_unknown_option}
+                        onCheckedChange={(v) => updateSupported(row, { is_unknown_option: v })} />
+                    </TableCell>
+                    <TableCell>
+                      <Switch checked={row.active} onCheckedChange={(v) => updateSupported(row, { active: v })} />
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {row.last_synced_at ? new Date(row.last_synced_at).toLocaleDateString() : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => deleteSupported(row.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!loading && clinicSupported.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                      Nothing synced for this clinic yet — use “Sync from GHL”. If it stays empty, the sub-account may
+                      be missing GHL credentials or the insurance provider field.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TabsContent>
+
 
           <TabsContent value="plans" className="space-y-4 pt-4">
             <div className="flex gap-2 max-w-xl">
