@@ -8,6 +8,43 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Remove restated secondary-insurance details from the free-text Notes value.
+// The plan / ID / group already live in dedicated secondary_* fields, so echoing
+// them into Notes is pure duplication. Only removes confirmed duplicates.
+function stripSecondaryInsuranceEcho(
+  notes: string | null | undefined,
+  ins: Record<string, any> | null | undefined,
+): string | null {
+  if (!notes) return notes ?? null;
+  let out = String(notes);
+
+  const dupes = [ins?.secondary_plan, ins?.secondary_id_number, ins?.secondary_group_number, ins?.secondary_provider]
+    .filter((v) => typeof v === 'string' && v.trim().length >= 3)
+    .map((v) => String(v).trim());
+  if (dupes.length === 0) return out.trim() || null;
+
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const valueAlt = dupes.map(esc).join('|');
+
+  // "Secondary insurance: BCBS, ID Number: 9868HJA99A, Group Number: 51561"
+  out = out.replace(
+    new RegExp(String.raw`[;,.]?\s*Secondary\s+insurance\b[^\n]*?(?:${valueAlt})[^\n]*`, 'gi'),
+    '',
+  );
+  // "Insurance Plan (2): BCBS" / "ID Number: X" / "Group Number: Y" fragments
+  out = out.replace(
+    new RegExp(
+      String.raw`[;,.]?\s*(?:Insurance\s+)?(?:Plan|ID|Member\s*ID|Group)\s*(?:Number)?\s*(?:\(\s*2\s*\))?\s*:\s*(?:${valueAlt})\b`,
+      'gi',
+    ),
+    '',
+  );
+
+  out = out.replace(/\s{2,}/g, ' ').replace(/\s*[;,]\s*$/g, '').trim();
+  return out || null;
+}
+
+
 // Extract PCP name and/or phone from raw intake notes. Handles:
 //  - Combined line: "Primary Care Doctor's Name and Phone: Dr Jones 214-555-5555"
 //  - Split lines:   "Primary Care Doctor's Name: Dr Jones"
@@ -1228,11 +1265,14 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
   
-  // Extract generic "Notes" field if insurance_notes not already populated
+  // Extract generic "Notes" field. When the raw intake notes contain an explicit
+  // Notes field, that verbatim value is authoritative — the AI tends to append a
+  // restatement of secondary insurance details, which already have their own fields.
   if (!parsedData.insurance_info) {
     parsedData.insurance_info = {};
   }
-  if (!parsedData.insurance_info.insurance_notes) {
+  {
+
     // Multi-line capture: grab everything until the next labeled field, an upload/URL line, or end of section.
     const NEXT_LABEL = String.raw`(?=\n\s*(?:[A-Z][A-Za-z0-9 /&()'\-]{1,60}:|Upload\s|https?:\/\/)|$)`;
     const notesPatterns = [
@@ -1410,6 +1450,15 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       });
     }
   }
+
+  // Strip echoed secondary-insurance details out of the free-text Notes value.
+  // Those values live in secondary_plan / secondary_id_number / secondary_group_number.
+  if (parsedData.insurance_info?.insurance_notes) {
+    parsedData.insurance_info.insurance_notes =
+      stripSecondaryInsuranceEcho(parsedData.insurance_info.insurance_notes, parsedData.insurance_info);
+  }
+
+
 
 
   // Backfill PCP name/phone from raw notes when AI missed it.
@@ -3072,7 +3121,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "insurance_plan": "string or null - The plan/product name from the card or GHL 'Insurance Plan' field (e.g., 'Medicare Supplement Plan G', 'PPO', 'HMO Gold'). NEVER copy the provider/carrier name into this field.",
     "insurance_id_number": "string or null",
     "insurance_group_number": "string or null - ONLY the alphanumeric group/plan number printed on the insurance card. Must be a short identifier. NEVER copy conversation summaries, appointment statuses, dates, words like 'scheduled', 'unknown', 'missing', or anything containing 'Insurance Type:' / 'Appointment Status:' / 'Appointment Details:'. Return null if not explicitly labeled as a group number.",
-    "insurance_notes": "string or null - Any additional notes from the intake form, including fields labeled 'Notes', 'Notes (Example: Imaging, Secondary, etc.)', secondary insurance info, VA coverage, Medicaid/Medicare notes, or clinical observations documented by the caller. Always extract any generic 'Notes' field value here."
+    "insurance_notes": "string or null - VERBATIM copy of the intake form's generic notes field only (labels like 'Notes', 'Notes (Example: Imaging, Secondary, etc.) - Optional'). Copy the text exactly as written. NEVER summarize, restate, or append secondary insurance details (plan, ID number, group number) — those belong in secondary_plan / secondary_id_number / secondary_group_number. If there is no generic notes field, return null."
   },
   "contact_info": {
     "name": "string or null",

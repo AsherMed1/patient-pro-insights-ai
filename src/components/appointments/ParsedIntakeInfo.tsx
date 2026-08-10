@@ -1490,13 +1490,32 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                 {(() => {
                   const raw = parsedInsuranceInfo?.insurance_notes;
                   if (!raw || !formatValue(raw)) return null;
-                  const cleaned = raw
+                  let cleaned = raw
                     .replace(/Upload\s+A\s+Copy\s+Of\s+Your\s+Insurance\s+Card:\s*https?:\/\/\S+/gi, '')
                     .replace(/https?:\/\/services\.leadconnectorhq\.com\/documents\/download\/\S+/gi, '')
                     .replace(/These insurance plans are not accepted at this clinic:\s*[^.]*\.?\s*/gi, '')
                     .replace(/We are not in network with your plan\.?\s*Would you be open to a self[- ]?pay consultation:?\s*\w*\.?\s*/gi, '')
                     .trim();
+                  // Drop restated secondary insurance details that already have their own fields
+                  const dupes = [
+                    parsedInsuranceInfo?.secondary_plan,
+                    parsedInsuranceInfo?.secondary_id_number,
+                    parsedInsuranceInfo?.secondary_group_number,
+                    parsedInsuranceInfo?.secondary_provider,
+                  ]
+                    .filter((v: any) => typeof v === 'string' && v.trim().length >= 3)
+                    .map((v: any) => String(v).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                  if (dupes.length > 0) {
+                    const alt = dupes.join('|');
+                    cleaned = cleaned
+                      .replace(new RegExp(`[;,.]?\\s*Secondary\\s+insurance\\b[^\\n]*?(?:${alt})[^\\n]*`, 'gi'), '')
+                      .replace(new RegExp(`[;,.]?\\s*(?:Insurance\\s+)?(?:Plan|ID|Member\\s*ID|Group)\\s*(?:Number)?\\s*(?:\\(\\s*2\\s*\\))?\\s*:\\s*(?:${alt})\\b`, 'gi'), '')
+                      .replace(/\s{2,}/g, ' ')
+                      .replace(/\s*[;,]\s*$/g, '')
+                      .trim();
+                  }
                   if (!cleaned) return null;
+
                   return (
                   <div className="text-sm pt-2 border-t border-amber-200 mt-2">
                     <span className="text-muted-foreground">Notes:</span>{" "}
