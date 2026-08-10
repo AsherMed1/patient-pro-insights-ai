@@ -2849,7 +2849,7 @@ async function enrichAppointmentWithGHLData(
       parsed_contact_info: mergedParsedContact,
       ...(dobLocked
         ? { parsed_demographics: mergedParsedDemographics }
-        : (contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: mergedParsedDemographics } : {})),
+        : (normalizedContactDob ? { dob: normalizedContactDob, parsed_demographics: mergedParsedDemographics } : {})),
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
