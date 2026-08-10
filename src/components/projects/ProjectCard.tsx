@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Activity, Edit, TrendingUp, ExternalLink, Power, PowerOff, Database } from 'lucide-react';
+import { Calendar, Activity, Edit, TrendingUp, ExternalLink, Power, PowerOff, Database, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ProjectDetailedDashboard } from './ProjectDetailedDashboard';
 import { useRole } from '@/hooks/useRole';
@@ -15,6 +15,8 @@ interface Project {
   created_at: string;
   updated_at: string;
   active: boolean;
+  ghl_location_id?: string | null;
+  ghl_api_key?: string | null;
 }
 
 interface ProjectStats {
@@ -99,6 +101,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const isPPMTestAccount = project.project_name === 'PPM - Test Account';
 
+  // Without both GHL credentials the webhook can't enrich contacts, so this
+  // clinic's appointments arrive with stub intake data (no DOB, insurance, etc.).
+  const missingGhlCredentials = project.active && (!project.ghl_location_id || !project.ghl_api_key);
+
   return (
     <Card className={`h-full flex flex-col border-l-4 ${
       !project.active 
@@ -118,6 +124,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             </Badge>
           )}
         </div>
+        {missingGhlCredentials && isAdmin() && (
+          <Badge
+            variant="destructive"
+            className="w-fit text-xs gap-1"
+            title="Patient details won't populate until the GHL location ID and API key are set on this project."
+          >
+            <AlertTriangle className="h-3 w-3" />
+            Missing GHL {!project.ghl_location_id && !project.ghl_api_key
+              ? 'credentials'
+              : !project.ghl_location_id ? 'location ID' : 'API key'}
+          </Badge>
+        )}
         <div className="flex items-center justify-between">
           <Badge className={`text-xs ${activityStatus.color}`}>
             {activityStatus.status}

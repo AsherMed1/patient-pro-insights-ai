@@ -2875,6 +2875,14 @@ function normalizeDob(raw: string | null | undefined): string | null {
         // Create date and format as YYYY-MM-DD
         const date = new Date(year, month - 1, day);
         if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+          // Reject implausibly recent dates — a stray appointment/created date
+          // must never land in Demographics as a date of birth.
+          const today = new Date();
+          const maxDob = new Date(today.getFullYear() - 13, today.getMonth(), today.getDate());
+          if (date.getTime() > maxDob.getTime()) {
+            console.warn(`[AUTO-PARSE] Rejected implausible DOB: ${raw}`);
+            continue;
+          }
           const yyyy = date.getFullYear();
           const mm = String(date.getMonth() + 1).padStart(2, "0");
           const dd = String(date.getDate()).padStart(2, "0");
@@ -3356,8 +3364,8 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           parsedData.medical_info.urologist_phone = urologistFromText.phone;
         }
 
-        // Normalize DOB to proper format
-        const dobIso = normalizeDob(parsedData.contact_info?.dob);
+        // Normalize DOB to proper format (also rejects implausible dates)
+        const dobIso = normalizeDob(parsedData.contact_info?.dob) || normalizeDob(parsedData.demographics?.dob);
 
         // Build update data based on table
         const updateData: any = {
@@ -3374,10 +3382,12 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // authoritative — never let a re-parse of stale notes text revert it.
           const dobVerified = !!record.dob_verified_at && !!existingDob;
 
-          // Determine final DOB (prefer existing DB column, then AI-parsed)
+          // Determine final DOB (prefer existing DB column, then AI-parsed).
+          // Only ever use normalized/validated values — raw parsed strings can be
+          // a stray appointment date and must not reach Demographics.
           const finalDob = dobVerified
             ? existingDob
-            : (existingDob || dobIso || parsedData.contact_info?.dob || parsedData.demographics?.dob);
+            : (existingDob || dobIso);
           if (dobVerified) {
             console.log(`[AUTO-PARSE] DOB is human-verified (${existingDob}) — skipping parsed DOB overwrite`);
           }

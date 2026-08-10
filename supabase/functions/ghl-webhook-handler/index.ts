@@ -233,7 +233,7 @@ serve(async (req) => {
     }
 
     // Auto-create project if it doesn't exist (returns canonical project name)
-    const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId)
+    const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId, webhookData.ghl_location_id)
     webhookData.project_name = canonicalProjectName // Use canonical name for all operations
 
     // Check if appointment already exists (returns full record for comparison)
@@ -1783,7 +1783,12 @@ function extractTimePreference(notes: string | null | undefined): string | null 
   return null;
 }
 
-// Normalize DOB to YYYY-MM-DD. Rejects future dates and obviously bogus years.
+// Minimum plausible patient age — anything younger is a stray date field
+// (appointment date, created date, etc.), not a real date of birth.
+const MIN_PLAUSIBLE_DOB_AGE_YEARS = 13
+
+// Normalize DOB to YYYY-MM-DD. Rejects future dates, bogus years and
+// implausibly recent dates (e.g. "2026-08-01" landing in Demographics).
 function normalizeDob(dob: any): string | null {
   if (!dob) return null
 
@@ -1795,6 +1800,12 @@ function normalizeDob(dob: any): string | null {
     const today = new Date()
     if (d.getTime() > today.getTime()) return null // future date — invalid DOB
     if (year < 1900 || year > today.getUTCFullYear()) return null
+    const maxDob = new Date(Date.UTC(
+      today.getUTCFullYear() - MIN_PLAUSIBLE_DOB_AGE_YEARS,
+      today.getUTCMonth(),
+      today.getUTCDate(),
+    ))
+    if (d.getTime() > maxDob.getTime()) return null // implausibly recent — not a DOB
     return iso
   }
 
@@ -1855,14 +1866,36 @@ async function resolveProjectNameByLocationId(supabase: any, locationId: string 
 }
 
 // Ensure project exists, create if not (with name normalization for matching)
-async function ensureProjectExists(supabase: any, projectName: string, requestId: string): Promise<string> {
+// When the payload carries a GHL location id, make sure the project row records it —
+// enrichment (full contact + custom fields) is skipped entirely without it, which
+// leaves brand-new clinics receiving stub intake data.
+async function ensureProjectExists(
+  supabase: any,
+  projectName: string,
+  requestId: string,
+  locationId?: string | null,
+): Promise<string> {
   const normalizedName = normalizeProjectName(projectName)
   console.log(`[${requestId}] Checking if project exists: "${projectName}" (normalized: "${normalizedName}")`)
+
+  const backfillLocationId = async (canonicalName: string, currentLocationId: string | null | undefined) => {
+    if (!locationId || currentLocationId) return
+    const { error } = await supabase
+      .from('projects')
+      .update({ ghl_location_id: locationId })
+      .eq('project_name', canonicalName)
+      .is('ghl_location_id', null)
+    if (error) {
+      console.error(`[${requestId}] Failed to backfill ghl_location_id for ${canonicalName}:`, error)
+    } else {
+      console.log(`[${requestId}] Backfilled ghl_location_id ${locationId} on project ${canonicalName}`)
+    }
+  }
   
   // First try exact match
   let { data: existing } = await supabase
     .from('projects')
-    .select('id, project_name')
+    .select('id, project_name, ghl_location_id')
     .eq('project_name', projectName)
     .maybeSingle()
   
@@ -1871,7 +1904,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
     console.log(`[${requestId}] No exact match, trying normalized matching...`)
     const { data: allProjects } = await supabase
       .from('projects')
-      .select('id, project_name')
+      .select('id, project_name, ghl_location_id')
       .eq('active', true)
     
     if (allProjects) {
@@ -1881,6 +1914,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
       
       if (existing) {
         console.log(`[${requestId}] Found normalized match: "${existing.project_name}"`)
+        await backfillLocationId(existing.project_name, existing.ghl_location_id)
         return existing.project_name // Return the canonical project name
       }
     }
@@ -1892,7 +1926,8 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
       .from('projects')
       .insert([{ 
         project_name: normalizedName, // Use normalized name for new projects
-        active: true 
+        active: true,
+        ...(locationId ? { ghl_location_id: locationId } : {}),
       }])
     
     if (error) {
@@ -1903,6 +1938,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
     return normalizedName
   } else {
     console.log(`[${requestId}] Project exists: ${existing.project_name}`)
+    await backfillLocationId(existing.project_name, existing.ghl_location_id)
     return existing.project_name // Return the canonical project name
   }
 }
@@ -2336,6 +2372,48 @@ async function fetchAndUpdateInsuranceCard(
   }
 }
 
+// Raise an admin-visible warning when a project has no usable GHL credentials.
+// Deduped to once per project per calendar day so a busy clinic can't flood the log.
+async function logMissingGhlCredentials(
+  supabase: any,
+  projectName: string,
+  appointmentId: string,
+  detail: { hasApiKey: boolean; hasLocationId: boolean },
+  requestId: string,
+) {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: recent } = await supabase
+      .from('audit_logs')
+      .select('id')
+      .eq('action', 'ghl_credentials_missing')
+      .eq('entity', projectName)
+      .gte('created_at', since)
+      .limit(1)
+
+    if (recent?.length) return
+
+    await supabase.rpc('log_audit_event', {
+      p_entity: projectName,
+      p_action: 'ghl_credentials_missing',
+      p_description:
+        `GHL contact enrichment skipped for ${projectName} — the project is missing ` +
+        `${!detail.hasApiKey ? 'a GHL API key' : ''}${!detail.hasApiKey && !detail.hasLocationId ? ' and ' : ''}` +
+        `${!detail.hasLocationId ? 'a GHL location ID' : ''}. Appointments for this clinic will arrive with incomplete intake data until it is configured.`,
+      p_source: 'system',
+      p_metadata: {
+        project_name: projectName,
+        appointment_id: appointmentId,
+        has_api_key: detail.hasApiKey,
+        has_location_id: detail.hasLocationId,
+        request_id: requestId,
+      },
+    })
+  } catch (e) {
+    console.error(`[${requestId}] Failed to log missing GHL credentials:`, e)
+  }
+}
+
 // Enrich appointments with full GHL contact data
 async function enrichAppointmentWithGHLData(
   supabase: any,
@@ -2355,7 +2433,13 @@ async function enrichAppointmentWithGHLData(
       .single()
     
     if (projectError || !project?.ghl_api_key || !project?.ghl_location_id) {
-      console.log(`[${requestId}] Missing GHL credentials for project:`, projectName)
+      console.error(`[${requestId}] Missing GHL credentials for project:`, projectName)
+      // Make the silent failure visible to admins: without credentials every
+      // appointment for this clinic lands with stub intake data.
+      await logMissingGhlCredentials(supabase, projectName, appointmentId, {
+        hasApiKey: !!project?.ghl_api_key,
+        hasLocationId: !!project?.ghl_location_id,
+      }, requestId)
       return
     }
     
@@ -2570,17 +2654,21 @@ async function enrichAppointmentWithGHLData(
     }
 
     // Prepare parsed fields from root-level contact data
+    const normalizedContactDob = normalizeDob(contact.dateOfBirth)
+    if (contact.dateOfBirth && !normalizedContactDob) {
+      console.warn(`[${requestId}] Rejected implausible GHL dateOfBirth: ${contact.dateOfBirth}`)
+    }
     const parsedContactInfo = {
       name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
       email: contact.email || null,
       phone: contact.phone || null,
-      dob: contact.dateOfBirth || null,
+      dob: normalizedContactDob,
       address: [contact.address1, contact.city, contact.state, contact.postalCode].filter(Boolean).join(', ') || null
     }
     
     const parsedDemographics = {
-      dob: contact.dateOfBirth || null,
-      age: calculateAge(contact.dateOfBirth),
+      dob: normalizedContactDob,
+      age: calculateAge(normalizedContactDob),
       gender: contact.gender || null
     }
     
@@ -2761,7 +2849,7 @@ async function enrichAppointmentWithGHLData(
       parsed_contact_info: mergedParsedContact,
       ...(dobLocked
         ? { parsed_demographics: mergedParsedDemographics }
-        : (contact.dateOfBirth ? { dob: contact.dateOfBirth, parsed_demographics: mergedParsedDemographics } : {})),
+        : (normalizedContactDob ? { dob: normalizedContactDob, parsed_demographics: mergedParsedDemographics } : {})),
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
