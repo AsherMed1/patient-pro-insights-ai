@@ -60,6 +60,10 @@ interface ReviewAppointment {
   reviewed_by?: string | null;
   review_notes?: string | null;
   decline_reason?: string | null;
+  potential_oon?: boolean | null;
+  potential_oon_matches?: any;
+  potential_oon_resolved_at?: string | null;
+  potential_oon_resolution?: string | null;
 }
 
 interface DuplicateAppt {
@@ -295,7 +299,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
       .eq('review_status', queueView === 'declined' ? 'declined' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -614,7 +618,55 @@ const ReviewQueue: React.FC = () => {
 
 
 
+  // Potential-OON safeguard: an unresolved flag blocks approval until a reviewer
+  // records whether the insurance is actually in network.
+  const isOonBlocked = (row?: ReviewAppointment | null) =>
+    !!row?.potential_oon && !row?.potential_oon_resolved_at;
+
+  const resolvePotentialOon = async (row: ReviewAppointment, resolution: 'in_network' | 'out_of_network') => {
+    setProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({
+          potential_oon_resolved_at: new Date().toISOString(),
+          potential_oon_resolution: resolution,
+          potential_oon_resolved_by: user?.id ?? null,
+        })
+        .eq('id', row.id);
+      if (error) throw error;
+
+      await supabase.from('appointment_notes').insert({
+        appointment_id: row.id,
+        note_text: `Potential OON insurance reviewed — marked ${resolution === 'in_network' ? 'IN NETWORK (cleared)' : 'OUT OF NETWORK'} by ${userName || 'a portal user'}`,
+      });
+
+      setRows(prev => prev.map(r => r.id === row.id
+        ? { ...r, potential_oon_resolved_at: new Date().toISOString(), potential_oon_resolution: resolution }
+        : r));
+
+      if (resolution === 'out_of_network') {
+        await performAction(row.id, 'oon', 'Insurance confirmed out of network from Potential OON alert');
+      } else {
+        toast({ title: 'Insurance cleared', description: 'This appointment can now be approved.' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Could not save', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
+    if (action === 'approved' && isOonBlocked(rows.find(r => r.id === id))) {
+      toast({
+        title: 'Potential OON insurance',
+        description: 'Verify the insurance and clear the Potential OON flag before approving.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setProcessing(true);
     try {
       const { data: priorRow } = await supabase
@@ -1393,6 +1445,16 @@ const ReviewQueue: React.FC = () => {
                             </span>
                           </Badge>
                         )}
+                        {!isDeclinedView && isOonBlocked(row) && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500 text-amber-800 bg-amber-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title="Insurance matches a Potential OON rule — verify before approving"
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                            <span>Potential OON</span>
+                          </Badge>
+                        )}
                         {!isDeclinedView && isInvalidDob(row) && (
                           <Badge
                             variant="outline"
@@ -1404,6 +1466,30 @@ const ReviewQueue: React.FC = () => {
                           </Badge>
                         )}
                       </div>
+
+                      {!isDeclinedView && isOonBlocked(row) && (
+                        <div className="mt-2 rounded-md border border-amber-400 bg-amber-50 p-2 space-y-1">
+                          <div className="text-[11px] font-medium text-amber-900">
+                            Potential out-of-network insurance — approval blocked
+                          </div>
+                          {(Array.isArray(row.potential_oon_matches) ? row.potential_oon_matches : []).map((m: any, i: number) => (
+                            <div key={i} className="text-[11px] text-amber-800">
+                              {m.matched_on === 'group' ? 'Group #' : 'Plan'} “{m.matched_value}”
+                              {m.plan_name ? ` → ${m.plan_name}` : ''}{m.note ? ` — ${m.note}` : ''}
+                            </div>
+                          ))}
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" variant="outline" disabled={processing}
+                              onClick={() => resolvePotentialOon(row, 'in_network')}>
+                              Verified in network
+                            </Button>
+                            <Button size="sm" variant="destructive" disabled={processing}
+                              onClick={() => resolvePotentialOon(row, 'out_of_network')}>
+                              Confirm OON
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
                       {isDeclinedView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
