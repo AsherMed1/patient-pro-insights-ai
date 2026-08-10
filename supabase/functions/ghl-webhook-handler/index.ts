@@ -2361,6 +2361,48 @@ async function fetchAndUpdateInsuranceCard(
   }
 }
 
+// Raise an admin-visible warning when a project has no usable GHL credentials.
+// Deduped to once per project per calendar day so a busy clinic can't flood the log.
+async function logMissingGhlCredentials(
+  supabase: any,
+  projectName: string,
+  appointmentId: string,
+  detail: { hasApiKey: boolean; hasLocationId: boolean },
+  requestId: string,
+) {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: recent } = await supabase
+      .from('audit_logs')
+      .select('id')
+      .eq('action', 'ghl_credentials_missing')
+      .eq('entity', projectName)
+      .gte('created_at', since)
+      .limit(1)
+
+    if (recent?.length) return
+
+    await supabase.rpc('log_audit_event', {
+      p_entity: projectName,
+      p_action: 'ghl_credentials_missing',
+      p_description:
+        `GHL contact enrichment skipped for ${projectName} — the project is missing ` +
+        `${!detail.hasApiKey ? 'a GHL API key' : ''}${!detail.hasApiKey && !detail.hasLocationId ? ' and ' : ''}` +
+        `${!detail.hasLocationId ? 'a GHL location ID' : ''}. Appointments for this clinic will arrive with incomplete intake data until it is configured.`,
+      p_source: 'system',
+      p_metadata: {
+        project_name: projectName,
+        appointment_id: appointmentId,
+        has_api_key: detail.hasApiKey,
+        has_location_id: detail.hasLocationId,
+        request_id: requestId,
+      },
+    })
+  } catch (e) {
+    console.error(`[${requestId}] Failed to log missing GHL credentials:`, e)
+  }
+}
+
 // Enrich appointments with full GHL contact data
 async function enrichAppointmentWithGHLData(
   supabase: any,
