@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
 import { evaluateRules, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
 
 interface CanonicalPlan { id: string; canonical_name: string; }
@@ -20,6 +20,12 @@ interface RuleRow {
   id: string; rule_type: RuleType; plan_id: string | null; value: string | null;
   match_method: MatchMethod; is_active: boolean; note: string | null;
 }
+interface SupportedRow {
+  id: string; project_name: string; raw_option: string; normalized: string;
+  plan_id: string | null; source: string; is_unknown_option: boolean;
+  active: boolean; last_synced_at: string;
+}
+interface ProjectRow { project_name: string; oon_mode: string; }
 
 const MATCH_METHODS: MatchMethod[] = ['exact', 'prefix', 'contains', 'regex'];
 
