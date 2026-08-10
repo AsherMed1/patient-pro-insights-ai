@@ -1,42 +1,45 @@
-# Testing the Potential OON Insurance Safeguard
+# Use the GHL "Please select your insurance provider" field to drive per-clinic supported insurances
 
-## Current state (verified)
+## Why this works
 
-- `insurance_block_rules` is **empty** — with zero rules nothing can ever flag, so the first test step is creating a rule.
-- `evaluate-potential-oon`, `notify-slack-potential-oon` are deployed; Review Queue and QA Operations both read `potential_oon` fields.
-- The Slack secret `SLACK_POTENTIAL_OON_WEBHOOK_URL` still needs a value before the Slack half can be tested.
+Every GHL sub-account has that custom field, and its dropdown options are exactly the list of insurers the clinic accepts. Verified: 50 of 55 projects already have a GHL API key + location ID stored, and `fetch-ghl-contact-data` already calls `GET /locations/{id}/customFields` — the same call returns each field's picklist options, so the accepted-insurance list can be pulled per clinic with no new credentials.
 
-## Test plan
+Today the OON safeguard only knows about explicit block rules (`insurance_block_rules`, currently empty). This turns the problem inside out: instead of maintaining a denylist per clinic by hand, each clinic gets an allowlist synced from its own GHL dropdown.
 
-### 1. Create a test rule (admin UI)
-In Admin → Insurance Rules:
-- Add a canonical plan, e.g. "ZZ Test OON Plan", plus an alias like "zz test oon".
-- Add a **Plan** rule for it, scoped to one clinic (use PPM - Test Account or Elite so no real clinic is affected).
-- Add a second rule of type **Group number** with a distinctive value (e.g. `ZZTEST999`).
-- Use the built-in live tester on that screen to confirm both a plan-name hit and a group-number hit match, and that a nonsense value does not.
+## What to build
 
-### 2. Patient-submitted path → Review Queue block
-- Create a throwaway appointment on the scoped clinic with insurance plan "zz test oon" and Insurance Intake Source unset/Patient Submitted.
-- Expect: row lands in Review Queue **pending**, carries the potential-OON flag/badge, and Approve is blocked with the reason shown.
-- Confirm the row is invisible in the client portal for that clinic.
+### 1. Store the per-clinic list
+New table `clinic_supported_insurances`: project, raw option text as it appears in GHL, a normalized form, optional link to a canonical plan, `source` ('ghl' or 'manual'), `active`, `last_synced_at`. Unique on (project, normalized). Admin-only RLS plus the standard grants.
 
-### 3. Setter-submitted path → QA hold + Slack
-- Same insurance values, but with Insurance Intake Source = "Setter Submitted" (which normally auto-approves).
-- Expect: instead of going client-facing, the row moves to `qa_hold` and appears in QA Operations with the OON reason.
-- Slack alert fires only once the webhook secret is set.
+### 2. Sync function
+New edge function `sync-ghl-insurance-options`:
+- Loops clinics that have GHL credentials (or one clinic when given a `project_id`).
+- Fetches location custom fields, finds the field whose name matches "please select your insurance provider" (fuzzy, so per-clinic wording variations still match).
+- Reads its picklist options, normalizes them with the same normalizer the OON matcher uses, and upserts them.
+- Options that vanish from GHL get marked inactive rather than deleted, so history is kept.
+- Auto-links each option to a canonical plan when an existing alias matches; otherwise leaves it unlinked for review.
 
-### 4. Negative control
-- One more throwaway appointment with an unmatched plan (e.g. "Aetna PPO") on the same clinic — must flow through normally with no flag, proving the rules aren't over-matching.
+### 3. Admin UI
+In Insurance Rules, add a **Supported insurances** section:
+- Clinic picker, list of synced options with their canonical-plan link and last-synced timestamp.
+- "Sync from GHL" per clinic and "Sync all".
+- Ability to add/remove a manual entry, and to attach an unlinked option to a canonical plan (which creates the alias).
+- Flags clinics that have no credentials or where the field wasn't found.
 
-### 5. Scope check
-- Repeat step 2 on a **different** clinic not covered by the rule scope — must not flag, proving clinic scoping works.
+### 4. Wire into the OON safeguard (opt-in per clinic)
+Add an `oon_mode` setting per clinic: `denylist` (today's behaviour, default) or `allowlist`.
+In allowlist mode, `evaluate-potential-oon` flags a record as potential OON when the patient's stated insurer does **not** normalize to any active supported entry for that clinic. Existing block rules still apply on top. An empty or unreadable insurance value is never auto-flagged by allowlist mode alone — that stays a data-quality issue, not an OON one.
 
-### 6. Cleanup
-- Delete the throwaway appointments and deactivate/remove the ZZ test rules, plan, and alias.
+Routing after a flag is unchanged: patient-submitted goes to the Review Queue with an approval block, setter-submitted goes to QA hold plus Slack.
 
-## What I need from you
+## Rollout
 
-- The Slack webhook URL for the channel that should receive potential-OON alerts (I'll store it as `SLACK_POTENTIAL_OON_WEBHOOK_URL`). Steps 1–5 can run without it; only the Slack notification stays untested.
-- Confirmation of which clinic to use for the throwaway records (default: PPM - Test Account).
+1. Ship the table, sync function, and admin UI; run a full sync and review what comes back per clinic.
+2. Leave every clinic on `denylist` initially so nothing changes in production.
+3. Turn `allowlist` on for one or two clinics whose synced list looks clean, watch the flag volume, then expand.
 
-I can drive steps 1–6 myself with throwaway data and report results, or leave the UI walkthrough to you — say which you prefer.
+## Notes / open items
+
+- Some clinics may have generic options like "Other" or "I'm not sure" in the dropdown — those should be treated as "unknown", not as an accepted insurer. The sync will mark them as non-matching so they don't silently whitelist everything.
+- The 5 clinics without GHL credentials can't be synced; they show a warning and stay on manual entry.
+- Re-sync can run on a schedule later; the first version is manual-button only.
