@@ -73,7 +73,11 @@ Deno.serve(async (req) => {
       .eq('id', caseId)
       .maybeSingle();
 
-    if (caseErr || !qaCase) return json({ error: 'Case not found', details: caseErr?.message }, 404);
+    if (caseErr || !qaCase) {
+      log(`case lookup failed: ${caseErr?.message ?? 'not found'}`);
+      return json({ error: 'Case not found', details: caseErr?.message }, 404);
+    }
+    log(`case loaded ${caseId}`);
 
     const ticketId: string | null = (qaCase as any).controlhub_ticket_id ?? null;
     if (!ticketId) return json({ error: 'This case has no linked ControlHub ticket' }, 400);
@@ -85,36 +89,62 @@ Deno.serve(async (req) => {
     }
 
     const controlhubApiKey = Deno.env.get('CONTROLHUB_API_KEY');
-    const controlhubBaseUrl = Deno.env.get('CONTROLHUB_BASE_URL');
-    if (!controlhubApiKey || !controlhubBaseUrl) {
+    const rawBaseUrl = Deno.env.get('CONTROLHUB_BASE_URL');
+    if (!controlhubApiKey || !rawBaseUrl) {
+      log('ControlHub not configured');
       return json({ error: 'ControlHub is not configured (missing API key or base URL).' }, 503);
     }
+    const controlhubBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
 
     const occurredAt = new Date().toISOString();
+    const targetUrl = `${controlhubBaseUrl}/functions/v1/receive-external-comment`;
 
-    const resp = await fetch(`${controlhubBaseUrl}/functions/v1/receive-external-comment`, {
-      method: 'POST',
-      headers: { 'x-api-key': controlhubApiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: 'patientpro_qa_queue',
-        ticket_id: ticketId,
-        external_case_id: caseId,
-        body: bodyText,
-        author_name: authorName,
-        author_email: authorEmail,
-        mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
-        occurred_at: occurredAt,
-      }),
-    });
+    let resp: Response;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      log(`ControlHub request started -> ${targetUrl} ticket=${ticketId}`);
+      resp = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'x-api-key': controlhubApiKey, 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          source: 'patientpro_qa_queue',
+          ticket_id: ticketId,
+          external_case_id: caseId,
+          body: bodyText,
+          author_name: authorName,
+          author_email: authorEmail,
+          mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
+          occurred_at: occurredAt,
+        }),
+      });
+      log(`ControlHub responded ${resp.status}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[POST-CH ${reqId}] ControlHub request failed: ${msg}`);
+      return json(
+        {
+          error: msg.includes('abort')
+            ? "ControlHub didn't respond in time. Please try again."
+            : "Couldn't reach ControlHub. Please try again.",
+          details: msg,
+        },
+        502,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!resp.ok) {
       const detail = await resp.text();
-      console.error(`ControlHub comment failed [${resp.status}]: ${detail}`);
+      console.error(`[POST-CH ${reqId}] ControlHub comment failed [${resp.status}]: ${detail}`);
       return json(
         { error: 'ControlHub rejected the comment', status: resp.status, details: detail },
         resp.status,
       );
     }
+
 
     const { error: eventErr } = await supabase.from('qa_ticket_events').insert({
       case_id: caseId,
