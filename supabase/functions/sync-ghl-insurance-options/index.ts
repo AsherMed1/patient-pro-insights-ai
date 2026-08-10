@@ -108,38 +108,56 @@ serve(async (req) => {
 
         const data = await res.json();
         const defs: any[] = data.customFields || [];
-        const field = defs.find((d) => isInsuranceProviderField(d?.name));
-        if (!field) {
+        // A clinic can have several insurance-ish fields (a free-text one and the
+        // dropdown). Prefer choice fields, then try each candidate until one yields options.
+        const choiceTypes = ["SINGLE_OPTIONS", "MULTIPLE_OPTIONS", "RADIO", "CHECKBOX", "SELECT"];
+        const candidates = defs
+          .filter((d) => isInsuranceProviderField(d?.name))
+          .sort((a, b) => {
+            const rank = (d: any) => (choiceTypes.includes(String(d?.dataType).toUpperCase()) ? 0 : 1);
+            return rank(a) - rank(b);
+          });
+        if (!candidates.length) {
           results.push({ project_name: name, status: "field_not_found" });
           continue;
         }
 
-        let options = extractOptions(field);
-        if (!options.length && field.id) {
-          // The list endpoint often omits choices; the single-field endpoint returns them.
-          const detailRes = await fetch(
-            `${GHL_BASE_URL}/locations/${project.ghl_location_id}/customFields/${field.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${project.ghl_api_key}`,
-                Version: GHL_API_VERSION,
-                "Content-Type": "application/json",
+        let options: string[] = [];
+        let matchedField: any = candidates[0];
+        for (const field of candidates) {
+          options = extractOptions(field);
+          if (!options.length && field.id) {
+            // The list endpoint often omits choices; the single-field endpoint returns them.
+            const detailRes = await fetch(
+              `${GHL_BASE_URL}/locations/${project.ghl_location_id}/customFields/${field.id}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${project.ghl_api_key}`,
+                  Version: GHL_API_VERSION,
+                  "Content-Type": "application/json",
+                },
               },
-            },
-          );
-          if (detailRes.ok) {
-            const detail = await detailRes.json();
-            options = extractOptions(detail.customField ?? detail);
+            );
+            if (detailRes.ok) {
+              const detail = await detailRes.json();
+              options = extractOptions(detail.customField ?? detail);
+            }
+          }
+          if (options.length) {
+            matchedField = field;
+            break;
           }
         }
+
         if (!options.length) {
           results.push({
             project_name: name,
             status: "field_not_found",
-            message: `Field "${field.name}" returned no options (keys: ${Object.keys(field).join(",")})`,
+            message: `No choices on insurance field(s): ${candidates.map((c) => c.name).join(", ")}`,
           });
           continue;
         }
+
 
 
         const now = new Date().toISOString();
