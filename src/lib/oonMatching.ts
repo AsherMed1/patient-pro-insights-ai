@@ -165,7 +165,7 @@ export function isUnknownInsuranceOption(value: unknown): boolean {
  */
 export function evaluateAllowlist(
   supported: SupportedInsurance[],
-  input: AppointmentInsuranceInput,
+  input: MatchInput,
 ): OonMatch[] {
   const list = supported.filter((s) => s.active && !s.is_unknown_option);
   if (!list.length) return [];
