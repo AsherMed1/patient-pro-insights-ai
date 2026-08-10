@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
     const controlhubBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
 
     const occurredAt = new Date().toISOString();
+    const outboundBody = stripMentionTokens(bodyText);
     const targetUrl = `${controlhubBaseUrl}/functions/v1/receive-external-comment`;
 
     let resp: Response;
