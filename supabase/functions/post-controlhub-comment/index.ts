@@ -14,7 +14,11 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  const reqId = crypto.randomUUID().slice(0, 8);
+  const log = (msg: string) => console.log(`[POST-CH ${reqId}] ${msg}`);
+
   try {
+    log('request received');
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
 
@@ -26,8 +30,13 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(
       authHeader.replace('Bearer ', ''),
     );
-    if (claimsErr || !claimsData?.claims) return json({ error: 'Unauthorized' }, 401);
+    if (claimsErr || !claimsData?.claims) {
+      log(`auth failed: ${claimsErr?.message ?? 'no claims'}`);
+      return json({ error: 'Unauthorized' }, 401);
+    }
     const userId = claimsData.claims.sub as string;
+    log(`auth resolved user=${userId}`);
+
 
     const payload = await req.json().catch(() => ({}));
     const caseId = typeof payload?.case_id === 'string' ? payload.case_id.trim() : '';
@@ -64,7 +73,11 @@ Deno.serve(async (req) => {
       .eq('id', caseId)
       .maybeSingle();
 
-    if (caseErr || !qaCase) return json({ error: 'Case not found', details: caseErr?.message }, 404);
+    if (caseErr || !qaCase) {
+      log(`case lookup failed: ${caseErr?.message ?? 'not found'}`);
+      return json({ error: 'Case not found', details: caseErr?.message }, 404);
+    }
+    log(`case loaded ${caseId}`);
 
     const ticketId: string | null = (qaCase as any).controlhub_ticket_id ?? null;
     if (!ticketId) return json({ error: 'This case has no linked ControlHub ticket' }, 400);
@@ -76,36 +89,62 @@ Deno.serve(async (req) => {
     }
 
     const controlhubApiKey = Deno.env.get('CONTROLHUB_API_KEY');
-    const controlhubBaseUrl = Deno.env.get('CONTROLHUB_BASE_URL');
-    if (!controlhubApiKey || !controlhubBaseUrl) {
+    const rawBaseUrl = Deno.env.get('CONTROLHUB_BASE_URL');
+    if (!controlhubApiKey || !rawBaseUrl) {
+      log('ControlHub not configured');
       return json({ error: 'ControlHub is not configured (missing API key or base URL).' }, 503);
     }
+    const controlhubBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
 
     const occurredAt = new Date().toISOString();
+    const targetUrl = `${controlhubBaseUrl}/functions/v1/receive-external-comment`;
 
-    const resp = await fetch(`${controlhubBaseUrl}/functions/v1/receive-external-comment`, {
-      method: 'POST',
-      headers: { 'x-api-key': controlhubApiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: 'patientpro_qa_queue',
-        ticket_id: ticketId,
-        external_case_id: caseId,
-        body: bodyText,
-        author_name: authorName,
-        author_email: authorEmail,
-        mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
-        occurred_at: occurredAt,
-      }),
-    });
+    let resp: Response;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      log(`ControlHub request started -> ${targetUrl} ticket=${ticketId}`);
+      resp = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'x-api-key': controlhubApiKey, 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          source: 'patientpro_qa_queue',
+          ticket_id: ticketId,
+          external_case_id: caseId,
+          body: bodyText,
+          author_name: authorName,
+          author_email: authorEmail,
+          mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
+          occurred_at: occurredAt,
+        }),
+      });
+      log(`ControlHub responded ${resp.status}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[POST-CH ${reqId}] ControlHub request failed: ${msg}`);
+      return json(
+        {
+          error: msg.includes('abort')
+            ? "ControlHub didn't respond in time. Please try again."
+            : "Couldn't reach ControlHub. Please try again.",
+          details: msg,
+        },
+        502,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!resp.ok) {
       const detail = await resp.text();
-      console.error(`ControlHub comment failed [${resp.status}]: ${detail}`);
+      console.error(`[POST-CH ${reqId}] ControlHub comment failed [${resp.status}]: ${detail}`);
       return json(
         { error: 'ControlHub rejected the comment', status: resp.status, details: detail },
         resp.status,
       );
     }
+
 
     const { error: eventErr } = await supabase.from('qa_ticket_events').insert({
       case_id: caseId,
@@ -162,11 +201,14 @@ Deno.serve(async (req) => {
       metadata: { ticket_id: ticketId, body: bodyText.slice(0, 1000) },
     } as any);
 
+    log('DB writes done');
     return json({ ok: true, ticket_id: ticketId, occurred_at: occurredAt });
   } catch (err) {
+    console.error(`[POST-CH ${reqId}] unhandled error:`, err instanceof Error ? err.stack : String(err));
     return json(
       { error: 'Internal error', details: err instanceof Error ? err.message : String(err) },
       500,
+
     );
   }
 });
