@@ -307,7 +307,7 @@ const InsuranceRulesConfig = () => {
               <TableBody>
                 {rules.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="capitalize">{r.rule_type}</TableCell>
+                    <TableCell>{r.rule_type === 'group_number' ? 'Group number' : 'Plan'}</TableCell>
                     <TableCell>{r.plan_id ? planNameById.get(r.plan_id) : r.value}</TableCell>
                     <TableCell>{r.match_method}</TableCell>
                     <TableCell className="text-xs">{scopeLabel(r.id)}</TableCell>
