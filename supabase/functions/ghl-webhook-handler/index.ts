@@ -1783,7 +1783,12 @@ function extractTimePreference(notes: string | null | undefined): string | null 
   return null;
 }
 
-// Normalize DOB to YYYY-MM-DD. Rejects future dates and obviously bogus years.
+// Minimum plausible patient age — anything younger is a stray date field
+// (appointment date, created date, etc.), not a real date of birth.
+const MIN_PLAUSIBLE_DOB_AGE_YEARS = 13
+
+// Normalize DOB to YYYY-MM-DD. Rejects future dates, bogus years and
+// implausibly recent dates (e.g. "2026-08-01" landing in Demographics).
 function normalizeDob(dob: any): string | null {
   if (!dob) return null
 
@@ -1795,6 +1800,12 @@ function normalizeDob(dob: any): string | null {
     const today = new Date()
     if (d.getTime() > today.getTime()) return null // future date — invalid DOB
     if (year < 1900 || year > today.getUTCFullYear()) return null
+    const maxDob = new Date(Date.UTC(
+      today.getUTCFullYear() - MIN_PLAUSIBLE_DOB_AGE_YEARS,
+      today.getUTCMonth(),
+      today.getUTCDate(),
+    ))
+    if (d.getTime() > maxDob.getTime()) return null // implausibly recent — not a DOB
     return iso
   }
 
