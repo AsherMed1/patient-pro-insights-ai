@@ -257,6 +257,13 @@ export type Database = {
           parsed_pathology_info: Json | null
           parsing_completed_at: string | null
           patient_intake_notes: string | null
+          potential_oon: boolean
+          potential_oon_flagged_at: string | null
+          potential_oon_matches: Json | null
+          potential_oon_resolution: string | null
+          potential_oon_resolution_reason: string | null
+          potential_oon_resolved_at: string | null
+          potential_oon_resolved_by: string | null
           procedure_ordered: boolean | null
           procedure_status: string | null
           project_name: string
@@ -332,6 +339,13 @@ export type Database = {
           parsed_pathology_info?: Json | null
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
+          potential_oon?: boolean
+          potential_oon_flagged_at?: string | null
+          potential_oon_matches?: Json | null
+          potential_oon_resolution?: string | null
+          potential_oon_resolution_reason?: string | null
+          potential_oon_resolved_at?: string | null
+          potential_oon_resolved_by?: string | null
           procedure_ordered?: boolean | null
           procedure_status?: string | null
           project_name: string
@@ -407,6 +421,13 @@ export type Database = {
           parsed_pathology_info?: Json | null
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
+          potential_oon?: boolean
+          potential_oon_flagged_at?: string | null
+          potential_oon_matches?: Json | null
+          potential_oon_resolution?: string | null
+          potential_oon_resolution_reason?: string | null
+          potential_oon_resolved_at?: string | null
+          potential_oon_resolved_by?: string | null
           procedure_ordered?: boolean | null
           procedure_status?: string | null
           project_name?: string
@@ -2339,6 +2360,118 @@ export type Database = {
         }
         Relationships: []
       }
+      insurance_block_rule_scopes: {
+        Row: {
+          calendar_name: string | null
+          created_at: string
+          id: string
+          location: string | null
+          project_name: string
+          rule_id: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_name?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          project_name: string
+          rule_id: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_name?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          project_name?: string
+          rule_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurance_block_rule_scopes_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_block_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insurance_block_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          match_method: string
+          note: string | null
+          plan_id: string | null
+          rule_type: string
+          updated_at: string
+          updated_by: string | null
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          match_method?: string
+          note?: string | null
+          plan_id?: string | null
+          rule_type: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          match_method?: string
+          note?: string | null
+          plan_id?: string | null
+          rule_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurance_block_rules_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_canonical_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insurance_canonical_plans: {
+        Row: {
+          canonical_name: string
+          created_at: string
+          created_by: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_name: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          canonical_name?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       insurance_fetch_queue: {
         Row: {
           appointment_id: string
@@ -2394,6 +2527,38 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "recapture_events"
             referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
+      insurance_plan_aliases: {
+        Row: {
+          alias: string
+          created_at: string
+          id: string
+          plan_id: string
+          updated_at: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          id?: string
+          plan_id: string
+          updated_at?: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          id?: string
+          plan_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurance_plan_aliases_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_canonical_plans"
+            referencedColumns: ["id"]
           },
         ]
       }
