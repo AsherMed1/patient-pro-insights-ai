@@ -1468,26 +1468,29 @@ const ReviewQueue: React.FC = () => {
                       </div>
 
                       {!isDeclinedView && isOonBlocked(row) && (
-                        <div className="mt-2 rounded-md border border-amber-400 bg-amber-50 p-2 space-y-1">
-                          <div className="text-[11px] font-medium text-amber-900">
+                        <div className="mt-2 rounded-md border border-amber-400 bg-amber-50 p-2 space-y-1 min-w-0">
+                          <div className="text-[11px] font-medium text-amber-900 break-words">
                             Potential out-of-network insurance — approval blocked
                           </div>
                           {(Array.isArray(row.potential_oon_matches) ? row.potential_oon_matches : []).map((m: any, i: number) => (
-                            <div key={i} className="text-[11px] text-amber-800">
+                            <div key={i} className="text-[11px] text-amber-800 break-words">
                               {m.matched_on === 'group' ? 'Group #' : 'Plan'} “{m.matched_value}”
                               {m.plan_name ? ` → ${m.plan_name}` : ''}{m.note ? ` — ${m.note}` : ''}
                             </div>
                           ))}
-                          <div className="flex gap-2 pt-1">
+                          <div className="flex flex-wrap gap-2 pt-1">
                             <Button size="sm" variant="outline" disabled={processing}
+                              className="h-7 px-2 text-[11px] min-w-0"
                               onClick={() => resolvePotentialOon(row, 'in_network')}>
                               Verified in network
                             </Button>
                             <Button size="sm" variant="destructive" disabled={processing}
+                              className="h-7 px-2 text-[11px] min-w-0"
                               onClick={() => resolvePotentialOon(row, 'out_of_network')}>
                               Confirm OON
                             </Button>
                           </div>
+
                         </div>
                       )}
 
