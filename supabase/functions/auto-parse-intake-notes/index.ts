@@ -1414,6 +1414,15 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // Strip echoed secondary-insurance details out of the free-text Notes value.
+  // Those values live in secondary_plan / secondary_id_number / secondary_group_number.
+  if (parsedData.insurance_info?.insurance_notes) {
+    parsedData.insurance_info.insurance_notes =
+      stripSecondaryInsuranceEcho(parsedData.insurance_info.insurance_notes, parsedData.insurance_info);
+  }
+
+
+
 
   // Backfill PCP name/phone from raw notes when AI missed it.
   // Curly-apostrophe-safe: "Primary Care Doctor's Name and Phone:" or "Primary Care Doctor's …".
