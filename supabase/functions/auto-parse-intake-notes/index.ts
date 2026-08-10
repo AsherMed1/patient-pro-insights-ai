@@ -8,6 +8,43 @@ const corsHeaders = {
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
 
+// Remove restated secondary-insurance details from the free-text Notes value.
+// The plan / ID / group already live in dedicated secondary_* fields, so echoing
+// them into Notes is pure duplication. Only removes confirmed duplicates.
+function stripSecondaryInsuranceEcho(
+  notes: string | null | undefined,
+  ins: Record<string, any> | null | undefined,
+): string | null {
+  if (!notes) return notes ?? null;
+  let out = String(notes);
+
+  const dupes = [ins?.secondary_plan, ins?.secondary_id_number, ins?.secondary_group_number, ins?.secondary_provider]
+    .filter((v) => typeof v === 'string' && v.trim().length >= 3)
+    .map((v) => String(v).trim());
+  if (dupes.length === 0) return out.trim() || null;
+
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const valueAlt = dupes.map(esc).join('|');
+
+  // "Secondary insurance: BCBS, ID Number: 9868HJA99A, Group Number: 51561"
+  out = out.replace(
+    new RegExp(String.raw`[;,.]?\s*Secondary\s+insurance\b[^\n]*?(?:${valueAlt})[^\n]*`, 'gi'),
+    '',
+  );
+  // "Insurance Plan (2): BCBS" / "ID Number: X" / "Group Number: Y" fragments
+  out = out.replace(
+    new RegExp(
+      String.raw`[;,.]?\s*(?:Insurance\s+)?(?:Plan|ID|Member\s*ID|Group)\s*(?:Number)?\s*(?:\(\s*2\s*\))?\s*:\s*(?:${valueAlt})\b`,
+      'gi',
+    ),
+    '',
+  );
+
+  out = out.replace(/\s{2,}/g, ' ').replace(/\s*[;,]\s*$/g, '').trim();
+  return out || null;
+}
+
+
 // Extract PCP name and/or phone from raw intake notes. Handles:
 //  - Combined line: "Primary Care Doctor's Name and Phone: Dr Jones 214-555-5555"
 //  - Split lines:   "Primary Care Doctor's Name: Dr Jones"
