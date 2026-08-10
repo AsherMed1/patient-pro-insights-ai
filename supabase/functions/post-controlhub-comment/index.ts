@@ -5,6 +5,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Mentions are stored as @[Full Name](uuid) tokens; ControlHub wants plain "@Full Name".
+const stripMentionTokens = (text: string) =>
+  text.replace(/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/g, '@$1');
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -97,6 +101,7 @@ Deno.serve(async (req) => {
     const controlhubBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
 
     const occurredAt = new Date().toISOString();
+    const outboundBody = stripMentionTokens(bodyText);
     const targetUrl = `${controlhubBaseUrl}/functions/v1/receive-external-comment`;
 
     let resp: Response;
@@ -112,7 +117,7 @@ Deno.serve(async (req) => {
           source: 'patientpro_qa_queue',
           ticket_id: ticketId,
           external_case_id: caseId,
-          body: bodyText,
+          body: outboundBody,
           author_name: authorName,
           author_email: authorEmail,
           mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
@@ -162,7 +167,7 @@ Deno.serve(async (req) => {
     await supabase
       .from('qa_cases')
       .update({
-        controlhub_ticket_last_activity: `${authorName}: ${bodyText}`.slice(0, 1000),
+        controlhub_ticket_last_activity: `${authorName}: ${outboundBody}`.slice(0, 1000),
         controlhub_ticket_last_activity_at: occurredAt,
       })
       .eq('id', caseId);
