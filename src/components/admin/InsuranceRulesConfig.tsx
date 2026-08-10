@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
-import { evaluateRules, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
+import { evaluateRules, evaluateAllowlist, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
 
 interface CanonicalPlan { id: string; canonical_name: string; }
 interface PlanAlias { id: string; plan_id: string; alias: string; }
