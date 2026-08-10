@@ -1855,14 +1855,36 @@ async function resolveProjectNameByLocationId(supabase: any, locationId: string 
 }
 
 // Ensure project exists, create if not (with name normalization for matching)
-async function ensureProjectExists(supabase: any, projectName: string, requestId: string): Promise<string> {
+// When the payload carries a GHL location id, make sure the project row records it —
+// enrichment (full contact + custom fields) is skipped entirely without it, which
+// leaves brand-new clinics receiving stub intake data.
+async function ensureProjectExists(
+  supabase: any,
+  projectName: string,
+  requestId: string,
+  locationId?: string | null,
+): Promise<string> {
   const normalizedName = normalizeProjectName(projectName)
   console.log(`[${requestId}] Checking if project exists: "${projectName}" (normalized: "${normalizedName}")`)
+
+  const backfillLocationId = async (canonicalName: string, currentLocationId: string | null | undefined) => {
+    if (!locationId || currentLocationId) return
+    const { error } = await supabase
+      .from('projects')
+      .update({ ghl_location_id: locationId })
+      .eq('project_name', canonicalName)
+      .is('ghl_location_id', null)
+    if (error) {
+      console.error(`[${requestId}] Failed to backfill ghl_location_id for ${canonicalName}:`, error)
+    } else {
+      console.log(`[${requestId}] Backfilled ghl_location_id ${locationId} on project ${canonicalName}`)
+    }
+  }
   
   // First try exact match
   let { data: existing } = await supabase
     .from('projects')
-    .select('id, project_name')
+    .select('id, project_name, ghl_location_id')
     .eq('project_name', projectName)
     .maybeSingle()
   
@@ -1871,7 +1893,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
     console.log(`[${requestId}] No exact match, trying normalized matching...`)
     const { data: allProjects } = await supabase
       .from('projects')
-      .select('id, project_name')
+      .select('id, project_name, ghl_location_id')
       .eq('active', true)
     
     if (allProjects) {
@@ -1881,6 +1903,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
       
       if (existing) {
         console.log(`[${requestId}] Found normalized match: "${existing.project_name}"`)
+        await backfillLocationId(existing.project_name, existing.ghl_location_id)
         return existing.project_name // Return the canonical project name
       }
     }
@@ -1892,7 +1915,8 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
       .from('projects')
       .insert([{ 
         project_name: normalizedName, // Use normalized name for new projects
-        active: true 
+        active: true,
+        ...(locationId ? { ghl_location_id: locationId } : {}),
       }])
     
     if (error) {
@@ -1903,6 +1927,7 @@ async function ensureProjectExists(supabase: any, projectName: string, requestId
     return normalizedName
   } else {
     console.log(`[${requestId}] Project exists: ${existing.project_name}`)
+    await backfillLocationId(existing.project_name, existing.ghl_location_id)
     return existing.project_name // Return the canonical project name
   }
 }
