@@ -3121,7 +3121,7 @@ Parse the following patient intake notes and return a JSON object with these exa
     "insurance_plan": "string or null - The plan/product name from the card or GHL 'Insurance Plan' field (e.g., 'Medicare Supplement Plan G', 'PPO', 'HMO Gold'). NEVER copy the provider/carrier name into this field.",
     "insurance_id_number": "string or null",
     "insurance_group_number": "string or null - ONLY the alphanumeric group/plan number printed on the insurance card. Must be a short identifier. NEVER copy conversation summaries, appointment statuses, dates, words like 'scheduled', 'unknown', 'missing', or anything containing 'Insurance Type:' / 'Appointment Status:' / 'Appointment Details:'. Return null if not explicitly labeled as a group number.",
-    "insurance_notes": "string or null - Any additional notes from the intake form, including fields labeled 'Notes', 'Notes (Example: Imaging, Secondary, etc.)', secondary insurance info, VA coverage, Medicaid/Medicare notes, or clinical observations documented by the caller. Always extract any generic 'Notes' field value here."
+    "insurance_notes": "string or null - VERBATIM copy of the intake form's generic notes field only (labels like 'Notes', 'Notes (Example: Imaging, Secondary, etc.) - Optional'). Copy the text exactly as written. NEVER summarize, restate, or append secondary insurance details (plan, ID number, group number) — those belong in secondary_plan / secondary_id_number / secondary_group_number. If there is no generic notes field, return null."
   },
   "contact_info": {
     "name": "string or null",
