@@ -275,7 +275,10 @@ const InsuranceRulesConfig = () => {
         </CardTitle>
         <CardDescription>
           Flag appointments whose insurance plan or group number is likely out-of-network before they reach clinics.
+          Each clinic runs in one of two modes: <strong>Block rules only</strong> flags just what matches a rule you
+          wrote, while <strong>Allowlist</strong> flags anything that is not on the clinic's accepted insurance list.
         </CardDescription>
+
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="plans">
@@ -287,7 +290,14 @@ const InsuranceRulesConfig = () => {
           </TabsList>
 
           <TabsContent value="supported" className="space-y-4 pt-4">
+            <p className="text-xs text-muted-foreground max-w-3xl">
+              Allowlist. This list is pre-filled from each clinic's GHL sub-account — press <strong>Sync from GHL</strong>
+              (or <strong>Sync all clinics</strong>) to pull the current options in, and re-sync whenever the clinic edits
+              its dropdown. Link each option to a canonical plan so spelling variants still match. Set OON mode to
+              <strong> Allowlist</strong> to flag any insurance that is not on this list.
+            </p>
             <div className="flex flex-wrap items-end gap-3">
+
               <div className="space-y-1 min-w-[240px]">
                 <Label>Clinic</Label>
                 <Select value={supportedClinic} onValueChange={setSupportedClinic}>
@@ -306,7 +316,11 @@ const InsuranceRulesConfig = () => {
                     <SelectItem value="allowlist">Allowlist (flag anything not accepted)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground max-w-[220px]">
+                  Block rules only = flag what matches a rule. Allowlist = flag anything not accepted.
+                </p>
               </div>
+
               <Button variant="outline" disabled={syncing || !supportedClinic} onClick={() => runSync(false)}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />Sync from GHL
               </Button>
@@ -384,7 +398,13 @@ const InsuranceRulesConfig = () => {
 
 
           <TabsContent value="plans" className="space-y-4 pt-4">
+            <p className="text-xs text-muted-foreground max-w-3xl">
+              The master list of insurance names. Each plan holds its spelling variants (aliases), so “Ambetter”,
+              “Ambetter Superior” and “ambetter-tx” are all recognised as the same plan. Add a plan here first,
+              then use it in a block rule or link it to a synced GHL option under Supported insurances.
+            </p>
             <div className="flex gap-2 max-w-xl">
+
               <Input placeholder="Canonical plan name (e.g. Ambetter)" value={newPlan}
                 onChange={(e) => setNewPlan(e.target.value)} />
               <Button onClick={addPlan}><Plus className="h-4 w-4 mr-1" />Add plan</Button>
@@ -426,7 +446,14 @@ const InsuranceRulesConfig = () => {
           </TabsContent>
 
           <TabsContent value="rules" className="space-y-4 pt-4">
+            <p className="text-xs text-muted-foreground max-w-3xl">
+              Denylist. A rule flags an appointment when the patient's insurance plan (or group number) matches.
+              Rule type picks what is compared; Match method controls how strictly (exact / starts with / contains
+              / regex). Clinic scope and Location limit the rule to one clinic or site — leave them blank to apply
+              everywhere. The Note explains why it is out of network and is shown on the flag.
+            </p>
             <div className="grid gap-3 md:grid-cols-3 border rounded-md p-3">
+
               <div className="space-y-1">
                 <Label>Rule type</Label>
                 <Select value={ruleType} onValueChange={(v) => setRuleType(v as RuleType)}>
@@ -521,7 +548,13 @@ const InsuranceRulesConfig = () => {
           </TabsContent>
 
           <TabsContent value="tester" className="space-y-4 pt-4">
+            <p className="text-xs text-muted-foreground max-w-3xl">
+              Dry run — nothing here touches a real appointment. Enter a clinic, location, plan name and group
+              number to see whether it would be flagged and by which rule. Use it after adding a rule to confirm
+              it catches what you expect and nothing else.
+            </p>
             <div className="grid gap-3 md:grid-cols-4">
+
               <div className="space-y-1">
                 <Label>Clinic</Label>
                 <Select value={testProject} onValueChange={setTestProject}>
