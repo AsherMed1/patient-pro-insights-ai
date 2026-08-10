@@ -44,7 +44,7 @@ serve(async (req) => {
       const { plans, groupNumbers } = extractInsuranceValues(appt);
       const matches = evaluateRules(rules, {
         projectName: appt.project_name,
-        location: appt.location || appt.calendar_name,
+        location: appt.calendar_name,
         calendarName: appt.calendar_name,
         plans,
         groupNumbers,
@@ -87,7 +87,6 @@ serve(async (req) => {
       await supabase.from('appointment_notes').insert({
         appointment_id: appt.id,
         note_text: `Potential OON insurance detected — ${summary}. Held for QA insurance verification.`,
-        created_by_name: 'System',
       }).then(({ error: nErr }) => { if (nErr) console.error('note insert failed:', nErr); });
 
       if (wasClientFacing) {
@@ -98,7 +97,7 @@ serve(async (req) => {
             _ghl_contact_id: appt.ghl_id,
             _project_name: appt.project_name,
             _patient_name: appt.lead_name,
-            _service_line: appt.procedure_type || appt.calendar_name,
+            _service_line: appt.calendar_name,
             _appointment_date: appt.date_of_appointment
               ? new Date(`${appt.date_of_appointment}T${appt.requested_time || '09:00'}`).toISOString()
               : null,
