@@ -5,6 +5,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Mentions are stored as @[Full Name](uuid) tokens; ControlHub wants plain "@Full Name".
+const stripMentionTokens = (text: string) =>
+  text.replace(/@\[([^\]]+)\]\(([0-9a-fA-F-]{36})\)/g, '@$1');
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
