@@ -174,7 +174,12 @@ export function evaluateAllowlist(
   const list = supported.filter((s) => s.active && !s.is_unknown_option);
   if (!list.length) return [];
 
-  const plans = (input.plans || []).map((p) => (p || '').trim()).filter(Boolean);
+  // Generic answers ("Other", "Self pay/ Cash", "Not sure") are a data-quality
+  // gap, not an OON signal — they must never be flagged by the allowlist.
+  const plans = (input.plans || [])
+    .map((p) => (p || '').trim())
+    .filter(Boolean)
+    .filter((p) => !isUnknownInsuranceOption(p));
   if (!plans.length) return [];
 
   const terms = list.map((s) => s.normalized).filter(Boolean);
