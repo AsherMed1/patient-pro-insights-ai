@@ -1209,6 +1209,56 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_supported_insurances: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          is_unknown_option: boolean
+          last_synced_at: string
+          normalized: string
+          plan_id: string | null
+          project_name: string
+          raw_option: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          is_unknown_option?: boolean
+          last_synced_at?: string
+          normalized: string
+          plan_id?: string | null
+          project_name: string
+          raw_option: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          is_unknown_option?: boolean
+          last_synced_at?: string
+          normalized?: string
+          plan_id?: string | null
+          project_name?: string
+          raw_option?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_supported_insurances_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_canonical_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       core_objectives: {
         Row: {
           created_at: string
@@ -3236,6 +3286,7 @@ export type Database = {
           ghl_api_key: string | null
           ghl_location_id: string | null
           id: string
+          oon_mode: string
           project_name: string
           selected_form_types: string[] | null
           short_notice_threshold_hours: number
@@ -3259,6 +3310,7 @@ export type Database = {
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           id?: string
+          oon_mode?: string
           project_name: string
           selected_form_types?: string[] | null
           short_notice_threshold_hours?: number
@@ -3282,6 +3334,7 @@ export type Database = {
           ghl_api_key?: string | null
           ghl_location_id?: string | null
           id?: string
+          oon_mode?: string
           project_name?: string
           selected_form_types?: string[] | null
           short_notice_threshold_hours?: number
