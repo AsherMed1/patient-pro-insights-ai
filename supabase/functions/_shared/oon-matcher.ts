@@ -213,3 +213,98 @@ export function extractInsuranceValues(appt: any): { plans: string[]; groupNumbe
   ].filter(Boolean) as string[];
   return { plans: [...new Set(plans)], groupNumbers: [...new Set(groupNumbers)] };
 }
+
+// ---------------------------------------------------------------------------
+// Allowlist mode: per-clinic supported insurances synced from the GHL
+// "Please select your insurance provider" dropdown.
+// ---------------------------------------------------------------------------
+
+export interface SupportedInsurance {
+  project_name: string;
+  raw_option: string;
+  normalized: string;
+  is_unknown_option: boolean;
+  active: boolean;
+}
+
+const UNKNOWN_OPTION_TERMS = [
+  'other',
+  'none',
+  'no insurance',
+  'not sure',
+  'i m not sure',
+  'unsure',
+  'unknown',
+  'self pay',
+  'cash pay',
+  'n a',
+  'prefer not to say',
+  'not listed',
+  'my insurance is not listed',
+];
+
+/** Generic dropdown choices that must never whitelist a patient. */
+export function isUnknownInsuranceOption(value: unknown): boolean {
+  const n = normalizePlan(value);
+  if (!n) return true;
+  return UNKNOWN_OPTION_TERMS.includes(n);
+}
+
+/**
+ * Allowlist evaluation: flag when none of the stated plans map to an active,
+ * non-generic supported insurance for the clinic. An empty insurance value is
+ * never flagged here — that is a data-quality gap, not an OON signal.
+ */
+export function evaluateAllowlist(
+  supported: SupportedInsurance[],
+  input: AppointmentInsuranceInput,
+): OonMatch[] {
+  const list = supported.filter((s) => s.active && !s.is_unknown_option);
+  if (!list.length) return [];
+
+  const plans = (input.plans || []).map((p) => (p || '').trim()).filter(Boolean);
+  if (!plans.length) return [];
+
+  const terms = list.map((s) => s.normalized).filter(Boolean);
+  const isSupported = (raw: string) => {
+    const subject = normalizePlan(raw);
+    if (!subject) return true; // unreadable — do not flag
+    return terms.some((t) => subject === t || subject.includes(t) || t.includes(subject));
+  };
+
+  if (plans.some(isSupported)) return [];
+
+  return [{
+    rule_id: 'allowlist',
+    rule_type: 'plan',
+    match_method: 'exact',
+    matched_on: 'plan',
+    matched_value: plans[0],
+    matched_term: 'not on clinic accepted list',
+    plan_name: null,
+    note: 'Insurance is not in the clinic\u2019s accepted list (synced from GHL).',
+  }];
+}
+
+/** Load the active supported-insurance list for one clinic. */
+export async function loadSupportedInsurances(
+  supabase: any,
+  projectName: string,
+): Promise<SupportedInsurance[]> {
+  const { data } = await supabase
+    .from('clinic_supported_insurances')
+    .select('project_name, raw_option, normalized, is_unknown_option, active')
+    .eq('project_name', projectName)
+    .eq('active', true);
+  return (data || []) as SupportedInsurance[];
+}
+
+/** Read a clinic's OON evaluation mode ('denylist' by default). */
+export async function loadOonMode(supabase: any, projectName: string): Promise<'denylist' | 'allowlist'> {
+  const { data } = await supabase
+    .from('projects')
+    .select('oon_mode')
+    .eq('project_name', projectName)
+    .maybeSingle();
+  return data?.oon_mode === 'allowlist' ? 'allowlist' : 'denylist';
+}
