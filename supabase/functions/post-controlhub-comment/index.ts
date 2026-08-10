@@ -201,11 +201,14 @@ Deno.serve(async (req) => {
       metadata: { ticket_id: ticketId, body: bodyText.slice(0, 1000) },
     } as any);
 
+    log('DB writes done');
     return json({ ok: true, ticket_id: ticketId, occurred_at: occurredAt });
   } catch (err) {
+    console.error(`[POST-CH ${reqId}] unhandled error:`, err instanceof Error ? err.stack : String(err));
     return json(
       { error: 'Internal error', details: err instanceof Error ? err.message : String(err) },
       500,
+
     );
   }
 });
