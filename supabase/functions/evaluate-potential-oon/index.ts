@@ -46,16 +46,34 @@ serve(async (req) => {
     if (error) throw error;
 
     const results: any[] = [];
+    const modeCache = new Map<string, 'denylist' | 'allowlist'>();
+    const supportedCache = new Map<string, any[]>();
 
     for (const appt of appts || []) {
       const { plans, groupNumbers } = extractInsuranceValues(appt);
-      const matches = evaluateRules(rules, {
+      const input = {
         projectName: appt.project_name,
         location: appt.calendar_name,
         calendarName: appt.calendar_name,
         plans,
         groupNumbers,
-      });
+      };
+      const matches = evaluateRules(rules, input);
+
+      // Allowlist mode (opt-in per clinic): anything not on the clinic's
+      // GHL-synced accepted-insurance list is treated as potential OON.
+      const projectName = appt.project_name as string | null;
+      if (projectName) {
+        if (!modeCache.has(projectName)) {
+          modeCache.set(projectName, await loadOonMode(supabase, projectName));
+        }
+        if (modeCache.get(projectName) === 'allowlist') {
+          if (!supportedCache.has(projectName)) {
+            supportedCache.set(projectName, await loadSupportedInsurances(supabase, projectName));
+          }
+          matches.push(...evaluateAllowlist(supportedCache.get(projectName) as any, input));
+        }
+      }
 
       if (!matches.length) {
         results.push({ id: appt.id, flagged: false });
