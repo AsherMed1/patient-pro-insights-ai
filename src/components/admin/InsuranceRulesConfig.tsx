@@ -132,13 +132,13 @@ const InsuranceRulesConfig = () => {
     if (ruleType === 'plan' && !rulePlanId) {
       return toast({ title: 'Pick a canonical plan', variant: 'destructive' });
     }
-    if (ruleType === 'group' && !ruleValue.trim()) {
+    if (ruleType === 'group_number' && !ruleValue.trim()) {
       return toast({ title: 'Enter a group number pattern', variant: 'destructive' });
     }
     const { data, error } = await supabase.from('insurance_block_rules').insert({
       rule_type: ruleType,
       plan_id: ruleType === 'plan' ? rulePlanId : null,
-      value: ruleType === 'group' ? ruleValue.trim() : (ruleValue.trim() || null),
+      value: ruleType === 'group_number' ? ruleValue.trim() : (ruleValue.trim() || null),
       match_method: ruleMethod,
       is_active: true,
       note: ruleNote.trim() || null,
@@ -240,7 +240,7 @@ const InsuranceRulesConfig = () => {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="plan">Plan name</SelectItem>
-                    <SelectItem value="group">Group number</SelectItem>
+                    <SelectItem value="group_number">Group number</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

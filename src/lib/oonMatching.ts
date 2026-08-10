@@ -2,7 +2,7 @@
 // Keep in sync with supabase/functions/_shared/oon-matcher.ts
 
 export type MatchMethod = 'exact' | 'prefix' | 'contains' | 'regex';
-export type RuleType = 'plan' | 'group';
+export type RuleType = 'plan' | 'group_number';
 
 export interface BlockRuleScope {
   project_name?: string | null;
@@ -110,7 +110,7 @@ export function evaluateRules(rules: BlockRule[], input: MatchInput): OonMatch[]
         const subject = rule.match_method === 'regex' ? raw : normalizeGroup(raw);
         if (testTerm(rule.match_method, subject, term)) {
           matches.push({
-            rule_id: rule.id, rule_type: 'group', match_method: rule.match_method,
+            rule_id: rule.id, rule_type: 'group_number', match_method: rule.match_method,
             matched_on: 'group', matched_value: raw, matched_term: term,
             plan_name: rule.planName ?? null, note: rule.note ?? null,
           });

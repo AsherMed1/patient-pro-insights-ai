@@ -2,7 +2,7 @@
 // Keep in sync with src/lib/oonMatching.ts (browser copy used by the Rule Tester).
 
 export type MatchMethod = 'exact' | 'prefix' | 'contains' | 'regex';
-export type RuleType = 'plan' | 'group';
+export type RuleType = 'plan' | 'group_number';
 
 export interface BlockRuleScope {
   project_name?: string | null;
@@ -138,7 +138,7 @@ export function evaluateRules(
         if (testTerm(rule.match_method, subject, term)) {
           matches.push({
             rule_id: rule.id,
-            rule_type: 'group',
+            rule_type: 'group_number',
             match_method: rule.match_method,
             matched_on: 'group',
             matched_value: raw,
