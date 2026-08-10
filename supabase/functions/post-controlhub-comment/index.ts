@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     await supabase
       .from('qa_cases')
       .update({
-        controlhub_ticket_last_activity: `${authorName}: ${bodyText}`.slice(0, 1000),
+        controlhub_ticket_last_activity: `${authorName}: ${outboundBody}`.slice(0, 1000),
         controlhub_ticket_last_activity_at: occurredAt,
       })
       .eq('id', caseId);
