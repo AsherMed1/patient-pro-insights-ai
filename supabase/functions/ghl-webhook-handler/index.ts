@@ -2654,17 +2654,21 @@ async function enrichAppointmentWithGHLData(
     }
 
     // Prepare parsed fields from root-level contact data
+    const normalizedContactDob = normalizeDob(contact.dateOfBirth)
+    if (contact.dateOfBirth && !normalizedContactDob) {
+      console.warn(`[${requestId}] Rejected implausible GHL dateOfBirth: ${contact.dateOfBirth}`)
+    }
     const parsedContactInfo = {
       name: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
       email: contact.email || null,
       phone: contact.phone || null,
-      dob: contact.dateOfBirth || null,
+      dob: normalizedContactDob,
       address: [contact.address1, contact.city, contact.state, contact.postalCode].filter(Boolean).join(', ') || null
     }
     
     const parsedDemographics = {
-      dob: contact.dateOfBirth || null,
-      age: calculateAge(contact.dateOfBirth),
+      dob: normalizedContactDob,
+      age: calculateAge(normalizedContactDob),
       gender: contact.gender || null
     }
     
