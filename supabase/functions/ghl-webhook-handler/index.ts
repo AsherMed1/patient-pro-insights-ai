@@ -2380,7 +2380,13 @@ async function enrichAppointmentWithGHLData(
       .single()
     
     if (projectError || !project?.ghl_api_key || !project?.ghl_location_id) {
-      console.log(`[${requestId}] Missing GHL credentials for project:`, projectName)
+      console.error(`[${requestId}] Missing GHL credentials for project:`, projectName)
+      // Make the silent failure visible to admins: without credentials every
+      // appointment for this clinic lands with stub intake data.
+      await logMissingGhlCredentials(supabase, projectName, appointmentId, {
+        hasApiKey: !!project?.ghl_api_key,
+        hasLocationId: !!project?.ghl_location_id,
+      }, requestId)
       return
     }
     
