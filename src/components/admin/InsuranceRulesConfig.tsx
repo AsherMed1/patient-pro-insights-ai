@@ -316,7 +316,11 @@ const InsuranceRulesConfig = () => {
                     <SelectItem value="allowlist">Allowlist (flag anything not accepted)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground max-w-[220px]">
+                  Block rules only = flag what matches a rule. Allowlist = flag anything not accepted.
+                </p>
               </div>
+
               <Button variant="outline" disabled={syncing || !supportedClinic} onClick={() => runSync(false)}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />Sync from GHL
               </Button>
