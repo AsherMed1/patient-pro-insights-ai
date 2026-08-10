@@ -275,7 +275,10 @@ const InsuranceRulesConfig = () => {
         </CardTitle>
         <CardDescription>
           Flag appointments whose insurance plan or group number is likely out-of-network before they reach clinics.
+          Each clinic runs in one of two modes: <strong>Block rules only</strong> flags just what matches a rule you
+          wrote, while <strong>Allowlist</strong> flags anything that is not on the clinic's accepted insurance list.
         </CardDescription>
+
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="plans">
@@ -287,7 +290,14 @@ const InsuranceRulesConfig = () => {
           </TabsList>
 
           <TabsContent value="supported" className="space-y-4 pt-4">
+            <p className="text-xs text-muted-foreground max-w-3xl">
+              Allowlist. This list is pre-filled from each clinic's GHL sub-account — press <strong>Sync from GHL</strong>
+              (or <strong>Sync all clinics</strong>) to pull the current options in, and re-sync whenever the clinic edits
+              its dropdown. Link each option to a canonical plan so spelling variants still match. Set OON mode to
+              <strong> Allowlist</strong> to flag any insurance that is not on this list.
+            </p>
             <div className="flex flex-wrap items-end gap-3">
+
               <div className="space-y-1 min-w-[240px]">
                 <Label>Clinic</Label>
                 <Select value={supportedClinic} onValueChange={setSupportedClinic}>
