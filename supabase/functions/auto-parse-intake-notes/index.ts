@@ -2875,6 +2875,14 @@ function normalizeDob(raw: string | null | undefined): string | null {
         // Create date and format as YYYY-MM-DD
         const date = new Date(year, month - 1, day);
         if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+          // Reject implausibly recent dates — a stray appointment/created date
+          // must never land in Demographics as a date of birth.
+          const today = new Date();
+          const maxDob = new Date(today.getFullYear() - 13, today.getMonth(), today.getDate());
+          if (date.getTime() > maxDob.getTime()) {
+            console.warn(`[AUTO-PARSE] Rejected implausible DOB: ${raw}`);
+            continue;
+          }
           const yyyy = date.getFullYear();
           const mm = String(date.getMonth() + 1).padStart(2, "0");
           const dd = String(date.getDate()).padStart(2, "0");
