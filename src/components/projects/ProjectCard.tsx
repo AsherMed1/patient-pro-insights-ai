@@ -15,6 +15,8 @@ interface Project {
   created_at: string;
   updated_at: string;
   active: boolean;
+  ghl_location_id?: string | null;
+  ghl_api_key?: string | null;
 }
 
 interface ProjectStats {
