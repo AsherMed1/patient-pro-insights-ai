@@ -1228,11 +1228,14 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
   
-  // Extract generic "Notes" field if insurance_notes not already populated
+  // Extract generic "Notes" field. When the raw intake notes contain an explicit
+  // Notes field, that verbatim value is authoritative — the AI tends to append a
+  // restatement of secondary insurance details, which already have their own fields.
   if (!parsedData.insurance_info) {
     parsedData.insurance_info = {};
   }
-  if (!parsedData.insurance_info.insurance_notes) {
+  {
+
     // Multi-line capture: grab everything until the next labeled field, an upload/URL line, or end of section.
     const NEXT_LABEL = String.raw`(?=\n\s*(?:[A-Z][A-Za-z0-9 /&()'\-]{1,60}:|Upload\s|https?:\/\/)|$)`;
     const notesPatterns = [
