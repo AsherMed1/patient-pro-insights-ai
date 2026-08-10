@@ -1303,14 +1303,27 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                 {/* Imaging fields moved to Medical & PCP Information section */}
                 {formatValue(parsedPathologyInfo.other_notes) && (() => {
                   const raw = String(parsedPathologyInfo.other_notes);
-                  const cleaned = raw
-                    .replace(/never smoked or used tobacco products/gi, '')
-                    .replace(/currently (taking|using) blood thinners?/gi, '')
-                    .replace(/has a vascular (provider|doctor|specialist)/gi, '')
-                    .replace(/yes,?\s*(i\s*)?(had|have)\s*xray/gi, '')
-                    .replace(/\s*[,;|]\s*/g, ' ')
-                    .trim();
+                  const hasImagingElsewhere = Boolean(
+                    parsedMedicalInfo?.imaging_details ||
+                    parsedPathologyInfo?.imaging_type ||
+                    parsedPathologyInfo?.imaging_done
+                  );
+                  const imagingRe = /\b(ultrasound|x-?ray|mri|cta?|doppler|angiogram|scan|imaging)\b/i;
+                  const facts = raw
+                    .split(/\s*[;|]\s*|\n+/)
+                    .map((f) => f
+                      .replace(/never smoked or used tobacco products/gi, '')
+                      .replace(/currently (taking|using) blood thinners?/gi, '')
+                      .replace(/has a vascular (provider|doctor|specialist)/gi, '')
+                      .replace(/yes,?\s*(i\s*)?(had|have)\s*xray/gi, '')
+                      .replace(/\s{2,}/g, ' ')
+                      .replace(/^[\s,;.]+|[\s,;]+$/g, '')
+                      .trim())
+                    .filter((f) => f.length > 0)
+                    .filter((f) => !(hasImagingElsewhere && imagingRe.test(f)));
+                  const cleaned = facts.join('; ');
                   if (!cleaned) return null;
+
                   return (
                     <div className="text-sm">
                       <span className="text-muted-foreground">Other:</span>{" "}
