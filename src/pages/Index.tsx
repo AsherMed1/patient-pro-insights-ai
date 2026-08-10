@@ -30,6 +30,7 @@ import InsuranceQueueTrigger from "@/components/InsuranceQueueTrigger";
 import HelpVideoManager from "@/components/HelpVideoManager";
 import ReviewQueue from "@/components/admin/ReviewQueue";
 import QAOperationsQueue from "@/components/admin/QAOperationsQueue";
+import InsuranceRulesConfig from "@/components/admin/InsuranceRulesConfig";
 import RecaptureQueue from "@/components/recapture/RecaptureQueue";
 import { useAutoIntakeParsing } from "@/hooks/useAutoIntakeParsing";
 import { Badge } from "@/components/ui/badge";
@@ -354,6 +355,9 @@ const Index = () => {
               </TabsTrigger>
             )}
             {hasManagementAccess() && (
+              <TabsTrigger value="insurance-rules">Insurance Rules</TabsTrigger>
+            )}
+            {hasManagementAccess() && (
               <TabsTrigger value="users">Users</TabsTrigger>
             )}
             {hasManagementAccess() && (
@@ -387,6 +391,12 @@ const Index = () => {
           {hasRecaptureAccess() && (
             <TabsContent value="recapture" className="space-y-6">
               <RecaptureQueue />
+            </TabsContent>
+          )}
+
+          {hasManagementAccess() && (
+            <TabsContent value="insurance-rules" className="space-y-6">
+              <InsuranceRulesConfig />
             </TabsContent>
           )}
 
