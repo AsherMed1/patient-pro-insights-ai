@@ -114,14 +114,24 @@ const InsuranceRulesConfig = () => {
 
   const testMatches = useMemo(() => {
     if (!testPlan.trim() && !testGroup.trim()) return [];
-    return evaluateRules(compiledRules, {
+    const input = {
       projectName: testProject === '__all__' ? null : testProject,
       location: testLocation || null,
       calendarName: testLocation || null,
       plans: [testPlan],
       groupNumbers: [testGroup],
-    });
-  }, [compiledRules, testProject, testLocation, testPlan, testGroup]);
+    };
+    const matches = evaluateRules(compiledRules, input);
+    const mode = projectRows.find((p) => p.project_name === testProject)?.oon_mode;
+    if (testProject !== '__all__' && mode === 'allowlist') {
+      matches.push(...evaluateAllowlist(
+        supported.filter((s) => s.project_name === testProject),
+        input,
+      ));
+    }
+    return matches;
+  }, [compiledRules, testProject, testLocation, testPlan, testGroup, projectRows, supported]);
+
 
   const addPlan = async () => {
     if (!newPlan.trim()) return;
