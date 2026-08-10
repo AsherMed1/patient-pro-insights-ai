@@ -233,7 +233,7 @@ serve(async (req) => {
     }
 
     // Auto-create project if it doesn't exist (returns canonical project name)
-    const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId)
+    const canonicalProjectName = await ensureProjectExists(supabase, webhookData.project_name, requestId, webhookData.ghl_location_id)
     webhookData.project_name = canonicalProjectName // Use canonical name for all operations
 
     // Check if appointment already exists (returns full record for comparison)
