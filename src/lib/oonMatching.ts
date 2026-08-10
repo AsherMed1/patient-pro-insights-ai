@@ -155,7 +155,11 @@ const UNKNOWN_OPTION_TERMS = [
 export function isUnknownInsuranceOption(value: unknown): boolean {
   const n = normalizePlan(value);
   if (!n) return true;
-  return UNKNOWN_OPTION_TERMS.includes(n);
+  if (UNKNOWN_OPTION_TERMS.includes(n)) return true;
+  // Handles combined choices like "Self pay/ Cash" or "None / Not sure".
+  return UNKNOWN_OPTION_TERMS.some((t) =>
+    new RegExp(`(^|\\s)${t}(\\s|$)`).test(n)
+  );
 }
 
 /**
