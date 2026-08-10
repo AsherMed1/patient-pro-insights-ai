@@ -43,9 +43,9 @@ import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/component
 const STICKY_HEAD_STYLE: React.CSSProperties = { top: 0 };
 
 type WorkflowStatus = 'new' | 'in_review' | 'pending_escalated' | 'completed' | 'reopened';
-type AlertType = 'short_notice' | 'oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
+type AlertType = 'short_notice' | 'oon' | 'potential_oon' | 'confirmed_audit' | 'review_queue' | 'no_show' | 'cancelled';
 
-const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'confirmed_audit', 'review_queue'];
+const ACTIVE_ALERT_TYPES: AlertType[] = ['short_notice', 'oon', 'potential_oon', 'confirmed_audit', 'review_queue'];
 // No-Show / Cancellation alerts are hidden by default and only available to
 // admins and designated Account Managers.
 const TERMINAL_ALERT_TYPES: AlertType[] = ['no_show', 'cancelled'];
@@ -169,6 +169,7 @@ function formatDurationMinutes(min: number): string {
 const ALERT_LABELS: Record<AlertType, string> = {
   short_notice: 'Short-Notice',
   oon: 'OON',
+  potential_oon: 'Potential OON',
   confirmed_audit: 'Confirmed Audit',
   review_queue: 'Review Queue',
   no_show: 'No-Show',
@@ -209,6 +210,7 @@ const displayService = (s: string | null | undefined): string =>
 
 const alertVariant = (t: AlertType): 'default' | 'destructive' | 'secondary' | 'outline' => {
   if (t === 'oon') return 'destructive';
+  if (t === 'potential_oon') return 'destructive';
   if (t === 'short_notice') return 'default';
   if (t === 'confirmed_audit') return 'outline';
   if (t === 'review_queue') return 'secondary';
@@ -1151,6 +1153,7 @@ export default function QAOperationsQueue() {
             <SelectItem value="review_queue">Review Queue</SelectItem>
             <SelectItem value="confirmed_audit">Confirmed Audit</SelectItem>
             <SelectItem value="short_notice">Short-Notice</SelectItem>
+            <SelectItem value="potential_oon">Potential OON</SelectItem>
             <SelectItem value="oon">OON</SelectItem>
           </SelectContent>
         </Select>

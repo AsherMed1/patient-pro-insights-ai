@@ -3624,7 +3624,16 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         } else {
           console.log(`[AUTO-PARSE] ✓ Successfully parsed and updated ${recordIdentifier}`);
           processed++;
+
+          // Re-evaluate the Potential-OON insurance safeguard now that insurance
+          // fields have been parsed (fire-and-forget).
+          if (record.table === 'all_appointments') {
+            supabase.functions
+              .invoke('evaluate-potential-oon', { body: { appointment_id: record.id } })
+              .catch((e: unknown) => console.error('[AUTO-PARSE] potential-OON evaluate failed:', e));
+          }
         }
+
 
         // Removed delay for better throughput
       } catch (error) {
