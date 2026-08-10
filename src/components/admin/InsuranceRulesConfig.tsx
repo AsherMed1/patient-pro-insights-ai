@@ -55,20 +55,32 @@ const InsuranceRulesConfig = () => {
   const [testPlan, setTestPlan] = useState('');
   const [testGroup, setTestGroup] = useState('');
 
+  // supported-insurance state
+  const [projectRows, setProjectRows] = useState<ProjectRow[]>([]);
+  const [supported, setSupported] = useState<SupportedRow[]>([]);
+  const [supportedClinic, setSupportedClinic] = useState<string>('');
+  const [manualOption, setManualOption] = useState('');
+  const [syncing, setSyncing] = useState(false);
+
   const loadAll = async () => {
     setLoading(true);
-    const [p, a, r, s, proj] = await Promise.all([
+    const [p, a, r, s, proj, sup] = await Promise.all([
       supabase.from('insurance_canonical_plans').select('*').order('canonical_name'),
       supabase.from('insurance_plan_aliases').select('*').order('alias'),
       supabase.from('insurance_block_rules').select('*').order('created_at', { ascending: false }),
       supabase.from('insurance_block_rule_scopes').select('*'),
-      supabase.from('projects').select('project_name').order('project_name'),
+      supabase.from('projects').select('project_name, oon_mode').order('project_name'),
+      supabase.from('clinic_supported_insurances').select('*').order('raw_option'),
     ]);
     setPlans((p.data as CanonicalPlan[]) || []);
     setAliases((a.data as PlanAlias[]) || []);
     setRules((r.data as RuleRow[]) || []);
     setScopes((s.data as RuleScope[]) || []);
-    setProjects(((proj.data as { project_name: string }[]) || []).map((x) => x.project_name).filter(Boolean));
+    const projRows = ((proj.data as ProjectRow[]) || []).filter((x) => x.project_name);
+    setProjectRows(projRows);
+    setProjects(projRows.map((x) => x.project_name));
+    setSupported((sup.data as SupportedRow[]) || []);
+    setSupportedClinic((c) => c || projRows[0]?.project_name || '');
     setLoading(false);
   };
 
