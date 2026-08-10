@@ -114,11 +114,33 @@ serve(async (req) => {
           continue;
         }
 
-        const options = extractOptions(field);
+        let options = extractOptions(field);
+        if (!options.length && field.id) {
+          // The list endpoint often omits choices; the single-field endpoint returns them.
+          const detailRes = await fetch(
+            `${GHL_BASE_URL}/locations/${project.ghl_location_id}/customFields/${field.id}`,
+            {
+              headers: {
+                Authorization: `Bearer ${project.ghl_api_key}`,
+                Version: GHL_API_VERSION,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+          if (detailRes.ok) {
+            const detail = await detailRes.json();
+            options = extractOptions(detail.customField ?? detail);
+          }
+        }
         if (!options.length) {
-          results.push({ project_name: name, status: "field_not_found", message: "Field has no options" });
+          results.push({
+            project_name: name,
+            status: "field_not_found",
+            message: `Field "${field.name}" returned no options (keys: ${Object.keys(field).join(",")})`,
+          });
           continue;
         }
+
 
         const now = new Date().toISOString();
         const seen = new Set<string>();
