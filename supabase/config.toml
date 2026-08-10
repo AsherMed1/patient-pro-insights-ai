@@ -178,3 +178,11 @@ verify_jwt = false
 [functions.patient-outcomes]
 verify_jwt = false
 # Read-only outcomes API for Nexus; authenticated via PATIENT_OUTCOMES_SECRET
+
+[functions.evaluate-potential-oon]
+verify_jwt = false
+# Evaluate an appointment's insurance against Potential-OON block rules
+
+[functions.notify-slack-potential-oon]
+verify_jwt = false
+# Slack alert when a setter-booked appointment matches a Potential-OON rule

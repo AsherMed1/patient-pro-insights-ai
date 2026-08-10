@@ -611,6 +611,16 @@ serve(async (req) => {
     // Check for short-notice appointment and fire alert if needed
     checkShortNoticeAlert(supabase, appointmentRecord, requestId)
 
+    // Potential-OON insurance safeguard: evaluate the appointment's insurance
+    // against the configured block rules (flags, QA hold, Slack alert).
+    try {
+      supabase.functions.invoke('evaluate-potential-oon', {
+        body: { appointment_id: appointmentRecord.id },
+      }).catch((e: unknown) => console.error(`[${requestId}] potential-OON evaluate failed:`, e));
+    } catch (e) {
+      console.error(`[${requestId}] potential-OON evaluate threw:`, e);
+    }
+
     // Insert reschedule audit note now that we're in an async context
     if (rescheduleNote) {
       try {
