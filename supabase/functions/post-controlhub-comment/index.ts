@@ -14,7 +14,11 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  const reqId = crypto.randomUUID().slice(0, 8);
+  const log = (msg: string) => console.log(`[POST-CH ${reqId}] ${msg}`);
+
   try {
+    log('request received');
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
 
@@ -26,8 +30,13 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(
       authHeader.replace('Bearer ', ''),
     );
-    if (claimsErr || !claimsData?.claims) return json({ error: 'Unauthorized' }, 401);
+    if (claimsErr || !claimsData?.claims) {
+      log(`auth failed: ${claimsErr?.message ?? 'no claims'}`);
+      return json({ error: 'Unauthorized' }, 401);
+    }
     const userId = claimsData.claims.sub as string;
+    log(`auth resolved user=${userId}`);
+
 
     const payload = await req.json().catch(() => ({}));
     const caseId = typeof payload?.case_id === 'string' ? payload.case_id.trim() : '';
