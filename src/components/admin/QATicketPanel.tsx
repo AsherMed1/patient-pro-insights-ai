@@ -110,10 +110,14 @@ export default function QATicketPanel({
         } catch {
           /* keep default */
         }
+      } else {
+        console.error('post-controlhub-comment invoke failed:', error);
+        details = "Couldn't reach the server — please check your connection and retry.";
       }
       toast({ title: 'Comment not sent', description: details, variant: 'destructive' });
       return;
     }
+
     setDraft('');
     toast({ title: 'Comment posted to ControlHub' });
   };
