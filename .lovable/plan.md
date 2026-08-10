@@ -1,30 +1,42 @@
-# DOB shows in GHL but is blank in the portal
+# Testing the Potential OON Insurance Safeguard
 
-## What's actually happening
+## Current state (verified)
 
-For DONOTCONTACT TESTLEAD the portal row has `dob = null`, `parsed_demographics.dob = null`, and the intake notes contain no date-of-birth line at all. Two separate causes:
+- `insurance_block_rules` is **empty** — with zero rules nothing can ever flag, so the first test step is creating a rule.
+- `evaluate-potential-oon`, `notify-slack-potential-oon` are deployed; Review Queue and QA Operations both read `potential_oon` fields.
+- The Slack secret `SLACK_POTENTIAL_OON_WEBHOOK_URL` still needs a value before the Slack half can be tested.
 
-1. **The GHL value is 2026-08-01.** A birth date in the future is rejected on purpose by the plausibility guard we shipped (anything under 13 years old is discarded) in both `ghl-webhook-handler` and `auto-parse-intake-notes`. So the blank field is the guard working — but it's silent, so it looks like the sync is broken.
-2. **`fetch-ghl-contact-data` never carries the DOB.** That function only appends GHL custom fields to the intake notes; it ignores `contact.dateOfBirth` entirely and never writes `all_appointments.dob`. So a *valid* DOB entered in GHL will also fail to reach the portal on that enrichment path.
+## Test plan
 
-## What to change
+### 1. Create a test rule (admin UI)
+In Admin → Insurance Rules:
+- Add a canonical plan, e.g. "ZZ Test OON Plan", plus an alias like "zz test oon".
+- Add a **Plan** rule for it, scoped to one clinic (use PPM - Test Account or Elite so no real clinic is affected).
+- Add a second rule of type **Group number** with a distinctive value (e.g. `ZZTEST999`).
+- Use the built-in live tester on that screen to confirm both a plan-name hit and a group-number hit match, and that a nonsense value does not.
 
-**A. Make the rejection visible instead of silent**
-- When a DOB arrives but fails the plausibility check, record it (rejected value + timestamp + source) on the appointment row instead of dropping it.
-- In the Demographics / patient card, show DOB as empty with a small amber warning: "GHL has an invalid date of birth (08/01/2026) — correct it in GHL." Admins/QA can then fix the source record rather than guessing.
+### 2. Patient-submitted path → Review Queue block
+- Create a throwaway appointment on the scoped clinic with insurance plan "zz test oon" and Insurance Intake Source unset/Patient Submitted.
+- Expect: row lands in Review Queue **pending**, carries the potential-OON flag/badge, and Approve is blocked with the reason shown.
+- Confirm the row is invisible in the client portal for that clinic.
 
-**B. Fix the enrichment gap**
-- `fetch-ghl-contact-data` should read `contact.dateOfBirth`, run it through the same plausibility/normalization guard, and on success write `all_appointments.dob` plus a `Date of Birth: …` line into the intake notes so the parser and Demographics card both pick it up. On failure it records the rejected value per (A).
+### 3. Setter-submitted path → QA hold + Slack
+- Same insurance values, but with Insurance Intake Source = "Setter Submitted" (which normally auto-approves).
+- Expect: instead of going client-facing, the row moves to `qa_hold` and appears in QA Operations with the OON reason.
+- Slack alert fires only once the webhook secret is set.
 
-**C. Keep the guard as-is**
-No loosening of the 13-year rule — a 2026 birth date must never become client-facing.
+### 4. Negative control
+- One more throwaway appointment with an unmatched plan (e.g. "Aetna PPO") on the same clinic — must flow through normally with no flag, proving the rules aren't over-matching.
 
-## Technical notes
+### 5. Scope check
+- Repeat step 2 on a **different** clinic not covered by the rule scope — must not flag, proving clinic scoping works.
 
-- New columns on `all_appointments`: `dob_rejected_value text`, `dob_rejected_at timestamptz` (migration, with grants unchanged from existing table).
-- Shared normalization already exists in two copies (`ghl-webhook-handler/index.ts` ~line 1792 and `auto-parse-intake-notes/index.ts` ~line 2811); the fetch function will reuse the same rule set rather than adding a third variant.
-- UI touch points: the Demographics section of `ParsedIntakeInfo.tsx` / patient detail view — warning badge only, no change to how a valid DOB renders.
+### 6. Cleanup
+- Delete the throwaway appointments and deactivate/remove the ZZ test rules, plan, and alias.
 
-## After it ships
+## What I need from you
 
-The Elite test lead will still show a blank DOB — because 08/01/2026 is genuinely wrong in GHL — but it will now say why, and correcting the date in GHL will flow straight through to the portal.
+- The Slack webhook URL for the channel that should receive potential-OON alerts (I'll store it as `SLACK_POTENTIAL_OON_WEBHOOK_URL`). Steps 1–5 can run without it; only the Slack notification stays untested.
+- Confirmation of which clinic to use for the throwaway records (default: PPM - Test Account).
+
+I can drive steps 1–6 myself with throwaway data and report results, or leave the UI walkthrough to you — say which you prefer.
