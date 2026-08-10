@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
           source: 'patientpro_qa_queue',
           ticket_id: ticketId,
           external_case_id: caseId,
-          body: bodyText,
+          body: outboundBody,
           author_name: authorName,
           author_email: authorEmail,
           mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
