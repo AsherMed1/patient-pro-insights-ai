@@ -1470,7 +1470,40 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               />
             </div>
             
+            {/* Location / Calendar */}
             <div>
+              <Label>Location / Calendar</Label>
+              <p className="text-xs text-muted-foreground mb-1 mt-1">
+                Only change this if the appointment is also moving to a different location.
+              </p>
+              <Select
+                value={rescheduleCalendarId}
+                onValueChange={setRescheduleCalendarId}
+                disabled={loadingCalendars || calendars.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={
+                      loadingCalendars
+                        ? 'Loading calendars...'
+                        : calendars.length === 0
+                          ? (appointment.calendar_name || 'No calendars available')
+                          : (appointment.calendar_name || 'Select location')
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="z-[9999] max-h-72">
+                  {calendars.map((calendar) => (
+                    <SelectItem key={calendar.id} value={calendar.id}>
+                      {calendar.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+
               <Label>Notes (Optional)</Label>
               <Textarea
                 value={rescheduleNotes}
