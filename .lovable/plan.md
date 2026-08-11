@@ -4,7 +4,9 @@ Add a guided, step-by-step walkthrough to the client portal (`/project/:projectN
 
 ## Experience
 
-**First login:** after the portal finishes loading, the tour starts on its own. A dimmed overlay highlights one element at a time with a small card explaining it, plus Back / Next / Skip tour and a step counter ("3 of 12"). Skipping or finishing marks the tour complete for that user, so it never auto-starts again.
+**First login:** after the portal finishes loading, the tour starts on its own for users who are new from this release onward. A dimmed overlay highlights one element at a time with a small card explaining it, plus Back / Next / Skip tour and a step counter ("3 of 12"). Skipping or finishing marks the tour complete for that user, so it never auto-starts again.
+
+**Existing users:** anyone who has already used the Portal is marked as done up front and will not see the automatic tour — they can start it whenever they want from Help > Start Portal Tour.
 
 **Any time after:** a Help button in the portal header opens a single menu containing:
 - Start Portal Tour (restarts the walkthrough from step 1)
