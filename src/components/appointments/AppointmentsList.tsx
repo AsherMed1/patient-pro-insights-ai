@@ -225,8 +225,12 @@ const AppointmentsList = ({
 
       {/* Appointments List */}
       <div className="space-y-3 md:space-y-4">
-        {paginatedAppointments.map(appointment => (
-          <div key={appointment.id} className="flex items-start gap-3">
+        {paginatedAppointments.map((appointment, idx) => (
+          <div
+            key={appointment.id}
+            className="flex items-start gap-3"
+            {...(idx === 0 ? { 'data-tour': 'appointment-card' } : {})}
+          >
             {selectionMode && (
               <div className="pt-4 flex-shrink-0">
                 <Checkbox

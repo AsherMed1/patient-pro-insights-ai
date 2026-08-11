@@ -300,9 +300,9 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       {/* Compact Filter Bar */}
       <div className="rounded-xl bg-muted/30 p-4 space-y-3">
         {/* Primary filters row */}
-        <div className="flex flex-wrap gap-2 items-center">
+        <div data-tour="filters" className="flex flex-wrap gap-2 items-center">
           {/* Search group */}
-          <div className="flex items-center gap-1 bg-background rounded-lg border border-border/50 px-2 shadow-sm">
+          <div data-tour="search" className="flex items-center gap-1 bg-background rounded-lg border border-border/50 px-2 shadow-sm">
             <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <Select value={searchType} onValueChange={onSearchTypeChange}>
               <SelectTrigger className="w-[80px] border-0 shadow-none h-8 text-xs px-1">

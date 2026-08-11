@@ -25,6 +25,9 @@ import { EventTypeLegend } from '@/components/appointments/EventTypeLegend';
 import { LocationLegend } from '@/components/appointments/LocationLegend';
 import { StatusFilterLegend, DEFAULT_CALENDAR_STATUSES } from '@/components/appointments/StatusFilterLegend';
 import { ReserveTimeBlockDialog } from '@/components/appointments/ReserveTimeBlockDialog';
+import { PortalHelpMenu } from '@/components/help/PortalHelpMenu';
+import { PortalTour } from '@/components/tour/PortalTour';
+import { usePortalTour } from '@/hooks/usePortalTour';
 import { addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, format } from 'date-fns';
 // Temporary: Trigger Vivid Vascular re-parsing with fixed GHL fetch
 
@@ -89,6 +92,10 @@ const ProjectPortal = () => {
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_CALENDAR_STATUSES);
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // First-login guided tour (existing users were backfilled as completed)
+  const { tourOpen, startTour, closeTour } = usePortalTour(!loading && !roleLoading);
+
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
@@ -388,10 +395,26 @@ const ProjectPortal = () => {
       {/* Sticky header */}
       <div className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/20">
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between">
-          <ProjectHeader projectName={project.project_name} compact={isScrolled} />
-          
+          <div data-tour="clinic-header">
+            <ProjectHeader projectName={project.project_name} compact={isScrolled} />
+          </div>
+          <PortalHelpMenu projectName={project.project_name} onStartTour={startTour} />
         </div>
       </div>
+
+      <PortalTour
+        open={tourOpen}
+        onClose={closeTour}
+        onNavigate={(section) => {
+          if (section === 'overview') {
+            if (canViewOverview) setActiveTab('overview');
+            return;
+          }
+          setActiveTab('appointments');
+          setShowCalendarView(section === 'appointments-calendar');
+        }}
+      />
+
 
       <div className="flex">
         {/* Side Navigation Rail */}

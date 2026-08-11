@@ -77,7 +77,7 @@ const AppointmentsTabs = ({
 
   return (
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full animate-fade-in-up">
-        <TabsList className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-5'} bg-muted/40 p-1.5 rounded-xl`}>
+        <TabsList data-tour="appt-tabs" className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-5'} bg-muted/40 p-1.5 rounded-xl`}>
           <TabsTrigger 
             value="new" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-xl text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-lg data-[state=active]:-translate-y-0.5`}

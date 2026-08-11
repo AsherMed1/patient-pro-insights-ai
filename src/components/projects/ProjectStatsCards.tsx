@@ -22,7 +22,7 @@ export const ProjectStatsCards: React.FC<ProjectStatsCardsProps> = ({ stats, onC
   return (
     <div className="section-card animate-fade-in-up">
       <h2 className="text-xl font-semibold text-foreground mb-5">Practice Overview</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div data-tour="stats-cards" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Appointments */}
         <Card 
           className="group stats-card stats-card-medical"
