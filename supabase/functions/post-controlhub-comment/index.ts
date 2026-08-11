@@ -62,8 +62,21 @@ Deno.serve(async (req) => {
           }))
       : [];
 
+    const attachments: { name: string; path: string; size?: number; type?: string }[] =
+      Array.isArray(payload?.attachments)
+        ? payload.attachments
+            .filter((a: any) => a && typeof a?.path === 'string')
+            .slice(0, 5)
+            .map((a: any) => ({
+              name: typeof a.name === 'string' ? a.name.slice(0, 200) : 'image',
+              path: a.path,
+              size: typeof a.size === 'number' ? a.size : undefined,
+              type: typeof a.type === 'string' ? a.type.slice(0, 100) : undefined,
+            }))
+        : [];
+
     if (!caseId) return json({ error: 'case_id is required' }, 400);
-    if (!bodyText) return json({ error: 'body is required' }, 400);
+    if (!bodyText && attachments.length === 0) return json({ error: 'body is required' }, 400);
     if (bodyText.length > 5000) return json({ error: 'body is too long (max 5000 chars)' }, 400);
 
     const supabase = createClient(
@@ -100,6 +113,15 @@ Deno.serve(async (req) => {
     }
     const controlhubBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
 
+    // Signed links so ControlHub can render the images without portal auth.
+    const attachmentLinks: { name: string; url: string | null; type?: string }[] = [];
+    for (const a of attachments) {
+      const { data: signed } = await supabase.storage
+        .from('qa-ticket-attachments')
+        .createSignedUrl(a.path, 60 * 60 * 24 * 7);
+      attachmentLinks.push({ name: a.name, url: signed?.signedUrl ?? null, type: a.type });
+    }
+
     const occurredAt = new Date().toISOString();
     const outboundBody = stripMentionTokens(bodyText);
     const targetUrl = `${controlhubBaseUrl}/functions/v1/receive-external-comment`;
@@ -121,6 +143,7 @@ Deno.serve(async (req) => {
           author_name: authorName,
           author_email: authorEmail,
           mentions: mentions.map((m) => ({ name: m.name ?? null })).filter((m) => m.name),
+          attachments: attachmentLinks.filter((a) => a.url),
           occurred_at: occurredAt,
         }),
       });
@@ -160,6 +183,7 @@ Deno.serve(async (req) => {
       body: bodyText,
       occurred_at: occurredAt,
       direction: 'outbound',
+      attachments: attachments.length > 0 ? attachments : null,
       raw: { source: 'patientpro_qa_queue', author_email: authorEmail, user_id: userId },
     } as any);
     if (eventErr) console.error('Failed to record outbound ticket comment:', eventErr.message);
