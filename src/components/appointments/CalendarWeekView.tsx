@@ -86,6 +86,11 @@ export function CalendarWeekView({
                         <div className={cn("text-xs font-medium truncate", eventType.textColor)}>
                           {apt.lead_name || 'Unknown'}
                         </div>
+                        {!apt.is_reserved_block && (apt as any).review_status && (apt as any).review_status !== 'approved' && (
+                          <div className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground mt-0.5">
+                            Unapproved
+                          </div>
+                        )}
                         {apt.requested_time && (
                           <div className="text-[10px] text-muted-foreground mt-0.5">
                             {apt.requested_time}

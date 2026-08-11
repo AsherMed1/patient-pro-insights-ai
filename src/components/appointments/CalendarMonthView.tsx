@@ -126,6 +126,11 @@ export function CalendarMonthView({
                         <span className={cn("font-medium", eventType.textColor)}>
                           {apt.lead_name || 'Unknown'}
                         </span>
+                        {!apt.is_reserved_block && (apt as any).review_status && (apt as any).review_status !== 'approved' && (
+                          <span className="ml-1 text-[9px] font-semibold uppercase text-muted-foreground">
+                            Unapproved
+                          </span>
+                        )}
                       </div>
                     );
                   })}
