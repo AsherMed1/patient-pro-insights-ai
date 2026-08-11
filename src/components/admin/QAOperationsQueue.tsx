@@ -1393,6 +1393,9 @@ export default function QAOperationsQueue() {
         </TabsContent>
       </Tabs>
 
+      </>
+      )}
+
       <CaseDrawer
         caseData={selectedCase}
         focusNoteId={focusNoteId}
@@ -1409,8 +1412,6 @@ export default function QAOperationsQueue() {
         actorName={actorName}
         onRefresh={() => { fetchCases({ background: true }); }}
       />
-      </>
-      )}
     </div>
 
   );
