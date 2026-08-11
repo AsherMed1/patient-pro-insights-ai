@@ -1279,64 +1279,117 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </Badge>
                   </div>
                 )}
-                {formatValue(parsedPathologyInfo.symptoms) && (() => {
-                  const sym = String(parsedPathologyInfo.symptoms);
-                  // Defensive guard: hide leaked AI bot prompt instructions
-                  const isBotPrompt =
-                    sym.length > 400 ||
-                    /Reference this data|Booking Rule|Booking Step|Challenger Sale|Natural Language Suggestions|Preferred Times:/i.test(sym);
-                  if (isBotPrompt) return null;
-                  return (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Symptoms:</span>{" "}
-                      <span className="font-medium">{sym}</span>
-                    </div>
-                  );
-                })()}
-                {formatValue(parsedPathologyInfo.previous_treatments) &&
-                 (parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() !== 'ATE' && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Treatments Tried:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.previous_treatments}</span>
-                  </div>
-                )}
-                {/* Imaging fields moved to Medical & PCP Information section */}
-                {formatValue(parsedPathologyInfo.other_notes) && (() => {
-                  const raw = String(parsedPathologyInfo.other_notes);
-                  const hasImagingElsewhere = Boolean(
-                    parsedMedicalInfo?.imaging_details ||
-                    parsedPathologyInfo?.imaging_type ||
-                    parsedPathologyInfo?.imaging_done
-                  );
-                  const imagingRe = /\b(ultrasound|x-?ray|mri|cta?|doppler|angiogram|scan|imaging)\b/i;
-                  const facts = raw
-                    .split(/\s*[;|]\s*|\n+/)
-                    .map((f) => f
-                      .replace(/never smoked or used tobacco products/gi, '')
-                      .replace(/currently (taking|using) blood thinners?/gi, '')
-                      .replace(/has a vascular (provider|doctor|specialist)/gi, '')
-                      .replace(/yes,?\s*(i\s*)?(had|have)\s*xray/gi, '')
-                      .replace(/\s{2,}/g, ' ')
-                      .replace(/^[\s,;.]+|[\s,;]+$/g, '')
-                      .trim())
-                    .filter((f) => f.length > 0)
-                    .filter((f) => !(hasImagingElsewhere && imagingRe.test(f)));
-                  const cleaned = facts.join('; ');
-                  if (!cleaned) return null;
+                {(() => {
+                  // ---- shared dedupe helpers for the Medical Information card ----
+                  const normalizeFact = (s: string) =>
+                    s
+                      .toLowerCase()
+                      .replace(/[’']/g, "'")
+                      .replace(/[.,;|]+/g, ' ')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                  const splitFacts = (raw: string) =>
+                    raw
+                      .split(/\s*[;|]\s*|\n+|\s*,\s*/)
+                      .map((f) => f.trim())
+                      .filter(Boolean);
+                  const seen = new Set<string>();
+                  const register = (raw: string) => splitFacts(raw).forEach((f) => seen.add(normalizeFact(f)));
+                  const isDuplicate = (raw: string) => {
+                    const facts = splitFacts(raw);
+                    if (facts.length === 0) return true;
+                    return facts.every((f) => seen.has(normalizeFact(f)));
+                  };
+                  const dropSeen = (raw: string) =>
+                    splitFacts(raw).filter((f) => !seen.has(normalizeFact(f)));
 
-                  return (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Other:</span>{" "}
-                      <span className="font-medium">{cleaned}</span>
-                    </div>
-                  );
+                  const rows: JSX.Element[] = [];
+
+                  // Symptoms
+                  const symRaw = formatValue(parsedPathologyInfo.symptoms)
+                    ? String(parsedPathologyInfo.symptoms)
+                    : '';
+                  const isBotPrompt =
+                    !!symRaw &&
+                    (symRaw.length > 400 ||
+                      /Reference this data|Booking Rule|Booking Step|Challenger Sale|Natural Language Suggestions|Preferred Times:/i.test(symRaw));
+                  if (symRaw && !isBotPrompt) {
+                    register(symRaw);
+                    rows.push(
+                      <div className="text-sm" key="symptoms">
+                        <span className="text-muted-foreground">Symptoms:</span>{" "}
+                        <span className="font-medium">{symRaw}</span>
+                      </div>
+                    );
+                  }
+
+                  // Treatments tried
+                  if (
+                    formatValue(parsedPathologyInfo.previous_treatments) &&
+                    (parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() !== 'ATE'
+                  ) {
+                    const treatRaw = String(parsedPathologyInfo.previous_treatments);
+                    if (!isDuplicate(treatRaw)) {
+                      const kept = dropSeen(treatRaw);
+                      register(treatRaw);
+                      rows.push(
+                        <div className="text-sm" key="treatments">
+                          <span className="text-muted-foreground">Treatments Tried:</span>{" "}
+                          <span className="font-medium">{kept.join(', ')}</span>
+                        </div>
+                      );
+                    }
+                  }
+
+                  // Other notes
+                  if (formatValue(parsedPathologyInfo.other_notes)) {
+                    const raw = String(parsedPathologyInfo.other_notes);
+                    const hasImagingElsewhere = Boolean(
+                      parsedMedicalInfo?.imaging_details ||
+                      parsedPathologyInfo?.imaging_type ||
+                      parsedPathologyInfo?.imaging_done
+                    );
+                    const imagingRe = /\b(ultrasound|x-?ray|mri|cta?|doppler|angiogram|scan|imaging)\b/i;
+                    const facts = raw
+                      .split(/\s*[;|]\s*|\n+/)
+                      .map((f) => f
+                        .replace(/never smoked or used tobacco products/gi, '')
+                        .replace(/currently (taking|using) blood thinners?/gi, '')
+                        .replace(/has a vascular (provider|doctor|specialist)/gi, '')
+                        .replace(/yes,?\s*(i\s*)?(had|have)\s*xray/gi, '')
+                        .replace(/\s{2,}/g, ' ')
+                        .replace(/^[\s,;.]+|[\s,;]+$/g, '')
+                        .trim())
+                      .filter((f) => f.length > 0)
+                      .filter((f) => !(hasImagingElsewhere && imagingRe.test(f)))
+                      .filter((f) => !seen.has(normalizeFact(f)));
+                    const cleaned = facts.join('; ');
+                    if (cleaned) {
+                      register(cleaned);
+                      rows.push(
+                        <div className="text-sm" key="other">
+                          <span className="text-muted-foreground">Other:</span>{" "}
+                          <span className="font-medium">{cleaned}</span>
+                        </div>
+                      );
+                    }
+                  }
+
+                  // Primary complaint — hidden when it just restates what is already shown
+                  if (formatValue(parsedPathologyInfo.primary_complaint)) {
+                    const pcRaw = String(parsedPathologyInfo.primary_complaint);
+                    if (!isDuplicate(pcRaw)) {
+                      rows.push(
+                        <div className="text-sm" key="primary-complaint">
+                          <span className="text-muted-foreground">Primary Complaint:</span>{" "}
+                          <span className="font-medium">{pcRaw}</span>
+                        </div>
+                      );
+                    }
+                  }
+
+                  return <>{rows}</>;
                 })()}
-                {formatValue(parsedPathologyInfo.primary_complaint) && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Primary Complaint:</span>{" "}
-                    <span className="font-medium">{parsedPathologyInfo.primary_complaint}</span>
-                  </div>
-                )}
                 {/* UFE-specific funnel answers */}
                 {(parsedPathologyInfo.procedure_type || parsedPathologyInfo.procedure)?.toUpperCase() === 'UFE' && (
                   <>
