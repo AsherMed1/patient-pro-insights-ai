@@ -398,7 +398,7 @@ const ProjectPortal = () => {
           <div data-tour="clinic-header">
             <ProjectHeader projectName={project.project_name} compact={isScrolled} />
           </div>
-          <PortalHelpMenu projectName={project.project_name} onStartTour={startTour} />
+          <PortalHelpMenu onStartTour={startTour} />
         </div>
       </div>
 
