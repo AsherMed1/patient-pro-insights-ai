@@ -55,7 +55,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
           appointment_id: appointmentId,
           note_text: noteText.trim(),
           created_by: createdBy,
-          attachments: attachments.length > 0 ? (attachments as any) : null,
+          attachments: (attachments ?? []) as any,
         } as any)
         .select()
         .single();

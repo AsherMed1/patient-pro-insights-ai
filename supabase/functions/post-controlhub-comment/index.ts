@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       body: bodyText,
       occurred_at: occurredAt,
       direction: 'outbound',
-      attachments: attachments.length > 0 ? attachments : null,
+      attachments: attachments ?? [],
       raw: { source: 'patientpro_qa_queue', author_email: authorEmail, user_id: userId },
     } as any);
     if (eventErr) console.error('Failed to record outbound ticket comment:', eventErr.message);
