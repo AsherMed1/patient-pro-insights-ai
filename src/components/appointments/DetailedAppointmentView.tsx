@@ -500,6 +500,18 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     try {
       const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
       const newTime = rescheduleTime || appointment.requested_time || '09:00';
+
+      // Optional location/calendar move as part of the same reschedule
+      const targetCalendar = rescheduleCalendarId
+        ? calendars.find((c) => c.id === rescheduleCalendarId)
+        : undefined;
+      const isCalendarMove =
+        !!targetCalendar &&
+        (targetCalendar.name || '').toLowerCase() !== (appointment.calendar_name || '').toLowerCase();
+      const newCalendarName = isCalendarMove ? targetCalendar!.name : null;
+      const newCalendarTitle = isCalendarMove ? buildAppointmentTitle(targetCalendar!.name) : null;
+
+
       
       const { data: { user } } = await supabase.auth.getUser();
       
