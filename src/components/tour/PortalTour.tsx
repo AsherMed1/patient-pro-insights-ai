@@ -105,7 +105,13 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
   // Keep the spotlight aligned while the page scrolls or resizes.
   useLayoutEffect(() => {
     if (!open || !ready || !step?.anchor) return;
-    const update = () => setRect(getRect(step.anchor));
+    const update = () => {
+      const measured = getRect(step.anchor);
+      if (measured) {
+        lastRectRef.current = measured;
+        setRect(measured);
+      }
+    };
     window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
     return () => {
