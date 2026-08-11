@@ -4,7 +4,9 @@ Add a guided, step-by-step walkthrough to the client portal (`/project/:projectN
 
 ## Experience
 
-**First login:** after the portal finishes loading, the tour starts on its own. A dimmed overlay highlights one element at a time with a small card explaining it, plus Back / Next / Skip tour and a step counter ("3 of 12"). Skipping or finishing marks the tour complete for that user, so it never auto-starts again.
+**First login:** after the portal finishes loading, the tour starts on its own for users who are new from this release onward. A dimmed overlay highlights one element at a time with a small card explaining it, plus Back / Next / Skip tour and a step counter ("3 of 12"). Skipping or finishing marks the tour complete for that user, so it never auto-starts again.
+
+**Existing users:** anyone who has already used the Portal is marked as done up front and will not see the automatic tour — they can start it whenever they want from Help > Start Portal Tour.
 
 **Any time after:** a Help button in the portal header opens a single menu containing:
 - Start Portal Tour (restarts the walkthrough from step 1)
@@ -36,5 +38,6 @@ Steps whose target is not present for that user (for example Overview when it is
 - **Anchors:** add `data-tour` attributes to existing elements in `ProjectPortal.tsx`, `ProjectHeader`, the appointment tab list, `AppointmentFilters.tsx`, the search input, the first appointment card, the notes area, and the stats cards. Presentation-only changes; no logic touched.
 - **Section control:** the tour dispatches `setActiveTab` / appointment-tab changes through callbacks passed from `ProjectPortal.tsx`, so steps in other sections navigate before highlighting.
 - **Completion state:** new column `portal_tour_completed_at timestamptz` on `public.profiles` (users update their own row under existing policies). Auto-start condition: clinic-portal user, value is null. "Start Portal Tour" replays without clearing it. A `localStorage` fallback prevents a re-show flash while the profile loads.
+- **Existing users excluded:** the same migration backfills `portal_tour_completed_at = now()` for every profile that already exists, so nobody who has used the Portal before gets an unexpected auto-tour — they reach it via Help > Start Portal Tour. Only profiles created after the migration have a null value and therefore get the automatic first-login tour.
 - **Help menu:** new `PortalHelpMenu.tsx` rendered in the portal header (`ProjectHeader` / `PortalHeader`), listing the tour entry plus rows from the existing `help_videos` table, opening each video in the current video dialog.
 - **Scope:** clinic portal only. `Index.tsx` admin dashboard, QA, Review Queue, and Recapture surfaces are untouched.
