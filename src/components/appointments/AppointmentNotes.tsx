@@ -24,6 +24,10 @@ import { useSearchParams } from 'react-router-dom';
 import MentionTextarea from '@/components/admin/MentionTextarea';
 import { parseMentions, renderNoteWithMentions } from '@/lib/mentions';
 import { notifyQAUsers } from '@/lib/qaEscalation';
+import ImageAttachInput from '@/components/admin/ImageAttachInput';
+import AttachmentGallery from '@/components/admin/AttachmentGallery';
+import { uploadImages } from '@/lib/attachments';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 
 interface AppointmentNotesProps {
@@ -40,6 +44,9 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const focusNoteId =
@@ -70,9 +77,26 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
 
 
   const handleAddNote = async () => {
-    if (!newNote.trim()) return;
-    
-    const created = await addNote(newNote, userName);
+    if (!newNote.trim() && pendingImages.length === 0) return;
+
+    let uploaded: any[] = [];
+    if (pendingImages.length > 0) {
+      setUploading(true);
+      try {
+        uploaded = await uploadImages(pendingImages, `appointment-notes/${appointmentId}`);
+      } catch (e: any) {
+        setUploading(false);
+        toast({
+          title: 'Image upload failed',
+          description: e?.message || 'Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setUploading(false);
+    }
+
+    const created = await addNote(newNote, userName, uploaded);
     if (created) {
       const mentioned = parseMentions(newNote);
       if (mentioned.length > 0) {
@@ -92,6 +116,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
         }
       }
       setNewNote('');
+      setPendingImages([]);
       setShowAddForm(false);
       onFormToggled?.(false);
     }
@@ -158,25 +183,32 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
             <CardTitle className="text-sm">Add Internal Note</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <MentionTextarea
-              placeholder="Enter your internal note here… type @ to tag a teammate (@AM, @Tech)"
-              value={newNote}
-              onChange={setNewNote}
-              className="min-h-[80px] resize-none"
-            />
+            <ImageAttachInput
+              files={pendingImages}
+              onChange={setPendingImages}
+              disabled={submitting || uploading}
+            >
+              <MentionTextarea
+                placeholder="Enter your internal note here… type @ to tag a teammate (@AM, @Tech)"
+                value={newNote}
+                onChange={setNewNote}
+                className="min-h-[80px] resize-none"
+              />
+            </ImageAttachInput>
             <div className="flex items-center space-x-2">
               <Button
                 onClick={handleAddNote}
-                disabled={!newNote.trim() || submitting}
+                disabled={(!newNote.trim() && pendingImages.length === 0) || submitting || uploading}
                 size="sm"
               >
-                {submitting ? 'Adding...' : 'Add Note'}
+                {uploading ? 'Uploading…' : submitting ? 'Adding...' : 'Add Note'}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => {
                   setShowAddForm(false);
                   setNewNote('');
+                  setPendingImages([]);
                   onFormToggled?.(false);
                 }}
                 size="sm"
@@ -299,6 +331,8 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                         {renderNoteWithMentions(formatEmbeddedTimestamps(note.note_text))}
                       </p>
                     )}
+
+                    {!isEditing && <AttachmentGallery attachments={(note as any).attachments} size="sm" />}
                   </div>
                 </CardContent>
               </Card>

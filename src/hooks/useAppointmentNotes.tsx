@@ -11,7 +11,9 @@ interface AppointmentNote {
   updated_at: string;
   last_edited_by?: string | null;
   last_edited_at?: string | null;
+  attachments?: any;
 }
+
 
 export const useAppointmentNotes = (appointmentId: string) => {
   const [notes, setNotes] = useState<AppointmentNote[]>([]);
@@ -42,9 +44,9 @@ export const useAppointmentNotes = (appointmentId: string) => {
     }
   };
 
-  const addNote = async (noteText: string, createdBy: string) => {
-    if (!noteText.trim()) return;
-    
+  const addNote = async (noteText: string, createdBy: string, attachments: any[] = []) => {
+    if (!noteText.trim() && attachments.length === 0) return;
+
     try {
       setSubmitting(true);
       const { data, error } = await supabase
@@ -52,10 +54,12 @@ export const useAppointmentNotes = (appointmentId: string) => {
         .insert({
           appointment_id: appointmentId,
           note_text: noteText.trim(),
-          created_by: createdBy
-        })
+          created_by: createdBy,
+          attachments: attachments.length > 0 ? (attachments as any) : null,
+        } as any)
         .select()
         .single();
+
 
       if (error) throw error;
 

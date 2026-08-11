@@ -53,6 +53,17 @@ interface Row {
   latest_note?: string | null;
 }
 
+/**
+ * Filters live outside the component so switching to the Queue view and back
+ * (which unmounts the worklist) preserves what the user was looking at.
+ */
+const persistedFilters = {
+  search: '',
+  owner: 'all',
+  status: 'open',
+  type: 'all',
+};
+
 interface Props {
   onOpenCase: (row: any) => void;
   currentUserId?: string | null;
@@ -62,10 +73,15 @@ export default function QAEscalationWorklist({ onOpenCase, currentUserId }: Prop
   const [rows, setRows] = useState<Row[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('open');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [search, setSearchState] = useState(persistedFilters.search);
+  const [ownerFilter, setOwnerFilterState] = useState<string>(persistedFilters.owner);
+  const [statusFilter, setStatusFilterState] = useState<string>(persistedFilters.status);
+  const [typeFilter, setTypeFilterState] = useState<string>(persistedFilters.type);
+
+  const setSearch = (v: string) => { persistedFilters.search = v; setSearchState(v); };
+  const setOwnerFilter = (v: string) => { persistedFilters.owner = v; setOwnerFilterState(v); };
+  const setStatusFilter = (v: string) => { persistedFilters.status = v; setStatusFilterState(v); };
+  const setTypeFilter = (v: string) => { persistedFilters.type = v; setTypeFilterState(v); };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +131,42 @@ export default function QAEscalationWorklist({ onOpenCase, currentUserId }: Prop
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Live sync: any escalation/workflow change made in the drawer or the main
+  // queue is reflected here immediately (and vice versa).
+  useEffect(() => {
+    const ch = supabase
+      .channel('qa-escalations-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'qa_cases' },
+        (payload) => {
+          const newRow: any = payload.new;
+          const oldRow: any = payload.old;
+          if (payload.eventType === 'DELETE') {
+            setRows((rs) => rs.filter((r) => r.id !== oldRow?.id));
+            return;
+          }
+          if (!newRow?.escalated_at) {
+            setRows((rs) => rs.filter((r) => r.id !== newRow?.id));
+            return;
+          }
+          setRows((rs) => {
+            const idx = rs.findIndex((r) => r.id === newRow.id);
+            if (idx === -1) {
+              // A case that just became escalated — pull the full row in.
+              load();
+              return rs;
+            }
+            const next = [...rs];
+            next[idx] = { ...next[idx], ...newRow } as Row;
+            return next;
+          });
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [load]);
 
   const owners = useMemo(
     () => [...new Set(rows.map((r) => r.escalation_owner_user_id).filter(Boolean))] as string[],
