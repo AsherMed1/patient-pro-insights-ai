@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AllAppointment } from '@/components/appointments/types';
 import { startOfMonth, endOfMonth, format, startOfWeek, endOfWeek } from 'date-fns';
+import { useRole } from '@/hooks/useRole';
 
 interface UseCalendarAppointmentsOptions {
   projectName: string;
