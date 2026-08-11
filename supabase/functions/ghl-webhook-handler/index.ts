@@ -2024,6 +2024,16 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
     } catch (noteErr) {
       console.warn(`[${requestId}] supersede note insert failed:`, noteErr)
     }
+
+    // Carry human-authored notes forward onto the new active row. Superseded rows
+    // are hidden from the client portal, so without this the clinic loses every
+    // welcome-call / QA note the team wrote against the previous booking.
+    try {
+      await carryForwardNotes(supabase, toSupersede, newRow, requestId)
+    } catch (carryErr) {
+      console.warn(`[${requestId}] note carry-forward failed:`, carryErr)
+    }
+
   } catch (e) {
     console.error(`[${requestId}] supersedeOlderContactRows threw:`, e)
   }
