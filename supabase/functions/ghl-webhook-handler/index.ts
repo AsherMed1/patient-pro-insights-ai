@@ -2039,6 +2039,84 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
   }
 }
 
+// Marker prefix used to identify (and never re-copy) carried-over notes.
+const CARRIED_NOTE_MARKER = '[from '
+
+function formatOldBookingLabel(row: any): string {
+  const d = row?.date_of_appointment ? String(row.date_of_appointment) : null
+  if (!d) return 'previous (unscheduled) booking'
+  try {
+    const [y, m, day] = d.split('-').map(Number)
+    const dt = new Date(Date.UTC(y, (m || 1) - 1, day || 1))
+    return `${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} booking`
+  } catch {
+    return `${d} booking`
+  }
+}
+
+// Copy human-authored notes from retired rows onto the new active row so the
+// clinic keeps the full history after a rebooking. System notes are skipped, and
+// notes already carried forward (or already present) are never duplicated.
+async function carryForwardNotes(supabase: any, oldRows: any[], newRow: any, requestId: string) {
+  const oldIds = oldRows.map((r) => r.id)
+  if (!oldIds.length || !newRow?.id) return
+
+  const { data: oldNotes, error } = await supabase
+    .from('appointment_notes')
+    .select('id, appointment_id, note_text, created_by, created_at, attachments')
+    .in('appointment_id', oldIds)
+    .order('created_at', { ascending: true })
+    .limit(200)
+
+  if (error) {
+    console.warn(`[${requestId}] carry-forward note lookup failed:`, error)
+    return
+  }
+  if (!oldNotes?.length) return
+
+  const { data: existing } = await supabase
+    .from('appointment_notes')
+    .select('note_text')
+    .eq('appointment_id', newRow.id)
+    .limit(500)
+
+  const existingTexts = new Set(
+    (existing || []).map((n: any) => String(n.note_text || '').trim())
+  )
+
+  const labelByOldId = new Map<string, string>(
+    oldRows.map((r) => [r.id, formatOldBookingLabel(r)])
+  )
+
+  const rows = (oldNotes as any[])
+    .filter((n) => {
+      const author = String(n.created_by || '').trim().toLowerCase()
+      if (author === 'system') return false
+      const text = String(n.note_text || '').trim()
+      if (!text) return false
+      if (text.startsWith(CARRIED_NOTE_MARKER)) return false
+      return true
+    })
+    .map((n) => ({
+      appointment_id: newRow.id,
+      note_text: `${CARRIED_NOTE_MARKER}${labelByOldId.get(n.appointment_id) || 'previous booking'}] ${String(n.note_text).trim()}`,
+      created_by: n.created_by,
+      attachments: n.attachments ?? null,
+    }))
+    .filter((r) => !existingTexts.has(r.note_text.trim()))
+
+  if (!rows.length) return
+
+  const { error: insErr } = await supabase.from('appointment_notes').insert(rows)
+  if (insErr) {
+    console.warn(`[${requestId}] carry-forward note insert failed:`, insErr)
+    return
+  }
+  console.log(`[${requestId}] 📝 Carried ${rows.length} note(s) forward to ${newRow.id}`)
+}
+
+
+
 // Keep lead_name aligned across every active row for a GHL contact so a corrected
 // contact name in GHL doesn't leave the portal showing two different people.
 async function syncContactNameAcrossRows(supabase: any, newRow: any, requestId: string) {
