@@ -4,25 +4,11 @@ import { useAuth } from './useAuth';
 
 export type UserRole = 'admin' | 'agent' | 'project_user' | 'va' | 'review_only' | 'qa_specialist' | 'recapture';
 
-const MAX_ROLE_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 600;
-
 export const useRole = () => {
   const { user, loading: authLoading } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessibleProjects, setAccessibleProjects] = useState<string[]>([]);
-  const [refreshTick, setRefreshTick] = useState(0);
-
-  // Re-run the role lookup whenever the auth session lands or refreshes.
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setRefreshTick((t) => t + 1);
-      }
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -34,47 +20,49 @@ export const useRole = () => {
       return;
     }
 
-    let cancelled = false;
-
-    const fetchRole = async (attempt = 1) => {
+    const fetchRole = async () => {
       try {
-        console.log('🔍 [useRole] Fetching role for user:', user.email, 'attempt', attempt);
+        console.log('🔍 [useRole] Fetching role for user:', user.email, 'ID:', user.id);
+        
+        // Get user role with improved error handling
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
 
-        // Make sure a session is actually attached before querying; a freshly
-        // issued session can lag behind the first render and the request would
-        // otherwise go out as signed-out and return nothing.
-        const { data: sessionData } = await supabase.auth.getSession();
-        const hasSession = !!sessionData.session?.access_token;
-
-        const { data: roleData, error: roleError } = hasSession
-          ? await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', user.id)
-              .maybeSingle()
-          : { data: null, error: null as any };
-
-        if (cancelled) return;
-
-        const userRole = (roleData?.role as UserRole) || null;
-
-        // Retry on error, missing session, or an empty result — an empty result
-        // this early usually means the request went out unauthenticated.
-        if ((roleError || !hasSession || !userRole) && attempt < MAX_ROLE_ATTEMPTS) {
-          console.log('⏳ [useRole] Role unresolved, retrying...', roleError?.code || (hasSession ? 'no-row' : 'no-session'));
-          setTimeout(() => {
-            if (!cancelled) fetchRole(attempt + 1);
-          }, RETRY_DELAY_MS * attempt);
-          return; // keep loading=true so the spinner stays up
-        }
-
+        // Handle 406 errors and other temporary issues more gracefully
         if (roleError) {
-          console.error('❌ [useRole] Persistent error fetching role:', roleError);
-          setLoading(false);
-          return;
+          console.log('🚨 [useRole] Role fetch error:', roleError.code, roleError.message);
+          
+          // If it's a temporary error (like 406) and we don't have role data yet, retry after delay
+          if (roleError.code === 'PGRST301' || roleError.message?.includes('406')) {
+            console.log('⏳ [useRole] Temporary error detected, retrying in 1 second...');
+            // Set loading to false to prevent infinite loading, then retry
+            setLoading(false);
+            setTimeout(() => {
+              if (user) { // Only retry if user is still authenticated
+                setLoading(true);
+                fetchRole();
+              }
+            }, 1000);
+            return;
+          }
+          
+          // For "no rows" error, continue with null role
+          if (roleError.code !== 'PGRST116') {
+            console.error('❌ [useRole] Persistent error fetching role:', roleError);
+            // Don't clear role state immediately on errors - preserve existing data
+            if (!role) {
+              setRole(null);
+            }
+            setLoading(false);
+            return;
+          }
         }
 
-        console.log('✅ [useRole] Role resolved:', userRole);
+        const userRole = roleData?.role as UserRole || null;
+        console.log('✅ [useRole] Role fetched successfully:', userRole);
         setRole(userRole);
 
         // If project_user, qa_specialist, or review_only, get accessible projects
@@ -115,24 +103,22 @@ export const useRole = () => {
             setAccessibleProjects(projects);
           }
         }
-        setLoading(false);
       } catch (error) {
         console.error('💥 [useRole] Unexpected error in fetchRole:', error);
-        if (!cancelled && attempt < MAX_ROLE_ATTEMPTS) {
-          setTimeout(() => {
-            if (!cancelled) fetchRole(attempt + 1);
-          }, RETRY_DELAY_MS * attempt);
-          return;
+        // On unexpected errors, preserve existing state if possible
+        if (!role) {
+          setRole(null);
         }
+        if (accessibleProjects.length === 0) {
+          setAccessibleProjects([]);
+        }
+      } finally {
         setLoading(false);
       }
     };
 
-    setLoading(true);
     fetchRole();
-
-    return () => { cancelled = true; };
-  }, [user, authLoading, refreshTick]);
+  }, [user, authLoading]);
 
   const hasRole = (requiredRole: UserRole | UserRole[]) => {
     if (!role) return false;

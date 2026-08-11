@@ -165,14 +165,10 @@ const Index = () => {
           <h2 className="text-xl font-semibold text-foreground">No Access</h2>
           <p className="text-muted-foreground">Your account doesn't have access to any projects yet.</p>
           <p className="text-sm text-muted-foreground">Please contact your administrator for access.</p>
-          <div className="flex items-center justify-center gap-2">
-            <Button onClick={() => window.location.reload()}>Retry</Button>
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
-
+          <Button variant="outline" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
         </div>
       </div>
     );
