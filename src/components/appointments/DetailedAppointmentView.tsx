@@ -213,6 +213,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
+  const [rescheduleCalendarId, setRescheduleCalendarId] = useState<string>('');
+  const [projectGhlApiKey, setProjectGhlApiKey] = useState<string | null>(null);
+  const { calendars, loading: loadingCalendars, fetchCalendars } = useGhlCalendars();
   const { userId, userName } = useUserAttribution();
   const { isAdmin, isVA, hasRole } = useRole();
 
