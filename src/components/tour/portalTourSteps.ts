@@ -97,6 +97,6 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
     anchor: 'help-menu',
     placement: 'bottom',
     title: 'You are all set',
-    body: 'That is the tour. You can restart it any time from this Help menu, which also holds our training videos.',
+    body: 'That is the tour. You can restart it any time from this Help menu.',
   },
 ];
