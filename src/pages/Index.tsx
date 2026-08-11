@@ -128,21 +128,22 @@ const Index = () => {
   }, []);
 
   // Fetch review queue pending count (admins/agents/VAs/review_only)
-  useEffect(() => {
-    if (!hasManagementAccess() && role !== 'va' && role !== 'review_only') return;
-    const fetchReviewCount = async () => {
-      const { count } = await supabase
-        .from('all_appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('review_status', 'pending')
-        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-        .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")');
-      setReviewPendingCount(count || 0);
-    };
-    fetchReviewCount();
-    const i = setInterval(fetchReviewCount, 30000);
-    return () => clearInterval(i);
-  }, [role]);
+  const canSeeReviewCount = hasManagementAccess() || role === 'va' || role === 'review_only';
+  const fetchReviewCount = useCallback(async () => {
+    if (!canSeeReviewCount) return;
+    const { count } = await supabase
+      .from('all_appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('review_status', 'pending')
+      .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+      .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")');
+    setReviewPendingCount(count || 0);
+  }, [canSeeReviewCount]);
+
+  useEffect(() => { fetchReviewCount(); }, [fetchReviewCount]);
+  useVisibilityPolling(fetchReviewCount, 120000, canSeeReviewCount);
+
+
 
   if (roleLoading) {
     return (
