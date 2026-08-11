@@ -96,50 +96,27 @@ const ProjectsManager = () => {
       if (projectsError) throw projectsError;
       setProjects(projectsData || []);
 
-      // Fetch stats for each project
-      const statsPromises = (projectsData || []).map(async (project) => {
-        const [leadsResult, callsResult, appointmentsResult] = await Promise.all([
-          supabase
-            .from('new_leads')
-            .select('date, updated_at', { count: 'exact' })
-            .eq('project_name', project.project_name)
-            .order('updated_at', { ascending: false })
-            .limit(1),
-          supabase
-            .from('all_calls')
-            .select('call_datetime, updated_at', { count: 'exact' })
-            .eq('project_name', project.project_name)
-            .order('call_datetime', { ascending: false })
-            .limit(1),
-          supabase
-            .from('all_appointments')
-            .select('date_appointment_created, updated_at', { count: 'exact' })
-            .eq('project_name', project.project_name)
-            .or('is_reserved_block.is.null,is_reserved_block.eq.false')
-            .order('updated_at', { ascending: false })
-            .limit(1)
-        ]);
+      // Single server-side aggregate instead of 3 exact-count queries per project.
+      const { data: statsData, error: statsError } = await supabase.rpc('get_project_stats', {
+        project_filter: null,
+      });
 
-        // Find most recent activity across all tables
-        const leadActivity = leadsResult.data?.[0]?.updated_at || leadsResult.data?.[0]?.date;
-        const callActivity = callsResult.data?.[0]?.call_datetime || callsResult.data?.[0]?.updated_at;
-        const appointmentActivity = appointmentsResult.data?.[0]?.updated_at || appointmentsResult.data?.[0]?.date_appointment_created;
-        
-        const allActivities = [leadActivity, callActivity, appointmentActivity].filter(Boolean);
-        const lastActivity = allActivities.length > 0 
-          ? new Date(Math.max(...allActivities.map(d => new Date(d).getTime()))).toISOString()
-          : null;
+      if (statsError) throw statsError;
 
+      const byName = new Map<string, any>();
+      (statsData || []).forEach((s: any) => byName.set(s.project_name, s));
+
+      const stats: ProjectStats[] = (projectsData || []).map((project) => {
+        const s = byName.get(project.project_name);
         return {
           project_name: project.project_name,
-          leads_count: leadsResult.count || 0,
-          calls_count: callsResult.count || 0,
-          appointments_count: appointmentsResult.count || 0,
-          last_activity: lastActivity
+          leads_count: Number(s?.leads_count || 0),
+          calls_count: Number(s?.calls_count || 0),
+          appointments_count: Number(s?.appointments_count || 0),
+          last_activity: s?.last_activity ? new Date(s.last_activity).toISOString() : null,
         };
       });
 
-      const stats = await Promise.all(statsPromises);
       setProjectStats(stats);
     } catch (error) {
       console.error('Error fetching projects and stats:', error);
@@ -152,6 +129,7 @@ const ProjectsManager = () => {
       setLoading(false);
     }
   };
+
 
   const handleAddProject = async (data: ProjectFormData) => {
     try {

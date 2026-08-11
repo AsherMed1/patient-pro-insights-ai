@@ -15,6 +15,58 @@ interface AppointmentNote {
 }
 
 
+/**
+ * Batched loader: with 50 appointment cards on screen each card used to fire its
+ * own `appointment_notes` query. Requests raised within the same tick are
+ * coalesced into a single `in(...)` query to keep database load down.
+ */
+type Waiter = { id: string; resolve: (rows: AppointmentNote[]) => void; reject: (e: any) => void };
+let pendingIds = new Set<string>();
+let waiters: Waiter[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+const flushNoteBatch = async () => {
+  flushTimer = null;
+  const ids = Array.from(pendingIds);
+  const batch = waiters;
+  pendingIds = new Set();
+  waiters = [];
+
+  try {
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+
+    const rows: AppointmentNote[] = [];
+    for (const chunk of chunks) {
+      const { data, error } = await supabase
+        .from('appointment_notes')
+        .select('*')
+        .in('appointment_id', chunk)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      rows.push(...((data || []) as AppointmentNote[]));
+    }
+
+    const byAppointment = new Map<string, AppointmentNote[]>();
+    rows.forEach((n) => {
+      const list = byAppointment.get(n.appointment_id) || [];
+      list.push(n);
+      byAppointment.set(n.appointment_id, list);
+    });
+
+    batch.forEach((w) => w.resolve(byAppointment.get(w.id) || []));
+  } catch (e) {
+    batch.forEach((w) => w.reject(e));
+  }
+};
+
+const loadNotesBatched = (appointmentId: string): Promise<AppointmentNote[]> =>
+  new Promise((resolve, reject) => {
+    pendingIds.add(appointmentId);
+    waiters.push({ id: appointmentId, resolve, reject });
+    if (!flushTimer) flushTimer = setTimeout(flushNoteBatch, 60);
+  });
+
 export const useAppointmentNotes = (appointmentId: string) => {
   const [notes, setNotes] = useState<AppointmentNote[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,14 +76,16 @@ export const useAppointmentNotes = (appointmentId: string) => {
   const fetchNotes = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('appointment_notes')
-        .select('*')
-        .eq('appointment_id', appointmentId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setNotes(data || []);
+      let rows: AppointmentNote[];
+      try {
+        rows = await loadNotesBatched(appointmentId);
+      } catch (first) {
+        // One quiet retry: a single slow/timed-out response shouldn't alarm the user.
+        console.warn('Notes fetch failed, retrying once:', first);
+        await new Promise((r) => setTimeout(r, 1200));
+        rows = await loadNotesBatched(appointmentId);
+      }
+      setNotes(rows);
     } catch (error) {
       console.error('Error fetching notes:', error);
       toast({
