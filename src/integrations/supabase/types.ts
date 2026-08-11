@@ -563,6 +563,7 @@ export type Database = {
       appointment_notes: {
         Row: {
           appointment_id: string
+          attachments: Json
           created_at: string
           created_by: string | null
           id: string
@@ -573,6 +574,7 @@ export type Database = {
         }
         Insert: {
           appointment_id: string
+          attachments?: Json
           created_at?: string
           created_by?: string | null
           id?: string
@@ -583,6 +585,7 @@ export type Database = {
         }
         Update: {
           appointment_id?: string
+          attachments?: Json
           created_at?: string
           created_by?: string | null
           id?: string
@@ -3781,6 +3784,7 @@ export type Database = {
       }
       qa_ticket_events: {
         Row: {
+          attachments: Json
           author_name: string | null
           body: string | null
           case_id: string
@@ -3794,6 +3798,7 @@ export type Database = {
           ticket_id: string
         }
         Insert: {
+          attachments?: Json
           author_name?: string | null
           body?: string | null
           case_id: string
@@ -3807,6 +3812,7 @@ export type Database = {
           ticket_id: string
         }
         Update: {
+          attachments?: Json
           author_name?: string | null
           body?: string | null
           case_id?: string
