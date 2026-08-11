@@ -40,6 +40,8 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
   const [ready, setReady] = useState(false);
+  /** Last known anchor rect — keeps the spotlight alive (fading) between steps. */
+  const lastRectRef = useRef<Rect | null>(null);
 
   const steps = PORTAL_TOUR_STEPS;
   const step: PortalTourStep | undefined = steps[index];
@@ -48,10 +50,13 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
     if (open) {
       setIndex(0);
       setReady(false);
+      lastRectRef.current = null;
     }
   }, [open]);
 
   // Move the portal to the section this step needs, then measure the anchor.
+  // Retry for up to ~1s if the anchor is not yet in the DOM (section still
+  // switching) so the spotlight never vanishes silently.
   useEffect(() => {
     if (!open || !step) return;
     setReady(false);
@@ -59,14 +64,31 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
     let cancelled = false;
     const timers: number[] = [];
+    let raf = 0;
 
     const settle = () => {
       if (cancelled) return;
       scrollIntoView(step.anchor);
       timers.push(window.setTimeout(() => {
         if (cancelled) return;
-        setRect(getRect(step.anchor));
-        setReady(true);
+        const tryMeasure = (attemptsLeft: number) => {
+          if (cancelled) return;
+          const measured = getRect(step.anchor);
+          if (measured) {
+            lastRectRef.current = measured;
+            setRect(measured);
+            setReady(true);
+            return;
+          }
+          if (attemptsLeft > 0) {
+            raf = window.requestAnimationFrame(() => tryMeasure(attemptsLeft - 1));
+          } else {
+            // Anchor genuinely missing for this user — fade the spotlight out.
+            setRect(null);
+            setReady(true);
+          }
+        };
+        tryMeasure(60); // ~1s at 60fps
       }, 320));
     };
 
@@ -75,6 +97,7 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
     return () => {
       cancelled = true;
       timers.forEach(window.clearTimeout);
+      if (raf) window.cancelAnimationFrame(raf);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, index]);
