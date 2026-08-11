@@ -388,10 +388,26 @@ const ProjectPortal = () => {
       {/* Sticky header */}
       <div className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/20">
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between">
-          <ProjectHeader projectName={project.project_name} compact={isScrolled} />
-          
+          <div data-tour="clinic-header">
+            <ProjectHeader projectName={project.project_name} compact={isScrolled} />
+          </div>
+          <PortalHelpMenu projectName={project.project_name} onStartTour={startTour} />
         </div>
       </div>
+
+      <PortalTour
+        open={tourOpen}
+        onClose={closeTour}
+        onNavigate={(section) => {
+          if (section === 'overview') {
+            if (canViewOverview) setActiveTab('overview');
+            return;
+          }
+          setActiveTab('appointments');
+          setShowCalendarView(section === 'appointments-calendar');
+        }}
+      />
+
 
       <div className="flex">
         {/* Side Navigation Rail */}
