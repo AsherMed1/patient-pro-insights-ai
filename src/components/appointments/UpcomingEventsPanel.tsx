@@ -152,6 +152,11 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
                   <p className="font-medium text-sm text-foreground truncate">
                     {apt.lead_name || 'Unknown Patient'}
                   </p>
+                  {!apt.is_reserved_block && (apt as any).review_status && (apt as any).review_status !== 'approved' && (
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Unapproved
+                    </p>
+                  )}
                   
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
