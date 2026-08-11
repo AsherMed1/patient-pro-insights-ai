@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AllAppointment } from '@/components/appointments/types';
 import { startOfMonth, endOfMonth, format, startOfWeek, endOfWeek } from 'date-fns';
-import { useRole } from '@/hooks/useRole';
 
 interface UseCalendarAppointmentsOptions {
   projectName: string;
@@ -33,9 +32,7 @@ export function useCalendarAppointments({
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const { role, loading: roleLoading } = useRole();
-  // Only admins/agents may see appointments that have not cleared the Review Queue
-  const includeUnapproved = role === 'admin' || role === 'agent';
+
 
 
 
@@ -76,11 +73,10 @@ export function useCalendarAppointments({
         query = query.eq('project_name', projectName);
       }
 
-      // Review Queue gate: unapproved appointments stay internal to PPM.
-      // Reserved time blocks are clinic-created and always visible.
-      if (!includeUnapproved) {
-        query = query.or('review_status.eq.approved,is_reserved_block.eq.true');
-      }
+      // Review Queue gate: unapproved appointments stay internal to PPM and
+      // never render on the calendar for any role. Reserved time blocks are
+      // clinic-created and always visible.
+      query = query.or('review_status.eq.approved,is_reserved_block.eq.true');
 
       const { data, error: fetchError } = await query;
 
@@ -96,9 +92,8 @@ export function useCalendarAppointments({
   };
 
   useEffect(() => {
-    if (roleLoading) return;
     fetchAppointments();
-  }, [projectName, dateRange.start.toISOString(), dateRange.end.toISOString(), includeUnapproved, roleLoading]);
+  }, [projectName, dateRange.start.toISOString(), dateRange.end.toISOString()]);
 
 
   // Group appointments by date
