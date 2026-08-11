@@ -1,36 +1,35 @@
-# Fix: setters see no records in the Recapture Worklist
+# Hide unapproved appointments from clinic calendars
 
-## What's actually wrong
+## What's wrong
 
-Anyira's account is fine — she has the Setter role (`review_only`). The problem is the access rule on recapture records.
+Verified in the code and database:
 
-Verified in the database:
+- The portal appointment list already filters to approved records only (`AllAppointmentsManager`, portal stats).
+- The calendar does **not**. `useCalendarAppointments` fetches every appointment in the date range with no approval filter, so Pending Review, Declined, OON and Dismissed records show on the clinic calendar (Day/Week/Month views and the Upcoming Events side panel).
+- Current unapproved, non-block records in the database: 20 pending, 492 declined, 424 OON, 22 dismissed — all visible on clinic calendars today.
+- One more gap: the "Export to Excel" query in the appointments manager omits the approved filter, so unapproved rows leak into exports.
 
-- Recapture records are restricted for setters to "only projects assigned to this user".
-- Anyira has **zero** project assignments — and so does every other setter (all 25 setter accounts have none).
-- The Review Queue has no such restriction: setters see every clinic there.
-
-So the Recapture Worklist is empty for every setter today, not just Anyira, while the Review Queue works. There are ~1,500+ recapture cases in the system that admins can see.
+Important nuance: 1,323 reserved time blocks carry `review_status = 'pending'`. Those are clinic-created calendar blocks and must stay visible — the filter has to exempt them.
 
 ## Fix
 
-Align Recapture with the Review Queue: setters can read and work recapture cases across all clinics, matching the access they already have in the Review Queue and consistent with how the Setter role was described (Review Queue + Recapture).
+1. **Calendar data source** — in `useCalendarAppointments`, only return records that are approved, plus reserved time blocks regardless of review status. This covers Day, Week, Month, the detail view and the Upcoming Events panel, since they all read from this hook.
+2. **Admin visibility** — admins and agents keep seeing unapproved records on the calendar (they need them), rendered with a clear "Unapproved" marker so they are never mistaken for cleared appointments. Clinic (project) users, setters and everyone else see approved only.
+3. **Export parity** — add the approved filter to the Excel export query so exports match what the list shows.
+4. **Sweep for other clinic-facing views** — confirm every remaining surface that reads `all_appointments` for a clinic applies the same gate (portal stats, appointment list, calendar, export, reporting helpers), and add the filter anywhere it is missing.
 
-1. Replace the project-scoped read/update rules on recapture cases and outreach attempts with role-based rules for `review_only` and `recapture`, same as the Review Queue's appointment rules.
-2. Remove the now-unnecessary project filter the worklist applies in the UI for setters, so counts and buckets match what they are allowed to see.
-3. Leave admin/agent/VA access unchanged.
+Because unapproved appointments no longer appear on the clinic calendar, clinic users cannot open, move, or work them. Once a record is approved in the Review Queue, it appears on the calendar and in the list on the next load, as it does today.
 
 ## Technical notes
 
-- Migration replaces `recapture_cases_setter_select` / `recapture_cases_setter_update` (and the matching `recapture_attempts` insert/select policies) with `has_role(auth.uid(),'review_only') OR has_role(auth.uid(),'recapture')`, dropping the `project_user_access` join.
-- `src/components/recapture/RecaptureQueue.tsx` (~line 209) and `RecaptureReports.tsx`: drop the `accessibleProjects` narrowing for setters.
-- No change to `useRole.tsx` role definitions.
-
-## Alternative, if clinic scoping is intended
-
-If setters are meant to be limited to specific clinics in Recapture, no code change is needed — instead each setter needs clinic assignments added in User Management, starting with Anyira. Say the word and this becomes the plan instead.
+- `src/hooks/useCalendarAppointments.tsx`: add `.or('review_status.eq.approved,is_reserved_block.eq.true')` to the query, gated by role — the hook takes an `includeUnapproved` option that `CalendarDetailView` / `CalendarSidePanel` set from `useRole` (`admin`/`agent`).
+- Unapproved rows for admins get a badge in `CalendarDayView` / `CalendarWeekView` / `CalendarMonthView` event blocks.
+- `src/components/AllAppointmentsManager.tsx` (~line 1405): add `.eq('review_status','approved')` to the export query.
+- No database or RLS changes; this is a query/presentation fix.
 
 ## Validation
 
-- Sign in as Anyira, open Recapture: buckets show counts and rows across clinics; log an attempt and set a work status successfully.
-- Confirm project-role users (clinic logins) still cannot reach Recapture.
+- Sign in as a clinic user on Champion Heart and Vascular Center: an appointment sitting in Pending Review is absent from Day/Week/Month and the Upcoming panel; reserved blocks still render.
+- Approve it in the Review Queue: it appears on the calendar and in the appointment list.
+- As admin: the same record is visible with the Unapproved marker.
+- Export to Excel returns approved rows only.
