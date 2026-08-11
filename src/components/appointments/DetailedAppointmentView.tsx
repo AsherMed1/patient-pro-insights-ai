@@ -71,6 +71,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format as formatDateFns } from "date-fns";
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
+import { useGhlCalendars } from '@/hooks/useGhlCalendars';
 import { ExternalLink } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -213,8 +214,61 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [rescheduleNotes, setRescheduleNotes] = useState('');
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [projectTimezone, setProjectTimezone] = useState('America/Chicago');
+  const [rescheduleCalendarId, setRescheduleCalendarId] = useState<string>('');
+  const [projectGhlApiKey, setProjectGhlApiKey] = useState<string | null>(null);
+  const { calendars, loading: loadingCalendars, fetchCalendars } = useGhlCalendars();
   const { userId, userName } = useUserAttribution();
   const { isAdmin, isVA, hasRole } = useRole();
+
+  // Load the project's GHL calendars when the reschedule dialog opens so the
+  // appointment's location can be changed in the same step as the date/time.
+  useEffect(() => {
+    if (!showRescheduleDialog || !appointment.project_name) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('ghl_location_id, ghl_api_key')
+        .eq('project_name', appointment.project_name)
+        .single();
+      if (cancelled) return;
+      if (data?.ghl_api_key) setProjectGhlApiKey(data.ghl_api_key);
+      const locationId = data?.ghl_location_id || appointment.ghl_location_id || projectGhlLocationId;
+      if (locationId && calendars.length === 0) {
+        fetchCalendars(locationId, data?.ghl_api_key || undefined);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRescheduleDialog, appointment.project_name]);
+
+  // Default the reschedule location to the appointment's current calendar
+  useEffect(() => {
+    if (!showRescheduleDialog || calendars.length === 0 || rescheduleCalendarId) return;
+    const current = calendars.find(
+      (c) => c.name.toLowerCase() === (appointment.calendar_name || '').toLowerCase()
+    );
+    if (current) setRescheduleCalendarId(current.id);
+  }, [showRescheduleDialog, calendars, appointment.calendar_name, rescheduleCalendarId]);
+
+  // Build the GHL appointment title for a target calendar (mirrors AppointmentCard)
+  const extractLocationFromCalendarName = (calendarName: string): string => {
+    const atMatch = calendarName.match(/\bat\s+(.+)$/i);
+    if (atMatch) return atMatch[1].trim();
+    return calendarName.trim();
+  };
+
+  const buildAppointmentTitle = (calendarName: string): string => {
+    const location = extractLocationFromCalendarName(calendarName);
+    const procedureMatch = calendarName.match(/\b(PAE|GAE|UFE|Consultation)\b/i);
+    const procedure = procedureMatch ? procedureMatch[1].toUpperCase() : '';
+    if (procedure && procedure !== 'CONSULTATION') {
+      return `${appointment.lead_name} ${procedure} Consultation at ${location}`;
+    }
+    return `${appointment.lead_name} Consultation at ${location}`;
+  };
+
+
 
   // Inline name-edit state (Portal ↔ GHL two-way sync)
   const canEditName = isAdmin() || isVA() || hasRole(['agent', 'qa_specialist']);
@@ -446,6 +500,18 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     try {
       const newDate = formatDateFns(rescheduleDate, 'yyyy-MM-dd');
       const newTime = rescheduleTime || appointment.requested_time || '09:00';
+
+      // Optional location/calendar move as part of the same reschedule
+      const targetCalendar = rescheduleCalendarId
+        ? calendars.find((c) => c.id === rescheduleCalendarId)
+        : undefined;
+      const isCalendarMove =
+        !!targetCalendar &&
+        (targetCalendar.name || '').toLowerCase() !== (appointment.calendar_name || '').toLowerCase();
+      const newCalendarName = isCalendarMove ? targetCalendar!.name : null;
+      const newCalendarTitle = isCalendarMove ? buildAppointmentTitle(targetCalendar!.name) : null;
+
+
       
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -502,7 +568,10 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           ? `${appointment.date_of_appointment}${appointment.requested_time ? ' ' + appointment.requested_time : ''}`.trim()
           : 'Unknown';
         const newDateTime = `${newDate}${newTime ? ' ' + newTime : ''}`.trim();
-        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime} | By: ${noteUserName}`;
+        const locationPart = isCalendarMove
+          ? ` | LOCATION: ${appointment.calendar_name || 'Unknown'} -> ${newCalendarName}`
+          : '';
+        const rescheduleNoteText = `Rescheduled | FROM: ${originalDate} | TO: ${newDateTime}${locationPart} | By: ${noteUserName}`;
         await supabase.from('appointment_notes').insert({
           appointment_id: appointment.id,
           note_text: rescheduleNoteText,
@@ -532,15 +601,20 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               new_time: newTime,
               timezone: projectData.timezone || 'America/Chicago',
               ghl_api_key: projectData.ghl_api_key,
+              ...(isCalendarMove
+                ? { calendar_id: rescheduleCalendarId, title: newCalendarTitle }
+                : {}),
             },
           });
           
           if (ghlError) throw ghlError;
           
+          // Apply the location move locally only once GHL accepted it
           await supabase.from('all_appointments').update({
             last_ghl_sync_status: 'success',
             last_ghl_sync_at: new Date().toISOString(),
             last_ghl_sync_error: null,
+            ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
           }).eq('id', appointment.id);
           
           await supabase.from('appointment_reschedules').update({
@@ -551,25 +625,33 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
             processed_at: new Date().toISOString()
           }).eq('id', rescheduleRecord.id);
           
-          toast.success("Appointment rescheduled in GoHighLevel successfully");
+          toast.success(
+            isCalendarMove
+              ? `Appointment rescheduled and moved to ${newCalendarName} in GoHighLevel`
+              : "Appointment rescheduled in GoHighLevel successfully"
+          );
         } catch (ghlError: any) {
           console.error('GHL sync error:', ghlError);
+          const details = ghlError?.message || String(ghlError);
           await supabase.from('all_appointments').update({
             last_ghl_sync_status: 'failed',
             last_ghl_sync_at: new Date().toISOString(),
-            last_ghl_sync_error: ghlError.message || String(ghlError),
+            last_ghl_sync_error: details,
           }).eq('id', appointment.id);
           await supabase.from('appointment_reschedules').update({
             ghl_sync_status: 'failed',
-            ghl_sync_error: ghlError.message || String(ghlError),
+            ghl_sync_error: details,
             ghl_synced_at: new Date().toISOString()
           }).eq('id', rescheduleRecord.id);
-          toast.error("Appointment updated locally but GHL sync failed");
+          toast.error(
+            `Appointment date/time updated locally${isCalendarMove ? ', but the location was NOT moved' : ''}. GoHighLevel sync failed: ${details}`
+          );
         }
       } else {
         await supabase.from('all_appointments').update({
           last_ghl_sync_status: null,
           last_ghl_sync_error: 'No GHL appointment ID',
+          ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
         }).eq('id', appointment.id);
         await supabase.from('appointment_reschedules').update({
           ghl_sync_status: 'skipped',
@@ -587,11 +669,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       setRescheduleDate(undefined);
       setRescheduleTime('');
       setRescheduleNotes('');
+      setRescheduleCalendarId('');
       onDataRefresh?.();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting reschedule:', error);
-      toast.error("Failed to reschedule appointment");
+      toast.error(`Failed to reschedule appointment: ${error?.message || String(error)}`);
     } finally {
       setSubmittingReschedule(false);
     }
@@ -1324,12 +1407,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           <DialogHeader>
             <DialogTitle>Reschedule Appointment</DialogTitle>
             <DialogDescription>
-              Select the new date and time for {appointment.lead_name}'s appointment
+              Select the new date, time and location for {appointment.lead_name}'s appointment
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {(appointment.date_of_appointment || appointment.requested_time) && (
+            {(appointment.date_of_appointment || appointment.requested_time || appointment.calendar_name) && (
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-sm font-medium mb-1">Current Appointment:</p>
                 <p className="text-sm">
@@ -1337,8 +1420,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   {appointment.date_of_appointment && appointment.requested_time && ' at '}
                   {appointment.requested_time && formatTime(appointment.requested_time)}
                 </p>
+                {appointment.calendar_name && appointment.calendar_name !== 'Unknown' && (
+                  <p className="text-sm text-muted-foreground mt-1 break-words">
+                    Location: {appointment.calendar_name}
+                  </p>
+                )}
               </div>
             )}
+
             
             <div>
               <Label>New Appointment Date *</Label>
@@ -1381,7 +1470,40 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               />
             </div>
             
+            {/* Location / Calendar */}
             <div>
+              <Label>Location / Calendar</Label>
+              <p className="text-xs text-muted-foreground mb-1 mt-1">
+                Only change this if the appointment is also moving to a different location.
+              </p>
+              <Select
+                value={rescheduleCalendarId}
+                onValueChange={setRescheduleCalendarId}
+                disabled={loadingCalendars || calendars.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={
+                      loadingCalendars
+                        ? 'Loading calendars...'
+                        : calendars.length === 0
+                          ? (appointment.calendar_name || 'No calendars available')
+                          : (appointment.calendar_name || 'Select location')
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="z-[9999] max-h-72">
+                  {calendars.map((calendar) => (
+                    <SelectItem key={calendar.id} value={calendar.id}>
+                      {calendar.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+
               <Label>Notes (Optional)</Label>
               <Textarea
                 value={rescheduleNotes}
