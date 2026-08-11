@@ -365,9 +365,10 @@ const ReviewQueue: React.FC = () => {
   useEffect(() => {
     fetch();
     fetchCounts();
-    const i = setInterval(() => { fetch(); fetchCounts(); }, 30000);
-    return () => clearInterval(i);
   }, [fetch, fetchCounts]);
+
+  useVisibilityPolling(() => { fetch(); fetchCounts(); }, 90000);
+
 
   const projects = Array.from(new Set(rows.map(r => r.project_name))).sort();
 
