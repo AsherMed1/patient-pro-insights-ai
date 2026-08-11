@@ -176,29 +176,41 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
   const isLast = index === steps.length - 1;
 
+  // The spotlight keeps the last known rect so it can fade in place instead
+  // of popping when a step has no anchor (or while the next anchor renders).
+  const spotRect = rect ?? lastRectRef.current;
+  const spotVisible = !!rect;
+
   return createPortal(
     <div className="fixed inset-0 z-[100]">
-      {/* Spotlight (or plain scrim when the step has no anchor) */}
-      {rect ? (
+      {/* Base scrim — fades out when a spotlight is active (the spotlight's
+          boxShadow takes over the dimming), fades in for centered steps. */}
+      <div
+        className="absolute inset-0 pointer-events-none transition-opacity duration-300 ease-out"
+        style={{ background: 'hsl(var(--foreground) / 0.55)', opacity: spotVisible ? 0 : 1 }}
+      />
+
+      {/* Spotlight — always mounted, morphs between anchors and fades out
+          gracefully when there is no anchor for the current step. */}
+      {spotRect && (
         <div
-          className="absolute rounded-lg ring-2 ring-primary transition-all duration-200 pointer-events-none"
+          className="absolute rounded-lg ring-2 ring-primary pointer-events-none transition-all duration-300 ease-out"
           style={{
-            top: rect.top - 6,
-            left: rect.left - 6,
-            width: rect.width + 12,
-            height: rect.height + 12,
+            top: spotRect.top - 6,
+            left: spotRect.left - 6,
+            width: spotRect.width + 12,
+            height: spotRect.height + 12,
             boxShadow: '0 0 0 9999px hsl(var(--foreground) / 0.55)',
+            opacity: spotVisible ? 1 : 0,
           }}
         />
-      ) : (
-        <div className="absolute inset-0" style={{ background: 'hsl(var(--foreground) / 0.55)' }} />
       )}
 
       {/* Click-catcher so the underlying UI stays untouched during the tour */}
       <div className="absolute inset-0" onClick={() => { /* block clicks */ }} />
 
       <div
-        className="absolute rounded-xl border border-border bg-background p-4 shadow-2xl animate-fade-in"
+        className="absolute rounded-xl border border-border bg-background p-4 shadow-2xl animate-fade-in transition-[top,left,width] duration-300 ease-out"
         style={cardStyle}
       >
         <div className="flex items-start justify-between gap-2">
@@ -206,14 +218,17 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Step {index + 1} of {steps.length}
             </p>
-            <h3 className="mt-1 text-base font-semibold text-foreground">{step.title}</h3>
+            {/* Cross-fade the per-step text so it doesn't snap when the
+                step changes while the card itself glides to its new spot. */}
+            <div key={index} className="animate-fade-in">
+              <h3 className="mt-1 text-base font-semibold text-foreground">{step.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+            </div>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7 -mr-1 -mt-1" onClick={finish} aria-label="Close tour">
             <X className="h-4 w-4" />
           </Button>
         </div>
-
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
 
         <div className="mt-4 flex items-center justify-between">
           <button type="button" onClick={finish} className="text-xs text-muted-foreground hover:text-foreground">
