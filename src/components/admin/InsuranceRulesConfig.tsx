@@ -296,7 +296,7 @@ const InsuranceRulesConfig = () => {
               its dropdown. Link each option to a canonical plan so spelling variants still match. Set OON mode to
               <strong> Allowlist</strong> to flag any insurance that is not on this list.
             </p>
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-wrap items-start gap-3">
 
               <div className="space-y-1 min-w-[240px]">
                 <Label>Clinic</Label>
@@ -307,32 +307,33 @@ const InsuranceRulesConfig = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-[240px]">
                 <Label>OON mode</Label>
                 <Select value={currentMode} onValueChange={setOonMode}>
-                  <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="denylist">Block rules only</SelectItem>
                     <SelectItem value="allowlist">Allowlist (flag anything not accepted)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground max-w-[220px]">
-                  Block rules only = flag what matches a rule. Allowlist = flag anything not accepted.
-                </p>
               </div>
 
-              <Button variant="outline" disabled={syncing || !supportedClinic} onClick={() => runSync(false)}>
-                <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />Sync from GHL
-              </Button>
-              <Button variant="outline" disabled={syncing} onClick={() => runSync(true)}>
-                Sync all clinics
-              </Button>
+              <div className="flex flex-wrap gap-2 pt-[1.625rem]">
+                <Button variant="outline" disabled={syncing || !supportedClinic} onClick={() => runSync(false)}>
+                  <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />Sync from GHL
+                </Button>
+                <Button variant="outline" disabled={syncing} onClick={() => runSync(true)}>
+                  Sync all clinics
+                </Button>
+              </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              Options are pulled from the “Please select your insurance provider” custom field in the clinic’s GHL
-              sub-account. Generic choices (Other, Not sure, Self pay) never count as accepted insurance.
+            <p className="text-xs text-muted-foreground max-w-3xl">
+              <strong>Block rules only</strong> flags what matches a rule; <strong>Allowlist</strong> flags anything not
+              accepted. Options are pulled from the “Please select your insurance provider” custom field in the clinic’s
+              GHL sub-account. Generic choices (Other, Not sure, Self pay) never count as accepted insurance.
             </p>
+
 
             <div className="flex gap-2 max-w-md">
               <Input placeholder="Add an accepted insurance manually" value={manualOption}
