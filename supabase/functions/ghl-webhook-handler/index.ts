@@ -2095,7 +2095,10 @@ async function carryForwardNotes(supabase: any, oldRows: any[], newRow: any, req
       const text = String(n.note_text || '').trim()
       if (!text) return false
       if (text.startsWith(CARRIED_NOTE_MARKER)) return false
+      // Status-change audit lines belong to the old booking's timeline only.
+      if (/^Status changed from /i.test(text)) return false
       return true
+
     })
     .map((n) => ({
       appointment_id: newRow.id,
