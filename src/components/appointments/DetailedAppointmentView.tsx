@@ -601,15 +601,20 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               new_time: newTime,
               timezone: projectData.timezone || 'America/Chicago',
               ghl_api_key: projectData.ghl_api_key,
+              ...(isCalendarMove
+                ? { calendar_id: rescheduleCalendarId, title: newCalendarTitle }
+                : {}),
             },
           });
           
           if (ghlError) throw ghlError;
           
+          // Apply the location move locally only once GHL accepted it
           await supabase.from('all_appointments').update({
             last_ghl_sync_status: 'success',
             last_ghl_sync_at: new Date().toISOString(),
             last_ghl_sync_error: null,
+            ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
           }).eq('id', appointment.id);
           
           await supabase.from('appointment_reschedules').update({
@@ -620,25 +625,33 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
             processed_at: new Date().toISOString()
           }).eq('id', rescheduleRecord.id);
           
-          toast.success("Appointment rescheduled in GoHighLevel successfully");
+          toast.success(
+            isCalendarMove
+              ? `Appointment rescheduled and moved to ${newCalendarName} in GoHighLevel`
+              : "Appointment rescheduled in GoHighLevel successfully"
+          );
         } catch (ghlError: any) {
           console.error('GHL sync error:', ghlError);
+          const details = ghlError?.message || String(ghlError);
           await supabase.from('all_appointments').update({
             last_ghl_sync_status: 'failed',
             last_ghl_sync_at: new Date().toISOString(),
-            last_ghl_sync_error: ghlError.message || String(ghlError),
+            last_ghl_sync_error: details,
           }).eq('id', appointment.id);
           await supabase.from('appointment_reschedules').update({
             ghl_sync_status: 'failed',
-            ghl_sync_error: ghlError.message || String(ghlError),
+            ghl_sync_error: details,
             ghl_synced_at: new Date().toISOString()
           }).eq('id', rescheduleRecord.id);
-          toast.error("Appointment updated locally but GHL sync failed");
+          toast.error(
+            `Appointment date/time updated locally${isCalendarMove ? ', but the location was NOT moved' : ''}. GoHighLevel sync failed: ${details}`
+          );
         }
       } else {
         await supabase.from('all_appointments').update({
           last_ghl_sync_status: null,
           last_ghl_sync_error: 'No GHL appointment ID',
+          ...(isCalendarMove ? { calendar_name: newCalendarName } : {}),
         }).eq('id', appointment.id);
         await supabase.from('appointment_reschedules').update({
           ghl_sync_status: 'skipped',
