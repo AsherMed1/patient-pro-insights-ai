@@ -1088,7 +1088,8 @@ export default function QAOperationsQueue() {
               .eq('id', row.id)
               .maybeSingle();
             if (data) {
-              setView('queue');
+              // Stay on the Escalations view — the drawer renders above it, so
+              // closing the record returns the user to the escalation list.
               setSelectedSiblings([]);
               setSelectedCase(data as any as QACase);
             }
