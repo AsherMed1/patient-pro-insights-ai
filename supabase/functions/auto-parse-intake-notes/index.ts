@@ -2156,6 +2156,23 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // === Drop primary_complaint when it merely restates symptoms ===
+  {
+    const norm = (v: unknown) =>
+      String(v || '')
+        .toLowerCase()
+        .replace(/[’']/g, "'")
+        .replace(/[.,;|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const pc = norm(parsedData.pathology_info?.primary_complaint);
+    const sx = norm(parsedData.pathology_info?.symptoms);
+    if (pc && sx && (pc === sx || sx.includes(pc))) {
+      console.log('[AUTO-PARSE SWEEP] Clearing primary_complaint duplicating symptoms');
+      parsedData.pathology_info.primary_complaint = null;
+    }
+  }
+
   return parsedData;
 }
 
