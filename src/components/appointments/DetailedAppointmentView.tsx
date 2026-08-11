@@ -71,6 +71,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format as formatDateFns } from "date-fns";
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
+import { useGhlCalendars } from '@/hooks/useGhlCalendars';
 import { ExternalLink } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
