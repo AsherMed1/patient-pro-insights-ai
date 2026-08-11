@@ -1,5 +1,6 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useVisibilityPolling } from "@/hooks/useVisibilityPolling";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut, User, Settings } from "lucide-react";
