@@ -76,6 +76,12 @@ export function useCalendarAppointments({
         query = query.eq('project_name', projectName);
       }
 
+      // Review Queue gate: unapproved appointments stay internal to PPM.
+      // Reserved time blocks are clinic-created and always visible.
+      if (!includeUnapproved) {
+        query = query.or('review_status.eq.approved,is_reserved_block.eq.true');
+      }
+
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
@@ -90,8 +96,10 @@ export function useCalendarAppointments({
   };
 
   useEffect(() => {
+    if (roleLoading) return;
     fetchAppointments();
-  }, [projectName, dateRange.start.toISOString(), dateRange.end.toISOString()]);
+  }, [projectName, dateRange.start.toISOString(), dateRange.end.toISOString(), includeUnapproved, roleLoading]);
+
 
   // Group appointments by date
   const appointmentsByDate = useMemo(() => {
