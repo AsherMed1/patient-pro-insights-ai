@@ -220,6 +220,56 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const { userId, userName } = useUserAttribution();
   const { isAdmin, isVA, hasRole } = useRole();
 
+  // Load the project's GHL calendars when the reschedule dialog opens so the
+  // appointment's location can be changed in the same step as the date/time.
+  useEffect(() => {
+    if (!showRescheduleDialog || !appointment.project_name) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('ghl_location_id, ghl_api_key')
+        .eq('project_name', appointment.project_name)
+        .single();
+      if (cancelled) return;
+      if (data?.ghl_api_key) setProjectGhlApiKey(data.ghl_api_key);
+      const locationId = data?.ghl_location_id || appointment.ghl_location_id || projectGhlLocationId;
+      if (locationId && calendars.length === 0) {
+        fetchCalendars(locationId, data?.ghl_api_key || undefined);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRescheduleDialog, appointment.project_name]);
+
+  // Default the reschedule location to the appointment's current calendar
+  useEffect(() => {
+    if (!showRescheduleDialog || calendars.length === 0 || rescheduleCalendarId) return;
+    const current = calendars.find(
+      (c) => c.name.toLowerCase() === (appointment.calendar_name || '').toLowerCase()
+    );
+    if (current) setRescheduleCalendarId(current.id);
+  }, [showRescheduleDialog, calendars, appointment.calendar_name, rescheduleCalendarId]);
+
+  // Build the GHL appointment title for a target calendar (mirrors AppointmentCard)
+  const extractLocationFromCalendarName = (calendarName: string): string => {
+    const atMatch = calendarName.match(/\bat\s+(.+)$/i);
+    if (atMatch) return atMatch[1].trim();
+    return calendarName.trim();
+  };
+
+  const buildAppointmentTitle = (calendarName: string): string => {
+    const location = extractLocationFromCalendarName(calendarName);
+    const procedureMatch = calendarName.match(/\b(PAE|GAE|UFE|Consultation)\b/i);
+    const procedure = procedureMatch ? procedureMatch[1].toUpperCase() : '';
+    if (procedure && procedure !== 'CONSULTATION') {
+      return `${appointment.lead_name} ${procedure} Consultation at ${location}`;
+    }
+    return `${appointment.lead_name} Consultation at ${location}`;
+  };
+
+
+
   // Inline name-edit state (Portal ↔ GHL two-way sync)
   const canEditName = isAdmin() || isVA() || hasRole(['agent', 'qa_specialist']);
   const [isEditingName, setIsEditingName] = useState(false);
