@@ -11,7 +11,9 @@ interface AppointmentNote {
   updated_at: string;
   last_edited_by?: string | null;
   last_edited_at?: string | null;
+  attachments?: any;
 }
+
 
 export const useAppointmentNotes = (appointmentId: string) => {
   const [notes, setNotes] = useState<AppointmentNote[]>([]);
