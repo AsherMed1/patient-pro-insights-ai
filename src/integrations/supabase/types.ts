@@ -3079,6 +3079,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          portal_tour_completed_at: string | null
           updated_at: string | null
           welcome_email_sent: boolean | null
           welcome_email_sent_at: string | null
@@ -3089,6 +3090,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          portal_tour_completed_at?: string | null
           updated_at?: string | null
           welcome_email_sent?: boolean | null
           welcome_email_sent_at?: string | null
@@ -3099,6 +3101,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          portal_tour_completed_at?: string | null
           updated_at?: string | null
           welcome_email_sent?: boolean | null
           welcome_email_sent_at?: string | null
