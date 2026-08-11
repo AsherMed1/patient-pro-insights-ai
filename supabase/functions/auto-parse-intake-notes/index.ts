@@ -2156,6 +2156,23 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     }
   }
 
+  // === Drop primary_complaint when it merely restates symptoms ===
+  {
+    const norm = (v: unknown) =>
+      String(v || '')
+        .toLowerCase()
+        .replace(/[’']/g, "'")
+        .replace(/[.,;|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const pc = norm(parsedData.pathology_info?.primary_complaint);
+    const sx = norm(parsedData.pathology_info?.symptoms);
+    if (pc && sx && (pc === sx || sx.includes(pc))) {
+      console.log('[AUTO-PARSE SWEEP] Clearing primary_complaint duplicating symptoms');
+      parsedData.pathology_info.primary_complaint = null;
+    }
+  }
+
   return parsedData;
 }
 
@@ -3145,7 +3162,7 @@ Parse the following patient intake notes and return a JSON object with these exa
   },
   "pathology_info": {
     "procedure_type": "string or null - The pathology/service type. Allowed values: GAE, PAE, UFE, HAE, PAD, FSE, TAE, PFE, Neuropathy. This is NOT the patient complaint.",
-    "primary_complaint": "string or null - The patient's chief complaint (e.g., 'knee pain', 'hip pain'), NOT the pathology type.",
+    "primary_complaint": "string or null - The patient's chief complaint (e.g., 'knee pain', 'hip pain'), NOT the pathology type. Leave null if it would merely restate the symptoms value — never duplicate symptoms text here.",
     "symptoms": "string or null",
     "pain_level": "string or null",
     "affected_area": "string or null",
