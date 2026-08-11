@@ -159,6 +159,11 @@ function AppointmentBlock({ item, onAppointmentClick }: AppointmentBlockProps) {
         <Badge variant={statusInfo.variant} className="text-[10px] flex-shrink-0">
           {statusInfo.label}
         </Badge>
+        {!isReserved && (apt as any).review_status && (apt as any).review_status !== 'approved' && (
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground flex-shrink-0">
+            Unapproved
+          </span>
+        )}
       </div>
       
       {isMultiHour && (
