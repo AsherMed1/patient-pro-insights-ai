@@ -115,22 +115,24 @@ export const useRole = () => {
             setAccessibleProjects(projects);
           }
         }
+        setLoading(false);
       } catch (error) {
         console.error('💥 [useRole] Unexpected error in fetchRole:', error);
-        // On unexpected errors, preserve existing state if possible
-        if (!role) {
-          setRole(null);
+        if (!cancelled && attempt < MAX_ROLE_ATTEMPTS) {
+          setTimeout(() => {
+            if (!cancelled) fetchRole(attempt + 1);
+          }, RETRY_DELAY_MS * attempt);
+          return;
         }
-        if (accessibleProjects.length === 0) {
-          setAccessibleProjects([]);
-        }
-      } finally {
         setLoading(false);
       }
     };
 
+    setLoading(true);
     fetchRole();
-  }, [user, authLoading]);
+
+    return () => { cancelled = true; };
+  }, [user, authLoading, refreshTick]);
 
   const hasRole = (requiredRole: UserRole | UserRole[]) => {
     if (!role) return false;
