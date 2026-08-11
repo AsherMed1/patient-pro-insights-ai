@@ -33,6 +33,11 @@ export function useCalendarAppointments({
   const [appointments, setAppointments] = useState<AllAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const { role, loading: roleLoading } = useRole();
+  // Only admins/agents may see appointments that have not cleared the Review Queue
+  const includeUnapproved = role === 'admin' || role === 'agent';
+
+
 
   // Calculate date range based on view mode
   const dateRange = useMemo(() => {
