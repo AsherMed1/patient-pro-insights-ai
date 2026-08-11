@@ -669,11 +669,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
       setRescheduleDate(undefined);
       setRescheduleTime('');
       setRescheduleNotes('');
+      setRescheduleCalendarId('');
       onDataRefresh?.();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting reschedule:', error);
-      toast.error("Failed to reschedule appointment");
+      toast.error(`Failed to reschedule appointment: ${error?.message || String(error)}`);
     } finally {
       setSubmittingReschedule(false);
     }
