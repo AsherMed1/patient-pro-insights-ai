@@ -12,6 +12,9 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import ImageAttachInput from '@/components/admin/ImageAttachInput';
+import AttachmentGallery from '@/components/admin/AttachmentGallery';
+import { uploadImages } from '@/lib/attachments';
 
 
 export const TICKET_STATUS_LABELS: Record<string, string> = {
@@ -49,6 +52,7 @@ export interface QATicketEvent {
   body: string | null;
   occurred_at: string;
   direction?: string | null;
+  attachments?: any;
 }
 
 
@@ -82,14 +86,31 @@ export default function QATicketPanel({
   const [events, setEvents] = useState<QATicketEvent[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
   const { userName } = useUserAttribution();
   const { user } = useAuth();
   const { toast } = useToast();
 
   const postComment = async () => {
     const text = draft.trim();
-    if (!text || !ticketId) return;
+    if ((!text && images.length === 0) || !ticketId) return;
     setSending(true);
+
+    let attachments: any[] = [];
+    if (images.length > 0) {
+      try {
+        attachments = await uploadImages(images, `controlhub/${caseId}`);
+      } catch (e: any) {
+        setSending(false);
+        toast({
+          title: 'Image upload failed',
+          description: e?.message || 'Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     const mentions = parseMentions(text).map((m) => ({ id: m.userId, name: m.name }));
     const { error } = await supabase.functions.invoke('post-controlhub-comment', {
       body: {
@@ -98,6 +119,7 @@ export default function QATicketPanel({
         author_name: userName,
         author_email: user?.email ?? null,
         mentions,
+        attachments,
       },
     });
     setSending(false);
@@ -119,6 +141,7 @@ export default function QATicketPanel({
     }
 
     setDraft('');
+    setImages([]);
     toast({ title: 'Comment posted to ControlHub' });
   };
 
@@ -237,6 +260,7 @@ export default function QATicketPanel({
                     {renderNoteWithMentions(e.body)}
                   </div>
                 )}
+                <AttachmentGallery attachments={e.attachments} size="sm" className="mt-1" />
               </div>
             ))}
           </div>
@@ -244,18 +268,24 @@ export default function QATicketPanel({
       </div>
 
       <div className="border-t pt-3">
-        <MentionTextarea
-          value={draft}
-          onChange={setDraft}
-          rows={3}
-          disabled={sending}
-          placeholder="Reply on the ControlHub ticket… (type @ to tag a teammate)"
-        />
+        <ImageAttachInput files={images} onChange={setImages} disabled={sending}>
+          <MentionTextarea
+            value={draft}
+            onChange={setDraft}
+            rows={3}
+            disabled={sending}
+            placeholder="Reply on the ControlHub ticket… (type @ to tag a teammate, paste a screenshot)"
+          />
+        </ImageAttachInput>
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             Shared with ControlHub — visible to Tech, AMs and Gloria.
           </span>
-          <Button size="sm" onClick={postComment} disabled={sending || !draft.trim()}>
+          <Button
+            size="sm"
+            onClick={postComment}
+            disabled={sending || (!draft.trim() && images.length === 0)}
+          >
             <Send className="h-3 w-3 mr-1" />
             {sending ? 'Posting…' : 'Post comment'}
           </Button>
