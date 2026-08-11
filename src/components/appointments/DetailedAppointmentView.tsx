@@ -1407,12 +1407,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           <DialogHeader>
             <DialogTitle>Reschedule Appointment</DialogTitle>
             <DialogDescription>
-              Select the new date and time for {appointment.lead_name}'s appointment
+              Select the new date, time and location for {appointment.lead_name}'s appointment
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {(appointment.date_of_appointment || appointment.requested_time) && (
+            {(appointment.date_of_appointment || appointment.requested_time || appointment.calendar_name) && (
               <div className="bg-muted p-3 rounded-lg">
                 <p className="text-sm font-medium mb-1">Current Appointment:</p>
                 <p className="text-sm">
@@ -1420,8 +1420,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                   {appointment.date_of_appointment && appointment.requested_time && ' at '}
                   {appointment.requested_time && formatTime(appointment.requested_time)}
                 </p>
+                {appointment.calendar_name && appointment.calendar_name !== 'Unknown' && (
+                  <p className="text-sm text-muted-foreground mt-1 break-words">
+                    Location: {appointment.calendar_name}
+                  </p>
+                )}
               </div>
             )}
+
             
             <div>
               <Label>New Appointment Date *</Label>
