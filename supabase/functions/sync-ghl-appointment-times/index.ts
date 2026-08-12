@@ -141,31 +141,40 @@ Deno.serve(async (req) => {
           return;
         }
 
-        // GHL returns startTime as an instant with the calendar's offset
-        // (e.g. "2026-08-18T13:00:00-04:00"). Convert it into the project's configured timezone,
-        // which is the same convention the webhook handler uses when it stores date/time, so a
-        // calendar configured in a different timezone from the clinic doesn't read as false drift.
-        // Fall back to the literal wall clock only when the project has no timezone on file.
-        const projectTz = timezone || null;
+        // GHL returns startTime as an instant carrying the calendar's own offset
+        // (e.g. "2026-08-18T13:00:00-04:00"). Two readings are legitimate:
+        //   a) the calendar's literal wall clock, and
+        //   b) the same instant expressed in the project's configured timezone.
+        // Some projects have a timezone on file that doesn't match their GHL calendar, so a row
+        // is only treated as drifted when it matches NEITHER reading — that prevents a timezone
+        // misconfiguration from being "corrected" into a wrong appointment time.
+        const projectTz = timezone || 'America/Chicago';
         const wall = String(startTime).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})/);
-        const useWall = !projectTz && !!wall && wall[5] !== 'Z';
-        const ghlDate = useWall ? wall![1] : formatInTimeZone(new Date(startTime), projectTz || 'America/Chicago', 'yyyy-MM-dd');
-        const ghlTime = useWall
-          ? `${wall![2]}:${wall![3]}:${wall![4] || '00'}`
-          : formatInTimeZone(new Date(startTime), projectTz || 'America/Chicago', 'HH:mm:ss');
+        const hasLocalOffset = !!wall && wall[5] !== 'Z';
+
+        const tzDate = formatInTimeZone(new Date(startTime), projectTz, 'yyyy-MM-dd');
+        const tzTime = formatInTimeZone(new Date(startTime), projectTz, 'HH:mm:ss');
+        const wallDate = hasLocalOffset ? wall![1] : tzDate;
+        const wallTime = hasLocalOffset ? `${wall![2]}:${wall![3]}:${wall![4] || '00'}` : tzTime;
+
+        const ghlDate = tzDate;
+        const ghlTime = tzTime;
         out.ghl_date = ghlDate;
         out.ghl_time = ghlTime;
+        out.ghl_calendar_wall = `${wallDate} ${wallTime}`;
         out.ghl_status = ev?.appointmentStatus || null;
 
+        const portalDate = String(row.date_of_appointment || '').slice(0, 10);
+        const portalTime = normTime(row.requested_time);
+        const matchesTz = portalDate === tzDate && portalTime === normTime(tzTime);
+        const matchesWall = portalDate === wallDate && portalTime === normTime(wallTime);
 
-        const dateDiffers = String(row.date_of_appointment || '').slice(0, 10) !== ghlDate;
-        const timeDiffers = normTime(row.requested_time) !== normTime(ghlTime);
-
-        if (!dateDiffers && !timeDiffers) {
+        if (matchesTz || matchesWall) {
           out.check = 'in_sync';
           results.push(out);
           return;
         }
+
 
         out.check = 'drift';
         if (dryRun) {
