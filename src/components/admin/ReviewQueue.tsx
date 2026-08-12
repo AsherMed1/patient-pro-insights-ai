@@ -296,7 +296,8 @@ const ReviewQueue: React.FC = () => {
 
 
   const sortedRows = useMemo(() => {
-    const base = shortNoticeOnly ? rows.filter(r => shortNoticeByRowId[r.id] !== undefined) : rows;
+    let base = shortNoticeOnly ? rows.filter(r => isShortNoticeRow(r)) : rows;
+    if (needsFollowUpOnly) base = base.filter(r => needsFollowUp(r));
     let ordered = base;
     if (sortKey) {
       const dir = sortDir === 'asc' ? 1 : -1;
