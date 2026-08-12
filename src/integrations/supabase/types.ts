@@ -257,6 +257,9 @@ export type Database = {
           parsed_pathology_info: Json | null
           parsing_completed_at: string | null
           patient_intake_notes: string | null
+          pending_by: string | null
+          pending_by_name: string | null
+          pending_since: string | null
           potential_oon: boolean
           potential_oon_flagged_at: string | null
           potential_oon_matches: Json | null
@@ -281,6 +284,7 @@ export type Database = {
           review_status: string
           reviewed_at: string | null
           reviewed_by: string | null
+          short_notice_auto_tagged_at: string | null
           stage_booked: string | null
           status: string | null
           time_preference: string | null
@@ -339,6 +343,9 @@ export type Database = {
           parsed_pathology_info?: Json | null
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
+          pending_by?: string | null
+          pending_by_name?: string | null
+          pending_since?: string | null
           potential_oon?: boolean
           potential_oon_flagged_at?: string | null
           potential_oon_matches?: Json | null
@@ -363,6 +370,7 @@ export type Database = {
           review_status?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          short_notice_auto_tagged_at?: string | null
           stage_booked?: string | null
           status?: string | null
           time_preference?: string | null
@@ -421,6 +429,9 @@ export type Database = {
           parsed_pathology_info?: Json | null
           parsing_completed_at?: string | null
           patient_intake_notes?: string | null
+          pending_by?: string | null
+          pending_by_name?: string | null
+          pending_since?: string | null
           potential_oon?: boolean
           potential_oon_flagged_at?: string | null
           potential_oon_matches?: Json | null
@@ -445,6 +456,7 @@ export type Database = {
           review_status?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          short_notice_auto_tagged_at?: string | null
           stage_booked?: string | null
           status?: string | null
           time_preference?: string | null

@@ -12,7 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
@@ -24,6 +24,15 @@ import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, decl
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
 import { useVisibilityPolling } from '@/hooks/useVisibilityPolling';
+import {
+  getShortNoticeStatus,
+  formatBusinessHours,
+  formatAge,
+  businessHoursSince,
+  isSystemNote,
+  PENDING_FOLLOWUP_BUSINESS_HOURS,
+  type ShortNoticeStatus,
+} from '@/lib/shortNotice';
 
 // Surface the full Postgres/Supabase error so failures are diagnosable from a screenshot
 const describeError = (e: any): string => {
@@ -65,6 +74,19 @@ interface ReviewAppointment {
   potential_oon_matches?: any;
   potential_oon_resolved_at?: string | null;
   potential_oon_resolution?: string | null;
+  pending_since?: string | null;
+  pending_by_name?: string | null;
+  short_notice_auto_tagged_at?: string | null;
+}
+
+interface ProjectConfig {
+  threshold: number;
+  timezone: string;
+}
+
+interface LastContact {
+  at: string;
+  by: string;
 }
 
 interface DuplicateAppt {
@@ -112,6 +134,42 @@ const ReviewQueue: React.FC = () => {
   const [adoptSlotTarget, setAdoptSlotTarget] = useState<{ row: ReviewAppointment; source: DuplicateAppt } | null>(null);
   const [shortNoticeByRowId, setShortNoticeByRowId] = useState<Record<string, number>>({});
   const [shortNoticeOnly, setShortNoticeOnly] = useState(false);
+  const [projectConfigs, setProjectConfigs] = useState<Record<string, ProjectConfig>>({});
+  const [lastContactByRowId, setLastContactByRowId] = useState<Record<string, LastContact>>({});
+  const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
+  const [nowTick, setNowTick] = useState(() => new Date());
+
+  // Keep countdowns live without reloading the queue
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  /** Live short-notice position for every row, based on the clinic threshold. */
+  const shortNoticeStatusByRowId = useMemo(() => {
+    const map: Record<string, ShortNoticeStatus> = {};
+    for (const r of rows) {
+      const cfg = projectConfigs[r.project_name];
+      if (!cfg) continue;
+      const st = getShortNoticeStatus(r.date_of_appointment, r.requested_time, cfg.threshold, cfg.timezone, nowTick);
+      if (st) map[r.id] = st;
+    }
+    return map;
+  }, [rows, projectConfigs, nowTick]);
+
+  /** A record is short notice when it is tagged, or already inside the window. */
+  const isShortNoticeRow = useCallback((row: ReviewAppointment) => {
+    if (shortNoticeByRowId[row.id] !== undefined) return true;
+    return shortNoticeStatusByRowId[row.id]?.isShortNotice === true;
+  }, [shortNoticeByRowId, shortNoticeStatusByRowId]);
+
+  /** Pending rows with no patient contact attempt in the last 24 business hours. */
+  const needsFollowUp = useCallback((row: ReviewAppointment) => {
+    if (row.review_stage !== 'pending_review') return false;
+    const since = lastContactByRowId[row.id]?.at || row.pending_since || row.created_at;
+    const elapsed = businessHoursSince(since, nowTick);
+    return elapsed !== null && elapsed >= PENDING_FOLLOWUP_BUSINESS_HOURS;
+  }, [lastContactByRowId, nowTick]);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
@@ -238,7 +296,8 @@ const ReviewQueue: React.FC = () => {
 
 
   const sortedRows = useMemo(() => {
-    const base = shortNoticeOnly ? rows.filter(r => shortNoticeByRowId[r.id] !== undefined) : rows;
+    let base = shortNoticeOnly ? rows.filter(r => isShortNoticeRow(r)) : rows;
+    if (needsFollowUpOnly) base = base.filter(r => needsFollowUp(r));
     let ordered = base;
     if (sortKey) {
       const dir = sortDir === 'asc' ? 1 : -1;
@@ -267,16 +326,17 @@ const ReviewQueue: React.FC = () => {
         return av > bv ? dir : -dir;
       });
     }
-    // Always float short-notice rows to the top of the Pending view
+    // In Pending: the closest to (or already past) the short-notice threshold first
     if (queueView === 'pending') {
-      ordered = [...ordered].sort((a, b) => {
-        const aS = shortNoticeByRowId[a.id] !== undefined ? 0 : 1;
-        const bS = shortNoticeByRowId[b.id] !== undefined ? 0 : 1;
-        return aS - bS;
-      });
+      const urgency = (r: ReviewAppointment) => {
+        if (isShortNoticeRow(r)) return Number.NEGATIVE_INFINITY;
+        const st = shortNoticeStatusByRowId[r.id];
+        return st ? st.hoursUntilThreshold : Number.POSITIVE_INFINITY;
+      };
+      ordered = [...ordered].sort((a, b) => urgency(a) - urgency(b));
     }
     return ordered;
-  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly, queueView]);
+  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly, queueView, needsFollowUpOnly, needsFollowUp, isShortNoticeRow, shortNoticeStatusByRowId]);
 
 
 
@@ -300,7 +360,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
       .eq('review_status', queueView === 'declined' ? 'declined' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -430,10 +490,10 @@ const ReviewQueue: React.FC = () => {
     run();
   }, [rows, queueView]);
 
-  // Detect short-notice alerts for pending rows
+  // Detect existing short-notice alerts (both New and Pending views)
   useEffect(() => {
     const run = async () => {
-      if (queueView !== 'pending' || rows.length === 0) {
+      if (queueView === 'declined' || rows.length === 0) {
         setShortNoticeByRowId({});
         return;
       }
@@ -457,6 +517,66 @@ const ReviewQueue: React.FC = () => {
     };
     run();
   }, [rows, queueView]);
+
+  // Per-clinic short-notice thresholds + timezone, used for the live countdown
+  useEffect(() => {
+    const run = async () => {
+      const names = Array.from(new Set(rows.map(r => r.project_name).filter(Boolean)));
+      const missing = names.filter(n => !projectConfigs[n]);
+      if (missing.length === 0) return;
+      const { data, error } = await supabase
+        .from('projects')
+        .select('project_name, short_notice_threshold_hours, timezone')
+        .in('project_name', missing);
+      if (error) {
+        console.warn('project config fetch failed', error);
+        return;
+      }
+      setProjectConfigs(prev => {
+        const next = { ...prev };
+        (data || []).forEach((p: any) => {
+          next[p.project_name] = {
+            threshold: p.short_notice_threshold_hours ?? 72,
+            timezone: p.timezone || 'America/Chicago',
+          };
+        });
+        // Fall back to the default threshold when a project row is missing
+        missing.forEach(n => { if (!next[n]) next[n] = { threshold: 72, timezone: 'America/Chicago' }; });
+        return next;
+      });
+    };
+    run();
+  }, [rows, projectConfigs]);
+
+  // Last patient contact attempt = most recent human-authored note on the record
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setLastContactByRowId({});
+        return;
+      }
+      const ids = rows.map(r => r.id);
+      const { data, error } = await supabase
+        .from('appointment_notes')
+        .select('appointment_id, note_text, created_by, created_at')
+        .in('appointment_id', ids)
+        .order('created_at', { ascending: false })
+        .limit(2000);
+      if (error) {
+        console.warn('last-contact fetch failed', error);
+        return;
+      }
+      const map: Record<string, LastContact> = {};
+      (data || []).forEach((n: any) => {
+        if (map[n.appointment_id]) return;
+        if (isSystemNote(n)) return;
+        map[n.appointment_id] = { at: n.created_at, by: n.created_by || 'Unknown' };
+      });
+      setLastContactByRowId(map);
+    };
+    run();
+  }, [rows, queueView]);
+
 
   const handleReplaceExisting = async (row: ReviewAppointment) => {
     const dups = duplicatesByRowId[row.id] || [];
@@ -1061,43 +1181,95 @@ const ReviewQueue: React.FC = () => {
 
   const handleMoveStage = async (ids: string[], stage: 'new' | 'pending_review') => {
     if (ids.length === 0) return;
+
+    // Short-notice records must be actioned now — they can never enter Pending.
+    let targetIds = ids;
+    let skipped = 0;
+    if (stage === 'pending_review') {
+      const blocked = new Set(rows.filter(r => isShortNoticeRow(r)).map(r => r.id));
+      targetIds = ids.filter(id => !blocked.has(id));
+      skipped = ids.length - targetIds.length;
+      if (targetIds.length === 0) {
+        toast({
+          title: 'Short Notice — cannot move to Pending',
+          description: 'These appointments are already inside the clinic short-notice window and must be actioned now.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setProcessing(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      const payload: any = { review_stage: stage };
+      if (stage === 'pending_review') {
+        payload.pending_since = stamp;
+        payload.pending_by = user?.id ?? null;
+        payload.pending_by_name = actor;
+      } else {
+        payload.pending_since = null;
+        payload.pending_by = null;
+        payload.pending_by_name = null;
+      }
+
       const { error: updErr } = await supabase
         .from('all_appointments')
-        .update({ review_stage: stage })
-        .in('id', ids);
+        .update(payload)
+        .in('id', targetIds);
       if (updErr) throw updErr;
 
       const label = stage === 'pending_review' ? 'Pending Review' : 'New';
-      const actor = userName || 'Unknown';
-      const stamp = new Date().toISOString();
       try {
         await supabase.from('appointment_notes').insert(
-          ids.map(id => ({
+          targetIds.map(id => ({
             appointment_id: id,
             note_text: `Review Queue: moved to ${label} by ${actor} - [[timestamp:${stamp}]]`,
             created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+            attachments: [],
           }))
         );
       } catch (e) {
         console.warn('stage move note insert failed', e);
       }
 
+      // Audit trail of every Pending entry/exit
+      try {
+        await supabase.from('appointment_review_history').insert(
+          targetIds.map(id => ({
+            appointment_id: id,
+            action: stage === 'pending_review' ? 'moved_to_pending' : 'moved_to_new',
+            prior_status: 'pending',
+            actor_id: user?.id ?? null,
+            actor_name: actor,
+            notes: `Review Queue: moved to ${label}`,
+          }))
+        );
+      } catch (e) {
+        console.warn('review history insert failed', e);
+      }
+
       try {
         await supabase.rpc('log_audit_event', {
           p_entity: 'appointment',
           p_action: 'review_stage_changed',
-          p_description: `Moved ${ids.length} appointment(s) to ${label} in Review Queue by ${actor}`,
+          p_description: `Moved ${targetIds.length} appointment(s) to ${label} in Review Queue by ${actor}`,
           p_source: 'review_queue',
-          p_metadata: { appointment_ids: ids, review_stage: stage },
+          p_metadata: { appointment_ids: targetIds, review_stage: stage, skipped_short_notice: skipped },
         });
       } catch (e) {
         console.warn('audit log failed', e);
       }
 
-      toast({ title: `Moved to ${label}`, description: `${ids.length} appointment(s)` });
-      setRows(prev => prev.filter(r => !ids.includes(r.id)));
+      toast({
+        title: `Moved to ${label}`,
+        description: skipped > 0
+          ? `${targetIds.length} appointment(s); ${skipped} skipped — Short Notice must be actioned now.`
+          : `${targetIds.length} appointment(s)`,
+      });
+      setRows(prev => prev.filter(r => !targetIds.includes(r.id)));
       setSelected(new Set());
       fetchCounts();
     } catch (e: any) {
@@ -1310,7 +1482,20 @@ const ReviewQueue: React.FC = () => {
             >
               <Zap className="h-4 w-4 mr-1" />
               Short notice only
-              <Badge variant="secondary" className="ml-2">{Object.keys(shortNoticeByRowId).length}</Badge>
+              <Badge variant="secondary" className="ml-2">{rows.filter(r => isShortNoticeRow(r)).length}</Badge>
+            </Button>
+          )}
+          {queueView === 'pending' && (
+            <Button
+              variant={needsFollowUpOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setNeedsFollowUpOnly(v => !v)}
+              className={needsFollowUpOnly ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'border-amber-400 text-amber-700 hover:bg-amber-50'}
+              title={`No patient contact attempt logged in the last ${PENDING_FOLLOWUP_BUSINESS_HOURS} business hours`}
+            >
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              Needs follow-up
+              <Badge variant="secondary" className="ml-2">{rows.filter(r => needsFollowUp(r)).length}</Badge>
             </Button>
           )}
           {!isDeclinedView && (
@@ -1445,6 +1630,70 @@ const ReviewQueue: React.FC = () => {
                                 ? `${Math.max(1, Math.round(shortNoticeByRowId[row.id] * 60))}m`
                                 : `${Math.round(shortNoticeByRowId[row.id])}h`}
                             </span>
+                          </Badge>
+                        )}
+                        {!isDeclinedView && shortNoticeByRowId[row.id] === undefined && shortNoticeStatusByRowId[row.id] && (
+                          shortNoticeStatusByRowId[row.id].isShortNotice ? (
+                            <Badge
+                              variant="outline"
+                              className="border-orange-500 text-orange-800 bg-orange-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                              title="Inside the clinic's short-notice window — action now"
+                            >
+                              <Zap className="h-2.5 w-2.5 shrink-0" />
+                              <span>Short Notice window</span>
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1 ${
+                                shortNoticeStatusByRowId[row.id].hoursUntilThreshold <= 12
+                                  ? 'border-rose-400 text-rose-700 bg-rose-50'
+                                  : 'border-slate-300 text-slate-600 bg-slate-50'
+                              }`}
+                              title="Time remaining before this appointment becomes Short Notice"
+                            >
+                              <Clock className="h-2.5 w-2.5 shrink-0" />
+                              <span>Short Notice in {formatBusinessHours(shortNoticeStatusByRowId[row.id].hoursUntilThreshold)}</span>
+                            </Badge>
+                          )
+                        )}
+                        {queueView === 'pending' && row.pending_since && (
+                          <Badge
+                            variant="outline"
+                            className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title={`Moved to Pending ${new Date(row.pending_since).toLocaleString()}${row.pending_by_name ? ` by ${row.pending_by_name}` : ''}`}
+                          >
+                            <Clock className="h-2.5 w-2.5 shrink-0" />
+                            <span>Pending {formatAge(row.pending_since, nowTick)}{row.pending_by_name ? ` · ${row.pending_by_name}` : ''}</span>
+                          </Badge>
+                        )}
+                        {queueView === 'pending' && (
+                          lastContactByRowId[row.id] ? (
+                            <Badge
+                              variant="outline"
+                              className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()} by ${lastContactByRowId[row.id].by}`}
+                            >
+                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago · {lastContactByRowId[row.id].by}</span>
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="border-slate-300 text-slate-500 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
+                              title="No patient contact attempt has been logged on this record"
+                            >
+                              No contact logged
+                            </Badge>
+                          )
+                        )}
+                        {queueView === 'pending' && needsFollowUp(row) && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500 text-amber-800 bg-amber-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title={`No contact attempt in the last ${PENDING_FOLLOWUP_BUSINESS_HOURS} business hours`}
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                            <span>Needs follow-up</span>
                           </Badge>
                         )}
                         {!isDeclinedView && isOonBlocked(row) && (
@@ -1590,8 +1839,14 @@ const ReviewQueue: React.FC = () => {
                             variant="outline"
                             className="border-blue-300 text-blue-700 hover:bg-blue-50"
                             onClick={() => handleMoveStage([row.id], isNewView ? 'pending_review' : 'new')}
-                            disabled={processing}
-                            title={isNewView ? 'Needs more info or follow-up — move to Pending Review' : 'Move back to the New bucket'}
+                            disabled={processing || (isNewView && isShortNoticeRow(row))}
+                            title={
+                              isNewView
+                                ? (isShortNoticeRow(row)
+                                    ? 'Short Notice — must be actioned now, cannot be moved to Pending'
+                                    : 'Needs more info or follow-up — move to Pending Review')
+                                : 'Move back to the New bucket'
+                            }
                           >
                             <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
                             {isNewView ? 'Pending Review' : 'Back to New'}
