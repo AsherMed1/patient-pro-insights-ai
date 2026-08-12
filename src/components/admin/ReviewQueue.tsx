@@ -624,12 +624,32 @@ const ReviewQueue: React.FC = () => {
         console.warn('last-contact fetch failed', error);
         return;
       }
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const map: Record<string, LastContact> = {};
       (data || []).forEach((n: any) => {
         if (map[n.appointment_id]) return;
         if (isSystemNote(n)) return;
-        map[n.appointment_id] = { at: n.created_at, by: n.created_by || 'Unknown' };
+        map[n.appointment_id] = { at: n.created_at, by: (n.created_by || '').trim() };
       });
+
+      // Resolve raw user IDs to readable names; drop the author when unresolvable
+      const uuidAuthors = Array.from(
+        new Set(Object.values(map).map(v => v.by).filter(b => UUID_RE.test(b)))
+      );
+      if (uuidAuthors.length > 0) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', uuidAuthors);
+        const nameById: Record<string, string> = {};
+        (profs || []).forEach((p: any) => {
+          const name = (p.full_name || '').trim() || (p.email || '').trim();
+          if (name) nameById[p.id] = name;
+        });
+        Object.values(map).forEach(v => {
+          if (UUID_RE.test(v.by)) v.by = nameById[v.by] || '';
+        });
+      }
       setLastContactByRowId(map);
     };
     run();
@@ -1730,9 +1750,9 @@ const ReviewQueue: React.FC = () => {
                             <Badge
                               variant="outline"
                               className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()} by ${lastContactByRowId[row.id].by}`}
+                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()}${lastContactByRowId[row.id].by ? ` by ${lastContactByRowId[row.id].by}` : ''}`}
                             >
-                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago · {lastContactByRowId[row.id].by}</span>
+                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago{lastContactByRowId[row.id].by ? ` · ${lastContactByRowId[row.id].by}` : ''}</span>
                             </Badge>
                           ) : (
                             <Badge
