@@ -1433,15 +1433,36 @@ function getUpdateableFields(
     }
   } else {
 
-    // Echo-back debounce guard: skip date/time changes if appointment was updated very recently (within 120s)
+    // Echo-back guard (echo-aware, NOT time-based): skip the date/time block only when the
+    // incoming payload carries exactly the values we already store AND the row was just written.
+    // A time-only debounce silently swallowed genuine reschedules that happened within 2 minutes
+    // of booking (Reginald Wilson, Georgia Endovascular, Aug 2026) — a *different* date or time
+    // from GHL is always applied, no matter how recently the row was touched.
     const updatedAt = existingAppointment.updated_at ? new Date(existingAppointment.updated_at) : null
     const nowTime = new Date()
     const secondsSinceUpdate = updatedAt ? (nowTime.getTime() - updatedAt.getTime()) / 1000 : Infinity
 
-    if (secondsSinceUpdate < 120) {
-      console.log(`[WEBHOOK] Skipping date/time update — appointment updated ${Math.round(secondsSinceUpdate)}s ago (debounce guard, threshold: 120s)`)
+    const normDate = (v: any) => (v == null ? '' : String(v).trim().slice(0, 10))
+    const normTime = (v: any) => {
+      if (v == null) return ''
+      const s = String(v).trim()
+      if (!s) return ''
+      const parts = s.split(':')
+      if (parts.length < 2) return s
+      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+    }
+
+    const sameDate = normDate(webhookData.date_of_appointment) === normDate(existingAppointment.date_of_appointment)
+    const sameTime =
+      normTime(webhookData.requested_time) === '' ||
+      normTime(webhookData.requested_time) === normTime(existingAppointment.requested_time)
+    const isEchoBack = sameDate && sameTime
+
+    if (secondsSinceUpdate < 120 && isEchoBack) {
+      console.log(`[WEBHOOK] Skipping date/time update — identical values echoed back ${Math.round(secondsSinceUpdate)}s after our own write`)
       // Still allow non-date fields to update below, just skip date_of_appointment and requested_time
     } else {
+
       // Accept date/time changes (rescheduling) only if outside debounce window
       // AND only when the incoming payload actually carries a real date. Contact-only
       // GHL workflows (e.g. "Sync Contact Notes → Portal") fire an appointment-shaped
