@@ -227,8 +227,10 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
             left: r.left - 8,
             width: r.width + 16,
             height: r.height + 16,
-            boxShadow: i === 0 ? '0 0 0 9999px hsl(var(--foreground) / 0.55)' : '0 0 0 1px hsl(var(--primary) / 0.35), 0 6px 18px rgba(0,0,0,0.18)',
-            background: 'hsl(var(--background) / 0.72)',
+            boxShadow: i === 0
+              ? '0 0 0 9999px hsl(var(--foreground) / 0.55)'
+              : '0 0 0 1px hsl(var(--primary) / 0.35), 0 6px 18px rgba(0,0,0,0.18)',
+            background: 'transparent',
             opacity: spotVisible ? 1 : 0,
             transition: `top ${DURATION}ms ${EASE}, left ${DURATION}ms ${EASE}, width ${DURATION}ms ${EASE}, height ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`,
           }}
