@@ -715,46 +715,83 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     };
   };
 
+  // Remove GHL bot-config blobs before scanning notes for an address.
+  // "OpenAI Prompt: Role: You are ..." holds the booking bot's system prompt
+  // (disqualification criteria etc.) and used to be mistaken for a street address.
+  const stripBotNoise = (notes: string): string => {
+    let out = notes;
+    out = out.replace(/\n?\s*OpenAI Prompt:[\s\S]*$/i, '\n');
+    out = out.replace(/Patient Intake Summary:[^\n]*/gi, '');
+    out = out.replace(/(?<!Intake )Patient Summary:[^\n]*/gi, '');
+    out = out.replace(/^\s*Intro Message:[^\n]*$/gim, '');
+    return out;
+  };
+
+  const BOT_TEXT_MARKERS = /(disqualif|emoji|hemingway|reading level|book an appointment|appointment within|\bRole:|front desk|medical advice|rapport|asks for a human)/i;
+
+  const isPlausibleAddress = (candidate: string): boolean => {
+    const value = candidate.trim();
+    if (value.length < 8 || value.length > 120) return false;
+    if (BOT_TEXT_MARKERS.test(value)) return false;
+    // Sentence-like text (periods followed by a space, question marks) is not an address
+    if (/[.!?]\s/.test(value)) return false;
+    if (/\b(you|your|they|them|their|please|kindly|if\b)/i.test(value)) return false;
+    // Must start with a house number and contain a real street suffix or a city/state/ZIP tail
+    const startsWithNumber = /^\d{1,6}\s+[A-Za-z]/.test(value);
+    const hasSuffix = /\b(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy|Terrace|Ter|Trail|Trl|Highway|Hwy|Loop|Run|Pike|Square|Sq)\b\.?/.test(value);
+    const hasCityStateZip = /,\s*[A-Za-z .'-]+,\s*(?:[A-Z]{2}|[A-Za-z ]{4,20})\s*,?\s*\d{5}(?:-\d{4})?/.test(value);
+    return startsWithNumber && (hasSuffix || hasCityStateZip);
+  };
+
   const extractAddressFromNotes = (notes: string): string | null => {
     if (!notes) return null;
-    
-    // Common address patterns
+
+    const cleaned = stripBotNoise(notes);
+
+    // 1) Prefer the labeled address line from the GHL contact section
+    const labeled = cleaned.match(/^\s*(?:Street\s+)?Address:\s*([^\n|]+)$/im);
+    if (labeled?.[1]) {
+      const value = labeled[1].trim();
+      if (value && !BOT_TEXT_MARKERS.test(value) && value.length <= 120) return value;
+    }
+
+    // 2) Otherwise scan for address-shaped candidates, case-sensitive suffixes
+    //    with word boundaries so words like "contact" / "status" never match.
     const patterns = [
-      // Full address pattern: number street, city, state zip
-      /(\d+\s+[A-Za-z0-9\s,.-]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy)[A-Za-z0-9\s,.-]*,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/gi,
-      // Address with city, state zip
-      /([A-Za-z0-9\s,.-]+,\s*[A-Za-z\s]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/gi,
-      // Street address only
-      /(\d+\s+[A-Za-z0-9\s,.-]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy))/gi
+      /\b\d{1,6}\s+[A-Za-z0-9'.\- ]{2,60}?\b(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy|Terrace|Ter|Trail|Trl|Highway|Hwy|Loop|Pike|Square|Sq)\b\.?,\s*[A-Za-z .'-]{2,30},\s*(?:[A-Z]{2}|[A-Za-z ]{4,20})\s*,?\s*\d{5}(?:-\d{4})?/g,
+      /\b\d{1,6}\s+[A-Za-z0-9'.\- ]{2,60}?\b(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Circle|Cir|Court|Ct|Place|Pl|Way|Parkway|Pkwy|Terrace|Ter|Trail|Trl|Highway|Hwy|Loop|Pike|Square|Sq)\b\.?/g,
     ];
-    
+
     for (const pattern of patterns) {
-      const matches = notes.match(pattern);
-      if (matches && matches.length > 0) {
-        // Return the longest match (most complete address)
-        return matches.reduce((longest, current) => 
-          current.length > longest.length ? current : longest
-        ).trim();
+      const matches = cleaned.match(pattern) || [];
+      const valid = matches.map((m) => m.trim()).filter(isPlausibleAddress);
+      if (valid.length > 0) {
+        // Prefer the most complete (longest) *valid* candidate
+        return valid.reduce((best, current) => (current.length > best.length ? current : best));
       }
     }
-    
+
     return null;
   };
 
   const getPatientAddress = (): string | null => {
     // First try to get from parsed contact info
-    if (appointment.parsed_contact_info?.address) {
-      return appointment.parsed_contact_info.address;
+    const stored = appointment.parsed_contact_info?.address;
+    if (typeof stored === 'string' && stored.trim()) {
+      const value = stored.trim();
+      // Never surface bot-prompt text that may have been stored historically
+      if (!BOT_TEXT_MARKERS.test(value) && value.length <= 200) return value;
     }
-    
+
     // Then try to extract from raw notes if available
     const intakeNotes = appointment.patient_intake_notes || leadDetails?.patient_intake_notes;
     if (intakeNotes) {
       return extractAddressFromNotes(intakeNotes);
     }
-    
+
     return null;
   };
+
 
   const handlePrint = () => {
     window.print();
