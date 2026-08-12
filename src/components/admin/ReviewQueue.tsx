@@ -116,6 +116,7 @@ const ReviewQueue: React.FC = () => {
   const [declineReason, setDeclineReason] = useState<string>('');
   const [otherNeedsReschedule, setOtherNeedsReschedule] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -356,6 +357,17 @@ const ReviewQueue: React.FC = () => {
     setDetailAppt(data as unknown as AllAppointment);
   };
 
+  // Pull the live appointment(s) from GoHighLevel and apply any date/time drift.
+  // Returns the raw results so callers can decide what to report.
+  const syncWithGhl = useCallback(async (appointmentIds: string[]) => {
+    if (!appointmentIds.length) return [] as any[];
+    const { data, error } = await supabase.functions.invoke('sync-ghl-appointment-times', {
+      body: { appointment_ids: appointmentIds },
+    });
+    if (error) throw error;
+    return (data?.results || []) as any[];
+  }, []);
+
   const fetch = useCallback(async () => {
     setLoading(true);
     let q = supabase
@@ -429,6 +441,52 @@ const ReviewQueue: React.FC = () => {
   }, [fetch, fetchCounts]);
 
   useVisibilityPolling(() => { fetch(); fetchCounts(); }, 90000);
+
+  // Per-row: force a GHL check right now.
+  const handleRowSync = useCallback(async (row: ReviewAppointment) => {
+    setSyncingId(row.id);
+    try {
+      const results = await syncWithGhl([row.id]);
+      const r = results[0];
+      if (r?.check === 'corrected') {
+        toast({ title: 'Updated from GHL', description: `${row.lead_name || 'Appointment'} → ${r.ghl_date} ${String(r.ghl_time || '').slice(0, 5)}` });
+        await fetch();
+      } else if (r?.check === 'in_sync') {
+        toast({ title: 'Already up to date', description: 'Portal matches GoHighLevel.' });
+      } else {
+        toast({
+          title: 'Could not verify with GHL',
+          description: r?.error || r?.ghl_error || r?.check || 'No result returned',
+          variant: 'destructive',
+        });
+      }
+    } catch (e: any) {
+      toast({ title: 'Sync failed', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSyncingId(null);
+    }
+  }, [syncWithGhl, fetch, toast]);
+
+  // Queue-level Refresh: check GHL for the visible rows first, then reload.
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const ids = rows.map(r => r.id);
+      if (ids.length) {
+        const results = await syncWithGhl(ids);
+        const corrected = results.filter((r: any) => r.check === 'corrected').length;
+        if (corrected > 0) {
+          toast({ title: 'Synced with GHL', description: `${corrected} appointment${corrected === 1 ? '' : 's'} updated to the latest GHL date/time.` });
+        }
+      }
+    } catch (e: any) {
+      toast({ title: 'GHL check failed', description: e?.message || String(e), variant: 'destructive' });
+    }
+    await fetch();
+    await fetchCounts();
+  }, [rows, syncWithGhl, fetch, fetchCounts, toast]);
+
+
 
 
   const projects = Array.from(new Set(rows.map(r => r.project_name))).sort();
@@ -1420,7 +1478,7 @@ const ReviewQueue: React.FC = () => {
               New appointments land in the <strong>New</strong> bucket. Move one to <strong>Pending Review</strong> when it needs more investigation or follow-up, so the next shift knows what is already being worked. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { fetch(); fetchCounts(); }} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading} title="Re-check GoHighLevel for date/time changes, then reload">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -1759,6 +1817,17 @@ const ReviewQueue: React.FC = () => {
                     <div className="text-xs">
                       <div>{formatDate(row.date_of_appointment)}</div>
                       <div className="text-muted-foreground">{formatTime(row.requested_time)}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleRowSync(row)}
+                        disabled={syncingId === row.id}
+                        title="Sync this appointment's date/time with GoHighLevel"
+                        className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${syncingId === row.id ? 'animate-spin' : ''}`} />
+                        Sync with GHL
+                      </button>
+
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end">
                       {isDeclinedView ? (
