@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
 
     const results: any[] = [];
 
-    for (const row of rows) {
+    const processRow = async (row: Row) => {
       const out: any = {
         appointment_id: row.id,
         lead_name: row.lead_name,
@@ -107,14 +107,14 @@ Deno.serve(async (req) => {
         if (!row.project_name || !row.ghl_appointment_id || row.is_unscheduled) {
           out.check = 'skipped';
           results.push(out);
-          continue;
+          return;
         }
 
         const { apiKey, timezone } = await getProject(row.project_name);
         if (!apiKey) {
           out.check = 'skipped_no_api_key';
           results.push(out);
-          continue;
+          return;
         }
 
         const res = await fetch(
@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
           out.ghl_http_status = res.status;
           out.ghl_error = text.slice(0, 200);
           results.push(out);
-          continue;
+          return;
         }
 
         let json: any = null;
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
         if (!startTime) {
           out.check = 'ghl_no_start_time';
           results.push(out);
-          continue;
+          return;
         }
 
         const ghlDate = formatInTimeZone(new Date(startTime), timezone, 'yyyy-MM-dd');
@@ -152,13 +152,13 @@ Deno.serve(async (req) => {
         if (!dateDiffers && !timeDiffers) {
           out.check = 'in_sync';
           results.push(out);
-          continue;
+          return;
         }
 
         out.check = 'drift';
         if (dryRun) {
           results.push(out);
-          continue;
+          return;
         }
 
         const history = Array.isArray(row.reschedule_history) ? row.reschedule_history : [];
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
           out.check = 'update_failed';
           out.error = updErr.message;
           results.push(out);
-          continue;
+          return;
         }
 
         out.check = 'corrected';
@@ -202,6 +202,11 @@ Deno.serve(async (req) => {
         out.error = e?.message || String(e);
         results.push(out);
       }
+    };
+
+    const CONCURRENCY = 8;
+    for (let i = 0; i < rows.length; i += CONCURRENCY) {
+      await Promise.all(rows.slice(i, i + CONCURRENCY).map(processRow));
     }
 
     const summary = {
