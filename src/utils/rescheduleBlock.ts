@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { pushLifecycleTags } from '@/components/appointments/cancellationTags';
 
 export const RESCHEDULE_BLOCK_TAG = 'no-show-not-eligible';
 export const DO_NOT_RESCHEDULE_TAG = 'do-not-reschedule';
@@ -11,61 +12,32 @@ export interface RescheduleBlockTarget {
   lead_phone_number?: string | null;
 }
 
-const syncGhlTags = async (
-  appointmentId: string,
-  action: 'add' | 'remove'
-): Promise<void> => {
-  try {
-    const { data: appointmentData } = await supabase
-      .from('all_appointments')
-      .select('ghl_id, project_name')
-      .eq('id', appointmentId)
-      .single();
-
-    if (!appointmentData?.ghl_id) return;
-
-    const { data: projectData } = await supabase
-      .from('projects')
-      .select('ghl_api_key')
-      .eq('project_name', appointmentData.project_name)
-      .single();
-
-    if (!projectData?.ghl_api_key) return;
-
-    await supabase.functions.invoke('update-ghl-contact-tags', {
-      body: {
-        ghl_contact_id: appointmentData.ghl_id,
-        ghl_api_key: projectData.ghl_api_key,
-        tags: [RESCHEDULE_BLOCK_TAG, DO_NOT_RESCHEDULE_TAG],
-        action,
-      },
-    });
-  } catch (err) {
-    // Non-critical: the portal-side block is already persisted
-    console.error(`GHL tag ${action} failed (non-critical):`, err);
-  }
-};
-
 /**
  * Records the reschedule-eligibility decision made when an appointment is
  * marked No Show. When the patient is NOT eligible we also create a
  * patient-level block, an internal note, and tag the GHL contact so the
  * clinic's GHL workflow sends the "contact the clinic" text.
+ *
+ * Either way the unified lifecycle tag set is pushed so GHL workflows can
+ * branch on `reschedulable` vs `do-not-reschedule` exactly like cancellations.
  */
 export const applyNoShowEligibility = async (
   appointment: RescheduleBlockTarget,
   eligible: boolean,
   notes: string,
-  userName: string
+  userName: string,
+  reason?: string | null
 ): Promise<void> => {
   const now = new Date().toISOString();
-  const reason = notes.trim() || null;
+  const noteText = notes.trim() || null;
+  const cleanReason = reason?.trim() || null;
+  const reasonSuffix = `${cleanReason ? `. Reason: ${cleanReason}` : ''}${noteText ? `. Notes: ${noteText}` : ''}`;
 
   await supabase
     .from('all_appointments')
     .update({
       reschedule_eligible: eligible,
-      reschedule_block_reason: eligible ? null : reason,
+      reschedule_block_reason: eligible ? null : cleanReason || noteText,
       reschedule_blocked_at: eligible ? null : now,
       reschedule_blocked_by: eligible ? null : userName,
       updated_at: now,
@@ -80,11 +52,18 @@ export const applyNoShowEligibility = async (
       appointment_id: appointment.id,
       note_text:
         `No-show recorded — patient remains eligible for rescheduling` +
-        `${reason ? `. Notes: ${reason}` : ''} by ${userName}`,
+        `${reasonSuffix} by ${userName}`,
       created_by: userName,
     });
 
-    await syncGhlTags(appointment.id, 'remove');
+    // Clear the legacy block tag, then push the unified set.
+    await removeLegacyBlockTags(appointment.id);
+    await pushLifecycleTags({
+      appointmentId: appointment.id,
+      kind: 'no-show',
+      reason: cleanReason,
+      reschedulable: true,
+    });
     return;
   }
 
@@ -96,7 +75,7 @@ export const applyNoShowEligibility = async (
       patient_name: appointment.lead_name || null,
       lead_phone_number: appointment.lead_phone_number || null,
       source_appointment_id: appointment.id,
-      reason,
+      reason: cleanReason || noteText,
       blocked_by: userName,
       is_active: true,
       unblocked_by: null,
@@ -109,12 +88,51 @@ export const applyNoShowEligibility = async (
     appointment_id: appointment.id,
     note_text:
       `Marked NOT eligible for rescheduling after no-show — patient must contact the clinic directly` +
-      `${reason ? `. Notes: ${reason}` : ''} by ${userName}`,
+      `${reasonSuffix} by ${userName}`,
     created_by: userName,
   });
 
-  await syncGhlTags(appointment.id, 'add');
+  await pushLifecycleTags({
+    appointmentId: appointment.id,
+    kind: 'no-show',
+    reason: cleanReason,
+    reschedulable: false,
+    extraTags: [RESCHEDULE_BLOCK_TAG],
+  });
 };
+
+/** Removes the legacy no-show block tags from the GHL contact. */
+const removeLegacyBlockTags = async (appointmentId: string): Promise<void> => {
+  try {
+    const { data: appointmentData } = await supabase
+      .from('all_appointments')
+      .select('ghl_id, project_name')
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (!appointmentData?.ghl_id) return;
+
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('ghl_api_key')
+      .eq('project_name', appointmentData.project_name)
+      .maybeSingle();
+
+    await supabase.functions.invoke('update-ghl-contact-tags', {
+      body: {
+        ghl_contact_id: appointmentData.ghl_id,
+        ghl_api_key: projectData?.ghl_api_key || undefined,
+        tags: [RESCHEDULE_BLOCK_TAG],
+        action: 'remove',
+        source: 'portal no-show (block lifted)',
+      },
+    });
+  } catch (err) {
+    // Non-critical: the portal-side state is already persisted
+    console.error('GHL block tag removal failed (non-critical):', err);
+  }
+};
+
 
 const deactivateBlocks = async (
   appointment: RescheduleBlockTarget,
