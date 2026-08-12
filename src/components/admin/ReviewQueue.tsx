@@ -441,6 +441,52 @@ const ReviewQueue: React.FC = () => {
 
   useVisibilityPolling(() => { fetch(); fetchCounts(); }, 90000);
 
+  // Per-row: force a GHL check right now.
+  const handleRowSync = useCallback(async (row: ReviewAppointment) => {
+    setSyncingId(row.id);
+    try {
+      const results = await syncWithGhl([row.id]);
+      const r = results[0];
+      if (r?.check === 'corrected') {
+        toast({ title: 'Updated from GHL', description: `${row.lead_name || 'Appointment'} → ${r.ghl_date} ${String(r.ghl_time || '').slice(0, 5)}` });
+        await fetch();
+      } else if (r?.check === 'in_sync') {
+        toast({ title: 'Already up to date', description: 'Portal matches GoHighLevel.' });
+      } else {
+        toast({
+          title: 'Could not verify with GHL',
+          description: r?.error || r?.ghl_error || r?.check || 'No result returned',
+          variant: 'destructive',
+        });
+      }
+    } catch (e: any) {
+      toast({ title: 'Sync failed', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSyncingId(null);
+    }
+  }, [syncWithGhl, fetch, toast]);
+
+  // Queue-level Refresh: check GHL for the visible rows first, then reload.
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const ids = rows.map(r => r.id);
+      if (ids.length) {
+        const results = await syncWithGhl(ids);
+        const corrected = results.filter((r: any) => r.check === 'corrected').length;
+        if (corrected > 0) {
+          toast({ title: 'Synced with GHL', description: `${corrected} appointment${corrected === 1 ? '' : 's'} updated to the latest GHL date/time.` });
+        }
+      }
+    } catch (e: any) {
+      toast({ title: 'GHL check failed', description: e?.message || String(e), variant: 'destructive' });
+    }
+    await fetch();
+    await fetchCounts();
+  }, [rows, syncWithGhl, fetch, fetchCounts, toast]);
+
+
+
 
   const projects = Array.from(new Set(rows.map(r => r.project_name))).sort();
 
