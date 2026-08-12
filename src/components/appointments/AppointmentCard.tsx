@@ -856,7 +856,7 @@ const AppointmentCard = ({
   };
 
   // No-show eligibility submission
-  const handleNoShowConfirm = async (eligible: boolean, notes: string) => {
+  const handleNoShowConfirm = async (eligible: boolean, notes: string, reason?: string | null) => {
     setSubmittingNoShow(true);
     try {
       onUpdateStatus(appointment.id, 'No Show');
@@ -870,7 +870,8 @@ const AppointmentCard = ({
         },
         eligible,
         notes,
-        userName
+        userName,
+        reason
       );
       setShowNoShowDialog(false);
       toast({
