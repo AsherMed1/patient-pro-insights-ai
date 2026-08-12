@@ -56,6 +56,7 @@ import { applyNoShowEligibility, liftRescheduleBlock } from '@/utils/rescheduleB
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
 import AppointmentNotes from './AppointmentNotes';
+import LogAttemptDialog from './LogAttemptDialog';
 import AppointmentHistory from './AppointmentHistory';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
