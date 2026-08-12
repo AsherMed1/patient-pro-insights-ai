@@ -1835,13 +1835,17 @@ const ReviewQueue: React.FC = () => {
                           </Badge>
                         )}
                         {queueView === 'pending' && (
-                          lastContactByRowId[row.id] ? (
+                          effectiveContactByRowId[row.id] ? (
                             <Badge
                               variant="outline"
                               className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()}${lastContactByRowId[row.id].by ? ` by ${lastContactByRowId[row.id].by}` : ''}`}
+                              title={`Last contact attempt ${new Date(effectiveContactByRowId[row.id].at).toLocaleString()}${effectiveContactByRowId[row.id].by ? ` by ${effectiveContactByRowId[row.id].by}` : ''}`}
                             >
-                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago{lastContactByRowId[row.id].by ? ` · ${lastContactByRowId[row.id].by}` : ''}</span>
+                              <span>
+                                Last contact {formatAge(effectiveContactByRowId[row.id].at, nowTick)} ago
+                                {effectiveContactByRowId[row.id].label ? ` · ${effectiveContactByRowId[row.id].label}` : ''}
+                                {effectiveContactByRowId[row.id].by ? ` · ${effectiveContactByRowId[row.id].by}` : ''}
+                              </span>
                             </Badge>
                           ) : (
                             <Badge
@@ -1852,6 +1856,15 @@ const ReviewQueue: React.FC = () => {
                               No contact logged
                             </Badge>
                           )
+                        )}
+                        {queueView === 'pending' && (attemptsByRowId[row.id]?.count || 0) > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
+                            title="Contact attempts logged on this record"
+                          >
+                            {attemptsByRowId[row.id].count} attempt{(attemptsByRowId[row.id].count || 0) > 1 ? 's' : ''}
+                          </Badge>
                         )}
                         {queueView === 'pending' && needsFollowUp(row) && (
                           <Badge
