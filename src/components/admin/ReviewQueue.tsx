@@ -2395,6 +2395,16 @@ const ReviewQueue: React.FC = () => {
             onDeleted={() => { setDetailAppt(null); fetch(); }}
           />
         )}
+
+        {attemptDialogRow && (
+          <LogAttemptDialog
+            appointmentId={attemptDialogRow.id}
+            patientName={attemptDialogRow.lead_name}
+            open={!!attemptDialogRow}
+            onOpenChange={(o) => { if (!o) setAttemptDialogRow(null); }}
+            onLogged={() => setAttemptRefresh(v => v + 1)}
+          />
+        )}
       </CardContent>
     </Card>
   );
