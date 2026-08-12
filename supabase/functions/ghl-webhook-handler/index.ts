@@ -1104,9 +1104,32 @@ function isLeadWorkflowCandidate(payload: any): boolean {
   return hasIdentity && hasSubstantiveLeadCustomFields(payload)
 }
 
+// GHL stores the booking bot's system prompt in a contact custom field
+// ("OpenAI Prompt: Role: You are ... Disqualification Criteria: ...").
+// That text is not patient data: it pollutes intake notes, misleads parsing,
+// and previously leaked into the portal's address line. Drop it at ingest.
+const BOT_PROMPT_KEY = /(openai|prompt|system\s*prompt|bot\s*instruction|ai\s*instruction)/i
+const BOT_PROMPT_TEXT = /(openai prompt:|disqualification criteria|you are an ai|kindly disqualify|\brole:\s*you are\b)/i
+
+function sanitizeBotPrompt(value: any): string {
+  const raw = Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  // Everything from the bot block onward is noise.
+  return raw.replace(/\n?\s*OpenAI Prompt:[\s\S]*$/i, '').trim()
+}
+
+function isBotPromptField(key: string, value: any): boolean {
+  const raw = Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  if (BOT_PROMPT_KEY.test(key || '')) return true
+  if (BOT_PROMPT_TEXT.test(raw)) return true
+  // A single custom field holding a paragraph is never a real intake answer.
+  return raw.length > 600
+}
+
 // Format custom fields into structured patient intake notes
 function formatCustomFieldsToNotes(customFields: any[]): string | null {
   if (!customFields || customFields.length === 0) return null
+  
+
   
   let notes = ''
   const sections = {
