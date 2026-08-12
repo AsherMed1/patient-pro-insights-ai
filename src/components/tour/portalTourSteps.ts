@@ -49,7 +49,7 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
   {
     anchor: 'status-dropdown',
     section: 'appointments-list',
-    placement: 'top',
+    placement: 'bottom',
     title: 'Understanding statuses',
     body: 'Use this Status dropdown to set Confirmed (booked), Showed (attended), Cancelled, No Show, Rescheduled, or OON (out of network). Changing it here keeps the record and our team in sync.',
   },
