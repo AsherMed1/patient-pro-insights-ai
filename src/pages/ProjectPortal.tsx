@@ -579,7 +579,7 @@ const ProjectPortal = () => {
                 {showCalendarView && (
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* View Mode Toggle - Modern Pill style */}
-                    <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+                    <div data-tour="calendar-view-mode" className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
                       <Button 
                         variant="ghost"
                         size="sm"
