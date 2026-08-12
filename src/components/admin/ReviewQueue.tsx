@@ -87,6 +87,8 @@ interface ProjectConfig {
 interface LastContact {
   at: string;
   by: string;
+  label?: string;
+  count?: number;
 }
 
 interface DuplicateAppt {
