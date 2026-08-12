@@ -317,6 +317,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [welcomeCallCompleted, setWelcomeCallCompleted] = useState<boolean | null>(null);
+  const [showAttemptDialog, setShowAttemptDialog] = useState(false);
   const [submittingCancel, setSubmittingCancel] = useState(false);
 
 
