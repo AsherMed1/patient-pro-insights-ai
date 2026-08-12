@@ -1141,8 +1141,12 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
   
   for (const field of customFields) {
     const key = field.key?.toLowerCase() || ''
-    const value = field.value
+    const rawValue = field.value
+    if (!rawValue) continue
+    if (isBotPromptField(key, rawValue)) continue
+    const value = sanitizeBotPrompt(rawValue)
     if (!value) continue
+
     
     // Categorize fields - enhanced for Vivid Vascular PAE/UFE/GAE patterns
     if (key.includes('insurance') || key.includes('plan') || key.includes('group') || key.includes('member')) {
