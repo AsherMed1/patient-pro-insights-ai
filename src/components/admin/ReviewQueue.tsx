@@ -1839,8 +1839,14 @@ const ReviewQueue: React.FC = () => {
                             variant="outline"
                             className="border-blue-300 text-blue-700 hover:bg-blue-50"
                             onClick={() => handleMoveStage([row.id], isNewView ? 'pending_review' : 'new')}
-                            disabled={processing}
-                            title={isNewView ? 'Needs more info or follow-up — move to Pending Review' : 'Move back to the New bucket'}
+                            disabled={processing || (isNewView && isShortNoticeRow(row))}
+                            title={
+                              isNewView
+                                ? (isShortNoticeRow(row)
+                                    ? 'Short Notice — must be actioned now, cannot be moved to Pending'
+                                    : 'Needs more info or follow-up — move to Pending Review')
+                                : 'Move back to the New bucket'
+                            }
                           >
                             <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
                             {isNewView ? 'Pending Review' : 'Back to New'}
