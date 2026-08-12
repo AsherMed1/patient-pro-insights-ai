@@ -134,6 +134,42 @@ const ReviewQueue: React.FC = () => {
   const [adoptSlotTarget, setAdoptSlotTarget] = useState<{ row: ReviewAppointment; source: DuplicateAppt } | null>(null);
   const [shortNoticeByRowId, setShortNoticeByRowId] = useState<Record<string, number>>({});
   const [shortNoticeOnly, setShortNoticeOnly] = useState(false);
+  const [projectConfigs, setProjectConfigs] = useState<Record<string, ProjectConfig>>({});
+  const [lastContactByRowId, setLastContactByRowId] = useState<Record<string, LastContact>>({});
+  const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
+  const [nowTick, setNowTick] = useState(() => new Date());
+
+  // Keep countdowns live without reloading the queue
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  /** Live short-notice position for every row, based on the clinic threshold. */
+  const shortNoticeStatusByRowId = useMemo(() => {
+    const map: Record<string, ShortNoticeStatus> = {};
+    for (const r of rows) {
+      const cfg = projectConfigs[r.project_name];
+      if (!cfg) continue;
+      const st = getShortNoticeStatus(r.date_of_appointment, r.requested_time, cfg.threshold, cfg.timezone, nowTick);
+      if (st) map[r.id] = st;
+    }
+    return map;
+  }, [rows, projectConfigs, nowTick]);
+
+  /** A record is short notice when it is tagged, or already inside the window. */
+  const isShortNoticeRow = useCallback((row: ReviewAppointment) => {
+    if (shortNoticeByRowId[row.id] !== undefined) return true;
+    return shortNoticeStatusByRowId[row.id]?.isShortNotice === true;
+  }, [shortNoticeByRowId, shortNoticeStatusByRowId]);
+
+  /** Pending rows with no patient contact attempt in the last 24 business hours. */
+  const needsFollowUp = useCallback((row: ReviewAppointment) => {
+    if (row.review_stage !== 'pending_review') return false;
+    const since = lastContactByRowId[row.id]?.at || row.pending_since || row.created_at;
+    const elapsed = businessHoursSince(since, nowTick);
+    return elapsed !== null && elapsed >= PENDING_FOLLOWUP_BUSINESS_HOURS;
+  }, [lastContactByRowId, nowTick]);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
