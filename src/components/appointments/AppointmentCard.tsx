@@ -2031,7 +2031,7 @@ const AppointmentCard = ({
         
         {/* Status and Procedure Selectors */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-2">
+          <div data-tour="status-dropdown" className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Status</label>
             <Select 
               value={appointment.status ? 
