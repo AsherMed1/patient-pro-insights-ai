@@ -572,6 +572,70 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_contact_attempts: {
+        Row: {
+          appointment_id: string
+          attempted_at: string
+          channel: string
+          created_at: string
+          id: string
+          note: string | null
+          outcome: string
+          source: string
+          updated_at: string
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          appointment_id: string
+          attempted_at?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          outcome?: string
+          source?: string
+          updated_at?: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          attempted_at?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          outcome?: string
+          source?: string
+          updated_at?: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_contact_attempts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "all_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_contact_attempts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["lost_appointment_id"]
+          },
+          {
+            foreignKeyName: "appointment_contact_attempts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_events"
+            referencedColumns: ["recapture_appointment_id"]
+          },
+        ]
+      }
       appointment_notes: {
         Row: {
           appointment_id: string
