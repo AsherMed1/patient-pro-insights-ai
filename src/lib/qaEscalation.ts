@@ -7,6 +7,7 @@ export const ESCALATION_TYPES = [
   'Resolved by QA',
   'Escalated to Tech',
   'Escalated to AM',
+  'Escalated to ES Team',
   'Escalated to Gloria',
   'Other',
 ] as const;
