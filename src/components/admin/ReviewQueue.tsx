@@ -139,6 +139,9 @@ const ReviewQueue: React.FC = () => {
   const [shortNoticeOnly, setShortNoticeOnly] = useState(false);
   const [projectConfigs, setProjectConfigs] = useState<Record<string, ProjectConfig>>({});
   const [lastContactByRowId, setLastContactByRowId] = useState<Record<string, LastContact>>({});
+  const [attemptsByRowId, setAttemptsByRowId] = useState<Record<string, LastContact>>({});
+  const [attemptRefresh, setAttemptRefresh] = useState(0);
+  const [attemptDialogRow, setAttemptDialogRow] = useState<ReviewAppointment | null>(null);
   const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
   const [nowTick, setNowTick] = useState(() => new Date());
 
