@@ -74,6 +74,19 @@ interface ReviewAppointment {
   potential_oon_matches?: any;
   potential_oon_resolved_at?: string | null;
   potential_oon_resolution?: string | null;
+  pending_since?: string | null;
+  pending_by_name?: string | null;
+  short_notice_auto_tagged_at?: string | null;
+}
+
+interface ProjectConfig {
+  threshold: number;
+  timezone: string;
+}
+
+interface LastContact {
+  at: string;
+  by: string;
 }
 
 interface DuplicateAppt {
