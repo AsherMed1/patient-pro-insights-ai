@@ -408,7 +408,8 @@ const InsuranceRulesConfig = () => {
             <div className="flex gap-2 max-w-xl">
 
               <Input placeholder="Canonical plan name (e.g. Ambetter)" value={newPlan}
-                onChange={(e) => setNewPlan(e.target.value)} />
+                onChange={(e) => setNewPlan(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addPlan(); }} />
               <Button onClick={addPlan}><Plus className="h-4 w-4 mr-1" />Add plan</Button>
             </div>
             <div className="space-y-3">
