@@ -641,6 +641,7 @@ const ProjectPortal = () => {
                     
                     {/* Reserve Time Button */}
                     <Button 
+                      data-tour="reserve-time"
                       variant="outline" 
                       size="sm"
                       className="h-8 px-3 bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
