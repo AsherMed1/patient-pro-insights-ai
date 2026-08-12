@@ -1333,6 +1333,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               />
             </div>
 
+            <LogAttemptDialog
+              appointmentId={appointment.id}
+              patientName={appointment.lead_name}
+              open={showAttemptDialog}
+              onOpenChange={setShowAttemptDialog}
+              onLogged={() => onDataRefresh?.()}
+            />
+
             {/* Reschedule History */}
             {appointment.reschedule_history && appointment.reschedule_history.length > 0 && (
               <Card className="print-card min-w-0 max-w-full overflow-hidden">
