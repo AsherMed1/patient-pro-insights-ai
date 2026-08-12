@@ -169,13 +169,31 @@ const ReviewQueue: React.FC = () => {
     return shortNoticeStatusByRowId[row.id]?.isShortNotice === true;
   }, [shortNoticeByRowId, shortNoticeStatusByRowId]);
 
+  /**
+   * Effective last contact per row: an explicitly logged attempt wins, then the
+   * most recent human note, then an implicit GHL call.
+   */
+  const effectiveContactByRowId = useMemo(() => {
+    const map: Record<string, LastContact> = {};
+    for (const r of rows) {
+      const attempt = attemptsByRowId[r.id];
+      const note = lastContactByRowId[r.id];
+      if (attempt && (!note || new Date(attempt.at) >= new Date(note.at))) {
+        map[r.id] = attempt;
+      } else if (note) {
+        map[r.id] = { ...note, count: attempt?.count };
+      }
+    }
+    return map;
+  }, [rows, attemptsByRowId, lastContactByRowId]);
+
   /** Pending rows with no patient contact attempt in the last 24 business hours. */
   const needsFollowUp = useCallback((row: ReviewAppointment) => {
     if (row.review_stage !== 'pending_review') return false;
-    const since = lastContactByRowId[row.id]?.at || row.pending_since || row.created_at;
+    const since = effectiveContactByRowId[row.id]?.at || row.pending_since || row.created_at;
     const elapsed = businessHoursSince(since, nowTick);
     return elapsed !== null && elapsed >= PENDING_FOLLOWUP_BUSINESS_HOURS;
-  }, [lastContactByRowId, nowTick]);
+  }, [effectiveContactByRowId, nowTick]);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
