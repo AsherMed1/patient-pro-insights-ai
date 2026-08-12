@@ -676,7 +676,72 @@ const ReviewQueue: React.FC = () => {
       setLastContactByRowId(map);
     };
     run();
-  }, [rows, queueView]);
+  }, [rows, queueView, attemptRefresh]);
+
+  // Explicitly logged contact attempts (+ implicit GHL calls as a safety net)
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setAttemptsByRowId({});
+        return;
+      }
+      const ids = rows.map(r => r.id);
+      const { data, error } = await supabase
+        .from('appointment_contact_attempts')
+        .select('appointment_id, attempted_at, channel, outcome, user_name, source')
+        .in('appointment_id', ids)
+        .order('attempted_at', { ascending: false })
+        .limit(2000);
+      if (error) {
+        console.warn('contact attempts fetch failed', error);
+        return;
+      }
+      const map: Record<string, LastContact> = {};
+      (data || []).forEach((a: any) => {
+        const existing = map[a.appointment_id];
+        if (existing) {
+          existing.count = (existing.count || 0) + 1;
+          return;
+        }
+        map[a.appointment_id] = {
+          at: a.attempted_at,
+          by: (a.user_name || '').trim(),
+          label: `${channelLabel(a.channel)}, ${outcomeLabel(a.outcome).toLowerCase()}`,
+          count: 1,
+        };
+      });
+
+      // Implicit GHL calls for rows with no logged attempt
+      const uncovered = rows.filter(r => !map[r.id] && r.lead_phone_number);
+      if (uncovered.length > 0) {
+        const phones = Array.from(new Set(uncovered.map(r => r.lead_phone_number as string)));
+        const { data: calls } = await supabase
+          .from('all_calls')
+          .select('lead_phone_number, project_name, call_datetime, direction, agent')
+          .in('lead_phone_number', phones)
+          .order('call_datetime', { ascending: false })
+          .limit(1000);
+        (calls || []).forEach((c: any) => {
+          uncovered.forEach(r => {
+            if (map[r.id]) return;
+            if (r.lead_phone_number !== c.lead_phone_number) return;
+            if (r.project_name !== c.project_name) return;
+            const since = r.pending_since || r.created_at;
+            if (since && new Date(c.call_datetime) < new Date(since)) return;
+            map[r.id] = {
+              at: c.call_datetime,
+              by: (c.agent || '').trim(),
+              label: 'GHL call',
+            };
+          });
+        });
+      }
+
+      setAttemptsByRowId(map);
+    };
+    run();
+  }, [rows, queueView, attemptRefresh]);
+
 
 
   const handleReplaceExisting = async (row: ReviewAppointment) => {
