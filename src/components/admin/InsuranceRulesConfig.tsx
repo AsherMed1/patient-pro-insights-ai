@@ -134,9 +134,10 @@ const InsuranceRulesConfig = () => {
 
 
   const addPlan = async () => {
-    if (!newPlan.trim()) return;
+    if (!newPlan.trim()) return toast({ title: 'Enter a plan name first', variant: 'destructive' });
     const { error } = await supabase.from('insurance_canonical_plans').insert({ canonical_name: newPlan.trim() });
     if (error) return toast({ title: 'Could not add plan', description: error.message, variant: 'destructive' });
+    toast({ title: 'Plan added' });
     setNewPlan('');
     loadAll();
   };
@@ -407,7 +408,8 @@ const InsuranceRulesConfig = () => {
             <div className="flex gap-2 max-w-xl">
 
               <Input placeholder="Canonical plan name (e.g. Ambetter)" value={newPlan}
-                onChange={(e) => setNewPlan(e.target.value)} />
+                onChange={(e) => setNewPlan(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addPlan(); }} />
               <Button onClick={addPlan}><Plus className="h-4 w-4 mr-1" />Add plan</Button>
             </div>
             <div className="space-y-3">
