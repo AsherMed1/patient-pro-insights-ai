@@ -612,7 +612,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     <div className={`space-y-4 mt-4 ${className}`}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent transition-colors cursor-pointer">
+          <div data-tour="pro-insights" className="flex items-center justify-between p-2 rounded-lg hover:bg-accent transition-colors cursor-pointer">
             <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Heart className="h-4 w-4" />
               Patient Pro Insights

@@ -546,7 +546,7 @@ const ProjectPortal = () => {
               {/* Top Row: View toggle + Calendar controls */}
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 {/* View Toggle - Modern Pill style */}
-                <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+                <div data-tour="view-toggle" className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
                   <Button 
                     variant="ghost"
                     size="sm"
@@ -579,7 +579,7 @@ const ProjectPortal = () => {
                 {showCalendarView && (
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* View Mode Toggle - Modern Pill style */}
-                    <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+                    <div data-tour="calendar-view-mode" className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
                       <Button 
                         variant="ghost"
                         size="sm"
@@ -641,6 +641,7 @@ const ProjectPortal = () => {
                     
                     {/* Reserve Time Button */}
                     <Button 
+                      data-tour="reserve-time"
                       variant="outline" 
                       size="sm"
                       className="h-8 px-3 bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"

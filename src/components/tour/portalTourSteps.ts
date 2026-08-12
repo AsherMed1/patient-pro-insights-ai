@@ -10,6 +10,8 @@ export type PortalTourSection = 'appointments-list' | 'appointments-calendar' | 
 export interface PortalTourStep {
   /** `data-tour` value of the element to highlight. Omit for a centered card. */
   anchor?: string;
+  /** Highlight several elements at once (e.g. related toolbar controls). */
+  anchors?: string[];
   title: string;
   body: string;
   /** Portal section that must be active before this step is shown. */
@@ -42,14 +44,14 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
     section: 'appointments-list',
     placement: 'bottom',
     title: 'Appointment buckets',
-    body: 'Patients are grouped for you: New for fresh bookings, Needs Review for appointments waiting on action or missing a date, Upcoming and Past by appointment date, and All for everything.',
+    body: 'Appointments are organized by status: New — newly submitted appointments not yet reviewed. Needs Review — appointments requiring action or missing required information. Upcoming — reviewed appointments with a future date. Completed — appointments that have passed or been completed. All — every appointment in one place.',
   },
   {
-    anchor: 'appointment-card',
+    anchor: 'status-dropdown',
     section: 'appointments-list',
     placement: 'top',
     title: 'Understanding statuses',
-    body: 'Each patient row shows a status: Confirmed (booked), Showed (attended), Cancelled, No Show, Rescheduled, and OON (out of network). Changing the status here keeps the record and our team in sync.',
+    body: 'Use this Status dropdown to set Confirmed (booked), Showed (attended), Cancelled, No Show, Rescheduled, or OON (out of network). Changing it here keeps the record and our team in sync.',
   },
   {
     anchor: 'search',
@@ -66,26 +68,27 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
     body: 'Narrow the list by status, procedure status, location, or service, sort the results, and use Dates to switch between appointment date and created date.',
   },
   {
-    anchor: 'appointment-card',
+    anchor: 'pro-insights',
     section: 'appointments-list',
     placement: 'top',
-    title: 'Opening a patient record',
-    body: 'Click any patient to open the full record: demographics, insurance details and card images, intake and pathology information, and the appointment history.',
+    title: 'Patient Pro Insights',
+    body: "Click the Patient Pro Insights tab to expand or collapse the patient's medical, insurance, and demographic information.",
   },
   {
-    anchor: 'appointment-card',
+    anchor: 'internal-notes',
     section: 'appointments-list',
     placement: 'top',
     title: 'Updating and adding notes',
-    body: 'Inside a record you can correct patient details, change the appointment status, reschedule, and add internal notes. Notes are shared with our team, so use them for anything we should know.',
+    body: 'Internal Notes live at the bottom of each patient record. Use Add Note for anything our team should know — notes are shared with us and kept with the appointment.',
   },
   {
-    anchor: 'view-toggle',
+    anchors: ['view-toggle', 'calendar-view-mode', 'reserve-time'],
     section: 'appointments-calendar',
     placement: 'bottom',
     title: 'Calendar view',
-    body: 'Switch between the list and a day, week, or month calendar of approved appointments. You can also reserve time blocks so we do not book into them.',
+    body: 'Switch between the list and calendar on the left, choose Day, Week, or Month at the top, and use Reserve Time to block out time so we do not book into it.',
   },
+
   {
     anchor: 'stats-cards',
     section: 'overview',

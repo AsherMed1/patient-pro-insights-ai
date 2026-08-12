@@ -155,7 +155,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   };
 
   return (
-    <div className="space-y-3">
+    <div data-tour="internal-notes" className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
