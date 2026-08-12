@@ -356,6 +356,17 @@ const ReviewQueue: React.FC = () => {
     setDetailAppt(data as unknown as AllAppointment);
   };
 
+  // Pull the live appointment(s) from GoHighLevel and apply any date/time drift.
+  // Returns the raw results so callers can decide what to report.
+  const syncWithGhl = useCallback(async (appointmentIds: string[]) => {
+    if (!appointmentIds.length) return [] as any[];
+    const { data, error } = await supabase.functions.invoke('sync-ghl-appointment-times', {
+      body: { appointment_ids: appointmentIds },
+    });
+    if (error) throw error;
+    return (data?.results || []) as any[];
+  }, []);
+
   const fetch = useCallback(async () => {
     setLoading(true);
     let q = supabase
