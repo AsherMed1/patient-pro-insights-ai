@@ -1478,7 +1478,7 @@ const ReviewQueue: React.FC = () => {
               New appointments land in the <strong>New</strong> bucket. Move one to <strong>Pending Review</strong> when it needs more investigation or follow-up, so the next shift knows what is already being worked. Client portals only see appointments that have been Approved (or marked OON). Mistakenly declined appointments can be restored from the Declined tab.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { fetch(); fetchCounts(); }} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading} title="Re-check GoHighLevel for date/time changes, then reload">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
