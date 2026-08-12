@@ -10,6 +10,8 @@ export type PortalTourSection = 'appointments-list' | 'appointments-calendar' | 
 export interface PortalTourStep {
   /** `data-tour` value of the element to highlight. Omit for a centered card. */
   anchor?: string;
+  /** Highlight several elements at once (e.g. related toolbar controls). */
+  anchors?: string[];
   title: string;
   body: string;
   /** Portal section that must be active before this step is shown. */
