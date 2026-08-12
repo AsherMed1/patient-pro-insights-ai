@@ -326,16 +326,17 @@ const ReviewQueue: React.FC = () => {
         return av > bv ? dir : -dir;
       });
     }
-    // Always float short-notice rows to the top of the Pending view
+    // In Pending: the closest to (or already past) the short-notice threshold first
     if (queueView === 'pending') {
-      ordered = [...ordered].sort((a, b) => {
-        const aS = shortNoticeByRowId[a.id] !== undefined ? 0 : 1;
-        const bS = shortNoticeByRowId[b.id] !== undefined ? 0 : 1;
-        return aS - bS;
-      });
+      const urgency = (r: ReviewAppointment) => {
+        if (isShortNoticeRow(r)) return Number.NEGATIVE_INFINITY;
+        const st = shortNoticeStatusByRowId[r.id];
+        return st ? st.hoursUntilThreshold : Number.POSITIVE_INFINITY;
+      };
+      ordered = [...ordered].sort((a, b) => urgency(a) - urgency(b));
     }
     return ordered;
-  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly, queueView]);
+  }, [rows, sortKey, sortDir, shortNoticeByRowId, shortNoticeOnly, queueView, needsFollowUpOnly, needsFollowUp, isShortNoticeRow, shortNoticeStatusByRowId]);
 
 
 
