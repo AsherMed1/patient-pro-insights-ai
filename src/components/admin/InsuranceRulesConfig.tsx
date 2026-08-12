@@ -134,9 +134,10 @@ const InsuranceRulesConfig = () => {
 
 
   const addPlan = async () => {
-    if (!newPlan.trim()) return;
+    if (!newPlan.trim()) return toast({ title: 'Enter a plan name first', variant: 'destructive' });
     const { error } = await supabase.from('insurance_canonical_plans').insert({ canonical_name: newPlan.trim() });
     if (error) return toast({ title: 'Could not add plan', description: error.message, variant: 'destructive' });
+    toast({ title: 'Plan added' });
     setNewPlan('');
     loadAll();
   };
