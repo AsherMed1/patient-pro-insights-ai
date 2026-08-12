@@ -336,12 +336,12 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     lead_phone_number: appointment.lead_phone_number,
   };
 
-  const handleNoShowConfirm = async (eligible: boolean, notes: string) => {
+  const handleNoShowConfirm = async (eligible: boolean, notes: string, reason?: string | null) => {
     setSubmittingNoShow(true);
     try {
       setCurrentStatus('No Show');
       await handleFieldUpdate({ status: 'No Show' });
-      await applyNoShowEligibility(blockTarget, eligible, notes, userName);
+      await applyNoShowEligibility(blockTarget, eligible, notes, userName, reason);
       setShowNoShowDialog(false);
       toast.success(
         eligible
