@@ -141,18 +141,18 @@ Deno.serve(async (req) => {
           return;
         }
 
-        // GHL returns startTime as wall-clock time in the calendar's own timezone with an
-        // explicit offset (e.g. "2026-08-18T13:00:00-04:00"). Read the wall clock straight from
-        // the string — that is exactly what the GHL UI shows — and only fall back to converting
-        // through the project's configured timezone when no offset is present.
+        // GHL returns startTime as an instant with the calendar's offset
+        // (e.g. "2026-08-18T13:00:00-04:00"). Convert it into the project's configured timezone,
+        // which is the same convention the webhook handler uses when it stores date/time, so a
+        // calendar configured in a different timezone from the clinic doesn't read as false drift.
+        // Fall back to the literal wall clock only when the project has no timezone on file.
+        const projectTz = timezone || null;
         const wall = String(startTime).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})/);
-        const hasLocalOffset = !!wall && wall[5] !== 'Z';
-        const ghlDate = hasLocalOffset
-          ? wall[1]
-          : formatInTimeZone(new Date(startTime), timezone, 'yyyy-MM-dd');
-        const ghlTime = hasLocalOffset
-          ? `${wall[2]}:${wall[3]}:${wall[4] || '00'}`
-          : formatInTimeZone(new Date(startTime), timezone, 'HH:mm:ss');
+        const useWall = !projectTz && !!wall && wall[5] !== 'Z';
+        const ghlDate = useWall ? wall![1] : formatInTimeZone(new Date(startTime), projectTz || 'America/Chicago', 'yyyy-MM-dd');
+        const ghlTime = useWall
+          ? `${wall![2]}:${wall![3]}:${wall![4] || '00'}`
+          : formatInTimeZone(new Date(startTime), projectTz || 'America/Chicago', 'HH:mm:ss');
         out.ghl_date = ghlDate;
         out.ghl_time = ghlTime;
         out.ghl_status = ev?.appointmentStatus || null;
