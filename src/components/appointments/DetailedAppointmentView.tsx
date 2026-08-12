@@ -1306,6 +1306,17 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 <span>Add Note</span>
               </Button>
 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAttemptDialog(true)}
+                title="Log a contact attempt for this patient"
+              >
+                <MessageSquare className="h-4 w-4 mr-1" />
+                <span>Log Attempt</span>
+              </Button>
+
+
               {isUpdating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
 
