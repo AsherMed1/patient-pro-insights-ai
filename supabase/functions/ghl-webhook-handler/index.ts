@@ -1104,9 +1104,32 @@ function isLeadWorkflowCandidate(payload: any): boolean {
   return hasIdentity && hasSubstantiveLeadCustomFields(payload)
 }
 
+// GHL stores the booking bot's system prompt in a contact custom field
+// ("OpenAI Prompt: Role: You are ... Disqualification Criteria: ...").
+// That text is not patient data: it pollutes intake notes, misleads parsing,
+// and previously leaked into the portal's address line. Drop it at ingest.
+const BOT_PROMPT_KEY = /(openai|prompt|system\s*prompt|bot\s*instruction|ai\s*instruction)/i
+const BOT_PROMPT_TEXT = /(openai prompt:|disqualification criteria|you are an ai|kindly disqualify|\brole:\s*you are\b)/i
+
+function sanitizeBotPrompt(value: any): string {
+  const raw = Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  // Everything from the bot block onward is noise.
+  return raw.replace(/\n?\s*OpenAI Prompt:[\s\S]*$/i, '').trim()
+}
+
+function isBotPromptField(key: string, value: any): boolean {
+  const raw = Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  if (BOT_PROMPT_KEY.test(key || '')) return true
+  if (BOT_PROMPT_TEXT.test(raw)) return true
+  // A single custom field holding a paragraph is never a real intake answer.
+  return raw.length > 600
+}
+
 // Format custom fields into structured patient intake notes
 function formatCustomFieldsToNotes(customFields: any[]): string | null {
   if (!customFields || customFields.length === 0) return null
+  
+
   
   let notes = ''
   const sections = {
@@ -1118,8 +1141,12 @@ function formatCustomFieldsToNotes(customFields: any[]): string | null {
   
   for (const field of customFields) {
     const key = field.key?.toLowerCase() || ''
-    const value = field.value
+    const rawValue = field.value
+    if (!rawValue) continue
+    if (isBotPromptField(key, rawValue)) continue
+    const value = sanitizeBotPrompt(rawValue)
     if (!value) continue
+
     
     // Categorize fields - enhanced for Vivid Vascular PAE/UFE/GAE patterns
     if (key.includes('insurance') || key.includes('plan') || key.includes('group') || key.includes('member')) {
@@ -2658,13 +2685,19 @@ async function enrichAppointmentWithGHLData(
       if (!field.key) return
       
       const key = field.key.toLowerCase()
-      const value = Array.isArray(field.value) 
+      const rawValue = Array.isArray(field.value) 
         ? field.value.join(', ') 
         : typeof field.value === 'object' && field.value !== null
           ? JSON.stringify(field.value)
           : (field.value || 'Not provided')
       
+      // Never persist the booking bot's system prompt as patient intake data.
+      if (isBotPromptField(key, rawValue)) return
+      const value = sanitizeBotPrompt(rawValue)
+      if (!value) return
+      
       const formattedLine = `${field.key}: ${value}`
+
       
       // Categorize fields - skip conversation notes and workflow fields
       // Enhanced for Vivid Vascular PAE/UFE/GAE procedure patterns
