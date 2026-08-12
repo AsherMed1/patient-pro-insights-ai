@@ -116,6 +116,7 @@ const ReviewQueue: React.FC = () => {
   const [declineReason, setDeclineReason] = useState<string>('');
   const [otherNeedsReschedule, setOtherNeedsReschedule] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
