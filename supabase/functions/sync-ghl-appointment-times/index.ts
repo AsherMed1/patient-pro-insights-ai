@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
         .from('all_appointments')
         .select(cols)
         .eq('is_superseded', false)
+        .neq('is_reserved_block', true)
         .not('ghl_appointment_id', 'is', null)
         .or(`review_status.eq.pending,date_of_appointment.gte.${today}`)
         .order('date_of_appointment', { ascending: true })
@@ -145,10 +146,11 @@ Deno.serve(async (req) => {
         // the string — that is exactly what the GHL UI shows — and only fall back to converting
         // through the project's configured timezone when no offset is present.
         const wall = String(startTime).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})/);
-        const ghlDate = wall
+        const hasLocalOffset = !!wall && wall[5] !== 'Z';
+        const ghlDate = hasLocalOffset
           ? wall[1]
           : formatInTimeZone(new Date(startTime), timezone, 'yyyy-MM-dd');
-        const ghlTime = wall
+        const ghlTime = hasLocalOffset
           ? `${wall[2]}:${wall[3]}:${wall[4] || '00'}`
           : formatInTimeZone(new Date(startTime), timezone, 'HH:mm:ss');
         out.ghl_date = ghlDate;
