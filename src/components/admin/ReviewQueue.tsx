@@ -1181,43 +1181,95 @@ const ReviewQueue: React.FC = () => {
 
   const handleMoveStage = async (ids: string[], stage: 'new' | 'pending_review') => {
     if (ids.length === 0) return;
+
+    // Short-notice records must be actioned now — they can never enter Pending.
+    let targetIds = ids;
+    let skipped = 0;
+    if (stage === 'pending_review') {
+      const blocked = new Set(rows.filter(r => isShortNoticeRow(r)).map(r => r.id));
+      targetIds = ids.filter(id => !blocked.has(id));
+      skipped = ids.length - targetIds.length;
+      if (targetIds.length === 0) {
+        toast({
+          title: 'Short Notice — cannot move to Pending',
+          description: 'These appointments are already inside the clinic short-notice window and must be actioned now.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setProcessing(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      const payload: any = { review_stage: stage };
+      if (stage === 'pending_review') {
+        payload.pending_since = stamp;
+        payload.pending_by = user?.id ?? null;
+        payload.pending_by_name = actor;
+      } else {
+        payload.pending_since = null;
+        payload.pending_by = null;
+        payload.pending_by_name = null;
+      }
+
       const { error: updErr } = await supabase
         .from('all_appointments')
-        .update({ review_stage: stage })
-        .in('id', ids);
+        .update(payload)
+        .in('id', targetIds);
       if (updErr) throw updErr;
 
       const label = stage === 'pending_review' ? 'Pending Review' : 'New';
-      const actor = userName || 'Unknown';
-      const stamp = new Date().toISOString();
       try {
         await supabase.from('appointment_notes').insert(
-          ids.map(id => ({
+          targetIds.map(id => ({
             appointment_id: id,
             note_text: `Review Queue: moved to ${label} by ${actor} - [[timestamp:${stamp}]]`,
             created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+            attachments: [],
           }))
         );
       } catch (e) {
         console.warn('stage move note insert failed', e);
       }
 
+      // Audit trail of every Pending entry/exit
+      try {
+        await supabase.from('appointment_review_history').insert(
+          targetIds.map(id => ({
+            appointment_id: id,
+            action: stage === 'pending_review' ? 'moved_to_pending' : 'moved_to_new',
+            prior_status: 'pending',
+            actor_id: user?.id ?? null,
+            actor_name: actor,
+            notes: `Review Queue: moved to ${label}`,
+          }))
+        );
+      } catch (e) {
+        console.warn('review history insert failed', e);
+      }
+
       try {
         await supabase.rpc('log_audit_event', {
           p_entity: 'appointment',
           p_action: 'review_stage_changed',
-          p_description: `Moved ${ids.length} appointment(s) to ${label} in Review Queue by ${actor}`,
+          p_description: `Moved ${targetIds.length} appointment(s) to ${label} in Review Queue by ${actor}`,
           p_source: 'review_queue',
-          p_metadata: { appointment_ids: ids, review_stage: stage },
+          p_metadata: { appointment_ids: targetIds, review_stage: stage, skipped_short_notice: skipped },
         });
       } catch (e) {
         console.warn('audit log failed', e);
       }
 
-      toast({ title: `Moved to ${label}`, description: `${ids.length} appointment(s)` });
-      setRows(prev => prev.filter(r => !ids.includes(r.id)));
+      toast({
+        title: `Moved to ${label}`,
+        description: skipped > 0
+          ? `${targetIds.length} appointment(s); ${skipped} skipped — Short Notice must be actioned now.`
+          : `${targetIds.length} appointment(s)`,
+      });
+      setRows(prev => prev.filter(r => !targetIds.includes(r.id)));
       setSelected(new Set());
       fetchCounts();
     } catch (e: any) {
