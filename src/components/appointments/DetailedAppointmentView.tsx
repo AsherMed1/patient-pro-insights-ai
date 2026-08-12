@@ -56,6 +56,7 @@ import { applyNoShowEligibility, liftRescheduleBlock } from '@/utils/rescheduleB
 import { AllAppointment } from './types';
 import { formatDate, formatTime } from './utils';
 import AppointmentNotes from './AppointmentNotes';
+import LogAttemptDialog from './LogAttemptDialog';
 import AppointmentHistory from './AppointmentHistory';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
@@ -317,6 +318,7 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [welcomeCallCompleted, setWelcomeCallCompleted] = useState<boolean | null>(null);
+  const [showAttemptDialog, setShowAttemptDialog] = useState(false);
   const [submittingCancel, setSubmittingCancel] = useState(false);
 
 
@@ -1306,6 +1308,17 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 <span>Add Note</span>
               </Button>
 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAttemptDialog(true)}
+                title="Log a contact attempt for this patient"
+              >
+                <MessageSquare className="h-4 w-4 mr-1" />
+                <span>Log Attempt</span>
+              </Button>
+
+
               {isUpdating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
 
@@ -1319,6 +1332,14 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 onFormToggled={(showing) => setShowNotesForm(showing)}
               />
             </div>
+
+            <LogAttemptDialog
+              appointmentId={appointment.id}
+              patientName={appointment.lead_name}
+              open={showAttemptDialog}
+              onOpenChange={setShowAttemptDialog}
+              onLogged={() => onDataRefresh?.()}
+            />
 
             {/* Reschedule History */}
             {appointment.reschedule_history && appointment.reschedule_history.length > 0 && (

@@ -12,7 +12,8 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall } from 'lucide-react';
+import LogAttemptDialog, { channelLabel, outcomeLabel } from '@/components/appointments/LogAttemptDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
@@ -87,6 +88,8 @@ interface ProjectConfig {
 interface LastContact {
   at: string;
   by: string;
+  label?: string;
+  count?: number;
 }
 
 interface DuplicateAppt {
@@ -137,6 +140,9 @@ const ReviewQueue: React.FC = () => {
   const [shortNoticeOnly, setShortNoticeOnly] = useState(false);
   const [projectConfigs, setProjectConfigs] = useState<Record<string, ProjectConfig>>({});
   const [lastContactByRowId, setLastContactByRowId] = useState<Record<string, LastContact>>({});
+  const [attemptsByRowId, setAttemptsByRowId] = useState<Record<string, LastContact>>({});
+  const [attemptRefresh, setAttemptRefresh] = useState(0);
+  const [attemptDialogRow, setAttemptDialogRow] = useState<ReviewAppointment | null>(null);
   const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
   const [nowTick, setNowTick] = useState(() => new Date());
 
@@ -164,13 +170,31 @@ const ReviewQueue: React.FC = () => {
     return shortNoticeStatusByRowId[row.id]?.isShortNotice === true;
   }, [shortNoticeByRowId, shortNoticeStatusByRowId]);
 
+  /**
+   * Effective last contact per row: an explicitly logged attempt wins, then the
+   * most recent human note, then an implicit GHL call.
+   */
+  const effectiveContactByRowId = useMemo(() => {
+    const map: Record<string, LastContact> = {};
+    for (const r of rows) {
+      const attempt = attemptsByRowId[r.id];
+      const note = lastContactByRowId[r.id];
+      if (attempt && (!note || new Date(attempt.at) >= new Date(note.at))) {
+        map[r.id] = attempt;
+      } else if (note) {
+        map[r.id] = { ...note, count: attempt?.count };
+      }
+    }
+    return map;
+  }, [rows, attemptsByRowId, lastContactByRowId]);
+
   /** Pending rows with no patient contact attempt in the last 24 business hours. */
   const needsFollowUp = useCallback((row: ReviewAppointment) => {
     if (row.review_stage !== 'pending_review') return false;
-    const since = lastContactByRowId[row.id]?.at || row.pending_since || row.created_at;
+    const since = effectiveContactByRowId[row.id]?.at || row.pending_since || row.created_at;
     const elapsed = businessHoursSince(since, nowTick);
     return elapsed !== null && elapsed >= PENDING_FOLLOWUP_BUSINESS_HOURS;
-  }, [lastContactByRowId, nowTick]);
+  }, [effectiveContactByRowId, nowTick]);
 
   const startEdit = (row: ReviewAppointment) => {
     setEditingRowId(row.id);
@@ -653,7 +677,72 @@ const ReviewQueue: React.FC = () => {
       setLastContactByRowId(map);
     };
     run();
-  }, [rows, queueView]);
+  }, [rows, queueView, attemptRefresh]);
+
+  // Explicitly logged contact attempts (+ implicit GHL calls as a safety net)
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setAttemptsByRowId({});
+        return;
+      }
+      const ids = rows.map(r => r.id);
+      const { data, error } = await supabase
+        .from('appointment_contact_attempts')
+        .select('appointment_id, attempted_at, channel, outcome, user_name, source')
+        .in('appointment_id', ids)
+        .order('attempted_at', { ascending: false })
+        .limit(2000);
+      if (error) {
+        console.warn('contact attempts fetch failed', error);
+        return;
+      }
+      const map: Record<string, LastContact> = {};
+      (data || []).forEach((a: any) => {
+        const existing = map[a.appointment_id];
+        if (existing) {
+          existing.count = (existing.count || 0) + 1;
+          return;
+        }
+        map[a.appointment_id] = {
+          at: a.attempted_at,
+          by: (a.user_name || '').trim(),
+          label: `${channelLabel(a.channel)}, ${outcomeLabel(a.outcome).toLowerCase()}`,
+          count: 1,
+        };
+      });
+
+      // Implicit GHL calls for rows with no logged attempt
+      const uncovered = rows.filter(r => !map[r.id] && r.lead_phone_number);
+      if (uncovered.length > 0) {
+        const phones = Array.from(new Set(uncovered.map(r => r.lead_phone_number as string)));
+        const { data: calls } = await supabase
+          .from('all_calls')
+          .select('lead_phone_number, project_name, call_datetime, direction, agent')
+          .in('lead_phone_number', phones)
+          .order('call_datetime', { ascending: false })
+          .limit(1000);
+        (calls || []).forEach((c: any) => {
+          uncovered.forEach(r => {
+            if (map[r.id]) return;
+            if (r.lead_phone_number !== c.lead_phone_number) return;
+            if (r.project_name !== c.project_name) return;
+            const since = r.pending_since || r.created_at;
+            if (since && new Date(c.call_datetime) < new Date(since)) return;
+            map[r.id] = {
+              at: c.call_datetime,
+              by: (c.agent || '').trim(),
+              label: 'GHL call',
+            };
+          });
+        });
+      }
+
+      setAttemptsByRowId(map);
+    };
+    run();
+  }, [rows, queueView, attemptRefresh]);
+
 
 
   const handleReplaceExisting = async (row: ReviewAppointment) => {
@@ -1746,13 +1835,17 @@ const ReviewQueue: React.FC = () => {
                           </Badge>
                         )}
                         {queueView === 'pending' && (
-                          lastContactByRowId[row.id] ? (
+                          effectiveContactByRowId[row.id] ? (
                             <Badge
                               variant="outline"
                               className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()}${lastContactByRowId[row.id].by ? ` by ${lastContactByRowId[row.id].by}` : ''}`}
+                              title={`Last contact attempt ${new Date(effectiveContactByRowId[row.id].at).toLocaleString()}${effectiveContactByRowId[row.id].by ? ` by ${effectiveContactByRowId[row.id].by}` : ''}`}
                             >
-                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago{lastContactByRowId[row.id].by ? ` · ${lastContactByRowId[row.id].by}` : ''}</span>
+                              <span>
+                                Last contact {formatAge(effectiveContactByRowId[row.id].at, nowTick)} ago
+                                {effectiveContactByRowId[row.id].label ? ` · ${effectiveContactByRowId[row.id].label}` : ''}
+                                {effectiveContactByRowId[row.id].by ? ` · ${effectiveContactByRowId[row.id].by}` : ''}
+                              </span>
                             </Badge>
                           ) : (
                             <Badge
@@ -1763,6 +1856,15 @@ const ReviewQueue: React.FC = () => {
                               No contact logged
                             </Badge>
                           )
+                        )}
+                        {queueView === 'pending' && (attemptsByRowId[row.id]?.count || 0) > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
+                            title="Contact attempts logged on this record"
+                          >
+                            {attemptsByRowId[row.id].count} attempt{(attemptsByRowId[row.id].count || 0) > 1 ? 's' : ''}
+                          </Badge>
                         )}
                         {queueView === 'pending' && needsFollowUp(row) && (
                           <Badge
@@ -1873,6 +1975,14 @@ const ReviewQueue: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setAttemptDialogRow(row)}
+                            title="Log a contact attempt for this patient"
+                          >
+                            <PhoneCall className="h-3.5 w-3.5 mr-1" /> Log attempt
+                          </Button>
                           {duplicatesByRowId[row.id]?.length > 0 && (
                             <>
                               <Button
@@ -2283,6 +2393,16 @@ const ReviewQueue: React.FC = () => {
               }
             }}
             onDeleted={() => { setDetailAppt(null); fetch(); }}
+          />
+        )}
+
+        {attemptDialogRow && (
+          <LogAttemptDialog
+            appointmentId={attemptDialogRow.id}
+            patientName={attemptDialogRow.lead_name}
+            open={!!attemptDialogRow}
+            onOpenChange={(o) => { if (!o) setAttemptDialogRow(null); }}
+            onLogged={() => setAttemptRefresh(v => v + 1)}
           />
         )}
       </CardContent>
