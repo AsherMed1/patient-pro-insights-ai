@@ -1482,7 +1482,20 @@ const ReviewQueue: React.FC = () => {
             >
               <Zap className="h-4 w-4 mr-1" />
               Short notice only
-              <Badge variant="secondary" className="ml-2">{Object.keys(shortNoticeByRowId).length}</Badge>
+              <Badge variant="secondary" className="ml-2">{rows.filter(r => isShortNoticeRow(r)).length}</Badge>
+            </Button>
+          )}
+          {queueView === 'pending' && (
+            <Button
+              variant={needsFollowUpOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setNeedsFollowUpOnly(v => !v)}
+              className={needsFollowUpOnly ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'border-amber-400 text-amber-700 hover:bg-amber-50'}
+              title={`No patient contact attempt logged in the last ${PENDING_FOLLOWUP_BUSINESS_HOURS} business hours`}
+            >
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              Needs follow-up
+              <Badge variant="secondary" className="ml-2">{rows.filter(r => needsFollowUp(r)).length}</Badge>
             </Button>
           )}
           {!isDeclinedView && (
