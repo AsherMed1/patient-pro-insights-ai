@@ -1817,6 +1817,17 @@ const ReviewQueue: React.FC = () => {
                     <div className="text-xs">
                       <div>{formatDate(row.date_of_appointment)}</div>
                       <div className="text-muted-foreground">{formatTime(row.requested_time)}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleRowSync(row)}
+                        disabled={syncingId === row.id}
+                        title="Sync this appointment's date/time with GoHighLevel"
+                        className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${syncingId === row.id ? 'animate-spin' : ''}`} />
+                        Sync with GHL
+                      </button>
+
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end">
                       {isDeclinedView ? (
