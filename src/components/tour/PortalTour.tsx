@@ -20,6 +20,9 @@ interface Rect {
 
 const CARD_WIDTH = 340;
 const GAP = 14;
+/** Shared motion language for scrim, spotlight and card. */
+const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const DURATION = 380;
 
 const getRect = (anchor?: string): Rect | null => {
   if (!anchor) return null;
@@ -30,6 +33,21 @@ const getRect = (anchor?: string): Rect | null => {
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 };
 
+const unionRect = (rects: Rect[]): Rect | null => {
+  if (!rects.length) return null;
+  const top = Math.min(...rects.map(r => r.top));
+  const left = Math.min(...rects.map(r => r.left));
+  const bottom = Math.max(...rects.map(r => r.top + r.height));
+  const right = Math.max(...rects.map(r => r.left + r.width));
+  return { top, left, width: right - left, height: bottom - top };
+};
+
+const stepAnchors = (step?: PortalTourStep): string[] => {
+  if (!step) return [];
+  if (step.anchors?.length) return step.anchors;
+  return step.anchor ? [step.anchor] : [];
+};
+
 const scrollIntoView = (anchor?: string) => {
   if (!anchor) return;
   const el = document.querySelector<HTMLElement>(`[data-tour="${anchor}"]`);
@@ -38,25 +56,26 @@ const scrollIntoView = (anchor?: string) => {
 
 export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigate }) => {
   const [index, setIndex] = useState(0);
-  const [rect, setRect] = useState<Rect | null>(null);
+  const [rects, setRects] = useState<Rect[]>([]);
   const [ready, setReady] = useState(false);
-  /** Last known anchor rect — keeps the spotlight alive (fading) between steps. */
-  const lastRectRef = useRef<Rect | null>(null);
+  /** Last known rects — keeps the spotlight alive (fading) between steps. */
+  const lastRectsRef = useRef<Rect[]>([]);
 
   const steps = PORTAL_TOUR_STEPS;
   const step: PortalTourStep | undefined = steps[index];
+  const anchors = useMemo(() => stepAnchors(step), [step]);
 
   useEffect(() => {
     if (open) {
       setIndex(0);
       setReady(false);
-      lastRectRef.current = null;
+      lastRectsRef.current = [];
     }
   }, [open]);
 
-  // Move the portal to the section this step needs, then measure the anchor.
-  // Retry for up to ~1s if the anchor is not yet in the DOM (section still
-  // switching) so the spotlight never vanishes silently.
+  // Move the portal to the section this step needs, then measure the anchors.
+  // Retry for up to ~1s if nothing is in the DOM yet (section still switching)
+  // so the spotlight never vanishes silently.
   useEffect(() => {
     if (!open || !step) return;
     setReady(false);
@@ -68,23 +87,23 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
     const settle = () => {
       if (cancelled) return;
-      scrollIntoView(step.anchor);
+      scrollIntoView(anchors[0]);
       timers.push(window.setTimeout(() => {
         if (cancelled) return;
         const tryMeasure = (attemptsLeft: number) => {
           if (cancelled) return;
-          const measured = getRect(step.anchor);
-          if (measured) {
-            lastRectRef.current = measured;
-            setRect(measured);
+          const measured = anchors.map(getRect).filter(Boolean) as Rect[];
+          if (measured.length) {
+            lastRectsRef.current = measured;
+            setRects(measured);
             setReady(true);
             return;
           }
           if (attemptsLeft > 0) {
             raf = window.requestAnimationFrame(() => tryMeasure(attemptsLeft - 1));
           } else {
-            // Anchor genuinely missing for this user — fade the spotlight out.
-            setRect(null);
+            // Anchors genuinely missing for this user — fade the spotlight out.
+            setRects([]);
             setReady(true);
           }
         };
@@ -104,12 +123,12 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
   // Keep the spotlight aligned while the page scrolls or resizes.
   useLayoutEffect(() => {
-    if (!open || !ready || !step?.anchor) return;
+    if (!open || !ready || !anchors.length) return;
     const update = () => {
-      const measured = getRect(step.anchor);
-      if (measured) {
-        lastRectRef.current = measured;
-        setRect(measured);
+      const measured = anchors.map(getRect).filter(Boolean) as Rect[];
+      if (measured.length) {
+        lastRectsRef.current = measured;
+        setRects(measured);
       }
     };
     window.addEventListener('scroll', update, true);
@@ -118,7 +137,7 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [open, ready, step?.anchor]);
+  }, [open, ready, anchors]);
 
   const next = useCallback(() => {
     setIndex(i => (i >= steps.length - 1 ? i : i + 1));
@@ -139,8 +158,10 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
     return () => window.removeEventListener('keydown', onKey);
   }, [open, next, back, finish]);
 
+  const focusRect = useMemo(() => unionRect(rects), [rects]);
+
   const cardStyle = useMemo<React.CSSProperties>(() => {
-    if (!rect) {
+    if (!focusRect) {
       return {
         top: '50%',
         left: '50%',
@@ -152,17 +173,17 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
     const vh = window.innerHeight;
     const placement = step?.placement ?? 'bottom';
 
-    let top = rect.top + rect.height + GAP;
-    let left = rect.left;
+    let top = focusRect.top + focusRect.height + GAP;
+    let left = focusRect.left;
 
-    if (placement === 'top') top = rect.top - GAP - 200;
+    if (placement === 'top') top = focusRect.top - GAP - 200;
     if (placement === 'right') {
-      top = rect.top;
-      left = rect.left + rect.width + GAP;
+      top = focusRect.top;
+      left = focusRect.left + focusRect.width + GAP;
     }
     if (placement === 'left') {
-      top = rect.top;
-      left = rect.left - CARD_WIDTH - GAP;
+      top = focusRect.top;
+      left = focusRect.left - CARD_WIDTH - GAP;
     }
 
     // Keep the card fully on screen.
@@ -170,48 +191,59 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
     top = Math.min(Math.max(12, top), vh - 220);
 
     return { top, left, width: CARD_WIDTH };
-  }, [rect, step?.placement]);
+  }, [focusRect, step?.placement]);
 
   if (!open || !step) return null;
 
   const isLast = index === steps.length - 1;
 
-  // The spotlight keeps the last known rect so it can fade in place instead
-  // of popping when a step has no anchor (or while the next anchor renders).
-  const spotRect = rect ?? lastRectRef.current;
-  const spotVisible = !!rect;
+  // Keep the last known rects so the spotlight can fade in place instead of
+  // popping when a step has no anchor (or while the next anchor renders).
+  const spotRects = rects.length ? rects : lastRectsRef.current;
+  const spotVisible = rects.length > 0;
 
   return createPortal(
     <div className="fixed inset-0 z-[100]">
       {/* Base scrim — fades out when a spotlight is active (the spotlight's
           boxShadow takes over the dimming), fades in for centered steps. */}
       <div
-        className="absolute inset-0 pointer-events-none transition-opacity duration-300 ease-out"
-        style={{ background: 'hsl(var(--foreground) / 0.55)', opacity: spotVisible ? 0 : 1 }}
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'hsl(var(--foreground) / 0.55)',
+          opacity: spotVisible ? 0 : 1,
+          transition: `opacity ${DURATION}ms ${EASE}`,
+        }}
       />
 
-      {/* Spotlight — always mounted, morphs between anchors and fades out
-          gracefully when there is no anchor for the current step. */}
-      {spotRect && (
+      {/* Spotlights — the first one carries the page dimming, the rest are
+          plain rings around the related controls. */}
+      {spotRects.map((r, i) => (
         <div
-          className="absolute rounded-lg ring-2 ring-primary pointer-events-none transition-all duration-300 ease-out"
+          key={i}
+          className="absolute rounded-lg ring-2 ring-primary pointer-events-none"
           style={{
-            top: spotRect.top - 6,
-            left: spotRect.left - 6,
-            width: spotRect.width + 12,
-            height: spotRect.height + 12,
-            boxShadow: '0 0 0 9999px hsl(var(--foreground) / 0.55)',
+            top: r.top - 6,
+            left: r.left - 6,
+            width: r.width + 12,
+            height: r.height + 12,
+            boxShadow: i === 0 ? '0 0 0 9999px hsl(var(--foreground) / 0.55)' : undefined,
+            background: i === 0 ? undefined : 'hsl(var(--primary) / 0.06)',
             opacity: spotVisible ? 1 : 0,
+            transition: `top ${DURATION}ms ${EASE}, left ${DURATION}ms ${EASE}, width ${DURATION}ms ${EASE}, height ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`,
           }}
         />
-      )}
+      ))}
 
       {/* Click-catcher so the underlying UI stays untouched during the tour */}
       <div className="absolute inset-0" onClick={() => { /* block clicks */ }} />
 
       <div
-        className="absolute rounded-xl border border-border bg-background p-4 shadow-2xl animate-fade-in transition-[top,left,width] duration-300 ease-out"
-        style={cardStyle}
+        className="absolute rounded-xl border border-border bg-background p-4 shadow-2xl"
+        style={{
+          ...cardStyle,
+          opacity: ready ? 1 : 0,
+          transition: `top ${DURATION}ms ${EASE}, left ${DURATION}ms ${EASE}, width ${DURATION}ms ${EASE}, opacity 220ms ${EASE}`,
+        }}
       >
         <div className="flex items-start justify-between gap-2">
           <div>
