@@ -1,0 +1,14 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.insurance_canonical_plans TO authenticated;
+GRANT ALL ON public.insurance_canonical_plans TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.insurance_plan_aliases TO authenticated;
+GRANT ALL ON public.insurance_plan_aliases TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.insurance_block_rules TO authenticated;
+GRANT ALL ON public.insurance_block_rules TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.insurance_block_rule_scopes TO authenticated;
+GRANT ALL ON public.insurance_block_rule_scopes TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.clinic_supported_insurances TO authenticated;
+GRANT ALL ON public.clinic_supported_insurances TO service_role;
