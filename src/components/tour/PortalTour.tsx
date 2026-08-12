@@ -250,20 +250,39 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
   return createPortal(
     <div className="fixed inset-0 z-[100]">
-      {/* Base scrim — fades out when a spotlight is active (the spotlight's
-          boxShadow takes over the dimming), fades in for centered steps. */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'hsl(var(--foreground) / 0.55)',
-          opacity: spotVisible ? 0 : 1,
-          transition: `opacity ${DURATION}ms ${EASE}`,
-        }}
-      />
+      {/* One shared mask creates a genuine transparent cutout for every target.
+          Using a box-shadow on only the first target would leave later targets
+          underneath that shadow and make their original colors look faded. */}
+      <svg
+        className="absolute inset-0 h-full w-full pointer-events-none"
+        aria-hidden="true"
+        style={{ opacity: ready ? 1 : 0, transition: `opacity ${DURATION}ms ${EASE}` }}
+      >
+        <defs>
+          <mask id="portal-tour-spotlight-mask">
+            <rect width="100%" height="100%" fill="white" />
+            {spotRects.map((r, i) => (
+              <rect
+                key={i}
+                x={r.left - SPOTLIGHT_PADDING}
+                y={r.top - SPOTLIGHT_PADDING}
+                width={r.width + SPOTLIGHT_PADDING * 2}
+                height={r.height + SPOTLIGHT_PADDING * 2}
+                rx="8"
+                fill={spotVisible ? 'black' : 'white'}
+              />
+            ))}
+          </mask>
+        </defs>
+        <rect
+          width="100%"
+          height="100%"
+          fill="hsl(var(--foreground) / 0.55)"
+          mask="url(#portal-tour-spotlight-mask)"
+        />
+      </svg>
 
-      {/* Spotlights — each highlighted element is lifted from the scrim with a
-          translucent background and primary ring so multiple targets stay
-          equally visible. */}
+      {/* Matching rings make each transparent cutout easy to identify. */}
       {spotRects.map((r, i) => (
         <div
           key={i}
@@ -273,9 +292,7 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
             left: r.left - 8,
             width: r.width + 16,
             height: r.height + 16,
-            boxShadow: i === 0
-              ? '0 0 0 9999px hsl(var(--foreground) / 0.55)'
-              : '0 0 0 1px hsl(var(--primary) / 0.35), 0 6px 18px rgba(0,0,0,0.18)',
+            boxShadow: '0 0 0 1px hsl(var(--primary) / 0.35), 0 6px 18px hsl(var(--foreground) / 0.18)',
             background: 'transparent',
             opacity: spotVisible ? 1 : 0,
             transition: `top ${DURATION}ms ${EASE}, left ${DURATION}ms ${EASE}, width ${DURATION}ms ${EASE}, height ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`,
