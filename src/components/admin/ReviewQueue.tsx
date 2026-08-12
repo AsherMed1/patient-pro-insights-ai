@@ -1975,6 +1975,14 @@ const ReviewQueue: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setAttemptDialogRow(row)}
+                            title="Log a contact attempt for this patient"
+                          >
+                            <PhoneCall className="h-3.5 w-3.5 mr-1" /> Log attempt
+                          </Button>
                           {duplicatesByRowId[row.id]?.length > 0 && (
                             <>
                               <Button
