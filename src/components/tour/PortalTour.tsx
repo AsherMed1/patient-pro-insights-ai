@@ -215,19 +215,20 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
         }}
       />
 
-      {/* Spotlights — the first one carries the page dimming, the rest are
-          plain rings around the related controls. */}
+      {/* Spotlights — each highlighted element is lifted from the scrim with a
+          translucent background and primary ring so multiple targets stay
+          equally visible. */}
       {spotRects.map((r, i) => (
         <div
           key={i}
           className="absolute rounded-lg ring-2 ring-primary pointer-events-none"
           style={{
-            top: r.top - 6,
-            left: r.left - 6,
-            width: r.width + 12,
-            height: r.height + 12,
-            boxShadow: i === 0 ? '0 0 0 9999px hsl(var(--foreground) / 0.55)' : undefined,
-            background: i === 0 ? undefined : 'hsl(var(--primary) / 0.06)',
+            top: r.top - 8,
+            left: r.left - 8,
+            width: r.width + 16,
+            height: r.height + 16,
+            boxShadow: i === 0 ? '0 0 0 9999px hsl(var(--foreground) / 0.55)' : '0 0 0 1px hsl(var(--primary) / 0.35), 0 6px 18px rgba(0,0,0,0.18)',
+            background: 'hsl(var(--background) / 0.72)',
             opacity: spotVisible ? 1 : 0,
             transition: `top ${DURATION}ms ${EASE}, left ${DURATION}ms ${EASE}, width ${DURATION}ms ${EASE}, height ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`,
           }}
