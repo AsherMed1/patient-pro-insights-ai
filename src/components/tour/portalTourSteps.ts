@@ -77,7 +77,7 @@ export const PORTAL_TOUR_STEPS: PortalTourStep[] = [
   {
     anchor: 'internal-notes',
     section: 'appointments-list',
-    placement: 'top',
+    placement: 'bottom',
     title: 'Updating and adding notes',
     body: 'Internal Notes live at the bottom of each patient record. Use Add Note for anything our team should know — notes are shared with us and kept with the appointment.',
   },
