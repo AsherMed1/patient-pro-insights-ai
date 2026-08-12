@@ -1632,6 +1632,70 @@ const ReviewQueue: React.FC = () => {
                             </span>
                           </Badge>
                         )}
+                        {!isDeclinedView && shortNoticeByRowId[row.id] === undefined && shortNoticeStatusByRowId[row.id] && (
+                          shortNoticeStatusByRowId[row.id].isShortNotice ? (
+                            <Badge
+                              variant="outline"
+                              className="border-orange-500 text-orange-800 bg-orange-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                              title="Inside the clinic's short-notice window — action now"
+                            >
+                              <Zap className="h-2.5 w-2.5 shrink-0" />
+                              <span>Short Notice window</span>
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1 ${
+                                shortNoticeStatusByRowId[row.id].hoursUntilThreshold <= 12
+                                  ? 'border-rose-400 text-rose-700 bg-rose-50'
+                                  : 'border-slate-300 text-slate-600 bg-slate-50'
+                              }`}
+                              title="Time remaining before this appointment becomes Short Notice"
+                            >
+                              <Clock className="h-2.5 w-2.5 shrink-0" />
+                              <span>Short Notice in {formatBusinessHours(shortNoticeStatusByRowId[row.id].hoursUntilThreshold)}</span>
+                            </Badge>
+                          )
+                        )}
+                        {queueView === 'pending' && row.pending_since && (
+                          <Badge
+                            variant="outline"
+                            className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title={`Moved to Pending ${new Date(row.pending_since).toLocaleString()}${row.pending_by_name ? ` by ${row.pending_by_name}` : ''}`}
+                          >
+                            <Clock className="h-2.5 w-2.5 shrink-0" />
+                            <span>Pending {formatAge(row.pending_since, nowTick)}{row.pending_by_name ? ` · ${row.pending_by_name}` : ''}</span>
+                          </Badge>
+                        )}
+                        {queueView === 'pending' && (
+                          lastContactByRowId[row.id] ? (
+                            <Badge
+                              variant="outline"
+                              className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()} by ${lastContactByRowId[row.id].by}`}
+                            >
+                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago · {lastContactByRowId[row.id].by}</span>
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="border-slate-300 text-slate-500 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
+                              title="No patient contact attempt has been logged on this record"
+                            >
+                              No contact logged
+                            </Badge>
+                          )
+                        )}
+                        {queueView === 'pending' && needsFollowUp(row) && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500 text-amber-800 bg-amber-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title={`No contact attempt in the last ${PENDING_FOLLOWUP_BUSINESS_HOURS} business hours`}
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                            <span>Needs follow-up</span>
+                          </Badge>
+                        )}
                         {!isDeclinedView && isOonBlocked(row) && (
                           <Badge
                             variant="outline"
