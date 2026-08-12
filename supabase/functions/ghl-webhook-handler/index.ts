@@ -2685,13 +2685,19 @@ async function enrichAppointmentWithGHLData(
       if (!field.key) return
       
       const key = field.key.toLowerCase()
-      const value = Array.isArray(field.value) 
+      const rawValue = Array.isArray(field.value) 
         ? field.value.join(', ') 
         : typeof field.value === 'object' && field.value !== null
           ? JSON.stringify(field.value)
           : (field.value || 'Not provided')
       
+      // Never persist the booking bot's system prompt as patient intake data.
+      if (isBotPromptField(key, rawValue)) return
+      const value = sanitizeBotPrompt(rawValue)
+      if (!value) return
+      
       const formattedLine = `${field.key}: ${value}`
+
       
       // Categorize fields - skip conversation notes and workflow fields
       // Enhanced for Vivid Vascular PAE/UFE/GAE procedure patterns
