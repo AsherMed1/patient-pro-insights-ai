@@ -19,6 +19,7 @@ interface Rect {
 }
 
 const CARD_WIDTH = 340;
+const CARD_HEIGHT = 220;
 const GAP = 14;
 /** Shared motion language for scrim, spotlight and card. */
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
@@ -186,9 +187,24 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
       left = focusRect.left - CARD_WIDTH - GAP;
     }
 
-    // Keep the card fully on screen.
+    // Keep the card fully on screen. When the preferred vertical position
+    // would collide with the highlighted control, use the opposite side.
     left = Math.min(Math.max(12, left), vw - CARD_WIDTH - 12);
-    top = Math.min(Math.max(12, top), vh - 220);
+    top = Math.min(Math.max(12, top), vh - CARD_HEIGHT - 12);
+
+    const focusBottom = focusRect.top + focusRect.height;
+    const cardBottom = top + CARD_HEIGHT;
+    const overlapsFocus = cardBottom > focusRect.top - GAP && top < focusBottom + GAP;
+
+    if (overlapsFocus && (placement === 'top' || placement === 'bottom')) {
+      const aboveTop = focusRect.top - GAP - CARD_HEIGHT;
+      const belowTop = focusBottom + GAP;
+      if (aboveTop >= 12) {
+        top = aboveTop;
+      } else if (belowTop + CARD_HEIGHT <= vh - 12) {
+        top = belowTop;
+      }
+    }
 
     return { top, left, width: CARD_WIDTH };
   }, [focusRect, step?.placement]);
