@@ -546,7 +546,7 @@ const ProjectPortal = () => {
               {/* Top Row: View toggle + Calendar controls */}
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 {/* View Toggle - Modern Pill style */}
-                <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+                <div data-tour="view-toggle" className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
                   <Button 
                     variant="ghost"
                     size="sm"
