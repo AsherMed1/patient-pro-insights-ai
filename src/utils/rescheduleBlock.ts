@@ -187,7 +187,12 @@ export const liftRescheduleBlock = async (
     created_by: userName,
   });
 
-  await syncGhlTags(appointment.id, 'remove');
+  await removeLegacyBlockTags(appointment.id);
+  await pushLifecycleTags({
+    appointmentId: appointment.id,
+    kind: 'no-show',
+    reschedulable: true,
+  });
 };
 
 export interface ActiveBlock {
