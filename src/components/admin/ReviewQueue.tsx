@@ -1750,9 +1750,9 @@ const ReviewQueue: React.FC = () => {
                             <Badge
                               variant="outline"
                               className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()} by ${lastContactByRowId[row.id].by}`}
+                              title={`Last contact attempt ${new Date(lastContactByRowId[row.id].at).toLocaleString()}${lastContactByRowId[row.id].by ? ` by ${lastContactByRowId[row.id].by}` : ''}`}
                             >
-                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago · {lastContactByRowId[row.id].by}</span>
+                              <span>Last contact {formatAge(lastContactByRowId[row.id].at, nowTick)} ago{lastContactByRowId[row.id].by ? ` · ${lastContactByRowId[row.id].by}` : ''}</span>
                             </Badge>
                           ) : (
                             <Badge
