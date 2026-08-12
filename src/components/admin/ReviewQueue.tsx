@@ -490,10 +490,10 @@ const ReviewQueue: React.FC = () => {
     run();
   }, [rows, queueView]);
 
-  // Detect short-notice alerts for pending rows
+  // Detect existing short-notice alerts (both New and Pending views)
   useEffect(() => {
     const run = async () => {
-      if (queueView !== 'pending' || rows.length === 0) {
+      if (queueView === 'declined' || rows.length === 0) {
         setShortNoticeByRowId({});
         return;
       }
@@ -517,6 +517,66 @@ const ReviewQueue: React.FC = () => {
     };
     run();
   }, [rows, queueView]);
+
+  // Per-clinic short-notice thresholds + timezone, used for the live countdown
+  useEffect(() => {
+    const run = async () => {
+      const names = Array.from(new Set(rows.map(r => r.project_name).filter(Boolean)));
+      const missing = names.filter(n => !projectConfigs[n]);
+      if (missing.length === 0) return;
+      const { data, error } = await supabase
+        .from('projects')
+        .select('project_name, short_notice_threshold_hours, timezone')
+        .in('project_name', missing);
+      if (error) {
+        console.warn('project config fetch failed', error);
+        return;
+      }
+      setProjectConfigs(prev => {
+        const next = { ...prev };
+        (data || []).forEach((p: any) => {
+          next[p.project_name] = {
+            threshold: p.short_notice_threshold_hours ?? 72,
+            timezone: p.timezone || 'America/Chicago',
+          };
+        });
+        // Fall back to the default threshold when a project row is missing
+        missing.forEach(n => { if (!next[n]) next[n] = { threshold: 72, timezone: 'America/Chicago' }; });
+        return next;
+      });
+    };
+    run();
+  }, [rows, projectConfigs]);
+
+  // Last patient contact attempt = most recent human-authored note on the record
+  useEffect(() => {
+    const run = async () => {
+      if (queueView !== 'pending' || rows.length === 0) {
+        setLastContactByRowId({});
+        return;
+      }
+      const ids = rows.map(r => r.id);
+      const { data, error } = await supabase
+        .from('appointment_notes')
+        .select('appointment_id, note_text, created_by, created_at')
+        .in('appointment_id', ids)
+        .order('created_at', { ascending: false })
+        .limit(2000);
+      if (error) {
+        console.warn('last-contact fetch failed', error);
+        return;
+      }
+      const map: Record<string, LastContact> = {};
+      (data || []).forEach((n: any) => {
+        if (map[n.appointment_id]) return;
+        if (isSystemNote(n)) return;
+        map[n.appointment_id] = { at: n.created_at, by: n.created_by || 'Unknown' };
+      });
+      setLastContactByRowId(map);
+    };
+    run();
+  }, [rows, queueView]);
+
 
   const handleReplaceExisting = async (row: ReviewAppointment) => {
     const dups = duplicatesByRowId[row.id] || [];
