@@ -24,6 +24,15 @@ import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, decl
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
 import { useVisibilityPolling } from '@/hooks/useVisibilityPolling';
+import {
+  getShortNoticeStatus,
+  formatBusinessHours,
+  formatAge,
+  businessHoursSince,
+  isSystemNote,
+  PENDING_FOLLOWUP_BUSINESS_HOURS,
+  type ShortNoticeStatus,
+} from '@/lib/shortNotice';
 
 // Surface the full Postgres/Supabase error so failures are diagnosable from a screenshot
 const describeError = (e: any): string => {
