@@ -19,8 +19,10 @@ interface Rect {
 }
 
 const CARD_WIDTH = 340;
-const CARD_HEIGHT = 220;
+const DEFAULT_CARD_HEIGHT = 240;
 const GAP = 14;
+const VIEWPORT_MARGIN = 8;
+const SPOTLIGHT_PADDING = 8;
 /** Shared motion language for scrim, spotlight and card. */
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const DURATION = 380;
@@ -59,6 +61,8 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
   const [index, setIndex] = useState(0);
   const [rects, setRects] = useState<Rect[]>([]);
   const [ready, setReady] = useState(false);
+  const [cardHeight, setCardHeight] = useState(DEFAULT_CARD_HEIGHT);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   /** Last known rects — keeps the spotlight alive (fading) between steps. */
   const lastRectsRef = useRef<Rect[]>([]);
 
@@ -161,6 +165,17 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
   const focusRect = useMemo(() => unionRect(rects), [rects]);
 
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!open || !card) return;
+
+    const measure = () => setCardHeight(card.getBoundingClientRect().height || DEFAULT_CARD_HEIGHT);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [open, index, ready]);
+
   const cardStyle = useMemo<React.CSSProperties>(() => {
     if (!focusRect) {
       return {
@@ -174,10 +189,15 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
     const vh = window.innerHeight;
     const placement = step?.placement ?? 'bottom';
 
-    let top = focusRect.top + focusRect.height + GAP;
+    const focusTop = focusRect.top - SPOTLIGHT_PADDING;
+    const focusBottom = focusRect.top + focusRect.height + SPOTLIGHT_PADDING;
+    const aboveTop = focusTop - GAP - cardHeight;
+    const belowTop = focusBottom + GAP;
+
+    let top = belowTop;
     let left = focusRect.left;
 
-    if (placement === 'top') top = focusRect.top - GAP - 200;
+    if (placement === 'top') top = aboveTop;
     if (placement === 'right') {
       top = focusRect.top;
       left = focusRect.left + focusRect.width + GAP;
@@ -189,25 +209,35 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
 
     // Keep the card fully on screen. When the preferred vertical position
     // would collide with the highlighted control, use the opposite side.
-    left = Math.min(Math.max(12, left), vw - CARD_WIDTH - 12);
-    top = Math.min(Math.max(12, top), vh - CARD_HEIGHT - 12);
+    left = Math.min(Math.max(VIEWPORT_MARGIN, left), vw - CARD_WIDTH - VIEWPORT_MARGIN);
+    top = Math.min(Math.max(VIEWPORT_MARGIN, top), vh - cardHeight - VIEWPORT_MARGIN);
 
-    const focusBottom = focusRect.top + focusRect.height;
-    const cardBottom = top + CARD_HEIGHT;
+    const cardBottom = top + cardHeight;
     const overlapsFocus = cardBottom > focusRect.top - GAP && top < focusBottom + GAP;
 
     if (overlapsFocus && (placement === 'top' || placement === 'bottom')) {
-      const aboveTop = focusRect.top - GAP - CARD_HEIGHT;
-      const belowTop = focusBottom + GAP;
-      if (aboveTop >= 12) {
-        top = aboveTop;
-      } else if (belowTop + CARD_HEIGHT <= vh - 12) {
+      const aboveFits = aboveTop >= VIEWPORT_MARGIN;
+      const belowFits = belowTop + cardHeight <= vh - VIEWPORT_MARGIN;
+
+      if (placement === 'bottom' && belowFits) {
         top = belowTop;
+      } else if (placement === 'top' && aboveFits) {
+        top = aboveTop;
+      } else if (belowFits) {
+        top = belowTop;
+      } else if (aboveFits) {
+        top = aboveTop;
+      } else {
+        const roomAbove = focusTop - VIEWPORT_MARGIN;
+        const roomBelow = vh - VIEWPORT_MARGIN - focusBottom;
+        top = roomBelow > roomAbove
+          ? Math.min(belowTop, vh - cardHeight - VIEWPORT_MARGIN)
+          : Math.max(VIEWPORT_MARGIN, aboveTop);
       }
     }
 
     return { top, left, width: CARD_WIDTH };
-  }, [focusRect, step?.placement]);
+  }, [cardHeight, focusRect, step?.placement]);
 
   if (!open || !step) return null;
 
@@ -257,6 +287,7 @@ export const PortalTour: React.FC<PortalTourProps> = ({ open, onClose, onNavigat
       <div className="absolute inset-0" onClick={() => { /* block clicks */ }} />
 
       <div
+        ref={cardRef}
         className="absolute rounded-xl border border-border bg-background p-4 shadow-2xl"
         style={{
           ...cardStyle,
