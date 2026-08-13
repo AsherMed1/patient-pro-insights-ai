@@ -2725,7 +2725,8 @@ function CaseDrawer({
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
                 </div>
-              </div>
+              </QASection>
+
 
 
               <QASection
