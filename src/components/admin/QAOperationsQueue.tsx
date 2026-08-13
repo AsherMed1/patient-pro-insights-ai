@@ -2838,7 +2838,8 @@ function CaseDrawer({
                     });
                   })()}
                 </div>
-              </div>
+              </QASection>
+
 
               {(siblingNotes.length > 0 || siblingActivity.length > 0) && (
                 <QASection
