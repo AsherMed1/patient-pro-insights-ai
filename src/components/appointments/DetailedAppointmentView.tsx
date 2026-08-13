@@ -547,12 +547,17 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           requested_time: newTime,
           status: 'Confirmed',
           internal_process_complete: false,
+          is_unscheduled: false,
           last_ghl_sync_status: 'pending',
           updated_at: new Date().toISOString()
         })
         .eq('id', appointment.id);
       
       if (updateError) throw updateError;
+
+      // GHL scheduling-state tags (Prospero): the clinic has now set a date/time.
+      void markAppointmentScheduledInGHL(appointment as any);
+
 
       // Create audit note
       try {
