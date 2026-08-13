@@ -1663,6 +1663,32 @@ function CaseDrawer({
     return () => { cancelled = true; };
   }, [caseData?.id, user?.email]);
 
+  // Patient-level history: notes + activity recorded on the sibling QA records
+  // for the same patient/appointment. Completing or re-alerting a record must
+  // never make prior work invisible, so we surface it read-only here.
+  const siblingIdsKey = siblings.map((s) => s.id).sort().join(',');
+  useEffect(() => {
+    const ids = siblingIdsKey ? siblingIdsKey.split(',') : [];
+    if (ids.length === 0) {
+      setSiblingNotes([]);
+      setSiblingActivity([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [n, a] = await Promise.all([
+        supabase.from('qa_case_notes' as any).select('*').in('case_id', ids).order('created_at', { ascending: false }),
+        supabase.from('qa_case_activity' as any).select('*').in('case_id', ids).order('created_at', { ascending: false }),
+      ]);
+      if (cancelled) return;
+      setSiblingNotes(((n.data as any) || []) as QANote[]);
+      setSiblingActivity(((a.data as any) || []) as QAActivity[]);
+    })();
+    return () => { cancelled = true; };
+  }, [siblingIdsKey]);
+
+
+
   const isDirty = !!caseData && !sameAudit(audit, savedSnapshotRef.current);
 
   // Persist an in-progress audit as a local draft so a reload or accidental
