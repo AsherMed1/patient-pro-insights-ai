@@ -281,6 +281,11 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                             Auto
                           </Badge>
                         )}
+                        {!isClinicUser && (note.visibility ?? 'clinic') === 'internal' && (
+                          <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700">
+                            Internal
+                          </Badge>
+                        )}
                         {note.last_edited_by && (
                           <Badge variant="outline" className="text-xs">
                             edited by {note.last_edited_by}
