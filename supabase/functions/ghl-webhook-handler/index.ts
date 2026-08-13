@@ -1003,8 +1003,17 @@ function extractStandardEventFormat(payload: any) {
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
-    insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
-    insurance_intake_source: extractInsuranceIntakeSource(contact.customFields || apt.customFields || payload.customFields),
+    ...(() => {
+      const cf = contact.customFields || apt.customFields || payload.customFields
+      const slots = extractInsuranceCardSlots(cf)
+      return {
+        insurance_id_link: slots.primaryFront,
+        insurance_back_link: slots.primaryBack,
+        secondary_card_front_url: slots.secondaryFront,
+        secondary_card_back_url: slots.secondaryBack,
+        insurance_intake_source: extractInsuranceIntakeSource(cf),
+      }
+    })(),
   }
 }
 
