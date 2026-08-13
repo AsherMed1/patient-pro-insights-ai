@@ -181,7 +181,8 @@ serve(async (req) => {
 
     // Unscheduled-capture projects: capture leads without booking a specific time slot.
     // Store a time-of-day preference instead of date_of_appointment/requested_time.
-    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical']);
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'prospero vascular and interventional']);
+    const SCHEDULING_TAG_PROJECTS = new Set(['prospero vascular and interventional']);
     const isPremierVascular = UNSCHEDULED_PROJECTS.has((body.project_name || '').trim().toLowerCase());
     const normalizeTimePreference = (val: unknown): string | null => {
       if (!val || typeof val !== 'string') return null;
@@ -319,6 +320,32 @@ serve(async (req) => {
           }).catch((e) => console.error('review-queue Slack invoke failed:', e));
         } catch (e) {
           console.error('review-queue Slack invoke threw:', e);
+        }
+
+        // Scheduling-state tag: the clinic still has to set a date/time in the Portal.
+        if (
+          data[0].ghl_id &&
+          !data[0].date_of_appointment &&
+          SCHEDULING_TAG_PROJECTS.has((data[0].project_name || '').trim().toLowerCase())
+        ) {
+          try {
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', data[0].project_name)
+              .maybeSingle();
+            supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: data[0].ghl_id,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                tags: ['awaiting-scheduling'],
+                action: 'add',
+                source: 'all-appointments-api unscheduled capture',
+              },
+            }).catch((e) => console.error('awaiting-scheduling tag invoke failed:', e));
+          } catch (e) {
+            console.error('awaiting-scheduling tag block threw:', e);
+          }
         }
       }
     }

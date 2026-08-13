@@ -29,7 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { format as formatDateFns } from "date-fns";
+import { format as formatDateFns, formatDistanceToNowStrict } from "date-fns";
+import { isSchedulingTagProject, markAppointmentScheduledInGHL } from "@/lib/schedulingTags";
 import { useGhlCalendars } from "@/hooks/useGhlCalendars";
 import AvailableTimeSlots from "./AvailableTimeSlots";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -1764,7 +1765,7 @@ const AppointmentCard = ({
           <div className="space-y-1">
             {/* Unscheduled-capture projects: time-of-day preference (no booked appointment).
                 Davis is hybrid — hide the preference once a real date/time is booked. */}
-            {['Premier Vascular', 'ECCO Medical', 'Davis Vein & Vascular', 'Horizon Vascular Specialists'].includes(appointment.project_name) && !appointment.date_of_appointment && (
+            {['Premier Vascular', 'ECCO Medical', 'Davis Vein & Vascular', 'Horizon Vascular Specialists', 'Prospero Vascular and Interventional'].includes(appointment.project_name) && !appointment.date_of_appointment && (
 
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
@@ -1821,6 +1822,16 @@ const AppointmentCard = ({
                   No appointment date/time set
                 </span>
               )}
+              {isSchedulingTagProject(appointment.project_name) &&
+                appointment.is_unscheduled &&
+                !appointment.date_of_appointment && (
+                  <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[11px]">
+                    Awaiting clinic scheduling
+                    {appointment.created_at
+                      ? ` — waiting ${formatDistanceToNowStrict(new Date(appointment.created_at))}`
+                      : ''}
+                  </Badge>
+                )}
               {(hasManagementAccess() || appointment.is_unscheduled) && (
                 <Popover open={dateTimePopoverOpen} onOpenChange={(open) => {
                   // Only allow opening via trigger; closing is handled by Cancel/Confirm buttons only
@@ -1856,12 +1867,14 @@ const AppointmentCard = ({
                             .from('all_appointments')
                             .update({ is_unscheduled: false })
                             .eq('id', appointment.id);
-                          if (flipError) {
-                            console.error('Failed to flip is_unscheduled:', flipError);
-                          } else {
-                            onDataRefresh?.();
-                          }
-                        }
+                           if (flipError) {
+                             console.error('Failed to flip is_unscheduled:', flipError);
+                           } else {
+                             // GHL scheduling-state tags (Prospero): stop the "waiting" messages.
+                             void markAppointmentScheduledInGHL(appointment as any);
+                             onDataRefresh?.();
+                           }
+                         }
                         setDateTimePopoverOpen(false);
                       }}
                       onClose={() => setDateTimePopoverOpen(false)}

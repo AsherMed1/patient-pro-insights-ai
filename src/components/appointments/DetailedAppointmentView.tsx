@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { markAppointmentScheduledInGHL } from "@/lib/schedulingTags";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -547,12 +548,17 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           requested_time: newTime,
           status: 'Confirmed',
           internal_process_complete: false,
+          is_unscheduled: false,
           last_ghl_sync_status: 'pending',
           updated_at: new Date().toISOString()
         })
         .eq('id', appointment.id);
       
       if (updateError) throw updateError;
+
+      // GHL scheduling-state tags (Prospero): the clinic has now set a date/time.
+      void markAppointmentScheduledInGHL(appointment as any);
+
 
       // Create audit note
       try {
