@@ -103,6 +103,8 @@ interface QANote {
   case_id: string;
   note: string;
   author_name: string | null;
+  author_user_id?: string | null;
+  edited_at?: string | null;
   created_at: string;
 }
 
