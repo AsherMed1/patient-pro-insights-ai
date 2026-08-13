@@ -3311,7 +3311,11 @@ async function enrichAppointmentWithGHLData(
       latestAppointment?.parsed_insurance_info && typeof latestAppointment.parsed_insurance_info === 'object'
         ? latestAppointment.parsed_insurance_info
         : {};
-    const safeParsedInsurance = { ...mergedParsedInsurance, ...latestParsedInsurance };
+    const safeParsedInsurance = { ...latestParsedInsurance };
+    if (ins.provider) safeParsedInsurance.insurance_provider = ins.provider;
+    if (ins.plan) safeParsedInsurance.insurance_plan = ins.plan;
+    if (ins.id) safeParsedInsurance.insurance_id_number = ins.id;
+    if (ins.group) safeParsedInsurance.insurance_group_number = ins.group;
     if (cardSlots.secondaryFront && !safeParsedInsurance.secondary_card_front_url) {
       safeParsedInsurance.secondary_card_front_url = cardSlots.secondaryFront;
     }
