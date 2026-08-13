@@ -1515,7 +1515,7 @@ function CaseDrawer({
   const [activity, setActivity] = useState<QAActivity[]>([]);
   const [siblingNotes, setSiblingNotes] = useState<QANote[]>([]);
   const [siblingActivity, setSiblingActivity] = useState<QAActivity[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
