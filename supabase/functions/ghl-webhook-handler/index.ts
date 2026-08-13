@@ -127,6 +127,18 @@ serve(async (req) => {
 
     // Detect webhook format and extract data
     const webhookData = extractWebhookData(payload, requestId)
+
+    // GHL sends nameless download URLs, so the initial front/back split is only a
+    // guess based on arrival order. Look up the real filenames and correct it.
+    if (webhookData) {
+      const primary = await orderFrontBackByFilename(webhookData.insurance_id_link, webhookData.insurance_back_link)
+      webhookData.insurance_id_link = primary.front
+      webhookData.insurance_back_link = primary.back
+      const secondary = await orderFrontBackByFilename(webhookData.secondary_card_front_url, webhookData.secondary_card_back_url)
+      webhookData.secondary_card_front_url = secondary.front
+      webhookData.secondary_card_back_url = secondary.back
+    }
+    
     
     if (!webhookData) {
       return new Response(
