@@ -4,7 +4,7 @@ Goal: GHL should always know whether a clinic has set a date/time in the Portal 
 
 ## How it will work
 
-Every lead captured without a date/time (Prospero Vascular and Interventional, Premier Vascular, ECCO Medical, Horizon Vascular Specialists, and Davis when it arrives unscheduled) gets a GHL contact tag the moment it lands:
+Scope: Prospero Vascular and Interventional only. Every Prospero lead captured without a date/time gets a GHL contact tag the moment it lands (other unscheduled projects are untouched):
 
 - `awaiting-scheduling` — clinic has not set a date/time yet
 - `appointment-scheduled` — clinic set the date/time in the Portal (the `awaiting-scheduling` tag is removed at the same moment)
