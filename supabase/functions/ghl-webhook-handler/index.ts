@@ -666,6 +666,10 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
 
+    // Scheduling-state tags in GHL (Prospero): awaiting-scheduling vs appointment-scheduled
+    keepAlive(syncSchedulingTags(supabase, appointmentRecord, requestId))
+
+
 
     // Card URLs have their own atomic merge path. This protects them from
     // overlapping webhook, enrichment, and AI-parser whole-JSON writes.
