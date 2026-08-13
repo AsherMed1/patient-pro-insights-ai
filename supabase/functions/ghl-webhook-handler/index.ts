@@ -1947,8 +1947,20 @@ function getUpdateableFields(
     const portalOnlyStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
     const isPortalOnlyTerminal = portalOnlyStatuses.includes(existingStatusForEcho)
 
+    // "Welcome Call" is a portal-owned mid-flow state with no GHL equivalent, so GHL
+    // keeps reporting the booking as "confirmed". Any later webhook (reschedule echo,
+    // insurance upload, contact edit) would otherwise stomp Welcome Call back to
+    // Confirmed and drop the record into the New tab. Ignore those restatements;
+    // real forward moves (Cancelled / No Show / Showed / Won / Rescheduled) still apply.
+    const incomingNormalized = (webhookData.status || '').trim().toLowerCase()
+    const bookingRestatements = ['confirmed', 'booked', 'new', 'unconfirmed']
+    const isWelcomeCallRestatement =
+      existingStatusForEcho === 'welcome call' && bookingRestatements.includes(incomingNormalized)
+
     if (isPortalOnlyTerminal) {
       console.log(`[WEBHOOK] Preserving portal-only terminal status "${existingAppointment.status}" — ignoring incoming "${webhookData.status}"`)
+    } else if (isWelcomeCallRestatement) {
+      console.log(`[WEBHOOK] Preserving portal status "Welcome Call" — incoming "${webhookData.status}" is a GHL booking-state restatement, not a real change`)
     } else {
       updateFields.status = webhookData.status
       // If transitioning out of Welcome Call via GHL sync, capture a user-visible internal note
