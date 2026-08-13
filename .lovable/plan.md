@@ -14,13 +14,13 @@ secondary_card_back_url  = empty
 So the multi-file extraction is working (two primary files landed), but:
 
 1. **Front/back are reversed.** GHL upload values are opaque `documents/download/<id>` URLs with no filename in them, so the filename hints (`front` / `back`) never match and the code falls back to list order — and the order GHL sends does not match front-then-back.
-2. **Secondary produced nothing.** The webhook-handler logs for that 13:21 event have already rolled off (retention only covers the last few minutes), so the cause is not yet confirmed. Two candidates: the `insurance_id_link_secondary` field arrived empty/absent on that fire, or the GHL field key for the secondary upload is not literally spelled `secondary` (the insurance text extractor in the same file already handles a `(2)` naming variant, so that variant plausibly exists on upload fields too) and both files were bucketed as primary.
+2. **Secondary produced nothing.** The workflow body does send `insurance_id_link_secondary`, so the mapping is in place — the open question is what GHL substituted into it. The handler logs for the 13:21 fire have already rolled off (retention covers only the last few minutes), so this is unconfirmed. The two remaining candidates are: the merge tag `{{contact.upload_a_copy_of_your_insurance_card_secondary}}` did not resolve to the actual custom field (GHL renders an unresolved tag as an empty string, so the key on the contact may be named differently — e.g. a `(2)` / `_2` variant), or it resolved but the handler bucketed the files as primary. Both are addressed below, and step 1 makes the next fire self-diagnosing.
 
 ## Plan
 
 ### 1. Log the raw upload fields (diagnosis, keeps running in production)
 
-In `ghl-webhook-handler`, log every custom-field key whose value contains a document URL, together with how many files each key yielded and which slot it was assigned. This makes the secondary question answerable on the next fire instead of guessed at.
+In `ghl-webhook-handler`, log every incoming custom-field key with its raw value shape — including keys that arrive empty — plus how many files each yielded and which slot it was assigned. An empty `insurance_id_link_secondary` in that log proves the merge tag did not resolve on the GHL side (wrong field key in the workflow); a populated one that lands in the wrong slot proves it is a handler bug. Either way the next fire answers it.
 
 ### 2. Recognise every secondary naming variant
 
