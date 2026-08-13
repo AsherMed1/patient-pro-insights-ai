@@ -1793,7 +1793,7 @@ function CaseDrawer({
         await notifyQAUsers({
           userIds: added.map((m) => m.userId),
           caseId: caseData.id,
-          caseNoteId: editingNoteId,
+          noteId: editingNoteId,
           kind: 'mention',
           title: `${actorName || 'Someone'} mentioned you — ${caseData.patient_name || 'QA record'}`,
           body: text.slice(0, 180),
