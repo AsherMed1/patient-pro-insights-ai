@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { markAppointmentScheduledInGHL } from "@/lib/schedulingTags";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
