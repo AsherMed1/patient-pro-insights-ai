@@ -251,6 +251,13 @@ export const SecondaryInsuranceCardUpload = ({
   };
   const handleRemoveFront = async () => { setFrontUrl(null); await persist({ front: null }); };
   const handleRemoveBack = async () => { setBackUrl(null); await persist({ back: null }); };
+  const handleSwap = async () => {
+    const nextFront = backUrl;
+    const nextBack = frontUrl;
+    setFrontUrl(nextFront);
+    setBackUrl(nextBack);
+    await persist({ front: nextFront, back: nextBack });
+  };
 
   return (
     <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
