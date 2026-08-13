@@ -201,12 +201,25 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
               disabled={submitting || uploading}
             >
               <MentionTextarea
-                placeholder="Enter your internal note here… type @ to tag a teammate (@AM, @Tech)"
+                placeholder={isClinicUser
+                  ? 'Enter your note here…'
+                  : 'Enter your internal note here… type @ to tag a teammate (@AM, @Tech)'}
                 value={newNote}
                 onChange={setNewNote}
                 className="min-h-[80px] resize-none"
               />
             </ImageAttachInput>
+            {!isClinicUser && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={noteInternal}
+                  onChange={(e) => setNoteInternal(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Internal only — hide this note from the clinic
+              </label>
+            )}
             <div className="flex items-center space-x-2">
               <Button
                 onClick={handleAddNote}
