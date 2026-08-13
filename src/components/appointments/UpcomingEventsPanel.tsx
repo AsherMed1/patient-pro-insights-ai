@@ -58,6 +58,9 @@ export function UpcomingEventsPanel({ projectName, viewMode, selectedDate, onApp
           .gte('date_of_appointment', startDate)
           .lte('date_of_appointment', endDate)
           .or('is_superseded.is.null,is_superseded.eq.false')
+          // Review Queue gate: unapproved appointments stay internal to PPM.
+          // Reserved time blocks are clinic-created and always visible.
+          .or('review_status.eq.approved,is_reserved_block.eq.true')
           .order('date_of_appointment', { ascending: true })
           .order('requested_time', { ascending: true });
 
