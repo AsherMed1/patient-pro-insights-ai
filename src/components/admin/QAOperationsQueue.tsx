@@ -20,7 +20,11 @@ import { useRole } from '@/hooks/useRole';
 import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload, Columns3, RefreshCw } from 'lucide-react';
+import { Loader2, ExternalLink, Ticket, Calendar as CalendarIcon, Maximize2, Clock, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, X, Upload, Columns3, RefreshCw, Pencil, Trash2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import QAReports from '@/components/admin/QAReports';
@@ -103,6 +107,8 @@ interface QANote {
   case_id: string;
   note: string;
   author_name: string | null;
+  author_user_id?: string | null;
+  edited_at?: string | null;
   created_at: string;
 }
 
@@ -1487,8 +1493,14 @@ function CaseDrawer({
 }) {
 
   const { user } = useAuth();
+  const { isAdmin } = useRole();
   const [notes, setNotes] = useState<QANote[]>([]);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const focusedNoteRef = useRef<HTMLDivElement | null>(null);
+
 
   // Scroll a mention-linked note into view once notes have loaded.
   useEffect(() => {
@@ -1739,6 +1751,99 @@ function CaseDrawer({
     const { data } = await supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false });
     setNotes(((data as any) || []) as QANote[]);
   };
+
+  const reloadNotes = async (caseId: string) => {
+    const { data } = await supabase
+      .from('qa_case_notes' as any)
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false });
+    setNotes(((data as any) || []) as QANote[]);
+  };
+
+  const canModifyNote = (n: QANote) => isAdmin() || (!!n.author_user_id && n.author_user_id === user?.id);
+
+  const startEditNote = (n: QANote) => {
+    setEditingNoteId(n.id);
+    setEditingNoteText(n.note);
+  };
+
+  const cancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteText('');
+  };
+
+  const saveNoteEdit = async () => {
+    if (!caseData || !editingNoteId) return;
+    const original = notes.find((n) => n.id === editingNoteId);
+    const text = editingNoteText.trim();
+    if (!text) return;
+    setSavingNote(true);
+    const { error } = await supabase
+      .from('qa_case_notes' as any)
+      .update({ note: text, edited_at: new Date().toISOString() } as any)
+      .eq('id', editingNoteId);
+    setSavingNote(false);
+    if (error) {
+      toast({ title: 'Failed to update note', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    // Only notify teammates newly tagged during the edit.
+    const before = new Set(parseMentions(original?.note || '').map((m) => m.userId));
+    const added = parseMentions(text).filter((m) => m.userId !== user?.id && !before.has(m.userId));
+    if (added.length > 0) {
+      try {
+        await notifyQAUsers({
+          userIds: added.map((m) => m.userId),
+          caseId: caseData.id,
+          noteId: editingNoteId,
+          kind: 'mention',
+          title: `${actorName || 'Someone'} mentioned you — ${caseData.patient_name || 'QA record'}`,
+          body: text.slice(0, 180),
+          actorId: user?.id ?? null,
+          actorName: actorName || null,
+        } as any);
+      } catch (e) {
+        console.error('Failed to notify mentions on note edit', e);
+      }
+    }
+
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'note_edited',
+      description: `Note edited${actorName ? ` by ${actorName}` : ''}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+
+    cancelEditNote();
+    await reloadNotes(caseData.id);
+    onRefresh();
+    toast({ title: 'Note updated' });
+  };
+
+  const deleteNote = async (noteId: string) => {
+    if (!caseData) return;
+    setDeletingNoteId(noteId);
+    const { error } = await supabase.from('qa_case_notes' as any).delete().eq('id', noteId);
+    setDeletingNoteId(null);
+    if (error) {
+      toast({ title: 'Failed to delete note', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'note_deleted',
+      description: `Note deleted${actorName ? ` by ${actorName}` : ''}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    if (editingNoteId === noteId) cancelEditNote();
+    await reloadNotes(caseData.id);
+    onRefresh();
+    toast({ title: 'Note deleted' });
+  };
+
+
 
 
   const saveAudit = async () => {
@@ -2451,12 +2556,84 @@ function CaseDrawer({
                         n.id === focusNoteId && 'border-primary bg-primary/5',
                       )}
                     >
-                      <div className="text-xs text-muted-foreground flex justify-between">
-                        <span>{n.author_name || 'Unknown'}</span>
-                        <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
+                      <div className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+                        <span className="truncate">{n.author_name || 'Unknown'}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
+                          {n.edited_at && (
+                            <span
+                              className="italic"
+                              title={`Edited ${format(new Date(n.edited_at), 'MMM d, h:mm a')}`}
+                            >
+                              (edited)
+                            </span>
+                          )}
+                          {canModifyNote(n) && editingNoteId !== n.id && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                title="Edit note"
+                                onClick={() => startEditNote(n)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-destructive hover:text-destructive"
+                                    title="Delete note"
+                                    disabled={deletingNoteId === n.id}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This can't be undone. The note will be permanently removed from this QA record.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteNote(n.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                      {editingNoteId === n.id ? (
+                        <div className="mt-1 space-y-2">
+                          <MentionTextarea
+                            value={editingNoteText}
+                            onChange={setEditingNoteText}
+                            rows={3}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={saveNoteEdit} disabled={!editingNoteText.trim() || savingNote}>
+                              {savingNote ? 'Saving…' : 'Save'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={cancelEditNote} disabled={savingNote}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                      )}
                     </div>
+
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
                 </div>
