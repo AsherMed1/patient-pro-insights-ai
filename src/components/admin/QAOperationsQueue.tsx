@@ -2595,8 +2595,13 @@ function CaseDrawer({
 
 
               {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
-                <div>
-                  <div className="text-sm font-semibold mb-2">Ticket attachments</div>
+                <QASection
+                  title="Ticket attachments"
+                  icon={Paperclip}
+                  tone="neutral"
+                  storageKey="attachments"
+                  count={((caseData as any).attachments as TicketAttachment[]).length}
+                >
                   <div className="space-y-1">
                     {((caseData as any).attachments as TicketAttachment[]).map((att) => (
                       <button
@@ -2611,8 +2616,9 @@ function CaseDrawer({
                       </button>
                     ))}
                   </div>
-                </div>
+                </QASection>
               )}
+
 
               <QASection
                 title="Internal Patient Notes"
