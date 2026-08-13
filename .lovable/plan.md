@@ -20,7 +20,7 @@ All aging tags are removed when the appointment is scheduled, cancelled, or mark
 
 ## In the Portal
 
-- A small amber "Awaiting clinic scheduling" chip on unscheduled records, showing how long they have been waiting (e.g. "waiting 2 days").
+- A small amber "Awaiting clinic scheduling" chip on Prospero unscheduled records, showing how long they have been waiting (e.g. "waiting 2 days").
 - Once a date/time is saved, the chip disappears and the record behaves like a normal scheduled appointment (as it does today).
 - The Review Queue keeps its existing Unscheduled tab; the chip and waiting time show there as well.
 
@@ -30,10 +30,10 @@ Prospero Vascular and Interventional is not currently set up as an unscheduled-c
 
 ## Technical details
 
-- `ghl-webhook-handler`: add `'prospero vascular and interventional'` to `UNSCHEDULED_PROJECTS` and `UNSCHEDULED_PROJECTS_UPDATE`; after inserting/updating an unscheduled row, call `update-ghl-contact-tags` to add `awaiting-scheduling`.
+- `ghl-webhook-handler`: add `'prospero vascular and interventional'` to `UNSCHEDULED_PROJECTS` and `UNSCHEDULED_PROJECTS_UPDATE`; after inserting/updating a Prospero unscheduled row, call `update-ghl-contact-tags` to add `awaiting-scheduling`.
 - `all-appointments-api`: add Prospero to its `UNSCHEDULED_PROJECTS` set (same tag call on insert).
-- Scheduling moment: in `AppointmentCard.tsx` (and the equivalent confirm path in `DetailedAppointmentView.tsx`), where `is_unscheduled` is flipped to `false` on date+time confirm, fire a tag update: add `appointment-scheduled`, remove `awaiting-scheduling` + aging tags. Route through the existing `update-ghl-contact-tags` function so project-specific API keys are resolved server-side.
-- New edge function `sweep-awaiting-scheduling` (modeled on `sweep-short-notice-pending`, `verify_jwt = false`, run daily via cron): selects `all_appointments` rows with `is_unscheduled = true`, `date_of_appointment IS NULL`, non-terminal status; computes business-hours age from `created_at` using the project timezone; applies the 24h/72h tags; and self-heals by removing stale `awaiting-scheduling` tags from rows that have since been scheduled or hit a terminal status.
+- Scheduling moment: in `AppointmentCard.tsx` (and the equivalent confirm path in `DetailedAppointmentView.tsx`), where `is_unscheduled` is flipped to `false` on date+time confirm, fire a tag update for Prospero rows: add `appointment-scheduled`, remove `awaiting-scheduling` + aging tags. Route through the existing `update-ghl-contact-tags` function so project-specific API keys are resolved server-side.
+- New edge function `sweep-awaiting-scheduling` (modeled on `sweep-short-notice-pending`, `verify_jwt = false`, run daily via cron): selects Prospero `all_appointments` rows with `is_unscheduled = true`, `date_of_appointment IS NULL`, non-terminal status; computes business-hours age from `created_at` using the project timezone; applies the 24h/72h tags; and self-heals by removing stale `awaiting-scheduling` tags from rows that have since been scheduled or hit a terminal status. A single project constant makes it easy to add more clinics later.
 - Tag writes are idempotent (GHL add-tag is safe to repeat) and failures are logged without blocking the appointment write.
 
 Tag names above are the defaults — tell me if your GHL workflows expect different strings and I will use yours.
