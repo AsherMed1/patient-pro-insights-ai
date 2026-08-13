@@ -870,6 +870,36 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
   return { front: files[0].url, back: files[1]?.url ?? null };
 }
 
+// GHL upload values are opaque `documents/download/<id>` URLs with no filename in
+// them, so front/back hints never match and we fall back to arrival order — which
+// is not reliably front-first. A HEAD request exposes the original filename via
+// Content-Disposition, which IS reliable.
+async function resolveFileName(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    const cd = res.headers.get('content-disposition') || '';
+    const m = cd.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+    if (m) return decodeURIComponent(m[1].trim().replace(/"$/, ''));
+    // Some CDNs 302 to a URL that carries the filename in its path
+    if (res.url && res.url !== url) {
+      const tail = res.url.split('?')[0].split('/').pop() || '';
+      if (/\.(jpe?g|png|heic|heif|pdf|webp)$/i.test(tail)) return decodeURIComponent(tail);
+    }
+  } catch (e) {
+    console.warn('Filename lookup failed for insurance card URL:', (e as Error).message);
+  }
+  return '';
+}
+
+async function withResolvedNames(
+  files: Array<{ url: string; name: string }>
+): Promise<Array<{ url: string; name: string }>> {
+  if (files.length < 2) return files;
+  return await Promise.all(
+    files.map(async (f) => (f.name ? f : { ...f, name: await resolveFileName(f.url) }))
+  );
+}
+
 // Normalise custom fields (array or object shape) into [key, value] pairs
 function customFieldEntries(customFields: any): Array<[string, any]> {
   if (!customFields) return [];
