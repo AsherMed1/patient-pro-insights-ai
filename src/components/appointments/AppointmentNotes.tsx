@@ -75,7 +75,11 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   // Internal notes are team-only — clinic portal users never see the section.
   const isClinicUser = isProjectUser();
   // System (blue) notes are admin-only; they stay in the DB for audit either way.
-  const visibleNotes = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
+  const roleFiltered = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
+  // Clinic portal users only see notes explicitly marked clinic-visible.
+  const visibleNotes = isClinicUser
+    ? roleFiltered.filter((n) => (n.visibility ?? 'clinic') === 'clinic')
+    : roleFiltered;
 
 
   const handleAddNote = async () => {
