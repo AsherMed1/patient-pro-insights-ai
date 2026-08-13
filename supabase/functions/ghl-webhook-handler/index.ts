@@ -770,91 +770,161 @@ serve(async (req) => {
   }
 })
 
-// Helper: Extract URL from JSON format or plain string
-function extractUrlFromValue(value: any): string | null {
-  if (!value) return null;
-  
-  // If it's already a URL string
-  if (typeof value === 'string' && value.startsWith('http')) {
-    return value;
-  }
-  
-  // If it's a JSON string, try to parse and extract URL
-  if (typeof value === 'string' && value.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(value);
-      // GHL format: {"uuid": {"url": "https://...", ...}}
-      for (const key in parsed) {
-        if (parsed[key]?.url && typeof parsed[key].url === 'string') {
-          return parsed[key].url;
+// Helper: Collect ALL files (url + name) from a GHL upload field value.
+// GHL multi-file upload fields pack every uploaded file into a single value,
+// so returning only the first URL silently drops the back of the card.
+function extractFilesFromValue(value: any): Array<{ url: string; name: string }> {
+  const out: Array<{ url: string; name: string }> = [];
+  const seen = new Set<string>();
+
+  const push = (url: any, name?: any) => {
+    if (typeof url !== 'string') return;
+    const trimmed = url.trim();
+    if (!trimmed.startsWith('http') || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    out.push({ url: trimmed, name: typeof name === 'string' ? name : '' });
+  };
+
+  const walk = (val: any) => {
+    if (!val) return;
+
+    if (typeof val === 'string') {
+      const s = val.trim();
+      if (!s) return;
+      if (s.startsWith('{') || s.startsWith('[')) {
+        try {
+          walk(JSON.parse(s));
+          return;
+        } catch (_e) {
+          // fall through to plain-text handling
         }
       }
-    } catch (e) {
-      // Not valid JSON, ignore
-    }
-  }
-  
-  // If it's already an object with nested url
-  if (typeof value === 'object' && value !== null) {
-    for (const key in value) {
-      if (value[key]?.url && typeof value[key].url === 'string') {
-        return value[key].url;
+      // Plain string: may be a single URL or a comma/newline/space separated list
+      for (const part of s.split(/[\s,;]+/)) {
+        push(part);
       }
+      return;
     }
-  }
-  
-  return null;
+
+    if (Array.isArray(val)) {
+      for (const item of val) walk(item);
+      return;
+    }
+
+    if (typeof val === 'object') {
+      // Leaf-ish object describing one file
+      const url = (val as any).url ?? (val as any).fileUrl ?? (val as any).link;
+      const name = (val as any).name ?? (val as any).fileName ?? (val as any).originalName;
+      if (typeof url === 'string') {
+        push(url, name);
+        return;
+      }
+      // Container: { "<uuid>": { url, name }, ... }
+      for (const nested of Object.values(val)) walk(nested);
+    }
+  };
+
+  walk(value);
+  return out;
 }
 
-// Helper: Extract insurance card URL from custom fields
-function extractInsuranceCardUrl(customFields: any): string | null {
-  const insuranceFieldPatterns = [
-    'upload a copy of your insurance card',
-    'insurance_card',
-    'insurance_photo', 
-    'insurance_image',
-    'insurance_id_card',
-    'front_of_insurance_card',
-    'insurance card',
-    'card front',
-    'insurance front',
-    'insurance_id_link'
-  ]
-  
-  if (!customFields) return null
-  
-  // Handle array of custom fields (standard event format)
-  if (Array.isArray(customFields)) {
-    for (const field of customFields) {
-      const key = (field.key || '').toLowerCase()
-      const value = field.value || field.field_value
-      
-      if (insuranceFieldPatterns.some(pattern => key.includes(pattern))) {
-        const extractedUrl = extractUrlFromValue(value);
-        if (extractedUrl) {
-          console.log(`Found insurance card URL in field "${field.key}": ${extractedUrl}`)
-          return extractedUrl
-        }
-      }
-    }
-  }
-  
-  // Handle object of custom fields (workflow format)
-  if (typeof customFields === 'object' && !Array.isArray(customFields)) {
-    for (const [key, value] of Object.entries(customFields)) {
-      const keyLower = key.toLowerCase()
-      if (insuranceFieldPatterns.some(pattern => keyLower.includes(pattern))) {
-        const extractedUrl = extractUrlFromValue(value);
-        if (extractedUrl) {
-          console.log(`Found insurance card URL in field "${key}": ${extractedUrl}`)
-          return extractedUrl
-        }
-      }
-    }
-  }
-  
-  return null
+// Backwards-compatible single-URL helper (still used elsewhere)
+function extractUrlFromValue(value: any): string | null {
+  const files = extractFilesFromValue(value);
+  return files.length > 0 ? files[0].url : null;
 }
+
+const PRIMARY_CARD_PATTERNS = [
+  'upload a copy of your insurance card',
+  'insurance_card',
+  'insurance_photo',
+  'insurance_image',
+  'insurance_id_card',
+  'front_of_insurance_card',
+  'insurance card',
+  'card front',
+  'insurance front',
+  'insurance_id_link',
+];
+
+export interface InsuranceCardSlots {
+  primaryFront: string | null;
+  primaryBack: string | null;
+  secondaryFront: string | null;
+  secondaryBack: string | null;
+}
+
+// Assign collected files to front/back: filename hints win, otherwise use order.
+function assignFrontBack(files: Array<{ url: string; name: string }>): { front: string | null; back: string | null } {
+  if (files.length === 0) return { front: null, back: null };
+
+  const hint = (f: { url: string; name: string }) => `${f.name} ${f.url}`.toLowerCase();
+  const explicitBack = files.find((f) => /back/.test(hint(f)));
+  const explicitFront = files.find((f) => /front/.test(hint(f)) && f !== explicitBack);
+
+  if (explicitFront || explicitBack) {
+    const front = explicitFront?.url ?? files.find((f) => f !== explicitBack)?.url ?? null;
+    return { front, back: explicitBack?.url ?? null };
+  }
+
+  return { front: files[0].url, back: files[1]?.url ?? null };
+}
+
+// Normalise custom fields (array or object shape) into [key, value] pairs
+function customFieldEntries(customFields: any): Array<[string, any]> {
+  if (!customFields) return [];
+  if (Array.isArray(customFields)) {
+    return customFields.map((f: any) => [String(f?.key ?? '').toLowerCase(), f?.value ?? f?.field_value]);
+  }
+  if (typeof customFields === 'object') {
+    return Object.entries(customFields).map(([k, v]) => [k.toLowerCase(), v]);
+  }
+  return [];
+}
+
+// Helper: Resolve all four insurance card slots from custom fields.
+// Secondary is matched FIRST because "insurance_id_link_secondary" contains
+// "insurance_id_link" and would otherwise be misread as the primary card.
+function extractInsuranceCardSlots(customFields: any): InsuranceCardSlots {
+  const entries = customFieldEntries(customFields);
+  const empty: InsuranceCardSlots = { primaryFront: null, primaryBack: null, secondaryFront: null, secondaryBack: null };
+  if (entries.length === 0) return empty;
+
+  const isCardField = (key: string) => PRIMARY_CARD_PATTERNS.some((p) => key.includes(p));
+
+  const secondaryFiles: Array<{ url: string; name: string }> = [];
+  const primaryFiles: Array<{ url: string; name: string }> = [];
+
+  for (const [key, value] of entries) {
+    if (!isCardField(key)) continue;
+    const files = extractFilesFromValue(value);
+    if (files.length === 0) continue;
+    if (key.includes('secondary')) {
+      secondaryFiles.push(...files);
+    } else {
+      primaryFiles.push(...files);
+    }
+  }
+
+  const primary = assignFrontBack(primaryFiles);
+  const secondary = assignFrontBack(secondaryFiles);
+
+  const slots: InsuranceCardSlots = {
+    primaryFront: primary.front,
+    primaryBack: primary.back,
+    secondaryFront: secondary.front,
+    secondaryBack: secondary.back,
+  };
+
+  console.log('Resolved insurance card slots:', JSON.stringify(slots));
+  return slots;
+}
+
+// Helper: Extract primary insurance card front URL (legacy single-slot callers)
+function extractInsuranceCardUrl(customFields: any): string | null {
+  return extractInsuranceCardSlots(customFields).primaryFront;
+}
+
 
 // Extract data from webhook payload (supports both standard event and workflow formats)
 function extractWebhookData(payload: any, requestId: string) {
@@ -933,8 +1003,17 @@ function extractStandardEventFormat(payload: any) {
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
-    insurance_id_link: extractInsuranceCardUrl(contact.customFields || apt.customFields || payload.customFields),
-    insurance_intake_source: extractInsuranceIntakeSource(contact.customFields || apt.customFields || payload.customFields),
+    ...(() => {
+      const cf = contact.customFields || apt.customFields || payload.customFields
+      const slots = extractInsuranceCardSlots(cf)
+      return {
+        insurance_id_link: slots.primaryFront,
+        insurance_back_link: slots.primaryBack,
+        secondary_card_front_url: slots.secondaryFront,
+        secondary_card_back_url: slots.secondaryBack,
+        insurance_intake_source: extractInsuranceIntakeSource(cf),
+      }
+    })(),
   }
 }
 
@@ -999,8 +1078,16 @@ function extractWorkflowFormat(payload: any) {
     ])),
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
-    insurance_id_link: extractInsuranceCardUrl(rawCustomFields),
-    insurance_intake_source: extractInsuranceIntakeSource(rawCustomFields),
+    ...(() => {
+      const slots = extractInsuranceCardSlots(rawCustomFields)
+      return {
+        insurance_id_link: slots.primaryFront,
+        insurance_back_link: slots.primaryBack,
+        secondary_card_front_url: slots.secondaryFront,
+        secondary_card_back_url: slots.secondaryBack,
+        insurance_intake_source: extractInsuranceIntakeSource(rawCustomFields),
+      }
+    })(),
   }
 }
 
@@ -1415,6 +1502,20 @@ function getUpdateableFields(
         was_ever_confirmed: true,
         time_preference: timePreference,
         is_unscheduled: treatAsUnscheduled,
+        ...(webhookData.insurance_id_link ? { insurance_id_link: webhookData.insurance_id_link } : {}),
+        ...(webhookData.insurance_back_link ? { insurance_back_link: webhookData.insurance_back_link } : {}),
+        ...(webhookData.secondary_card_front_url || webhookData.secondary_card_back_url
+          ? {
+              parsed_insurance_info: {
+                ...(webhookData.secondary_card_front_url
+                  ? { secondary_card_front_url: webhookData.secondary_card_front_url }
+                  : {}),
+                ...(webhookData.secondary_card_back_url
+                  ? { secondary_card_back_url: webhookData.secondary_card_back_url }
+                  : {}),
+              },
+            }
+          : {}),
         ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
       }
     }
@@ -1637,10 +1738,28 @@ function getUpdateableFields(
     updateFields.dob = webhookData.dob
   }
   
-  // Insurance card link - update if local is empty
+  // Insurance card images — fill only empty slots so a GHL re-fire never overwrites
+  // an image a human uploaded in the Portal.
   if (!existingAppointment.insurance_id_link && webhookData.insurance_id_link) {
     updateFields.insurance_id_link = webhookData.insurance_id_link
   }
+  if (!existingAppointment.insurance_back_link && webhookData.insurance_back_link) {
+    updateFields.insurance_back_link = webhookData.insurance_back_link
+  }
+  {
+    const existingParsedIns = existingAppointment.parsed_insurance_info || {}
+    const secondaryPatch: Record<string, string> = {}
+    if (webhookData.secondary_card_front_url && !existingParsedIns.secondary_card_front_url) {
+      secondaryPatch.secondary_card_front_url = webhookData.secondary_card_front_url
+    }
+    if (webhookData.secondary_card_back_url && !existingParsedIns.secondary_card_back_url) {
+      secondaryPatch.secondary_card_back_url = webhookData.secondary_card_back_url
+    }
+    if (Object.keys(secondaryPatch).length > 0) {
+      updateFields.parsed_insurance_info = { ...existingParsedIns, ...secondaryPatch }
+    }
+  }
+
   
   // Patient intake notes - enrich existing notes with GHL data.
   //
@@ -2740,7 +2859,7 @@ async function enrichAppointmentWithGHLData(
     // Get current patient intake notes
     const { data: appointment } = await supabase
       .from('all_appointments')
-      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, dob, dob_verified_at')
+      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, insurance_back_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, dob, dob_verified_at')
       .eq('id', appointmentId)
       .single()
     
@@ -2866,6 +2985,9 @@ async function enrichAppointmentWithGHLData(
       return { provider, plan, id, group, cardUrl };
     };
     const ins = extractInsuranceFromCustomFields(customFields);
+    // All four card images (primary front/back, secondary front/back). GHL multi-file
+    // upload fields pack every file into one value, so this resolves each slot.
+    const cardSlots = extractInsuranceCardSlots(customFields);
     // Non-null merge over existing parsed_insurance_info so we never blank prior values.
     const existingParsedInsurance = (appointment as any)?.parsed_insurance_info || {};
     const mergedParsedInsurance = { ...existingParsedInsurance };
@@ -2873,7 +2995,16 @@ async function enrichAppointmentWithGHLData(
     if (ins.plan) mergedParsedInsurance.insurance_plan = ins.plan;
     if (ins.id) mergedParsedInsurance.insurance_id_number = ins.id;
     if (ins.group) mergedParsedInsurance.insurance_group_number = ins.group;
-    const hasAnyInsurance = ins.provider || ins.plan || ins.id || ins.group;
+    // Only fill empty slots — never overwrite an image a human uploaded in the Portal.
+    if (cardSlots.secondaryFront && !existingParsedInsurance.secondary_card_front_url) {
+      mergedParsedInsurance.secondary_card_front_url = cardSlots.secondaryFront;
+    }
+    if (cardSlots.secondaryBack && !existingParsedInsurance.secondary_card_back_url) {
+      mergedParsedInsurance.secondary_card_back_url = cardSlots.secondaryBack;
+    }
+    const hasAnyInsurance =
+      ins.provider || ins.plan || ins.id || ins.group || cardSlots.secondaryFront || cardSlots.secondaryBack;
+
 
     // Extract pathology (Neuropathy / GAE / PAD / UFE / etc. STEP answers) directly
     // from GHL custom fields. Auto-parse runs after this but has been observed to
@@ -3002,7 +3133,12 @@ async function enrichAppointmentWithGHLData(
       ...(ins.provider ? { detected_insurance_provider: ins.provider } : {}),
       ...(ins.plan ? { detected_insurance_plan: ins.plan } : {}),
       ...(ins.id ? { detected_insurance_id: ins.id } : {}),
-      ...(ins.cardUrl && !(appointment as any)?.insurance_id_link ? { insurance_id_link: ins.cardUrl } : {}),
+      ...((cardSlots.primaryFront || ins.cardUrl) && !(appointment as any)?.insurance_id_link
+        ? { insurance_id_link: cardSlots.primaryFront || ins.cardUrl }
+        : {}),
+      ...(cardSlots.primaryBack && !(appointment as any)?.insurance_back_link
+        ? { insurance_back_link: cardSlots.primaryBack }
+        : {}),
       ...(hasAnyPathology ? { parsed_pathology_info: mergedParsedPathology } : {}),
       updated_at: new Date().toISOString(),
     }
