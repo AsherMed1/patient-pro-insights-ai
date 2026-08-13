@@ -5278,6 +5278,17 @@ export type Database = {
         }
         Returns: string
       }
+      merge_appointment_insurance_cards: {
+        Args: {
+          _allow_primary_pair_correction?: boolean
+          _appointment_id: string
+          _primary_back?: string
+          _primary_front?: string
+          _secondary_back?: string
+          _secondary_front?: string
+        }
+        Returns: boolean
+      }
       merge_older_active_siblings: {
         Args: {
           new_row: Database["public"]["Tables"]["all_appointments"]["Row"]
