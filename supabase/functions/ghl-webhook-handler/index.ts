@@ -886,21 +886,56 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
 // them, so front/back hints never match and we fall back to arrival order — which
 // is not reliably front-first. A HEAD request exposes the original filename via
 // Content-Disposition, which IS reliable.
-async function resolveFileName(url: string): Promise<string> {
-  try {
-    const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-    const cd = res.headers.get('content-disposition') || '';
-    const m = cd.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
-    if (m) return decodeURIComponent(m[1].trim().replace(/"$/, ''));
-    // Some CDNs 302 to a URL that carries the filename in its path
-    if (res.url && res.url !== url) {
-      const tail = res.url.split('?')[0].split('/').pop() || '';
-      if (/\.(jpe?g|png|heic|heif|pdf|webp)$/i.test(tail)) return decodeURIComponent(tail);
+function fileNameFromResponse(res: Response, originalUrl: string): string {
+  const contentDisposition = res.headers.get('content-disposition') || '';
+  // RFC 5987: filename*=UTF-8''Card%20Front.jpg (optionally quoted)
+  const encoded = contentDisposition.match(/filename\*\s*=\s*(?:UTF-8'')?"?([^";]+)"?/i)?.[1];
+  // Traditional: filename="Card Front.jpg" or filename=Card-Front.jpg
+  const plain = contentDisposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;\s]+))/i);
+  const candidate = encoded || plain?.[1] || plain?.[2] || '';
+  if (candidate) {
+    try {
+      return decodeURIComponent(candidate.trim());
+    } catch (_error) {
+      return candidate.trim();
     }
-  } catch (e) {
-    console.warn('Filename lookup failed for insurance card URL:', (e as Error).message);
+  }
+
+  // Some CDNs redirect to a signed URL whose path carries the original filename.
+  if (res.url && res.url !== originalUrl) {
+    const tail = res.url.split('?')[0].split('/').pop() || '';
+    if (/\.(jpe?g|png|heic|heif|pdf|webp)$/i.test(tail)) {
+      try {
+        return decodeURIComponent(tail);
+      } catch (_error) {
+        return tail;
+      }
+    }
   }
   return '';
+}
+
+async function resolveFileName(url: string): Promise<string> {
+  try {
+    const head = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    const headName = fileNameFromResponse(head, url);
+    if (headName) return headName;
+
+    // LeadConnector's download endpoint does not consistently expose
+    // Content-Disposition to HEAD requests. A one-byte GET returns the same
+    // response headers without downloading the insurance image.
+    const partial = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: { Range: 'bytes=0-0' },
+    });
+    const getName = fileNameFromResponse(partial, url);
+    await partial.body?.cancel();
+    return getName;
+  } catch (e) {
+    console.warn('Filename lookup failed for insurance card URL:', (e as Error).message);
+    return '';
+  }
 }
 
 // Given an already-slotted pair, re-decide front/back from the real filenames.
@@ -3102,7 +3137,9 @@ async function enrichAppointmentWithGHLData(
     // All four card images (primary front/back, secondary front/back). GHL multi-file
     // upload fields pack every file into one value, so this resolves each slot.
     const cardSlots = await extractInsuranceCardSlotsWithNames(customFields);
-    // Non-null merge over existing parsed_insurance_info so we never blank prior values.
+    // Start with the snapshot used to format the enrichment. This is refreshed
+    // immediately before the write below so concurrent webhook/enrichment work
+    // cannot replace card URLs with stale JSONB.
     const existingParsedInsurance = (appointment as any)?.parsed_insurance_info || {};
     const mergedParsedInsurance = { ...existingParsedInsurance };
     if (ins.provider) mergedParsedInsurance.insurance_provider = ins.provider;
@@ -3256,6 +3293,67 @@ async function enrichAppointmentWithGHLData(
       ...(hasAnyPathology ? { parsed_pathology_info: mergedParsedPathology } : {}),
       updated_at: new Date().toISOString(),
     }
+    // Another webhook or parser can update this row while the GHL requests and
+    // filename lookups above are in flight. Merge card data onto the latest row,
+    // not the earlier appointment snapshot, and only fill empty slots.
+    const { data: latestAppointment, error: latestAppointmentError } = await supabase
+      .from('all_appointments')
+      .select('parsed_insurance_info, insurance_id_link, insurance_back_link')
+      .eq('id', appointmentId)
+      .single();
+
+    if (latestAppointmentError) {
+      console.error(`[${requestId}] Failed to refresh appointment before card merge:`, latestAppointmentError);
+      return;
+    }
+
+    const latestParsedInsurance =
+      latestAppointment?.parsed_insurance_info && typeof latestAppointment.parsed_insurance_info === 'object'
+        ? latestAppointment.parsed_insurance_info
+        : {};
+    const safeParsedInsurance = { ...latestParsedInsurance };
+    if (ins.provider) safeParsedInsurance.insurance_provider = ins.provider;
+    if (ins.plan) safeParsedInsurance.insurance_plan = ins.plan;
+    if (ins.id) safeParsedInsurance.insurance_id_number = ins.id;
+    if (ins.group) safeParsedInsurance.insurance_group_number = ins.group;
+    if (cardSlots.secondaryFront && !safeParsedInsurance.secondary_card_front_url) {
+      safeParsedInsurance.secondary_card_front_url = cardSlots.secondaryFront;
+    }
+    if (cardSlots.secondaryBack && !safeParsedInsurance.secondary_card_back_url) {
+      safeParsedInsurance.secondary_card_back_url = cardSlots.secondaryBack;
+    }
+    if (hasAnyInsurance || Object.keys(latestParsedInsurance).length > 0) {
+      enrichmentUpdate.parsed_insurance_info = safeParsedInsurance;
+    } else {
+      delete enrichmentUpdate.parsed_insurance_info;
+    }
+    const latestPrimaryFront = latestAppointment?.insurance_id_link || null;
+    const latestPrimaryBack = latestAppointment?.insurance_back_link || null;
+    const resolvedPrimaryPair = [cardSlots.primaryFront, cardSlots.primaryBack].filter(Boolean);
+    const storedPrimaryPair = [latestPrimaryFront, latestPrimaryBack].filter(Boolean);
+    const sameCompletePair =
+      resolvedPrimaryPair.length === 2 &&
+      storedPrimaryPair.length === 2 &&
+      resolvedPrimaryPair.every((url) => storedPrimaryPair.includes(url));
+
+    // Preserve staff-uploaded files, but correct an existing pair when the same
+    // two GHL files are merely reversed and filename evidence resolved the slots.
+    if (sameCompletePair) {
+      enrichmentUpdate.insurance_id_link = cardSlots.primaryFront;
+      enrichmentUpdate.insurance_back_link = cardSlots.primaryBack;
+    } else {
+      if (latestPrimaryFront) {
+        delete enrichmentUpdate.insurance_id_link;
+      } else if (cardSlots.primaryFront || ins.cardUrl) {
+        enrichmentUpdate.insurance_id_link = cardSlots.primaryFront || ins.cardUrl;
+      }
+      if (latestPrimaryBack) {
+        delete enrichmentUpdate.insurance_back_link;
+      } else if (cardSlots.primaryBack) {
+        enrichmentUpdate.insurance_back_link = cardSlots.primaryBack;
+      }
+    }
+
     if (hasAnyInsurance) {
       console.log(`[${requestId}] Extracted insurance from custom fields: provider=${ins.provider}, plan=${ins.plan}, id=${ins.id ? '***' : null}, group=${ins.group}`)
     }
