@@ -3101,7 +3101,12 @@ async function enrichAppointmentWithGHLData(
       ...(ins.provider ? { detected_insurance_provider: ins.provider } : {}),
       ...(ins.plan ? { detected_insurance_plan: ins.plan } : {}),
       ...(ins.id ? { detected_insurance_id: ins.id } : {}),
-      ...(ins.cardUrl && !(appointment as any)?.insurance_id_link ? { insurance_id_link: ins.cardUrl } : {}),
+      ...((cardSlots.primaryFront || ins.cardUrl) && !(appointment as any)?.insurance_id_link
+        ? { insurance_id_link: cardSlots.primaryFront || ins.cardUrl }
+        : {}),
+      ...(cardSlots.primaryBack && !(appointment as any)?.insurance_back_link
+        ? { insurance_back_link: cardSlots.primaryBack }
+        : {}),
       ...(hasAnyPathology ? { parsed_pathology_info: mergedParsedPathology } : {}),
       updated_at: new Date().toISOString(),
     }
