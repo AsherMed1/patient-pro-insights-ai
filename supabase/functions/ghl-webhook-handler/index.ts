@@ -903,6 +903,22 @@ async function resolveFileName(url: string): Promise<string> {
   return '';
 }
 
+// Given an already-slotted pair, re-decide front/back from the real filenames.
+async function orderFrontBackByFilename(
+  front: string | null | undefined,
+  back: string | null | undefined
+): Promise<{ front: string | null; back: string | null }> {
+  if (!front || !back) return { front: front ?? null, back: back ?? null };
+  const [frontName, backName] = await Promise.all([resolveFileName(front), resolveFileName(back)]);
+  const isBack = (n: string) => /back/i.test(n);
+  const isFront = (n: string) => /front/i.test(n);
+  if ((isBack(frontName) && !isBack(backName)) || (isFront(backName) && !isFront(frontName))) {
+    console.log('Swapping insurance card slots based on filenames:', JSON.stringify({ frontName, backName }));
+    return { front: back, back: front };
+  }
+  return { front, back };
+}
+
 async function withResolvedNames(
   files: Array<{ url: string; name: string }>
 ): Promise<Array<{ url: string; name: string }>> {
