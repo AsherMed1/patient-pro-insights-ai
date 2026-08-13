@@ -26,3 +26,9 @@ ControlHub tickets: `create-controlhub-ticket` edge function. Real API when `CON
 
 Reports (admin only): a "Reports" toggle in the QA Operations header renders `QAReports.tsx` — manager view over `qa_cases` with date range + clinic/QA/alert/category filters, summary cards (audits, errors, error rate, avg turnaround, caught-before-clinic, tickets), breakdowns by clinic / QA specialist / error category / error source / resolution, a weekly errors chart, and Excel (multi-sheet + Raw Cases) / CSV export. Turnaround = coalesce(date_resolved, completed_at) − coalesce(first_entered_at, entered_queue_at). Non-admins never see the toggle.
 
+
+History preservation (non-negotiable): completing or re-alerting a case must never erase history.
+- `qa_upsert_case` re-alert branch keeps `resolution_type` (Escalation Type), `date_resolved`, `escalation_status`, owner/escalator/escalated_at, and writes `realerted` + `cycle_snapshot` activity rows describing the closed cycle.
+- `qa_cases_escalation_status_sync` no longer rewrites a Resolved escalation to "Follow-Up Required" on reopen; the drawer shows a "Previously resolved" badge when a non-completed case still carries `escalation_status='Resolved'`.
+- The drawer renders a collapsible read-only "History for this patient" section aggregating `qa_case_notes` + `qa_case_activity` from sibling cases (same patient/appointment grouping), and surfaces a sibling's ControlHub ticket as a linked-ticket reference when the current case has none.
+- Only the explicit per-note delete button removes notes; nothing deletes notes/mentions/activity on completion.
