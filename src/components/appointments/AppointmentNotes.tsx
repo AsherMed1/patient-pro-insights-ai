@@ -166,15 +166,13 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
     }
   };
 
-  if (isClinicUser) return null;
-
   return (
     <div className="space-y-3">
       <div data-tour="internal-notes" className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">
-            Internal Notes ({visibleNotes.length})
+            {isClinicUser ? 'Notes' : 'Internal Notes'} ({visibleNotes.length})
           </span>
         </div>
         {!showAddForm && (
