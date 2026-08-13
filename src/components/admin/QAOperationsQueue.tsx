@@ -2546,6 +2546,54 @@ function CaseDrawer({
                 />
               )}
 
+              {!caseData.controlhub_ticket_id && (() => {
+                const linked = siblings.find((s) => s.controlhub_ticket_id);
+                if (!linked) return null;
+                return (
+                  <div className="rounded border p-2 text-xs space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Ticket className="h-3 w-3 shrink-0" />
+                      <span className="font-medium">Linked ticket on this patient</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {ALERT_LABELS[linked.alert_type]}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {linked.controlhub_ticket_url ? (
+                        <a
+                          href={linked.controlhub_ticket_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          {linked.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span>{linked.controlhub_ticket_id}</span>
+                      )}
+                      {linked.controlhub_ticket_status && (
+                        <Badge variant="outline" className={cn('text-[10px]', ticketStatusClass(linked.controlhub_ticket_status))}>
+                          {ticketStatusLabel(linked.controlhub_ticket_status)}
+                        </Badge>
+                      )}
+                      <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => onSwitchCase(linked)}>
+                        Open record
+                      </Button>
+                    </div>
+                    {linked.controlhub_ticket_last_activity && (
+                      <div className="text-muted-foreground break-words">
+                        {linked.controlhub_ticket_last_activity}
+                        {linked.controlhub_ticket_last_activity_at
+                          ? ` • ${format(new Date(linked.controlhub_ticket_last_activity_at), 'MMM d, h:mm a')}`
+                          : ''}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+
+
               {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
                 <div>
                   <div className="text-sm font-semibold mb-2">Ticket attachments</div>
