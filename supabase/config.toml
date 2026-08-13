@@ -191,6 +191,10 @@ verify_jwt = false
 verify_jwt = false
 # Scheduled sweep: auto-tags Pending Review records that enter the short-notice window
 
+[functions.sweep-awaiting-scheduling]
+verify_jwt = false
+# Daily sweep: aging awaiting-scheduling tags in GHL for unscheduled Prospero leads
+
 [functions.sync-ghl-appointment-times]
 verify_jwt = false
 # Reconciles portal appointment date/time against live GoHighLevel events (cron every 15m)
