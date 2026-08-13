@@ -1487,8 +1487,14 @@ function CaseDrawer({
 }) {
 
   const { user } = useAuth();
+  const { isAdmin } = useRole();
   const [notes, setNotes] = useState<QANote[]>([]);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const focusedNoteRef = useRef<HTMLDivElement | null>(null);
+
 
   // Scroll a mention-linked note into view once notes have loaded.
   useEffect(() => {
