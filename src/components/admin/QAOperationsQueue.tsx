@@ -2779,6 +2779,84 @@ function CaseDrawer({
                 </div>
               </div>
 
+              {(siblingNotes.length > 0 || siblingActivity.length > 0) && (
+                <div>
+                  <button
+                    type="button"
+                    className="text-sm font-semibold flex items-center gap-2 hover:underline"
+                    onClick={() => setHistoryOpen((v) => !v)}
+                  >
+                    History for this patient
+                    <Badge variant="outline" className="text-[10px]">
+                      {siblingNotes.length + siblingActivity.length}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {historyOpen ? 'Hide' : 'Show'}
+                    </span>
+                  </button>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Read-only notes and activity from this patient's other QA records.
+                  </div>
+                  {historyOpen && (
+                    <div className="mt-2 space-y-1 max-h-80 overflow-y-auto text-sm">
+                      {(() => {
+                        const labelFor = (cid: string) => {
+                          const s = siblings.find((x) => x.id === cid);
+                          return s ? ALERT_LABELS[s.alert_type] : 'Other record';
+                        };
+                        const entries = [
+                          ...siblingNotes.map((n) => ({
+                            id: `hn-${n.id}`,
+                            ts: n.created_at,
+                            caseId: (n as any).case_id as string,
+                            body: (
+                              <div className="min-w-0">
+                                <div className="text-xs text-muted-foreground">
+                                  Note by {n.author_name || 'Unknown'}
+                                </div>
+                                <div className="whitespace-pre-wrap break-words">
+                                  {renderNoteWithMentions(n.note)}
+                                </div>
+                              </div>
+                            ),
+                          })),
+                          ...siblingActivity.map((a) => ({
+                            id: `ha-${a.id}`,
+                            ts: a.created_at,
+                            caseId: (a as any).case_id as string,
+                            body: (
+                              <div className="min-w-0 break-words">
+                                {a.description
+                                  ? humanizeActivityDescription(a.description)
+                                  : ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                              </div>
+                            ),
+                          })),
+                        ].sort((x, y) => new Date(y.ts).getTime() - new Date(x.ts).getTime());
+
+                        return entries.map((e) => (
+                          <div key={e.id} className="border-b py-1.5 min-w-0">
+                            <div className="flex justify-between gap-2 min-w-0">
+                              <span className="flex items-start gap-1.5 min-w-0">
+                                <Badge variant="outline" className="shrink-0 text-[10px]">
+                                  {labelFor(e.caseId)}
+                                </Badge>
+                                {e.body}
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {format(new Date(e.ts), 'MMM d, h:mm a')}
+                              </span>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
+
             </div>
           </>
         )}
