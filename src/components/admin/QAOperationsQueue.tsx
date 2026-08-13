@@ -41,6 +41,8 @@ import { renderNoteWithMentions, parseMentions } from '@/lib/mentions';
 import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
+import QASection, { qaSectionSetAll } from '@/components/admin/QASection';
+
 
 // Column headers pin to the top of the table's own scroll container, which
 // itself sits below the frozen portal header, nav, title row and filter strip.
@@ -1513,7 +1515,7 @@ function CaseDrawer({
   const [activity, setActivity] = useState<QAActivity[]>([]);
   const [siblingNotes, setSiblingNotes] = useState<QANote[]>([]);
   const [siblingActivity, setSiblingActivity] = useState<QAActivity[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
@@ -2532,19 +2534,36 @@ function CaseDrawer({
                 )}
               </div>
 
+              <div className="flex items-center justify-end gap-1">
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => qaSectionSetAll(true)}>
+                  Expand all
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => qaSectionSetAll(false)}>
+                  Collapse all
+                </Button>
+              </div>
+
               {caseData.controlhub_ticket_id && (
-                <QATicketPanel
-                  caseId={caseData.id}
-                  ticketId={caseData.controlhub_ticket_id}
-                  ticketUrl={caseData.controlhub_ticket_url}
-                  ticketStatus={caseData.controlhub_ticket_status ?? null}
-                  assignee={caseData.controlhub_ticket_assignee ?? null}
-                  lastActivity={caseData.controlhub_ticket_last_activity ?? null}
-                  lastActivityAt={caseData.controlhub_ticket_last_activity_at ?? null}
-                  unread={!!caseData.controlhub_ticket_unread}
-                  onSeen={onRefresh}
-                />
+                <QASection
+                  title="ControlHub ticket"
+                  icon={Ticket}
+                  tone="ticket"
+                  storageKey="ticket"
+                >
+                  <QATicketPanel
+                    caseId={caseData.id}
+                    ticketId={caseData.controlhub_ticket_id}
+                    ticketUrl={caseData.controlhub_ticket_url}
+                    ticketStatus={caseData.controlhub_ticket_status ?? null}
+                    assignee={caseData.controlhub_ticket_assignee ?? null}
+                    lastActivity={caseData.controlhub_ticket_last_activity ?? null}
+                    lastActivityAt={caseData.controlhub_ticket_last_activity_at ?? null}
+                    unread={!!caseData.controlhub_ticket_unread}
+                    onSeen={onRefresh}
+                  />
+                </QASection>
               )}
+
 
               {!caseData.controlhub_ticket_id && (() => {
                 const linked = siblings.find((s) => s.controlhub_ticket_id);
@@ -2595,8 +2614,13 @@ function CaseDrawer({
 
 
               {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
-                <div>
-                  <div className="text-sm font-semibold mb-2">Ticket attachments</div>
+                <QASection
+                  title="Ticket attachments"
+                  icon={Paperclip}
+                  tone="neutral"
+                  storageKey="attachments"
+                  count={((caseData as any).attachments as TicketAttachment[]).length}
+                >
                   <div className="space-y-1">
                     {((caseData as any).attachments as TicketAttachment[]).map((att) => (
                       <button
@@ -2611,14 +2635,19 @@ function CaseDrawer({
                       </button>
                     ))}
                   </div>
-                </div>
+                </QASection>
               )}
 
-              <div>
-                <div className="text-sm font-semibold">Internal Patient Notes</div>
-                <div className="text-xs text-muted-foreground mb-2">
-                  Portal-only — not shared with ControlHub.
-                </div>
+
+              <QASection
+                title="Internal Patient Notes"
+                icon={Pencil}
+                tone="notes"
+                storageKey="notes"
+                count={notes.length}
+                subtitle="Portal-only — not shared with ControlHub"
+              >
+
 
                 <MentionTextarea
                   value={noteDraft}
@@ -2721,12 +2750,19 @@ function CaseDrawer({
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
                 </div>
-              </div>
+              </QASection>
 
 
-              <div>
-                <div className="text-sm font-semibold mb-2">Activity</div>
+
+              <QASection
+                title="Activity"
+                icon={Clock}
+                tone="activity"
+                storageKey="activity"
+                count={activity.length}
+              >
                 <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
+
                   {(() => {
                     const pinnedShortNoticeId =
                       caseData.alert_type !== 'short_notice'
@@ -2832,28 +2868,22 @@ function CaseDrawer({
                     });
                   })()}
                 </div>
-              </div>
+              </QASection>
+
 
               {(siblingNotes.length > 0 || siblingActivity.length > 0) && (
-                <div>
-                  <button
-                    type="button"
-                    className="text-sm font-semibold flex items-center gap-2 hover:underline"
-                    onClick={() => setHistoryOpen((v) => !v)}
-                  >
-                    History for this patient
-                    <Badge variant="outline" className="text-[10px]">
-                      {siblingNotes.length + siblingActivity.length}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground font-normal">
-                      {historyOpen ? 'Hide' : 'Show'}
-                    </span>
-                  </button>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Read-only notes and activity from this patient's other QA records.
-                  </div>
-                  {historyOpen && (
-                    <div className="mt-2 space-y-1 max-h-80 overflow-y-auto text-sm">
+                <QASection
+                  title="History for this patient"
+                  icon={Clock}
+                  tone="history"
+                  storageKey="history"
+                  defaultOpen={false}
+                  count={siblingNotes.length + siblingActivity.length}
+                  subtitle="Read-only notes and activity from other QA records"
+                >
+                  {(
+                    <div className="space-y-1 max-h-80 overflow-y-auto text-sm">
+
                       {(() => {
                         const labelFor = (cid: string) => {
                           const s = siblings.find((x) => x.id === cid);
@@ -2907,8 +2937,9 @@ function CaseDrawer({
                       })()}
                     </div>
                   )}
-                </div>
+                </QASection>
               )}
+
 
 
 
