@@ -1821,6 +1821,16 @@ const AppointmentCard = ({
                   No appointment date/time set
                 </span>
               )}
+              {isSchedulingTagProject(appointment.project_name) &&
+                appointment.is_unscheduled &&
+                !appointment.date_of_appointment && (
+                  <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 text-[11px]">
+                    Awaiting clinic scheduling
+                    {appointment.created_at
+                      ? ` — waiting ${formatDistanceToNowStrict(new Date(appointment.created_at))}`
+                      : ''}
+                  </Badge>
+                )}
               {(hasManagementAccess() || appointment.is_unscheduled) && (
                 <Popover open={dateTimePopoverOpen} onOpenChange={(open) => {
                   // Only allow opening via trigger; closing is handled by Cancel/Confirm buttons only
