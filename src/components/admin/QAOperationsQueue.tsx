@@ -2552,12 +2552,84 @@ function CaseDrawer({
                         n.id === focusNoteId && 'border-primary bg-primary/5',
                       )}
                     >
-                      <div className="text-xs text-muted-foreground flex justify-between">
-                        <span>{n.author_name || 'Unknown'}</span>
-                        <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
+                      <div className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+                        <span className="truncate">{n.author_name || 'Unknown'}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span>{format(new Date(n.created_at), 'MMM d, h:mm a')}</span>
+                          {n.edited_at && (
+                            <span
+                              className="italic"
+                              title={`Edited ${format(new Date(n.edited_at), 'MMM d, h:mm a')}`}
+                            >
+                              (edited)
+                            </span>
+                          )}
+                          {canModifyNote(n) && editingNoteId !== n.id && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                title="Edit note"
+                                onClick={() => startEditNote(n)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-destructive hover:text-destructive"
+                                    title="Delete note"
+                                    disabled={deletingNoteId === n.id}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This can't be undone. The note will be permanently removed from this QA record.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteNote(n.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                      {editingNoteId === n.id ? (
+                        <div className="mt-1 space-y-2">
+                          <MentionTextarea
+                            value={editingNoteText}
+                            onChange={setEditingNoteText}
+                            rows={3}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={saveNoteEdit} disabled={!editingNoteText.trim() || savingNote}>
+                              {savingNote ? 'Saving…' : 'Save'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={cancelEditNote} disabled={savingNote}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                      )}
                     </div>
+
                   ))}
                   {notes.length === 0 && <div className="text-xs text-muted-foreground">No notes yet.</div>}
                 </div>
