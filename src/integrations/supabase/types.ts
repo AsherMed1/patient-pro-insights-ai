@@ -3469,6 +3469,7 @@ export type Database = {
           author_user_id: string | null
           case_id: string
           created_at: string
+          edited_at: string | null
           id: string
           note: string
         }
@@ -3477,6 +3478,7 @@ export type Database = {
           author_user_id?: string | null
           case_id: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           note: string
         }
@@ -3485,6 +3487,7 @@ export type Database = {
           author_user_id?: string | null
           case_id?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           note?: string
         }
