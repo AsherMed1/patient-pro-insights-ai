@@ -102,7 +102,12 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       setUploading(false);
     }
 
-    const created = await addNote(newNote, userName, uploaded);
+    const created = await addNote(
+      newNote,
+      userName,
+      uploaded,
+      isClinicUser ? 'clinic' : (noteInternal ? 'internal' : 'clinic'),
+    );
     if (created) {
       const mentioned = parseMentions(newNote);
       if (mentioned.length > 0) {
