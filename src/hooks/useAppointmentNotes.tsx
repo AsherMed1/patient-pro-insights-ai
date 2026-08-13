@@ -12,6 +12,7 @@ interface AppointmentNote {
   last_edited_by?: string | null;
   last_edited_at?: string | null;
   attachments?: any;
+  visibility?: 'internal' | 'clinic';
 }
 
 
