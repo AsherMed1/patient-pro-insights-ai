@@ -156,6 +156,8 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
     }
   };
 
+  if (isClinicUser) return null;
+
   return (
     <div className="space-y-3">
       <div data-tour="internal-notes" className="flex items-center justify-between">
