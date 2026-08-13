@@ -20,7 +20,7 @@ So the multi-file extraction is working (two primary files landed), but:
 
 ### 1. Log the raw upload fields (diagnosis, keeps running in production)
 
-In `ghl-webhook-handler`, log every custom-field key whose value contains a document URL, together with how many files each key yielded and which slot it was assigned. This makes the secondary question answerable on the next fire instead of guessed at.
+In `ghl-webhook-handler`, log every incoming custom-field key with its raw value shape — including keys that arrive empty — plus how many files each yielded and which slot it was assigned. An empty `insurance_id_link_secondary` in that log proves the merge tag did not resolve on the GHL side (wrong field key in the workflow); a populated one that lands in the wrong slot proves it is a handler bug. Either way the next fire answers it.
 
 ### 2. Recognise every secondary naming variant
 
