@@ -192,7 +192,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       {showAddForm && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Add Internal Note</CardTitle>
+            <CardTitle className="text-sm">{isClinicUser ? 'Add Note' : 'Add Internal Note'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <ImageAttachInput
