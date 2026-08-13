@@ -2359,6 +2359,13 @@ function CaseDrawer({
                       ))}
                     </SelectContent>
                   </Select>
+                  {caseData.escalation_status === 'Resolved' && caseData.workflow_status !== 'completed' && (
+                    <div className="mt-1">
+                      <Badge variant="outline" className={cn('text-[10px]', escalationStatusClass('Resolved'))}>
+                        Previously resolved
+                      </Badge>
+                    </div>
+                  )}
                   {caseData.escalated_at && (
                     <div className="mt-1 text-[11px] text-muted-foreground">
                       Escalated {format(new Date(caseData.escalated_at), 'MMM d, yyyy h:mm a')}
