@@ -2953,6 +2953,9 @@ async function enrichAppointmentWithGHLData(
       return { provider, plan, id, group, cardUrl };
     };
     const ins = extractInsuranceFromCustomFields(customFields);
+    // All four card images (primary front/back, secondary front/back). GHL multi-file
+    // upload fields pack every file into one value, so this resolves each slot.
+    const cardSlots = extractInsuranceCardSlots(customFields);
     // Non-null merge over existing parsed_insurance_info so we never blank prior values.
     const existingParsedInsurance = (appointment as any)?.parsed_insurance_info || {};
     const mergedParsedInsurance = { ...existingParsedInsurance };
@@ -2960,7 +2963,16 @@ async function enrichAppointmentWithGHLData(
     if (ins.plan) mergedParsedInsurance.insurance_plan = ins.plan;
     if (ins.id) mergedParsedInsurance.insurance_id_number = ins.id;
     if (ins.group) mergedParsedInsurance.insurance_group_number = ins.group;
-    const hasAnyInsurance = ins.provider || ins.plan || ins.id || ins.group;
+    // Only fill empty slots — never overwrite an image a human uploaded in the Portal.
+    if (cardSlots.secondaryFront && !existingParsedInsurance.secondary_card_front_url) {
+      mergedParsedInsurance.secondary_card_front_url = cardSlots.secondaryFront;
+    }
+    if (cardSlots.secondaryBack && !existingParsedInsurance.secondary_card_back_url) {
+      mergedParsedInsurance.secondary_card_back_url = cardSlots.secondaryBack;
+    }
+    const hasAnyInsurance =
+      ins.provider || ins.plan || ins.id || ins.group || cardSlots.secondaryFront || cardSlots.secondaryBack;
+
 
     // Extract pathology (Neuropathy / GAE / PAD / UFE / etc. STEP answers) directly
     // from GHL custom fields. Auto-parse runs after this but has been observed to
