@@ -41,11 +41,69 @@ const UNSCHEDULED_CAPTURE_PROJECTS = new Set([
   'ecco medical',
   'davis vein & vascular',
   'horizon vascular specialists',
+  'prospero vascular and interventional',
 ])
 
 function isUnscheduledCaptureProject(projectName: any): boolean {
   return UNSCHEDULED_CAPTURE_PROJECTS.has(normalizeProjectName(String(projectName || '')).toLowerCase())
 }
+
+// Projects whose GHL contacts carry scheduling-state tags so GHL workflows can
+// message patients who are still waiting on the clinic to set a date/time.
+const SCHEDULING_TAG_PROJECTS = new Set([
+  'prospero vascular and interventional',
+])
+
+const AWAITING_TAG = 'awaiting-scheduling'
+const AWAITING_AGING_TAGS = ['awaiting-scheduling-24h', 'awaiting-scheduling-72h']
+const SCHEDULED_TAG = 'appointment-scheduled'
+
+function isSchedulingTagProject(projectName: any): boolean {
+  return SCHEDULING_TAG_PROJECTS.has(normalizeProjectName(String(projectName || '')).toLowerCase())
+}
+
+// Fire-and-forget: keep the GHL contact's scheduling tags in sync with the row's
+// scheduled/unscheduled state. Failures are logged, never blocking the write.
+async function syncSchedulingTags(supabase: any, record: any, requestId: string) {
+  try {
+    if (!record?.ghl_id || !isSchedulingTagProject(record.project_name)) return
+    const terminal = ['cancelled', 'canceled', 'no show', 'noshow', 'oon', 'do not call', 'donotcall']
+    const status = String(record.status || '').toLowerCase().trim()
+    const isTerminal = terminal.some((t) => status.includes(t))
+    const awaiting = !isTerminal && record.is_unscheduled === true && !record.date_of_appointment
+
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('ghl_api_key')
+      .eq('project_name', record.project_name)
+      .maybeSingle()
+    const ghl_api_key = projectData?.ghl_api_key || undefined
+
+    const call = (tags: string[], action: 'add' | 'remove') =>
+      supabase.functions
+        .invoke('update-ghl-contact-tags', {
+          body: {
+            ghl_contact_id: record.ghl_id,
+            ghl_api_key,
+            tags,
+            action,
+            source: 'scheduling-state sync (ghl-webhook-handler)',
+          },
+        })
+        .catch((e: unknown) => console.error(`[${requestId}] scheduling tag ${action} failed:`, e))
+
+    if (awaiting) {
+      await call([AWAITING_TAG], 'add')
+      await call([SCHEDULED_TAG], 'remove')
+    } else {
+      await call([AWAITING_TAG, ...AWAITING_AGING_TAGS], 'remove')
+      if (!isTerminal && record.date_of_appointment) await call([SCHEDULED_TAG], 'add')
+    }
+  } catch (e) {
+    console.error(`[${requestId}] syncSchedulingTags threw:`, e)
+  }
+}
+
 
 function isPlaceholderProjectName(projectName: any): boolean {
   const s = String(projectName || '').trim().toLowerCase()
