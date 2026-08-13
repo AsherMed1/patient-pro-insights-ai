@@ -2900,8 +2900,9 @@ function CaseDrawer({
                       })()}
                     </div>
                   )}
-                </div>
+                </QASection>
               )}
+
 
 
 
