@@ -1511,6 +1511,9 @@ function CaseDrawer({
     return () => clearTimeout(t);
   }, [focusNoteId, notes]);
   const [activity, setActivity] = useState<QAActivity[]>([]);
+  const [siblingNotes, setSiblingNotes] = useState<QANote[]>([]);
+  const [siblingActivity, setSiblingActivity] = useState<QAActivity[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
@@ -1662,6 +1665,32 @@ function CaseDrawer({
     })();
     return () => { cancelled = true; };
   }, [caseData?.id, user?.email]);
+
+  // Patient-level history: notes + activity recorded on the sibling QA records
+  // for the same patient/appointment. Completing or re-alerting a record must
+  // never make prior work invisible, so we surface it read-only here.
+  const siblingIdsKey = siblings.map((s) => s.id).sort().join(',');
+  useEffect(() => {
+    const ids = siblingIdsKey ? siblingIdsKey.split(',') : [];
+    if (ids.length === 0) {
+      setSiblingNotes([]);
+      setSiblingActivity([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [n, a] = await Promise.all([
+        supabase.from('qa_case_notes' as any).select('*').in('case_id', ids).order('created_at', { ascending: false }),
+        supabase.from('qa_case_activity' as any).select('*').in('case_id', ids).order('created_at', { ascending: false }),
+      ]);
+      if (cancelled) return;
+      setSiblingNotes(((n.data as any) || []) as QANote[]);
+      setSiblingActivity(((a.data as any) || []) as QAActivity[]);
+    })();
+    return () => { cancelled = true; };
+  }, [siblingIdsKey]);
+
+
 
   const isDirty = !!caseData && !sameAudit(audit, savedSnapshotRef.current);
 
@@ -2330,6 +2359,13 @@ function CaseDrawer({
                       ))}
                     </SelectContent>
                   </Select>
+                  {caseData.escalation_status === 'Resolved' && caseData.workflow_status !== 'completed' && (
+                    <div className="mt-1">
+                      <Badge variant="outline" className={cn('text-[10px]', escalationStatusClass('Resolved'))}>
+                        Previously resolved
+                      </Badge>
+                    </div>
+                  )}
                   {caseData.escalated_at && (
                     <div className="mt-1 text-[11px] text-muted-foreground">
                       Escalated {format(new Date(caseData.escalated_at), 'MMM d, yyyy h:mm a')}
@@ -2509,6 +2545,54 @@ function CaseDrawer({
                   onSeen={onRefresh}
                 />
               )}
+
+              {!caseData.controlhub_ticket_id && (() => {
+                const linked = siblings.find((s) => s.controlhub_ticket_id);
+                if (!linked) return null;
+                return (
+                  <div className="rounded border p-2 text-xs space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Ticket className="h-3 w-3 shrink-0" />
+                      <span className="font-medium">Linked ticket on this patient</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {ALERT_LABELS[linked.alert_type]}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {linked.controlhub_ticket_url ? (
+                        <a
+                          href={linked.controlhub_ticket_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          {linked.controlhub_ticket_id} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span>{linked.controlhub_ticket_id}</span>
+                      )}
+                      {linked.controlhub_ticket_status && (
+                        <Badge variant="outline" className={cn('text-[10px]', ticketStatusClass(linked.controlhub_ticket_status))}>
+                          {ticketStatusLabel(linked.controlhub_ticket_status)}
+                        </Badge>
+                      )}
+                      <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => onSwitchCase(linked)}>
+                        Open record
+                      </Button>
+                    </div>
+                    {linked.controlhub_ticket_last_activity && (
+                      <div className="text-muted-foreground break-words">
+                        {linked.controlhub_ticket_last_activity}
+                        {linked.controlhub_ticket_last_activity_at
+                          ? ` • ${format(new Date(linked.controlhub_ticket_last_activity_at), 'MMM d, h:mm a')}`
+                          : ''}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+
 
               {Array.isArray((caseData as any).attachments) && (caseData as any).attachments.length > 0 && (
                 <div>
@@ -2749,6 +2833,84 @@ function CaseDrawer({
                   })()}
                 </div>
               </div>
+
+              {(siblingNotes.length > 0 || siblingActivity.length > 0) && (
+                <div>
+                  <button
+                    type="button"
+                    className="text-sm font-semibold flex items-center gap-2 hover:underline"
+                    onClick={() => setHistoryOpen((v) => !v)}
+                  >
+                    History for this patient
+                    <Badge variant="outline" className="text-[10px]">
+                      {siblingNotes.length + siblingActivity.length}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {historyOpen ? 'Hide' : 'Show'}
+                    </span>
+                  </button>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Read-only notes and activity from this patient's other QA records.
+                  </div>
+                  {historyOpen && (
+                    <div className="mt-2 space-y-1 max-h-80 overflow-y-auto text-sm">
+                      {(() => {
+                        const labelFor = (cid: string) => {
+                          const s = siblings.find((x) => x.id === cid);
+                          return s ? ALERT_LABELS[s.alert_type] : 'Other record';
+                        };
+                        const entries = [
+                          ...siblingNotes.map((n) => ({
+                            id: `hn-${n.id}`,
+                            ts: n.created_at,
+                            caseId: (n as any).case_id as string,
+                            body: (
+                              <div className="min-w-0">
+                                <div className="text-xs text-muted-foreground">
+                                  Note by {n.author_name || 'Unknown'}
+                                </div>
+                                <div className="whitespace-pre-wrap break-words">
+                                  {renderNoteWithMentions(n.note)}
+                                </div>
+                              </div>
+                            ),
+                          })),
+                          ...siblingActivity.map((a) => ({
+                            id: `ha-${a.id}`,
+                            ts: a.created_at,
+                            caseId: (a as any).case_id as string,
+                            body: (
+                              <div className="min-w-0 break-words">
+                                {a.description
+                                  ? humanizeActivityDescription(a.description)
+                                  : ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                              </div>
+                            ),
+                          })),
+                        ].sort((x, y) => new Date(y.ts).getTime() - new Date(x.ts).getTime());
+
+                        return entries.map((e) => (
+                          <div key={e.id} className="border-b py-1.5 min-w-0">
+                            <div className="flex justify-between gap-2 min-w-0">
+                              <span className="flex items-start gap-1.5 min-w-0">
+                                <Badge variant="outline" className="shrink-0 text-[10px]">
+                                  {labelFor(e.caseId)}
+                                </Badge>
+                                {e.body}
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {format(new Date(e.ts), 'MMM d, h:mm a')}
+                              </span>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
 
             </div>
           </>
