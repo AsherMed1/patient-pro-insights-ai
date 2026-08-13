@@ -608,6 +608,21 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Appointment ${isUpdate ? 'updated' : 'created'}:`, appointmentRecord.id)
 
+
+    // Card URLs have their own atomic merge path. This protects them from
+    // overlapping webhook, enrichment, and AI-parser whole-JSON writes.
+    await persistInsuranceCardSlots(
+      supabase,
+      appointmentRecord.id,
+      {
+        primaryFront: webhookData.insurance_id_link || null,
+        primaryBack: webhookData.insurance_back_link || null,
+        secondaryFront: webhookData.secondary_card_front_url || null,
+        secondaryBack: webhookData.secondary_card_back_url || null,
+      },
+      requestId,
+    )
+
     // De-duplication: one GHL contact should surface exactly one active row per project.
     // When a brand-new booking row is created, retire the contact's older/closed rows.
     if (!isUpdate && appointmentRecord?.ghl_id && appointmentRecord?.project_name) {
@@ -864,6 +879,31 @@ export interface InsuranceCardSlots {
   primaryBack: string | null;
   secondaryFront: string | null;
   secondaryBack: string | null;
+}
+
+async function persistInsuranceCardSlots(
+  supabase: any,
+  appointmentId: string,
+  slots: InsuranceCardSlots,
+  requestId: string,
+  allowPrimaryPairCorrection = false,
+) {
+  if (!slots.primaryFront && !slots.primaryBack && !slots.secondaryFront && !slots.secondaryBack) return;
+
+  const { data, error } = await supabase.rpc('merge_appointment_insurance_cards', {
+    _appointment_id: appointmentId,
+    _primary_front: slots.primaryFront,
+    _primary_back: slots.primaryBack,
+    _secondary_front: slots.secondaryFront,
+    _secondary_back: slots.secondaryBack,
+    _allow_primary_pair_correction: allowPrimaryPairCorrection,
+  });
+
+  if (error) {
+    console.error(`[${requestId}] Failed to persist insurance card slots atomically:`, error);
+    return;
+  }
+  console.log(`[${requestId}] Insurance card slots persisted atomically:`, data);
 }
 
 // Assign collected files to front/back: filename hints win, otherwise use order.
@@ -3146,15 +3186,11 @@ async function enrichAppointmentWithGHLData(
     if (ins.plan) mergedParsedInsurance.insurance_plan = ins.plan;
     if (ins.id) mergedParsedInsurance.insurance_id_number = ins.id;
     if (ins.group) mergedParsedInsurance.insurance_group_number = ins.group;
-    // Only fill empty slots — never overwrite an image a human uploaded in the Portal.
-    if (cardSlots.secondaryFront && !existingParsedInsurance.secondary_card_front_url) {
-      mergedParsedInsurance.secondary_card_front_url = cardSlots.secondaryFront;
-    }
-    if (cardSlots.secondaryBack && !existingParsedInsurance.secondary_card_back_url) {
-      mergedParsedInsurance.secondary_card_back_url = cardSlots.secondaryBack;
-    }
-    const hasAnyInsurance =
-      ins.provider || ins.plan || ins.id || ins.group || cardSlots.secondaryFront || cardSlots.secondaryBack;
+    // Card URLs are persisted separately through an atomic database function.
+    // Keep this whole-object update limited to textual insurance details.
+    delete mergedParsedInsurance.secondary_card_front_url;
+    delete mergedParsedInsurance.secondary_card_back_url;
+    const hasAnyInsurance = ins.provider || ins.plan || ins.id || ins.group;
 
 
     // Extract pathology (Neuropathy / GAE / PAD / UFE / etc. STEP answers) directly
@@ -3284,12 +3320,6 @@ async function enrichAppointmentWithGHLData(
       ...(ins.provider ? { detected_insurance_provider: ins.provider } : {}),
       ...(ins.plan ? { detected_insurance_plan: ins.plan } : {}),
       ...(ins.id ? { detected_insurance_id: ins.id } : {}),
-      ...((cardSlots.primaryFront || ins.cardUrl) && !(appointment as any)?.insurance_id_link
-        ? { insurance_id_link: cardSlots.primaryFront || ins.cardUrl }
-        : {}),
-      ...(cardSlots.primaryBack && !(appointment as any)?.insurance_back_link
-        ? { insurance_back_link: cardSlots.primaryBack }
-        : {}),
       ...(hasAnyPathology ? { parsed_pathology_info: mergedParsedPathology } : {}),
       updated_at: new Date().toISOString(),
     }
@@ -3316,12 +3346,8 @@ async function enrichAppointmentWithGHLData(
     if (ins.plan) safeParsedInsurance.insurance_plan = ins.plan;
     if (ins.id) safeParsedInsurance.insurance_id_number = ins.id;
     if (ins.group) safeParsedInsurance.insurance_group_number = ins.group;
-    if (cardSlots.secondaryFront && !safeParsedInsurance.secondary_card_front_url) {
-      safeParsedInsurance.secondary_card_front_url = cardSlots.secondaryFront;
-    }
-    if (cardSlots.secondaryBack && !safeParsedInsurance.secondary_card_back_url) {
-      safeParsedInsurance.secondary_card_back_url = cardSlots.secondaryBack;
-    }
+    delete safeParsedInsurance.secondary_card_front_url;
+    delete safeParsedInsurance.secondary_card_back_url;
     if (hasAnyInsurance || Object.keys(latestParsedInsurance).length > 0) {
       enrichmentUpdate.parsed_insurance_info = safeParsedInsurance;
     } else {
@@ -3335,24 +3361,6 @@ async function enrichAppointmentWithGHLData(
       resolvedPrimaryPair.length === 2 &&
       storedPrimaryPair.length === 2 &&
       resolvedPrimaryPair.every((url) => storedPrimaryPair.includes(url));
-
-    // Preserve staff-uploaded files, but correct an existing pair when the same
-    // two GHL files are merely reversed and filename evidence resolved the slots.
-    if (sameCompletePair) {
-      enrichmentUpdate.insurance_id_link = cardSlots.primaryFront;
-      enrichmentUpdate.insurance_back_link = cardSlots.primaryBack;
-    } else {
-      if (latestPrimaryFront) {
-        delete enrichmentUpdate.insurance_id_link;
-      } else if (cardSlots.primaryFront || ins.cardUrl) {
-        enrichmentUpdate.insurance_id_link = cardSlots.primaryFront || ins.cardUrl;
-      }
-      if (latestPrimaryBack) {
-        delete enrichmentUpdate.insurance_back_link;
-      } else if (cardSlots.primaryBack) {
-        enrichmentUpdate.insurance_back_link = cardSlots.primaryBack;
-      }
-    }
 
     if (hasAnyInsurance) {
       console.log(`[${requestId}] Extracted insurance from custom fields: provider=${ins.provider}, plan=${ins.plan}, id=${ins.id ? '***' : null}, group=${ins.group}`)
@@ -3370,6 +3378,17 @@ async function enrichAppointmentWithGHLData(
       console.error(`[${requestId}] Failed to update appointment with enriched notes:`, updateError)
       return
     }
+
+    await persistInsuranceCardSlots(
+      supabase,
+      appointmentId,
+      {
+        ...cardSlots,
+        primaryFront: cardSlots.primaryFront || ins.cardUrl,
+      },
+      requestId,
+      sameCompletePair,
+    );
     
     console.log(`[${requestId}] ✅ Successfully enriched appointment with ${customFields.length} custom fields`)
     
