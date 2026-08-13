@@ -127,6 +127,18 @@ serve(async (req) => {
 
     // Detect webhook format and extract data
     const webhookData = extractWebhookData(payload, requestId)
+
+    // GHL sends nameless download URLs, so the initial front/back split is only a
+    // guess based on arrival order. Look up the real filenames and correct it.
+    if (webhookData) {
+      const primary = await orderFrontBackByFilename(webhookData.insurance_id_link, webhookData.insurance_back_link)
+      webhookData.insurance_id_link = primary.front
+      webhookData.insurance_back_link = primary.back
+      const secondary = await orderFrontBackByFilename(webhookData.secondary_card_front_url, webhookData.secondary_card_back_url)
+      webhookData.secondary_card_front_url = secondary.front
+      webhookData.secondary_card_back_url = secondary.back
+    }
+    
     
     if (!webhookData) {
       return new Response(
@@ -870,6 +882,52 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
   return { front: files[0].url, back: files[1]?.url ?? null };
 }
 
+// GHL upload values are opaque `documents/download/<id>` URLs with no filename in
+// them, so front/back hints never match and we fall back to arrival order — which
+// is not reliably front-first. A HEAD request exposes the original filename via
+// Content-Disposition, which IS reliable.
+async function resolveFileName(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    const cd = res.headers.get('content-disposition') || '';
+    const m = cd.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+    if (m) return decodeURIComponent(m[1].trim().replace(/"$/, ''));
+    // Some CDNs 302 to a URL that carries the filename in its path
+    if (res.url && res.url !== url) {
+      const tail = res.url.split('?')[0].split('/').pop() || '';
+      if (/\.(jpe?g|png|heic|heif|pdf|webp)$/i.test(tail)) return decodeURIComponent(tail);
+    }
+  } catch (e) {
+    console.warn('Filename lookup failed for insurance card URL:', (e as Error).message);
+  }
+  return '';
+}
+
+// Given an already-slotted pair, re-decide front/back from the real filenames.
+async function orderFrontBackByFilename(
+  front: string | null | undefined,
+  back: string | null | undefined
+): Promise<{ front: string | null; back: string | null }> {
+  if (!front || !back) return { front: front ?? null, back: back ?? null };
+  const [frontName, backName] = await Promise.all([resolveFileName(front), resolveFileName(back)]);
+  const isBack = (n: string) => /back/i.test(n);
+  const isFront = (n: string) => /front/i.test(n);
+  if ((isBack(frontName) && !isBack(backName)) || (isFront(backName) && !isFront(frontName))) {
+    console.log('Swapping insurance card slots based on filenames:', JSON.stringify({ frontName, backName }));
+    return { front: back, back: front };
+  }
+  return { front, back };
+}
+
+async function withResolvedNames(
+  files: Array<{ url: string; name: string }>
+): Promise<Array<{ url: string; name: string }>> {
+  if (files.length < 2) return files;
+  return await Promise.all(
+    files.map(async (f) => (f.name ? f : { ...f, name: await resolveFileName(f.url) }))
+  );
+}
+
 // Normalise custom fields (array or object shape) into [key, value] pairs
 function customFieldEntries(customFields: any): Array<[string, any]> {
   if (!customFields) return [];
@@ -885,26 +943,50 @@ function customFieldEntries(customFields: any): Array<[string, any]> {
 // Helper: Resolve all four insurance card slots from custom fields.
 // Secondary is matched FIRST because "insurance_id_link_secondary" contains
 // "insurance_id_link" and would otherwise be misread as the primary card.
-function extractInsuranceCardSlots(customFields: any): InsuranceCardSlots {
-  const entries = customFieldEntries(customFields);
-  const empty: InsuranceCardSlots = { primaryFront: null, primaryBack: null, secondaryFront: null, secondaryBack: null };
-  if (entries.length === 0) return empty;
+// "secondary" is not the only spelling GHL users give the second upload field —
+// "(2)", "_2", " 2" and "2nd" all show up, same tolerance the insurance text
+// extractor already applies.
+const SECONDARY_KEY_RE = /secondary|2nd|\(2\)|[_\s-]2\b|_2$/;
 
+function collectInsuranceCardFiles(customFields: any): {
+  primaryFiles: Array<{ url: string; name: string }>;
+  secondaryFiles: Array<{ url: string; name: string }>;
+} {
+  const entries = customFieldEntries(customFields);
   const isCardField = (key: string) => PRIMARY_CARD_PATTERNS.some((p) => key.includes(p));
 
   const secondaryFiles: Array<{ url: string; name: string }> = [];
   const primaryFiles: Array<{ url: string; name: string }> = [];
+  const diagnostics: Array<Record<string, unknown>> = [];
 
   for (const [key, value] of entries) {
     if (!isCardField(key)) continue;
     const files = extractFilesFromValue(value);
+    const isSecondary = SECONDARY_KEY_RE.test(key);
+    // Log every card-ish key, INCLUDING empty ones: an empty
+    // insurance_id_link_secondary proves the GHL merge tag never resolved.
+    diagnostics.push({
+      key,
+      slot: isSecondary ? 'secondary' : 'primary',
+      files: files.length,
+      rawType: typeof value,
+      rawEmpty: value === null || value === undefined || String(value).trim() === '',
+      rawPreview: typeof value === 'string' ? String(value).slice(0, 120) : undefined,
+    });
     if (files.length === 0) continue;
-    if (key.includes('secondary')) {
-      secondaryFiles.push(...files);
-    } else {
-      primaryFiles.push(...files);
-    }
+    if (isSecondary) secondaryFiles.push(...files);
+    else primaryFiles.push(...files);
   }
+
+  if (diagnostics.length > 0) {
+    console.log('Insurance card fields seen:', JSON.stringify(diagnostics));
+  }
+
+  return { primaryFiles, secondaryFiles };
+}
+
+function extractInsuranceCardSlots(customFields: any): InsuranceCardSlots {
+  const { primaryFiles, secondaryFiles } = collectInsuranceCardFiles(customFields);
 
   const primary = assignFrontBack(primaryFiles);
   const secondary = assignFrontBack(secondaryFiles);
@@ -917,6 +999,38 @@ function extractInsuranceCardSlots(customFields: any): InsuranceCardSlots {
   };
 
   console.log('Resolved insurance card slots:', JSON.stringify(slots));
+  return slots;
+}
+
+// Same resolution, but looks up the real filename (Content-Disposition) for any
+// file the payload didn't name, so front/back is decided by the filename rather
+// than by the order GHL happened to send.
+async function extractInsuranceCardSlotsWithNames(customFields: any): Promise<InsuranceCardSlots> {
+  const { primaryFiles, secondaryFiles } = collectInsuranceCardFiles(customFields);
+
+  const [namedPrimary, namedSecondary] = await Promise.all([
+    withResolvedNames(primaryFiles),
+    withResolvedNames(secondaryFiles),
+  ]);
+
+  const primary = assignFrontBack(namedPrimary);
+  const secondary = assignFrontBack(namedSecondary);
+
+  const slots: InsuranceCardSlots = {
+    primaryFront: primary.front,
+    primaryBack: primary.back,
+    secondaryFront: secondary.front,
+    secondaryBack: secondary.back,
+  };
+
+  console.log(
+    'Resolved insurance card slots (filename-aware):',
+    JSON.stringify({
+      slots,
+      primaryNames: namedPrimary.map((f) => f.name),
+      secondaryNames: namedSecondary.map((f) => f.name),
+    })
+  );
   return slots;
 }
 
@@ -2987,7 +3101,7 @@ async function enrichAppointmentWithGHLData(
     const ins = extractInsuranceFromCustomFields(customFields);
     // All four card images (primary front/back, secondary front/back). GHL multi-file
     // upload fields pack every file into one value, so this resolves each slot.
-    const cardSlots = extractInsuranceCardSlots(customFields);
+    const cardSlots = await extractInsuranceCardSlotsWithNames(customFields);
     // Non-null merge over existing parsed_insurance_info so we never blank prior values.
     const existingParsedInsurance = (appointment as any)?.parsed_insurance_info || {};
     const mergedParsedInsurance = { ...existingParsedInsurance };
