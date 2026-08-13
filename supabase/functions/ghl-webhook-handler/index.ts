@@ -680,6 +680,21 @@ serve(async (req) => {
       }
     }
 
+    // Service/funnel change (calendar moved to a different procedure): audit note + re-parse
+    if (serviceChange) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: serviceChange.appointmentId,
+          note_text: `Service changed from ${serviceChange.fromProcedure} to ${serviceChange.toProcedure} in GoHighLevel — pathology re-parsed from the ${serviceChange.toProcedure} funnel — ${ts}`,
+          created_by: 'System',
+        })
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create service-change note:`, noteErr)
+      }
+      keepAlive(triggerAutoParse(supabase, serviceChange.appointmentId, requestId))
+    }
+
     // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
     if (statusChangeNote) {
       try {
