@@ -2835,25 +2835,18 @@ function CaseDrawer({
               </div>
 
               {(siblingNotes.length > 0 || siblingActivity.length > 0) && (
-                <div>
-                  <button
-                    type="button"
-                    className="text-sm font-semibold flex items-center gap-2 hover:underline"
-                    onClick={() => setHistoryOpen((v) => !v)}
-                  >
-                    History for this patient
-                    <Badge variant="outline" className="text-[10px]">
-                      {siblingNotes.length + siblingActivity.length}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground font-normal">
-                      {historyOpen ? 'Hide' : 'Show'}
-                    </span>
-                  </button>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Read-only notes and activity from this patient's other QA records.
-                  </div>
-                  {historyOpen && (
-                    <div className="mt-2 space-y-1 max-h-80 overflow-y-auto text-sm">
+                <QASection
+                  title="History for this patient"
+                  icon={Clock}
+                  tone="history"
+                  storageKey="history"
+                  defaultOpen={false}
+                  count={siblingNotes.length + siblingActivity.length}
+                  subtitle="Read-only notes and activity from other QA records"
+                >
+                  {(
+                    <div className="space-y-1 max-h-80 overflow-y-auto text-sm">
+
                       {(() => {
                         const labelFor = (cid: string) => {
                           const s = siblings.find((x) => x.id === cid);
