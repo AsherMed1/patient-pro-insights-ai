@@ -3327,15 +3327,31 @@ async function enrichAppointmentWithGHLData(
     } else {
       delete enrichmentUpdate.parsed_insurance_info;
     }
-    if (latestAppointment?.insurance_id_link) {
-      delete enrichmentUpdate.insurance_id_link;
-    } else if (cardSlots.primaryFront || ins.cardUrl) {
-      enrichmentUpdate.insurance_id_link = cardSlots.primaryFront || ins.cardUrl;
-    }
-    if (latestAppointment?.insurance_back_link) {
-      delete enrichmentUpdate.insurance_back_link;
-    } else if (cardSlots.primaryBack) {
+    const latestPrimaryFront = latestAppointment?.insurance_id_link || null;
+    const latestPrimaryBack = latestAppointment?.insurance_back_link || null;
+    const resolvedPrimaryPair = [cardSlots.primaryFront, cardSlots.primaryBack].filter(Boolean);
+    const storedPrimaryPair = [latestPrimaryFront, latestPrimaryBack].filter(Boolean);
+    const sameCompletePair =
+      resolvedPrimaryPair.length === 2 &&
+      storedPrimaryPair.length === 2 &&
+      resolvedPrimaryPair.every((url) => storedPrimaryPair.includes(url));
+
+    // Preserve staff-uploaded files, but correct an existing pair when the same
+    // two GHL files are merely reversed and filename evidence resolved the slots.
+    if (sameCompletePair) {
+      enrichmentUpdate.insurance_id_link = cardSlots.primaryFront;
       enrichmentUpdate.insurance_back_link = cardSlots.primaryBack;
+    } else {
+      if (latestPrimaryFront) {
+        delete enrichmentUpdate.insurance_id_link;
+      } else if (cardSlots.primaryFront || ins.cardUrl) {
+        enrichmentUpdate.insurance_id_link = cardSlots.primaryFront || ins.cardUrl;
+      }
+      if (latestPrimaryBack) {
+        delete enrichmentUpdate.insurance_back_link;
+      } else if (cardSlots.primaryBack) {
+        enrichmentUpdate.insurance_back_link = cardSlots.primaryBack;
+      }
     }
 
     if (hasAnyInsurance) {

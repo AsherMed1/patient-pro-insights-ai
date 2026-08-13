@@ -3635,6 +3635,26 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           }
         }
 
+        // Parsing can overlap with GHL enrichment. Refresh insurance JSON just
+        // before writing so card URLs added while the AI request was in flight
+        // are merged rather than replaced by this record's stale snapshot.
+        if (record.table === "all_appointments" && updateData.parsed_insurance_info) {
+          const { data: latestInsuranceRow, error: latestInsuranceError } = await supabase
+            .from("all_appointments")
+            .select("parsed_insurance_info")
+            .eq("id", record.id)
+            .single();
+
+          if (latestInsuranceError) {
+            console.error(`[AUTO-PARSE] Failed to refresh insurance JSON for ${recordIdentifier}:`, latestInsuranceError);
+          } else {
+            updateData.parsed_insurance_info = mergeWithNonNull(
+              latestInsuranceRow?.parsed_insurance_info || {},
+              updateData.parsed_insurance_info,
+            );
+          }
+        }
+
         const { error: updateError } = await supabase.from(record.table).update(updateData).eq("id", record.id);
 
 
