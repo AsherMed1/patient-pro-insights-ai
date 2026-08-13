@@ -1502,6 +1502,20 @@ function getUpdateableFields(
         was_ever_confirmed: true,
         time_preference: timePreference,
         is_unscheduled: treatAsUnscheduled,
+        ...(webhookData.insurance_id_link ? { insurance_id_link: webhookData.insurance_id_link } : {}),
+        ...(webhookData.insurance_back_link ? { insurance_back_link: webhookData.insurance_back_link } : {}),
+        ...(webhookData.secondary_card_front_url || webhookData.secondary_card_back_url
+          ? {
+              parsed_insurance_info: {
+                ...(webhookData.secondary_card_front_url
+                  ? { secondary_card_front_url: webhookData.secondary_card_front_url }
+                  : {}),
+                ...(webhookData.secondary_card_back_url
+                  ? { secondary_card_back_url: webhookData.secondary_card_back_url }
+                  : {}),
+              },
+            }
+          : {}),
         ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
       }
     }
