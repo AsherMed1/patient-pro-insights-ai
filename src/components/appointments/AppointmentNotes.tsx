@@ -70,8 +70,10 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   }, [focusNoteId, notes.length]);
 
   const { userName } = useUserAttribution();
-  const { canEditNotes, isAdmin } = useRole();
+  const { canEditNotes, isAdmin, isProjectUser } = useRole();
   const canModify = canEditNotes();
+  // Internal notes are team-only — clinic portal users never see the section.
+  const isClinicUser = isProjectUser();
   // System (blue) notes are admin-only; they stay in the DB for audit either way.
   const visibleNotes = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
 
@@ -153,6 +155,8 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       return 'Unknown time';
     }
   };
+
+  if (isClinicUser) return null;
 
   return (
     <div className="space-y-3">

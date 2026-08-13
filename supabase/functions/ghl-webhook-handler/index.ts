@@ -377,7 +377,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote } = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
@@ -678,6 +678,21 @@ serve(async (req) => {
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create Welcome Call transition note:`, noteErr)
       }
+    }
+
+    // Service/funnel change (calendar moved to a different procedure): audit note + re-parse
+    if (serviceChange) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: serviceChange.appointmentId,
+          note_text: `Service changed from ${serviceChange.fromProcedure} to ${serviceChange.toProcedure} in GoHighLevel — pathology re-parsed from the ${serviceChange.toProcedure} funnel — ${ts}`,
+          created_by: 'System',
+        })
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create service-change note:`, noteErr)
+      }
+      keepAlive(triggerAutoParse(supabase, serviceChange.appointmentId, requestId))
     }
 
     // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
@@ -1640,11 +1655,29 @@ function normalizeStatus(status: string | null | undefined): string {
   return 'Confirmed'
 }
 
+// Calendar name is the authority for the booked service/procedure.
+// Mirrors detectProcedureFromCalendar in auto-parse-intake-notes.
+function detectProcedureFromCalendarName(calendarName: string | null | undefined): string | null {
+  if (!calendarName) return null
+  const name = calendarName.toLowerCase()
+  if (name.includes('neuropathy')) return 'Neuropathy'
+  if (name.includes('tae') || name.includes('thyroid')) return 'TAE'
+  if (name.includes('ufe') || name.includes('fibroid') || name.includes('uterine')) return 'UFE'
+  if (name.includes('pae') || name.includes('prostate')) return 'PAE'
+  if (name.includes('hae') || name.includes('hemorrhoid artery')) return 'HAE'
+  if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) return 'GAE'
+  if (name.includes('pfe') || name.includes('plantar')) return 'PFE'
+  if (name.includes('pad') || name.includes('peripheral')) return 'PAD'
+  if (name.includes('fse') || name.includes('frozen shoulder')) return 'FSE'
+  if (/\bate\b/i.test(calendarName) || name.includes('achilles') || name.includes('tendinitis') || name.includes('tendonitis')) return 'ATE'
+  return null
+}
+
 // Get fields to update based on operation type (CREATE vs UPDATE)
 function getUpdateableFields(
   webhookData: any, 
   existingAppointment: any | null
-): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string } } {
+): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string }; serviceChange?: { appointmentId: string; fromProcedure: string; toProcedure: string } } {
   // For CREATE - use all webhook data
   // CRITICAL: Per project rule, ALL new appointments from GHL webhooks MUST default to "Confirmed",
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
@@ -1716,6 +1749,7 @@ function getUpdateableFields(
   let rescheduleNoteData: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string } | undefined
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let statusChangeNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
+  let serviceChange: { appointmentId: string; fromProcedure: string; toProcedure: string } | undefined
 
   // Unscheduled-capture projects (Premier Vascular, ECCO Medical, Horizon Vascular Specialists)
   // NEVER store a booked date/time — only a time-of-day preference. If a later GHL webhook tries
@@ -1877,6 +1911,27 @@ function getUpdateableFields(
   // Always accept calendar and location updates
   if (webhookData.calendar_name && webhookData.calendar_name !== 'Unknown') {
     updateFields.calendar_name = webhookData.calendar_name
+
+    // Calendar name is the authority for the service/procedure. When GHL moves the
+    // contact onto a different funnel's calendar (e.g. PAE → PAD), the stored pathology
+    // is from the OLD funnel — drop it and force a re-parse so the record shows the
+    // service actually booked and captures the new funnel's fields.
+    const newProcedure = detectProcedureFromCalendarName(webhookData.calendar_name)
+    const oldProcedure = String(
+      existingAppointment.parsed_pathology_info?.procedure_type ||
+      existingAppointment.parsed_pathology_info?.procedure ||
+      ''
+    ).toUpperCase().trim()
+    if (newProcedure && oldProcedure && newProcedure.toUpperCase() !== oldProcedure) {
+      console.log(`[WEBHOOK] Service change detected via calendar: ${oldProcedure} → ${newProcedure} — clearing stale pathology and re-parsing`)
+      updateFields.parsed_pathology_info = null
+      updateFields.parsing_completed_at = null
+      serviceChange = {
+        appointmentId: existingAppointment.id,
+        fromProcedure: oldProcedure,
+        toProcedure: newProcedure,
+      }
+    }
   }
 
   if (webhookData.ghl_location_id) {
@@ -1992,7 +2047,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote, serviceChange }
 }
 
 // ---- Calendar recovery for unscheduled-capture leads -----------------------
