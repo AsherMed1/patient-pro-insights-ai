@@ -853,6 +853,7 @@ const ReviewQueue: React.FC = () => {
           appointment_id: row.id,
           note_text: `Adopted slot FROM: ${fromStr} TO: ${toStr} from duplicate record (deleted) by ${userName || 'Unknown'} - [[timestamp:${utcTimestamp}]]`,
           created_by: userName || 'Review Queue',
+          visibility: 'internal',
         });
       } catch (e) {
         console.warn('adopt-slot note insert failed', e);
@@ -929,6 +930,7 @@ const ReviewQueue: React.FC = () => {
       await supabase.from('appointment_notes').insert({
         appointment_id: row.id,
         note_text: `Potential OON insurance reviewed — marked ${resolution === 'in_network' ? 'IN NETWORK (cleared)' : 'OUT OF NETWORK'} by ${userName || 'a portal user'}`,
+        visibility: 'internal',
       });
 
       setRows(prev => prev.map(r => r.id === row.id
@@ -1120,6 +1122,7 @@ const ReviewQueue: React.FC = () => {
             appointment_id: id,
             note_text: `Status changed from "${oldStatus}" to "OON" by ${userName || 'Review Queue'} - [[timestamp:${utcTimestamp}]]`,
             created_by: userName || 'Review Queue',
+            visibility: 'internal',
           });
         } catch (e) {
           console.warn('System note insert failed', e);
@@ -1250,6 +1253,7 @@ const ReviewQueue: React.FC = () => {
             appointment_id: id,
             note_text: declineNote,
             created_by: actor,
+            visibility: 'internal',
           });
         } catch (e) {
           console.warn('Decline note insert failed', e);
@@ -1396,6 +1400,7 @@ const ReviewQueue: React.FC = () => {
             note_text: `Review Queue: moved to ${label} by ${actor} - [[timestamp:${stamp}]]`,
             created_by: actor === 'Unknown' ? 'Review Queue' : actor,
             attachments: [],
+            visibility: 'internal',
           }))
         );
       } catch (e) {
