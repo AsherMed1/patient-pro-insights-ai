@@ -2827,7 +2827,7 @@ async function enrichAppointmentWithGHLData(
     // Get current patient intake notes
     const { data: appointment } = await supabase
       .from('all_appointments')
-      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, dob, dob_verified_at')
+      .select('patient_intake_notes, parsed_insurance_info, parsed_pathology_info, parsed_contact_info, parsed_demographics, insurance_id_link, insurance_back_link, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, dob, dob_verified_at')
       .eq('id', appointmentId)
       .single()
     
