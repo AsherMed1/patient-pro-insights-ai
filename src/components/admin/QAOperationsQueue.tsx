@@ -2532,19 +2532,36 @@ function CaseDrawer({
                 )}
               </div>
 
+              <div className="flex items-center justify-end gap-1">
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => qaSectionSetAll(true)}>
+                  Expand all
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => qaSectionSetAll(false)}>
+                  Collapse all
+                </Button>
+              </div>
+
               {caseData.controlhub_ticket_id && (
-                <QATicketPanel
-                  caseId={caseData.id}
-                  ticketId={caseData.controlhub_ticket_id}
-                  ticketUrl={caseData.controlhub_ticket_url}
-                  ticketStatus={caseData.controlhub_ticket_status ?? null}
-                  assignee={caseData.controlhub_ticket_assignee ?? null}
-                  lastActivity={caseData.controlhub_ticket_last_activity ?? null}
-                  lastActivityAt={caseData.controlhub_ticket_last_activity_at ?? null}
-                  unread={!!caseData.controlhub_ticket_unread}
-                  onSeen={onRefresh}
-                />
+                <QASection
+                  title="ControlHub ticket"
+                  icon={Ticket}
+                  tone="ticket"
+                  storageKey="ticket"
+                >
+                  <QATicketPanel
+                    caseId={caseData.id}
+                    ticketId={caseData.controlhub_ticket_id}
+                    ticketUrl={caseData.controlhub_ticket_url}
+                    ticketStatus={caseData.controlhub_ticket_status ?? null}
+                    assignee={caseData.controlhub_ticket_assignee ?? null}
+                    lastActivity={caseData.controlhub_ticket_last_activity ?? null}
+                    lastActivityAt={caseData.controlhub_ticket_last_activity_at ?? null}
+                    unread={!!caseData.controlhub_ticket_unread}
+                    onSeen={onRefresh}
+                  />
+                </QASection>
               )}
+
 
               {!caseData.controlhub_ticket_id && (() => {
                 const linked = siblings.find((s) => s.controlhub_ticket_id);
