@@ -129,6 +129,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       }
       setNewNote('');
       setPendingImages([]);
+      setNoteInternal(false);
       setShowAddForm(false);
       onFormToggled?.(false);
     }
