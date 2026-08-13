@@ -1640,6 +1640,24 @@ function normalizeStatus(status: string | null | undefined): string {
   return 'Confirmed'
 }
 
+// Calendar name is the authority for the booked service/procedure.
+// Mirrors detectProcedureFromCalendar in auto-parse-intake-notes.
+function detectProcedureFromCalendarName(calendarName: string | null | undefined): string | null {
+  if (!calendarName) return null
+  const name = calendarName.toLowerCase()
+  if (name.includes('neuropathy')) return 'Neuropathy'
+  if (name.includes('tae') || name.includes('thyroid')) return 'TAE'
+  if (name.includes('ufe') || name.includes('fibroid') || name.includes('uterine')) return 'UFE'
+  if (name.includes('pae') || name.includes('prostate')) return 'PAE'
+  if (name.includes('hae') || name.includes('hemorrhoid artery')) return 'HAE'
+  if (name.includes('gae') || name.includes('knee') || name.includes('osteoarthritis')) return 'GAE'
+  if (name.includes('pfe') || name.includes('plantar')) return 'PFE'
+  if (name.includes('pad') || name.includes('peripheral')) return 'PAD'
+  if (name.includes('fse') || name.includes('frozen shoulder')) return 'FSE'
+  if (/\bate\b/i.test(calendarName) || name.includes('achilles') || name.includes('tendinitis') || name.includes('tendonitis')) return 'ATE'
+  return null
+}
+
 // Get fields to update based on operation type (CREATE vs UPDATE)
 function getUpdateableFields(
   webhookData: any, 
