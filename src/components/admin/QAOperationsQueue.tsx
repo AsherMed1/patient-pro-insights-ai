@@ -2614,11 +2614,15 @@ function CaseDrawer({
                 </div>
               )}
 
-              <div>
-                <div className="text-sm font-semibold">Internal Patient Notes</div>
-                <div className="text-xs text-muted-foreground mb-2">
-                  Portal-only — not shared with ControlHub.
-                </div>
+              <QASection
+                title="Internal Patient Notes"
+                icon={Pencil}
+                tone="notes"
+                storageKey="notes"
+                count={notes.length}
+                subtitle="Portal-only — not shared with ControlHub"
+              >
+
 
                 <MentionTextarea
                   value={noteDraft}
