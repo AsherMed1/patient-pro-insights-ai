@@ -45,6 +45,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [noteInternal, setNoteInternal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
