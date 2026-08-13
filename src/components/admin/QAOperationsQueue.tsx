@@ -1748,6 +1748,99 @@ function CaseDrawer({
     setNotes(((data as any) || []) as QANote[]);
   };
 
+  const reloadNotes = async (caseId: string) => {
+    const { data } = await supabase
+      .from('qa_case_notes' as any)
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false });
+    setNotes(((data as any) || []) as QANote[]);
+  };
+
+  const canModifyNote = (n: QANote) => isAdmin() || (!!n.author_user_id && n.author_user_id === user?.id);
+
+  const startEditNote = (n: QANote) => {
+    setEditingNoteId(n.id);
+    setEditingNoteText(n.note);
+  };
+
+  const cancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteText('');
+  };
+
+  const saveNoteEdit = async () => {
+    if (!caseData || !editingNoteId) return;
+    const original = notes.find((n) => n.id === editingNoteId);
+    const text = editingNoteText.trim();
+    if (!text) return;
+    setSavingNote(true);
+    const { error } = await supabase
+      .from('qa_case_notes' as any)
+      .update({ note: text, edited_at: new Date().toISOString() } as any)
+      .eq('id', editingNoteId);
+    setSavingNote(false);
+    if (error) {
+      toast({ title: 'Failed to update note', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    // Only notify teammates newly tagged during the edit.
+    const before = new Set(parseMentions(original?.note || '').map((m) => m.userId));
+    const added = parseMentions(text).filter((m) => m.userId !== user?.id && !before.has(m.userId));
+    if (added.length > 0) {
+      try {
+        await notifyQAUsers({
+          userIds: added.map((m) => m.userId),
+          caseId: caseData.id,
+          caseNoteId: editingNoteId,
+          kind: 'mention',
+          title: `${actorName || 'Someone'} mentioned you — ${caseData.patient_name || 'QA record'}`,
+          body: text.slice(0, 180),
+          actorId: user?.id ?? null,
+          actorName: actorName || null,
+        } as any);
+      } catch (e) {
+        console.error('Failed to notify mentions on note edit', e);
+      }
+    }
+
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'note_edited',
+      description: `Note edited${actorName ? ` by ${actorName}` : ''}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+
+    cancelEditNote();
+    await reloadNotes(caseData.id);
+    onRefresh();
+    toast({ title: 'Note updated' });
+  };
+
+  const deleteNote = async (noteId: string) => {
+    if (!caseData) return;
+    setDeletingNoteId(noteId);
+    const { error } = await supabase.from('qa_case_notes' as any).delete().eq('id', noteId);
+    setDeletingNoteId(null);
+    if (error) {
+      toast({ title: 'Failed to delete note', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: caseData.id,
+      activity_type: 'note_deleted',
+      description: `Note deleted${actorName ? ` by ${actorName}` : ''}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    if (editingNoteId === noteId) cancelEditNote();
+    await reloadNotes(caseData.id);
+    onRefresh();
+    toast({ title: 'Note deleted' });
+  };
+
+
+
 
   const saveAudit = async () => {
     if (!caseData) return;
