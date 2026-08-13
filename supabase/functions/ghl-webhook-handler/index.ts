@@ -1877,6 +1877,27 @@ function getUpdateableFields(
   // Always accept calendar and location updates
   if (webhookData.calendar_name && webhookData.calendar_name !== 'Unknown') {
     updateFields.calendar_name = webhookData.calendar_name
+
+    // Calendar name is the authority for the service/procedure. When GHL moves the
+    // contact onto a different funnel's calendar (e.g. PAE → PAD), the stored pathology
+    // is from the OLD funnel — drop it and force a re-parse so the record shows the
+    // service actually booked and captures the new funnel's fields.
+    const newProcedure = detectProcedureFromCalendarName(webhookData.calendar_name)
+    const oldProcedure = String(
+      existingAppointment.parsed_pathology_info?.procedure_type ||
+      existingAppointment.parsed_pathology_info?.procedure ||
+      ''
+    ).toUpperCase().trim()
+    if (newProcedure && oldProcedure && newProcedure.toUpperCase() !== oldProcedure) {
+      console.log(`[WEBHOOK] Service change detected via calendar: ${oldProcedure} → ${newProcedure} — clearing stale pathology and re-parsing`)
+      updateFields.parsed_pathology_info = null
+      updateFields.parsing_completed_at = null
+      serviceChange = {
+        appointmentId: existingAppointment.id,
+        fromProcedure: oldProcedure,
+        toProcedure: newProcedure,
+      }
+    }
   }
 
   if (webhookData.ghl_location_id) {
