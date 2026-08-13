@@ -52,7 +52,14 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* QA record section accents */
+    --qa-ticket: 204 96% 32%;
+    --qa-notes: 38 92% 42%;
+    --qa-activity: 262 60% 50%;
+    --qa-history: 215 16% 47%;
   }
+
 
   .dark {
     --background: 222.2 84% 4.9%;
