@@ -2724,9 +2724,15 @@ function CaseDrawer({
               </div>
 
 
-              <div>
-                <div className="text-sm font-semibold mb-2">Activity</div>
+              <QASection
+                title="Activity"
+                icon={Clock}
+                tone="activity"
+                storageKey="activity"
+                count={activity.length}
+              >
                 <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
+
                   {(() => {
                     const pinnedShortNoticeId =
                       caseData.alert_type !== 'short_notice'
