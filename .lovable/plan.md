@@ -1,42 +1,56 @@
-# Insurance card uploads not saving (back of primary, both secondary)
+# Capture back-of-card and secondary insurance card images from GHL
 
-## What the record actually shows
+## Why only the primary front came through
 
-For Seamless Test (Seamless Medical Centers), the database currently holds:
+The portal record for this contact holds one card image, and it is the GoHighLevel document link that arrived on the webhook. Nothing was ever uploaded into the portal's own storage for this appointment.
 
-- Primary front: a **GoHighLevel** document link (the card that came in with the lead) — not an uploaded file
-- Primary back: empty
-- Secondary front/back: empty
+The webhook payload you pasted carries exactly one card field:
 
-There are **no files in the insurance-cards storage bucket** for this appointment. So the front card visible in the screenshot is the original GHL card, and none of the four uploads reached storage. This is not a "back image got dropped" bug — the uploads themselves are failing or being abandoned, silently enough that only one image appears.
+```text
+"insurance_id_link": "{{ contact.upload_a_copy_of_your_insurance_card }}"
+```
 
-The storage bucket, its access policies, and its size/type limits are all fine, so the failure is happening in the browser upload step or right after it.
+There is no field for the back of the primary card, and none for the secondary card front or back. The handler matches that single field and writes it to the primary front slot. So the other three images stay in GHL and never reach the portal — this is a mapping gap, not an upload failure.
 
-## Step 1 — Confirm the failure point (before changing behaviour)
+## What to change
 
-Reproduce an upload on a test appointment with the browser console and network panel captured, to see which of these is happening:
+### 1. Extend the webhook payload (GHL side)
 
-- the file never gets sent (input change handler not firing on re-selection, HEIC conversion aborting, oversize file)
-- the storage upload request fails (error surfaced only as a toast that can be missed)
-- the upload succeeds but the follow-up save call overwrites or drops the value
+Add the three missing custom fields to both workflow payloads, e.g.:
 
-The three are distinguishable from a single reproduction, and the fix below is scoped by what it shows.
+```text
+"insurance_back_link":            "{{ contact.<back of insurance card field> }}",
+"secondary_insurance_front_link": "{{ contact.<secondary card front field> }}",
+"secondary_insurance_back_link":  "{{ contact.<secondary card back field> }}"
+```
 
-## Step 2 — Harden the upload flow (applies regardless of which branch it is)
+The exact `contact.*` keys depend on how those upload fields are named in this location's contact record — I need those names (or a screenshot of the custom fields list) to finalise this snippet.
 
-In `InsuranceCardUpload.tsx` and `SecondaryInsuranceCardUpload.tsx`:
+### 2. Extract all four images in the webhook handler
 
-1. **Reset the file input after each selection** so picking the same or a second file always fires. Today, `input.value` is never cleared, so a second selection in the same session can silently do nothing — the single most likely explanation for "only one of four images stuck".
-2. **Surface real errors instead of a generic toast**: include the storage/save error message, and keep the failed side in an error state in the card tile (red border + "Upload failed — retry") rather than reverting to the empty dropzone, which reads as "nothing happened".
-3. **Serialize saves per card**: queue the persist calls so a front and a back saved seconds apart can't race. For the secondary card this matters more, because its values live inside a JSON field that is read-modify-written by the server function.
-4. **Verify after save**: re-read the appointment's four card fields after persisting and only show the green check when the value is actually in the database; otherwise show the retry state.
+In `ghl-webhook-handler`, generalise the current single-card extractor into one that resolves four slots by key pattern, so it works whether the payload uses the new explicit keys or differently named upload fields:
 
-## Step 3 — Backfill the record in question
+- primary front: existing patterns (`upload a copy of your insurance card`, `insurance_card`, `front of insurance card`, …)
+- primary back: `insurance_back`, `back of insurance card`, `card back`, `insurance back`
+- secondary front: `secondary` + front/card patterns
+- secondary back: `secondary` + back patterns
 
-Re-upload the four images for Seamless Test once the flow is fixed, and confirm all four fields populate.
+Ordering matters: check "secondary" and "back" qualifiers before the generic primary patterns so a secondary field is never mistaken for the primary card.
+
+### 3. Write them to the right places
+
+- primary front → `insurance_id_link` (unchanged)
+- primary back → `insurance_back_link`
+- secondary front/back → `secondary_card_front_url` / `secondary_card_back_url` inside `parsed_insurance_info`
+
+Apply the same non-destructive rule the primary card already uses: only fill a slot that is currently empty, so a later webhook or GHL re-fire can't wipe an image a staff member uploaded in the portal. This covers both the initial appointment creation path and the follow-up contact-update path, so a card uploaded after booking still lands.
+
+### 4. Backfill this contact
+
+Once the mapping is live, re-fire the workflow for the Seamless Test contact (or pull the contact's documents directly) so all four images populate on the existing record rather than only on future bookings.
 
 ## Technical notes
 
-- Files: `src/components/appointments/InsuranceCardUpload.tsx`, `src/components/appointments/SecondaryInsuranceCardUpload.tsx`
-- Primary card writes to the `insurance_id_link` / `insurance_back_link` columns; secondary writes to `secondary_card_front_url` / `secondary_card_back_url` inside `parsed_insurance_info`, merged server-side by the `update-appointment-fields` edge function. Read paths in `ParsedIntakeInfo.tsx` and `DetailedAppointmentView.tsx` already match those keys, so no schema or read changes are needed.
+- Files: `supabase/functions/ghl-webhook-handler/index.ts` (`extractInsuranceCardUrl`, `extractStandardEventFormat`, `extractWorkflowFormat`, and the contact-update merge path).
+- Read paths already support all four slots (`ParsedIntakeInfo.tsx`, `DetailedAppointmentView.tsx`, `InsuranceViewModal.tsx`), so no UI or schema change is needed.
 - No database migration required.
