@@ -1,56 +1,62 @@
-# Capture back-of-card and secondary insurance card images from GHL
+# Capture all insurance card images from GHL (primary + secondary, front + back)
 
-## Why only the primary front came through
+## What the check shows
 
-The portal record for this contact holds one card image, and it is the GoHighLevel document link that arrived on the webhook. Nothing was ever uploaded into the portal's own storage for this appointment.
+Primary in GHL holds **two** files (`Medicare-Card.jpg`, `2019 Card Back_v2.jpg`), and Secondary also holds two (`BCBS Card back.png`, `BCBS Card Front.png`) — four images total.
 
-The webhook payload you pasted carries exactly one card field:
+The portal record for Seamless Test stores only one:
 
 ```text
-"insurance_id_link": "{{ contact.upload_a_copy_of_your_insurance_card }}"
+insurance_id_link            = https://services.leadconnectorhq.com/documents/download/VmueNlwFxsRE9qRtJJJO
+insurance_back_link          = empty
+secondary_card_front_url     = empty
+secondary_card_back_url      = empty
 ```
 
-There is no field for the back of the primary card, and none for the secondary card front or back. The handler matches that single field and writes it to the primary front slot. So the other three images stay in GHL and never reach the portal — this is a mapping gap, not an upload failure.
+Two separate gaps cause this:
+
+1. The webhook payload only maps one card field (`insurance_id_link` = the Primary upload field). The Secondary upload field is not sent at all.
+2. The handler's URL extractor returns the **first** URL it finds in the field value and stops. GHL multi-file upload fields carry all files in one value, so the second primary file (the back of the card) is discarded.
 
 ## What to change
 
-### 1. Extend the webhook payload (GHL side)
+### 1. Extract every file from an upload field, not just the first
 
-Add the three missing custom fields to both workflow payloads, e.g.:
+Replace the single-URL extractor with one that returns an ordered list of URLs from all supported GHL shapes: plain string (including comma/newline-separated lists), JSON string keyed by file id, and object/array forms — preserving each file's name where present.
+
+### 2. Assign front vs back from the file list
+
+For each upload field (primary and secondary), map the collected files to front/back:
+
+- If a filename contains `back`, it is the back; if it contains `front`, it is the front.
+- Otherwise fall back to order: first file = front, second file = back.
+
+With this contact's data that yields: primary front `Medicare-Card.jpg`, primary back `2019 Card Back_v2.jpg`, secondary front `BCBS Card Front.png`, secondary back `BCBS Card back.png`.
+
+### 3. Add the Secondary upload field to the webhook payload
+
+The Secondary upload field is absent from the payloads you pasted. Add it to both workflows, e.g.:
 
 ```text
-"insurance_back_link":            "{{ contact.<back of insurance card field> }}",
-"secondary_insurance_front_link": "{{ contact.<secondary card front field> }}",
-"secondary_insurance_back_link":  "{{ contact.<secondary card back field> }}"
+"secondary_insurance_card_link": "{{ contact.upload_a_copy_of_your_insurance_card_secondary }}"
 ```
 
-The exact `contact.*` keys depend on how those upload fields are named in this location's contact record — I need those names (or a screenshot of the custom fields list) to finalise this snippet.
+The handler will also match on key patterns (`secondary` + `insurance card`) so it works even if the field key differs slightly.
 
-### 2. Extract all four images in the webhook handler
+### 4. Write the four URLs to the right slots
 
-In `ghl-webhook-handler`, generalise the current single-card extractor into one that resolves four slots by key pattern, so it works whether the payload uses the new explicit keys or differently named upload fields:
-
-- primary front: existing patterns (`upload a copy of your insurance card`, `insurance_card`, `front of insurance card`, …)
-- primary back: `insurance_back`, `back of insurance card`, `card back`, `insurance back`
-- secondary front: `secondary` + front/card patterns
-- secondary back: `secondary` + back patterns
-
-Ordering matters: check "secondary" and "back" qualifiers before the generic primary patterns so a secondary field is never mistaken for the primary card.
-
-### 3. Write them to the right places
-
-- primary front → `insurance_id_link` (unchanged)
+- primary front → `insurance_id_link`
 - primary back → `insurance_back_link`
-- secondary front/back → `secondary_card_front_url` / `secondary_card_back_url` inside `parsed_insurance_info`
+- secondary front/back → `secondary_card_front_url` / `secondary_card_back_url` in `parsed_insurance_info`
 
-Apply the same non-destructive rule the primary card already uses: only fill a slot that is currently empty, so a later webhook or GHL re-fire can't wipe an image a staff member uploaded in the portal. This covers both the initial appointment creation path and the follow-up contact-update path, so a card uploaded after booking still lands.
+Keep the existing non-destructive rule: fill only slots that are currently empty, so a GHL re-fire never overwrites an image staff uploaded in the portal. Apply this on both appointment creation and the later contact-update path, so cards uploaded after booking still land.
 
-### 4. Backfill this contact
+### 5. Backfill this contact
 
-Once the mapping is live, re-fire the workflow for the Seamless Test contact (or pull the contact's documents directly) so all four images populate on the existing record rather than only on future bookings.
+Re-fire the workflow for Seamless Test once the mapping is live so all four images populate on the existing record.
 
 ## Technical notes
 
-- Files: `supabase/functions/ghl-webhook-handler/index.ts` (`extractInsuranceCardUrl`, `extractStandardEventFormat`, `extractWorkflowFormat`, and the contact-update merge path).
-- Read paths already support all four slots (`ParsedIntakeInfo.tsx`, `DetailedAppointmentView.tsx`, `InsuranceViewModal.tsx`), so no UI or schema change is needed.
+- File: `supabase/functions/ghl-webhook-handler/index.ts` — rework `extractUrlFromValue` into a multi-URL collector, generalise `extractInsuranceCardUrl` into a four-slot resolver, and thread the new slots through `extractStandardEventFormat`, `extractWorkflowFormat`, and the contact-update merge.
+- Read paths already render all four slots (`ParsedIntakeInfo.tsx`, `DetailedAppointmentView.tsx`, `InsuranceViewModal.tsx`), so no UI or schema change is needed.
 - No database migration required.
