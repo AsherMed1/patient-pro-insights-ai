@@ -3653,6 +3653,12 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
               updateData.parsed_insurance_info,
             );
           }
+
+          // Card slots are owned by the webhook's atomic card merge. Omitting
+          // them here lets the database preserve the latest values if parsing
+          // overlaps with GHL enrichment.
+          delete updateData.parsed_insurance_info.secondary_card_front_url;
+          delete updateData.parsed_insurance_info.secondary_card_back_url;
         }
 
         const { error: updateError } = await supabase.from(record.table).update(updateData).eq("id", record.id);
