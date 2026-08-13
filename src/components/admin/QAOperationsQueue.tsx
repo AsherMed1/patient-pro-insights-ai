@@ -41,6 +41,8 @@ import { renderNoteWithMentions, parseMentions } from '@/lib/mentions';
 import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
+import QASection, { qaSectionSetAll } from '@/components/admin/QASection';
+
 
 // Column headers pin to the top of the table's own scroll container, which
 // itself sits below the frozen portal header, nav, title row and filter strip.
