@@ -265,6 +265,18 @@ export const SecondaryInsuranceCardUpload = ({
         <Upload className="h-4 w-4 text-emerald-600" />
         <span className="font-medium text-sm text-emerald-900">Secondary Insurance Card Upload</span>
         {isSaving && <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />}
+        {frontUrl && backUrl && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 ml-auto text-xs"
+            onClick={handleSwap}
+            disabled={isSaving || isUploadingFront || isUploadingBack}
+          >
+            <ArrowLeftRight className="h-3 w-3 mr-1" />
+            Swap front/back
+          </Button>
+        )}
       </div>
       <p className="text-xs text-muted-foreground mb-4">
         Upload photos of the secondary insurance card (front and back) for {patientName}
