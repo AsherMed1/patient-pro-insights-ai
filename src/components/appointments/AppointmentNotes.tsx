@@ -45,6 +45,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [noteInternal, setNoteInternal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -75,7 +76,11 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   // Internal notes are team-only — clinic portal users never see the section.
   const isClinicUser = isProjectUser();
   // System (blue) notes are admin-only; they stay in the DB for audit either way.
-  const visibleNotes = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
+  const roleFiltered = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
+  // Clinic portal users only see notes explicitly marked clinic-visible.
+  const visibleNotes = isClinicUser
+    ? roleFiltered.filter((n) => (n.visibility ?? 'clinic') === 'clinic')
+    : roleFiltered;
 
 
   const handleAddNote = async () => {
@@ -98,7 +103,12 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       setUploading(false);
     }
 
-    const created = await addNote(newNote, userName, uploaded);
+    const created = await addNote(
+      newNote,
+      userName,
+      uploaded,
+      isClinicUser ? 'clinic' : (noteInternal ? 'internal' : 'clinic'),
+    );
     if (created) {
       const mentioned = parseMentions(newNote);
       if (mentioned.length > 0) {
@@ -119,6 +129,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       }
       setNewNote('');
       setPendingImages([]);
+      setNoteInternal(false);
       setShowAddForm(false);
       onFormToggled?.(false);
     }
@@ -156,15 +167,13 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
     }
   };
 
-  if (isClinicUser) return null;
-
   return (
     <div className="space-y-3">
       <div data-tour="internal-notes" className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">
-            Internal Notes ({visibleNotes.length})
+            {isClinicUser ? 'Notes' : 'Internal Notes'} ({visibleNotes.length})
           </span>
         </div>
         {!showAddForm && (
@@ -184,7 +193,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       {showAddForm && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Add Internal Note</CardTitle>
+            <CardTitle className="text-sm">{isClinicUser ? 'Add Note' : 'Add Internal Note'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <ImageAttachInput
@@ -193,12 +202,25 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
               disabled={submitting || uploading}
             >
               <MentionTextarea
-                placeholder="Enter your internal note here… type @ to tag a teammate (@AM, @Tech)"
+                placeholder={isClinicUser
+                  ? 'Enter your note here…'
+                  : 'Enter your internal note here… type @ to tag a teammate (@AM, @Tech)'}
                 value={newNote}
                 onChange={setNewNote}
                 className="min-h-[80px] resize-none"
               />
             </ImageAttachInput>
+            {!isClinicUser && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={noteInternal}
+                  onChange={(e) => setNoteInternal(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Internal only — hide this note from the clinic
+              </label>
+            )}
             <div className="flex items-center space-x-2">
               <Button
                 onClick={handleAddNote}
@@ -213,6 +235,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                   setShowAddForm(false);
                   setNewNote('');
                   setPendingImages([]);
+                  setNoteInternal(false);
                   onFormToggled?.(false);
                 }}
                 size="sm"
@@ -256,6 +279,11 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                         {isSystemNote && (
                           <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
                             Auto
+                          </Badge>
+                        )}
+                        {!isClinicUser && (note.visibility ?? 'clinic') === 'internal' && (
+                          <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700">
+                            Internal
                           </Badge>
                         )}
                         {note.last_edited_by && (

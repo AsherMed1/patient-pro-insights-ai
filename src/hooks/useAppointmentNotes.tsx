@@ -12,6 +12,7 @@ interface AppointmentNote {
   last_edited_by?: string | null;
   last_edited_at?: string | null;
   attachments?: any;
+  visibility?: 'internal' | 'clinic';
 }
 
 
@@ -98,7 +99,12 @@ export const useAppointmentNotes = (appointmentId: string) => {
     }
   };
 
-  const addNote = async (noteText: string, createdBy: string, attachments: any[] = []) => {
+  const addNote = async (
+    noteText: string,
+    createdBy: string,
+    attachments: any[] = [],
+    visibility: 'internal' | 'clinic' = 'clinic',
+  ) => {
     if (!noteText.trim() && attachments.length === 0) return;
 
     try {
@@ -110,6 +116,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
           note_text: noteText.trim(),
           created_by: createdBy,
           attachments: (attachments ?? []) as any,
+          visibility,
         } as any)
         .select()
         .single();
@@ -118,7 +125,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
       if (error) throw error;
 
       // Add the new note to the beginning of the list
-      setNotes(prev => [data, ...prev]);
+      setNotes(prev => [data as AppointmentNote, ...prev]);
       
       toast({
         title: "Success",
