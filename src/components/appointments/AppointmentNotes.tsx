@@ -235,6 +235,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                   setShowAddForm(false);
                   setNewNote('');
                   setPendingImages([]);
+                  setNoteInternal(false);
                   onFormToggled?.(false);
                 }}
                 size="sm"
