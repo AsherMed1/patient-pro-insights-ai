@@ -1,48 +1,78 @@
-# Stop relying on GHL merge tags for insurance card images
+# Fix insurance card slotting and preserve secondary uploads
 
-## What the record shows right now
+## What the latest test proves
 
-Test Johann's live row (`1cce51e6-209a-4f37-93cf-8fd1f3195d33`, GHL appointment `UcashHo341YCIsSQbLj4`, created 13:21 UTC, last updated 13:44 UTC):
+Test Johann (`94b4c6bd-a1e0-4cc4-ac52-aca602d2b3c0`, GHL contact `yIQxnzbJAJamDKdBYVUI`) reached the webhook with both merge tags populated:
 
 ```text
-insurance_id_link         = .../documents/download/3f2iiBMJdJUJ4Pnkn9Y3
-insurance_back_link       = .../documents/download/9VQJAR9fupb2s3QdFtBq
-secondary_card_front_url  = empty
-secondary_card_back_url   = empty
+primary payload:   .../wTXcLrCOTWzMxWUoACRx
+secondary payload: .../QvgLrW0uJ65LNOfo5HSU
 ```
 
-Two primary files landed; both secondary slots are empty. Notably, an **earlier** Test Johann row (created Aug 12) does have a secondary front URL, so the secondary path can work — which means this is a per-fire payload problem, not a permanently broken mapping. The 13:21 handler logs have already rolled off retention, so what GHL actually put into `insurance_id_link_secondary` on that fire is still unconfirmed.
+The GHL contact enrichment then found all four files:
+
+```text
+primary:   wTXc... + PDHp...
+secondary: QvgL... + 4hPd...
+```
+
+However, filename lookup returned empty names for all four files, so the existing order fallback remained unchanged. The database currently retains the two primary URLs but no secondary URLs.
+
+The secondary loss is consistent with overlapping webhook/enrichment work writing `parsed_insurance_info` from stale snapshots: one enrichment found all four cards, while another enrichment for the same row ran seconds later with no card files and wrote an older JSON object back over the first result.
 
 ## Plan
 
-### 1. Stop guessing: make the payload self-documenting and durable
+### 1. Make filename detection best-effort and explicit
 
-The card-field diagnostic log added earlier only survives a few minutes of log retention, which is why this keeps being unanswerable after the fact. Persist the diagnostic (field key, whether it arrived empty, file count, resolved slot) onto the appointment row itself in a small `parsed_insurance_info.card_source_debug` object, written on every fire. Then any future fire can be inspected from the database, with no reliance on log retention.
+For every GHL card file, resolve the original filename from the richest available source in this order:
 
-### 2. Fetch the card fields from GHL instead of trusting merge tags
+1. Name/metadata already included in the GHL custom-field value.
+2. `Content-Disposition` from the document response, including robust quoted and RFC 5987 filename parsing.
+3. Filename-bearing redirect/final URL metadata when available.
 
-Merge tags are the weak link: if the workflow's tag name doesn't exactly match the contact's custom field, GHL silently substitutes an empty string and the handler has nothing to work with. Fix it at the source:
+Classify only on clear, case-insensitive filename words such as `front`, `back`, `front side`, or `back side`. If the names do not clearly identify the sides, preserve the current arrival-order handling exactly as requested—no guessing or automatic reversal.
 
-- After extracting the payload, if either secondary slot (or either primary slot) is still empty, call the GHL contact endpoint for `contact_id` and read that contact's custom fields directly.
-- Resolve field *names* via the location custom-fields endpoint so the match is on the human label ("Upload A Copy Of Your Insurance Card (Secondary)"), not on a merge-tag string the workflow author typed.
-- Feed those values through the existing multi-file extractor and four-slot resolver.
+### 2. Prevent concurrent enrichment from erasing cards
 
-This makes the workflow body's merge tags an optimisation rather than a requirement, and covers every project — not just Seamless.
+Immediately before writing enrichment results, re-read the row's latest `parsed_insurance_info` and card columns, then merge onto that current state rather than the appointment snapshot captured earlier in the request.
 
-### 3. Keep the non-destructive fill rule
+Keep the existing non-destructive rule:
 
-Only fill slots that are currently empty, so a later GHL fire never overwrites an image staff uploaded in the Portal, and a manual front/back swap is never undone by a re-fire.
+- Fill an empty primary or secondary slot.
+- Never replace a card already stored by the Portal or an earlier webhook.
+- A webhook that contains no card files must never remove stored card URLs.
 
-### 4. Apply on both paths
+### 3. Apply the same resolver everywhere
 
-Run the same resolution on appointment creation and on the later contact-update/enrichment path, so cards uploaded after booking still land.
+Use one filename-aware four-slot resolver for:
 
-### 5. Verify
+- Initial workflow appointment creation.
+- Full GHL contact enrichment.
+- Later contact-update webhook processing.
 
-Re-fire the workflow for Test Johann, then confirm all four slots populate and read `card_source_debug` on the row to close out the secondary question for good.
+This avoids the current difference where the initial payload sees one URL per field while enrichment later discovers both files.
+
+### 4. Add regression coverage
+
+Cover these cases with focused Edge Function tests:
+
+- Obvious `front` and `back` filenames arrive in reverse order and are corrected.
+- Ambiguous filenames retain arrival order.
+- Primary and secondary multi-file fields populate all four slots.
+- A concurrent/no-card enrichment cannot erase secondary URLs already written.
+- Existing Portal-uploaded cards are never overwritten.
+
+### 5. Verify with the latest Test Johann record
+
+After deploying the handler, re-run enrichment or re-fire the workflow for contact `yIQxnzbJAJamDKdBYVUI`, then confirm:
+
+- All four URLs remain stored after parsing and any subsequent webhook.
+- Clearly named files occupy their matching front/back slots.
+- Ambiguous names keep their existing order.
 
 ## Technical notes
 
-- `supabase/functions/ghl-webhook-handler/index.ts`: extend `collectInsuranceCardFiles` to return its diagnostics to the caller; add a `fetchCardFieldsFromGhlContact(contactId, locationId)` helper reusing the existing GHL API key/`Version: 2021-07-28` pattern already used elsewhere in the file; call it as a fallback inside `extractInsuranceCardSlotsWithNames` on the create path and in `enrichAppointmentWithGHLData`.
-- Filename-based front/back ordering (`resolveFileName` / `orderFrontBackByFilename`) already exists and stays as-is; the manual "Swap front/back" control stays as the guaranteed escape hatch.
-- No database migration required — the debug object lives inside the existing `parsed_insurance_info` JSONB.
+- Main file: `supabase/functions/ghl-webhook-handler/index.ts`.
+- Extend `resolveFileName`/`withResolvedNames`; keep `assignFrontBack`'s current order fallback.
+- Replace stale-snapshot JSON merging in `enrichAppointmentWithGHLData` with a just-in-time row read and non-destructive merge.
+- No database migration is required.
