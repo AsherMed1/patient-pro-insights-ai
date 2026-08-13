@@ -647,6 +647,7 @@ export type Database = {
           last_edited_by: string | null
           note_text: string
           updated_at: string
+          visibility: string
         }
         Insert: {
           appointment_id: string
@@ -658,6 +659,7 @@ export type Database = {
           last_edited_by?: string | null
           note_text: string
           updated_at?: string
+          visibility?: string
         }
         Update: {
           appointment_id?: string
@@ -669,6 +671,7 @@ export type Database = {
           last_edited_by?: string | null
           note_text?: string
           updated_at?: string
+          visibility?: string
         }
         Relationships: [
           {
