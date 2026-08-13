@@ -1738,10 +1738,28 @@ function getUpdateableFields(
     updateFields.dob = webhookData.dob
   }
   
-  // Insurance card link - update if local is empty
+  // Insurance card images — fill only empty slots so a GHL re-fire never overwrites
+  // an image a human uploaded in the Portal.
   if (!existingAppointment.insurance_id_link && webhookData.insurance_id_link) {
     updateFields.insurance_id_link = webhookData.insurance_id_link
   }
+  if (!existingAppointment.insurance_back_link && webhookData.insurance_back_link) {
+    updateFields.insurance_back_link = webhookData.insurance_back_link
+  }
+  {
+    const existingParsedIns = existingAppointment.parsed_insurance_info || {}
+    const secondaryPatch: Record<string, string> = {}
+    if (webhookData.secondary_card_front_url && !existingParsedIns.secondary_card_front_url) {
+      secondaryPatch.secondary_card_front_url = webhookData.secondary_card_front_url
+    }
+    if (webhookData.secondary_card_back_url && !existingParsedIns.secondary_card_back_url) {
+      secondaryPatch.secondary_card_back_url = webhookData.secondary_card_back_url
+    }
+    if (Object.keys(secondaryPatch).length > 0) {
+      updateFields.parsed_insurance_info = { ...existingParsedIns, ...secondaryPatch }
+    }
+  }
+
   
   // Patient intake notes - enrich existing notes with GHL data.
   //
