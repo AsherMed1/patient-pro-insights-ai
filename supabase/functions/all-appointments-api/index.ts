@@ -321,6 +321,32 @@ serve(async (req) => {
         } catch (e) {
           console.error('review-queue Slack invoke threw:', e);
         }
+
+        // Scheduling-state tag: the clinic still has to set a date/time in the Portal.
+        if (
+          data[0].ghl_id &&
+          !data[0].date_of_appointment &&
+          SCHEDULING_TAG_PROJECTS.has((data[0].project_name || '').trim().toLowerCase())
+        ) {
+          try {
+            const { data: projectData } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', data[0].project_name)
+              .maybeSingle();
+            supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: data[0].ghl_id,
+                ghl_api_key: projectData?.ghl_api_key || undefined,
+                tags: ['awaiting-scheduling'],
+                action: 'add',
+                source: 'all-appointments-api unscheduled capture',
+              },
+            }).catch((e) => console.error('awaiting-scheduling tag invoke failed:', e));
+          } catch (e) {
+            console.error('awaiting-scheduling tag block threw:', e);
+          }
+        }
       }
     }
 
