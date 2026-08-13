@@ -309,7 +309,14 @@ export const InsuranceCardUpload = ({
     await persist({ back: null });
   };
 
-
+  // GHL sometimes delivers the two card images in the wrong order — one click fix.
+  const handleSwap = async () => {
+    const nextFront = backUrl;
+    const nextBack = frontUrl;
+    setFrontUrl(nextFront);
+    setBackUrl(nextBack);
+    await persist({ front: nextFront, back: nextBack });
+  };
 
   return (
     <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
