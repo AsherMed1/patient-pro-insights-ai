@@ -1867,12 +1867,14 @@ const AppointmentCard = ({
                             .from('all_appointments')
                             .update({ is_unscheduled: false })
                             .eq('id', appointment.id);
-                          if (flipError) {
-                            console.error('Failed to flip is_unscheduled:', flipError);
-                          } else {
-                            onDataRefresh?.();
-                          }
-                        }
+                           if (flipError) {
+                             console.error('Failed to flip is_unscheduled:', flipError);
+                           } else {
+                             // GHL scheduling-state tags (Prospero): stop the "waiting" messages.
+                             void markAppointmentScheduledInGHL(appointment as any);
+                             onDataRefresh?.();
+                           }
+                         }
                         setDateTimePopoverOpen(false);
                       }}
                       onClose={() => setDateTimePopoverOpen(false)}
