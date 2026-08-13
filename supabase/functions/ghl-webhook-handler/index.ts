@@ -3085,7 +3085,7 @@ async function enrichAppointmentWithGHLData(
     const ins = extractInsuranceFromCustomFields(customFields);
     // All four card images (primary front/back, secondary front/back). GHL multi-file
     // upload fields pack every file into one value, so this resolves each slot.
-    const cardSlots = extractInsuranceCardSlots(customFields);
+    const cardSlots = await extractInsuranceCardSlotsWithNames(customFields);
     // Non-null merge over existing parsed_insurance_info so we never blank prior values.
     const existingParsedInsurance = (appointment as any)?.parsed_insurance_info || {};
     const mergedParsedInsurance = { ...existingParsedInsurance };
