@@ -72,6 +72,9 @@ interface QACase {
   entered_queue_at: string;
   last_alert_activity_at: string;
   first_entered_at: string;
+  /** When the underlying patient record (appointment) was created. */
+  appointment_created_at: string | null;
+
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
