@@ -185,7 +185,8 @@ export const liftRescheduleBlock = async (
     appointment_id: appointment.id,
     note_text: `Reschedule block lifted — patient is eligible for scheduling again by ${userName}`,
     created_by: userName,
-  });
+    visibility: 'internal',
+  } as any);
 
   await removeLegacyBlockTags(appointment.id);
   await pushLifecycleTags({

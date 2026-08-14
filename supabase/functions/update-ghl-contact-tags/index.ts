@@ -54,6 +54,7 @@ serve(async (req) => {
           appointment_id: appointmentId,
           note_text: text,
           created_by: 'System',
+          visibility: 'internal',
         });
       } catch (e) {
         console.error('failed to write tag audit note:', e);

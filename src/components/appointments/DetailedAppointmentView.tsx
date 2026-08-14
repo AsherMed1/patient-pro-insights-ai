@@ -1725,7 +1725,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                     appointment_id: appointment.id,
                     note_text: noteText,
                     created_by: 'System',
-                  });
+                    visibility: 'clinic',
+                  } as any);
                   
                   // Update status via handleFieldUpdate
                   setCurrentStatus('Cancelled');
