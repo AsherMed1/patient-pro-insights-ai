@@ -112,12 +112,17 @@ export default function QAReports() {
         const { data, error } = await supabase
           .from('qa_cases' as any)
           .select(
-            'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, escalation_status, escalation_owner_user_id, escalated_by_user_id, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
+            'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, escalation_status, escalation_owner_user_id, escalated_by_user_id, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, appointment_created_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
           )
-          .gte('entered_queue_at', from.toISOString())
-          .lte('entered_queue_at', to.toISOString())
-          .order('entered_queue_at', { ascending: false })
+          // Date range selects patient records by when the record was created,
+          // not by when each alert entered the queue — so a record created in
+          // the range is reported with its final outcome even when the alert
+          // that decided that outcome fired later.
+          .gte('appointment_created_at', from.toISOString())
+          .lte('appointment_created_at', to.toISOString())
+          .order('appointment_created_at', { ascending: false })
           .range(page * PAGE, page * PAGE + PAGE - 1);
+
         if (error) throw error;
         const batch = (data as any[]) || [];
         out.push(...batch);
