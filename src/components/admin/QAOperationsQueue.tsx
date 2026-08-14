@@ -1917,7 +1917,7 @@ function CaseDrawer({
     if (!caseData) return;
     setSavingAudit(true);
     const patch: any = {
-      qa_name: audit.qa_name ?? null,
+      qa_name: (audit.qa_name ?? '').trim() || null,
       self_booked: audit.self_booked ?? null,
       error_category: audit.error_category ?? null,
       error_source: audit.error_source ?? null,
