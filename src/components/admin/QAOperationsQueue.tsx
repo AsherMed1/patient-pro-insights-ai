@@ -1460,8 +1460,8 @@ export default function QAOperationsQueue() {
 // --- Audit Details draft helpers -------------------------------------------
 const AUDIT_DRAFT_PREFIX = 'qa-audit-draft:';
 
-const auditFromCase = (c: QACase, defaultName = ''): Partial<QACase> => ({
-  qa_name: c.qa_name ?? (defaultName || ''),
+const auditFromCase = (c: QACase): Partial<QACase> => ({
+  qa_name: c.qa_name ?? '',
   self_booked: c.self_booked,
   error_category: c.error_category,
   error_source: c.error_source,
