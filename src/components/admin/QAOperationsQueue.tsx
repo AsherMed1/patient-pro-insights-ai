@@ -1203,7 +1203,7 @@ export default function QAOperationsQueue() {
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateFrom && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateFrom ? format(dateFrom, 'MMM d') : 'From'}
+              {dateFrom ? format(dateFrom, 'MMM d') : 'Created from'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -1214,7 +1214,7 @@ export default function QAOperationsQueue() {
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateTo && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateTo ? format(dateTo, 'MMM d') : 'To'}
+              {dateTo ? format(dateTo, 'MMM d') : 'Created to'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
