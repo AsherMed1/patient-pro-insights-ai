@@ -296,6 +296,14 @@ interface TicketAttachment {
 const normalizeName = (n: string | null): string =>
   (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+/**
+ * The date a QA row is filtered by: when the patient record itself was created,
+ * falling back to the alert's first queue entry for contact-only alerts.
+ */
+const recordCreatedAt = (c: QACase): string =>
+  c.appointment_created_at || c.first_entered_at || c.entered_queue_at;
+
+
 const groupKeyFor = (c: QACase): string => {
   if (c.ghl_contact_id) return `ghl:${c.ghl_contact_id}`;
   return `fallback:${c.project_name}|${normalizeName(c.patient_name)}|${c.appointment_id ?? c.id}`;
