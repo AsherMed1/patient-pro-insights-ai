@@ -45,6 +45,7 @@ interface ReportCase {
   completed_at: string | null;
   entered_queue_at: string;
   first_entered_at: string | null;
+  appointment_created_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
   patient_link: string | null;
@@ -485,8 +486,8 @@ export default function QAReports() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DatePick value={dateFrom} onChange={setDateFrom} label="From" />
-        <DatePick value={dateTo} onChange={setDateTo} label="To" />
+        <DatePick value={dateFrom} onChange={setDateFrom} label="Created from" />
+        <DatePick value={dateTo} onChange={setDateTo} label="Created to" />
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="w-56"><SelectValue placeholder="Clinic" /></SelectTrigger>
           <SelectContent>
