@@ -5,7 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 export const SCHEDULING_TAG_PROJECTS = ['Prospero Vascular and Interventional'];
 
 export const AWAITING_SCHEDULING_TAG = 'awaiting-scheduling';
-export const AWAITING_AGING_TAGS = ['awaiting-scheduling-24h', 'awaiting-scheduling-72h'];
+// 'awaiting-scheduling-24h' is the legacy name for the 48h tag — kept here so it
+// gets stripped from any contact that still carries it.
+export const AWAITING_AGING_TAGS = ['awaiting-scheduling-48h', 'awaiting-scheduling-72h', 'awaiting-scheduling-24h'];
 export const APPOINTMENT_SCHEDULED_TAG = 'appointment-scheduled';
 
 export function isSchedulingTagProject(projectName?: string | null): boolean {

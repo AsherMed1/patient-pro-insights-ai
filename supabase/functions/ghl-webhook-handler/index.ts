@@ -55,7 +55,9 @@ const SCHEDULING_TAG_PROJECTS = new Set([
 ])
 
 const AWAITING_TAG = 'awaiting-scheduling'
-const AWAITING_AGING_TAGS = ['awaiting-scheduling-24h', 'awaiting-scheduling-72h']
+// 'awaiting-scheduling-24h' is the legacy name for the 48h tag — kept here so it
+// gets stripped from any contact that still carries it.
+const AWAITING_AGING_TAGS = ['awaiting-scheduling-48h', 'awaiting-scheduling-72h', 'awaiting-scheduling-24h']
 const SCHEDULED_TAG = 'appointment-scheduled'
 
 function isSchedulingTagProject(projectName: any): boolean {
