@@ -333,8 +333,9 @@ function groupCases(list: QACase[]): QAGroup[] {
         ? [latest]
         : ['short_notice', latest];
     const earliestCreated = sorted
-      .map((c) => c.first_entered_at || c.entered_queue_at)
+      .map((c) => recordCreatedAt(c))
       .sort()[0];
+
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
     groups.push({ key, primary, children: sorted, displayAlertTypes, shortNoticeCorrected, earliestCreated, latestActivity, ticketCase });
