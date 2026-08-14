@@ -546,13 +546,14 @@ export default function QAOperationsQueue() {
       if (!row?.appointment_id) return row;
       const { data } = await supabase
         .from('all_appointments')
-        .select('lead_phone_number, lead_email')
+        .select('lead_phone_number, lead_email, status')
         .eq('id', row.appointment_id)
         .maybeSingle();
       return {
         ...row,
         lead_phone_number: (data as any)?.lead_phone_number ?? null,
         lead_email: (data as any)?.lead_email ?? null,
+        appointment_status: (data as any)?.status ?? row.appointment_status ?? null,
       };
     };
 
