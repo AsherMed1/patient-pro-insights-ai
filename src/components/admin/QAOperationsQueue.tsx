@@ -1641,6 +1641,9 @@ function CaseDrawer({
     return formatApptDate(caseData?.appointment_date);
   };
 
+  // Live Portal status wins over the frozen qa_cases snapshot.
+  const liveApptStatus = (): string => liveAppt?.status || caseData?.appointment_status || '—';
+
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
     setLoadingPortalRecord(true);
