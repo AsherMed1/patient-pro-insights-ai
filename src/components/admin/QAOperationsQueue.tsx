@@ -1686,7 +1686,7 @@ function CaseDrawer({
       }
       if (cancelled) return;
       setAuthorDisplayName(defaultName || user?.email || '');
-      const base = auditFromCase(caseData, defaultName);
+      const base = auditFromCase(caseData);
       savedSnapshotRef.current = base;
       const draft = readDraft(caseId);
       setAudit(draft && !sameAudit(draft, base) ? draft : base);
@@ -1743,7 +1743,7 @@ function CaseDrawer({
   // Detect the case being changed elsewhere while the user has unsaved edits.
   useEffect(() => {
     if (!caseData) return;
-    const latest = auditFromCase(caseData, authorDisplayName);
+    const latest = auditFromCase(caseData);
     if (!sameAudit(latest, savedSnapshotRef.current)) {
       if (isDirty) setExternalUpdate(true);
       else {
@@ -1755,7 +1755,7 @@ function CaseDrawer({
 
   const loadLatestAudit = () => {
     if (!caseData) return;
-    const latest = auditFromCase(caseData, authorDisplayName);
+    const latest = auditFromCase(caseData);
     savedSnapshotRef.current = latest;
     setAudit(latest);
     setExternalUpdate(false);
