@@ -479,21 +479,27 @@ export default function QAOperationsQueue() {
       const apptIds = Array.from(
         new Set(rows.map((r) => r.appointment_id).filter((v): v is string => !!v)),
       );
-      const contactMap = new Map<string, { phone: string | null; email: string | null }>();
+      const contactMap = new Map<string, { phone: string | null; email: string | null; status: string | null }>();
       for (let i = 0; i < apptIds.length; i += 500) {
         const chunk = apptIds.slice(i, i + 500);
         const { data: appts } = await supabase
           .from('all_appointments')
-          .select('id, lead_phone_number, lead_email')
+          .select('id, lead_phone_number, lead_email, status')
           .in('id', chunk);
         for (const a of (appts as any[]) || []) {
-          contactMap.set(a.id, { phone: a.lead_phone_number ?? null, email: a.lead_email ?? null });
+          contactMap.set(a.id, {
+            phone: a.lead_phone_number ?? null,
+            email: a.lead_email ?? null,
+            status: a.status ?? null,
+          });
         }
       }
       for (const r of rows) {
         const c = r.appointment_id ? contactMap.get(r.appointment_id) : null;
         r.lead_phone_number = c?.phone ?? null;
         r.lead_email = c?.email ?? null;
+        // Mirror the live Portal status so the queue never shows a stale snapshot.
+        if (c && c.status) r.appointment_status = c.status;
       }
       setCases(rows);
       hasLoadedRef.current = true;
