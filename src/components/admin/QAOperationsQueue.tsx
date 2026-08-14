@@ -2317,7 +2317,7 @@ function CaseDrawer({
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt status</div>
-                  <div className="break-words">{caseData.appointment_status || '—'}</div>
+                  <div className="break-words">{liveApptStatus()}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt date</div>
