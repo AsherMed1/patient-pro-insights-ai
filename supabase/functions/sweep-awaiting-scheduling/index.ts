@@ -83,15 +83,17 @@ serve(async (req) => {
 
       if (!awaiting) {
         // Self-heal: scheduled or dropped out — clear the waiting tags.
-        await pushTags(row, [AWAITING_TAG, TAG_24H, TAG_72H], 'remove');
+        await pushTags(row, [AWAITING_TAG, TAG_48H, TAG_72H, LEGACY_TAG_24H], 'remove');
         if (!isTerminal && row.date_of_appointment) await pushTags(row, [SCHEDULED_TAG], 'add');
         cleaned++;
         continue;
       }
 
       const hours = calculateBusinessHours(new Date(row.created_at), now);
+      // Retire the old 24h tag wherever it lingers.
+      await pushTags(row, [LEGACY_TAG_24H], 'remove');
       const tags: string[] = [];
-      if (hours >= 24) tags.push(TAG_24H);
+      if (hours >= 48) tags.push(TAG_48H);
       if (hours >= 72) tags.push(TAG_72H);
       if (tags.length === 0) continue;
 
