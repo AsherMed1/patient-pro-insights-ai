@@ -73,14 +73,14 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   const { userName } = useUserAttribution();
   const { canEditNotes, isAdmin, isProjectUser } = useRole();
   const canModify = canEditNotes();
-  // Internal notes are team-only — clinic portal users never see the section.
   const isClinicUser = isProjectUser();
-  // System (blue) notes are admin-only; they stay in the DB for audit either way.
-  const roleFiltered = isAdmin() ? notes : notes.filter((n) => n.created_by !== 'System');
-  // Clinic portal users only see notes explicitly marked clinic-visible.
+  // Visibility is decided by the `visibility` column only — never by author. A
+  // System-authored lifecycle event (cancellation reason, re-sync, service
+  // change) is clinic-facing when it says so; truly internal system writes are
+  // stored as `internal`.
   const visibleNotes = isClinicUser
-    ? roleFiltered.filter((n) => (n.visibility ?? 'clinic') === 'clinic')
-    : roleFiltered;
+    ? notes.filter((n) => (n.visibility ?? 'clinic') === 'clinic')
+    : notes;
 
 
   const handleAddNote = async () => {

@@ -154,6 +154,7 @@ serve(async (req) => {
         appointment_id: row.id,
         note_text: `Short Notice automatically applied — appointment is now within the clinic's ${threshold}h notice window (${Math.round(hoursOfNotice)}h remaining). Action required. - [[timestamp:${now.toISOString()}]]`,
         created_by: 'System',
+        visibility: 'clinic',
         attachments: [],
       });
 

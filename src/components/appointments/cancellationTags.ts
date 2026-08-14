@@ -128,7 +128,8 @@ export async function pushLifecycleTags({
         appointment_id: appointmentId,
         note_text: text,
         created_by: 'System',
-      });
+        visibility: 'internal',
+      } as any);
     } catch (e) {
       console.error('Failed to write lifecycle tag audit note:', e);
     }

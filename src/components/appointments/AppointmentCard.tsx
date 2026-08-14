@@ -753,7 +753,8 @@ const AppointmentCard = ({
         appointment_id: appointment.id,
         note_text: noteText,
         created_by: 'System',
-      });
+        visibility: 'clinic',
+      } as any);
 
       // Build cancellation notes string for GHL
       const ghlCancelNotes = `${cancelReason} (Welcome Call completed: ${welcomeCallLabel(welcomeCallCompleted)})${cancelNotes.trim() ? ` - ${cancelNotes.trim()}` : ''}`;

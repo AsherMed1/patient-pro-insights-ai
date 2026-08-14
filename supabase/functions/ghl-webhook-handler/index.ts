@@ -752,6 +752,7 @@ serve(async (req) => {
           appointment_id: serviceChange.appointmentId,
           note_text: `Service changed from ${serviceChange.fromProcedure} to ${serviceChange.toProcedure} in GoHighLevel — pathology re-parsed from the ${serviceChange.toProcedure} funnel — ${ts}`,
           created_by: 'System',
+          visibility: 'clinic',
         })
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create service-change note:`, noteErr)
@@ -2506,6 +2507,7 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
           appointment_id: id,
           note_text: `Superseded by newer GHL booking ${newRow.ghl_appointment_id || '(no event id)'} on ${newDate || 'unscheduled'}${newTime ? ` at ${newTime}` : ''} — System`,
           created_by: 'System',
+          visibility: 'internal',
         }))
       )
     } catch (noteErr) {
@@ -2735,6 +2737,7 @@ async function findExistingAppointment(
               appointment_id: id,
               note_text: `Superseded — duplicate of the same GoHighLevel booking (${ghlAppointmentId}). Active record: ${chosen.id} (${survivingWhen}) — System`,
               created_by: 'System',
+              visibility: 'internal',
             }))
           )
         } catch (e) {
