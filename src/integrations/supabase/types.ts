@@ -3508,6 +3508,7 @@ export type Database = {
         Row: {
           alert_source_id: string | null
           alert_type: string
+          appointment_created_at: string | null
           appointment_date: string | null
           appointment_id: string | null
           appointment_status: string | null
@@ -3555,6 +3556,7 @@ export type Database = {
         Insert: {
           alert_source_id?: string | null
           alert_type: string
+          appointment_created_at?: string | null
           appointment_date?: string | null
           appointment_id?: string | null
           appointment_status?: string | null
@@ -3602,6 +3604,7 @@ export type Database = {
         Update: {
           alert_source_id?: string | null
           alert_type?: string
+          appointment_created_at?: string | null
           appointment_date?: string | null
           appointment_id?: string | null
           appointment_status?: string | null
