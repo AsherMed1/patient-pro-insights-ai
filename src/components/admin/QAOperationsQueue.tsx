@@ -479,21 +479,27 @@ export default function QAOperationsQueue() {
       const apptIds = Array.from(
         new Set(rows.map((r) => r.appointment_id).filter((v): v is string => !!v)),
       );
-      const contactMap = new Map<string, { phone: string | null; email: string | null }>();
+      const contactMap = new Map<string, { phone: string | null; email: string | null; status: string | null }>();
       for (let i = 0; i < apptIds.length; i += 500) {
         const chunk = apptIds.slice(i, i + 500);
         const { data: appts } = await supabase
           .from('all_appointments')
-          .select('id, lead_phone_number, lead_email')
+          .select('id, lead_phone_number, lead_email, status')
           .in('id', chunk);
         for (const a of (appts as any[]) || []) {
-          contactMap.set(a.id, { phone: a.lead_phone_number ?? null, email: a.lead_email ?? null });
+          contactMap.set(a.id, {
+            phone: a.lead_phone_number ?? null,
+            email: a.lead_email ?? null,
+            status: a.status ?? null,
+          });
         }
       }
       for (const r of rows) {
         const c = r.appointment_id ? contactMap.get(r.appointment_id) : null;
         r.lead_phone_number = c?.phone ?? null;
         r.lead_email = c?.email ?? null;
+        // Mirror the live Portal status so the queue never shows a stale snapshot.
+        if (c && c.status) r.appointment_status = c.status;
       }
       setCases(rows);
       hasLoadedRef.current = true;
@@ -540,13 +546,14 @@ export default function QAOperationsQueue() {
       if (!row?.appointment_id) return row;
       const { data } = await supabase
         .from('all_appointments')
-        .select('lead_phone_number, lead_email')
+        .select('lead_phone_number, lead_email, status')
         .eq('id', row.appointment_id)
         .maybeSingle();
       return {
         ...row,
         lead_phone_number: (data as any)?.lead_phone_number ?? null,
         lead_email: (data as any)?.lead_email ?? null,
+        appointment_status: (data as any)?.status ?? row.appointment_status ?? null,
       };
     };
 
@@ -1577,7 +1584,7 @@ function CaseDrawer({
   const [portalRecord, setPortalRecord] = useState<any | null>(null);
   const [loadingPortalRecord, setLoadingPortalRecord] = useState(false);
   const [authorDisplayName, setAuthorDisplayName] = useState<string>('');
-  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null; phone: string | null; email: string | null } | null>(null);
+  const [liveAppt, setLiveAppt] = useState<{ date: string | null; time: string | null; phone: string | null; email: string | null; status: string | null } | null>(null);
   const [apptTz, setApptTz] = useState<string>(
     () => getCachedProjectTimezone(caseData?.project_name) || 'America/Chicago'
   );
@@ -1600,7 +1607,7 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time, lead_phone_number, lead_email')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -1612,6 +1619,7 @@ function CaseDrawer({
                   time: (data as any).requested_time,
                   phone: (data as any).lead_phone_number ?? null,
                   email: (data as any).lead_email ?? null,
+                  status: (data as any).status ?? null,
                 }
               : null,
           );
@@ -1632,6 +1640,9 @@ function CaseDrawer({
     }
     return formatApptDate(caseData?.appointment_date);
   };
+
+  // Live Portal status wins over the frozen qa_cases snapshot.
+  const liveApptStatus = (): string => liveAppt?.status || caseData?.appointment_status || '—';
 
   const openPortalRecord = async () => {
     if (!caseData?.appointment_id) return;
@@ -2306,7 +2317,7 @@ function CaseDrawer({
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt status</div>
-                  <div className="break-words">{caseData.appointment_status || '—'}</div>
+                  <div className="break-words">{liveApptStatus()}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-muted-foreground text-xs">Appt date</div>
