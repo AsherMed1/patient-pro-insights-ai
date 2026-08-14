@@ -96,7 +96,8 @@ const LogAttemptDialog: React.FC<LogAttemptDialogProps> = ({
         appointment_id: appointmentId,
         note_text: mirrored,
         created_by: userName,
-      });
+        visibility: 'internal',
+      } as any);
 
       toast({ title: 'Attempt logged', description: `${channelLabel(channel)} — ${outcomeLabel(outcome)}` });
       onOpenChange(false);
