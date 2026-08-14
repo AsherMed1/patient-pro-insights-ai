@@ -1460,8 +1460,8 @@ export default function QAOperationsQueue() {
 // --- Audit Details draft helpers -------------------------------------------
 const AUDIT_DRAFT_PREFIX = 'qa-audit-draft:';
 
-const auditFromCase = (c: QACase): Partial<QACase> => ({
-  qa_name: c.qa_name ?? '',
+const auditFromCase = (c: QACase, defaultName = ''): Partial<QACase> => ({
+  qa_name: c.qa_name ?? (defaultName || ''),
   self_booked: c.self_booked,
   error_category: c.error_category,
   error_source: c.error_source,
@@ -1686,7 +1686,7 @@ function CaseDrawer({
       }
       if (cancelled) return;
       setAuthorDisplayName(defaultName || user?.email || '');
-      const base = auditFromCase(caseData);
+      const base = auditFromCase(caseData, defaultName);
       savedSnapshotRef.current = base;
       const draft = readDraft(caseId);
       setAudit(draft && !sameAudit(draft, base) ? draft : base);
@@ -1743,7 +1743,7 @@ function CaseDrawer({
   // Detect the case being changed elsewhere while the user has unsaved edits.
   useEffect(() => {
     if (!caseData) return;
-    const latest = auditFromCase(caseData);
+    const latest = auditFromCase(caseData, authorDisplayName);
     if (!sameAudit(latest, savedSnapshotRef.current)) {
       if (isDirty) setExternalUpdate(true);
       else {
@@ -1755,7 +1755,7 @@ function CaseDrawer({
 
   const loadLatestAudit = () => {
     if (!caseData) return;
-    const latest = auditFromCase(caseData);
+    const latest = auditFromCase(caseData, authorDisplayName);
     savedSnapshotRef.current = latest;
     setAudit(latest);
     setExternalUpdate(false);
@@ -1917,7 +1917,7 @@ function CaseDrawer({
     if (!caseData) return;
     setSavingAudit(true);
     const patch: any = {
-      qa_name: (audit.qa_name ?? '').trim() || null,
+      qa_name: audit.qa_name ?? null,
       self_booked: audit.self_booked ?? null,
       error_category: audit.error_category ?? null,
       error_source: audit.error_source ?? null,
@@ -2018,7 +2018,7 @@ function CaseDrawer({
       return;
     }
     const cleared = {
-      qa_name: '',
+      qa_name: authorDisplayName || '',
       self_booked: null,
       error_category: null,
       error_source: null,
@@ -2433,22 +2433,11 @@ function CaseDrawer({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                   <div className="min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-xs">QA Name</Label>
-                      {authorDisplayName && (audit.qa_name ?? '').trim() === '' && (
-                        <button
-                          type="button"
-                          className="text-[11px] underline text-muted-foreground hover:text-foreground"
-                          onClick={() => setAudit((a) => ({ ...a, qa_name: authorDisplayName }))}
-                        >
-                          Use my name
-                        </button>
-                      )}
-                    </div>
+                    <Label className="text-xs">QA Name</Label>
                     <Input
                       value={audit.qa_name ?? ''}
                       onChange={(e) => setAudit((a) => ({ ...a, qa_name: e.target.value }))}
-                      placeholder="Enter QA specialist name"
+                      placeholder="QA specialist"
                     />
                   </div>
                   <div className="min-w-0">
