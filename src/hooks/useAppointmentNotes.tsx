@@ -273,6 +273,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
     submitting,
     addNote,
     updateNote,
+    setNoteVisibility,
     deleteNote,
     refreshNotes: fetchNotes
   };
