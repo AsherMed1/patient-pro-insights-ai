@@ -2018,7 +2018,7 @@ function CaseDrawer({
       return;
     }
     const cleared = {
-      qa_name: authorDisplayName || '',
+      qa_name: '',
       self_booked: null,
       error_category: null,
       error_source: null,
