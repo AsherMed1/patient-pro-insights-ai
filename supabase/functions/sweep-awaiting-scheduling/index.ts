@@ -10,7 +10,8 @@ const corsHeaders = {
 const SCHEDULING_TAG_PROJECTS = ['Prospero Vascular and Interventional'];
 
 const AWAITING_TAG = 'awaiting-scheduling';
-const TAG_24H = 'awaiting-scheduling-24h';
+const TAG_48H = 'awaiting-scheduling-48h';
+const LEGACY_TAG_24H = 'awaiting-scheduling-24h';
 const TAG_72H = 'awaiting-scheduling-72h';
 const SCHEDULED_TAG = 'appointment-scheduled';
 
