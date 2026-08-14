@@ -45,6 +45,7 @@ interface ReportCase {
   completed_at: string | null;
   entered_queue_at: string;
   first_entered_at: string | null;
+  appointment_created_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
   patient_link: string | null;
@@ -112,12 +113,17 @@ export default function QAReports() {
         const { data, error } = await supabase
           .from('qa_cases' as any)
           .select(
-            'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, escalation_status, escalation_owner_user_id, escalated_by_user_id, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
+            'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, escalation_status, escalation_owner_user_id, escalated_by_user_id, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, appointment_created_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
           )
-          .gte('entered_queue_at', from.toISOString())
-          .lte('entered_queue_at', to.toISOString())
-          .order('entered_queue_at', { ascending: false })
+          // Date range selects patient records by when the record was created,
+          // not by when each alert entered the queue — so a record created in
+          // the range is reported with its final outcome even when the alert
+          // that decided that outcome fired later.
+          .gte('appointment_created_at', from.toISOString())
+          .lte('appointment_created_at', to.toISOString())
+          .order('appointment_created_at', { ascending: false })
           .range(page * PAGE, page * PAGE + PAGE - 1);
+
         if (error) throw error;
         const batch = (data as any[]) || [];
         out.push(...batch);
@@ -480,8 +486,8 @@ export default function QAReports() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DatePick value={dateFrom} onChange={setDateFrom} label="From" />
-        <DatePick value={dateTo} onChange={setDateTo} label="To" />
+        <DatePick value={dateFrom} onChange={setDateFrom} label="Created from" />
+        <DatePick value={dateTo} onChange={setDateTo} label="Created to" />
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="w-56"><SelectValue placeholder="Clinic" /></SelectTrigger>
           <SelectContent>

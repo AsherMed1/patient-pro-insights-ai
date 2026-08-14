@@ -72,6 +72,9 @@ interface QACase {
   entered_queue_at: string;
   last_alert_activity_at: string;
   first_entered_at: string;
+  /** When the underlying patient record (appointment) was created. */
+  appointment_created_at: string | null;
+
   completed_at: string | null;
   controlhub_ticket_id: string | null;
   controlhub_ticket_url: string | null;
@@ -293,6 +296,14 @@ interface TicketAttachment {
 const normalizeName = (n: string | null): string =>
   (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+/**
+ * The date a QA row is filtered by: when the patient record itself was created,
+ * falling back to the alert's first queue entry for contact-only alerts.
+ */
+const recordCreatedAt = (c: QACase): string =>
+  c.appointment_created_at || c.first_entered_at || c.entered_queue_at;
+
+
 const groupKeyFor = (c: QACase): string => {
   if (c.ghl_contact_id) return `ghl:${c.ghl_contact_id}`;
   return `fallback:${c.project_name}|${normalizeName(c.patient_name)}|${c.appointment_id ?? c.id}`;
@@ -330,8 +341,9 @@ function groupCases(list: QACase[]): QAGroup[] {
         ? [latest]
         : ['short_notice', latest];
     const earliestCreated = sorted
-      .map((c) => c.first_entered_at || c.entered_queue_at)
+      .map((c) => recordCreatedAt(c))
       .sort()[0];
+
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
     groups.push({ key, primary, children: sorted, displayAlertTypes, shortNoticeCorrected, earliestCreated, latestActivity, ticketCase });
@@ -675,22 +687,16 @@ export default function QAOperationsQueue() {
   ), [search, projectFilter, alertFilter, assignmentFilter, dateFrom, dateTo]);
 
 
-  // Apply row-level filters that are patient-agnostic (project, assignment, date,
-  // reserved-block, search). Alert Type is intentionally NOT applied here —
-  // it's applied AFTER grouping so it evaluates each patient's LATEST alert,
-  // not any historical row.
+  // Apply row-level filters that are patient-agnostic (project, assignment,
+  // reserved-block, search). Alert Type and the date range are intentionally
+  // NOT applied here — Alert Type evaluates each patient's LATEST alert, and
+  // the date range selects whole patient records (see `groupedNoStatus`).
   const rowFilteredNoAlert = useMemo(() => {
     const t = search.trim().toLowerCase();
     return cases.filter((c) => {
       if (projectFilter.length > 0 && !projectFilter.includes(c.project_name)) return false;
       if (assignmentFilter === 'mine' && c.assigned_qs_user_id !== user?.id) return false;
       if (assignmentFilter === 'unassigned' && c.assigned_qs_user_id) return false;
-      if (dateFrom && new Date(c.entered_queue_at) < dateFrom) return false;
-      if (dateTo) {
-        const end = new Date(dateTo);
-        end.setHours(23, 59, 59, 999);
-        if (new Date(c.entered_queue_at) > end) return false;
-      }
       if (isReservedBlock(c.patient_name)) return false;
       if (!t) return true;
       const digits = t.replace(/\D/g, '');
@@ -705,16 +711,35 @@ export default function QAOperationsQueue() {
         (digits.length >= 3 && phoneDigits.includes(digits))
       );
     });
-  }, [cases, search, projectFilter, assignmentFilter, dateFrom, dateTo, user?.id]);
+  }, [cases, search, projectFilter, assignmentFilter, user?.id]);
 
   // Group first so "latest alert" is well-defined per patient, then apply the
   // Alert Type filter against `primary.alert_type` only. Selecting an alert
   // type that isn't the patient's latest alert returns zero results for them.
+  //
+  // The date range keeps a patient when the RECORD was created inside it — all
+  // of that patient's alerts stay attached, including ones raised later, so the
+  // row shows the current status and the full history.
   const groupedNoStatus = useMemo(() => {
-    const groups = groupCases(rowFilteredNoAlert);
+    let groups = groupCases(rowFilteredNoAlert);
+    if (dateFrom || dateTo) {
+      const start = dateFrom ? new Date(dateFrom) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = dateTo ? new Date(dateTo) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+      groups = groups.filter((g) =>
+        g.children.some((c) => {
+          const created = new Date(recordCreatedAt(c));
+          if (start && created < start) return false;
+          if (end && created > end) return false;
+          return true;
+        }),
+      );
+    }
     if (alertFilter === 'all') return groups;
     return groups.filter((g) => g.primary.alert_type === alertFilter);
-  }, [rowFilteredNoAlert, alertFilter]);
+  }, [rowFilteredNoAlert, alertFilter, dateFrom, dateTo]);
+
 
   const bucketCounts = useMemo(() => {
     const counts: Record<string, number> = { new: 0, in_review: 0, pending_escalated: 0, completed: 0, all: 0 };
@@ -1178,7 +1203,7 @@ export default function QAOperationsQueue() {
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateFrom && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateFrom ? format(dateFrom, 'MMM d') : 'From'}
+              {dateFrom ? format(dateFrom, 'MMM d') : 'Created from'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -1189,7 +1214,7 @@ export default function QAOperationsQueue() {
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateTo && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateTo ? format(dateTo, 'MMM d') : 'To'}
+              {dateTo ? format(dateTo, 'MMM d') : 'Created to'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
