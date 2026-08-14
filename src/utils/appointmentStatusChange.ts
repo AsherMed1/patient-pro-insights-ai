@@ -182,7 +182,8 @@ export async function changeAppointmentStatus({
       appointment_id: appointmentId,
       note_text: systemNote,
       created_by: userName,
-    });
+      visibility: 'clinic',
+    } as any);
   }
 
   // Do Not Call: always fire DND + DO NOT CALL note when explicitly selected.
@@ -192,13 +193,15 @@ export async function changeAppointmentStatus({
         appointment_id: appointmentId,
         note_text: `Re-triggered Do Not Call workflow by ${userName} - [[timestamp:${new Date().toISOString()}]]`,
         created_by: userName,
-      });
+        visibility: 'clinic',
+      } as any);
     } else {
       await supabase.from('appointment_notes').insert({
         appointment_id: appointmentId,
         note_text: 'DO NOT CALL',
         created_by: userName,
-      });
+        visibility: 'clinic',
+      } as any);
     }
 
     try {
@@ -242,7 +245,8 @@ export async function changeAppointmentStatus({
         appointment_id: appointmentId,
         note_text: `Re-triggered OON workflow by ${userName} - [[timestamp:${new Date().toISOString()}]]`,
         created_by: userName,
-      });
+        visibility: 'clinic',
+      } as any);
     }
 
     try {

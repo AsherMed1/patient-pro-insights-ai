@@ -185,6 +185,50 @@ export const useAppointmentNotes = (appointmentId: string) => {
     }
   };
 
+  const setNoteVisibility = async (
+    noteId: string,
+    visibility: 'internal' | 'clinic',
+    changedBy: string,
+  ) => {
+    try {
+      const { data, error } = await supabase
+        .from('appointment_notes')
+        .update({ visibility } as any)
+        .eq('id', noteId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setNotes(prev => prev.map(n => (n.id === noteId ? (data as AppointmentNote) : n)));
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment_note',
+          p_action: 'note_visibility_changed',
+          p_description: `Note marked ${visibility === 'internal' ? 'internal only' : 'clinic visible'} by ${changedBy}`,
+          p_source: 'manual',
+          p_metadata: { note_id: noteId, appointment_id: appointmentId, visibility },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({
+        title: visibility === 'internal' ? 'Marked internal' : 'Marked clinic visible',
+        description:
+          visibility === 'internal'
+            ? 'This note is now hidden from the clinic.'
+            : 'This note is now visible to the clinic.',
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating note visibility:', error);
+      toast({ title: 'Error', description: 'Failed to update note visibility', variant: 'destructive' });
+      return false;
+    }
+  };
+
   const deleteNote = async (noteId: string, deletedBy: string) => {
     try {
       const { error } = await supabase
@@ -229,6 +273,7 @@ export const useAppointmentNotes = (appointmentId: string) => {
     submitting,
     addNote,
     updateNote,
+    setNoteVisibility,
     deleteNote,
     refreshNotes: fetchNotes
   };

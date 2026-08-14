@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, MessageSquare, Clock, User, Pencil, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, Clock, User, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useAppointmentNotes } from '@/hooks/useAppointmentNotes';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { useRole } from '@/hooks/useRole';
@@ -60,7 +60,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
       setShowAddForm(true);
     }
   }, [externalShowForm]);
-  const { notes, loading, submitting, addNote, updateNote, deleteNote } = useAppointmentNotes(appointmentId);
+  const { notes, loading, submitting, addNote, updateNote, setNoteVisibility, deleteNote } = useAppointmentNotes(appointmentId);
   // Deep link from a mention notification: reveal and scroll to the note.
   useEffect(() => {
     if (!focusNoteId) return;
@@ -281,11 +281,46 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
                             Auto
                           </Badge>
                         )}
-                        {!isClinicUser && (note.visibility ?? 'clinic') === 'internal' && (
+                        {!isClinicUser && (canModify ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNoteVisibility(
+                                note.id,
+                                (note.visibility ?? 'clinic') === 'internal' ? 'clinic' : 'internal',
+                                userName,
+                              )
+                            }
+                            title={
+                              (note.visibility ?? 'clinic') === 'internal'
+                                ? 'Internal only — click to make clinic visible'
+                                : 'Clinic visible — click to make internal only'
+                            }
+                          >
+                            <Badge
+                              variant="secondary"
+                              className={`text-xs cursor-pointer gap-1 ${
+                                (note.visibility ?? 'clinic') === 'internal'
+                                  ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                              }`}
+                            >
+                              {(note.visibility ?? 'clinic') === 'internal' ? (
+                                <>
+                                  <EyeOff className="h-3 w-3" /> Internal
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="h-3 w-3" /> Clinic visible
+                                </>
+                              )}
+                            </Badge>
+                          </button>
+                        ) : (note.visibility ?? 'clinic') === 'internal' ? (
                           <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700">
                             Internal
                           </Badge>
-                        )}
+                        ) : null)}
                         {note.last_edited_by && (
                           <Badge variant="outline" className="text-xs">
                             edited by {note.last_edited_by}
