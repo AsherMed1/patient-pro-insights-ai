@@ -1607,7 +1607,7 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time, lead_phone_number, lead_email')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -1619,6 +1619,7 @@ function CaseDrawer({
                   time: (data as any).requested_time,
                   phone: (data as any).lead_phone_number ?? null,
                   email: (data as any).lead_email ?? null,
+                  status: (data as any).status ?? null,
                 }
               : null,
           );
