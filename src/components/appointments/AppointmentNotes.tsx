@@ -71,7 +71,7 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
   }, [focusNoteId, notes.length]);
 
   const { userName } = useUserAttribution();
-  const { canEditNotes, isAdmin, isProjectUser } = useRole();
+  const { canEditNotes, isProjectUser } = useRole();
   const canModify = canEditNotes();
   const isClinicUser = isProjectUser();
   // Visibility is decided by the `visibility` column only — never by author. A
