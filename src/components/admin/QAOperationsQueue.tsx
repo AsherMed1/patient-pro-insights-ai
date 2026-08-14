@@ -2433,11 +2433,22 @@ function CaseDrawer({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                   <div className="min-w-0">
-                    <Label className="text-xs">QA Name</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-xs">QA Name</Label>
+                      {authorDisplayName && (audit.qa_name ?? '').trim() === '' && (
+                        <button
+                          type="button"
+                          className="text-[11px] underline text-muted-foreground hover:text-foreground"
+                          onClick={() => setAudit((a) => ({ ...a, qa_name: authorDisplayName }))}
+                        >
+                          Use my name
+                        </button>
+                      )}
+                    </div>
                     <Input
                       value={audit.qa_name ?? ''}
                       onChange={(e) => setAudit((a) => ({ ...a, qa_name: e.target.value }))}
-                      placeholder="QA specialist"
+                      placeholder="Enter QA specialist name"
                     />
                   </div>
                   <div className="min-w-0">
