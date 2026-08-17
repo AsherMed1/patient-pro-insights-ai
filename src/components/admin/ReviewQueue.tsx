@@ -103,7 +103,7 @@ interface DuplicateAppt {
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
-type QueueView = 'new' | 'pending' | 'declined';
+type QueueView = 'new' | 'pending' | 'declined' | 'approved';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
@@ -128,6 +128,7 @@ const ReviewQueue: React.FC = () => {
   const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
   const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -397,11 +398,11 @@ const ReviewQueue: React.FC = () => {
     let q = supabase
       .from('all_appointments')
       .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
-      .eq('review_status', queueView === 'declined' ? 'declined' : 'pending')
+      .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
 
-    if (queueView === 'declined') {
+    if (queueView === 'declined' || queueView === 'approved') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
     } else {
       q = q.eq('review_stage', queueView === 'new' ? 'new' : 'pending_review');
@@ -422,8 +423,8 @@ const ReviewQueue: React.FC = () => {
       const list = (data || []) as ReviewAppointment[];
       setRows(list);
 
-      // Fetch reviewer names for declined view
-      if (queueView === 'declined') {
+      // Fetch reviewer names for the read-only views (declined / approved)
+      if (queueView === 'declined' || queueView === 'approved') {
         const reviewerIds = Array.from(new Set(list.map(r => r.reviewed_by).filter(Boolean))) as string[];
         if (reviewerIds.length > 0) {
           const { data: profs } = await supabase
@@ -449,14 +450,16 @@ const ReviewQueue: React.FC = () => {
       if (stage) q = q.eq('review_stage', stage);
       return q;
     };
-    const [{ count: nc }, { count: pc }, { count: dc }] = await Promise.all([
+    const [{ count: nc }, { count: pc }, { count: dc }, { count: ac }] = await Promise.all([
       base('pending', 'new'),
       base('pending', 'pending_review'),
       base('declined'),
+      base('approved'),
     ]);
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
+    setApprovedCount(ac || 0);
   }, []);
 
   useEffect(() => {
@@ -575,7 +578,7 @@ const ReviewQueue: React.FC = () => {
   // Detect existing short-notice alerts (both New and Pending views)
   useEffect(() => {
     const run = async () => {
-      if (queueView === 'declined' || rows.length === 0) {
+      if (queueView === 'declined' || queueView === 'approved' || rows.length === 0) {
         setShortNoticeByRowId({});
         return;
       }
@@ -1577,7 +1580,9 @@ const ReviewQueue: React.FC = () => {
     else setSelected(new Set(rows.map(r => r.id)));
   };
 
-  const isReadOnlyView = queueView === 'declined';
+  const isDeclinedView = queueView === 'declined';
+  const isApprovedView = queueView === 'approved';
+  const isReadOnlyView = isDeclinedView || isApprovedView;
   const isNewView = queueView === 'new';
 
   return (
@@ -1621,6 +1626,14 @@ const ReviewQueue: React.FC = () => {
           >
             Declined
             <Badge variant="secondary" className="ml-2">{declinedCount}</Badge>
+          </Button>
+          <Button
+            variant={queueView === 'approved' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setQueueView('approved'); setSelected(new Set()); }}
+          >
+            Approved
+            <Badge variant="secondary" className="ml-2">{approvedCount}</Badge>
           </Button>
         </div>
       </CardHeader>
@@ -1715,7 +1728,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isReadOnlyView ? 'No declined appointments.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
+            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
@@ -1932,7 +1945,7 @@ const ReviewQueue: React.FC = () => {
 
                       {isReadOnlyView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
-                          Declined {row.reviewed_at ? formatDate(row.reviewed_at) : '—'} by {reviewerLabel}
+                          {isApprovedView ? 'Approved' : 'Declined'} {row.reviewed_at ? `${formatDate(row.reviewed_at)} ${formatTime(row.reviewed_at)}` : '—'} by {reviewerLabel}
                         </div>
                       )}
                     </div>
@@ -1957,7 +1970,9 @@ const ReviewQueue: React.FC = () => {
 
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end">
-                      {isReadOnlyView ? (
+                      {isApprovedView ? (
+                        <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">Approved</Badge>
+                      ) : isDeclinedView ? (
                         <>
                           <Button
                             size="sm"
@@ -2152,7 +2167,7 @@ const ReviewQueue: React.FC = () => {
                           <div className="break-words">{ins.provider || ins.plan || '—'}</div>
                         </div>
                       </div>
-                      {isReadOnlyView && (row.decline_reason || row.review_notes) && (
+                      {isDeclinedView && (row.decline_reason || row.review_notes) && (
                         <div>
                           <div className="font-medium text-muted-foreground mb-1">Decline reason</div>
                           <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-background p-2 rounded border max-w-full overflow-hidden">
