@@ -57,20 +57,24 @@ interface TimeRangeRowProps {
 
 function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: TimeRangeRowProps) {
   return (
-    <div className="flex items-center gap-2">
-      <TimeInput
-        value={range.startTime}
-        onChange={(v) => onUpdate(range.id, 'startTime', v)}
-        placeholder="Start time"
-      />
+    <div className="flex flex-wrap items-center gap-2 min-w-0">
+      <div className="min-w-0 flex-1">
+        <TimeInput
+          value={range.startTime}
+          onChange={(v) => onUpdate(range.id, 'startTime', v)}
+          placeholder="Start time"
+        />
+      </div>
 
-      <span className="text-muted-foreground text-sm">To</span>
+      <span className="text-muted-foreground text-sm shrink-0">To</span>
 
-      <TimeInput
-        value={range.endTime}
-        onChange={(v) => onUpdate(range.id, 'endTime', v)}
-        placeholder="End time"
-      />
+      <div className="min-w-0 flex-1">
+        <TimeInput
+          value={range.endTime}
+          onChange={(v) => onUpdate(range.id, 'endTime', v)}
+          placeholder="End time"
+        />
+      </div>
 
       {isLast && (
         <Button variant="ghost" size="icon" onClick={onAdd} className="h-9 w-9">
