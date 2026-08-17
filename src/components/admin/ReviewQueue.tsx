@@ -434,6 +434,20 @@ const ReviewQueue: React.FC = () => {
       q = q.or(`lead_name.ilike.%${s}%,lead_phone_number.ilike.%${s}%,lead_email.ilike.%${s}%`);
     }
 
+    // Approved bucket: optional date range on reviewed_at
+    if (queueView === 'approved') {
+      if (approvedDateFrom) {
+        const from = new Date(approvedDateFrom);
+        from.setHours(0, 0, 0, 0);
+        q = q.gte('reviewed_at', from.toISOString());
+      }
+      if (approvedDateTo) {
+        const to = new Date(approvedDateTo);
+        to.setHours(23, 59, 59, 999);
+        q = q.lte('reviewed_at', to.toISOString());
+      }
+    }
+
     const { data, error } = await q;
     if (error) {
       toast({ title: 'Error loading queue', description: error.message, variant: 'destructive' });
