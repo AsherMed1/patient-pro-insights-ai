@@ -681,7 +681,7 @@ export function ReserveTimeBlockDialog({
       for (const apptId of preservedIds) {
         supabase
           .from('appointment_notes')
-          .insert({ appointment_id: apptId, note_text: preservedNote, created_by: userId || null, visibility: 'internal' } as any)
+          .insert({ appointment_id: apptId, note_text: preservedNote, created_by: userName || 'Portal User', visibility: 'internal' } as any)
           .then(({ error }) => {
             if (error) console.warn('[ReserveTimeBlock:carve] preserved-note insert failed', apptId, error);
           });
