@@ -87,7 +87,7 @@ function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: T
         size="icon"
         onClick={() => onRemove(range.id)}
         disabled={!canDelete}
-        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
       >
         <Trash2 className="h-4 w-4" />
       </Button>
