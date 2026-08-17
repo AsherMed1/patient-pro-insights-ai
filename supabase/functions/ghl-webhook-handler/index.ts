@@ -323,7 +323,7 @@ serve(async (req) => {
     // dropped the new booking (the status guard preserves the terminal state), so the
     // clinic saw "Confirmed in GHL / Cancelled in portal". Create a fresh row instead.
     if (existingAppointment) {
-      const portalOnlyTerminal = ['oon', 'do not call', 'donotcall', 'cancelled', 'canceled']
+      const portalOnlyTerminal = ['oon', 'do not call', 'donotcall', 'cancelled', 'canceled', 'referral requested']
       const existingStatus = (existingAppointment.status || '').toLowerCase().trim()
       const incomingApptId = webhookData.ghl_appointment_id
       const differentBooking =
@@ -1959,7 +1959,7 @@ function getUpdateableFields(
         // was rebooked and should be recovered from the terminal tab.
         if (existingAppointment.date_of_appointment !== incomingDate) {
           const existingStatusForReschedule = existingAppointment.status?.toLowerCase()?.trim()
-          const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
+          const portalOnlyTerminalStatuses = ['oon', 'do not call', 'cancelled', 'canceled', 'referral requested']
           const isPortalOnlyTerminal = portalOnlyTerminalStatuses.includes(existingStatusForReschedule)
           // Post-confirmation statuses: a reschedule should NOT demote these back to New
           // nor overwrite the team-set status with "Confirmed".
@@ -2055,7 +2055,9 @@ function getUpdateableFields(
     // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call, Cancelled)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
     // Welcome Call is a mid-flow portal state, NOT terminal — allow GHL updates (e.g. Cancelled) to override it.
-    const portalOnlyStatuses = ['oon', 'do not call', 'cancelled', 'canceled']
+    // "Referral Requested" is portal-owned: GHL only ever sees the cancellation we
+    // pushed to free the slot, so its echo must never overwrite the portal state.
+    const portalOnlyStatuses = ['oon', 'do not call', 'cancelled', 'canceled', 'referral requested']
     const isPortalOnlyTerminal = portalOnlyStatuses.includes(existingStatusForEcho)
 
     // "Welcome Call" is a portal-owned mid-flow state with no GHL equivalent, so GHL
