@@ -1828,6 +1828,7 @@ function getUpdateableFields(
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let statusChangeNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let serviceChange: { appointmentId: string; fromProcedure: string; toProcedure: string } | undefined
+  let autoDeclineNote: { appointmentId: string; toStatus: string } | undefined
 
   // Unscheduled-capture projects (Premier Vascular, ECCO Medical, Horizon Vascular Specialists)
   // NEVER store a booked date/time — only a time-of-day preference. If a later GHL webhook tries
