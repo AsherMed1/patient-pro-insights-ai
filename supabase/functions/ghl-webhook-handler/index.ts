@@ -437,7 +437,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange } = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange, autoDeclineNote } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
@@ -759,6 +759,23 @@ serve(async (req) => {
       }
       keepAlive(triggerAutoParse(supabase, serviceChange.appointmentId, requestId))
     }
+
+    // Auto-decline audit note: the row left the Review Queue because GHL cancelled it.
+    if (autoDeclineNote) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: autoDeclineNote.appointmentId,
+          note_text: `Auto-declined — appointment was cancelled in GoHighLevel (status "${autoDeclineNote.toStatus}") — ${ts}`,
+          created_by: 'System',
+          visibility: 'internal',
+        })
+        console.log(`[${requestId}] Review Queue row auto-declined (cancelled in GHL)`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create auto-decline note:`, noteErr)
+      }
+    }
+
 
     // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
     if (statusChangeNote) {
@@ -1742,7 +1759,7 @@ function detectProcedureFromCalendarName(calendarName: string | null | undefined
 function getUpdateableFields(
   webhookData: any, 
   existingAppointment: any | null
-): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string }; serviceChange?: { appointmentId: string; fromProcedure: string; toProcedure: string } } {
+): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string }; serviceChange?: { appointmentId: string; fromProcedure: string; toProcedure: string }; autoDeclineNote?: { appointmentId: string; toStatus: string } } {
   // For CREATE - use all webhook data
   // CRITICAL: Per project rule, ALL new appointments from GHL webhooks MUST default to "Confirmed",
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
@@ -1828,6 +1845,7 @@ function getUpdateableFields(
   let welcomeCallTransitionNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let statusChangeNote: { appointmentId: string; fromStatus: string; toStatus: string } | undefined
   let serviceChange: { appointmentId: string; fromProcedure: string; toProcedure: string } | undefined
+  let autoDeclineNote: { appointmentId: string; toStatus: string } | undefined
 
   // Unscheduled-capture projects (Premier Vascular, ECCO Medical, Horizon Vascular Specialists)
   // NEVER store a booked date/time — only a time-of-day preference. If a later GHL webhook tries
@@ -2093,7 +2111,27 @@ function getUpdateableFields(
           toStatus: webhookData.status,
         }
       }
+
+      // A cancellation in GHL settles the appointment — it must not keep sitting
+      // in the Review Queue (New / Pending Review) waiting for a setter decision.
+      // Auto-move it to the Declined bucket (restorable like any manual decline).
+      // No patient-facing decline tags/SMS fire here: GHL already cancelled it.
+      const incomingTerminalDecline = ['cancelled', 'canceled', 'no show', 'noshow', 'no-show']
+        .includes((webhookData.status || '').trim().toLowerCase())
+      if (
+        incomingTerminalDecline &&
+        (existingAppointment.review_status || '').trim().toLowerCase() === 'pending'
+      ) {
+        updateFields.review_status = 'declined'
+        updateFields.review_stage = null
+        updateFields.decline_reason = 'cancelled_in_ghl'
+        updateFields.reviewed_by = 'GoHighLevel'
+        updateFields.reviewed_at = new Date().toISOString()
+        autoDeclineNote = { appointmentId: existingAppointment.id, toStatus: webhookData.status }
+      }
     }
+  }
+
   }
   
   // Merge contact info (only if local is empty)
@@ -2172,7 +2210,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote, serviceChange }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote, serviceChange, autoDeclineNote }
 }
 
 // ---- Calendar recovery for unscheduled-capture leads -----------------------

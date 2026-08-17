@@ -55,7 +55,16 @@ export const DECLINE_REASONS: DeclineReasonOption[] = [
     reschedulable: false,
     hidden: true,
   },
+  // System-applied when GHL cancels an appointment that is still in the Review Queue.
+  {
+    value: 'cancelled_in_ghl',
+    label: 'Cancelled in GoHighLevel',
+    tag: GENERIC_DECLINE_TAG,
+    reschedulable: false,
+    hidden: true,
+  },
 ];
+
 
 /** Options shown in the decline dropdown. */
 export const SELECTABLE_DECLINE_REASONS = DECLINE_REASONS.filter(r => !r.hidden);
