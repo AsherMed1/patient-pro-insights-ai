@@ -2125,7 +2125,7 @@ function getUpdateableFields(
         updateFields.review_status = 'declined'
         updateFields.review_stage = null
         updateFields.decline_reason = 'cancelled_in_ghl'
-        updateFields.reviewed_by = 'GoHighLevel'
+        // reviewed_by is a uuid FK to a portal user — left null for system actions.
         updateFields.reviewed_at = new Date().toISOString()
         autoDeclineNote = { appointmentId: existingAppointment.id, toStatus: webhookData.status }
       }
