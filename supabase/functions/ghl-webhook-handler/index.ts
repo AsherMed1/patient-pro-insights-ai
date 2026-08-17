@@ -437,7 +437,7 @@ serve(async (req) => {
     }
 
     // Get appropriate fields based on operation type (selective updates for existing appointments)
-    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange } = getUpdateableFields(webhookData, existingAppointment)
+    const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange, autoDeclineNote } = getUpdateableFields(webhookData, existingAppointment)
 
     console.log(`[${requestId}] Fields to ${isUpdate ? 'update' : 'create'}:`, Object.keys(appointmentData))
     
