@@ -1756,11 +1756,22 @@ function getUpdateableFields(
     const isDavis = projectLower === 'davis vein & vascular';
     const payloadHasRealDate =
       webhookData.date_of_appointment != null && String(webhookData.date_of_appointment).trim() !== '';
-    const treatAsUnscheduled =
+    const isUnscheduledProject =
       isUnscheduledCaptureProject(webhookData.project_name) && !(isDavis && payloadHasRealDate);
+    // Setter-booked leads: the payload has no calendar slot, but the intake carries an explicit
+    // "Date Appt Booked For" value. Promote that to a real appointment date instead of
+    // capturing a time-of-day preference.
+    const bookedDateFromNotes = isUnscheduledProject && !payloadHasRealDate
+      ? extractBookedDateFromNotes(webhookData.patient_intake_notes)
+      : null;
+    if (bookedDateFromNotes) {
+      console.log(`[BOOKED-DATE] Promoting unscheduled lead to booked date ${bookedDateFromNotes}`);
+    }
+    const treatAsUnscheduled = isUnscheduledProject && !bookedDateFromNotes;
     const timePreference = treatAsUnscheduled
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
+
 
     // Pre-populate parsed_pathology_info.procedure so the service filter works
     // immediately for unscheduled-capture leads (no calendar / NULL procedure issue).
