@@ -2093,7 +2093,27 @@ function getUpdateableFields(
           toStatus: webhookData.status,
         }
       }
+
+      // A cancellation in GHL settles the appointment — it must not keep sitting
+      // in the Review Queue (New / Pending Review) waiting for a setter decision.
+      // Auto-move it to the Declined bucket (restorable like any manual decline).
+      // No patient-facing decline tags/SMS fire here: GHL already cancelled it.
+      const incomingTerminalDecline = ['cancelled', 'canceled', 'no show', 'noshow', 'no-show']
+        .includes((webhookData.status || '').trim().toLowerCase())
+      if (
+        incomingTerminalDecline &&
+        (existingAppointment.review_status || '').trim().toLowerCase() === 'pending'
+      ) {
+        updateFields.review_status = 'declined'
+        updateFields.review_stage = null
+        updateFields.decline_reason = 'cancelled_in_ghl'
+        updateFields.reviewed_by = 'GoHighLevel'
+        updateFields.reviewed_at = new Date().toISOString()
+        autoDeclineNote = { appointmentId: existingAppointment.id, toStatus: webhookData.status }
+      }
     }
+  }
+
   }
   
   // Merge contact info (only if local is empty)
