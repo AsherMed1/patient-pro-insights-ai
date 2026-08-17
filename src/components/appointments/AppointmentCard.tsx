@@ -2422,6 +2422,16 @@ const AppointmentCard = ({
         onConfirm={handleNoShowConfirm}
       />
 
+      {/* Referral Requested Dialog */}
+      <ReferralRequestedDialog
+        open={showReferralDialog}
+        onOpenChange={setShowReferralDialog}
+        patientName={appointment.lead_name}
+        appointmentDate={appointment.date_of_appointment}
+        submitting={submittingReferral}
+        onConfirm={handleReferralConfirm}
+      />
+
       {/* Cancellation Reason Dialog */}
 
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
