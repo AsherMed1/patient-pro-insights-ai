@@ -24,6 +24,7 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
+import { format } from 'date-fns';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
