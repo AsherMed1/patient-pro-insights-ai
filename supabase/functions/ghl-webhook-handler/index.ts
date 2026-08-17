@@ -2123,7 +2123,7 @@ function getUpdateableFields(
         (existingAppointment.review_status || '').trim().toLowerCase() === 'pending'
       ) {
         updateFields.review_status = 'declined'
-        updateFields.review_stage = null
+        // review_stage is NOT NULL and only meaningful while pending — left as-is.
         updateFields.decline_reason = 'cancelled_in_ghl'
         // reviewed_by is a uuid FK to a portal user — left null for system actions.
         updateFields.reviewed_at = new Date().toISOString()
