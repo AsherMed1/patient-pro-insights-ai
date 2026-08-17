@@ -42,6 +42,9 @@ import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
 import QASection, { qaSectionSetAll } from '@/components/admin/QASection';
+import ImageAttachInput from '@/components/admin/ImageAttachInput';
+import AttachmentGallery from '@/components/admin/AttachmentGallery';
+import { uploadImages, type StoredAttachment } from '@/lib/attachments';
 
 
 // Column headers pin to the top of the table's own scroll container, which
