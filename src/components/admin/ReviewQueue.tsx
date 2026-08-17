@@ -2542,11 +2542,28 @@ const ReviewQueue: React.FC = () => {
           <LogAttemptDialog
             appointmentId={attemptDialogRow.id}
             patientName={attemptDialogRow.lead_name}
+            siblingIds={siblingIdsByRowId[attemptDialogRow.id]}
             open={!!attemptDialogRow}
             onOpenChange={(o) => { if (!o) setAttemptDialogRow(null); }}
-            onLogged={() => setAttemptRefresh(v => v + 1)}
+            onLogged={(attempt) => {
+              // Reflect the attempt on the row instantly, then reconcile with the server
+              const rowId = attempt.appointment_id;
+              setContactFetchFailed(false);
+              setAttemptsByRowId(prev => ({
+                ...prev,
+                [rowId]: {
+                  at: attempt.attempted_at,
+                  by: (attempt.user_name || '').trim(),
+                  label: `${channelLabel(attempt.channel)}, ${outcomeLabel(attempt.outcome).toLowerCase()}`,
+                  count: (prev[rowId]?.count || 0) + 1,
+                  optimistic: true,
+                },
+              }));
+              setAttemptRefresh(v => v + 1);
+            }}
           />
         )}
+
       </CardContent>
     </Card>
   );
