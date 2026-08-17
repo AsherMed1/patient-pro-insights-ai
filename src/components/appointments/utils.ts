@@ -305,4 +305,4 @@ export const getBaseStatusOptions = async () => {
 };
 
 // Default status options - only these statuses are allowed
-export const statusOptions = ['New', 'Pending', 'Confirmed', 'Scheduled', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'OON', 'Do Not Call'];
+export const statusOptions = ['New', 'Pending', 'Confirmed', 'Scheduled', 'Showed', 'No Show', 'Cancelled', 'Rescheduled', 'Welcome Call', 'Referral Requested', 'OON', 'Do Not Call'];
