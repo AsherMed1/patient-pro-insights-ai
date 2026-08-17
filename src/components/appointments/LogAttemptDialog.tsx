@@ -44,13 +44,22 @@ export interface ContactAttempt {
 interface LogAttemptDialogProps {
   appointmentId: string;
   patientName?: string | null;
+  /** Other appointment rows for the same patient, so history follows the patient. */
+  siblingIds?: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onLogged?: () => void;
+  onLogged?: (attempt: {
+    appointment_id: string;
+    attempted_at: string;
+    channel: string;
+    outcome: string;
+    note: string | null;
+    user_name: string | null;
+  }) => void;
 }
 
 const LogAttemptDialog: React.FC<LogAttemptDialogProps> = ({
-  appointmentId, patientName, open, onOpenChange, onLogged,
+  appointmentId, patientName, siblingIds, open, onOpenChange, onLogged,
 }) => {
   const { toast } = useToast();
   const { userId, userName } = useUserAttribution();
@@ -66,15 +75,17 @@ const LogAttemptDialog: React.FC<LogAttemptDialogProps> = ({
     setOutcome('no_answer');
     setNote('');
     (async () => {
+      const ids = Array.from(new Set([appointmentId, ...(siblingIds || [])]));
       const { data } = await supabase
         .from('appointment_contact_attempts')
         .select('*')
-        .eq('appointment_id', appointmentId)
+        .in('appointment_id', ids)
         .order('attempted_at', { ascending: false })
         .limit(20);
       setHistory((data || []) as ContactAttempt[]);
     })();
-  }, [open, appointmentId]);
+  }, [open, appointmentId, siblingIds]);
+
 
   const handleSubmit = async () => {
     setSaving(true);
