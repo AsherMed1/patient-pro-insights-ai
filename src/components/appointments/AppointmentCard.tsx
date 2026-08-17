@@ -753,7 +753,7 @@ const AppointmentCard = ({
         appointment_id: appointment.id,
         note_text: noteText,
         created_by: 'System',
-        visibility: 'clinic',
+        visibility: 'internal',
       } as any);
 
       // Build cancellation notes string for GHL

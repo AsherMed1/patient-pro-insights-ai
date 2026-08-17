@@ -752,7 +752,7 @@ serve(async (req) => {
           appointment_id: serviceChange.appointmentId,
           note_text: `Service changed from ${serviceChange.fromProcedure} to ${serviceChange.toProcedure} in GoHighLevel — pathology re-parsed from the ${serviceChange.toProcedure} funnel — ${ts}`,
           created_by: 'System',
-          visibility: 'clinic',
+          visibility: 'internal',
         })
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create service-change note:`, noteErr)
