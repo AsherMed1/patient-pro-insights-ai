@@ -167,7 +167,7 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
         onChange={(e) => setSearch(e.target.value)}
         className="h-8 text-sm"
       />
-      <div className="rounded-lg border p-3 bg-muted/30 max-h-48 overflow-y-auto space-y-2">
+      <div className="rounded-lg border p-3 bg-muted/30 max-h-48 overflow-y-auto overflow-x-hidden space-y-2">
         {visibleCalendars.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-2">No matching calendars</p>
         ) : (
