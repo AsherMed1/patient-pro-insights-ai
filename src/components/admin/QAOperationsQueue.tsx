@@ -1837,6 +1837,7 @@ function CaseDrawer({
     }
 
     setNoteDraft('');
+    setNoteImages([]);
     const { data } = await supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false });
     setNotes(((data as any) || []) as QANote[]);
   };
