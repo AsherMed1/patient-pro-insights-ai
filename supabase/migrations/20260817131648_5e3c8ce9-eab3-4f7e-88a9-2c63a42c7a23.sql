@@ -1,0 +1,1 @@
+UPDATE public.appointment_notes SET visibility = 'internal' WHERE created_by = 'System' AND visibility IS DISTINCT FROM 'internal';
