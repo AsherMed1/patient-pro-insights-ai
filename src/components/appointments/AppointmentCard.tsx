@@ -240,6 +240,8 @@ const AppointmentCard = ({
   const { userName } = useUserAttribution();
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const [submittingNoShow, setSubmittingNoShow] = useState(false);
+  const [showReferralDialog, setShowReferralDialog] = useState(false);
+  const [submittingReferral, setSubmittingReferral] = useState(false);
   const [liftingBlock, setLiftingBlock] = useState(false);
 
   
