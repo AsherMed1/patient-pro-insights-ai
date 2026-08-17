@@ -471,7 +471,7 @@ const ReviewQueue: React.FC = () => {
       }
     }
     setLoading(false);
-  }, [projectFilter, search, toast, queueView]);
+  }, [projectFilter, search, toast, queueView, approvedDateFrom, approvedDateTo]);
 
   const fetchCounts = useCallback(async () => {
     const base = (status: string, stage?: string) => {
