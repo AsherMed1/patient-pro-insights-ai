@@ -40,9 +40,15 @@ Behavior:
 - No time is invented — `requested_time` stays null unless GHL sends one, so the record shows a date with no time rather than a wrong time.
 - Scoped to unscheduled-capture projects only; scheduled projects are untouched.
 
-## Backfill — list first, no writes
+## Rollout
 
-Before changing any existing data I'll produce a read-only report of all 95 rows: patient, project, created date, current preference, and the date that would be applied — split into "future / still upcoming" and "already in the past" groups. You review and tell me which groups (or individual rows) to apply. Nothing is written until you say so, and past-dated rows are excluded by default.
+**Step 1 — code fix for all unscheduled projects.** Ship the webhook change above so every future lead is handled correctly from here on.
+
+**Step 2 — fix Prospero's existing rows now.** Apply the promotion to the 3 affected Prospero rows (Sean Eldridge plus 2 others) immediately, subject to the same safety rules.
+
+**Step 3 — report only for the other projects.** For ECCO Medical, Premier Vascular and Davis Vein & Vascular, produce a read-only list limited to **2026 booked dates** (2025 rows excluded entirely): patient, project, created date, current preference, and the date that would be applied. No writes to those projects until you review the list and tell me which rows to apply.
+
+
 
 
 ## Technical notes
