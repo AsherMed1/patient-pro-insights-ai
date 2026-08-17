@@ -1786,8 +1786,9 @@ function getUpdateableFields(
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
         lead_name: webhookData.lead_name,
         project_name: webhookData.project_name,
-        date_of_appointment: treatAsUnscheduled ? null : webhookData.date_of_appointment,
+        date_of_appointment: treatAsUnscheduled ? null : (webhookData.date_of_appointment || bookedDateFromNotes),
         requested_time: treatAsUnscheduled ? null : webhookData.requested_time,
+
         lead_email: webhookData.lead_email,
         lead_phone_number: webhookData.lead_phone_number,
         calendar_name: webhookData.calendar_name,
