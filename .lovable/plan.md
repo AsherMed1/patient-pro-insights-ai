@@ -42,7 +42,8 @@ Behavior:
 
 ## Backfill — list first, no writes
 
-Before changing any existing data I'll run a read-only report over unscheduled-capture rows whose intake notes contain `Date Appt Booked For:` and show: patient, project, current date/preference, and the date that would be applied. You review that list and approve before any update runs.
+Before changing any existing data I'll produce a read-only report of all 95 rows: patient, project, created date, current preference, and the date that would be applied — split into "future / still upcoming" and "already in the past" groups. You review and tell me which groups (or individual rows) to apply. Nothing is written until you say so, and past-dated rows are excluded by default.
+
 
 ## Technical notes
 
