@@ -1843,22 +1843,48 @@ function getUpdateableFields(
     isUnscheduledCaptureProject(projectNameForUnscheduled) && !(isDavisUpdate && payloadHasRealDateUpdate)
 
   if (treatAsUnscheduledUpdate) {
-    // For Davis with no incoming date, only refresh time_preference — do NOT wipe an existing
-    // booked date. For strict unscheduled projects (Premier/ECCO/Horizon), force back to
-    // unscheduled state as before.
-    if (!isDavisUpdate) {
-      updateFields.date_of_appointment = null
-      updateFields.requested_time = null
-      updateFields.ghl_appointment_id = null
-      updateFields.is_unscheduled = true
+    // Setter-booked promotion: intake carries an explicit "Date Appt Booked For" and the row
+    // still has no date. Fill it in and take the row out of unscheduled state.
+    const existingHasDate =
+      existingAppointment.date_of_appointment != null &&
+      String(existingAppointment.date_of_appointment).trim() !== ''
+    const existingStatusLower = String(existingAppointment.status || '').toLowerCase()
+    const isTerminalExisting = [
+      'cancelled', 'canceled', 'no show', 'showed', 'won', 'oon', 'do not call', 'rescheduled',
+    ].includes(existingStatusLower)
+    const isFrozenSnapshot =
+      existingAppointment.is_superseded === true ||
+      ['declined', 'dismissed'].includes(String(existingAppointment.review_status || '').toLowerCase())
+
+    const promotedBookedDate =
+      !existingHasDate && !isTerminalExisting && !isFrozenSnapshot
+        ? extractBookedDateFromNotes(webhookData.patient_intake_notes)
+        : null
+
+    if (promotedBookedDate) {
+      console.log(`[BOOKED-DATE] Promoting existing unscheduled row to booked date ${promotedBookedDate}`)
+      updateFields.date_of_appointment = promotedBookedDate
+      updateFields.is_unscheduled = false
+      updateFields.time_preference = null
+    } else {
+      // For Davis with no incoming date, only refresh time_preference — do NOT wipe an existing
+      // booked date. For strict unscheduled projects (Premier/ECCO/Horizon), force back to
+      // unscheduled state as before.
+      if (!isDavisUpdate) {
+        updateFields.date_of_appointment = null
+        updateFields.requested_time = null
+        updateFields.ghl_appointment_id = null
+        updateFields.is_unscheduled = true
+      }
+
+      // Refresh time_preference from incoming intake notes only when extraction yields a value —
+      // never overwrite an existing preference with null.
+      const extractedPref = extractTimePreference(webhookData.patient_intake_notes)
+      if (extractedPref) {
+        updateFields.time_preference = extractedPref
+      }
     }
 
-    // Refresh time_preference from incoming intake notes only when extraction yields a value —
-    // never overwrite an existing preference with null.
-    const extractedPref = extractTimePreference(webhookData.patient_intake_notes)
-    if (extractedPref) {
-      updateFields.time_preference = extractedPref
-    }
   } else {
 
     // Echo-back guard (echo-aware, NOT time-based): skip the date/time block only when the
