@@ -483,6 +483,8 @@ const ReviewQueue: React.FC = () => {
   }, [projectFilter, search, toast, queueView, approvedDateFrom, approvedDateTo]);
 
   const fetchCounts = useCallback(async () => {
+    const seq = ++countsSeq.current;
+    setCountsLoading(true);
     const base = (status: string, stage?: string) => {
       let q = supabase
         .from('all_appointments')
