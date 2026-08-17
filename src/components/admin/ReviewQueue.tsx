@@ -512,7 +512,7 @@ const ReviewQueue: React.FC = () => {
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
-  }, []);
+  }, [projectFilter, search, approvedDateFrom, approvedDateTo]);
 
   useEffect(() => {
     fetch();
