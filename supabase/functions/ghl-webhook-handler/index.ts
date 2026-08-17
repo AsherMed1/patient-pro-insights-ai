@@ -760,6 +760,23 @@ serve(async (req) => {
       keepAlive(triggerAutoParse(supabase, serviceChange.appointmentId, requestId))
     }
 
+    // Auto-decline audit note: the row left the Review Queue because GHL cancelled it.
+    if (autoDeclineNote) {
+      try {
+        const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' })
+        await supabase.from('appointment_notes').insert({
+          appointment_id: autoDeclineNote.appointmentId,
+          note_text: `Auto-declined — appointment was cancelled in GoHighLevel (status "${autoDeclineNote.toStatus}") — ${ts}`,
+          created_by: 'System',
+          visibility: 'internal',
+        })
+        console.log(`[${requestId}] Review Queue row auto-declined (cancelled in GHL)`)
+      } catch (noteErr) {
+        console.error(`[${requestId}] Failed to create auto-decline note:`, noteErr)
+      }
+    }
+
+
     // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
     if (statusChangeNote) {
       try {
