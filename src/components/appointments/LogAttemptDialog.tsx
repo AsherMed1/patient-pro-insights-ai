@@ -90,8 +90,10 @@ const LogAttemptDialog: React.FC<LogAttemptDialogProps> = ({
   const handleSubmit = async () => {
     setSaving(true);
     try {
+      const attemptedAt = new Date().toISOString();
       const { error } = await supabase.from('appointment_contact_attempts').insert({
         appointment_id: appointmentId,
+        attempted_at: attemptedAt,
         channel,
         outcome,
         note: note.trim() || null,
@@ -112,7 +114,15 @@ const LogAttemptDialog: React.FC<LogAttemptDialogProps> = ({
 
       toast({ title: 'Attempt logged', description: `${channelLabel(channel)} — ${outcomeLabel(outcome)}` });
       onOpenChange(false);
-      onLogged?.();
+      onLogged?.({
+        appointment_id: appointmentId,
+        attempted_at: attemptedAt,
+        channel,
+        outcome,
+        note: note.trim() || null,
+        user_name: userName,
+      });
+
     } catch (e: any) {
       console.error('Failed to log contact attempt', e);
       toast({ title: 'Could not log attempt', description: e?.message || 'Unknown error', variant: 'destructive' });
