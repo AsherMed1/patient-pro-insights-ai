@@ -90,7 +90,11 @@ interface LastContact {
   by: string;
   label?: string;
   count?: number;
+  fromSibling?: boolean;
+  optimistic?: boolean;
 }
+
+
 
 interface DuplicateAppt {
   id: string;
@@ -142,10 +146,17 @@ const ReviewQueue: React.FC = () => {
   const [projectConfigs, setProjectConfigs] = useState<Record<string, ProjectConfig>>({});
   const [lastContactByRowId, setLastContactByRowId] = useState<Record<string, LastContact>>({});
   const [attemptsByRowId, setAttemptsByRowId] = useState<Record<string, LastContact>>({});
+  const [siblingIdsByRowId, setSiblingIdsByRowId] = useState<Record<string, string[]>>({});
+  const [contactFetchFailed, setContactFetchFailed] = useState(false);
   const [attemptRefresh, setAttemptRefresh] = useState(0);
   const [attemptDialogRow, setAttemptDialogRow] = useState<ReviewAppointment | null>(null);
+
   const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
   const [nowTick, setNowTick] = useState(() => new Date());
+
+  // Contact history is shown in the working buckets (New + Pending Review)
+  const contactViewEnabled = queueView === 'pending' || queueView === 'new';
+
 
   // Keep countdowns live without reloading the queue
   useEffect(() => {
@@ -633,30 +644,99 @@ const ReviewQueue: React.FC = () => {
     run();
   }, [rows, projectConfigs]);
 
+  // Sibling appointment rows for the same patient (superseded/replaced records),
+  // so contact history follows the patient rather than a single row id.
+  useEffect(() => {
+    const run = async () => {
+      if (!contactViewEnabled || rows.length === 0) {
+        setSiblingIdsByRowId({});
+        return;
+      }
+      const map: Record<string, string[]> = {};
+      rows.forEach(r => { map[r.id] = [r.id]; });
+
+      const ghlIds = Array.from(new Set(rows.map(r => r.ghl_id).filter(Boolean))) as string[];
+      const phones = Array.from(new Set(rows.map(r => r.lead_phone_number).filter(Boolean))) as string[];
+
+      const queries: any[] = [];
+      if (ghlIds.length) {
+        queries.push(supabase.from('all_appointments')
+          .select('id, ghl_id, lead_phone_number, project_name')
+          .in('ghl_id', ghlIds).limit(2000));
+      }
+      if (phones.length) {
+        queries.push(supabase.from('all_appointments')
+          .select('id, ghl_id, lead_phone_number, project_name')
+          .in('lead_phone_number', phones).limit(2000));
+      }
+      if (queries.length === 0) { setSiblingIdsByRowId(map); return; }
+
+      const results = await Promise.all(queries);
+      const seen = new Set<string>();
+      const siblings: any[] = [];
+      results.forEach((res: any) => {
+        (res?.data || []).forEach((s: any) => {
+          if (seen.has(s.id)) return;
+          seen.add(s.id);
+          siblings.push(s);
+        });
+      });
+
+      rows.forEach(r => {
+        siblings.forEach(s => {
+          if (s.id === r.id) return;
+          const sameContact = r.ghl_id && s.ghl_id === r.ghl_id;
+          const samePhone = r.lead_phone_number
+            && s.lead_phone_number === r.lead_phone_number
+            && s.project_name === r.project_name;
+          if (sameContact || samePhone) map[r.id].push(s.id);
+        });
+      });
+
+      setSiblingIdsByRowId(map);
+    };
+    run();
+  }, [rows, contactViewEnabled]);
+
   // Last patient contact attempt = most recent human-authored note on the record
   useEffect(() => {
     const run = async () => {
-      if (queueView !== 'pending' || rows.length === 0) {
+      if (!contactViewEnabled || rows.length === 0) {
         setLastContactByRowId({});
         return;
       }
-      const ids = rows.map(r => r.id);
+      const ids = Array.from(new Set(rows.flatMap(r => siblingIdsByRowId[r.id] || [r.id])));
       const { data, error } = await supabase
         .from('appointment_notes')
         .select('appointment_id, note_text, created_by, created_at')
         .in('appointment_id', ids)
         .order('created_at', { ascending: false })
-        .limit(2000);
+        .limit(3000);
       if (error) {
+        // Keep whatever we already know instead of silently showing "no contact"
         console.warn('last-contact fetch failed', error);
+        setContactFetchFailed(true);
         return;
       }
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const map: Record<string, LastContact> = {};
+      const byApptId: Record<string, LastContact> = {};
       (data || []).forEach((n: any) => {
-        if (map[n.appointment_id]) return;
+        if (byApptId[n.appointment_id]) return;
         if (isSystemNote(n)) return;
-        map[n.appointment_id] = { at: n.created_at, by: (n.created_by || '').trim() };
+        byApptId[n.appointment_id] = { at: n.created_at, by: (n.created_by || '').trim() };
+      });
+
+      // Fold sibling rows onto the displayed row: newest human note wins
+      const map: Record<string, LastContact> = {};
+      rows.forEach(r => {
+        (siblingIdsByRowId[r.id] || [r.id]).forEach(sid => {
+          const hit = byApptId[sid];
+          if (!hit) return;
+          const current = map[r.id];
+          if (!current || new Date(hit.at) > new Date(current.at)) {
+            map[r.id] = { ...hit, fromSibling: sid !== r.id };
+          }
+        });
       });
 
       // Resolve raw user IDs to readable names; drop the author when unresolvable
@@ -677,41 +757,61 @@ const ReviewQueue: React.FC = () => {
           if (UUID_RE.test(v.by)) v.by = nameById[v.by] || '';
         });
       }
+      setContactFetchFailed(false);
       setLastContactByRowId(map);
     };
     run();
-  }, [rows, queueView, attemptRefresh]);
+  }, [rows, contactViewEnabled, siblingIdsByRowId, attemptRefresh]);
 
   // Explicitly logged contact attempts (+ implicit GHL calls as a safety net)
   useEffect(() => {
     const run = async () => {
-      if (queueView !== 'pending' || rows.length === 0) {
+      if (!contactViewEnabled || rows.length === 0) {
         setAttemptsByRowId({});
         return;
       }
-      const ids = rows.map(r => r.id);
+      const ids = Array.from(new Set(rows.flatMap(r => siblingIdsByRowId[r.id] || [r.id])));
       const { data, error } = await supabase
         .from('appointment_contact_attempts')
         .select('appointment_id, attempted_at, channel, outcome, user_name, source')
         .in('appointment_id', ids)
         .order('attempted_at', { ascending: false })
-        .limit(2000);
+        .limit(3000);
       if (error) {
+        // Keep the last known attempt state rather than blanking the badge
         console.warn('contact attempts fetch failed', error);
+        setContactFetchFailed(true);
         return;
       }
-      const map: Record<string, LastContact> = {};
+
+      const byApptId: Record<string, { latest: any; count: number }> = {};
       (data || []).forEach((a: any) => {
-        const existing = map[a.appointment_id];
-        if (existing) {
-          existing.count = (existing.count || 0) + 1;
-          return;
-        }
-        map[a.appointment_id] = {
-          at: a.attempted_at,
-          by: (a.user_name || '').trim(),
-          label: `${channelLabel(a.channel)}, ${outcomeLabel(a.outcome).toLowerCase()}`,
-          count: 1,
+        const entry = byApptId[a.appointment_id];
+        if (entry) { entry.count += 1; return; }
+        byApptId[a.appointment_id] = { latest: a, count: 1 };
+      });
+
+      const map: Record<string, LastContact> = {};
+      rows.forEach(r => {
+        let latest: any = null;
+        let fromSibling = false;
+        let count = 0;
+        (siblingIdsByRowId[r.id] || [r.id]).forEach(sid => {
+          const entry = byApptId[sid];
+          if (!entry) return;
+          count += entry.count;
+          if (!latest || new Date(entry.latest.attempted_at) > new Date(latest.attempted_at)) {
+            latest = entry.latest;
+            fromSibling = sid !== r.id;
+          }
+        });
+        if (!latest) return;
+        map[r.id] = {
+          at: latest.attempted_at,
+          by: (latest.user_name || '').trim(),
+          label: `${channelLabel(latest.channel)}, ${outcomeLabel(latest.outcome).toLowerCase()}`,
+          count,
+          fromSibling,
         };
       });
 
@@ -741,10 +841,21 @@ const ReviewQueue: React.FC = () => {
         });
       }
 
-      setAttemptsByRowId(map);
+      setContactFetchFailed(false);
+      setAttemptsByRowId(prev => {
+        // Preserve optimistic entries that the server has not caught up with yet
+        const next = { ...map };
+        Object.entries(prev).forEach(([rowId, v]) => {
+          if (!v?.optimistic) return;
+          const server = next[rowId];
+          if (!server || new Date(v.at) > new Date(server.at)) next[rowId] = v;
+        });
+        return next;
+      });
     };
     run();
-  }, [rows, queueView, attemptRefresh]);
+  }, [rows, contactViewEnabled, siblingIdsByRowId, attemptRefresh]);
+
 
 
 
@@ -1852,18 +1963,27 @@ const ReviewQueue: React.FC = () => {
                             <span>Pending {formatAge(row.pending_since, nowTick)}{row.pending_by_name ? ` · ${row.pending_by_name}` : ''}</span>
                           </Badge>
                         )}
-                        {queueView === 'pending' && (
+                        {contactViewEnabled && (
                           effectiveContactByRowId[row.id] ? (
                             <Badge
                               variant="outline"
                               className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                              title={`Last contact attempt ${new Date(effectiveContactByRowId[row.id].at).toLocaleString()}${effectiveContactByRowId[row.id].by ? ` by ${effectiveContactByRowId[row.id].by}` : ''}`}
+                              title={`Last contact attempt ${new Date(effectiveContactByRowId[row.id].at).toLocaleString()}${effectiveContactByRowId[row.id].by ? ` by ${effectiveContactByRowId[row.id].by}` : ''}${effectiveContactByRowId[row.id].fromSibling ? ' (logged on an earlier record for this patient)' : ''}`}
                             >
                               <span>
                                 Last contact {formatAge(effectiveContactByRowId[row.id].at, nowTick)} ago
                                 {effectiveContactByRowId[row.id].label ? ` · ${effectiveContactByRowId[row.id].label}` : ''}
                                 {effectiveContactByRowId[row.id].by ? ` · ${effectiveContactByRowId[row.id].by}` : ''}
+                                {effectiveContactByRowId[row.id].fromSibling ? ' · earlier record' : ''}
                               </span>
+                            </Badge>
+                          ) : contactFetchFailed ? (
+                            <Badge
+                              variant="outline"
+                              className="border-slate-300 text-slate-500 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
+                              title="Contact history could not be loaded — this does not mean nobody called"
+                            >
+                              Contact history unavailable
                             </Badge>
                           ) : (
                             <Badge
@@ -1875,12 +1995,14 @@ const ReviewQueue: React.FC = () => {
                             </Badge>
                           )
                         )}
-                        {queueView === 'pending' && (attemptsByRowId[row.id]?.count || 0) > 0 && (
+
+                        {contactViewEnabled && (attemptsByRowId[row.id]?.count || 0) > 0 && (
                           <Badge
                             variant="outline"
                             className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
-                            title="Contact attempts logged on this record"
+                            title="Contact attempts logged for this patient (includes earlier records)"
                           >
+
                             {attemptsByRowId[row.id].count} attempt{(attemptsByRowId[row.id].count || 0) > 1 ? 's' : ''}
                           </Badge>
                         )}
@@ -2420,11 +2542,28 @@ const ReviewQueue: React.FC = () => {
           <LogAttemptDialog
             appointmentId={attemptDialogRow.id}
             patientName={attemptDialogRow.lead_name}
+            siblingIds={siblingIdsByRowId[attemptDialogRow.id]}
             open={!!attemptDialogRow}
             onOpenChange={(o) => { if (!o) setAttemptDialogRow(null); }}
-            onLogged={() => setAttemptRefresh(v => v + 1)}
+            onLogged={(attempt) => {
+              // Reflect the attempt on the row instantly, then reconcile with the server
+              const rowId = attempt.appointment_id;
+              setContactFetchFailed(false);
+              setAttemptsByRowId(prev => ({
+                ...prev,
+                [rowId]: {
+                  at: attempt.attempted_at,
+                  by: (attempt.user_name || '').trim(),
+                  label: `${channelLabel(attempt.channel)}, ${outcomeLabel(attempt.outcome).toLowerCase()}`,
+                  count: (prev[rowId]?.count || 0) + 1,
+                  optimistic: true,
+                },
+              }));
+              setAttemptRefresh(v => v + 1);
+            }}
           />
         )}
+
       </CardContent>
     </Card>
   );
