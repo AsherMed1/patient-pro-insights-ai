@@ -77,7 +77,7 @@ function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: T
       </div>
 
       {isLast && (
-        <Button variant="ghost" size="icon" onClick={onAdd} className="h-9 w-9">
+        <Button variant="ghost" size="icon" onClick={onAdd} className="h-9 w-9 shrink-0">
           <Plus className="h-4 w-4" />
         </Button>
       )}
