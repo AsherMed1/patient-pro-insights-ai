@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
           appointment_id: row.id,
           note_text: `Appointment date/time re-synced from GoHighLevel | FROM: ${from} | TO: ${ghlDate} ${ghlTime} — System`,
           created_by: 'System',
-          visibility: 'clinic',
+          visibility: 'internal',
         });
 
         results.push(out);
