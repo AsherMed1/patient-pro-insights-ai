@@ -91,7 +91,9 @@ interface LastContact {
   label?: string;
   count?: number;
   fromSibling?: boolean;
+  optimistic?: boolean;
 }
+
 
 
 interface DuplicateAppt {
