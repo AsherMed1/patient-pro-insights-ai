@@ -114,6 +114,7 @@ interface QANote {
   author_name: string | null;
   author_user_id?: string | null;
   edited_at?: string | null;
+  attachments?: StoredAttachment[] | null;
   created_at: string;
 }
 
