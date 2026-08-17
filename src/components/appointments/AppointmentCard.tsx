@@ -856,6 +856,8 @@ const AppointmentCard = ({
       setShowOonDialog(true);
     } else if (['no show', 'noshow', 'no-show'].includes(newStatus.toLowerCase())) {
       setShowNoShowDialog(true);
+    } else if (newStatus.toLowerCase() === REFERRAL_STATUS.toLowerCase()) {
+      setShowReferralDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
