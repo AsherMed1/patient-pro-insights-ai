@@ -90,7 +90,9 @@ interface LastContact {
   by: string;
   label?: string;
   count?: number;
+  fromSibling?: boolean;
 }
+
 
 interface DuplicateAppt {
   id: string;
