@@ -1996,12 +1996,13 @@ const ReviewQueue: React.FC = () => {
                           )
                         )}
 
-                        {queueView === 'pending' && (attemptsByRowId[row.id]?.count || 0) > 0 && (
+                        {contactViewEnabled && (attemptsByRowId[row.id]?.count || 0) > 0 && (
                           <Badge
                             variant="outline"
                             className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
-                            title="Contact attempts logged on this record"
+                            title="Contact attempts logged for this patient (includes earlier records)"
                           >
+
                             {attemptsByRowId[row.id].count} attempt{(attemptsByRowId[row.id].count || 0) > 1 ? 's' : ''}
                           </Badge>
                         )}
