@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -122,6 +122,15 @@ const ReviewQueue: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [countsLoading, setCountsLoading] = useState(false);
+  const countsSeq = useRef(0);
+
+  // Debounce the search box so typing doesn't fire a query per keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
@@ -474,6 +483,8 @@ const ReviewQueue: React.FC = () => {
   }, [projectFilter, search, toast, queueView, approvedDateFrom, approvedDateTo]);
 
   const fetchCounts = useCallback(async () => {
+    const seq = ++countsSeq.current;
+    setCountsLoading(true);
     const base = (status: string, stage?: string) => {
       let q = supabase
         .from('all_appointments')
@@ -508,10 +519,12 @@ const ReviewQueue: React.FC = () => {
       base('declined'),
       base('approved'),
     ]);
+    if (seq !== countsSeq.current) return; // a newer run superseded this one
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
+    setCountsLoading(false);
   }, [projectFilter, search, approvedDateFrom, approvedDateTo]);
 
   useEffect(() => {
@@ -1754,7 +1767,7 @@ const ReviewQueue: React.FC = () => {
             Refresh
           </Button>
         </div>
-        <div className="flex gap-2 mt-3 flex-wrap">
+        <div className={cn('flex gap-2 mt-3 flex-wrap transition-opacity', countsLoading && 'opacity-60')}>
           <Button
             variant={queueView === 'new' ? 'default' : 'outline'}
             size="sm"
@@ -1796,8 +1809,8 @@ const ReviewQueue: React.FC = () => {
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search name, phone, or email…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
               className="pl-8"
             />
           </div>
