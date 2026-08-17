@@ -35,6 +35,8 @@ import { useGhlCalendars } from "@/hooks/useGhlCalendars";
 import AvailableTimeSlots from "./AvailableTimeSlots";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import NoShowEligibilityDialog from "./NoShowEligibilityDialog";
+import ReferralRequestedDialog from "./ReferralRequestedDialog";
+import { applyReferralRequested, REFERRAL_STATUS } from "@/lib/referralStatus";
 import { applyNoShowEligibility, liftRescheduleBlock } from "@/utils/rescheduleBlock";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
 import {
