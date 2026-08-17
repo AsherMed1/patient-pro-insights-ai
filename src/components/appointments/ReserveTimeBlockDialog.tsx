@@ -180,7 +180,7 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
               />
               <label 
                 htmlFor={`cal-${calendar.id}`} 
-                className="text-sm cursor-pointer truncate flex-1"
+                className="text-sm cursor-pointer truncate flex-1 min-w-0"
                 title={calendar.name}
               >
                 {calendar.name}
