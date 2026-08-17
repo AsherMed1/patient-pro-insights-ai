@@ -2815,7 +2815,12 @@ function CaseDrawer({
                           </div>
                         </div>
                       ) : (
-                        <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                        <>
+                          {n.note && (
+                            <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                          )}
+                          <AttachmentGallery attachments={n.attachments} size="sm" className="mt-1" />
+                        </>
                       )}
                     </div>
 
