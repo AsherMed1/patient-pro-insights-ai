@@ -24,6 +24,7 @@ import MasterDatabaseStats from "@/components/MasterDatabaseStats";
 import CallTeamTab from "@/components/callteam/CallTeamTab";
 import ProjectCallSummaryTable from "@/components/dashboard/ProjectCallSummaryTable";
 import RecaptureDashboard from "@/components/dashboard/RecaptureDashboard";
+import ReferralDelaysReport from '@/components/reporting/ReferralDelaysReport';
 import UserManagement from "@/components/UserManagement";
 import TeamMessagesManager from "@/components/TeamMessagesManager";
 import SupportQueueManager from "@/components/SupportQueueManager";
@@ -416,6 +417,7 @@ const Index = () => {
 
           <TabsContent value="reporting" className="space-y-6">
             <ProjectCallSummaryTable />
+            <ReferralDelaysReport />
             <RecaptureDashboard />
           </TabsContent>
 
