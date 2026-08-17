@@ -139,6 +139,8 @@ const ReviewQueue: React.FC = () => {
   const [pendingCount, setPendingCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [approvedDateFrom, setApprovedDateFrom] = useState<Date | undefined>();
+  const [approvedDateTo, setApprovedDateTo] = useState<Date | undefined>();
   const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
