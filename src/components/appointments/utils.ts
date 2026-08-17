@@ -232,6 +232,8 @@ export const getStatusVariant = (status: string) => {
       return 'rescheduled' as const;
     case 'oon':
       return 'oon' as const;
+    case 'referral requested':
+      return 'referralRequested' as const;
     case 'welcome call':
       return 'welcomeCall' as const;
     case 'do not call':
