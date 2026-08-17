@@ -519,10 +519,12 @@ const ReviewQueue: React.FC = () => {
       base('declined'),
       base('approved'),
     ]);
+    if (seq !== countsSeq.current) return; // a newer run superseded this one
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
+    setCountsLoading(false);
   }, [projectFilter, search, approvedDateFrom, approvedDateTo]);
 
   useEffect(() => {
