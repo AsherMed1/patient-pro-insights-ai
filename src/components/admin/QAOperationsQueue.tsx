@@ -2708,15 +2708,28 @@ function CaseDrawer({
               >
 
 
-                <MentionTextarea
-                  value={noteDraft}
-                  onChange={setNoteDraft}
-                  placeholder="Add an internal QA note… (type @ to tag a teammate)"
-                  rows={3}
-                />
+                <ImageAttachInput
+                  files={noteImages}
+                  onChange={setNoteImages}
+                  disabled={postingNote}
+                  hint="Paste a screenshot, drag an image in, or attach"
+                >
+                  <MentionTextarea
+                    value={noteDraft}
+                    onChange={setNoteDraft}
+                    placeholder="Add an internal QA note… (type @ to tag a teammate)"
+                    rows={3}
+                  />
+                </ImageAttachInput>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Type @ to tag a teammate — they get an in-app notification.</span>
-                  <Button size="sm" onClick={addNote} disabled={!noteDraft.trim()}>Add note</Button>
+                  <Button
+                    size="sm"
+                    onClick={addNote}
+                    disabled={postingNote || (!noteDraft.trim() && noteImages.length === 0)}
+                  >
+                    {postingNote ? 'Posting…' : 'Add note'}
+                  </Button>
                 </div>
                 <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
                   {notes.map((n) => (
