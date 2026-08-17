@@ -1,63 +1,35 @@
-# Recapture Redesign — Drawer-Based Setter Workflow
+# Fix blank patient records (Ross Becker / ECCO Medical)
 
-Rework Recapture to behave like QA Operations: one **Open Record** action per row, a right-side patient drawer, and a clean split between *logging an attempt* (activity only) and *setting an Outcome* (what happens to the lead).
+## What happened
 
-## Buckets
+Ross Becker's record was created from a GHL webhook that only carried the address-bot and insurance-upload fields. The stored intake notes are 198 characters:
 
-| Bucket | Meaning |
-| --- | --- |
-| Active / New | Entered Recapture, no attempts logged yet |
-| Nurture | Attempts logged, no successful contact, no follow-up scheduled |
-| Follow-Up | A specific follow-up date/time is set (shows countdown) |
-| Completed | Closed with a completion reason |
+```text
+**Contact:** address: 9313 Rogers Road | city: Longmont | state: Colorado | zip: 80503
+**Insurance:** insurance_id_link: https://services.leadconnectorhq.com/documents/download/...
+```
 
-Movement rules:
-- Logging an attempt on an Active/New record moves it to **Nurture** and never completes it.
-- Outcome → Nurture keeps it workable in Nurture.
-- Outcome → Follow-Up Required requires date + time, moves to Follow-Up, shows the scheduled time plus a live countdown; overdue follow-ups are visually flagged.
-- Outcome → Completed requires a completion reason (Booked / Rescheduled, Not Interested, Unable to Reach, Invalid Contact Number, Other). "Other" requires a note. Only this closes the record.
+There is no transcript, no insurance plan, no pathology — so the parser had nothing to work with, and because the record also arrived without a calendar name, no service could be inferred either. The record is not corrupted; it was never filled in.
 
-## Queue table
+This is a recurring pattern, not a one-off. In the last 60 days there are **17 patient records** in this stub state (excluding reserved time blocks), including 5 created on Aug 15 alone across ECCO Medical, Champion Heart, Georgia Endovascular, Rao Clinic and Vascular and Embolization Specialists. Every one of them has a GHL contact ID, so the missing data is almost certainly still sitting in GHL and can be pulled back.
 
-- Columns: Patient, Clinic, Lost Type, Lost Date, Days Since, Service, Attempts, Follow-Up (date/time + countdown), Assignee, Status.
-- Single action per row: **Open Record** (opens the drawer; the queue stays behind it, filters and scroll preserved).
-- Bucket tabs with live counts, existing filters (search, clinic, lost type, date range) unchanged.
+The existing `recover-stub-intake-notes` function already knows how to repair these records, but nothing ever runs it — it has to be triggered by hand, so stubs sit blank indefinitely.
 
-## Patient drawer
+## What changes
 
-Header: patient name, clinic, current recapture status badge, attempt count.
+1. **Self-heal right after creation.** When the webhook creates or updates a record and the resulting intake notes are still a stub (under ~300 chars, no Pathology/Medical/STEP sections), schedule a background re-pull of the full GHL contact a short time later (and one retry), so a record that arrives before the intake form is attached fills itself in within minutes instead of never.
 
-Details: phone, email, service line, last appointment date/time, lost type, entered-worklist date, assignee.
+2. **Scheduled safety net.** Add a cron job (every 2 hours) that calls `recover-stub-intake-notes` for records created in the last 14 days. Anything the immediate retry misses gets swept up automatically, then re-parsed.
 
-Links: **Open Portal Record** (existing detailed appointment view) and **Open in GHL** (existing resolver). No tech tickets, no Control Hub, no QA-only functionality.
+3. **Service recovery for records with no calendar.** For stub records with a null calendar name (Ross Becker's case), resolve the calendar from the contact's GHL appointment during the recovery pass, then infer the procedure from the calendar name using the existing detection rules.
 
-Actions row: **Log Attempt** button and an **Outcome** dropdown (Nurture / Follow-Up Required / Completed).
+4. **Make blankness visible instead of silent.** In the appointment detail view, when a record has stub-level intake notes show an "Intake data not received" indicator with a "Pull from GHL" button that runs `fetch-ghl-contact-data` on demand, so a setter is never left staring at an empty card without an action.
 
-Sections:
-- **Contact Attempt History** — chronological entries: date/time, setter, method, outcome, note. Follow-up and outcome events appear in the same timeline so the history reads like the example in the request.
-- **Internal Notes** — internal-only notes on the case.
-
-After saving an attempt or an outcome, the drawer stays open on the same patient and refreshes in place.
-
-## Log Attempt
-
-Records date/time, setter, method (Call / Text / Email / Voicemail), attempt outcome (Answered, No Answer, Left Voicemail, Busy, Disconnected, Wrong Number, Callback Requested, Not Interested, Other), and an optional note. It only writes history — it never sets a completion outcome.
-
-## Portal visibility for PPM
-
-On the Patient Portal appointment record, add an internal-only **Recapture Contact History** section listing attempt date/time, outcome, setter, and notes — including for patients completed as Booked / Rescheduled. Hidden from clinic users, using the same internal-visibility gating already applied to internal notes.
+5. **Backfill.** Run the recovery once over the existing 17 stub records, then clear their parse stamps so the parser reprocesses them. Ross Becker is included.
 
 ## Technical notes
 
-- Migration on `recapture_cases`: widen the `work_status` check to `new`, `nurture`, `follow_up`, `completed` (mapping existing `pending`→`new`, `engaging`→`nurture`, `follow_up_required`→`follow_up`); add `follow_up_at timestamptz`, `follow_up_note text`, `completion_reason text` with a check for the five reasons. Keep `outcome`/`outcome_notes` for reporting continuity.
-- New `recapture_case_notes` table (case_id, note_text, created_by, created_by_name, created_at) with GRANTs and RLS matching `recapture_attempts` (`has_recapture_case_access`), internal-only by definition.
-- `src/components/recapture/RecaptureQueue.tsx`: strip the row action cluster down to Open Record; split the drawer into a new `RecaptureCaseDrawer.tsx` holding details, links, Log Attempt dialog, Outcome dialog(s), attempt timeline, and notes.
-- Countdown: a lightweight 60s ticker rendering time remaining to `follow_up_at`, red once overdue.
-- `src/components/recapture/RecaptureReports.tsx`: update status labels/aggregations to the new bucket values and report completion reasons.
-- Portal history: new read-only section in the appointment detail view, joining `recapture_cases` → `recapture_attempts` by appointment/patient, rendered only for non-`project_user` roles.
-
-## Assumptions
-
-- Existing case data maps to the new buckets as described above; nothing is deleted.
-- Claim/Assign remains available inside the drawer (not as a row action).
-- Reports keep working off the same tables; no separate reporting migration.
+- `supabase/functions/ghl-webhook-handler/index.ts`: add an `isStubNotes()` helper (length threshold + absence of the section markers already listed at line 2183) and, on create/update paths, wrap a delayed `fetch-ghl-contact-data` invoke in `EdgeRuntime.waitUntil()` with a single retry. Guard against loops by only retrying when the record has a `ghl_id` and notes are still a stub at retry time.
+- `supabase/functions/recover-stub-intake-notes/index.ts`: add a `created_within_days` filter, exclude reserved time-block rows (`lead_name ilike 'Reserved%'` / notes starting with `Time block reserved`), and after a successful re-pull, if `calendar_name` is null, resolve it from the contact's GHL appointments and set `parsed_pathology_info.procedure` from the calendar-name detection.
+- Cron: new migration adding a `cron.schedule` entry that posts to `recover-stub-intake-notes`, matching the existing pattern used by `sweep-short-notice-pending` (jobid 2).
+- UI: `src/components/appointments/DetailedAppointmentView.tsx` — stub banner plus "Pull from GHL" action reusing the existing refresh pipeline (fetch → clear `parsing_completed_at` → auto-parse).
