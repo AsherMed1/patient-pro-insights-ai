@@ -1945,7 +1945,7 @@ const ReviewQueue: React.FC = () => {
 
                       {isReadOnlyView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {isApprovedView ? 'Approved' : 'Declined'} {row.reviewed_at ? `${formatDate(row.reviewed_at)} ${formatTime(row.reviewed_at)}` : '—'} by {reviewerLabel}
+                          {isApprovedView ? 'Approved' : 'Declined'} {row.reviewed_at ? `${formatDate(row.reviewed_at)} ${new Date(row.reviewed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '—'} by {reviewerLabel}
                         </div>
                       )}
                     </div>
