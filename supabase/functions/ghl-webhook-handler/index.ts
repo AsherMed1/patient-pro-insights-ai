@@ -2271,6 +2271,69 @@ function extractTimePreference(notes: string | null | undefined): string | null 
   return null;
 }
 
+// Extract an explicitly-booked appointment date from the intake notes.
+// Unscheduled-capture funnels sometimes carry a real booked date in the
+// "Date Appt Booked For" custom field even though the webhook payload has no
+// calendar slot. ONLY that exact label is read — no free-text date guessing.
+// Returns YYYY-MM-DD or null.
+const BOOKED_DATE_MONTHS: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8,
+  september: 9, sep: 9, sept: 9, october: 10, oct: 10,
+  november: 11, nov: 11, december: 12, dec: 12,
+};
+
+function extractBookedDateFromNotes(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const m = String(notes).match(/date\s*appt\s*booked\s*for\s*[:=]\s*([^\n|]{4,40})/i);
+  if (!m) return null;
+  const raw = m[1].trim();
+  if (!raw || /^(not provided|n\/?a|none|tbd|unknown)$/i.test(raw)) return null;
+
+  let y: number | null = null, mo: number | null = null, d: number | null = null;
+
+  // "August 31, 2026" / "Aug 31 2026"
+  const wordy = raw.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/);
+  // "2026-08-31"
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  // "08/31/2026"
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (wordy) {
+    mo = BOOKED_DATE_MONTHS[wordy[1].toLowerCase()] ?? null;
+    d = parseInt(wordy[2], 10);
+    y = parseInt(wordy[3], 10);
+  } else if (iso) {
+    y = parseInt(iso[1], 10); mo = parseInt(iso[2], 10); d = parseInt(iso[3], 10);
+  } else if (slash) {
+    mo = parseInt(slash[1], 10); d = parseInt(slash[2], 10); y = parseInt(slash[3], 10);
+  }
+
+  if (!y || !mo || !d || mo < 1 || mo > 12 || d < 1 || d > 31) {
+    console.warn(`[BOOKED-DATE] Unparseable "Date Appt Booked For" value: ${JSON.stringify(raw)}`);
+    return null;
+  }
+
+  const isoStr = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const parsed = new Date(`${isoStr}T00:00:00Z`);
+  if (isNaN(parsed.getTime()) || parsed.getUTCDate() !== d || parsed.getUTCMonth() + 1 !== mo) {
+    console.warn(`[BOOKED-DATE] Invalid calendar date: ${isoStr}`);
+    return null;
+  }
+
+  // Plausibility window: 1 year back → 2 years ahead.
+  const now = Date.now();
+  const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
+  const twoYearsAhead = now + 2 * 365 * 24 * 60 * 60 * 1000;
+  if (parsed.getTime() < oneYearAgo || parsed.getTime() > twoYearsAhead) {
+    console.warn(`[BOOKED-DATE] Out of plausibility window, ignoring: ${isoStr}`);
+    return null;
+  }
+
+  return isoStr;
+}
+
+
 // Minimum plausible patient age — anything younger is a stray date field
 // (appointment date, created date, etc.), not a real date of birth.
 const MIN_PLAUSIBLE_DOB_AGE_YEARS = 13
