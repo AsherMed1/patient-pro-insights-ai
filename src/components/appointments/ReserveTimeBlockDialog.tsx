@@ -172,7 +172,7 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
           <p className="text-sm text-muted-foreground text-center py-2">No matching calendars</p>
         ) : (
           visibleCalendars.map((calendar) => (
-            <div key={calendar.id} className="flex items-center gap-2">
+            <div key={calendar.id} className="flex items-center gap-2 min-w-0">
               <Checkbox
                 id={`cal-${calendar.id}`}
                 checked={selectedIds.includes(calendar.id)}
