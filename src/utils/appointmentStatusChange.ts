@@ -143,13 +143,20 @@ export async function changeAppointmentStatus({
   const apptDate = syncData?.date_of_appointment ? String(syncData.date_of_appointment).slice(0, 10) : null;
   const isPastAppointment = !!apptDate && apptDate < new Date().toISOString().slice(0, 10);
 
+  // "Referral Requested" is portal-only: GHL gets a cancellation so the slot
+  // re-opens, while the portal record stays active as an unscheduled lead.
+  const ghlStatus = status.toLowerCase() === 'referral requested' ? 'Cancelled' : status;
+
   if (syncData?.ghl_appointment_id) {
     try {
       const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
         body: {
           ghl_appointment_id: syncData.ghl_appointment_id,
           project_name: syncData.project_name,
-          status,
+          status: ghlStatus,
+          ...(ghlStatus !== status
+            ? { cancellation_notes: 'Referral Requested — awaiting PCP referral (slot released by portal)' }
+            : {}),
         },
       });
       if (ghlError) throw ghlError;

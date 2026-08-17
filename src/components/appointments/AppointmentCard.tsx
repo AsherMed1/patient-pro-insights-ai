@@ -35,6 +35,8 @@ import { useGhlCalendars } from "@/hooks/useGhlCalendars";
 import AvailableTimeSlots from "./AvailableTimeSlots";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import NoShowEligibilityDialog from "./NoShowEligibilityDialog";
+import ReferralRequestedDialog from "./ReferralRequestedDialog";
+import { applyReferralRequested, REFERRAL_STATUS } from "@/lib/referralStatus";
 import { applyNoShowEligibility, liftRescheduleBlock } from "@/utils/rescheduleBlock";
 import { useUserAttribution } from "@/hooks/useUserAttribution";
 import {
@@ -238,6 +240,8 @@ const AppointmentCard = ({
   const { userName } = useUserAttribution();
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const [submittingNoShow, setSubmittingNoShow] = useState(false);
+  const [showReferralDialog, setShowReferralDialog] = useState(false);
+  const [submittingReferral, setSubmittingReferral] = useState(false);
   const [liftingBlock, setLiftingBlock] = useState(false);
 
   
@@ -852,10 +856,40 @@ const AppointmentCard = ({
       setShowOonDialog(true);
     } else if (['no show', 'noshow', 'no-show'].includes(newStatus.toLowerCase())) {
       setShowNoShowDialog(true);
+    } else if (newStatus.toLowerCase() === REFERRAL_STATUS.toLowerCase()) {
+      setShowReferralDialog(true);
     } else {
       onUpdateStatus(appointment.id, newStatus);
     }
   };
+
+  // Referral Requested: release the slot in GHL, keep the patient active.
+  const handleReferralConfirm = async (notes: string) => {
+    setSubmittingReferral(true);
+    try {
+      onUpdateStatus(appointment.id, REFERRAL_STATUS);
+      await applyReferralRequested({
+        appointmentId: appointment.id,
+        userName,
+        notes,
+        previousStatus: appointment.status,
+        previousDate: appointment.date_of_appointment,
+        previousTime: appointment.requested_time,
+      });
+      setShowReferralDialog(false);
+      toast({
+        title: 'Referral Requested',
+        description: 'Slot released in GoHighLevel. Patient is tracked in the Referrals tab.',
+      });
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error applying Referral Requested:', error);
+      toast({ title: 'Error', description: 'Failed to mark Referral Requested', variant: 'destructive' });
+    } finally {
+      setSubmittingReferral(false);
+    }
+  };
+
 
   // No-show eligibility submission
   const handleNoShowConfirm = async (eligible: boolean, notes: string, reason?: string | null) => {
@@ -2386,6 +2420,16 @@ const AppointmentCard = ({
         patientName={appointment.lead_name}
         submitting={submittingNoShow}
         onConfirm={handleNoShowConfirm}
+      />
+
+      {/* Referral Requested Dialog */}
+      <ReferralRequestedDialog
+        open={showReferralDialog}
+        onOpenChange={setShowReferralDialog}
+        patientName={appointment.lead_name}
+        appointmentDate={appointment.date_of_appointment}
+        submitting={submittingReferral}
+        onConfirm={handleReferralConfirm}
       />
 
       {/* Cancellation Reason Dialog */}

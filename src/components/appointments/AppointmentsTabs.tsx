@@ -6,7 +6,7 @@ import { AllAppointment } from './types';
 import { filterAppointments } from './utils';
 import AppointmentsList from './AppointmentsList';
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AlertCircle, Calendar, Clock } from 'lucide-react';
+import { AlertCircle, Calendar, Clock, FileText } from 'lucide-react';
 
 interface AppointmentsTabsProps {
   appointments: AllAppointment[];
@@ -34,6 +34,7 @@ interface AppointmentsTabsProps {
     needsReview: number;
     future: number;
     past: number;
+    referrals?: number;
   };
   projectLocationMap?: Record<string, string>;
 }
@@ -72,12 +73,13 @@ const AppointmentsTabs = ({
     new: activeTab === 'new' ? appointments.length : 0,
     needsReview: activeTab === 'needs-review' ? appointments.length : 0,
     future: activeTab === 'future' ? appointments.length : 0,
-    past: activeTab === 'past' ? appointments.length : 0
+    past: activeTab === 'past' ? appointments.length : 0,
+    referrals: activeTab === 'referrals' ? appointments.length : 0
   };
 
   return (
       <Tabs value={activeTab} onValueChange={onTabChange} className="w-full animate-fade-in-up">
-        <TabsList data-tour="appt-tabs" className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-5'} bg-muted/40 p-1.5 rounded-xl`}>
+        <TabsList data-tour="appt-tabs" className={`grid w-full ${isMobile ? 'grid-cols-1 h-auto gap-1' : 'grid-cols-6'} bg-muted/40 p-1.5 rounded-xl`}>
           <TabsTrigger 
             value="new" 
             className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-xl text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-lg data-[state=active]:-translate-y-0.5`}
@@ -111,6 +113,18 @@ const AppointmentsTabs = ({
               <span className="font-medium">Upcoming</span>
               <Badge variant="secondary" className="text-[10px] h-5 min-w-[20px] justify-center">
                 {displayCounts.future}
+              </Badge>
+            </div>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="referrals" 
+            className={`${isMobile ? 'w-full py-3.5 text-sm justify-start px-4' : 'py-2.5 text-sm'} rounded-xl text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-lg data-[state=active]:-translate-y-0.5`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-amber-500 flex-shrink-0" />
+              <span className="font-medium">Referrals</span>
+              <Badge variant={(displayCounts.referrals || 0) > 0 ? "referralRequested" : "secondary"} className="text-[10px] h-5 min-w-[20px] justify-center">
+                {displayCounts.referrals || 0}
               </Badge>
             </div>
           </TabsTrigger>
@@ -210,6 +224,29 @@ const AppointmentsTabs = ({
       </TabsContent>
 
       <TabsContent value="future" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
+        <AppointmentsList
+          appointments={displayedAppointments}
+          loading={loading}
+          projectFilter={projectFilter}
+          statusOptions={statusOptions}
+          onUpdateStatus={onUpdateStatus}
+          onUpdateProcedure={onUpdateProcedure}
+          onUpdateDate={onUpdateDate}
+          onUpdateTime={onUpdateTime}
+          onUpdateInternalProcess={onUpdateInternalProcess}
+          onUpdateDOB={onUpdateDOB}
+          onDelete={onDelete}
+          onBulkDelete={onBulkDelete}
+          onUpdateName={onUpdateName}
+          onUpdateEmail={onUpdateEmail}
+          onUpdatePhone={onUpdatePhone}
+          onUpdateCalendarLocation={onUpdateCalendarLocation}
+          projectLocationMap={projectLocationMap}
+          onDataRefresh={onDataRefresh}
+        />
+      </TabsContent>
+
+      <TabsContent value="referrals" className="space-y-3 md:space-y-4 mt-4 md:mt-6">
         <AppointmentsList
           appointments={displayedAppointments}
           loading={loading}

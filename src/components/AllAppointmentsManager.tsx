@@ -65,7 +65,8 @@ const AllAppointmentsManager = ({
     new: 0,
     needsReview: 0,
     future: 0,
-    past: 0
+    past: 0,
+    referrals: 0
   });
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [searchTerm, setSearchTerm] = useState('');
@@ -337,6 +338,7 @@ const AllAppointmentsManager = ({
           .or('internal_process_complete.is.null,internal_process_complete.eq.false')
           .or('status.not.ilike.pending,is_unscheduled.eq.true')
           .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
@@ -350,6 +352,7 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
           .not('status', 'ilike', 'rescheduled')
+        .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
@@ -365,7 +368,11 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
           .not('status', 'ilike', 'rescheduled')
+        .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
+      } else if (activeTab === 'referrals') {
+        // Referrals: patients awaiting a PCP referral (portal-active, unscheduled)
+        countQuery = countQuery.ilike('status', 'referral requested');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         countQuery = countQuery
@@ -475,6 +482,7 @@ const AllAppointmentsManager = ({
           .or('internal_process_complete.is.null,internal_process_complete.eq.false')
           .or('status.not.ilike.pending,is_unscheduled.eq.true')
           .not('status', 'ilike', 'do not call')
+          .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'needs-review') {
         // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
@@ -488,6 +496,7 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
           .not('status', 'ilike', 'rescheduled')
+        .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
       } else if (activeTab === 'future') {
         // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
@@ -503,7 +512,11 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
           .not('status', 'ilike', 'rescheduled')
+        .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
+      } else if (activeTab === 'referrals') {
+        // Referrals: patients awaiting a PCP referral (portal-active, unscheduled)
+        appointmentsQuery = appointmentsQuery.ilike('status', 'referral requested');
       } else if (activeTab === 'past') {
         // Completed: appointments with final status (case-insensitive)
         appointmentsQuery = appointmentsQuery
@@ -634,6 +647,7 @@ const AllAppointmentsManager = ({
         .or('internal_process_complete.is.null,internal_process_complete.eq.false')
         .or('status.not.ilike.pending,is_unscheduled.eq.true')
         .not('status', 'ilike', 'do not call')
+        .not('status', 'ilike', 'referral requested')
         .or('is_superseded.is.null,is_superseded.eq.false');
       
       // Needs Review: Pending (excluding unscheduled-capture leads) OR past/null date appointments
@@ -647,6 +661,7 @@ const AllAppointmentsManager = ({
         .not('status', 'ilike', 'oon')
         .not('status', 'ilike', 'do not call')
         .not('status', 'ilike', 'rescheduled')
+        .not('status', 'ilike', 'referral requested')
         .or('is_superseded.is.null,is_superseded.eq.false');
       
       // Upcoming: Future appointments with internal_process_complete = true (two-point trigger)
@@ -662,18 +677,23 @@ const AllAppointmentsManager = ({
           .not('status', 'ilike', 'oon')
           .not('status', 'ilike', 'do not call')
           .not('status', 'ilike', 'rescheduled')
+        .not('status', 'ilike', 'referral requested')
           .or('is_superseded.is.null,is_superseded.eq.false');
       
       // Completed: appointments with final status (case-insensitive)
       const pastQuery = getBaseQuery()
         .or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
 
-      const [allResult, newResult, needsReviewResult, futureResult, pastResult] = await Promise.all([
+      // Referrals: patients awaiting a PCP referral
+      const referralsQuery = getBaseQuery().ilike('status', 'referral requested');
+
+      const [allResult, newResult, needsReviewResult, futureResult, pastResult, referralsResult] = await Promise.all([
         allQuery,
         newQuery,
         needsReviewQuery,
         futureQuery,
-        pastQuery
+        pastQuery,
+        referralsQuery
       ]);
 
       setTabCounts({
@@ -681,7 +701,8 @@ const AllAppointmentsManager = ({
         new: newResult.count || 0,
         needsReview: needsReviewResult.count || 0,
         future: futureResult.count || 0,
-        past: pastResult.count || 0
+        past: pastResult.count || 0,
+        referrals: referralsResult.count || 0
       });
     } catch (error) {
       console.error('Error fetching tab counts:', error);
@@ -1395,6 +1416,7 @@ const AllAppointmentsManager = ({
                   all: 'All',
                   new: 'New',
                   'needs-review': 'Needs Review',
+                  'referrals': 'Referrals',
                   future: 'Upcoming',
                   past: 'Completed',
                 };
@@ -1437,6 +1459,7 @@ const AllAppointmentsManager = ({
                       .or('internal_process_complete.is.null,internal_process_complete.eq.false')
                       .or('status.not.ilike.pending,is_unscheduled.eq.true')
                       .not('status', 'ilike', 'do not call')
+                                    .not('status', 'ilike', 'referral requested')
                       .or('is_superseded.is.null,is_superseded.eq.false');
                   } else if (activeTab === 'needs-review') {
                     query = query
@@ -1449,6 +1472,7 @@ const AllAppointmentsManager = ({
                       .not('status', 'ilike', 'oon')
                       .not('status', 'ilike', 'do not call')
                       .not('status', 'ilike', 'rescheduled')
+                      .not('status', 'ilike', 'referral requested')
                       .or('is_superseded.is.null,is_superseded.eq.false');
                   } else if (activeTab === 'future') {
                     query = query
@@ -1463,7 +1487,10 @@ const AllAppointmentsManager = ({
                       .not('status', 'ilike', 'oon')
                       .not('status', 'ilike', 'do not call')
                       .not('status', 'ilike', 'rescheduled')
+                      .not('status', 'ilike', 'referral requested')
                       .or('is_superseded.is.null,is_superseded.eq.false');
+                  } else if (activeTab === 'referrals') {
+                    query = query.ilike('status', 'referral requested');
                   } else if (activeTab === 'past') {
                     query = query.or('status.ilike.cancelled,status.ilike.no show,status.ilike.noshow,status.ilike.showed,status.ilike.won,status.ilike.oon,status.ilike.do not call,status.ilike.rescheduled');
                   }

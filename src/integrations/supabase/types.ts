@@ -272,6 +272,9 @@ export type Database = {
           project_name: string
           recapture_detected_at: string | null
           recaptured_from_appointment_id: string | null
+          referral_history: Json
+          referral_requested_at: string | null
+          referral_status: string | null
           requested_time: string | null
           reschedule_block_reason: string | null
           reschedule_blocked_at: string | null
@@ -358,6 +361,9 @@ export type Database = {
           project_name: string
           recapture_detected_at?: string | null
           recaptured_from_appointment_id?: string | null
+          referral_history?: Json
+          referral_requested_at?: string | null
+          referral_status?: string | null
           requested_time?: string | null
           reschedule_block_reason?: string | null
           reschedule_blocked_at?: string | null
@@ -444,6 +450,9 @@ export type Database = {
           project_name?: string
           recapture_detected_at?: string | null
           recaptured_from_appointment_id?: string | null
+          referral_history?: Json
+          referral_requested_at?: string | null
+          referral_status?: string | null
           requested_time?: string | null
           reschedule_block_reason?: string | null
           reschedule_blocked_at?: string | null
