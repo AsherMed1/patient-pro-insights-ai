@@ -1553,6 +1553,8 @@ function CaseDrawer({
   const [siblingActivity, setSiblingActivity] = useState<QAActivity[]>([]);
   
   const [noteDraft, setNoteDraft] = useState('');
+  const [noteImages, setNoteImages] = useState<File[]>([]);
+  const [postingNote, setPostingNote] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const savedSnapshotRef = useRef<Partial<QACase>>({});
