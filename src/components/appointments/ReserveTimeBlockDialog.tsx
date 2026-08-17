@@ -1009,7 +1009,7 @@ export function ReserveTimeBlockDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting || isScanning}>
             Cancel
           </Button>
