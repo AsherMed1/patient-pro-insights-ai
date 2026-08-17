@@ -1,37 +1,21 @@
-# Fix Review Queue Decline: GHL cancellation + reschedule choice
+# Add 18-hour option to Short-Notice Alert Threshold
 
-## What's broken (verified on Fahrije Saiti)
+## Goal
+Add an 18-hour option to the Short-Notice Alert Threshold dropdown in the Edit Project dialog so clinics can choose a tighter window between the existing 12-hour and 24-hour options.
 
-Portal row `cd13e86c` — status `Cancelled`, `review_status = declined`, `decline_notified_at` set — but GHL still shows the Aug 25 appointment as **Confirmed**.
+## What will change
 
-Cause: the decline flow only pushes the cancellation to GHL when the portal row is not already "Cancelled". This patient was already flipped to Cancelled by a GHL webhook at 11:47 AM; GHL then re-confirmed the appointment (opportunity moved "Needs to Reschedule → Confirmed"). When the setter declined at 1:15 PM the portal saw "already Cancelled" and skipped the GHL push entirely, so the event stayed Confirmed and no cancellation-driven message fired.
+- Insert an `18 hours` option in the `short_notice_threshold_hours` dropdown in `src/components/projects/EditProjectDialog.tsx`.
+- The new option appears between 12 hours and 24 hours, maintaining the ascending order.
 
-Second gap: the notification tags (`appointment-declined`, the reason tag, and `declined-reschedule` / `declined-no-reschedule`) are pushed once and then permanently suppressed by `decline_notified_at`, even if that first push failed. There is no confirmation that GHL actually accepted them.
+## Technical details
 
-Third gap: whether a patient should be rescheduled is hard-coded per reason. Only "Other" lets the setter choose.
+- File: `src/components/projects/EditProjectDialog.tsx`.
+- Change: add `<SelectItem value="18">18 hours</SelectItem>` between the existing 12 and 24 hour items.
+- The value is stored as a string in the Select component (as with the existing values) and converted to an integer when saved via `ProjectsManager.tsx`.
+- No database, schema, or backend changes are required; the existing `short_notice_threshold_hours` numeric column already supports any value.
+- The `AddProjectDialog.tsx` does not include a threshold field, so no change is needed there.
 
-## Changes
-
-**1. Always cancel in GHL on decline**
-- Remove the "skip if already cancelled" shortcut. Every decline pushes `status: Cancelled` for the appointment to GHL, regardless of the portal's current status.
-- After the push, read the appointment back from GHL and confirm it is cancelled. If it isn't, retry once, then show a loud red toast ("Declined — GHL appointment NOT cancelled") and write an internal note so it's visible on the record instead of silently drifting.
-- Write a note recording the verified outcome ("GHL appointment cancelled — verified" or the failure text).
-
-**2. Reschedule Yes/No on every decline reason**
-- The decline dialog gains a required "Does this patient need to be rescheduled?" Yes / No choice shown for every reason (not just "Other"). It pre-selects the sensible default for the picked reason (e.g. "No longer interested" → No, "Missing insurance" → Yes) and the setter can override it.
-- The stored decline reason, the portal note, the GHL contact note and the reschedule tag all follow the setter's choice.
-
-**3. Reliable tagging**
-- Push tags on every decline attempt; `decline_notified_at` records success only, and a failed push is retried on the next decline/retry instead of being suppressed.
-- Remove the opposite reschedule tag before adding the new one so a contact can never carry both `declined-reschedule` and `declined-no-reschedule`.
-- Surface the exact GHL error text in the toast when a push fails.
-
-**4. Repair Fahrije Saiti now**
-- Re-push the cancellation and the correct decline/reschedule tags for that contact so the appointment cancels in GHL and the clinic workflow fires.
-
-## Technical notes
-
-- `src/components/admin/ReviewQueue.tsx` — `performAction` decline branch: unconditional GHL cancel via `changeAppointmentStatus` (with a direct `update-ghl-appointment` fallback when the portal row is already Cancelled), post-push verification through `verify-ghl-appointment-status`, tag push no longer gated on `decline_notified_at`.
-- `src/components/admin/declineReasons.ts` — `reschedulable` becomes the default for the dialog toggle rather than a fixed value; `resolveDeclineReasonValue` extends so any reason can store a reschedule / no-reschedule variant.
-- No schema changes: `decline_reason`, `review_notes`, `decline_notified_at` already carry everything needed.
-- SMS/email content stays in GHL workflows, keyed on `appointment-declined` + `declined-reschedule` / `declined-no-reschedule`.
+## Acceptance
+- The Edit Project dialog shows a new "18 hours" choice.
+- Selecting it saves 18 to the project and the Short-Notice logic applies that threshold.
