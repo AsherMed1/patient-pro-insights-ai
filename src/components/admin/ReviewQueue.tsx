@@ -1739,7 +1739,7 @@ const ReviewQueue: React.FC = () => {
           <Button
             variant={queueView === 'new' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setQueueView('new'); setSelected(new Set()); }}
+            onClick={() => { setQueueView('new'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
           >
             New
             <Badge variant="secondary" className="ml-2">{newCount}</Badge>
@@ -1747,7 +1747,7 @@ const ReviewQueue: React.FC = () => {
           <Button
             variant={queueView === 'pending' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setQueueView('pending'); setSelected(new Set()); }}
+            onClick={() => { setQueueView('pending'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
           >
             Pending Review
             <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
@@ -1755,7 +1755,7 @@ const ReviewQueue: React.FC = () => {
           <Button
             variant={queueView === 'declined' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setQueueView('declined'); setSelected(new Set()); }}
+            onClick={() => { setQueueView('declined'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
           >
             Declined
             <Badge variant="secondary" className="ml-2">{declinedCount}</Badge>
