@@ -12,7 +12,11 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from '@/components/ui/dialog';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall } from 'lucide-react';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall, CalendarIcon } from 'lucide-react';
 import LogAttemptDialog, { channelLabel, outcomeLabel } from '@/components/appointments/LogAttemptDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +24,9 @@ import { useUserAttribution } from '@/hooks/useUserAttribution';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
+import { format } from 'date-fns';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
+import { cn } from '@/lib/utils';
 import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
@@ -133,6 +139,8 @@ const ReviewQueue: React.FC = () => {
   const [pendingCount, setPendingCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [approvedDateFrom, setApprovedDateFrom] = useState<Date | undefined>();
+  const [approvedDateTo, setApprovedDateTo] = useState<Date | undefined>();
   const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -426,6 +434,20 @@ const ReviewQueue: React.FC = () => {
       q = q.or(`lead_name.ilike.%${s}%,lead_phone_number.ilike.%${s}%,lead_email.ilike.%${s}%`);
     }
 
+    // Approved bucket: optional date range on reviewed_at
+    if (queueView === 'approved') {
+      if (approvedDateFrom) {
+        const from = new Date(approvedDateFrom);
+        from.setHours(0, 0, 0, 0);
+        q = q.gte('reviewed_at', from.toISOString());
+      }
+      if (approvedDateTo) {
+        const to = new Date(approvedDateTo);
+        to.setHours(23, 59, 59, 999);
+        q = q.lte('reviewed_at', to.toISOString());
+      }
+    }
+
     const { data, error } = await q;
     if (error) {
       toast({ title: 'Error loading queue', description: error.message, variant: 'destructive' });
@@ -449,7 +471,7 @@ const ReviewQueue: React.FC = () => {
       }
     }
     setLoading(false);
-  }, [projectFilter, search, toast, queueView]);
+  }, [projectFilter, search, toast, queueView, approvedDateFrom, approvedDateTo]);
 
   const fetchCounts = useCallback(async () => {
     const base = (status: string, stage?: string) => {
@@ -1717,7 +1739,7 @@ const ReviewQueue: React.FC = () => {
           <Button
             variant={queueView === 'new' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setQueueView('new'); setSelected(new Set()); }}
+            onClick={() => { setQueueView('new'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
           >
             New
             <Badge variant="secondary" className="ml-2">{newCount}</Badge>
@@ -1725,7 +1747,7 @@ const ReviewQueue: React.FC = () => {
           <Button
             variant={queueView === 'pending' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setQueueView('pending'); setSelected(new Set()); }}
+            onClick={() => { setQueueView('pending'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
           >
             Pending Review
             <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
@@ -1733,7 +1755,7 @@ const ReviewQueue: React.FC = () => {
           <Button
             variant={queueView === 'declined' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => { setQueueView('declined'); setSelected(new Set()); }}
+            onClick={() => { setQueueView('declined'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
           >
             Declined
             <Badge variant="secondary" className="ml-2">{declinedCount}</Badge>
@@ -1769,6 +1791,43 @@ const ReviewQueue: React.FC = () => {
               {projects.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
+          {isApprovedView && (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('justify-start', !approvedDateFrom && 'text-muted-foreground')}>
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {approvedDateFrom ? format(approvedDateFrom, 'MMM d') : 'Approved from'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={approvedDateFrom} onSelect={setApprovedDateFrom} initialFocus className={cn('p-3 pointer-events-auto')} />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('justify-start', !approvedDateTo && 'text-muted-foreground')}>
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {approvedDateTo ? format(approvedDateTo, 'MMM d') : 'Approved to'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={approvedDateTo} onSelect={setApprovedDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
+                </PopoverContent>
+              </Popover>
+              {(approvedDateFrom || approvedDateTo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); }}
+                  className="gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear dates
+                </Button>
+              )}
+            </>
+          )}
           {!isReadOnlyView && (
             <Button
               variant={shortNoticeOnly ? 'default' : 'outline'}
