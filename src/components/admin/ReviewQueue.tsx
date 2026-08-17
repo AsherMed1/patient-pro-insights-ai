@@ -481,6 +481,25 @@ const ReviewQueue: React.FC = () => {
         .eq('review_status', status)
         .or('is_reserved_block.is.null,is_reserved_block.eq.false');
       if (stage) q = q.eq('review_stage', stage);
+
+      // Mirror the list filters so the badges match what is on screen
+      if (projectFilter !== 'ALL') q = q.eq('project_name', projectFilter);
+      if (search.trim()) {
+        const s = search.trim();
+        q = q.or(`lead_name.ilike.%${s}%,lead_phone_number.ilike.%${s}%,lead_email.ilike.%${s}%`);
+      }
+      if (status === 'approved') {
+        if (approvedDateFrom) {
+          const from = new Date(approvedDateFrom);
+          from.setHours(0, 0, 0, 0);
+          q = q.gte('reviewed_at', from.toISOString());
+        }
+        if (approvedDateTo) {
+          const to = new Date(approvedDateTo);
+          to.setHours(23, 59, 59, 999);
+          q = q.lte('reviewed_at', to.toISOString());
+        }
+      }
       return q;
     };
     const [{ count: nc }, { count: pc }, { count: dc }, { count: ac }] = await Promise.all([
@@ -493,7 +512,7 @@ const ReviewQueue: React.FC = () => {
     setPendingCount(pc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
-  }, []);
+  }, [projectFilter, search, approvedDateFrom, approvedDateTo]);
 
   useEffect(() => {
     fetch();
