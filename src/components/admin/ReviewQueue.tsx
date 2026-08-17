@@ -122,6 +122,15 @@ const ReviewQueue: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [countsLoading, setCountsLoading] = useState(false);
+  const countsSeq = useRef(0);
+
+  // Debounce the search box so typing doesn't fire a query per keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [actionRow, setActionRow] = useState<{ id: string; action: ActionType } | null>(null);
