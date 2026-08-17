@@ -57,23 +57,27 @@ interface TimeRangeRowProps {
 
 function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: TimeRangeRowProps) {
   return (
-    <div className="flex items-center gap-2">
-      <TimeInput
-        value={range.startTime}
-        onChange={(v) => onUpdate(range.id, 'startTime', v)}
-        placeholder="Start time"
-      />
+    <div className="flex flex-wrap items-center gap-2 min-w-0">
+      <div className="min-w-0 flex-1">
+        <TimeInput
+          value={range.startTime}
+          onChange={(v) => onUpdate(range.id, 'startTime', v)}
+          placeholder="Start time"
+        />
+      </div>
 
-      <span className="text-muted-foreground text-sm">To</span>
+      <span className="text-muted-foreground text-sm shrink-0">To</span>
 
-      <TimeInput
-        value={range.endTime}
-        onChange={(v) => onUpdate(range.id, 'endTime', v)}
-        placeholder="End time"
-      />
+      <div className="min-w-0 flex-1">
+        <TimeInput
+          value={range.endTime}
+          onChange={(v) => onUpdate(range.id, 'endTime', v)}
+          placeholder="End time"
+        />
+      </div>
 
       {isLast && (
-        <Button variant="ghost" size="icon" onClick={onAdd} className="h-9 w-9">
+        <Button variant="ghost" size="icon" onClick={onAdd} className="h-9 w-9 shrink-0">
           <Plus className="h-4 w-4" />
         </Button>
       )}
@@ -83,7 +87,7 @@ function TimeRangeRow({ range, isLast, canDelete, onUpdate, onAdd, onRemove }: T
         size="icon"
         onClick={() => onRemove(range.id)}
         disabled={!canDelete}
-        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
       >
         <Trash2 className="h-4 w-4" />
       </Button>
@@ -163,12 +167,12 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
         onChange={(e) => setSearch(e.target.value)}
         className="h-8 text-sm"
       />
-      <div className="rounded-lg border p-3 bg-muted/30 max-h-48 overflow-y-auto space-y-2">
+      <div className="rounded-lg border p-3 bg-muted/30 max-h-48 overflow-y-auto overflow-x-hidden space-y-2">
         {visibleCalendars.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-2">No matching calendars</p>
         ) : (
           visibleCalendars.map((calendar) => (
-            <div key={calendar.id} className="flex items-center gap-2">
+            <div key={calendar.id} className="flex items-center gap-2 min-w-0">
               <Checkbox
                 id={`cal-${calendar.id}`}
                 checked={selectedIds.includes(calendar.id)}
@@ -176,7 +180,7 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
               />
               <label 
                 htmlFor={`cal-${calendar.id}`} 
-                className="text-sm cursor-pointer truncate flex-1"
+                className="text-sm cursor-pointer truncate flex-1 min-w-0"
                 title={calendar.name}
               >
                 {calendar.name}
@@ -934,12 +938,12 @@ export function ReserveTimeBlockDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[480px] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Reserve Time Block</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 min-w-0 space-y-4 overflow-y-auto overflow-x-hidden py-4 pr-1">
           {/* Date Picker */}
           <div className="space-y-2">
             <Label>Date</Label>
@@ -1005,7 +1009,7 @@ export function ReserveTimeBlockDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting || isScanning}>
             Cancel
           </Button>
