@@ -6,6 +6,21 @@ Sean Eldridge (Prospero Vascular and Interventional) shows "No preference" and n
 
 Giuliana Allen is correct already (`Time Preference: Morning` in her intake, `morning` stored) — no change needed for her.
 
+## Prospero is not the only clinic affected
+
+Unscheduled rows with no date whose intake contains a `Date Appt Booked For:` value:
+
+| Project | Unscheduled rows with no date | Affected |
+| --- | --- | --- |
+| ECCO Medical | 148 | 50 |
+| Premier Vascular | 77 | 23 |
+| Davis Vein & Vascular | 75 | 19 |
+| Prospero Vascular and Interventional | 4 | 3 |
+| Horizon Vascular Specialists | 48 | 0 |
+
+95 rows in total. Many of the ECCO/Premier ones point at dates in 2025 — old leads that were never actually scheduled — so the backfill has to be reviewed rather than applied wholesale.
+
+
 ## The fix
 
 For unscheduled-capture projects (Premier Vascular, ECCO Medical, Davis Vein & Vascular, Horizon Vascular Specialists, Prospero Vascular and Interventional), when the GHL payload carries no calendar date but the intake notes contain an explicit `Date Appt Booked For:` value, treat that value as the real appointment date instead of capturing a time preference.
