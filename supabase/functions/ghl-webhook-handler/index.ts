@@ -1756,11 +1756,22 @@ function getUpdateableFields(
     const isDavis = projectLower === 'davis vein & vascular';
     const payloadHasRealDate =
       webhookData.date_of_appointment != null && String(webhookData.date_of_appointment).trim() !== '';
-    const treatAsUnscheduled =
+    const isUnscheduledProject =
       isUnscheduledCaptureProject(webhookData.project_name) && !(isDavis && payloadHasRealDate);
+    // Setter-booked leads: the payload has no calendar slot, but the intake carries an explicit
+    // "Date Appt Booked For" value. Promote that to a real appointment date instead of
+    // capturing a time-of-day preference.
+    const bookedDateFromNotes = isUnscheduledProject && !payloadHasRealDate
+      ? extractBookedDateFromNotes(webhookData.patient_intake_notes)
+      : null;
+    if (bookedDateFromNotes) {
+      console.log(`[BOOKED-DATE] Promoting unscheduled lead to booked date ${bookedDateFromNotes}`);
+    }
+    const treatAsUnscheduled = isUnscheduledProject && !bookedDateFromNotes;
     const timePreference = treatAsUnscheduled
       ? (extractTimePreference(webhookData.patient_intake_notes) || 'no_preference')
       : null;
+
 
     // Pre-populate parsed_pathology_info.procedure so the service filter works
     // immediately for unscheduled-capture leads (no calendar / NULL procedure issue).
@@ -1775,8 +1786,9 @@ function getUpdateableFields(
         date_appointment_created: webhookData.date_appointment_created || new Date().toISOString(),
         lead_name: webhookData.lead_name,
         project_name: webhookData.project_name,
-        date_of_appointment: treatAsUnscheduled ? null : webhookData.date_of_appointment,
+        date_of_appointment: treatAsUnscheduled ? null : (webhookData.date_of_appointment || bookedDateFromNotes),
         requested_time: treatAsUnscheduled ? null : webhookData.requested_time,
+
         lead_email: webhookData.lead_email,
         lead_phone_number: webhookData.lead_phone_number,
         calendar_name: webhookData.calendar_name,
@@ -1831,22 +1843,48 @@ function getUpdateableFields(
     isUnscheduledCaptureProject(projectNameForUnscheduled) && !(isDavisUpdate && payloadHasRealDateUpdate)
 
   if (treatAsUnscheduledUpdate) {
-    // For Davis with no incoming date, only refresh time_preference — do NOT wipe an existing
-    // booked date. For strict unscheduled projects (Premier/ECCO/Horizon), force back to
-    // unscheduled state as before.
-    if (!isDavisUpdate) {
-      updateFields.date_of_appointment = null
-      updateFields.requested_time = null
-      updateFields.ghl_appointment_id = null
-      updateFields.is_unscheduled = true
+    // Setter-booked promotion: intake carries an explicit "Date Appt Booked For" and the row
+    // still has no date. Fill it in and take the row out of unscheduled state.
+    const existingHasDate =
+      existingAppointment.date_of_appointment != null &&
+      String(existingAppointment.date_of_appointment).trim() !== ''
+    const existingStatusLower = String(existingAppointment.status || '').toLowerCase()
+    const isTerminalExisting = [
+      'cancelled', 'canceled', 'no show', 'showed', 'won', 'oon', 'do not call', 'rescheduled',
+    ].includes(existingStatusLower)
+    const isFrozenSnapshot =
+      existingAppointment.is_superseded === true ||
+      ['declined', 'dismissed'].includes(String(existingAppointment.review_status || '').toLowerCase())
+
+    const promotedBookedDate =
+      !existingHasDate && !isTerminalExisting && !isFrozenSnapshot
+        ? extractBookedDateFromNotes(webhookData.patient_intake_notes)
+        : null
+
+    if (promotedBookedDate) {
+      console.log(`[BOOKED-DATE] Promoting existing unscheduled row to booked date ${promotedBookedDate}`)
+      updateFields.date_of_appointment = promotedBookedDate
+      updateFields.is_unscheduled = false
+      updateFields.time_preference = null
+    } else {
+      // For Davis with no incoming date, only refresh time_preference — do NOT wipe an existing
+      // booked date. For strict unscheduled projects (Premier/ECCO/Horizon), force back to
+      // unscheduled state as before.
+      if (!isDavisUpdate) {
+        updateFields.date_of_appointment = null
+        updateFields.requested_time = null
+        updateFields.ghl_appointment_id = null
+        updateFields.is_unscheduled = true
+      }
+
+      // Refresh time_preference from incoming intake notes only when extraction yields a value —
+      // never overwrite an existing preference with null.
+      const extractedPref = extractTimePreference(webhookData.patient_intake_notes)
+      if (extractedPref) {
+        updateFields.time_preference = extractedPref
+      }
     }
 
-    // Refresh time_preference from incoming intake notes only when extraction yields a value —
-    // never overwrite an existing preference with null.
-    const extractedPref = extractTimePreference(webhookData.patient_intake_notes)
-    if (extractedPref) {
-      updateFields.time_preference = extractedPref
-    }
   } else {
 
     // Echo-back guard (echo-aware, NOT time-based): skip the date/time block only when the
@@ -2270,6 +2308,69 @@ function extractTimePreference(notes: string | null | undefined): string | null 
   if (/\bevening\b|\bnight\b|\bpm\b/.test(candidate)) return 'evening';
   return null;
 }
+
+// Extract an explicitly-booked appointment date from the intake notes.
+// Unscheduled-capture funnels sometimes carry a real booked date in the
+// "Date Appt Booked For" custom field even though the webhook payload has no
+// calendar slot. ONLY that exact label is read — no free-text date guessing.
+// Returns YYYY-MM-DD or null.
+const BOOKED_DATE_MONTHS: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8,
+  september: 9, sep: 9, sept: 9, october: 10, oct: 10,
+  november: 11, nov: 11, december: 12, dec: 12,
+};
+
+function extractBookedDateFromNotes(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const m = String(notes).match(/date\s*appt\s*booked\s*for\s*[:=]\s*([^\n|]{4,40})/i);
+  if (!m) return null;
+  const raw = m[1].trim();
+  if (!raw || /^(not provided|n\/?a|none|tbd|unknown)$/i.test(raw)) return null;
+
+  let y: number | null = null, mo: number | null = null, d: number | null = null;
+
+  // "August 31, 2026" / "Aug 31 2026"
+  const wordy = raw.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/);
+  // "2026-08-31"
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  // "08/31/2026"
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (wordy) {
+    mo = BOOKED_DATE_MONTHS[wordy[1].toLowerCase()] ?? null;
+    d = parseInt(wordy[2], 10);
+    y = parseInt(wordy[3], 10);
+  } else if (iso) {
+    y = parseInt(iso[1], 10); mo = parseInt(iso[2], 10); d = parseInt(iso[3], 10);
+  } else if (slash) {
+    mo = parseInt(slash[1], 10); d = parseInt(slash[2], 10); y = parseInt(slash[3], 10);
+  }
+
+  if (!y || !mo || !d || mo < 1 || mo > 12 || d < 1 || d > 31) {
+    console.warn(`[BOOKED-DATE] Unparseable "Date Appt Booked For" value: ${JSON.stringify(raw)}`);
+    return null;
+  }
+
+  const isoStr = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const parsed = new Date(`${isoStr}T00:00:00Z`);
+  if (isNaN(parsed.getTime()) || parsed.getUTCDate() !== d || parsed.getUTCMonth() + 1 !== mo) {
+    console.warn(`[BOOKED-DATE] Invalid calendar date: ${isoStr}`);
+    return null;
+  }
+
+  // Plausibility window: 1 year back → 2 years ahead.
+  const now = Date.now();
+  const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
+  const twoYearsAhead = now + 2 * 365 * 24 * 60 * 60 * 1000;
+  if (parsed.getTime() < oneYearAgo || parsed.getTime() > twoYearsAhead) {
+    console.warn(`[BOOKED-DATE] Out of plausibility window, ignoring: ${isoStr}`);
+    return null;
+  }
+
+  return isoStr;
+}
+
 
 // Minimum plausible patient age — anything younger is a stray date field
 // (appointment date, created date, etc.), not a real date of birth.
