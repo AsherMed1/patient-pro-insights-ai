@@ -1857,10 +1857,17 @@ function getUpdateableFields(
       existingAppointment.is_superseded === true ||
       ['declined', 'dismissed'].includes(String(existingAppointment.review_status || '').toLowerCase())
 
+    // Notes are a FALLBACK ONLY: never promote when the payload carries a real date or when
+    // the contact already has a live GHL appointment — that intake line can be stale.
+    const hasLiveGhlAppointment =
+      !!webhookData.ghl_appointment_id || !!existingAppointment.ghl_appointment_id
+
     const promotedBookedDate =
-      !existingHasDate && !isTerminalExisting && !isFrozenSnapshot
+      !existingHasDate && !isTerminalExisting && !isFrozenSnapshot &&
+      !payloadHasRealDateUpdate && !hasLiveGhlAppointment
         ? extractBookedDateFromNotes(webhookData.patient_intake_notes)
         : null
+
 
     if (promotedBookedDate) {
       console.log(`[BOOKED-DATE] Promoting existing unscheduled row to booked date ${promotedBookedDate}`)
