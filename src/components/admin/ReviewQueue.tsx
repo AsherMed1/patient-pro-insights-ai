@@ -154,6 +154,10 @@ const ReviewQueue: React.FC = () => {
   const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
   const [nowTick, setNowTick] = useState(() => new Date());
 
+  // Contact history is shown in the working buckets (New + Pending Review)
+  const contactViewEnabled = queueView === 'pending' || queueView === 'new';
+
+
   // Keep countdowns live without reloading the queue
   useEffect(() => {
     const t = setInterval(() => setNowTick(new Date()), 60000);
