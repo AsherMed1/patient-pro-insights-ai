@@ -1791,6 +1791,43 @@ const ReviewQueue: React.FC = () => {
               {projects.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
+          {isApprovedView && (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('justify-start', !approvedDateFrom && 'text-muted-foreground')}>
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {approvedDateFrom ? format(approvedDateFrom, 'MMM d') : 'Approved from'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={approvedDateFrom} onSelect={setApprovedDateFrom} initialFocus className={cn('p-3 pointer-events-auto')} />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('justify-start', !approvedDateTo && 'text-muted-foreground')}>
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {approvedDateTo ? format(approvedDateTo, 'MMM d') : 'Approved to'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={approvedDateTo} onSelect={setApprovedDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
+                </PopoverContent>
+              </Popover>
+              {(approvedDateFrom || approvedDateTo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); }}
+                  className="gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear dates
+                </Button>
+              )}
+            </>
+          )}
           {!isReadOnlyView && (
             <Button
               variant={shortNoticeOnly ? 'default' : 'outline'}
