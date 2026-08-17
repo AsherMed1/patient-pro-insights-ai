@@ -42,6 +42,9 @@ import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
 import QASection, { qaSectionSetAll } from '@/components/admin/QASection';
+import ImageAttachInput from '@/components/admin/ImageAttachInput';
+import AttachmentGallery from '@/components/admin/AttachmentGallery';
+import { uploadImages, type StoredAttachment } from '@/lib/attachments';
 
 
 // Column headers pin to the top of the table's own scroll container, which
@@ -114,6 +117,7 @@ interface QANote {
   author_name: string | null;
   author_user_id?: string | null;
   edited_at?: string | null;
+  attachments?: StoredAttachment[] | null;
   created_at: string;
 }
 
@@ -1549,6 +1553,8 @@ function CaseDrawer({
   const [siblingActivity, setSiblingActivity] = useState<QAActivity[]>([]);
   
   const [noteDraft, setNoteDraft] = useState('');
+  const [noteImages, setNoteImages] = useState<File[]>([]);
+  const [postingNote, setPostingNote] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [audit, setAudit] = useState<Partial<QACase>>({});
   const savedSnapshotRef = useRef<Partial<QACase>>({});
@@ -1770,9 +1776,23 @@ function CaseDrawer({
 
 
   const addNote = async () => {
-    if (!caseData || !noteDraft.trim()) return;
+    if (!caseData) return;
     const text = noteDraft.trim();
+    if (!text && noteImages.length === 0) return;
     const authorName = authorDisplayName || user?.email || null;
+
+    setPostingNote(true);
+    let attachments: StoredAttachment[] = [];
+    if (noteImages.length > 0) {
+      try {
+        attachments = await uploadImages(noteImages, `qa-notes/${caseData.id}`);
+      } catch (e: any) {
+        setPostingNote(false);
+        toast({ title: 'Image upload failed', description: e?.message, variant: 'destructive' });
+        return;
+      }
+    }
+
     const { data: inserted, error } = await supabase
       .from('qa_case_notes' as any)
       .insert({
@@ -1780,9 +1800,11 @@ function CaseDrawer({
         note: text,
         author_user_id: user?.id ?? null,
         author_name: authorName,
+        attachments,
       } as any)
       .select('id')
       .maybeSingle();
+    setPostingNote(false);
     if (error) {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
       return;
@@ -1815,6 +1837,7 @@ function CaseDrawer({
     }
 
     setNoteDraft('');
+    setNoteImages([]);
     const { data } = await supabase.from('qa_case_notes' as any).select('*').eq('case_id', caseData.id).order('created_at', { ascending: false });
     setNotes(((data as any) || []) as QANote[]);
   };
@@ -2685,15 +2708,28 @@ function CaseDrawer({
               >
 
 
-                <MentionTextarea
-                  value={noteDraft}
-                  onChange={setNoteDraft}
-                  placeholder="Add an internal QA note… (type @ to tag a teammate)"
-                  rows={3}
-                />
+                <ImageAttachInput
+                  files={noteImages}
+                  onChange={setNoteImages}
+                  disabled={postingNote}
+                  hint="Paste a screenshot, drag an image in, or attach"
+                >
+                  <MentionTextarea
+                    value={noteDraft}
+                    onChange={setNoteDraft}
+                    placeholder="Add an internal QA note… (type @ to tag a teammate)"
+                    rows={3}
+                  />
+                </ImageAttachInput>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Type @ to tag a teammate — they get an in-app notification.</span>
-                  <Button size="sm" onClick={addNote} disabled={!noteDraft.trim()}>Add note</Button>
+                  <Button
+                    size="sm"
+                    onClick={addNote}
+                    disabled={postingNote || (!noteDraft.trim() && noteImages.length === 0)}
+                  >
+                    {postingNote ? 'Posting…' : 'Add note'}
+                  </Button>
                 </div>
                 <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
                   {notes.map((n) => (
@@ -2779,7 +2815,12 @@ function CaseDrawer({
                           </div>
                         </div>
                       ) : (
-                        <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                        <>
+                          {n.note && (
+                            <div className="whitespace-pre-wrap break-words">{renderNoteWithMentions(n.note)}</div>
+                          )}
+                          <AttachmentGallery attachments={n.attachments} size="sm" className="mt-1" />
+                        </>
                       )}
                     </div>
 
@@ -2935,9 +2976,12 @@ function CaseDrawer({
                                 <div className="text-xs text-muted-foreground">
                                   Note by {n.author_name || 'Unknown'}
                                 </div>
-                                <div className="whitespace-pre-wrap break-words">
-                                  {renderNoteWithMentions(n.note)}
-                                </div>
+                                {n.note && (
+                                  <div className="whitespace-pre-wrap break-words">
+                                    {renderNoteWithMentions(n.note)}
+                                  </div>
+                                )}
+                                <AttachmentGallery attachments={n.attachments} size="sm" className="mt-1" />
                               </div>
                             ),
                           })),
