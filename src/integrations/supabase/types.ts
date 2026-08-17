@@ -3468,6 +3468,7 @@ export type Database = {
       }
       qa_case_notes: {
         Row: {
+          attachments: Json
           author_name: string | null
           author_user_id: string | null
           case_id: string
@@ -3477,6 +3478,7 @@ export type Database = {
           note: string
         }
         Insert: {
+          attachments?: Json
           author_name?: string | null
           author_user_id?: string | null
           case_id: string
@@ -3486,6 +3488,7 @@ export type Database = {
           note: string
         }
         Update: {
+          attachments?: Json
           author_name?: string | null
           author_user_id?: string | null
           case_id?: string
