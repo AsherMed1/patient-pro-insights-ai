@@ -1758,12 +1758,13 @@ function getUpdateableFields(
       webhookData.date_of_appointment != null && String(webhookData.date_of_appointment).trim() !== '';
     const isUnscheduledProject =
       isUnscheduledCaptureProject(webhookData.project_name) && !(isDavis && payloadHasRealDate);
-    // Setter-booked leads: the payload has no calendar slot, but the intake carries an explicit
-    // "Date Appt Booked For" value. Promote that to a real appointment date instead of
-    // capturing a time-of-day preference.
-    const bookedDateFromNotes = isUnscheduledProject && !payloadHasRealDate
+    // Setter-booked leads: the payload has no calendar slot AND no GHL appointment, but the
+    // intake carries an explicit "Date Appt Booked For" value. Notes are a FALLBACK ONLY —
+    // any live GHL appointment always wins, because the intake line can be stale.
+    const bookedDateFromNotes = isUnscheduledProject && !payloadHasRealDate && !webhookData.ghl_appointment_id
       ? extractBookedDateFromNotes(webhookData.patient_intake_notes)
       : null;
+
     if (bookedDateFromNotes) {
       console.log(`[BOOKED-DATE] Promoting unscheduled lead to booked date ${bookedDateFromNotes}`);
     }
