@@ -863,6 +863,34 @@ const AppointmentCard = ({
     }
   };
 
+  // Referral Requested: release the slot in GHL, keep the patient active.
+  const handleReferralConfirm = async (notes: string) => {
+    setSubmittingReferral(true);
+    try {
+      onUpdateStatus(appointment.id, REFERRAL_STATUS);
+      await applyReferralRequested({
+        appointmentId: appointment.id,
+        userName,
+        notes,
+        previousStatus: appointment.status,
+        previousDate: appointment.date_of_appointment,
+        previousTime: appointment.requested_time,
+      });
+      setShowReferralDialog(false);
+      toast({
+        title: 'Referral Requested',
+        description: 'Slot released in GoHighLevel. Patient is tracked in the Referrals tab.',
+      });
+      onDataRefresh?.();
+    } catch (error) {
+      console.error('Error applying Referral Requested:', error);
+      toast({ title: 'Error', description: 'Failed to mark Referral Requested', variant: 'destructive' });
+    } finally {
+      setSubmittingReferral(false);
+    }
+  };
+
+
   // No-show eligibility submission
   const handleNoShowConfirm = async (eligible: boolean, notes: string, reason?: string | null) => {
     setSubmittingNoShow(true);
