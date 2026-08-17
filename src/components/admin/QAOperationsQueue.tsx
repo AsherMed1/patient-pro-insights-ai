@@ -1776,9 +1776,23 @@ function CaseDrawer({
 
 
   const addNote = async () => {
-    if (!caseData || !noteDraft.trim()) return;
+    if (!caseData) return;
     const text = noteDraft.trim();
+    if (!text && noteImages.length === 0) return;
     const authorName = authorDisplayName || user?.email || null;
+
+    setPostingNote(true);
+    let attachments: StoredAttachment[] = [];
+    if (noteImages.length > 0) {
+      try {
+        attachments = await uploadImages(noteImages, `qa-notes/${caseData.id}`);
+      } catch (e: any) {
+        setPostingNote(false);
+        toast({ title: 'Image upload failed', description: e?.message, variant: 'destructive' });
+        return;
+      }
+    }
+
     const { data: inserted, error } = await supabase
       .from('qa_case_notes' as any)
       .insert({
@@ -1786,9 +1800,11 @@ function CaseDrawer({
         note: text,
         author_user_id: user?.id ?? null,
         author_name: authorName,
+        attachments,
       } as any)
       .select('id')
       .maybeSingle();
+    setPostingNote(false);
     if (error) {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
       return;
