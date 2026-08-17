@@ -1963,18 +1963,27 @@ const ReviewQueue: React.FC = () => {
                             <span>Pending {formatAge(row.pending_since, nowTick)}{row.pending_by_name ? ` · ${row.pending_by_name}` : ''}</span>
                           </Badge>
                         )}
-                        {queueView === 'pending' && (
+                        {contactViewEnabled && (
                           effectiveContactByRowId[row.id] ? (
                             <Badge
                               variant="outline"
                               className="border-slate-300 text-slate-600 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                              title={`Last contact attempt ${new Date(effectiveContactByRowId[row.id].at).toLocaleString()}${effectiveContactByRowId[row.id].by ? ` by ${effectiveContactByRowId[row.id].by}` : ''}`}
+                              title={`Last contact attempt ${new Date(effectiveContactByRowId[row.id].at).toLocaleString()}${effectiveContactByRowId[row.id].by ? ` by ${effectiveContactByRowId[row.id].by}` : ''}${effectiveContactByRowId[row.id].fromSibling ? ' (logged on an earlier record for this patient)' : ''}`}
                             >
                               <span>
                                 Last contact {formatAge(effectiveContactByRowId[row.id].at, nowTick)} ago
                                 {effectiveContactByRowId[row.id].label ? ` · ${effectiveContactByRowId[row.id].label}` : ''}
                                 {effectiveContactByRowId[row.id].by ? ` · ${effectiveContactByRowId[row.id].by}` : ''}
+                                {effectiveContactByRowId[row.id].fromSibling ? ' · earlier record' : ''}
                               </span>
+                            </Badge>
+                          ) : contactFetchFailed ? (
+                            <Badge
+                              variant="outline"
+                              className="border-slate-300 text-slate-500 bg-slate-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight"
+                              title="Contact history could not be loaded — this does not mean nobody called"
+                            >
+                              Contact history unavailable
                             </Badge>
                           ) : (
                             <Badge
@@ -1986,6 +1995,7 @@ const ReviewQueue: React.FC = () => {
                             </Badge>
                           )
                         )}
+
                         {queueView === 'pending' && (attemptsByRowId[row.id]?.count || 0) > 0 && (
                           <Badge
                             variant="outline"
