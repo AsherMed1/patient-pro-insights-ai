@@ -677,11 +677,11 @@ export function ReserveTimeBlockDialog({
           return `${fmt(sh, sm)}–${fmt(eh, em)}`;
         })
         .join(', ');
-      const preservedNote = `Clinic reserved ${windowStr} on ${format(selectedDate, 'PPP')}${reason ? ` (${reason})` : ''} by ${userName || 'Portal User'}; this appointment was kept and the block was routed around it.`;
+      const preservedNote = `${userName || 'Portal User'} reserved the clinic from ${windowStr} on ${format(selectedDate, 'MMMM d, yyyy')}. This appointment was already scheduled during the reserved time, so the system kept the existing appointment and blocked the remaining available time.${reason ? ` Reason: ${reason}.` : ''}`;
       for (const apptId of preservedIds) {
         supabase
           .from('appointment_notes')
-          .insert({ appointment_id: apptId, note_text: preservedNote, created_by: userId || null })
+          .insert({ appointment_id: apptId, note_text: preservedNote, created_by: userId || null, visibility: 'internal' } as any)
           .then(({ error }) => {
             if (error) console.warn('[ReserveTimeBlock:carve] preserved-note insert failed', apptId, error);
           });
