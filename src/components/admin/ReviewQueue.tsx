@@ -1767,7 +1767,7 @@ const ReviewQueue: React.FC = () => {
             Refresh
           </Button>
         </div>
-        <div className="flex gap-2 mt-3 flex-wrap">
+        <div className={cn('flex gap-2 mt-3 flex-wrap transition-opacity', countsLoading && 'opacity-60')}>
           <Button
             variant={queueView === 'new' ? 'default' : 'outline'}
             size="sm"
