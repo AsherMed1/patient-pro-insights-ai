@@ -6,6 +6,21 @@ Sean Eldridge (Prospero Vascular and Interventional) shows "No preference" and n
 
 Giuliana Allen is correct already (`Time Preference: Morning` in her intake, `morning` stored) — no change needed for her.
 
+## Prospero is not the only clinic affected
+
+Unscheduled rows with no date whose intake contains a `Date Appt Booked For:` value:
+
+| Project | Unscheduled rows with no date | Affected |
+| --- | --- | --- |
+| ECCO Medical | 148 | 50 |
+| Premier Vascular | 77 | 23 |
+| Davis Vein & Vascular | 75 | 19 |
+| Prospero Vascular and Interventional | 4 | 3 |
+| Horizon Vascular Specialists | 48 | 0 |
+
+95 rows in total. Many of the ECCO/Premier ones point at dates in 2025 — old leads that were never actually scheduled — so the backfill has to be reviewed rather than applied wholesale.
+
+
 ## The fix
 
 For unscheduled-capture projects (Premier Vascular, ECCO Medical, Davis Vein & Vascular, Horizon Vascular Specialists, Prospero Vascular and Interventional), when the GHL payload carries no calendar date but the intake notes contain an explicit `Date Appt Booked For:` value, treat that value as the real appointment date instead of capturing a time preference.
@@ -27,7 +42,8 @@ Behavior:
 
 ## Backfill — list first, no writes
 
-Before changing any existing data I'll run a read-only report over unscheduled-capture rows whose intake notes contain `Date Appt Booked For:` and show: patient, project, current date/preference, and the date that would be applied. You review that list and approve before any update runs.
+Before changing any existing data I'll produce a read-only report of all 95 rows: patient, project, created date, current preference, and the date that would be applied — split into "future / still upcoming" and "already in the past" groups. You review and tell me which groups (or individual rows) to apply. Nothing is written until you say so, and past-dated rows are excluded by default.
+
 
 ## Technical notes
 
