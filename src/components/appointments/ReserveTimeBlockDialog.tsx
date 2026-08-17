@@ -938,12 +938,12 @@ export function ReserveTimeBlockDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[480px] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Reserve Time Block</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 min-w-0 space-y-4 overflow-y-auto overflow-x-hidden py-4 pr-1">
           {/* Date Picker */}
           <div className="space-y-2">
             <Label>Date</Label>
