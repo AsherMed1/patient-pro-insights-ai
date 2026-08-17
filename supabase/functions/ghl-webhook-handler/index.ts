@@ -1742,7 +1742,7 @@ function detectProcedureFromCalendarName(calendarName: string | null | undefined
 function getUpdateableFields(
   webhookData: any, 
   existingAppointment: any | null
-): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string }; serviceChange?: { appointmentId: string; fromProcedure: string; toProcedure: string } } {
+): { fields: Record<string, any>; rescheduleNote?: { fromDateTime: string; toDateTime: string; appointmentId: string; recoveredFromStatus?: string }; welcomeCallTransitionNote?: { appointmentId: string; fromStatus: string; toStatus: string }; statusChangeNote?: { appointmentId: string; fromStatus: string; toStatus: string }; serviceChange?: { appointmentId: string; fromProcedure: string; toProcedure: string }; autoDeclineNote?: { appointmentId: string; toStatus: string } } {
   // For CREATE - use all webhook data
   // CRITICAL: Per project rule, ALL new appointments from GHL webhooks MUST default to "Confirmed",
   // regardless of what GHL sends. Terminal-status guard (handled upstream) skips brand-new appointments
