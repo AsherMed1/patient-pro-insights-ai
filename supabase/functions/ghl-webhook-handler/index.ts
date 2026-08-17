@@ -2193,7 +2193,7 @@ function getUpdateableFields(
     updateFields.was_ever_confirmed = true
   }
   
-  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote, serviceChange }
+  return { fields: updateFields, rescheduleNote: rescheduleNoteData, welcomeCallTransitionNote, statusChangeNote, serviceChange, autoDeclineNote }
 }
 
 // ---- Calendar recovery for unscheduled-capture leads -----------------------
