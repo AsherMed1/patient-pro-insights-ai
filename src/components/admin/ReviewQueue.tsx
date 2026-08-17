@@ -1964,7 +1964,8 @@ const ReviewQueue: React.FC = () => {
               const path = row.parsed_pathology_info || {};
               const ins = row.parsed_insurance_info || {};
               const demo = row.parsed_demographics || {};
-              const reviewerLabel = row.reviewed_by ? (reviewerNames[row.reviewed_by] || 'Unknown') : 'Unknown';
+              const isAutoDeclined = !row.reviewed_by && row.decline_reason === 'cancelled_in_ghl';
+              const reviewerLabel = isAutoDeclined ? 'GoHighLevel' : (row.reviewed_by ? (reviewerNames[row.reviewed_by] || 'Unknown') : 'Unknown');
               return (
                 <div key={row.id} className="hover:bg-muted/20">
                   <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 items-center text-sm">
@@ -2158,7 +2159,7 @@ const ReviewQueue: React.FC = () => {
 
                       {isReadOnlyView && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {isApprovedView ? 'Approved' : 'Declined'} {row.reviewed_at ? `${formatDate(row.reviewed_at)} ${new Date(row.reviewed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '—'} by {reviewerLabel}
+                          {isApprovedView ? 'Approved' : isAutoDeclined ? 'Auto-declined' : 'Declined'} {row.reviewed_at ? `${formatDate(row.reviewed_at)} ${new Date(row.reviewed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '—'} by {reviewerLabel}
                         </div>
                       )}
                     </div>
