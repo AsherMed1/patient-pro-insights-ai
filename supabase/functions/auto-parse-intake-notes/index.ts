@@ -3382,7 +3382,9 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
         }
 
         // Normalize DOB to proper format (also rejects implausible dates)
+        const rawDobCandidate = (parsedData.contact_info?.dob || parsedData.demographics?.dob || "").toString().trim() || null;
         const dobIso = normalizeDob(parsedData.contact_info?.dob) || normalizeDob(parsedData.demographics?.dob);
+
 
         // Build update data based on table
         const updateData: any = {
