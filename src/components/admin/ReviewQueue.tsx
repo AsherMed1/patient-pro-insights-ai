@@ -782,18 +782,23 @@ const ReviewQueue: React.FC = () => {
         byApptId[n.appointment_id] = { at: n.created_at, by: (n.created_by || '').trim() };
       });
 
-      // Fold sibling rows onto the displayed row: newest human note wins
+      // Fold sibling rows onto the displayed row: newest human note wins.
+      // Contact from a sibling record older than MAX_CONTACT_AGE_DAYS is stale.
+      const staleBefore = Date.now() - MAX_CONTACT_AGE_DAYS * 86400000;
       const map: Record<string, LastContact> = {};
       rows.forEach(r => {
         (siblingIdsByRowId[r.id] || [r.id]).forEach(sid => {
           const hit = byApptId[sid];
           if (!hit) return;
+          const fromSibling = sid !== r.id;
+          if (fromSibling && new Date(hit.at).getTime() < staleBefore) return;
           const current = map[r.id];
           if (!current || new Date(hit.at) > new Date(current.at)) {
-            map[r.id] = { ...hit, fromSibling: sid !== r.id };
+            map[r.id] = { ...hit, fromSibling };
           }
         });
       });
+
 
       // Resolve raw user IDs to readable names; drop the author when unresolvable
       const uuidAuthors = Array.from(
