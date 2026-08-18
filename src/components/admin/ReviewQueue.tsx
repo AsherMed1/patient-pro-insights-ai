@@ -2597,9 +2597,9 @@ const ReviewQueue: React.FC = () => {
               rows={3}
             />
 
-            {actionRow?.action === 'declined' && declineReason === 'other' && (
+            {actionRow?.action === 'declined' && !!declineReason && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Rescheduling <span className="text-destructive">*</span></label>
+                <label className="text-sm font-medium">Does the patient need to be rescheduled? <span className="text-destructive">*</span></label>
                 <RadioGroup
                   value={otherNeedsReschedule === null ? '' : otherNeedsReschedule ? 'yes' : 'no'}
                   onValueChange={(v) => setOtherNeedsReschedule(v === 'yes')}
@@ -2607,15 +2607,15 @@ const ReviewQueue: React.FC = () => {
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="yes" id="other-reschedule-yes" />
-                    <label htmlFor="other-reschedule-yes" className="text-sm">Patient needs to be rescheduled</label>
+                    <label htmlFor="other-reschedule-yes" className="text-sm">Yes — patient needs to be rescheduled</label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="no" id="other-reschedule-no" />
-                    <label htmlFor="other-reschedule-no" className="text-sm">Patient should not be rescheduled</label>
+                    <label htmlFor="other-reschedule-no" className="text-sm">No — patient should not be rescheduled</label>
                   </div>
                 </RadioGroup>
                 <p className="text-xs text-muted-foreground">
-                  The rescheduling workflow only runs when “Patient needs to be rescheduled” is selected.
+                  Pre-selected from the reason — change it if this patient is different. The rescheduling text/email only fires on “Yes”.
                 </p>
               </div>
             )}
@@ -2629,9 +2629,9 @@ const ReviewQueue: React.FC = () => {
                     ? resolveDeclineReasonValue(declineReason, otherNeedsReschedule)
                     : declineReason;
                   if (actionRow.id === '__BULK__') {
-                    handleBulk('declined', actionNotes, resolved);
+                    handleBulk('declined', actionNotes, resolved, otherNeedsReschedule);
                   } else {
-                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, resolved);
+                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, resolved, undefined, otherNeedsReschedule);
                   }
                 }}
                 disabled={
@@ -2639,9 +2639,10 @@ const ReviewQueue: React.FC = () => {
                   (actionRow?.action === 'declined' &&
                     (!declineReason ||
                       (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim()) ||
-                      (declineReason === 'other' && otherNeedsReschedule === null)))
+                      otherNeedsReschedule === null))
                 }
               >
+
                 Confirm
               </Button>
             </DialogFooter>
