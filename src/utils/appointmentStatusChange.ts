@@ -39,7 +39,12 @@ export interface ChangeAppointmentStatusResult {
   ok: boolean;
   blocked?: boolean;
   oldStatus: string;
+  /** true = GHL confirmed the new status, false = push failed/unverified, null = no GHL appointment. */
+  ghlVerified?: boolean | null;
+  /** Provider/edge error text when the GHL push failed. */
+  ghlError?: string;
 }
+
 
 export async function changeAppointmentStatus({
   appointmentId,
