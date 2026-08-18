@@ -1069,7 +1069,7 @@ const AllAppointmentsManager = ({
           parsed_demographics: updatedDemographics,
           parsed_contact_info: updatedContact,
           ...(rewrittenNotes ? { patient_intake_notes: rewrittenNotes } : {}),
-          ...(dob ? { dob_verified_at: new Date().toISOString() } : {}),
+          ...(dob ? { dob_verified_at: new Date().toISOString(), dob_rejected_value: null, dob_rejected_at: null } : {}),
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId);

@@ -224,6 +224,8 @@ export type Database = {
           detected_insurance_plan: string | null
           detected_insurance_provider: string | null
           dob: string | null
+          dob_rejected_at: string | null
+          dob_rejected_value: string | null
           dob_verified_at: string | null
           ghl_appointment_id: string | null
           ghl_approved_tag_sent_at: string | null
@@ -313,6 +315,8 @@ export type Database = {
           detected_insurance_plan?: string | null
           detected_insurance_provider?: string | null
           dob?: string | null
+          dob_rejected_at?: string | null
+          dob_rejected_value?: string | null
           dob_verified_at?: string | null
           ghl_appointment_id?: string | null
           ghl_approved_tag_sent_at?: string | null
@@ -402,6 +406,8 @@ export type Database = {
           detected_insurance_plan?: string | null
           detected_insurance_provider?: string | null
           dob?: string | null
+          dob_rejected_at?: string | null
+          dob_rejected_value?: string | null
           dob_verified_at?: string | null
           ghl_appointment_id?: string | null
           ghl_approved_tag_sent_at?: string | null

@@ -71,6 +71,8 @@ interface ReviewAppointment {
   parsed_insurance_info: any;
   parsed_demographics: any;
   dob: string | null;
+  dob_rejected_value?: string | null;
+
   ghl_id: string | null;
   review_status: string;
   review_stage?: string | null;
@@ -280,10 +282,13 @@ const ReviewQueue: React.FC = () => {
       if (newDob) {
         updatePayload.dob = newDob;
         updatePayload.dob_verified_at = new Date().toISOString();
+        updatePayload.dob_rejected_value = null;
+        updatePayload.dob_rejected_at = null;
         // Rewrite the raw intake notes DOB line too — that text is what clinics read.
         const rewritten = rewriteDobInNotes(row.patient_intake_notes, newDob);
         if (rewritten) updatePayload.patient_intake_notes = rewritten;
       }
+
 
       const { error: updErr } = await supabase
         .from('all_appointments')
@@ -340,15 +345,16 @@ const ReviewQueue: React.FC = () => {
   };
 
   /**
-   * DOB is invalid when the birth year is the current year or in the future —
-   * checked on the structured DOB AND on the DOB written in the raw intake notes,
-   * since clinics read that text too.
+   * DOB is invalid when it is missing but GHL sent an unusable value, or when
+   * the structured / raw-notes DOB is impossible (current-year or a child under 13).
    */
   const isInvalidDob = (row: ReviewAppointment): boolean => {
+    if (row.dob_rejected_value) return true;
     const structured = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
     if (isImpossibleDobValue(structured)) return true;
     return isImpossibleDobValue(extractDobFromNotes(row.patient_intake_notes));
   };
+
 
 
   const sortedRows = useMemo(() => {
@@ -427,7 +433,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
       .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -2134,12 +2140,15 @@ const ReviewQueue: React.FC = () => {
                           <Badge
                             variant="outline"
                             className="border-destructive/50 text-destructive bg-destructive/5 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
-                            title="Date of birth uses the current year — please correct before approving."
+                            title={row.dob_rejected_value
+                              ? `GoHighLevel sent "${row.dob_rejected_value}", which is not a valid date of birth — please correct before approving.`
+                              : 'Date of birth is not plausible — please correct before approving.'}
                           >
                             <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-                            <span>Invalid DOB</span>
+                            <span>{row.dob_rejected_value ? 'DOB needs verification' : 'Invalid DOB'}</span>
                           </Badge>
                         )}
+
                       </div>
 
                       {!isReadOnlyView && isOonBlocked(row) && (

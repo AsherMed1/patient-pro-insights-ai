@@ -1287,6 +1287,8 @@ function extractStandardEventFormat(payload: any) {
     lead_phone_number: contact.phone,
     lead_email: contact.email,
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
+    dob_raw: (contact.dateOfBirth || contact.dob) ? String(contact.dateOfBirth || contact.dob) : null,
+
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     ...(() => {
@@ -1362,6 +1364,13 @@ function extractWorkflowFormat(payload: any) {
     dob: normalizeDob(resolveFirstMeaningfulValue(payload, [
       ['date_of_birth'], ['dateOfBirth'], ['dob'], ['contact', 'dateOfBirth'], ['contact', 'dob'], ['customData', 'dob'], ['custom_data', 'dob']
     ])),
+    dob_raw: (() => {
+      const raw = resolveFirstMeaningfulValue(payload, [
+        ['date_of_birth'], ['dateOfBirth'], ['dob'], ['contact', 'dateOfBirth'], ['contact', 'dob'], ['customData', 'dob'], ['custom_data', 'dob']
+      ])
+      return raw ? String(raw) : null
+    })(),
+
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     ...(() => {
@@ -1816,6 +1825,10 @@ function getUpdateableFields(
         status: 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
+        ...(!webhookData.dob && webhookData.dob_raw
+          ? { dob_rejected_value: webhookData.dob_raw, dob_rejected_at: new Date().toISOString() }
+          : {}),
+
         was_ever_confirmed: true,
         time_preference: timePreference,
         is_unscheduled: treatAsUnscheduled,
@@ -2132,7 +2145,7 @@ function getUpdateableFields(
     }
   }
 
-  }
+
   
   // Merge contact info (only if local is empty)
   if (!existingAppointment.lead_email && webhookData.lead_email) {
@@ -2143,7 +2156,13 @@ function getUpdateableFields(
   }
   if (!existingAppointment.dob && webhookData.dob) {
     updateFields.dob = webhookData.dob
+    updateFields.dob_rejected_value = null
+    updateFields.dob_rejected_at = null
+  } else if (!existingAppointment.dob && webhookData.dob_raw) {
+    updateFields.dob_rejected_value = webhookData.dob_raw
+    updateFields.dob_rejected_at = new Date().toISOString()
   }
+
   
   // Insurance card images — fill only empty slots so a GHL re-fire never overwrites
   // an image a human uploaded in the Portal.
@@ -3596,6 +3615,12 @@ async function enrichAppointmentWithGHLData(
       ...(dobLocked
         ? { parsed_demographics: mergedParsedDemographics }
         : (normalizedContactDob ? { dob: normalizedContactDob, parsed_demographics: mergedParsedDemographics } : {})),
+      // Keep an unusable GHL date of birth visible instead of silently dropping it.
+      ...(!dobLocked && contact.dateOfBirth && !normalizedContactDob
+        ? { dob_rejected_value: String(contact.dateOfBirth), dob_rejected_at: new Date().toISOString() }
+        : {}),
+      ...(normalizedContactDob ? { dob_rejected_value: null, dob_rejected_at: null } : {}),
+
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
