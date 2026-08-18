@@ -39,7 +39,12 @@ export interface ChangeAppointmentStatusResult {
   ok: boolean;
   blocked?: boolean;
   oldStatus: string;
+  /** true = GHL confirmed the new status, false = push failed/unverified, null = no GHL appointment. */
+  ghlVerified?: boolean | null;
+  /** Provider/edge error text when the GHL push failed. */
+  ghlError?: string;
 }
+
 
 export async function changeAppointmentStatus({
   appointmentId,
@@ -147,9 +152,12 @@ export async function changeAppointmentStatus({
   // re-opens, while the portal record stays active as an unscheduled lead.
   const ghlStatus = status.toLowerCase() === 'referral requested' ? 'Cancelled' : status;
 
+  let ghlVerified: boolean | null = null;
+  let ghlErrorText: string | undefined;
+
   if (syncData?.ghl_appointment_id) {
     try {
-      const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+      const { data: ghlResult, error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
         body: {
           ghl_appointment_id: syncData.ghl_appointment_id,
           project_name: syncData.project_name,
@@ -160,9 +168,23 @@ export async function changeAppointmentStatus({
         },
       });
       if (ghlError) throw ghlError;
-      console.log('✅ GHL status synced:', status);
-    } catch (ghlErr) {
+      // The function reads the appointment back; `verified` is null when the
+      // status has no GHL mapping (nothing to verify).
+      ghlVerified = (ghlResult as any)?.verified === false ? false : true;
+      if ((ghlResult as any)?.verified === false) {
+        ghlErrorText = `GoHighLevel still reports "${(ghlResult as any)?.verified_status ?? 'unknown'}" after the update.`;
+        onWarning?.({
+          title: 'GHL did not accept the change',
+          description: ghlErrorText,
+          severe: true,
+        });
+      } else {
+        console.log('✅ GHL status synced:', status);
+      }
+    } catch (ghlErr: any) {
       console.error('⚠️ GHL status sync failed:', ghlErr);
+      ghlVerified = false;
+      ghlErrorText = ghlErr?.message || String(ghlErr);
       onWarning?.({
         title: isPastAppointment ? 'Saved — GHL not updated' : 'GHL Sync Warning',
         description: isPastAppointment
@@ -179,6 +201,7 @@ export async function changeAppointmentStatus({
       description: 'No GoHighLevel appointment ID found for this record. Status was saved locally only.',
     });
   }
+
 
   // System note only on actual transitions
   if (oldStatus !== status) {
@@ -306,5 +329,5 @@ export async function changeAppointmentStatus({
       console.error('⚠️ Webhook failed (non-critical):', err);
     });
 
-  return { ok: true, oldStatus };
+  return { ok: true, oldStatus, ghlVerified, ghlError: ghlErrorText };
 }
