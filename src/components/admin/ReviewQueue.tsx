@@ -1770,13 +1770,13 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
-  const handleBulk = async (action: ActionType, notes?: string, reasonValue?: string) => {
+  const handleBulk = async (action: ActionType, notes?: string, reasonValue?: string, needsReschedule?: boolean | null) => {
     if (selected.size === 0) return;
     // Set already de-dupes; processed sequentially so the notify guard is authoritative.
     const ids = Array.from(selected);
     let ok = 0;
     for (const id of ids) {
-      const success = await performAction(id, action, notes, reasonValue);
+      const success = await performAction(id, action, notes, reasonValue, needsReschedule);
       if (success) ok++;
     }
     toast({ title: `${ok} of ${ids.length} ${action === 'oon' ? 'marked OON' : action}` });
@@ -1787,6 +1787,81 @@ const ReviewQueue: React.FC = () => {
     setDeclineReason(''); setOtherNeedsReschedule(null);
     fetchCounts();
   };
+
+  /**
+   * Re-runs the GHL cancellation + tag push for a declined record whose
+   * cancellation was never confirmed in GoHighLevel.
+   */
+  const handleRetryGhlCancel = async (row: Row) => {
+    setProcessing(true);
+    try {
+      const actor = userName || user?.email || 'Review Queue';
+      const reasonOption = getDeclineReason(row.decline_reason);
+      const res = await changeAppointmentStatus({
+        appointmentId: row.id,
+        newStatus: 'Cancelled',
+        userName: actor,
+        currentAppointment: row as any,
+        onWarning: ({ title, description, severe }) =>
+          toast({ title, description, variant: severe ? 'destructive' : undefined }),
+      });
+
+      const confirmed = res.ghlVerified === true;
+      await supabase
+        .from('all_appointments')
+        .update({
+          decline_ghl_cancel_confirmed_at: confirmed ? new Date().toISOString() : null,
+          decline_ghl_cancel_error: confirmed ? null : (res.ghlError || 'Cancellation not confirmed in GoHighLevel'),
+        })
+        .eq('id', row.id);
+
+      // Re-push tags so the patient message fires if it never did.
+      if (row.ghl_id) {
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('ghl_api_key')
+          .eq('project_name', row.project_name)
+          .maybeSingle();
+        const pushedTags = [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagFor(row.decline_reason)].filter(Boolean) as string[];
+        try {
+          const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+            body: {
+              ghl_contact_id: row.ghl_id,
+              ghl_api_key: projectData?.ghl_api_key || undefined,
+              tags: pushedTags,
+              action: 'add',
+            },
+          });
+          if (tagErr) throw tagErr;
+          await supabase.from('appointment_notes').insert({
+            appointment_id: row.id,
+            note_text: `Retry: GHL tags pushed: ${pushedTags.join(', ')} by ${actor} - [[timestamp:${new Date().toISOString()}]]`,
+            created_by: actor,
+            visibility: 'internal',
+          });
+        } catch (err) {
+          console.error('retry tag push failed:', err);
+        }
+      }
+
+      setRows(prev => prev.map(r => r.id === row.id
+        ? { ...r, decline_ghl_cancel_confirmed_at: confirmed ? new Date().toISOString() : null, decline_ghl_cancel_error: confirmed ? null : (res.ghlError || 'Cancellation not confirmed in GoHighLevel') }
+        : r));
+
+      toast({
+        title: confirmed ? 'Cancelled in GoHighLevel' : 'Still not confirmed',
+        description: confirmed
+          ? `${row.lead_name}'s appointment is now cancelled in GHL.`
+          : (res.ghlError || 'GoHighLevel did not confirm the cancellation.'),
+        variant: confirmed ? undefined : 'destructive',
+      });
+    } catch (e: any) {
+      toast({ title: 'Retry failed', description: describeError(e), variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
 
 
   const toggleExpand = (id: string) =>
