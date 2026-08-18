@@ -3474,7 +3474,16 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
           // Sync DOB to main column if we have one
           if (finalDob) {
             updateData.dob = finalDob;
+            updateData.dob_rejected_value = null;
+            updateData.dob_rejected_at = null;
+          } else if (rawDobCandidate) {
+            // The source text DID contain a date of birth but it failed the
+            // plausibility guard. Keep it visible instead of silently dropping it.
+            console.warn(`[AUTO-PARSE] Storing rejected DOB "${rawDobCandidate}" for review (${record.id})`);
+            updateData.dob_rejected_value = rawDobCandidate;
+            updateData.dob_rejected_at = new Date().toISOString();
           }
+
 
           // Sync insurance info to main columns. Always set explicitly (even to null)
           // so stale corrupted values don't linger after a re-parse.
