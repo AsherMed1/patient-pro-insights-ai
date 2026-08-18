@@ -71,6 +71,8 @@ interface ReviewAppointment {
   parsed_insurance_info: any;
   parsed_demographics: any;
   dob: string | null;
+  dob_rejected_value?: string | null;
+
   ghl_id: string | null;
   review_status: string;
   review_stage?: string | null;
