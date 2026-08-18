@@ -852,6 +852,7 @@ const ReviewQueue: React.FC = () => {
         byApptId[a.appointment_id] = { latest: a, count: 1 };
       });
 
+      const staleBefore = Date.now() - MAX_CONTACT_AGE_DAYS * 86400000;
       const map: Record<string, LastContact> = {};
       rows.forEach(r => {
         let latest: any = null;
@@ -860,10 +861,12 @@ const ReviewQueue: React.FC = () => {
         (siblingIdsByRowId[r.id] || [r.id]).forEach(sid => {
           const entry = byApptId[sid];
           if (!entry) return;
+          const isSibling = sid !== r.id;
+          if (isSibling && new Date(entry.latest.attempted_at).getTime() < staleBefore) return;
           count += entry.count;
           if (!latest || new Date(entry.latest.attempted_at) > new Date(latest.attempted_at)) {
             latest = entry.latest;
-            fromSibling = sid !== r.id;
+            fromSibling = isSibling;
           }
         });
         if (!latest) return;
@@ -875,6 +878,7 @@ const ReviewQueue: React.FC = () => {
           fromSibling,
         };
       });
+
 
       // Implicit GHL calls for rows with no logged attempt
       const uncovered = rows.filter(r => !map[r.id] && r.lead_phone_number);
