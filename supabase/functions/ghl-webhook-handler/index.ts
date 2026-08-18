@@ -3596,6 +3596,12 @@ async function enrichAppointmentWithGHLData(
       ...(dobLocked
         ? { parsed_demographics: mergedParsedDemographics }
         : (normalizedContactDob ? { dob: normalizedContactDob, parsed_demographics: mergedParsedDemographics } : {})),
+      // Keep an unusable GHL date of birth visible instead of silently dropping it.
+      ...(!dobLocked && contact.dateOfBirth && !normalizedContactDob
+        ? { dob_rejected_value: String(contact.dateOfBirth), dob_rejected_at: new Date().toISOString() }
+        : {}),
+      ...(normalizedContactDob ? { dob_rejected_value: null, dob_rejected_at: null } : {}),
+
       ...(contact.phone ? { lead_phone_number: contact.phone } : {}),
       ...(contact.email ? { lead_email: contact.email } : {}),
       ...(extractedTimePref ? { time_preference: extractedTimePref } : {}),
