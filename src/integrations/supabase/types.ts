@@ -218,6 +218,8 @@ export type Database = {
           created_at: string
           date_appointment_created: string
           date_of_appointment: string | null
+          decline_ghl_cancel_confirmed_at: string | null
+          decline_ghl_cancel_error: string | null
           decline_notified_at: string | null
           decline_reason: string | null
           detected_insurance_id: string | null
@@ -309,6 +311,8 @@ export type Database = {
           created_at?: string
           date_appointment_created: string
           date_of_appointment?: string | null
+          decline_ghl_cancel_confirmed_at?: string | null
+          decline_ghl_cancel_error?: string | null
           decline_notified_at?: string | null
           decline_reason?: string | null
           detected_insurance_id?: string | null
@@ -400,6 +404,8 @@ export type Database = {
           created_at?: string
           date_appointment_created?: string
           date_of_appointment?: string | null
+          decline_ghl_cancel_confirmed_at?: string | null
+          decline_ghl_cancel_error?: string | null
           decline_notified_at?: string | null
           decline_reason?: string | null
           detected_insurance_id?: string | null
