@@ -1287,6 +1287,8 @@ function extractStandardEventFormat(payload: any) {
     lead_phone_number: contact.phone,
     lead_email: contact.email,
     dob: normalizeDob(contact.dateOfBirth || contact.dob),
+    dob_raw: (contact.dateOfBirth || contact.dob) ? String(contact.dateOfBirth || contact.dob) : null,
+
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     ...(() => {
