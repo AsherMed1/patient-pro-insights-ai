@@ -2020,7 +2020,7 @@ const ReviewQueue: React.FC = () => {
                         {!isReadOnlyView && shortNoticeByRowId[row.id] !== undefined && (
                           <Badge
                             variant="outline"
-                            className="border-orange-400 text-orange-700 bg-orange-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            className="border-red-500 text-red-800 bg-red-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
                             title="Booked shortly before appointment (business hours)"
                           >
                             <Zap className="h-2.5 w-2.5 shrink-0" />
@@ -2035,7 +2035,7 @@ const ReviewQueue: React.FC = () => {
                           shortNoticeStatusByRowId[row.id].isShortNotice ? (
                             <Badge
                               variant="outline"
-                              className="border-orange-500 text-orange-800 bg-orange-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                              className="border-red-500 text-red-800 bg-red-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
                               title="Inside the clinic's short-notice window — action now"
                             >
                               <Zap className="h-2.5 w-2.5 shrink-0" />
@@ -2045,9 +2045,9 @@ const ReviewQueue: React.FC = () => {
                             <Badge
                               variant="outline"
                               className={`text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1 ${
-                                shortNoticeStatusByRowId[row.id].hoursUntilThreshold <= 12
-                                  ? 'border-rose-400 text-rose-700 bg-rose-50'
-                                  : 'border-slate-300 text-slate-600 bg-slate-50'
+                                shortNoticeStatusByRowId[row.id].hoursUntilThreshold <= 24
+                                  ? 'border-orange-400 text-orange-800 bg-orange-100'
+                                  : 'border-border text-muted-foreground bg-transparent'
                               }`}
                               title="Time remaining before this appointment becomes Short Notice"
                             >
@@ -2056,6 +2056,7 @@ const ReviewQueue: React.FC = () => {
                             </Badge>
                           )
                         )}
+
                         {queueView === 'pending' && row.pending_since && (
                           <Badge
                             variant="outline"
