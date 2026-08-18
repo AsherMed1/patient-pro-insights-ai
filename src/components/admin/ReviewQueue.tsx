@@ -2327,6 +2327,18 @@ const ReviewQueue: React.FC = () => {
                         <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">Approved</Badge>
                       ) : isDeclinedView ? (
                         <>
+                          {!row.decline_ghl_cancel_confirmed_at && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                              onClick={() => handleRetryGhlCancel(row)}
+                              disabled={processing}
+                              title={row.decline_ghl_cancel_error || 'GoHighLevel never confirmed this cancellation'}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry GHL cancel
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -2346,6 +2358,7 @@ const ReviewQueue: React.FC = () => {
                             <Trash2 className="h-3.5 w-3.5 mr-1" /> Dismiss
                           </Button>
                         </>
+
                       ) : (
                         <>
                           <Button
