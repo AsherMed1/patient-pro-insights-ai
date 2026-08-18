@@ -1364,6 +1364,13 @@ function extractWorkflowFormat(payload: any) {
     dob: normalizeDob(resolveFirstMeaningfulValue(payload, [
       ['date_of_birth'], ['dateOfBirth'], ['dob'], ['contact', 'dateOfBirth'], ['contact', 'dob'], ['customData', 'dob'], ['custom_data', 'dob']
     ])),
+    dob_raw: (() => {
+      const raw = resolveFirstMeaningfulValue(payload, [
+        ['date_of_birth'], ['dateOfBirth'], ['dob'], ['contact', 'dateOfBirth'], ['contact', 'dob'], ['customData', 'dob'], ['custom_data', 'dob']
+      ])
+      return raw ? String(raw) : null
+    })(),
+
     calendar_name: sanitizeId(calendarName) || 'Unknown',
     project_name: projectName,
     ...(() => {
