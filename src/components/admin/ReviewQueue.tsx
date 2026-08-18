@@ -1406,37 +1406,61 @@ const ReviewQueue: React.FC = () => {
       }
 
 
-      // Decline side effects: auto-cancel through the SINGLE canonical status
-      // path, log the reason, and notify the patient via GHL tags — exactly once.
+      // Decline side effects: ALWAYS push the cancellation to GHL (even when the
+      // portal row is already Cancelled — that is exactly the desync case), verify
+      // it landed, log the reason, and notify the patient via GHL tags.
       if (action === 'declined' && priorRow) {
         const reasonLabel = reasonOption?.label ?? 'Declined';
         const stamp = new Date().toISOString();
         const actor = userName || user?.email || 'Review Queue';
+        const wantsReschedule =
+          needsReschedule === null || needsReschedule === undefined
+            ? !!reasonOption?.reschedulable
+            : needsReschedule;
 
-        // 1. Cancel (skipped when the row is already Cancelled — no duplicate push)
-        if ((priorRow.status || '').toLowerCase() !== 'cancelled') {
-          try {
-            await changeAppointmentStatus({
-              appointmentId: id,
-              newStatus: 'Cancelled',
-              userName: actor,
-              currentAppointment: priorRow as any,
-              onWarning: ({ title, description, severe }) =>
-                toast({ title, description, variant: severe ? 'destructive' : undefined }),
-            });
-          } catch (err) {
-            console.error('Decline auto-cancel failed:', err);
-            toast({
-              title: 'Declined, but cancel failed',
-              description: 'The decline was saved but the appointment could not be cancelled. Cancel it manually.',
-              variant: 'destructive',
-            });
+        // 1. Cancel in GHL — unconditional. changeAppointmentStatus only writes
+        // the portal status note on a real transition, so re-running it on an
+        // already-Cancelled row does not duplicate notes.
+        let cancelConfirmed = false;
+        let cancelError: string | undefined;
+        try {
+          const res = await changeAppointmentStatus({
+            appointmentId: id,
+            newStatus: 'Cancelled',
+            userName: actor,
+            currentAppointment: priorRow as any,
+            onWarning: ({ title, description, severe }) =>
+              toast({ title, description, variant: severe ? 'destructive' : undefined }),
+          });
+          cancelConfirmed = res.ghlVerified === true;
+          cancelError = res.ghlError;
+          if (!priorRow.ghl_appointment_id) {
+            cancelError = 'No GoHighLevel appointment is linked to this record.';
           }
+        } catch (err: any) {
+          console.error('Decline auto-cancel failed:', err);
+          cancelError = err?.message || String(err);
+        }
+
+        await supabase
+          .from('all_appointments')
+          .update({
+            decline_ghl_cancel_confirmed_at: cancelConfirmed ? new Date().toISOString() : null,
+            decline_ghl_cancel_error: cancelConfirmed ? null : (cancelError || 'Cancellation not confirmed in GoHighLevel'),
+          })
+          .eq('id', id);
+
+        if (!cancelConfirmed) {
+          toast({
+            title: 'Not cancelled in GoHighLevel',
+            description: `${cancelError || 'GoHighLevel did not confirm the cancellation.'} Use "Retry GHL cancel" on the Declined tab.`,
+            variant: 'destructive',
+          });
         }
 
         // 2. Portal note with attribution
-        const rescheduleWord = reasonOption?.reschedulable ? 'yes' : 'no';
-        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor} - [[timestamp:${stamp}]]`;
+        const rescheduleWord = wantsReschedule ? 'yes' : 'no';
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor}${cancelConfirmed ? ' — cancellation confirmed in GoHighLevel' : ' — GoHighLevel cancellation NOT confirmed'} - [[timestamp:${stamp}]]`;
         try {
           await supabase.from('appointment_notes').insert({
             appointment_id: id,
@@ -1458,7 +1482,7 @@ const ReviewQueue: React.FC = () => {
             .maybeSingle();
 
           const localStamp = new Date().toLocaleString('en-US');
-          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nReschedule: ${reasonOption?.reschedulable ? 'Patient needs to be rescheduled' : 'Patient should not be rescheduled'}\nBy: ${actor}\nDate/Time: ${localStamp}`;
+          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nReschedule: ${wantsReschedule ? 'Patient needs to be rescheduled' : 'Patient should not be rescheduled'}\nBy: ${actor}\nDate/Time: ${localStamp}`;
 
           try {
             const { error: noteErr } = await supabase.functions.invoke('add-ghl-contact-note', {
@@ -1480,25 +1504,38 @@ const ReviewQueue: React.FC = () => {
             });
           }
 
+          const pushedTags = [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagForChoice(reasonValue, needsReschedule)].filter(Boolean) as string[];
+          let tagsOk = false;
           try {
             const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
                 ghl_api_key: projectData?.ghl_api_key || undefined,
-                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagFor(reasonValue)].filter(Boolean),
+                tags: pushedTags,
                 action: 'add',
               },
             });
             if (tagErr) throw tagErr;
             notified = true;
+            tagsOk = true;
           } catch (err) {
             console.error('decline tag push failed:', err);
             toast({
-              title: 'Declined — patient message not triggered',
-              description: 'The decline was saved, but the GHL tag failed so the text/email may not send.',
+              title: 'Patient message NOT triggered',
+              description: 'The decline was saved, but the GHL tag push failed so no text/email will send. Retry from the Declined tab.',
               variant: 'destructive',
             });
           }
+
+          // Auditable record of which workflow should have fired.
+          try {
+            await supabase.from('appointment_notes').insert({
+              appointment_id: id,
+              note_text: `${tagsOk ? 'GHL tags pushed' : 'GHL tag push FAILED'}: ${pushedTags.join(', ')} - [[timestamp:${new Date().toISOString()}]]`,
+              created_by: actor,
+              visibility: 'internal',
+            });
+          } catch { /* non-critical */ }
 
           if (notified) {
             await supabase
@@ -1513,6 +1550,7 @@ const ReviewQueue: React.FC = () => {
           });
         }
       }
+
     } catch (e: any) {
       toast({ title: 'Action failed', description: describeError(e), variant: 'destructive' });
       setProcessing(false);
