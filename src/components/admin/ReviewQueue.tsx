@@ -37,6 +37,8 @@ import {
   formatAge,
   businessHoursSince,
   isSystemNote,
+  MAX_CONTACT_AGE_DAYS,
+
   PENDING_FOLLOWUP_BUSINESS_HOURS,
   type ShortNoticeStatus,
 } from '@/lib/shortNotice';
@@ -780,18 +782,23 @@ const ReviewQueue: React.FC = () => {
         byApptId[n.appointment_id] = { at: n.created_at, by: (n.created_by || '').trim() };
       });
 
-      // Fold sibling rows onto the displayed row: newest human note wins
+      // Fold sibling rows onto the displayed row: newest human note wins.
+      // Contact from a sibling record older than MAX_CONTACT_AGE_DAYS is stale.
+      const staleBefore = Date.now() - MAX_CONTACT_AGE_DAYS * 86400000;
       const map: Record<string, LastContact> = {};
       rows.forEach(r => {
         (siblingIdsByRowId[r.id] || [r.id]).forEach(sid => {
           const hit = byApptId[sid];
           if (!hit) return;
+          const fromSibling = sid !== r.id;
+          if (fromSibling && new Date(hit.at).getTime() < staleBefore) return;
           const current = map[r.id];
           if (!current || new Date(hit.at) > new Date(current.at)) {
-            map[r.id] = { ...hit, fromSibling: sid !== r.id };
+            map[r.id] = { ...hit, fromSibling };
           }
         });
       });
+
 
       // Resolve raw user IDs to readable names; drop the author when unresolvable
       const uuidAuthors = Array.from(
@@ -845,6 +852,7 @@ const ReviewQueue: React.FC = () => {
         byApptId[a.appointment_id] = { latest: a, count: 1 };
       });
 
+      const staleBefore = Date.now() - MAX_CONTACT_AGE_DAYS * 86400000;
       const map: Record<string, LastContact> = {};
       rows.forEach(r => {
         let latest: any = null;
@@ -853,10 +861,12 @@ const ReviewQueue: React.FC = () => {
         (siblingIdsByRowId[r.id] || [r.id]).forEach(sid => {
           const entry = byApptId[sid];
           if (!entry) return;
+          const isSibling = sid !== r.id;
+          if (isSibling && new Date(entry.latest.attempted_at).getTime() < staleBefore) return;
           count += entry.count;
           if (!latest || new Date(entry.latest.attempted_at) > new Date(latest.attempted_at)) {
             latest = entry.latest;
-            fromSibling = sid !== r.id;
+            fromSibling = isSibling;
           }
         });
         if (!latest) return;
@@ -868,6 +878,7 @@ const ReviewQueue: React.FC = () => {
           fromSibling,
         };
       });
+
 
       // Implicit GHL calls for rows with no logged attempt
       const uncovered = rows.filter(r => !map[r.id] && r.lead_phone_number);
@@ -2009,7 +2020,7 @@ const ReviewQueue: React.FC = () => {
                         {!isReadOnlyView && shortNoticeByRowId[row.id] !== undefined && (
                           <Badge
                             variant="outline"
-                            className="border-orange-400 text-orange-700 bg-orange-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            className="border-red-500 text-red-800 bg-red-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
                             title="Booked shortly before appointment (business hours)"
                           >
                             <Zap className="h-2.5 w-2.5 shrink-0" />
@@ -2024,7 +2035,7 @@ const ReviewQueue: React.FC = () => {
                           shortNoticeStatusByRowId[row.id].isShortNotice ? (
                             <Badge
                               variant="outline"
-                              className="border-orange-500 text-orange-800 bg-orange-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                              className="border-red-500 text-red-800 bg-red-100 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
                               title="Inside the clinic's short-notice window — action now"
                             >
                               <Zap className="h-2.5 w-2.5 shrink-0" />
@@ -2034,9 +2045,9 @@ const ReviewQueue: React.FC = () => {
                             <Badge
                               variant="outline"
                               className={`text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1 ${
-                                shortNoticeStatusByRowId[row.id].hoursUntilThreshold <= 12
-                                  ? 'border-rose-400 text-rose-700 bg-rose-50'
-                                  : 'border-slate-300 text-slate-600 bg-slate-50'
+                                shortNoticeStatusByRowId[row.id].hoursUntilThreshold <= 24
+                                  ? 'border-orange-400 text-orange-800 bg-orange-100'
+                                  : 'border-border text-muted-foreground bg-transparent'
                               }`}
                               title="Time remaining before this appointment becomes Short Notice"
                             >
@@ -2045,6 +2056,7 @@ const ReviewQueue: React.FC = () => {
                             </Badge>
                           )
                         )}
+
                         {queueView === 'pending' && row.pending_since && (
                           <Badge
                             variant="outline"

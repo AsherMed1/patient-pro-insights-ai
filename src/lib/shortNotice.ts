@@ -133,15 +133,32 @@ export function businessHoursSince(fromIso: string | null | undefined, now: Date
 /** Follow-up interval (business hours) after which a Pending record is stale. */
 export const PENDING_FOLLOWUP_BUSINESS_HOURS = 24;
 
+/**
+ * Sibling-derived contact older than this is ignored — outreach on a closed
+ * record months ago is not "last contact" on today's booking.
+ */
+export const MAX_CONTACT_AGE_DAYS = 45;
+
+const SYSTEM_AUTHORS = new Set([
+  'system', 'review queue', 'support', 'gohighlevel', 'ghl', 'highlevel',
+  'bot', 'workflow', 'webhook', 'unknown',
+]);
+
 /** Notes written by the system rather than a person contacting the patient. */
 export function isSystemNote(note: { note_text?: string | null; created_by?: string | null }): boolean {
-  const author = (note.created_by || '').toLowerCase();
-  const text = (note.note_text || '').toLowerCase();
-  if (!author || author === 'system' || author === 'review queue' || author === 'support' || author.includes('automation')) return true;
+  const author = (note.created_by || '').trim().toLowerCase();
+  const text = (note.note_text || '').trim().toLowerCase();
+  if (!author || SYSTEM_AUTHORS.has(author)) return true;
+  if (author.includes('automation') || author.includes('gohighlevel') || author.includes('highlevel')) return true;
   return (
     text.startsWith('review queue:') ||
     text.startsWith('status changed') ||
     text.startsWith('system:') ||
-    text.startsWith('auto')
+    text.startsWith('auto') ||
+    text.startsWith('rescheduled |') ||
+    text.startsWith('superseded') ||
+    text.startsWith('cancellation reason:') ||
+    text.startsWith('"approved" tag')
   );
 }
+
