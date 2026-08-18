@@ -2156,7 +2156,13 @@ function getUpdateableFields(
   }
   if (!existingAppointment.dob && webhookData.dob) {
     updateFields.dob = webhookData.dob
+    updateFields.dob_rejected_value = null
+    updateFields.dob_rejected_at = null
+  } else if (!existingAppointment.dob && webhookData.dob_raw) {
+    updateFields.dob_rejected_value = webhookData.dob_raw
+    updateFields.dob_rejected_at = new Date().toISOString()
   }
+
   
   // Insurance card images — fill only empty slots so a GHL re-fire never overwrites
   // an image a human uploaded in the Portal.
