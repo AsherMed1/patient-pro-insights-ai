@@ -2567,7 +2567,11 @@ const ReviewQueue: React.FC = () => {
             {actionRow?.action === 'declined' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Decline reason <span className="text-destructive">*</span></label>
-                <Select value={declineReason} onValueChange={setDeclineReason}>
+                <Select
+                  value={declineReason}
+                  onValueChange={(v) => { setDeclineReason(v); setOtherNeedsReschedule(defaultRescheduleFor(v)); }}
+                >
+
                   <SelectTrigger>
                     <SelectValue placeholder="Select a reason…" />
                   </SelectTrigger>
