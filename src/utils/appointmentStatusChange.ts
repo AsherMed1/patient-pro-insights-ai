@@ -329,5 +329,5 @@ export async function changeAppointmentStatus({
       console.error('⚠️ Webhook failed (non-critical):', err);
     });
 
-  return { ok: true, oldStatus };
+  return { ok: true, oldStatus, ghlVerified, ghlError: ghlErrorText };
 }
