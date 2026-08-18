@@ -342,15 +342,16 @@ const ReviewQueue: React.FC = () => {
   };
 
   /**
-   * DOB is invalid when the birth year is the current year or in the future —
-   * checked on the structured DOB AND on the DOB written in the raw intake notes,
-   * since clinics read that text too.
+   * DOB is invalid when it is missing but GHL sent an unusable value, or when
+   * the structured / raw-notes DOB is impossible (current-year or a child under 13).
    */
   const isInvalidDob = (row: ReviewAppointment): boolean => {
+    if (row.dob_rejected_value) return true;
     const structured = (row.dob || row.parsed_demographics?.dob || '').toString().trim();
     if (isImpossibleDobValue(structured)) return true;
     return isImpossibleDobValue(extractDobFromNotes(row.patient_intake_notes));
   };
+
 
 
   const sortedRows = useMemo(() => {
