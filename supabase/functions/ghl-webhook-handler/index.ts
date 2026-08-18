@@ -2145,7 +2145,7 @@ function getUpdateableFields(
     }
   }
 
-  }
+
   
   // Merge contact info (only if local is empty)
   if (!existingAppointment.lead_email && webhookData.lead_email) {
