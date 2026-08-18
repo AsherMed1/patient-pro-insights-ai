@@ -1505,9 +1505,18 @@ const AppointmentCard = ({
                   )}
                 </Badge>
               ) : (
-                <Badge variant="destructive" className="ml-2 flex items-center">
+                <Badge
+                  variant="destructive"
+                  className="ml-2 flex items-center"
+                  title={(appointment as any).dob_rejected_value
+                    ? `GoHighLevel sent "${(appointment as any).dob_rejected_value}", which is not a valid date of birth. Please verify and correct it.`
+                    : undefined}
+                >
                   <CalendarIcon className="h-3 w-3 mr-1" />
-                  DOB Missing
+                  {(appointment as any).dob_rejected_value
+                    ? `DOB needs verification (GHL: ${(appointment as any).dob_rejected_value})`
+                    : 'DOB Missing'}
+
                   {onUpdateDOB && (
                     <Popover>
                       <PopoverTrigger asChild>
