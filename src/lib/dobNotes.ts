@@ -28,14 +28,25 @@ export function rewriteDobInNotes(notes?: string | null, newDob?: string | null)
   return updated !== notes ? updated : null;
 }
 
-/** True when a date string's year is the current year or later (impossible DOB). */
+/** Nobody younger than this is a plausible patient DOB — mirrors the edge-function guard. */
+export const MIN_PLAUSIBLE_DOB_AGE_YEARS = 13;
+
+/**
+ * True when a date string cannot be a real date of birth: the year is the
+ * current year or later, or the date is implausibly recent (a child under 13),
+ * which in practice means an appointment/created date landed in the DOB field.
+ */
 export function isImpossibleDobValue(raw?: string | null): boolean {
   const value = (raw || '').toString().trim();
   if (!value) return false;
   const parsed = new Date(value);
-  const year = Number.isNaN(parsed.getTime())
-    ? Number((value.match(/(19|20)\d{2}/) || [])[0])
-    : parsed.getFullYear();
+  const today = new Date();
+  if (!Number.isNaN(parsed.getTime())) {
+    const maxDob = new Date(today.getFullYear() - MIN_PLAUSIBLE_DOB_AGE_YEARS, today.getMonth(), today.getDate());
+    return parsed.getTime() > maxDob.getTime();
+  }
+  const year = Number((value.match(/(19|20)\d{2}/) || [])[0]);
   if (!year) return false;
-  return year >= new Date().getFullYear();
+  return year > today.getFullYear() - MIN_PLAUSIBLE_DOB_AGE_YEARS;
 }
+
