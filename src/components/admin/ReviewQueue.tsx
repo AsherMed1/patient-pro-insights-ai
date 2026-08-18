@@ -81,6 +81,10 @@ interface ReviewAppointment {
   reviewed_by?: string | null;
   review_notes?: string | null;
   decline_reason?: string | null;
+  decline_ghl_cancel_confirmed_at?: string | null;
+  decline_ghl_cancel_error?: string | null;
+  ghl_appointment_id?: string | null;
+
   potential_oon?: boolean | null;
   potential_oon_matches?: any;
   potential_oon_resolved_at?: string | null;
