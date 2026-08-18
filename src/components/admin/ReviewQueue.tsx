@@ -1792,10 +1792,10 @@ const ReviewQueue: React.FC = () => {
    * Re-runs the GHL cancellation + tag push for a declined record whose
    * cancellation was never confirmed in GoHighLevel.
    */
-  const handleRetryGhlCancel = async (row: Row) => {
+  const handleRetryGhlCancel = async (row: ReviewAppointment) => {
     setProcessing(true);
     try {
-      const actor = userName || user?.email || 'Review Queue';
+      const actor = userName || 'Review Queue';
       const reasonOption = getDeclineReason(row.decline_reason);
       const res = await changeAppointmentStatus({
         appointmentId: row.id,
