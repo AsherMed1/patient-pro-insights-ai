@@ -27,7 +27,7 @@ import { formatDate, formatTime } from '@/components/appointments/utils';
 import { format } from 'date-fns';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 import { cn } from '@/lib/utils';
-import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
+import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor, rescheduleTagForChoice, defaultRescheduleFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
 import { useVisibilityPolling } from '@/hooks/useVisibilityPolling';
