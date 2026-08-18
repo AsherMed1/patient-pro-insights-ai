@@ -1825,6 +1825,10 @@ function getUpdateableFields(
         status: 'Confirmed',
         patient_intake_notes: webhookData.patient_intake_notes,
         dob: webhookData.dob,
+        ...(!webhookData.dob && webhookData.dob_raw
+          ? { dob_rejected_value: webhookData.dob_raw, dob_rejected_at: new Date().toISOString() }
+          : {}),
+
         was_ever_confirmed: true,
         time_preference: timePreference,
         is_unscheduled: treatAsUnscheduled,
