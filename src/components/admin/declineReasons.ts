@@ -90,3 +90,21 @@ export const resolveDeclineReasonValue = (
 /** The reschedule-intent tag for a resolved reason value. */
 export const rescheduleTagFor = (value?: string | null): string =>
   getDeclineReason(value)?.reschedulable ? RESCHEDULE_TAG : NO_RESCHEDULE_TAG;
+
+/**
+ * The reschedule-intent tag for the setter's explicit per-case choice.
+ * Falls back to the reason's default when no choice was made.
+ */
+export const rescheduleTagForChoice = (
+  value: string | null | undefined,
+  needsReschedule: boolean | null | undefined
+): string => {
+  if (needsReschedule === true) return RESCHEDULE_TAG;
+  if (needsReschedule === false) return NO_RESCHEDULE_TAG;
+  return rescheduleTagFor(value);
+};
+
+/** Default reschedule intent shown in the decline dialog for a reason. */
+export const defaultRescheduleFor = (value?: string | null): boolean | null =>
+  getDeclineReason(value)?.reschedulable ?? null;
+

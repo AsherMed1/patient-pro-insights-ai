@@ -27,7 +27,7 @@ import { formatDate, formatTime } from '@/components/appointments/utils';
 import { format } from 'date-fns';
 import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 import { cn } from '@/lib/utils';
-import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor } from './declineReasons';
+import { SELECTABLE_DECLINE_REASONS, GENERIC_DECLINE_TAG, getDeclineReason, declineReasonLabel, resolveDeclineReasonValue, rescheduleTagFor, rescheduleTagForChoice, defaultRescheduleFor } from './declineReasons';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { rewriteDobInNotes, extractDobFromNotes, isImpossibleDobValue } from '@/lib/dobNotes';
 import { useVisibilityPolling } from '@/hooks/useVisibilityPolling';
@@ -81,6 +81,10 @@ interface ReviewAppointment {
   reviewed_by?: string | null;
   review_notes?: string | null;
   decline_reason?: string | null;
+  decline_ghl_cancel_confirmed_at?: string | null;
+  decline_ghl_cancel_error?: string | null;
+  ghl_appointment_id?: string | null;
+
   potential_oon?: boolean | null;
   potential_oon_matches?: any;
   potential_oon_resolved_at?: string | null;
@@ -433,7 +437,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
       .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -1134,7 +1138,7 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
-  const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
+  const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string, needsReschedule?: boolean | null) => {
     if (action === 'approved' && isOonBlocked(rows.find(r => r.id === id))) {
       toast({
         title: 'Potential OON insurance',
@@ -1402,37 +1406,61 @@ const ReviewQueue: React.FC = () => {
       }
 
 
-      // Decline side effects: auto-cancel through the SINGLE canonical status
-      // path, log the reason, and notify the patient via GHL tags — exactly once.
+      // Decline side effects: ALWAYS push the cancellation to GHL (even when the
+      // portal row is already Cancelled — that is exactly the desync case), verify
+      // it landed, log the reason, and notify the patient via GHL tags.
       if (action === 'declined' && priorRow) {
         const reasonLabel = reasonOption?.label ?? 'Declined';
         const stamp = new Date().toISOString();
         const actor = userName || user?.email || 'Review Queue';
+        const wantsReschedule =
+          needsReschedule === null || needsReschedule === undefined
+            ? !!reasonOption?.reschedulable
+            : needsReschedule;
 
-        // 1. Cancel (skipped when the row is already Cancelled — no duplicate push)
-        if ((priorRow.status || '').toLowerCase() !== 'cancelled') {
-          try {
-            await changeAppointmentStatus({
-              appointmentId: id,
-              newStatus: 'Cancelled',
-              userName: actor,
-              currentAppointment: priorRow as any,
-              onWarning: ({ title, description, severe }) =>
-                toast({ title, description, variant: severe ? 'destructive' : undefined }),
-            });
-          } catch (err) {
-            console.error('Decline auto-cancel failed:', err);
-            toast({
-              title: 'Declined, but cancel failed',
-              description: 'The decline was saved but the appointment could not be cancelled. Cancel it manually.',
-              variant: 'destructive',
-            });
+        // 1. Cancel in GHL — unconditional. changeAppointmentStatus only writes
+        // the portal status note on a real transition, so re-running it on an
+        // already-Cancelled row does not duplicate notes.
+        let cancelConfirmed = false;
+        let cancelError: string | undefined;
+        try {
+          const res = await changeAppointmentStatus({
+            appointmentId: id,
+            newStatus: 'Cancelled',
+            userName: actor,
+            currentAppointment: priorRow as any,
+            onWarning: ({ title, description, severe }) =>
+              toast({ title, description, variant: severe ? 'destructive' : undefined }),
+          });
+          cancelConfirmed = res.ghlVerified === true;
+          cancelError = res.ghlError;
+          if (!priorRow.ghl_appointment_id) {
+            cancelError = 'No GoHighLevel appointment is linked to this record.';
           }
+        } catch (err: any) {
+          console.error('Decline auto-cancel failed:', err);
+          cancelError = err?.message || String(err);
+        }
+
+        await supabase
+          .from('all_appointments')
+          .update({
+            decline_ghl_cancel_confirmed_at: cancelConfirmed ? new Date().toISOString() : null,
+            decline_ghl_cancel_error: cancelConfirmed ? null : (cancelError || 'Cancellation not confirmed in GoHighLevel'),
+          })
+          .eq('id', id);
+
+        if (!cancelConfirmed) {
+          toast({
+            title: 'Not cancelled in GoHighLevel',
+            description: `${cancelError || 'GoHighLevel did not confirm the cancellation.'} Use "Retry GHL cancel" on the Declined tab.`,
+            variant: 'destructive',
+          });
         }
 
         // 2. Portal note with attribution
-        const rescheduleWord = reasonOption?.reschedulable ? 'yes' : 'no';
-        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor} - [[timestamp:${stamp}]]`;
+        const rescheduleWord = wantsReschedule ? 'yes' : 'no';
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor}${cancelConfirmed ? ' — cancellation confirmed in GoHighLevel' : ' — GoHighLevel cancellation NOT confirmed'} - [[timestamp:${stamp}]]`;
         try {
           await supabase.from('appointment_notes').insert({
             appointment_id: id,
@@ -1454,7 +1482,7 @@ const ReviewQueue: React.FC = () => {
             .maybeSingle();
 
           const localStamp = new Date().toLocaleString('en-US');
-          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nReschedule: ${reasonOption?.reschedulable ? 'Patient needs to be rescheduled' : 'Patient should not be rescheduled'}\nBy: ${actor}\nDate/Time: ${localStamp}`;
+          const ghlNote = `Appointment declined in PatientPro Portal\nReason: ${reasonLabel}${explanation ? `\nDetails: ${explanation}` : ''}\nReschedule: ${wantsReschedule ? 'Patient needs to be rescheduled' : 'Patient should not be rescheduled'}\nBy: ${actor}\nDate/Time: ${localStamp}`;
 
           try {
             const { error: noteErr } = await supabase.functions.invoke('add-ghl-contact-note', {
@@ -1476,25 +1504,38 @@ const ReviewQueue: React.FC = () => {
             });
           }
 
+          const pushedTags = [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagForChoice(reasonValue, needsReschedule)].filter(Boolean) as string[];
+          let tagsOk = false;
           try {
             const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
                 ghl_api_key: projectData?.ghl_api_key || undefined,
-                tags: [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagFor(reasonValue)].filter(Boolean),
+                tags: pushedTags,
                 action: 'add',
               },
             });
             if (tagErr) throw tagErr;
             notified = true;
+            tagsOk = true;
           } catch (err) {
             console.error('decline tag push failed:', err);
             toast({
-              title: 'Declined — patient message not triggered',
-              description: 'The decline was saved, but the GHL tag failed so the text/email may not send.',
+              title: 'Patient message NOT triggered',
+              description: 'The decline was saved, but the GHL tag push failed so no text/email will send. Retry from the Declined tab.',
               variant: 'destructive',
             });
           }
+
+          // Auditable record of which workflow should have fired.
+          try {
+            await supabase.from('appointment_notes').insert({
+              appointment_id: id,
+              note_text: `${tagsOk ? 'GHL tags pushed' : 'GHL tag push FAILED'}: ${pushedTags.join(', ')} - [[timestamp:${new Date().toISOString()}]]`,
+              created_by: actor,
+              visibility: 'internal',
+            });
+          } catch { /* non-critical */ }
 
           if (notified) {
             await supabase
@@ -1509,6 +1550,7 @@ const ReviewQueue: React.FC = () => {
           });
         }
       }
+
     } catch (e: any) {
       toast({ title: 'Action failed', description: describeError(e), variant: 'destructive' });
       setProcessing(false);
@@ -1518,8 +1560,9 @@ const ReviewQueue: React.FC = () => {
     return true;
   };
 
-  const handleSingleAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string, duplicateCount?: number) => {
-    const ok = await performAction(id, action, notes, reasonValue);
+  const handleSingleAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string, duplicateCount?: number, needsReschedule?: boolean | null) => {
+    const ok = await performAction(id, action, notes, reasonValue, needsReschedule);
+
     if (ok) {
       if (action === 'approved' && duplicateCount && duplicateCount > 0) {
         toast({ title: 'Approved and superseded', description: `${duplicateCount} existing appointment(s) moved to history.` });
@@ -1727,13 +1770,13 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
-  const handleBulk = async (action: ActionType, notes?: string, reasonValue?: string) => {
+  const handleBulk = async (action: ActionType, notes?: string, reasonValue?: string, needsReschedule?: boolean | null) => {
     if (selected.size === 0) return;
     // Set already de-dupes; processed sequentially so the notify guard is authoritative.
     const ids = Array.from(selected);
     let ok = 0;
     for (const id of ids) {
-      const success = await performAction(id, action, notes, reasonValue);
+      const success = await performAction(id, action, notes, reasonValue, needsReschedule);
       if (success) ok++;
     }
     toast({ title: `${ok} of ${ids.length} ${action === 'oon' ? 'marked OON' : action}` });
@@ -1744,6 +1787,81 @@ const ReviewQueue: React.FC = () => {
     setDeclineReason(''); setOtherNeedsReschedule(null);
     fetchCounts();
   };
+
+  /**
+   * Re-runs the GHL cancellation + tag push for a declined record whose
+   * cancellation was never confirmed in GoHighLevel.
+   */
+  const handleRetryGhlCancel = async (row: ReviewAppointment) => {
+    setProcessing(true);
+    try {
+      const actor = userName || 'Review Queue';
+      const reasonOption = getDeclineReason(row.decline_reason);
+      const res = await changeAppointmentStatus({
+        appointmentId: row.id,
+        newStatus: 'Cancelled',
+        userName: actor,
+        currentAppointment: row as any,
+        onWarning: ({ title, description, severe }) =>
+          toast({ title, description, variant: severe ? 'destructive' : undefined }),
+      });
+
+      const confirmed = res.ghlVerified === true;
+      await supabase
+        .from('all_appointments')
+        .update({
+          decline_ghl_cancel_confirmed_at: confirmed ? new Date().toISOString() : null,
+          decline_ghl_cancel_error: confirmed ? null : (res.ghlError || 'Cancellation not confirmed in GoHighLevel'),
+        })
+        .eq('id', row.id);
+
+      // Re-push tags so the patient message fires if it never did.
+      if (row.ghl_id) {
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('ghl_api_key')
+          .eq('project_name', row.project_name)
+          .maybeSingle();
+        const pushedTags = [GENERIC_DECLINE_TAG, reasonOption?.tag, rescheduleTagFor(row.decline_reason)].filter(Boolean) as string[];
+        try {
+          const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+            body: {
+              ghl_contact_id: row.ghl_id,
+              ghl_api_key: projectData?.ghl_api_key || undefined,
+              tags: pushedTags,
+              action: 'add',
+            },
+          });
+          if (tagErr) throw tagErr;
+          await supabase.from('appointment_notes').insert({
+            appointment_id: row.id,
+            note_text: `Retry: GHL tags pushed: ${pushedTags.join(', ')} by ${actor} - [[timestamp:${new Date().toISOString()}]]`,
+            created_by: actor,
+            visibility: 'internal',
+          });
+        } catch (err) {
+          console.error('retry tag push failed:', err);
+        }
+      }
+
+      setRows(prev => prev.map(r => r.id === row.id
+        ? { ...r, decline_ghl_cancel_confirmed_at: confirmed ? new Date().toISOString() : null, decline_ghl_cancel_error: confirmed ? null : (res.ghlError || 'Cancellation not confirmed in GoHighLevel') }
+        : r));
+
+      toast({
+        title: confirmed ? 'Cancelled in GoHighLevel' : 'Still not confirmed',
+        description: confirmed
+          ? `${row.lead_name}'s appointment is now cancelled in GHL.`
+          : (res.ghlError || 'GoHighLevel did not confirm the cancellation.'),
+        variant: confirmed ? undefined : 'destructive',
+      });
+    } catch (e: any) {
+      toast({ title: 'Retry failed', description: describeError(e), variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
 
 
   const toggleExpand = (id: string) =>
@@ -2209,6 +2327,18 @@ const ReviewQueue: React.FC = () => {
                         <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">Approved</Badge>
                       ) : isDeclinedView ? (
                         <>
+                          {!row.decline_ghl_cancel_confirmed_at && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                              onClick={() => handleRetryGhlCancel(row)}
+                              disabled={processing}
+                              title={row.decline_ghl_cancel_error || 'GoHighLevel never confirmed this cancellation'}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry GHL cancel
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -2228,6 +2358,7 @@ const ReviewQueue: React.FC = () => {
                             <Trash2 className="h-3.5 w-3.5 mr-1" /> Dismiss
                           </Button>
                         </>
+
                       ) : (
                         <>
                           <Button
@@ -2449,7 +2580,11 @@ const ReviewQueue: React.FC = () => {
             {actionRow?.action === 'declined' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Decline reason <span className="text-destructive">*</span></label>
-                <Select value={declineReason} onValueChange={setDeclineReason}>
+                <Select
+                  value={declineReason}
+                  onValueChange={(v) => { setDeclineReason(v); setOtherNeedsReschedule(defaultRescheduleFor(v)); }}
+                >
+
                   <SelectTrigger>
                     <SelectValue placeholder="Select a reason…" />
                   </SelectTrigger>
@@ -2475,9 +2610,9 @@ const ReviewQueue: React.FC = () => {
               rows={3}
             />
 
-            {actionRow?.action === 'declined' && declineReason === 'other' && (
+            {actionRow?.action === 'declined' && !!declineReason && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Rescheduling <span className="text-destructive">*</span></label>
+                <label className="text-sm font-medium">Does the patient need to be rescheduled? <span className="text-destructive">*</span></label>
                 <RadioGroup
                   value={otherNeedsReschedule === null ? '' : otherNeedsReschedule ? 'yes' : 'no'}
                   onValueChange={(v) => setOtherNeedsReschedule(v === 'yes')}
@@ -2485,15 +2620,15 @@ const ReviewQueue: React.FC = () => {
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="yes" id="other-reschedule-yes" />
-                    <label htmlFor="other-reschedule-yes" className="text-sm">Patient needs to be rescheduled</label>
+                    <label htmlFor="other-reschedule-yes" className="text-sm">Yes — patient needs to be rescheduled</label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="no" id="other-reschedule-no" />
-                    <label htmlFor="other-reschedule-no" className="text-sm">Patient should not be rescheduled</label>
+                    <label htmlFor="other-reschedule-no" className="text-sm">No — patient should not be rescheduled</label>
                   </div>
                 </RadioGroup>
                 <p className="text-xs text-muted-foreground">
-                  The rescheduling workflow only runs when “Patient needs to be rescheduled” is selected.
+                  Pre-selected from the reason — change it if this patient is different. The rescheduling text/email only fires on “Yes”.
                 </p>
               </div>
             )}
@@ -2507,9 +2642,9 @@ const ReviewQueue: React.FC = () => {
                     ? resolveDeclineReasonValue(declineReason, otherNeedsReschedule)
                     : declineReason;
                   if (actionRow.id === '__BULK__') {
-                    handleBulk('declined', actionNotes, resolved);
+                    handleBulk('declined', actionNotes, resolved, otherNeedsReschedule);
                   } else {
-                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, resolved);
+                    handleSingleAction(actionRow.id, actionRow.action, actionNotes, resolved, undefined, otherNeedsReschedule);
                   }
                 }}
                 disabled={
@@ -2517,9 +2652,10 @@ const ReviewQueue: React.FC = () => {
                   (actionRow?.action === 'declined' &&
                     (!declineReason ||
                       (!!getDeclineReason(declineReason)?.requiresExplanation && !actionNotes.trim()) ||
-                      (declineReason === 'other' && otherNeedsReschedule === null)))
+                      otherNeedsReschedule === null))
                 }
               >
+
                 Confirm
               </Button>
             </DialogFooter>
