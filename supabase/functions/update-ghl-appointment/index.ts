@@ -369,6 +369,28 @@ serve(async (req) => {
       }
     }
 
+    // Read the appointment back so the caller can VERIFY the change actually
+    // landed in GHL instead of trusting a 200 on the PUT.
+    let verifiedStatus: string | null = null;
+    try {
+      const verifyRes = await fetch(
+        `https://services.leadconnectorhq.com/calendars/events/appointments/${ghl_appointment_id}`,
+        {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${apiKey}`, 'Version': '2021-04-15', 'Accept': 'application/json' },
+        }
+      );
+      if (verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        verifiedStatus = verifyData?.appointment?.appointmentStatus ?? verifyData?.appointmentStatus ?? null;
+        console.log('Verified GHL appointment status after update:', verifiedStatus);
+      } else {
+        console.warn('Verification read-back failed:', verifyRes.status, await verifyRes.text());
+      }
+    } catch (verifyErr) {
+      console.warn('Verification read-back threw (non-critical):', verifyErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -377,10 +399,13 @@ serve(async (req) => {
         rescheduled: isReschedule,
         status_updated: isStatusUpdate,
         ghl_status: ghlStatus,
+        verified_status: verifiedStatus,
+        verified: ghlStatus ? verifiedStatus === ghlStatus : null,
         ghl_response: result,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
     console.error('Error in update-ghl-appointment:', error);
     return new Response(
