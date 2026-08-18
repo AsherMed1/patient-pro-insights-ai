@@ -1138,7 +1138,7 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
-  const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string) => {
+  const performAction = async (id: string, action: ActionType, notes?: string, reasonValue?: string, needsReschedule?: boolean | null) => {
     if (action === 'approved' && isOonBlocked(rows.find(r => r.id === id))) {
       toast({
         title: 'Potential OON insurance',
