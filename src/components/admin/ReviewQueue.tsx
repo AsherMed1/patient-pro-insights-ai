@@ -37,6 +37,8 @@ import {
   formatAge,
   businessHoursSince,
   isSystemNote,
+  MAX_CONTACT_AGE_DAYS,
+
   PENDING_FOLLOWUP_BUSINESS_HOURS,
   type ShortNoticeStatus,
 } from '@/lib/shortNotice';
