@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -466,9 +466,8 @@ export default function QAErrorSourceReport() {
                     {groups.map((g) => {
                       const isOpen = expanded === g.key;
                       return (
-                        <>
+                        <Fragment key={g.key}>
                           <TableRow
-                            key={g.key}
                             className="cursor-pointer"
                             onClick={() => setExpanded(isOpen ? null : g.key)}
                           >
@@ -494,7 +493,7 @@ export default function QAErrorSourceReport() {
                           </TableRow>
 
                           {isOpen && (
-                            <TableRow key={`${g.key}-detail`} className="bg-muted/40 hover:bg-muted/40">
+                            <TableRow className="bg-muted/40 hover:bg-muted/40">
                               <TableCell colSpan={10} className="p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                   {[
@@ -588,7 +587,7 @@ export default function QAErrorSourceReport() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       );
                     })}
                     {groups.length === 0 && (
