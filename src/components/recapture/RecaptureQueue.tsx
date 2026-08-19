@@ -254,85 +254,8 @@ export default function RecaptureQueue() {
 
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
-  const saveAttempt = async () => {
-    if (!selectedCase) return;
-    setSavingAttempt(true);
-    try {
-      const { error } = await supabase.from('recapture_attempts' as any).insert({
-        case_id: selectedCase.id,
-        channel: attemptChannel,
-        result: attemptResult || null,
-        note: attemptNote.trim() || null,
-        user_id: user?.id,
-        user_name: user?.email,
-      });
-      if (error) throw error;
 
-      await supabase
-        .from('recapture_cases' as any)
-        .update({ work_status: 'engaging', work_started_at: selectedCase.work_started_at || new Date().toISOString() })
-        .eq('id', selectedCase.id);
 
-      toast({ title: 'Attempt logged' });
-      setAttemptDialogOpen(false);
-      setAttemptChannel('call');
-      setAttemptResult('');
-      setAttemptNote('');
-      await loadAttempts(selectedCase.id);
-      await fetchCases();
-    } catch (e: any) {
-      toast({ title: 'Failed to log attempt', description: e.message, variant: 'destructive' });
-    }
-    setSavingAttempt(false);
-  };
-
-  const saveStatus = async () => {
-    if (!selectedCase) return;
-    setSavingStatus(true);
-    try {
-      const update: any = { work_status: newStatus };
-      if (newStatus === 'engaging' && !selectedCase.work_started_at) update.work_started_at = new Date().toISOString();
-      const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', selectedCase.id);
-      if (error) throw error;
-      toast({ title: 'Status updated' });
-      setStatusDialogOpen(false);
-      setStatusNote('');
-      await fetchCases();
-    } catch (e: any) {
-      toast({ title: 'Failed to update status', description: e.message, variant: 'destructive' });
-    }
-    setSavingStatus(false);
-  };
-
-  const saveComplete = async () => {
-    if (!selectedCase || !completeOutcome) return;
-    setSavingComplete(true);
-    try {
-      const rebookedId = completeOutcome === 'rebooked' && rebookedApptId.trim() ? rebookedApptId.trim() : null;
-      const update: any = {
-        work_status: 'completed',
-        outcome: completeOutcome,
-        outcome_notes: completeNote.trim() || null,
-        completed_at: new Date().toISOString(),
-        completed_by: user?.id,
-      };
-      if (rebookedId) {
-        update.rebooked_appointment_id = rebookedId;
-        update.recovered = true;
-      }
-      const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', selectedCase.id);
-      if (error) throw error;
-      toast({ title: 'Case completed' });
-      setCompleteDialogOpen(false);
-      setCompleteOutcome('');
-      setCompleteNote('');
-      setRebookedApptId('');
-      await fetchCases();
-    } catch (e: any) {
-      toast({ title: 'Failed to complete case', description: e.message, variant: 'destructive' });
-    }
-    setSavingComplete(false);
-  };
 
   const saveAssign = async () => {
     if (!selectedCase) return;
