@@ -9,7 +9,7 @@ interface RecaptureCase {
   id: string;
   project_name: string;
   lost_type: 'cancelled' | 'no_show';
-  work_status: 'pending' | 'engaging' | 'follow_up_required' | 'completed';
+  work_status: 'new' | 'nurture' | 'follow_up' | 'completed';
   outcome: string | null;
   recovered: boolean;
   attempt_count: number;
@@ -80,9 +80,9 @@ export default function RecaptureReports() {
 
     const completed = cases.filter((c) => c.work_status === 'completed').length;
     const recovered = cases.filter((c) => c.recovered).length;
-    const pending = cases.filter((c) => c.work_status === 'pending').length;
-    const engaging = cases.filter((c) => c.work_status === 'engaging').length;
-    const followUp = cases.filter((c) => c.work_status === 'follow_up_required').length;
+    const pending = cases.filter((c) => c.work_status === 'new').length;
+    const engaging = cases.filter((c) => c.work_status === 'nurture').length;
+    const followUp = cases.filter((c) => c.work_status === 'follow_up').length;
     const totalAttempts = cases.reduce((sum, c) => sum + (c.attempt_count || 0), 0);
     const avgAttempts = completed > 0 ? totalAttempts / completed : 0;
 
