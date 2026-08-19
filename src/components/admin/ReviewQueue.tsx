@@ -185,6 +185,8 @@ const ReviewQueue: React.FC = () => {
   const [contactFetchFailed, setContactFetchFailed] = useState(false);
   const [attemptRefresh, setAttemptRefresh] = useState(0);
   const [attemptDialogRow, setAttemptDialogRow] = useState<ReviewAppointment | null>(null);
+  const [returnTarget, setReturnTarget] = useState<string[] | null>(null);
+  const [returnReason, setReturnReason] = useState('');
 
   const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
   const [nowTick, setNowTick] = useState(() => new Date());
@@ -1691,6 +1693,81 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
+  /**
+   * Return a trainee-submitted appointment to the trainee for corrections.
+   * Keeps it in the Trainee Review bucket (never client-facing) and pushes a
+   * `trainee-correction-needed` tag to GHL so the trainee is notified there.
+   */
+  const handleReturnToTrainee = async (ids: string[], reason: string) => {
+    if (ids.length === 0) return;
+    setProcessing(true);
+    try {
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          review_stage: 'trainee',
+          returned_reason: reason,
+          returned_at: stamp,
+          returned_by: actor,
+        })
+        .in('id', ids);
+      if (updErr) throw updErr;
+
+      try {
+        await supabase.from('appointment_notes').insert(
+          ids.map(id => ({
+            appointment_id: id,
+            note_text: `Review Queue: returned to trainee for corrections by ${actor} — ${reason} - [[timestamp:${stamp}]]`,
+            created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+            attachments: [],
+            visibility: 'internal',
+          }))
+        );
+      } catch (e) {
+        console.warn('return note insert failed', e);
+      }
+
+      // Notify the trainee in GHL
+      for (const id of ids) {
+        const row = rows.find(r => r.id === id);
+        if (!row?.ghl_id) continue;
+        supabase.functions.invoke('update-ghl-contact-tags', {
+          body: {
+            ghl_contact_id: row.ghl_id,
+            tags: ['trainee-correction-needed'],
+            action: 'add',
+            source: 'Review Queue trainee return',
+          },
+        }).catch(e => console.warn('trainee tag push failed', e));
+      }
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'trainee_returned',
+          p_description: `Returned ${ids.length} trainee appointment(s) for corrections by ${actor}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_ids: ids, reason },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Returned to trainee', description: `${ids.length} appointment(s)` });
+      setSelected(new Set());
+      setReturnTarget(null);
+      setReturnReason('');
+      fetch();
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Return failed', description: describeError(e), variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleRestore = async (row: ReviewAppointment) => {
     setProcessing(true);
     try {
@@ -1896,6 +1973,7 @@ const ReviewQueue: React.FC = () => {
   const isApprovedView = queueView === 'approved';
   const isReadOnlyView = isDeclinedView || isApprovedView;
   const isNewView = queueView === 'new';
+  const isTraineeView = queueView === 'trainee';
 
   return (
     <Card>
@@ -2067,15 +2145,27 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleMoveStage(Array.from(selected), isNewView ? 'pending_review' : 'new')}
-              disabled={processing}
-            >
-              <ArrowRightLeft className="h-4 w-4 mr-1" />
-              {isNewView ? 'Move to Pending Review' : 'Move back to New'}
-            </Button>
+            {isTraineeView ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => { setReturnTarget(Array.from(selected)); setReturnReason(''); }}
+                disabled={processing}
+              >
+                <Undo2 className="h-4 w-4 mr-1" /> Return to trainee
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleMoveStage(Array.from(selected), isNewView ? 'pending_review' : 'new')}
+                disabled={processing}
+              >
+                <ArrowRightLeft className="h-4 w-4 mr-1" />
+                {isNewView ? 'Move to Pending Review' : 'Move back to New'}
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
@@ -2087,7 +2177,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
+            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isTraineeView ? 'No trainee submissions waiting for review.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
@@ -2441,6 +2531,18 @@ const ReviewQueue: React.FC = () => {
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
                           </Button>
+                          {isTraineeView ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => { setReturnTarget([row.id]); setReturnReason(''); }}
+                            disabled={processing}
+                            title="Send back to the trainee for corrections"
+                          >
+                            <Undo2 className="h-3.5 w-3.5 mr-1" /> Return to trainee
+                          </Button>
+                          ) : (
                           <Button
                             size="sm"
                             variant="outline"
@@ -2458,6 +2560,7 @@ const ReviewQueue: React.FC = () => {
                             <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
                             {isNewView ? 'Pending Review' : 'Back to New'}
                           </Button>
+                          )}
                         </>
                       )}
                     </div>
