@@ -3026,6 +3026,11 @@ function CaseDrawer({
                                 {a.description
                                   ? humanizeActivityDescription(a.description)
                                   : ACTIVITY_LABELS[a.activity_type] || a.activity_type}
+                                {activityActorLabel(a, actorNames) && (
+                                  <span className="ml-1 text-muted-foreground">
+                                    by {activityActorLabel(a, actorNames)}
+                                  </span>
+                                )}
                               </div>
                             ),
                           })),
