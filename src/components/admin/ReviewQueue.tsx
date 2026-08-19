@@ -134,7 +134,7 @@ const ReviewQueue: React.FC = () => {
   const { userName } = useUserAttribution();
   const { hasRole } = useRole();
   // Trainee Review bucket is for trainers and management only
-  const canReviewTrainees = hasRole(['admin', 'agent', 'trainer' as any]);
+  const canReviewTrainees = hasRole(['admin', 'agent', 'trainer']);
   const [rows, setRows] = useState<ReviewAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
