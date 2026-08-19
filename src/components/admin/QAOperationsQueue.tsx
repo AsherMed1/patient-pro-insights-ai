@@ -1477,6 +1477,237 @@ export default function QAOperationsQueue() {
   );
 }
 
+/**
+ * Standalone QA case drawer — lets other surfaces (e.g. QA Reports) open a case
+ * in place, without navigating to the QA Operations Queue.
+ */
+export function QACaseDrawerStandalone({
+  caseId,
+  onClose,
+  onRefresh,
+}: {
+  caseId: string | null;
+  onClose: () => void;
+  onRefresh?: () => void;
+}) {
+  const { user } = useAuth();
+  const [caseData, setCaseData] = useState<QACase | null>(null);
+  const [actorName, setActorName] = useState('');
+  const [errorSources, setErrorSources] = useState<{ id: string; name: string }[]>([]);
+  const [errorCategories, setErrorCategories] = useState<{ id: string; name: string }[]>([]);
+  const [locationMap, setLocationMap] = useState<Record<string, string>>({});
+
+  const refreshErrorSources = async () => {
+    const { data } = await supabase
+      .from('qa_error_sources' as any)
+      .select('id, name')
+      .order('name', { ascending: true });
+    setErrorSources(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+  };
+  const refreshErrorCategories = async () => {
+    const { data } = await supabase
+      .from('qa_error_categories' as any)
+      .select('id, name')
+      .order('name', { ascending: true });
+    setErrorCategories(((data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+  };
+
+  useEffect(() => {
+    refreshErrorSources();
+    refreshErrorCategories();
+    (async () => {
+      const { data } = await supabase.from('projects').select('project_name, ghl_location_id');
+      const map: Record<string, string> = {};
+      for (const p of ((data as any[]) || [])) {
+        if (p.ghl_location_id && p.project_name) map[p.project_name] = p.ghl_location_id;
+      }
+      setLocationMap(map);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+      setActorName((((data as any)?.full_name || (data as any)?.email || user.email || '') as string).trim());
+    })();
+  }, [user?.id, user?.email]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!caseId) { setCaseData(null); return; }
+    (async () => {
+      const { data, error } = await supabase
+        .from('qa_cases' as any)
+        .select('*')
+        .eq('id', caseId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        toast({ title: 'Could not open record', description: error?.message, variant: 'destructive' });
+        onClose();
+        return;
+      }
+      setCaseData(data as any as QACase);
+    })();
+    return () => { cancelled = true; };
+  }, [caseId]);
+
+  const reload = async () => {
+    if (!caseId) return;
+    const { data } = await supabase.from('qa_cases' as any).select('*').eq('id', caseId).maybeSingle();
+    if (data) setCaseData(data as any as QACase);
+    onRefresh?.();
+  };
+
+  const updateStatus = async (id: string, next: WorkflowStatus) => {
+    const patch: any = { workflow_status: next };
+    if (next === 'in_review') patch.review_started_at = new Date().toISOString();
+    if (next === 'completed') {
+      patch.completed_at = new Date().toISOString();
+      patch.completed_by_user_id = user?.id ?? null;
+    }
+    setCaseData((c) => (c ? { ...c, ...patch } : c));
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+      reload();
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert({
+      case_id: id,
+      activity_type: 'status_change',
+      description: `Status changed to ${WORKFLOW_STATUS_LABELS[next] || next.replace('_', ' ')}`,
+      actor_user_id: user?.id ?? null,
+    } as any);
+    if ((next === 'completed' || next === 'reopened') && caseData?.escalated_at) {
+      await notifyQAUsers({
+        userIds: [caseData.escalation_owner_user_id, caseData.escalated_by_user_id],
+        caseId: id,
+        kind: 'case_status',
+        title: next === 'completed' ? 'Escalation completed' : 'Escalation reopened',
+        body:
+          next === 'completed'
+            ? `${caseData.patient_name || 'Case'} was marked Completed — escalation resolved.`
+            : `${caseData.patient_name || 'Case'} was reopened — follow-up required.`,
+        actorId: user?.id ?? null,
+        actorName,
+      });
+    }
+    toast({ title: 'Status updated' });
+    reload();
+  };
+
+  const updateEscalationStatus = async (id: string, next: string) => {
+    const target = caseData;
+    const nowIso = new Date().toISOString();
+    const patch: any = { escalation_status: next };
+    if (!target?.escalated_at) {
+      patch.escalated_at = nowIso;
+      patch.escalated_by_user_id = user?.id ?? null;
+    }
+    const wasCompleted = target?.workflow_status === 'completed';
+    const closing = next === 'Resolved' && !wasCompleted;
+    const reopening = next !== 'Resolved' && wasCompleted;
+    if (closing) {
+      patch.workflow_status = 'completed';
+      patch.completed_at = nowIso;
+      patch.date_resolved = (target as any)?.date_resolved ?? nowIso;
+    } else if (reopening) {
+      patch.workflow_status = 'pending_escalated';
+      patch.completed_at = null;
+    }
+
+    setCaseData((c) => (c ? { ...c, ...patch } : c));
+    const { error } = await supabase.from('qa_cases' as any).update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
+      reload();
+      return;
+    }
+    await supabase.from('qa_case_activity' as any).insert(
+      [
+        {
+          case_id: id,
+          activity_type: 'escalation_status_change',
+          description: `Escalation status changed to ${next}`,
+          actor_user_id: user?.id ?? null,
+        },
+        ...(closing
+          ? [{
+              case_id: id,
+              activity_type: 'status_change',
+              description: 'Completed via escalation resolution',
+              actor_user_id: user?.id ?? null,
+            }]
+          : []),
+        ...(reopening
+          ? [{
+              case_id: id,
+              activity_type: 'status_change',
+              description: 'Reopened to Pending / Escalated — escalation no longer resolved',
+              actor_user_id: user?.id ?? null,
+            }]
+          : []),
+      ] as any,
+    );
+    await notifyQAUsers({
+      userIds: [
+        (target as any)?.assigned_qs_user_id,
+        target?.escalation_owner_user_id,
+        target?.escalated_by_user_id,
+      ],
+      caseId: id,
+      kind: closing || reopening ? 'case_status' : 'escalation_status',
+      title: closing
+        ? 'Escalation resolved — audit completed'
+        : reopening
+          ? 'Escalation reopened — audit back in Pending / Escalated'
+          : `Escalation status: ${next}`,
+      body: `${target?.patient_name || 'Case'}${target?.project_name ? ` • ${target.project_name}` : ''}`,
+      actorId: user?.id ?? null,
+      actorName,
+    });
+    toast({
+      title: closing
+        ? 'Escalation resolved — moved to Completed'
+        : reopening
+          ? 'Escalation reopened'
+          : 'Escalation status updated',
+    });
+    reload();
+  };
+
+  const ghlUrl =
+    caseData?.ghl_contact_id && locationMap[caseData.project_name]
+      ? `https://app.gohighlevel.com/v2/location/${locationMap[caseData.project_name]}/contacts/detail/${caseData.ghl_contact_id}`
+      : null;
+
+  return (
+    <CaseDrawer
+      caseData={caseData}
+      siblings={[]}
+      onSwitchCase={() => {}}
+      ghlUrl={ghlUrl}
+      errorSources={errorSources}
+      onErrorSourcesRefresh={refreshErrorSources}
+      errorCategories={errorCategories}
+      onErrorCategoriesRefresh={refreshErrorCategories}
+      onClose={() => { setCaseData(null); onClose(); }}
+      onStatusChange={updateStatus}
+      onEscalationStatusChange={updateEscalationStatus}
+      actorName={actorName}
+      onRefresh={reload}
+    />
+  );
+}
+
+
+
 // --- Audit Details draft helpers -------------------------------------------
 const AUDIT_DRAFT_PREFIX = 'qa-audit-draft:';
 
