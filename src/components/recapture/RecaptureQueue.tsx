@@ -185,25 +185,8 @@ export default function RecaptureQueue() {
     })();
   }, []);
 
-  const loadAttempts = async (caseId: string) => {
-    setLoadingAttempts(true);
-    const { data, error } = await supabase
-      .from('recapture_attempts' as any)
-      .select('*')
-      .eq('case_id', caseId)
-      .order('attempted_at', { ascending: false });
-    if (error) {
-      toast({ title: 'Failed to load attempts', variant: 'destructive' });
-      setAttempts([]);
-    } else {
-      setAttempts(((data as any) || []) as RecaptureAttempt[]);
-    }
-    setLoadingAttempts(false);
-  };
-
   const openDetail = async (c: RecaptureCase) => {
     setSelectedCase(c);
-    await loadAttempts(c.id);
     if (c.appointment_id) {
       setDetailLoading(true);
       const { data, error } = await supabase.from('all_appointments').select('*').eq('id', c.appointment_id).single();
@@ -211,6 +194,7 @@ export default function RecaptureQueue() {
       if (!error && data) setDetailAppt(data as unknown as AllAppointment);
     }
   };
+
 
   const ghlUrlFor = (c: RecaptureCase): string | null => {
     if (!c.ghl_contact_id) return null;
