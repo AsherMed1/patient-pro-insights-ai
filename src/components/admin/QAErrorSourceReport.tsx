@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -87,9 +86,8 @@ const countBy = (rows: SourceCase[], fn: (r: SourceCase) => string) => {
 };
 
 export default function QAErrorSourceReport() {
-  const navigate = useNavigate();
-  const openCase = (id: string) =>
-    navigate(`/?tab=qa-queue&qaCase=${id}&n=${Date.now()}`);
+  const [openCaseId, setOpenCaseId] = useState<string | null>(null);
+  const openCase = (id: string) => setOpenCaseId(id);
   const [rows, setRows] = useState<SourceCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
@@ -544,7 +542,7 @@ export default function QAErrorSourceReport() {
                                           key={c.id}
                                           role="button"
                                           tabIndex={0}
-                                          title="Open in QA Operations Queue"
+                                          title="Open record"
                                           className="cursor-pointer hover:bg-muted/60"
                                           onClick={() => openCase(c.id)}
                                           onKeyDown={(e) => {
