@@ -21,6 +21,7 @@ import LogAttemptDialog, { channelLabel, outcomeLabel } from '@/components/appoi
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
+import { useRole } from '@/hooks/useRole';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
@@ -92,6 +93,11 @@ interface ReviewAppointment {
   pending_since?: string | null;
   pending_by_name?: string | null;
   short_notice_auto_tagged_at?: string | null;
+  insurance_intake_source?: string | null;
+  trainee_name?: string | null;
+  returned_reason?: string | null;
+  returned_at?: string | null;
+  returned_by?: string | null;
 }
 
 interface ProjectConfig {
@@ -121,11 +127,14 @@ interface DuplicateAppt {
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
-type QueueView = 'new' | 'pending' | 'declined' | 'approved';
+type QueueView = 'new' | 'pending' | 'trainee' | 'declined' | 'approved';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
   const { userName } = useUserAttribution();
+  const { hasRole } = useRole();
+  // Trainee Review bucket is for trainers and management only
+  const canReviewTrainees = hasRole(['admin', 'agent', 'trainer']);
   const [rows, setRows] = useState<ReviewAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
@@ -154,6 +163,7 @@ const ReviewQueue: React.FC = () => {
   const [queueView, setQueueView] = useState<QueueView>('new');
   const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  const [traineeCount, setTraineeCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
   const [approvedDateFrom, setApprovedDateFrom] = useState<Date | undefined>();
@@ -175,6 +185,8 @@ const ReviewQueue: React.FC = () => {
   const [contactFetchFailed, setContactFetchFailed] = useState(false);
   const [attemptRefresh, setAttemptRefresh] = useState(0);
   const [attemptDialogRow, setAttemptDialogRow] = useState<ReviewAppointment | null>(null);
+  const [returnTarget, setReturnTarget] = useState<string[] | null>(null);
+  const [returnReason, setReturnReason] = useState('');
 
   const [needsFollowUpOnly, setNeedsFollowUpOnly] = useState(false);
   const [nowTick, setNowTick] = useState(() => new Date());
@@ -437,7 +449,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at, insurance_intake_source, trainee_name, returned_reason, returned_at, returned_by')
       .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -445,7 +457,7 @@ const ReviewQueue: React.FC = () => {
     if (queueView === 'declined' || queueView === 'approved') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
     } else {
-      q = q.eq('review_stage', queueView === 'new' ? 'new' : 'pending_review');
+      q = q.eq('review_stage', queueView === 'new' ? 'new' : queueView === 'trainee' ? 'trainee' : 'pending_review');
       q = q.order('created_at', { ascending: false });
     }
 
@@ -525,15 +537,17 @@ const ReviewQueue: React.FC = () => {
       }
       return q;
     };
-    const [{ count: nc }, { count: pc }, { count: dc }, { count: ac }] = await Promise.all([
+    const [{ count: nc }, { count: pc }, { count: tc }, { count: dc }, { count: ac }] = await Promise.all([
       base('pending', 'new'),
       base('pending', 'pending_review'),
+      base('pending', 'trainee'),
       base('declined'),
       base('approved'),
     ]);
     if (seq !== countsSeq.current) return; // a newer run superseded this one
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
+    setTraineeCount(tc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
     setCountsLoading(false);
@@ -1679,6 +1693,81 @@ const ReviewQueue: React.FC = () => {
     }
   };
 
+  /**
+   * Return a trainee-submitted appointment to the trainee for corrections.
+   * Keeps it in the Trainee Review bucket (never client-facing) and pushes a
+   * `trainee-correction-needed` tag to GHL so the trainee is notified there.
+   */
+  const handleReturnToTrainee = async (ids: string[], reason: string) => {
+    if (ids.length === 0) return;
+    setProcessing(true);
+    try {
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      const { error: updErr } = await supabase
+        .from('all_appointments')
+        .update({
+          review_stage: 'trainee',
+          returned_reason: reason,
+          returned_at: stamp,
+          returned_by: actor,
+        })
+        .in('id', ids);
+      if (updErr) throw updErr;
+
+      try {
+        await supabase.from('appointment_notes').insert(
+          ids.map(id => ({
+            appointment_id: id,
+            note_text: `Review Queue: returned to trainee for corrections by ${actor} — ${reason} - [[timestamp:${stamp}]]`,
+            created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+            attachments: [],
+            visibility: 'internal',
+          }))
+        );
+      } catch (e) {
+        console.warn('return note insert failed', e);
+      }
+
+      // Notify the trainee in GHL
+      for (const id of ids) {
+        const row = rows.find(r => r.id === id);
+        if (!row?.ghl_id) continue;
+        supabase.functions.invoke('update-ghl-contact-tags', {
+          body: {
+            ghl_contact_id: row.ghl_id,
+            tags: ['trainee-correction-needed'],
+            action: 'add',
+            source: 'Review Queue trainee return',
+          },
+        }).catch(e => console.warn('trainee tag push failed', e));
+      }
+
+      try {
+        await supabase.rpc('log_audit_event', {
+          p_entity: 'appointment',
+          p_action: 'trainee_returned',
+          p_description: `Returned ${ids.length} trainee appointment(s) for corrections by ${actor}`,
+          p_source: 'review_queue',
+          p_metadata: { appointment_ids: ids, reason },
+        });
+      } catch (e) {
+        console.warn('audit log failed', e);
+      }
+
+      toast({ title: 'Returned to trainee', description: `${ids.length} appointment(s)` });
+      setSelected(new Set());
+      setReturnTarget(null);
+      setReturnReason('');
+      fetch();
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Return failed', description: describeError(e), variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleRestore = async (row: ReviewAppointment) => {
     setProcessing(true);
     try {
@@ -1884,6 +1973,7 @@ const ReviewQueue: React.FC = () => {
   const isApprovedView = queueView === 'approved';
   const isReadOnlyView = isDeclinedView || isApprovedView;
   const isNewView = queueView === 'new';
+  const isTraineeView = queueView === 'trainee';
 
   return (
     <Card>
@@ -1919,6 +2009,16 @@ const ReviewQueue: React.FC = () => {
             Pending Review
             <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
           </Button>
+          {canReviewTrainees && (
+            <Button
+              variant={queueView === 'trainee' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setQueueView('trainee'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
+            >
+              Trainee Review
+              <Badge variant="secondary" className="ml-2">{traineeCount}</Badge>
+            </Button>
+          )}
           <Button
             variant={queueView === 'declined' ? 'default' : 'outline'}
             size="sm"
@@ -2045,15 +2145,27 @@ const ReviewQueue: React.FC = () => {
             <Button size="sm" variant="destructive" onClick={() => { setActionRow({ id: '__BULK__', action: 'declined' }); setActionNotes(''); setDeclineReason(''); setOtherNeedsReschedule(null); }} disabled={processing}>
               <X className="h-4 w-4 mr-1" /> Decline
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleMoveStage(Array.from(selected), isNewView ? 'pending_review' : 'new')}
-              disabled={processing}
-            >
-              <ArrowRightLeft className="h-4 w-4 mr-1" />
-              {isNewView ? 'Move to Pending Review' : 'Move back to New'}
-            </Button>
+            {isTraineeView ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => { setReturnTarget(Array.from(selected)); setReturnReason(''); }}
+                disabled={processing}
+              >
+                <Undo2 className="h-4 w-4 mr-1" /> Return to trainee
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleMoveStage(Array.from(selected), isNewView ? 'pending_review' : 'new')}
+                disabled={processing}
+              >
+                <ArrowRightLeft className="h-4 w-4 mr-1" />
+                {isNewView ? 'Move to Pending Review' : 'Move back to New'}
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
@@ -2065,7 +2177,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
+            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isTraineeView ? 'No trainee submissions waiting for review.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
@@ -2189,6 +2301,16 @@ const ReviewQueue: React.FC = () => {
                           >
                             <Clock className="h-2.5 w-2.5 shrink-0" />
                             <span>Pending {formatAge(row.pending_since, nowTick)}{row.pending_by_name ? ` · ${row.pending_by_name}` : ''}</span>
+                          </Badge>
+                        )}
+                        {isTraineeView && row.returned_at && (
+                          <Badge
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 bg-blue-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title={`Returned ${new Date(row.returned_at).toLocaleString()}${row.returned_by ? ` by ${row.returned_by}` : ''}${row.returned_reason ? ` — ${row.returned_reason}` : ''}`}
+                          >
+                            <Undo2 className="h-2.5 w-2.5 shrink-0" />
+                            <span>Returned to trainee{row.returned_by ? ` · ${row.returned_by}` : ''}</span>
                           </Badge>
                         )}
                         {contactViewEnabled && (
@@ -2419,6 +2541,18 @@ const ReviewQueue: React.FC = () => {
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
                           </Button>
+                          {isTraineeView ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => { setReturnTarget([row.id]); setReturnReason(''); }}
+                            disabled={processing}
+                            title="Send back to the trainee for corrections"
+                          >
+                            <Undo2 className="h-3.5 w-3.5 mr-1" /> Return to trainee
+                          </Button>
+                          ) : (
                           <Button
                             size="sm"
                             variant="outline"
@@ -2436,6 +2570,7 @@ const ReviewQueue: React.FC = () => {
                             <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
                             {isNewView ? 'Pending Review' : 'Back to New'}
                           </Button>
+                          )}
                         </>
                       )}
                     </div>
@@ -2813,6 +2948,32 @@ const ReviewQueue: React.FC = () => {
           />
         )}
 
+        {/* Return to trainee */}
+        <Dialog open={!!returnTarget} onOpenChange={(o) => { if (!o) { setReturnTarget(null); setReturnReason(''); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Return to trainee for corrections</DialogTitle>
+              <DialogDescription>
+                The appointment stays in Trainee Review and is not released to the clinic. The trainee is tagged in GoHighLevel with <strong>trainee-correction-needed</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              placeholder="What needs to be corrected? (e.g. wrong DOB, missing insurance, wrong calendar)"
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              rows={4}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setReturnTarget(null); setReturnReason(''); }}>Cancel</Button>
+              <Button
+                onClick={() => returnTarget && handleReturnToTrainee(returnTarget, returnReason.trim())}
+                disabled={processing || returnReason.trim().length < 3}
+              >
+                Return to trainee
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

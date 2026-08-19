@@ -497,7 +497,10 @@ serve(async (req) => {
         console.warn(`[${requestId}] [WARN] Insurance Intake Source not present in webhook payload nor on GHL contact — routing to review queue.`);
       }
 
-      const isSetterSubmitted = intakeSource === 'setter_submitted';
+      // Trainee-submitted bookings NEVER bypass review — they route to the dedicated
+      // Trainee Review bucket in the portal Review Queue.
+      const isTraineeSubmitted = intakeSource === 'trainee_submitted';
+      const isSetterSubmitted = intakeSource === 'setter_submitted' && !isTraineeSubmitted;
 
       // Reschedule-eligibility guard: patients blocked after repeated no-shows must not be
       // auto-booked by setters, AI or self-booking flows. Force such bookings into the
@@ -537,6 +540,8 @@ serve(async (req) => {
         .insert([{
           ...appointmentData,
           review_status: reviewStatus,
+          insurance_intake_source: intakeSource || null,
+          ...(isTraineeSubmitted ? { review_stage: 'trainee' } : {}),
           ...(blockedPatient
             ? {
                 reschedule_eligible: false,
@@ -1627,7 +1632,7 @@ async function fetchIntakeSourceFromContact(
 // Extract "Insurance Intake Source" custom field. Returns normalized value:
 // 'setter_submitted' | 'patient_submitted' | null
 // Accepts either an array of {key, value|field_value} or a plain object {key: value}.
-function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | 'patient_submitted' | null {
+function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | 'patient_submitted' | 'trainee_submitted' | null {
   if (!customFields) return null;
   const matchesKey = (k: string) => /insurance[\s_-]*intake[\s_-]*source/i.test(k || '');
   let raw: any = null;
@@ -1642,6 +1647,7 @@ function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | '
   if (raw === null || raw === undefined) return null;
   const s = String(Array.isArray(raw) ? raw[0] : raw).toLowerCase().trim();
   if (!s) return null;
+  if (s.includes('trainee')) return 'trainee_submitted';
   if (s.includes('setter')) return 'setter_submitted';
   if (s.includes('patient')) return 'patient_submitted';
   return null;

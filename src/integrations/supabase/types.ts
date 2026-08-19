@@ -238,6 +238,7 @@ export type Database = {
           insurance_back_link: string | null
           insurance_detection_confidence: number | null
           insurance_id_link: string | null
+          insurance_intake_source: string | null
           internal_process_complete: boolean
           is_reserved_block: boolean | null
           is_superseded: boolean
@@ -286,6 +287,10 @@ export type Database = {
           reschedule_eligible: boolean | null
           reschedule_history: Json | null
           reserved_end_time: string | null
+          returned_at: string | null
+          returned_by: string | null
+          returned_categories: string[] | null
+          returned_reason: string | null
           review_notes: string | null
           review_stage: string
           review_status: string
@@ -295,6 +300,8 @@ export type Database = {
           stage_booked: string | null
           status: string | null
           time_preference: string | null
+          trainee_name: string | null
+          trainee_user_id: string | null
           updated_at: string
           was_ever_confirmed: boolean
           welcome_call_completed: boolean | null
@@ -331,6 +338,7 @@ export type Database = {
           insurance_back_link?: string | null
           insurance_detection_confidence?: number | null
           insurance_id_link?: string | null
+          insurance_intake_source?: string | null
           internal_process_complete?: boolean
           is_reserved_block?: boolean | null
           is_superseded?: boolean
@@ -379,6 +387,10 @@ export type Database = {
           reschedule_eligible?: boolean | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
+          returned_categories?: string[] | null
+          returned_reason?: string | null
           review_notes?: string | null
           review_stage?: string
           review_status?: string
@@ -388,6 +400,8 @@ export type Database = {
           stage_booked?: string | null
           status?: string | null
           time_preference?: string | null
+          trainee_name?: string | null
+          trainee_user_id?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
           welcome_call_completed?: boolean | null
@@ -424,6 +438,7 @@ export type Database = {
           insurance_back_link?: string | null
           insurance_detection_confidence?: number | null
           insurance_id_link?: string | null
+          insurance_intake_source?: string | null
           internal_process_complete?: boolean
           is_reserved_block?: boolean | null
           is_superseded?: boolean
@@ -472,6 +487,10 @@ export type Database = {
           reschedule_eligible?: boolean | null
           reschedule_history?: Json | null
           reserved_end_time?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
+          returned_categories?: string[] | null
+          returned_reason?: string | null
           review_notes?: string | null
           review_stage?: string
           review_status?: string
@@ -481,6 +500,8 @@ export type Database = {
           stage_booked?: string | null
           status?: string | null
           time_preference?: string | null
+          trainee_name?: string | null
+          trainee_user_id?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
           welcome_call_completed?: boolean | null
@@ -4969,6 +4990,63 @@ export type Database = {
           title?: string
           update_type?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      trainee_periods: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          ended_at: string | null
+          ended_by: string | null
+          extended_at: string | null
+          extended_by: string | null
+          ghl_user_id: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          start_date: string
+          trainee_email: string | null
+          trainee_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          ended_at?: string | null
+          ended_by?: string | null
+          extended_at?: string | null
+          extended_by?: string | null
+          ghl_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          start_date?: string
+          trainee_email?: string | null
+          trainee_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          extended_at?: string | null
+          extended_by?: string | null
+          ghl_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          start_date?: string
+          trainee_email?: string | null
+          trainee_name?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
