@@ -61,7 +61,7 @@ export default function RecaptureQueue() {
   const isSetter = () => isReviewOnly() || isRecaptureRole();
 
   const [view, setView] = useState<'queue' | 'reports'>('queue');
-  const [tab, setTab] = useState<WorkStatus | 'all'>('pending');
+  const [tab, setTab] = useState<WorkStatus | 'all'>('new');
   const [cases, setCases] = useState<RecaptureCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -70,27 +70,8 @@ export default function RecaptureQueue() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<RecaptureCase | null>(null);
-  const [attempts, setAttempts] = useState<RecaptureAttempt[]>([]);
-  const [loadingAttempts, setLoadingAttempts] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
-
-  // Dialogs
-  const [attemptDialogOpen, setAttemptDialogOpen] = useState(false);
-  const [attemptChannel, setAttemptChannel] = useState<Channel>('call');
-  const [attemptResult, setAttemptResult] = useState<AttemptResult | ''>('');
-  const [attemptNote, setAttemptNote] = useState('');
-  const [savingAttempt, setSavingAttempt] = useState(false);
-
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState<WorkStatus>('pending');
-  const [statusNote, setStatusNote] = useState('');
-  const [savingStatus, setSavingStatus] = useState(false);
-
-  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
-  const [completeOutcome, setCompleteOutcome] = useState<Outcome | ''>('');
-  const [completeNote, setCompleteNote] = useState('');
-  const [rebookedApptId, setRebookedApptId] = useState('');
-  const [savingComplete, setSavingComplete] = useState(false);
 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assigneeId, setAssigneeId] = useState<string>('');
@@ -99,6 +80,7 @@ export default function RecaptureQueue() {
 
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
 
   const fetchAllPages = async (build: () => any): Promise<any[]> => {
     const PAGE = 1000;
