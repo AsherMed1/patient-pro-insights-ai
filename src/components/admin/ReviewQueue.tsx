@@ -2938,6 +2938,32 @@ const ReviewQueue: React.FC = () => {
           />
         )}
 
+        {/* Return to trainee */}
+        <Dialog open={!!returnTarget} onOpenChange={(o) => { if (!o) { setReturnTarget(null); setReturnReason(''); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Return to trainee for corrections</DialogTitle>
+              <DialogDescription>
+                The appointment stays in Trainee Review and is not released to the clinic. The trainee is tagged in GoHighLevel with <strong>trainee-correction-needed</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              placeholder="What needs to be corrected? (e.g. wrong DOB, missing insurance, wrong calendar)"
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              rows={4}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setReturnTarget(null); setReturnReason(''); }}>Cancel</Button>
+              <Button
+                onClick={() => returnTarget && handleReturnToTrainee(returnTarget, returnReason.trim())}
+                disabled={processing || returnReason.trim().length < 3}
+              >
+                Return to trainee
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
