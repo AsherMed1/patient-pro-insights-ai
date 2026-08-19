@@ -1578,6 +1578,17 @@ function CaseDrawer({
   const [ownerName, setOwnerName] = useState<string>('');
   const [escalatedByName, setEscalatedByName] = useState<string>('');
 
+  // Teammate names for the "by {Name}" stamp on activity rows. The RPC behind
+  // this hook is security-definer, so non-admin QA users can resolve names too.
+  const { users: mentionableUsers } = useMentionableUsers();
+  const actorNames = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of mentionableUsers) {
+      if (!u.id.startsWith(GROUP_PREFIX)) m.set(u.id, u.name);
+    }
+    return m;
+  }, [mentionableUsers]);
+
   useEffect(() => {
     const ids = [caseData?.escalation_owner_user_id, caseData?.escalated_by_user_id].filter(
       Boolean,
