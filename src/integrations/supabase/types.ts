@@ -5429,6 +5429,7 @@ export type Database = {
         | "review_only"
         | "qa_specialist"
         | "recapture"
+        | "trainer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5564,6 +5565,7 @@ export const Constants = {
         "review_only",
         "qa_specialist",
         "recapture",
+        "trainer",
       ],
     },
   },
