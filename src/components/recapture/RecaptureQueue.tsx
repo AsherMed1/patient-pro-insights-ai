@@ -22,9 +22,9 @@ import RecaptureReports from './RecaptureReports';
 
 import RecaptureCaseDrawer from './RecaptureCaseDrawer';
 import {
-  LOST_TYPE_LABELS, WORK_STATUS_LABELS,
+  WORK_STATUS_LABELS,
   followUpCountdown,
-  type LostType, type RecaptureAttempt, type RecaptureCase, type WorkStatus,
+  type LostType, type RecaptureCase, type WorkStatus,
 } from './types';
 
 const STATUS_TABS: { value: WorkStatus | 'all'; label: string }[] = [
