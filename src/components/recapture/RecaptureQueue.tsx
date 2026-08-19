@@ -22,103 +22,17 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
 
-type WorkStatus = 'pending' | 'engaging' | 'follow_up_required' | 'completed';
-type LostType = 'cancelled' | 'no_show';
-type Channel = 'call' | 'text' | 'email' | 'voicemail';
-type AttemptResult = 'answered' | 'voicemail' | 'no_answer' | 'busy' | 'disconnected' | 'wrong_number' | 'callback_requested' | 'not_interested' | 'other';
-type Outcome = 'rebooked' | 'interested' | 'unable_to_reach' | 'declined_rebook' | 'scheduled_elsewhere' | 'not_interested' | 'dnc_requested' | 'invalid_contact' | 'other';
-
-interface RecaptureCase {
-  id: string;
-  appointment_id: string | null;
-  ghl_contact_id: string | null;
-  project_name: string;
-  patient_name: string | null;
-  lead_phone_number?: string | null;
-  lead_email?: string | null;
-  service_line: string | null;
-  lost_type: LostType;
-  lost_status_at_entry: string | null;
-  appointment_date: string | null;
-  entered_worklist_at: string;
-  assigned_user_id: string | null;
-  work_started_at: string | null;
-  work_status: WorkStatus;
-  outcome: Outcome | null;
-  outcome_notes: string | null;
-  completed_at: string | null;
-  completed_by: string | null;
-  rebooked_appointment_id: string | null;
-  recovered: boolean;
-  attempt_count: number;
-  first_attempt_at: string | null;
-  last_attempt_at: string | null;
-  stale: boolean;
-  created_at: string;
-  updated_at: string;
-  assignee_name?: string | null;
-  assignee_email?: string | null;
-}
-
-interface RecaptureAttempt {
-  id: string;
-  case_id: string;
-  channel: Channel;
-  attempted_at: string;
-  result: AttemptResult | null;
-  note: string | null;
-  user_id: string | null;
-  user_name: string | null;
-  created_at: string;
-}
-
-const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
-  pending: 'Pending',
-  engaging: 'Engaging',
-  follow_up_required: 'Follow-Up Required',
-  completed: 'Completed',
-};
-
-const LOST_TYPE_LABELS: Record<LostType, string> = {
-  cancelled: 'Cancelled',
-  no_show: 'No-Show',
-};
-
-const CHANNEL_LABELS: Record<Channel, string> = {
-  call: 'Call',
-  text: 'Text',
-  email: 'Email',
-  voicemail: 'Voicemail',
-};
-
-const RESULT_LABELS: Record<AttemptResult, string> = {
-  answered: 'Answered',
-  voicemail: 'Left Voicemail',
-  no_answer: 'No Answer',
-  busy: 'Busy',
-  disconnected: 'Disconnected',
-  wrong_number: 'Wrong Number',
-  callback_requested: 'Callback Requested',
-  not_interested: 'Not Interested',
-  other: 'Other',
-};
-
-const OUTCOME_LABELS: Record<Outcome, string> = {
-  rebooked: 'Rebooked',
-  interested: 'Interested / Will Rebook',
-  unable_to_reach: 'Unable to Reach',
-  declined_rebook: 'Declined Rebook',
-  scheduled_elsewhere: 'Scheduled Elsewhere',
-  not_interested: 'Not Interested',
-  dnc_requested: 'DNC Requested',
-  invalid_contact: 'Invalid Contact Info',
-  other: 'Other',
-};
+import RecaptureCaseDrawer from './RecaptureCaseDrawer';
+import {
+  CHANNEL_LABELS, COMPLETION_REASON_LABELS, LOST_TYPE_LABELS, RESULT_LABELS, WORK_STATUS_LABELS,
+  followUpCountdown,
+  type LostType, type RecaptureAttempt, type RecaptureCase, type WorkStatus,
+} from './types';
 
 const STATUS_TABS: { value: WorkStatus | 'all'; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'engaging', label: 'Engaging' },
-  { value: 'follow_up_required', label: 'Follow-Up Required' },
+  { value: 'new', label: 'New' },
+  { value: 'nurture', label: 'Nurture' },
+  { value: 'follow_up', label: 'Follow-Up' },
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
@@ -137,6 +51,8 @@ function formatPhone(p: string | null): string {
   if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   return p;
 }
+
+
 
 export default function RecaptureQueue() {
   const { user } = useAuth();
