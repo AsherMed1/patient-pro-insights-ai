@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { format, startOfWeek, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Download, Loader2, RefreshCw } from 'lucide-react';
 import QAActivityReport from '@/components/admin/QAActivityReport';
+import QAErrorSourceReport from '@/components/admin/QAErrorSourceReport';
 import {
   Bar,
   BarChart,
@@ -89,7 +90,7 @@ const avg = (values: number[]) => (values.length ? values.reduce((a, b) => a + b
 const qaOf = (c: ReportCase) => (c.qa_name || '').trim() || 'Unassigned';
 
 export default function QAReports() {
-  const [view, setView] = useState<'cases' | 'activity'>('cases');
+  const [view, setView] = useState<'cases' | 'activity' | 'sources'>('cases');
   const [rows, setRows] = useState<ReportCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
