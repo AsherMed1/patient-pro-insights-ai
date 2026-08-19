@@ -540,6 +540,8 @@ serve(async (req) => {
         .insert([{
           ...appointmentData,
           review_status: reviewStatus,
+          insurance_intake_source: intakeSource || null,
+          ...(isTraineeSubmitted ? { review_stage: 'trainee' } : {}),
           ...(blockedPatient
             ? {
                 reschedule_eligible: false,
