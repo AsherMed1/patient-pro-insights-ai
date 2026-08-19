@@ -1642,6 +1642,7 @@ function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | '
   if (raw === null || raw === undefined) return null;
   const s = String(Array.isArray(raw) ? raw[0] : raw).toLowerCase().trim();
   if (!s) return null;
+  if (s.includes('trainee')) return 'trainee_submitted';
   if (s.includes('setter')) return 'setter_submitted';
   if (s.includes('patient')) return 'patient_submitted';
   return null;
