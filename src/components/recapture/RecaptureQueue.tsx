@@ -228,13 +228,14 @@ export default function RecaptureQueue() {
 
   const counts = useMemo(() => {
     return {
-      pending: cases.filter((c) => c.work_status === 'pending').length,
-      engaging: cases.filter((c) => c.work_status === 'engaging').length,
-      follow_up_required: cases.filter((c) => c.work_status === 'follow_up_required').length,
+      new: cases.filter((c) => c.work_status === 'new').length,
+      nurture: cases.filter((c) => c.work_status === 'nurture').length,
+      follow_up: cases.filter((c) => c.work_status === 'follow_up').length,
       completed: cases.filter((c) => c.work_status === 'completed').length,
       all: cases.length,
     };
   }, [cases]);
+
 
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
