@@ -2943,6 +2943,11 @@ function CaseDrawer({
                                 {durationText && !a.description?.includes(durationText) && (
                                   <span className="ml-1 font-medium">{durationText}</span>
                                 )}
+                                {!isRQTransition && activityActorLabel(a, actorNames) && (
+                                  <span className="ml-1 text-muted-foreground">
+                                    by {activityActorLabel(a, actorNames)}
+                                  </span>
+                                )}
                               </span>
                             </span>
                             <span className="text-xs text-muted-foreground shrink-0">{format(new Date(a.created_at), 'MMM d, h:mm a')}</span>
