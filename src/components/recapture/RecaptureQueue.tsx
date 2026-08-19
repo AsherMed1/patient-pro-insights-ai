@@ -422,7 +422,7 @@ export default function RecaptureQueue() {
                             {WORK_STATUS_LABELS[c.work_status]}
                           </Badge>
                           {c.work_status === 'follow_up' && c.follow_up_at && (
-                            <div className="text-xs text-muted-foreground mt-1">{followUpCountdown(c.follow_up_at)}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{followUpCountdown(c.follow_up_at).label}</div>
                           )}
                         </TableCell>
                         <TableCell className="sticky right-0 z-10 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
