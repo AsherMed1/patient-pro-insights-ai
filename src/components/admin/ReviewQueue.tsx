@@ -159,6 +159,7 @@ const ReviewQueue: React.FC = () => {
   const [queueView, setQueueView] = useState<QueueView>('new');
   const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  const [traineeCount, setTraineeCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
   const [approvedDateFrom, setApprovedDateFrom] = useState<Date | undefined>();
@@ -442,7 +443,7 @@ const ReviewQueue: React.FC = () => {
     setLoading(true);
     let q = supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at')
+      .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at, insurance_intake_source, trainee_name, returned_reason, returned_at, returned_by')
       .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
       .limit(500);
@@ -530,15 +531,17 @@ const ReviewQueue: React.FC = () => {
       }
       return q;
     };
-    const [{ count: nc }, { count: pc }, { count: dc }, { count: ac }] = await Promise.all([
+    const [{ count: nc }, { count: pc }, { count: tc }, { count: dc }, { count: ac }] = await Promise.all([
       base('pending', 'new'),
       base('pending', 'pending_review'),
+      base('pending', 'trainee'),
       base('declined'),
       base('approved'),
     ]);
     if (seq !== countsSeq.current) return; // a newer run superseded this one
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
+    setTraineeCount(tc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
     setCountsLoading(false);
