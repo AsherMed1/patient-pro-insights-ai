@@ -4116,9 +4116,12 @@ export type Database = {
           attempt_count: number
           completed_at: string | null
           completed_by: string | null
+          completion_reason: string | null
           created_at: string
           entered_worklist_at: string
           first_attempt_at: string | null
+          follow_up_at: string | null
+          follow_up_note: string | null
           ghl_contact_id: string | null
           id: string
           last_attempt_at: string | null
@@ -4145,9 +4148,12 @@ export type Database = {
           attempt_count?: number
           completed_at?: string | null
           completed_by?: string | null
+          completion_reason?: string | null
           created_at?: string
           entered_worklist_at?: string
           first_attempt_at?: string | null
+          follow_up_at?: string | null
+          follow_up_note?: string | null
           ghl_contact_id?: string | null
           id?: string
           last_attempt_at?: string | null
@@ -4174,9 +4180,12 @@ export type Database = {
           attempt_count?: number
           completed_at?: string | null
           completed_by?: string | null
+          completion_reason?: string | null
           created_at?: string
           entered_worklist_at?: string
           first_attempt_at?: string | null
+          follow_up_at?: string | null
+          follow_up_note?: string | null
           ghl_contact_id?: string | null
           id?: string
           last_attempt_at?: string | null
