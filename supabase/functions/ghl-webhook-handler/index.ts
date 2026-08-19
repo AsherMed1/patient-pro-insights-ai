@@ -497,7 +497,10 @@ serve(async (req) => {
         console.warn(`[${requestId}] [WARN] Insurance Intake Source not present in webhook payload nor on GHL contact — routing to review queue.`);
       }
 
-      const isSetterSubmitted = intakeSource === 'setter_submitted';
+      // Trainee-submitted bookings NEVER bypass review — they route to the dedicated
+      // Trainee Review bucket in the portal Review Queue.
+      const isTraineeSubmitted = intakeSource === 'trainee_submitted';
+      const isSetterSubmitted = intakeSource === 'setter_submitted' && !isTraineeSubmitted;
 
       // Reschedule-eligibility guard: patients blocked after repeated no-shows must not be
       // auto-booked by setters, AI or self-booking flows. Force such bookings into the
