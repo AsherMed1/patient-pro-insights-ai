@@ -92,6 +92,11 @@ interface ReviewAppointment {
   pending_since?: string | null;
   pending_by_name?: string | null;
   short_notice_auto_tagged_at?: string | null;
+  insurance_intake_source?: string | null;
+  trainee_name?: string | null;
+  returned_reason?: string | null;
+  returned_at?: string | null;
+  returned_by?: string | null;
 }
 
 interface ProjectConfig {
