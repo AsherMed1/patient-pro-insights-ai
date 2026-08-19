@@ -4,10 +4,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -22,103 +20,17 @@ import DetailedAppointmentView from '@/components/appointments/DetailedAppointme
 import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
 
-type WorkStatus = 'pending' | 'engaging' | 'follow_up_required' | 'completed';
-type LostType = 'cancelled' | 'no_show';
-type Channel = 'call' | 'text' | 'email' | 'voicemail';
-type AttemptResult = 'answered' | 'voicemail' | 'no_answer' | 'busy' | 'disconnected' | 'wrong_number' | 'callback_requested' | 'not_interested' | 'other';
-type Outcome = 'rebooked' | 'interested' | 'unable_to_reach' | 'declined_rebook' | 'scheduled_elsewhere' | 'not_interested' | 'dnc_requested' | 'invalid_contact' | 'other';
-
-interface RecaptureCase {
-  id: string;
-  appointment_id: string | null;
-  ghl_contact_id: string | null;
-  project_name: string;
-  patient_name: string | null;
-  lead_phone_number?: string | null;
-  lead_email?: string | null;
-  service_line: string | null;
-  lost_type: LostType;
-  lost_status_at_entry: string | null;
-  appointment_date: string | null;
-  entered_worklist_at: string;
-  assigned_user_id: string | null;
-  work_started_at: string | null;
-  work_status: WorkStatus;
-  outcome: Outcome | null;
-  outcome_notes: string | null;
-  completed_at: string | null;
-  completed_by: string | null;
-  rebooked_appointment_id: string | null;
-  recovered: boolean;
-  attempt_count: number;
-  first_attempt_at: string | null;
-  last_attempt_at: string | null;
-  stale: boolean;
-  created_at: string;
-  updated_at: string;
-  assignee_name?: string | null;
-  assignee_email?: string | null;
-}
-
-interface RecaptureAttempt {
-  id: string;
-  case_id: string;
-  channel: Channel;
-  attempted_at: string;
-  result: AttemptResult | null;
-  note: string | null;
-  user_id: string | null;
-  user_name: string | null;
-  created_at: string;
-}
-
-const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
-  pending: 'Pending',
-  engaging: 'Engaging',
-  follow_up_required: 'Follow-Up Required',
-  completed: 'Completed',
-};
-
-const LOST_TYPE_LABELS: Record<LostType, string> = {
-  cancelled: 'Cancelled',
-  no_show: 'No-Show',
-};
-
-const CHANNEL_LABELS: Record<Channel, string> = {
-  call: 'Call',
-  text: 'Text',
-  email: 'Email',
-  voicemail: 'Voicemail',
-};
-
-const RESULT_LABELS: Record<AttemptResult, string> = {
-  answered: 'Answered',
-  voicemail: 'Left Voicemail',
-  no_answer: 'No Answer',
-  busy: 'Busy',
-  disconnected: 'Disconnected',
-  wrong_number: 'Wrong Number',
-  callback_requested: 'Callback Requested',
-  not_interested: 'Not Interested',
-  other: 'Other',
-};
-
-const OUTCOME_LABELS: Record<Outcome, string> = {
-  rebooked: 'Rebooked',
-  interested: 'Interested / Will Rebook',
-  unable_to_reach: 'Unable to Reach',
-  declined_rebook: 'Declined Rebook',
-  scheduled_elsewhere: 'Scheduled Elsewhere',
-  not_interested: 'Not Interested',
-  dnc_requested: 'DNC Requested',
-  invalid_contact: 'Invalid Contact Info',
-  other: 'Other',
-};
+import RecaptureCaseDrawer from './RecaptureCaseDrawer';
+import {
+  WORK_STATUS_LABELS,
+  followUpCountdown,
+  type LostType, type RecaptureCase, type WorkStatus,
+} from './types';
 
 const STATUS_TABS: { value: WorkStatus | 'all'; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'engaging', label: 'Engaging' },
-  { value: 'follow_up_required', label: 'Follow-Up Required' },
+  { value: 'new', label: 'New' },
+  { value: 'nurture', label: 'Nurture' },
+  { value: 'follow_up', label: 'Follow-Up' },
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
@@ -138,6 +50,8 @@ function formatPhone(p: string | null): string {
   return p;
 }
 
+
+
 export default function RecaptureQueue() {
   const { user } = useAuth();
   const { isAdmin, hasManagementAccess, isReviewOnly, isRecaptureRole, accessibleProjects } = useRole();
@@ -145,7 +59,7 @@ export default function RecaptureQueue() {
   const isSetter = () => isReviewOnly() || isRecaptureRole();
 
   const [view, setView] = useState<'queue' | 'reports'>('queue');
-  const [tab, setTab] = useState<WorkStatus | 'all'>('pending');
+  const [tab, setTab] = useState<WorkStatus | 'all'>('new');
   const [cases, setCases] = useState<RecaptureCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -154,27 +68,8 @@ export default function RecaptureQueue() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedCase, setSelectedCase] = useState<RecaptureCase | null>(null);
-  const [attempts, setAttempts] = useState<RecaptureAttempt[]>([]);
-  const [loadingAttempts, setLoadingAttempts] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [projectLocationMap, setProjectLocationMap] = useState<Record<string, string>>({});
-
-  // Dialogs
-  const [attemptDialogOpen, setAttemptDialogOpen] = useState(false);
-  const [attemptChannel, setAttemptChannel] = useState<Channel>('call');
-  const [attemptResult, setAttemptResult] = useState<AttemptResult | ''>('');
-  const [attemptNote, setAttemptNote] = useState('');
-  const [savingAttempt, setSavingAttempt] = useState(false);
-
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState<WorkStatus>('pending');
-  const [statusNote, setStatusNote] = useState('');
-  const [savingStatus, setSavingStatus] = useState(false);
-
-  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
-  const [completeOutcome, setCompleteOutcome] = useState<Outcome | ''>('');
-  const [completeNote, setCompleteNote] = useState('');
-  const [rebookedApptId, setRebookedApptId] = useState('');
-  const [savingComplete, setSavingComplete] = useState(false);
 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assigneeId, setAssigneeId] = useState<string>('');
@@ -183,6 +78,7 @@ export default function RecaptureQueue() {
 
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
 
   const fetchAllPages = async (build: () => any): Promise<any[]> => {
     const PAGE = 1000;
@@ -287,25 +183,8 @@ export default function RecaptureQueue() {
     })();
   }, []);
 
-  const loadAttempts = async (caseId: string) => {
-    setLoadingAttempts(true);
-    const { data, error } = await supabase
-      .from('recapture_attempts' as any)
-      .select('*')
-      .eq('case_id', caseId)
-      .order('attempted_at', { ascending: false });
-    if (error) {
-      toast({ title: 'Failed to load attempts', variant: 'destructive' });
-      setAttempts([]);
-    } else {
-      setAttempts(((data as any) || []) as RecaptureAttempt[]);
-    }
-    setLoadingAttempts(false);
-  };
-
   const openDetail = async (c: RecaptureCase) => {
     setSelectedCase(c);
-    await loadAttempts(c.id);
     if (c.appointment_id) {
       setDetailLoading(true);
       const { data, error } = await supabase.from('all_appointments').select('*').eq('id', c.appointment_id).single();
@@ -313,6 +192,7 @@ export default function RecaptureQueue() {
       if (!error && data) setDetailAppt(data as unknown as AllAppointment);
     }
   };
+
 
   const ghlUrlFor = (c: RecaptureCase): string | null => {
     if (!c.ghl_contact_id) return null;
@@ -346,95 +226,19 @@ export default function RecaptureQueue() {
 
   const counts = useMemo(() => {
     return {
-      pending: cases.filter((c) => c.work_status === 'pending').length,
-      engaging: cases.filter((c) => c.work_status === 'engaging').length,
-      follow_up_required: cases.filter((c) => c.work_status === 'follow_up_required').length,
+      new: cases.filter((c) => c.work_status === 'new').length,
+      nurture: cases.filter((c) => c.work_status === 'nurture').length,
+      follow_up: cases.filter((c) => c.work_status === 'follow_up').length,
       completed: cases.filter((c) => c.work_status === 'completed').length,
       all: cases.length,
     };
   }, [cases]);
 
+
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
-  const saveAttempt = async () => {
-    if (!selectedCase) return;
-    setSavingAttempt(true);
-    try {
-      const { error } = await supabase.from('recapture_attempts' as any).insert({
-        case_id: selectedCase.id,
-        channel: attemptChannel,
-        result: attemptResult || null,
-        note: attemptNote.trim() || null,
-        user_id: user?.id,
-        user_name: user?.email,
-      });
-      if (error) throw error;
 
-      await supabase
-        .from('recapture_cases' as any)
-        .update({ work_status: 'engaging', work_started_at: selectedCase.work_started_at || new Date().toISOString() })
-        .eq('id', selectedCase.id);
 
-      toast({ title: 'Attempt logged' });
-      setAttemptDialogOpen(false);
-      setAttemptChannel('call');
-      setAttemptResult('');
-      setAttemptNote('');
-      await loadAttempts(selectedCase.id);
-      await fetchCases();
-    } catch (e: any) {
-      toast({ title: 'Failed to log attempt', description: e.message, variant: 'destructive' });
-    }
-    setSavingAttempt(false);
-  };
-
-  const saveStatus = async () => {
-    if (!selectedCase) return;
-    setSavingStatus(true);
-    try {
-      const update: any = { work_status: newStatus };
-      if (newStatus === 'engaging' && !selectedCase.work_started_at) update.work_started_at = new Date().toISOString();
-      const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', selectedCase.id);
-      if (error) throw error;
-      toast({ title: 'Status updated' });
-      setStatusDialogOpen(false);
-      setStatusNote('');
-      await fetchCases();
-    } catch (e: any) {
-      toast({ title: 'Failed to update status', description: e.message, variant: 'destructive' });
-    }
-    setSavingStatus(false);
-  };
-
-  const saveComplete = async () => {
-    if (!selectedCase || !completeOutcome) return;
-    setSavingComplete(true);
-    try {
-      const rebookedId = completeOutcome === 'rebooked' && rebookedApptId.trim() ? rebookedApptId.trim() : null;
-      const update: any = {
-        work_status: 'completed',
-        outcome: completeOutcome,
-        outcome_notes: completeNote.trim() || null,
-        completed_at: new Date().toISOString(),
-        completed_by: user?.id,
-      };
-      if (rebookedId) {
-        update.rebooked_appointment_id = rebookedId;
-        update.recovered = true;
-      }
-      const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', selectedCase.id);
-      if (error) throw error;
-      toast({ title: 'Case completed' });
-      setCompleteDialogOpen(false);
-      setCompleteOutcome('');
-      setCompleteNote('');
-      setRebookedApptId('');
-      await fetchCases();
-    } catch (e: any) {
-      toast({ title: 'Failed to complete case', description: e.message, variant: 'destructive' });
-    }
-    setSavingComplete(false);
-  };
 
   const saveAssign = async () => {
     if (!selectedCase) return;
@@ -612,17 +416,17 @@ export default function RecaptureQueue() {
                         <TableCell className="text-sm">{c.attempt_count}</TableCell>
                         <TableCell className="text-sm">{c.assignee_name || c.assignee_email || 'Unassigned'}</TableCell>
                         <TableCell>
-                          <Badge variant={c.work_status === 'completed' ? 'default' : c.work_status === 'pending' ? 'secondary' : 'outline'}>
+                          <Badge variant={c.work_status === 'completed' ? 'default' : c.work_status === 'new' ? 'secondary' : 'outline'}>
                             {WORK_STATUS_LABELS[c.work_status]}
                           </Badge>
+                          {c.work_status === 'follow_up' && c.follow_up_at && (
+                            <div className="text-xs text-muted-foreground mt-1">{followUpCountdown(c.follow_up_at).label}</div>
+                          )}
                         </TableCell>
                         <TableCell className="sticky right-0 z-10 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2 flex-nowrap">
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedCase(c); setAttemptDialogOpen(true); }}>
-                              Log Attempt
-                            </Button>
-                            <Button variant="default" size="sm" onClick={() => { setSelectedCase(c); setCompleteDialogOpen(true); }}>
-                              Complete
+                            <Button variant="default" size="sm" onClick={() => { setSelectedCase(c); setDrawerOpen(true); }}>
+                              Open Record
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -633,7 +437,7 @@ export default function RecaptureQueue() {
                               <DropdownMenuContent align="end">
                                 {c.appointment_id && (
                                   <DropdownMenuItem onClick={() => openPortalRecord(c)}>
-                                    Open record
+                                    Open appointment
                                   </DropdownMenuItem>
                                 )}
                                 {ghlUrl && (
@@ -647,13 +451,11 @@ export default function RecaptureQueue() {
                                 <DropdownMenuItem onClick={() => { setSelectedCase(c); setAssigneeId(c.assigned_user_id || ''); setAssignDialogOpen(true); }}>
                                   {c.assigned_user_id ? 'Reassign' : 'Claim'}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedCase(c); setNewStatus(c.work_status); setStatusDialogOpen(true); }}>
-                                  Change status
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
                         </TableCell>
+
                       </TableRow>
                     );
                   })
@@ -664,170 +466,26 @@ export default function RecaptureQueue() {
         </>
       )}
 
-      {/* Detail Drawer */}
-      <Sheet open={!!selectedCase && !attemptDialogOpen && !statusDialogOpen && !completeDialogOpen && !assignDialogOpen && !detailAppt} onOpenChange={(open) => { if (!open) { setSelectedCase(null); setDetailAppt(null); setAttempts([]); } }}>
-        <SheetContent className="sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{selectedCase?.patient_name}</SheetTitle>
-          </SheetHeader>
-          <div className="space-y-6 py-6">
-            {selectedCase && (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-muted-foreground">Clinic</span><div className="font-medium">{selectedCase.project_name}</div></div>
-                  <div><span className="text-muted-foreground">Lost Type</span><div>{lostTypeBadge(selectedCase.lost_type)}</div></div>
-                  <div><span className="text-muted-foreground">Lost Status</span><div className="font-medium">{selectedCase.lost_status_at_entry || '—'}</div></div>
-                  <div><span className="text-muted-foreground">Service</span><div className="font-medium">{selectedCase.service_line || '—'}</div></div>
-                  <div><span className="text-muted-foreground">Entered Worklist</span><div className="font-medium">{selectedCase.entered_worklist_at ? format(parseISO(selectedCase.entered_worklist_at), 'MMM d, yyyy h:mm a') : '—'}</div></div>
-                  <div><span className="text-muted-foreground">Work Status</span><div className="font-medium">{WORK_STATUS_LABELS[selectedCase.work_status]}</div></div>
-                  <div><span className="text-muted-foreground">Attempts</span><div className="font-medium">{selectedCase.attempt_count}</div></div>
-                  <div><span className="text-muted-foreground">Last Attempt</span><div className="font-medium">{selectedCase.last_attempt_at ? format(parseISO(selectedCase.last_attempt_at), 'MMM d, yyyy h:mm a') : '—'}</div></div>
-                </div>
-
-                {selectedCase.stale && (
-                  <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-                    This case is stale — the source appointment is no longer in a cancelled/no-show state.
-                  </div>
-                )}
-
-                {detailLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : selectedCase.appointment_id && !detailAppt ? (
-                  <p className="text-sm text-muted-foreground">Could not load appointment details.</p>
-                ) : null}
-
-                <div>
-                  <h3 className="text-sm font-semibold mb-2">Outreach Attempts</h3>
-                  {loadingAttempts ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : attempts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No attempts logged yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {attempts.map((a) => (
-                        <div key={a.id} className="rounded-md border p-3 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{CHANNEL_LABELS[a.channel]}</span>
-                            <span className="text-muted-foreground">{format(parseISO(a.attempted_at), 'MMM d, yyyy h:mm a')}</span>
-                          </div>
-                          {a.result && <div className="text-muted-foreground">{RESULT_LABELS[a.result]}</div>}
-                          {a.note && <div className="mt-1">{a.note}</div>}
-                          {a.user_name && <div className="text-xs text-muted-foreground mt-1">by {a.user_name}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Case Drawer */}
+      <RecaptureCaseDrawer
+        caseRow={selectedCase}
+        open={drawerOpen}
+        onOpenChange={(o) => { setDrawerOpen(o); if (!o) setSelectedCase(null); }}
+        onChanged={fetchCases}
+        onOpenPortalRecord={(c) => openDetail(c)}
+        ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
+      />
 
       {detailAppt && (
         <DetailedAppointmentView
           isOpen={!!detailAppt}
           appointment={detailAppt}
           onClose={() => setDetailAppt(null)}
-          onDataRefresh={() => {
-            if (selectedCase) loadAttempts(selectedCase.id);
-            fetchCases();
-          }}
+          onDataRefresh={() => { fetchCases(); }}
         />
       )}
 
-      {/* Log Attempt Dialog */}
-      <Dialog open={attemptDialogOpen} onOpenChange={setAttemptDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Log Outreach Attempt</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Channel</label>
-              <Select value={attemptChannel} onValueChange={(v) => setAttemptChannel(v as Channel)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CHANNEL_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Result</label>
-              <Select value={attemptResult} onValueChange={(v) => setAttemptResult(v as AttemptResult)}>
-                <SelectTrigger><SelectValue placeholder="Select result" /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RESULT_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Note</label>
-              <Textarea value={attemptNote} onChange={(e) => setAttemptNote(e.target.value)} placeholder="Details about the attempt..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAttemptDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveAttempt} disabled={savingAttempt}>
-              {savingAttempt && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Attempt
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Status Dialog */}
-      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Update Work Status</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <Select value={newStatus} onValueChange={(v) => setNewStatus(v as WorkStatus)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(WORK_STATUS_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Textarea value={statusNote} onChange={(e) => setStatusNote(e.target.value)} placeholder="Optional internal note..." />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveStatus} disabled={savingStatus}>
-              {savingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Update
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Complete Dialog */}
-      <Dialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Complete Recapture Case</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Outcome</label>
-              <Select value={completeOutcome} onValueChange={(v) => setCompleteOutcome(v as Outcome)}>
-                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(OUTCOME_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {completeOutcome === 'rebooked' && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Rebooked Appointment ID</label>
-                <Input value={rebookedApptId} onChange={(e) => setRebookedApptId(e.target.value)} placeholder="UUID of new appointment" />
-              </div>
-            )}
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Notes</label>
-              <Textarea value={completeNote} onChange={(e) => setCompleteNote(e.target.value)} placeholder="Final outcome notes..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCompleteDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveComplete} disabled={savingComplete || !completeOutcome}>
-              {savingComplete && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Complete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Assign Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
