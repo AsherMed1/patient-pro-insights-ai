@@ -21,6 +21,7 @@ import LogAttemptDialog, { channelLabel, outcomeLabel } from '@/components/appoi
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
+import { useRole } from '@/hooks/useRole';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import { formatDate, formatTime } from '@/components/appointments/utils';
@@ -131,6 +132,9 @@ type QueueView = 'new' | 'pending' | 'trainee' | 'declined' | 'approved';
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
   const { userName } = useUserAttribution();
+  const { hasRole } = useRole();
+  // Trainee Review bucket is for trainers and management only
+  const canReviewTrainees = hasRole(['admin', 'agent', 'trainer' as any]);
   const [rows, setRows] = useState<ReviewAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
