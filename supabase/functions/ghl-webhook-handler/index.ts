@@ -1627,7 +1627,7 @@ async function fetchIntakeSourceFromContact(
 // Extract "Insurance Intake Source" custom field. Returns normalized value:
 // 'setter_submitted' | 'patient_submitted' | null
 // Accepts either an array of {key, value|field_value} or a plain object {key: value}.
-function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | 'patient_submitted' | null {
+function extractInsuranceIntakeSource(customFields: any): 'setter_submitted' | 'patient_submitted' | 'trainee_submitted' | null {
   if (!customFields) return null;
   const matchesKey = (k: string) => /insurance[\s_-]*intake[\s_-]*source/i.test(k || '');
   let raw: any = null;
