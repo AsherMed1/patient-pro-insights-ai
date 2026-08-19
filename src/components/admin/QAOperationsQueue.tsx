@@ -127,7 +127,22 @@ interface QAActivity {
   description: string | null;
   created_at: string;
   metadata: any;
+  actor_user_id?: string | null;
 }
+
+/**
+ * "by {Name}" stamp for an activity row. Falls back to the actor name stored on
+ * the row's metadata, then to "System" for automated entries (queue ingestion,
+ * re-alerts, ticket sync) that have no acting user.
+ */
+const activityActorLabel = (a: QAActivity, names: Map<string, string>): string | null => {
+  const already = /\bby\s+\S+/i.test(a.description || '');
+  if (already) return null;
+  const meta = (a.metadata || {}) as any;
+  if (a.actor_user_id) return names.get(a.actor_user_id) || meta.actor_name || 'a teammate';
+  if (meta.actor_name) return meta.actor_name;
+  return 'System';
+};
 
 const STATUS_TABS: { value: WorkflowStatus | 'all'; label: string }[] = [
   { value: 'new', label: 'New' },
