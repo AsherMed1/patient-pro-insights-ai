@@ -469,170 +469,26 @@ export default function RecaptureQueue() {
         </>
       )}
 
-      {/* Detail Drawer */}
-      <Sheet open={!!selectedCase && !attemptDialogOpen && !statusDialogOpen && !completeDialogOpen && !assignDialogOpen && !detailAppt} onOpenChange={(open) => { if (!open) { setSelectedCase(null); setDetailAppt(null); setAttempts([]); } }}>
-        <SheetContent className="sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{selectedCase?.patient_name}</SheetTitle>
-          </SheetHeader>
-          <div className="space-y-6 py-6">
-            {selectedCase && (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-muted-foreground">Clinic</span><div className="font-medium">{selectedCase.project_name}</div></div>
-                  <div><span className="text-muted-foreground">Lost Type</span><div>{lostTypeBadge(selectedCase.lost_type)}</div></div>
-                  <div><span className="text-muted-foreground">Lost Status</span><div className="font-medium">{selectedCase.lost_status_at_entry || '—'}</div></div>
-                  <div><span className="text-muted-foreground">Service</span><div className="font-medium">{selectedCase.service_line || '—'}</div></div>
-                  <div><span className="text-muted-foreground">Entered Worklist</span><div className="font-medium">{selectedCase.entered_worklist_at ? format(parseISO(selectedCase.entered_worklist_at), 'MMM d, yyyy h:mm a') : '—'}</div></div>
-                  <div><span className="text-muted-foreground">Work Status</span><div className="font-medium">{WORK_STATUS_LABELS[selectedCase.work_status]}</div></div>
-                  <div><span className="text-muted-foreground">Attempts</span><div className="font-medium">{selectedCase.attempt_count}</div></div>
-                  <div><span className="text-muted-foreground">Last Attempt</span><div className="font-medium">{selectedCase.last_attempt_at ? format(parseISO(selectedCase.last_attempt_at), 'MMM d, yyyy h:mm a') : '—'}</div></div>
-                </div>
-
-                {selectedCase.stale && (
-                  <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-                    This case is stale — the source appointment is no longer in a cancelled/no-show state.
-                  </div>
-                )}
-
-                {detailLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : selectedCase.appointment_id && !detailAppt ? (
-                  <p className="text-sm text-muted-foreground">Could not load appointment details.</p>
-                ) : null}
-
-                <div>
-                  <h3 className="text-sm font-semibold mb-2">Outreach Attempts</h3>
-                  {loadingAttempts ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : attempts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No attempts logged yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {attempts.map((a) => (
-                        <div key={a.id} className="rounded-md border p-3 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{CHANNEL_LABELS[a.channel]}</span>
-                            <span className="text-muted-foreground">{format(parseISO(a.attempted_at), 'MMM d, yyyy h:mm a')}</span>
-                          </div>
-                          {a.result && <div className="text-muted-foreground">{RESULT_LABELS[a.result]}</div>}
-                          {a.note && <div className="mt-1">{a.note}</div>}
-                          {a.user_name && <div className="text-xs text-muted-foreground mt-1">by {a.user_name}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Case Drawer */}
+      <RecaptureCaseDrawer
+        caseRow={selectedCase}
+        open={drawerOpen}
+        onOpenChange={(o) => { setDrawerOpen(o); if (!o) setSelectedCase(null); }}
+        onChanged={fetchCases}
+        onOpenPortalRecord={(c) => openDetail(c)}
+        ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
+      />
 
       {detailAppt && (
         <DetailedAppointmentView
           isOpen={!!detailAppt}
           appointment={detailAppt}
           onClose={() => setDetailAppt(null)}
-          onDataRefresh={() => {
-            if (selectedCase) loadAttempts(selectedCase.id);
-            fetchCases();
-          }}
+          onDataRefresh={() => { fetchCases(); }}
         />
       )}
 
-      {/* Log Attempt Dialog */}
-      <Dialog open={attemptDialogOpen} onOpenChange={setAttemptDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Log Outreach Attempt</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Channel</label>
-              <Select value={attemptChannel} onValueChange={(v) => setAttemptChannel(v as Channel)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CHANNEL_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Result</label>
-              <Select value={attemptResult} onValueChange={(v) => setAttemptResult(v as AttemptResult)}>
-                <SelectTrigger><SelectValue placeholder="Select result" /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RESULT_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Note</label>
-              <Textarea value={attemptNote} onChange={(e) => setAttemptNote(e.target.value)} placeholder="Details about the attempt..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAttemptDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveAttempt} disabled={savingAttempt}>
-              {savingAttempt && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Attempt
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Status Dialog */}
-      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Update Work Status</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <Select value={newStatus} onValueChange={(v) => setNewStatus(v as WorkStatus)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(WORK_STATUS_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Textarea value={statusNote} onChange={(e) => setStatusNote(e.target.value)} placeholder="Optional internal note..." />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveStatus} disabled={savingStatus}>
-              {savingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Update
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Complete Dialog */}
-      <Dialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Complete Recapture Case</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Outcome</label>
-              <Select value={completeOutcome} onValueChange={(v) => setCompleteOutcome(v as Outcome)}>
-                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(OUTCOME_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {completeOutcome === 'rebooked' && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Rebooked Appointment ID</label>
-                <Input value={rebookedApptId} onChange={(e) => setRebookedApptId(e.target.value)} placeholder="UUID of new appointment" />
-              </div>
-            )}
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Notes</label>
-              <Textarea value={completeNote} onChange={(e) => setCompleteNote(e.target.value)} placeholder="Final outcome notes..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCompleteDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveComplete} disabled={savingComplete || !completeOutcome}>
-              {savingComplete && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Complete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Assign Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
