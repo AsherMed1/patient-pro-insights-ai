@@ -4,10 +4,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -24,7 +22,7 @@ import RecaptureReports from './RecaptureReports';
 
 import RecaptureCaseDrawer from './RecaptureCaseDrawer';
 import {
-  CHANNEL_LABELS, COMPLETION_REASON_LABELS, LOST_TYPE_LABELS, RESULT_LABELS, WORK_STATUS_LABELS,
+  LOST_TYPE_LABELS, WORK_STATUS_LABELS,
   followUpCountdown,
   type LostType, type RecaptureAttempt, type RecaptureCase, type WorkStatus,
 } from './types';
