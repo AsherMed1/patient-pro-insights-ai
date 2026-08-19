@@ -577,6 +577,7 @@ export default function QAErrorSourceReport() {
                                                   target="_blank"
                                                   rel="noreferrer"
                                                   className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                                                  onClick={(e) => e.stopPropagation()}
                                                 >
                                                   <ExternalLink className="h-3 w-3" /> Record
                                                 </a>
@@ -587,6 +588,7 @@ export default function QAErrorSourceReport() {
                                                   target="_blank"
                                                   rel="noreferrer"
                                                   className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                                                  onClick={(e) => e.stopPropagation()}
                                                 >
                                                   <Ticket className="h-3 w-3" /> Ticket
                                                 </a>
