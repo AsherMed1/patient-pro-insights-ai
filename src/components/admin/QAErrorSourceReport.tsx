@@ -87,6 +87,9 @@ const countBy = (rows: SourceCase[], fn: (r: SourceCase) => string) => {
 };
 
 export default function QAErrorSourceReport() {
+  const navigate = useNavigate();
+  const openCase = (id: string) =>
+    navigate(`/?tab=qa-queue&qaCase=${id}&n=${Date.now()}`);
   const [rows, setRows] = useState<SourceCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
