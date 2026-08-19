@@ -540,7 +540,20 @@ export default function QAErrorSourceReport() {
                                     </TableHeader>
                                     <TableBody>
                                       {g.cases.map((c) => (
-                                        <TableRow key={c.id}>
+                                        <TableRow
+                                          key={c.id}
+                                          role="button"
+                                          tabIndex={0}
+                                          title="Open in QA Operations Queue"
+                                          className="cursor-pointer hover:bg-muted/60"
+                                          onClick={() => openCase(c.id)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              openCase(c.id);
+                                            }
+                                          }}
+                                        >
                                           <TableCell className="font-medium">{c.patient_name || '—'}</TableCell>
                                           <TableCell className="text-xs">{c.project_name}</TableCell>
                                           <TableCell className="text-xs">{c.service_line || '—'}</TableCell>
