@@ -418,17 +418,17 @@ export default function RecaptureQueue() {
                         <TableCell className="text-sm">{c.attempt_count}</TableCell>
                         <TableCell className="text-sm">{c.assignee_name || c.assignee_email || 'Unassigned'}</TableCell>
                         <TableCell>
-                          <Badge variant={c.work_status === 'completed' ? 'default' : c.work_status === 'pending' ? 'secondary' : 'outline'}>
+                          <Badge variant={c.work_status === 'completed' ? 'default' : c.work_status === 'new' ? 'secondary' : 'outline'}>
                             {WORK_STATUS_LABELS[c.work_status]}
                           </Badge>
+                          {c.work_status === 'follow_up' && c.follow_up_at && (
+                            <div className="text-xs text-muted-foreground mt-1">{followUpCountdown(c.follow_up_at)}</div>
+                          )}
                         </TableCell>
                         <TableCell className="sticky right-0 z-10 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2 flex-nowrap">
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedCase(c); setAttemptDialogOpen(true); }}>
-                              Log Attempt
-                            </Button>
-                            <Button variant="default" size="sm" onClick={() => { setSelectedCase(c); setCompleteDialogOpen(true); }}>
-                              Complete
+                            <Button variant="default" size="sm" onClick={() => { setSelectedCase(c); setDrawerOpen(true); }}>
+                              Open Record
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -439,7 +439,7 @@ export default function RecaptureQueue() {
                               <DropdownMenuContent align="end">
                                 {c.appointment_id && (
                                   <DropdownMenuItem onClick={() => openPortalRecord(c)}>
-                                    Open record
+                                    Open appointment
                                   </DropdownMenuItem>
                                 )}
                                 {ghlUrl && (
@@ -453,13 +453,11 @@ export default function RecaptureQueue() {
                                 <DropdownMenuItem onClick={() => { setSelectedCase(c); setAssigneeId(c.assigned_user_id || ''); setAssignDialogOpen(true); }}>
                                   {c.assigned_user_id ? 'Reassign' : 'Claim'}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedCase(c); setNewStatus(c.work_status); setStatusDialogOpen(true); }}>
-                                  Change status
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
                         </TableCell>
+
                       </TableRow>
                     );
                   })
