@@ -1927,6 +1927,16 @@ const ReviewQueue: React.FC = () => {
             Pending Review
             <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
           </Button>
+          {canReviewTrainees && (
+            <Button
+              variant={queueView === 'trainee' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setQueueView('trainee'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
+            >
+              Trainee Review
+              <Badge variant="secondary" className="ml-2">{traineeCount}</Badge>
+            </Button>
+          )}
           <Button
             variant={queueView === 'declined' ? 'default' : 'outline'}
             size="sm"
