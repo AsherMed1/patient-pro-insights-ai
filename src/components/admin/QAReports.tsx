@@ -440,6 +440,13 @@ export default function QAReports() {
       >
         Specialist Activity
       </Button>
+      <Button
+        size="sm"
+        variant={view === 'sources' ? 'default' : 'ghost'}
+        onClick={() => setView('sources')}
+      >
+        Error Source
+      </Button>
     </div>
   );
 
@@ -460,6 +467,16 @@ export default function QAReports() {
       </div>
     );
   }
+
+  if (view === 'sources') {
+    return (
+      <div className="space-y-4">
+        <ViewToggle />
+        <QAErrorSourceReport />
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-4">
