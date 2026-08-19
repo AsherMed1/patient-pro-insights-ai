@@ -633,7 +633,6 @@ const UserManagement = () => {
                           <SelectItem value="agent">Agent</SelectItem>
                           <SelectItem value="va">VA</SelectItem>
                           <SelectItem value="review_only">Setter</SelectItem>
-                  <SelectItem value="trainer">Trainer</SelectItem>
                           <SelectItem value="trainer">Trainer</SelectItem>
                           <SelectItem value="recapture">Recapture Only</SelectItem>
                           <SelectItem value="project_user">Project User</SelectItem>
