@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { QACaseDrawerStandalone } from './QAOperationsQueue';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -684,6 +685,12 @@ export default function QAErrorSourceReport() {
           </Card>
         </>
       )}
+
+      <QACaseDrawerStandalone
+        caseId={openCaseId}
+        onClose={() => setOpenCaseId(null)}
+        onRefresh={() => { fetchRows(); }}
+      />
     </div>
   );
 }
