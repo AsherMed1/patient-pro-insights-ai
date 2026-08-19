@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,9 @@ const countBy = (rows: SourceCase[], fn: (r: SourceCase) => string) => {
 };
 
 export default function QAErrorSourceReport() {
+  const navigate = useNavigate();
+  const openCase = (id: string) =>
+    navigate(`/?tab=qa-queue&qaCase=${id}&n=${Date.now()}`);
   const [rows, setRows] = useState<SourceCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
@@ -536,7 +540,20 @@ export default function QAErrorSourceReport() {
                                     </TableHeader>
                                     <TableBody>
                                       {g.cases.map((c) => (
-                                        <TableRow key={c.id}>
+                                        <TableRow
+                                          key={c.id}
+                                          role="button"
+                                          tabIndex={0}
+                                          title="Open in QA Operations Queue"
+                                          className="cursor-pointer hover:bg-muted/60"
+                                          onClick={() => openCase(c.id)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              openCase(c.id);
+                                            }
+                                          }}
+                                        >
                                           <TableCell className="font-medium">{c.patient_name || '—'}</TableCell>
                                           <TableCell className="text-xs">{c.project_name}</TableCell>
                                           <TableCell className="text-xs">{c.service_line || '—'}</TableCell>
@@ -560,6 +577,7 @@ export default function QAErrorSourceReport() {
                                                   target="_blank"
                                                   rel="noreferrer"
                                                   className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                                                  onClick={(e) => e.stopPropagation()}
                                                 >
                                                   <ExternalLink className="h-3 w-3" /> Record
                                                 </a>
@@ -570,6 +588,7 @@ export default function QAErrorSourceReport() {
                                                   target="_blank"
                                                   rel="noreferrer"
                                                   className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                                                  onClick={(e) => e.stopPropagation()}
                                                 >
                                                   <Ticket className="h-3 w-3" /> Ticket
                                                 </a>
