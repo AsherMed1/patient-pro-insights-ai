@@ -2303,6 +2303,16 @@ const ReviewQueue: React.FC = () => {
                             <span>Pending {formatAge(row.pending_since, nowTick)}{row.pending_by_name ? ` · ${row.pending_by_name}` : ''}</span>
                           </Badge>
                         )}
+                        {isTraineeView && row.returned_at && (
+                          <Badge
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 bg-blue-50 text-[10px] h-auto min-h-5 px-2 py-0.5 whitespace-normal leading-tight inline-flex items-center gap-1"
+                            title={`Returned ${new Date(row.returned_at).toLocaleString()}${row.returned_by ? ` by ${row.returned_by}` : ''}${row.returned_reason ? ` — ${row.returned_reason}` : ''}`}
+                          >
+                            <Undo2 className="h-2.5 w-2.5 shrink-0" />
+                            <span>Returned to trainee{row.returned_by ? ` · ${row.returned_by}` : ''}</span>
+                          </Badge>
+                        )}
                         {contactViewEnabled && (
                           effectiveContactByRowId[row.id] ? (
                             <Badge
