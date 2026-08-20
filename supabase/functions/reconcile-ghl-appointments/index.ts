@@ -88,22 +88,44 @@ async function authenticate(
 }
 
 async function fetchEvents(project: Project, startMs: number, endMs: number): Promise<GhlEvent[]> {
-  const url = new URL(`${GHL_BASE_URL}/calendars/events`);
-  url.searchParams.set('locationId', project.ghl_location_id);
-  url.searchParams.set('startTime', String(startMs));
-  url.searchParams.set('endTime', String(endMs));
+  const headers = {
+    Authorization: `Bearer ${project.ghl_api_key}`,
+    Version: GHL_API_VERSION,
+    Accept: 'application/json',
+  };
+  const calendarsResponse = await fetch(
+    `${GHL_BASE_URL}/calendars/?locationId=${encodeURIComponent(project.ghl_location_id)}`,
+    { headers },
+  );
+  const calendarsText = await calendarsResponse.text();
+  if (!calendarsResponse.ok) {
+    throw new Error(`GHL calendars request failed (${calendarsResponse.status}): ${calendarsText.slice(0, 180)}`);
+  }
+  const calendarsData = calendarsText ? JSON.parse(calendarsText) : {};
+  const calendars = (calendarsData?.calendars || []).filter((calendar: Record<string, unknown>) => calendar.id);
+  const allEvents: GhlEvent[] = [];
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${project.ghl_api_key}`,
-      Version: GHL_API_VERSION,
-      Accept: 'application/json',
-    },
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`GHL events request failed (${response.status}): ${text.slice(0, 180)}`);
-  const data = text ? JSON.parse(text) : {};
-  return Array.isArray(data?.events) ? data.events : Array.isArray(data?.appointments) ? data.appointments : [];
+  for (const calendar of calendars) {
+    const url = new URL(`${GHL_BASE_URL}/calendars/events`);
+    url.searchParams.set('locationId', project.ghl_location_id);
+    url.searchParams.set('calendarId', String(calendar.id));
+    url.searchParams.set('startTime', String(startMs));
+    url.searchParams.set('endTime', String(endMs));
+    const response = await fetch(url, { headers });
+    const text = await response.text();
+    if (!response.ok) {
+      console.error(`[RECONCILE] Calendar ${calendar.id} event request failed (${response.status})`);
+      continue;
+    }
+    const data = text ? JSON.parse(text) : {};
+    const events = Array.isArray(data?.events) ? data.events : Array.isArray(data?.appointments) ? data.appointments : [];
+    allEvents.push(...events.map((event: GhlEvent) => ({
+      ...event,
+      calendarId: event.calendarId || String(calendar.id),
+      calendarName: event.calendarName || String(calendar.name || ''),
+    })));
+  }
+  return Array.from(new Map(allEvents.map((event) => [String(event.id || event.appointmentId), event])).values());
 }
 
 async function fetchContact(project: Project, contactId: string) {
