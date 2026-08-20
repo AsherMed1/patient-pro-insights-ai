@@ -198,7 +198,3 @@ verify_jwt = false
 [functions.sync-ghl-appointment-times]
 verify_jwt = false
 # Reconciles portal appointment date/time against live GoHighLevel events (cron every 15m)
-
-[functions.notify-slack-block-cancellations]
-verify_jwt = false
-# Slack alert listing unconfirmed appointments auto-cancelled by a clinic time block
