@@ -583,6 +583,31 @@ serve(async (req) => {
       if (error) throw error
       appointmentRecord = data
 
+      // Safety net: make sure the intake source (and the trainee routing that depends on
+      // it) actually landed on the row. If the insert path dropped it for any reason,
+      // write it explicitly so the record cannot silently fall back to the New bucket.
+      if (appointmentRecord && intakeSource) {
+        const needsSource = appointmentRecord.insurance_intake_source !== intakeSource;
+        const needsStage = isTraineeSubmitted && appointmentRecord.review_stage !== 'trainee';
+        if (needsSource || needsStage) {
+          const { data: fixed, error: fixError } = await supabase
+            .from('all_appointments')
+            .update({
+              insurance_intake_source: intakeSource,
+              ...(isTraineeSubmitted ? { review_stage: 'trainee' } : {}),
+            })
+            .eq('id', appointmentRecord.id)
+            .select()
+            .single();
+          if (fixError) {
+            console.error(`[${requestId}] intake-source backfill failed:`, fixError);
+          } else if (fixed) {
+            appointmentRecord = fixed;
+            console.log(`[${requestId}] intake-source backfilled (source=${intakeSource}, stage=${fixed.review_stage})`);
+          }
+        }
+      }
+
       // Notify Slack review queue (fire-and-forget) — skip for exempt projects and setter-submitted bypasses
       try {
         if (!isExempt && !isSetterSubmitted) supabase.functions.invoke('notify-slack-review-queue', {
