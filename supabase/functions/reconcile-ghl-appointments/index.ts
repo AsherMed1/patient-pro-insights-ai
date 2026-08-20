@@ -260,8 +260,14 @@ Deno.serve(async (req) => {
             });
             const ingestText = await ingestResponse.text();
             if (!ingestResponse.ok) throw new Error(`ingestion failed (${ingestResponse.status}): ${ingestText.slice(0, 180)}`);
-            summary.recovered = Number(summary.recovered) + 1;
-            existing.add(eventId);
+            let ingestResult: Record<string, unknown> = {};
+            try { ingestResult = ingestText ? JSON.parse(ingestText) : {}; } catch { /* response was still successful */ }
+            if (ingestResult.operation === 'skipped') {
+              summary.skipped = Number(summary.skipped) + 1;
+            } else {
+              summary.recovered = Number(summary.recovered) + 1;
+              existing.add(eventId);
+            }
           } catch (error) {
             summary.failed = Number(summary.failed) + 1;
             console.error(`[RECONCILE] ${project.project_name} event ${eventId}:`, error);
