@@ -1706,6 +1706,7 @@ async function fetchIntakeSourceFromContact(
       if (d?.id && d?.name) defsMap[d.id] = d.name;
     }
   }
+  console.log(`[${requestId}] intake-source fallback: customFields defs status=${defsRes.status} count=${Object.keys(defsMap).length}`);
 
   const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}`, {
     method: 'GET',
@@ -1723,10 +1724,13 @@ async function fetchIntakeSourceFromContact(
   const contact = contactData.contact ?? contactData;
   const rawFields = contact?.customFields || [];
   const normalized = rawFields.map((f: any) => ({
-    key: defsMap[f.id] || f.key || f.name || '',
+    key: defsMap[f.id] || f.key || f.name || `(unresolved:${f.id})`,
     value: f.field_value ?? f.value,
   }));
-  return extractInsuranceIntakeSource(normalized);
+  const resolved = extractInsuranceIntakeSource(normalized);
+  const hit = normalized.find((f: any) => /insurance[\s_-]*intake[\s_-]*source/i.test(f.key || ''));
+  console.log(`[${requestId}] intake-source fallback: contact fields=${normalized.length} matchedKey=${hit?.key || 'none'} rawValue=${hit ? JSON.stringify(hit.value) : 'n/a'} resolved=${resolved || 'null'}`);
+  return resolved;
 }
 
 // Extract "Insurance Intake Source" custom field. Returns normalized value:
