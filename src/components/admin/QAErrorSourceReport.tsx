@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { format, startOfWeek, subDays } from 'date-fns';
+import { format, startOfWeek, startOfMonth, endOfMonth, subDays } from 'date-fns';
 import {
   Calendar as CalendarIcon,
   ChevronDown,
@@ -22,6 +22,7 @@ import {
   Loader2,
   RefreshCw,
   Ticket,
+  Clock,
 } from 'lucide-react';
 import {
   Bar,
@@ -93,6 +94,7 @@ export default function QAErrorSourceReport() {
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date>(new Date());
+  const [preset, setPreset] = useState<'today' | 'week' | 'month' | 'custom'>('custom');
   const [projectFilter, setProjectFilter] = useState('all');
   const [qaFilter, setQaFilter] = useState('all');
   const [alertFilter, setAlertFilter] = useState('all');
@@ -100,8 +102,23 @@ export default function QAErrorSourceReport() {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const fetchRows = async () => {
-    setLoading(true);
+  const applyPreset = (p: 'today' | 'week' | 'month') => {
+    const now = new Date();
+    if (p === 'today') {
+      setDateFrom(now);
+      setDateTo(now);
+    } else if (p === 'week') {
+      setDateFrom(startOfWeek(now, { weekStartsOn: 0 }));
+      setDateTo(now);
+    } else {
+      setDateFrom(startOfMonth(now));
+      setDateTo(endOfMonth(now));
+    }
+    setPreset(p);
+  };
+
+  const fetchRows = async (opts?: { background?: boolean }) => {
+    if (!opts?.background) setLoading(true);
     try {
       const from = new Date(dateFrom);
       from.setHours(0, 0, 0, 0);
@@ -135,6 +152,7 @@ export default function QAErrorSourceReport() {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchRows();
@@ -367,7 +385,7 @@ export default function QAErrorSourceReport() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchRows} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => fetchRows()} disabled={loading}>
             <RefreshCw className={cn('h-3 w-3 mr-1', loading && 'animate-spin')} />
             Refresh
           </Button>
@@ -383,8 +401,30 @@ export default function QAErrorSourceReport() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DatePick value={dateFrom} onChange={setDateFrom} label="From" />
-        <DatePick value={dateTo} onChange={setDateTo} label="To" />
+        <div className="flex items-center gap-1.5">
+          {([
+            { key: 'today', label: 'Today', icon: Clock },
+            { key: 'week', label: 'This Week', icon: CalendarIcon },
+            { key: 'month', label: 'This Month', icon: CalendarIcon },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <Button
+              key={key}
+              type="button"
+              variant={preset === key ? 'default' : 'secondary'}
+              size="sm"
+              className="rounded-full"
+              onClick={() => applyPreset(key)}
+            >
+              <Icon className="h-3 w-3 mr-1" />
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="h-6 w-px bg-border mx-1" />
+        <DatePick value={dateFrom} onChange={(d) => { setDateFrom(d); setPreset('custom'); }} label="From" />
+        <span className="text-muted-foreground text-sm">→</span>
+        <DatePick value={dateTo} onChange={(d) => { setDateTo(d); setPreset('custom'); }} label="To" />
+
 
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="h-9 w-[190px]"><SelectValue placeholder="All clinics" /></SelectTrigger>
@@ -688,7 +728,7 @@ export default function QAErrorSourceReport() {
 
       <QACaseDrawerStandalone
         caseId={openCaseId}
-        onClose={() => { setOpenCaseId(null); fetchRows(); }}
+        onClose={() => { setOpenCaseId(null); fetchRows({ background: true }); }}
       />
     </div>
   );
