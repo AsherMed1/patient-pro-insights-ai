@@ -238,6 +238,13 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       const allServices = new Set(
         [...allCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
       );
+
+      // Merge known project services into the full list so every clinic service line is visible
+      if (projectFilter && projectFilter !== 'ALL') {
+        const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
+        knownServices.forEach(s => allServices.add(s));
+      }
+
       // Date-scoped set: a single appointment is enough to enable a service,
       // but only for services that already exist in the full (sanitized) list.
       const activeServices = new Set(
@@ -246,11 +253,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
           .map(([s]) => s)
       );
 
-      // Merge known project services into the full list so every clinic service line is visible
-      if (projectFilter && projectFilter !== 'ALL') {
-        const knownServices = KNOWN_PROJECT_SERVICES[projectFilter] || [];
-        knownServices.forEach(s => allServices.add(s));
-      }
 
       // Never drop the currently selected service from either list
       if (serviceFilter && serviceFilter !== 'ALL') {
