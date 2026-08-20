@@ -444,7 +444,8 @@ serve(async (req) => {
           `contact tagged with "${RESTORATION_TAG}", ` +
           (dnd_suppress ? `and SMS/Email DND temporarily enabled for ${dnd_window_hours}h. ` : '') +
           `Patient may have already received reschedule SMS/email — please call to verbally reconfirm the original time.`,
-        created_by: null,
+        created_by: 'System',
+        visibility: 'internal',
       });
 
       await supabase.from('security_audit_log').insert({
