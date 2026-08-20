@@ -400,8 +400,30 @@ export default function QAErrorSourceReport() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DatePick value={dateFrom} onChange={setDateFrom} label="From" />
-        <DatePick value={dateTo} onChange={setDateTo} label="To" />
+        <div className="flex items-center gap-1.5">
+          {([
+            { key: 'today', label: 'Today', icon: Clock },
+            { key: 'week', label: 'This Week', icon: CalendarIcon },
+            { key: 'month', label: 'This Month', icon: CalendarIcon },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <Button
+              key={key}
+              type="button"
+              variant={preset === key ? 'default' : 'secondary'}
+              size="sm"
+              className="rounded-full"
+              onClick={() => applyPreset(key)}
+            >
+              <Icon className="h-3 w-3 mr-1" />
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="h-6 w-px bg-border mx-1" />
+        <DatePick value={dateFrom} onChange={(d) => { setDateFrom(d); setPreset('custom'); }} label="From" />
+        <span className="text-muted-foreground text-sm">→</span>
+        <DatePick value={dateTo} onChange={(d) => { setDateTo(d); setPreset('custom'); }} label="To" />
+
 
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="h-9 w-[190px]"><SelectValue placeholder="All clinics" /></SelectTrigger>
