@@ -1,49 +1,35 @@
-# Fix Trainee Submitted bookings missing from the Review Queue
+# Reconcile missed GHL appointments
 
-## Confirmed diagnosis
+## Goal
+Add an automated safety net for GHL appointments whose create webhook never reaches the Portal, including Trainee Submitted bookings that must land in Trainee Review.
 
-- The new GHL lead **Test Johann Do not decline** does not exist in `all_appointments`, including outside the Trainee bucket.
-- There is no Ally Vascular request for this lead in the current `ghl-webhook-handler` logs around the test time.
-- Ally's project row has GHL credentials and the expected location id. The screenshot confirms the contact has **Insurance Intake Source = Trainee Submitted** and a live appointment.
-- This failure happened before trainee classification: the Portal never received the appointment webhook. The existing delayed intake-source retry only runs after a Portal row is created, so it cannot recover this case.
+## Implementation
+1. **Add a reconciliation Edge Function**
+   - Scan recent and upcoming GHL calendar events for configured projects, with optional project/location and date-range inputs for targeted recovery.
+   - Compare each GHL appointment ID against `all_appointments.ghl_appointment_id`.
+   - Ignore events already represented in the Portal, reserved-time blocks, and terminal historical events.
 
-## Changes
+2. **Reuse the existing ingestion workflow**
+   - For every missing event, fetch the full GHL contact and custom-field definitions so Insurance Intake Source is available by field ID/name.
+   - Build the same standard event payload accepted by `ghl-webhook-handler` and invoke that handler instead of duplicating appointment creation rules.
+   - Preserve current routing: `trainee_submitted` → pending Trainee Review; `setter_submitted` → approved bypass; other/missing sources → New review.
 
-### 1. Add missed-appointment reconciliation
-Create a focused Edge Function that periodically checks recent GHL appointments for configured projects and compares their GHL appointment ids with `all_appointments`.
+3. **Make the sweep safe and observable**
+   - Deduplicate by project/location plus GHL appointment ID before ingestion and rely on the webhook handler’s existing update/deduplication safeguards for races.
+   - Return per-project counts for scanned, already present, recovered, skipped, and failed events without exposing GHL credentials or patient details in routine logs.
+   - Validate request inputs and require either an authenticated admin/trainer caller or the internal scheduled-sweep credential path.
 
-For a missing appointment it will:
-- fetch the GHL appointment and contact,
-- resolve custom-field definitions and **Insurance Intake Source**,
-- create the Portal row with the same review-queue defaults as normal webhook ingestion,
-- route `trainee_submitted` directly to `review_status='pending'` and `review_stage='trainee'`,
-- preserve the existing Setter Submitted bypass and Patient Submitted/New behavior,
-- trigger the existing enrichment and parsing pipeline.
+4. **Schedule automatic reconciliation**
+   - Register a recurring Supabase cron invocation so webhook gaps self-heal without manual action.
+   - Keep an on-demand targeted mode for immediate recovery of a specific project/location and date window.
 
-### 2. Make recovery idempotent and safe
-- Deduplicate by project and GHL appointment id before inserting.
-- Ignore reserved blocks, terminal GHL events, and past appointments using the same guards as `ghl-webhook-handler`.
-- Never modify declined/dismissed frozen snapshots or merge a new event into a terminal record.
-- Process bounded batches so a sweep stays within Edge Runtime limits.
-
-### 3. Schedule and instrument the sweep
-Run reconciliation on a short interval and log, per project:
-- GHL events inspected,
-- already-synced events,
-- recovered appointments,
-- skipped events and errors.
-
-This becomes a safety net for future webhook delivery gaps without changing normal real-time ingestion.
-
-### 4. Recover and verify this test
-- Run reconciliation against Ally Vascular's recent appointment window.
-- Confirm **Test Johann Do not decline** is created once with `insurance_intake_source='trainee_submitted'`, `review_stage='trainee'`, and `review_status='pending'`.
-- Confirm it appears in **Trainee Review**, not New or the clinic-facing portal.
-- Re-run the sweep and confirm no duplicate is created.
+5. **Recover and verify the reported Ally test**
+   - Run a targeted Ally Vascular sweep covering the reported appointment date.
+   - Confirm the missing GHL event creates exactly one Portal row with `insurance_intake_source = 'trainee_submitted'`, `review_stage = 'trainee'`, and `review_status = 'pending'`.
+   - Run the same sweep again and confirm it creates no duplicate.
 
 ## Technical scope
-
-- New reconciliation Edge Function using the project's existing GHL credential, timezone, and custom-field patterns.
-- Scheduled invocation through Supabase.
-- Extract a small shared ingestion helper from `ghl-webhook-handler` only if needed to keep routing behavior identical.
-- No Review Queue UI or schema change is expected.
+- New: `supabase/functions/reconcile-ghl-appointments/index.ts`
+- Update: `supabase/config.toml` only if function-specific configuration is required.
+- Scheduled job: created directly in the connected Supabase project because its URL/key are project-specific.
+- No database schema change is expected.
