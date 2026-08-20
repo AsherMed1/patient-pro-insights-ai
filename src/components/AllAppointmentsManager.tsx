@@ -320,7 +320,7 @@ const AllAppointmentsManager = ({
         if (serviceFilter === 'GAE') {
           countQuery = countQuery.or('parsed_pathology_info->>procedure_type.eq.GAE,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE))');
         } else {
-          countQuery = countQuery.or(`parsed_pathology_info->>procedure_type.eq.${serviceFilter},and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
+          countQuery = countQuery.or(`parsed_pathology_info->>procedure_type.ilike.${serviceFilter}%,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
         }
       }
 
@@ -468,7 +468,7 @@ const AllAppointmentsManager = ({
         if (serviceFilter === 'GAE') {
           appointmentsQuery = appointmentsQuery.or('parsed_pathology_info->>procedure_type.eq.GAE,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE))');
         } else {
-          appointmentsQuery = appointmentsQuery.or(`parsed_pathology_info->>procedure_type.eq.${serviceFilter},and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
+          appointmentsQuery = appointmentsQuery.or(`parsed_pathology_info->>procedure_type.ilike.${serviceFilter}%,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
         }
       }
 
@@ -625,7 +625,7 @@ const AllAppointmentsManager = ({
         if (serviceFilter === 'GAE') {
           query = query.or('parsed_pathology_info->>procedure_type.eq.GAE,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE))');
         } else {
-          query = query.or(`parsed_pathology_info->>procedure_type.eq.${serviceFilter},and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
+          query = query.or(`parsed_pathology_info->>procedure_type.ilike.${serviceFilter}%,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
         }
       }
 
@@ -1446,7 +1446,7 @@ const AllAppointmentsManager = ({
                   }
                   if (serviceFilter !== 'ALL') {
                     if (serviceFilter === 'GAE') query = query.or('parsed_pathology_info->>procedure_type.eq.GAE,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%GAE%,calendar_name.ilike.%In-person%,parsed_pathology_info->>procedure.eq.GAE))');
-                    else query = query.or(`parsed_pathology_info->>procedure_type.eq.${serviceFilter},and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
+                    else query = query.or(`parsed_pathology_info->>procedure_type.ilike.${serviceFilter}%,and(parsed_pathology_info->>procedure_type.is.null,or(calendar_name.ilike.%${serviceFilter}%,parsed_pathology_info->>procedure.eq.${serviceFilter}))`);
                   }
 
 

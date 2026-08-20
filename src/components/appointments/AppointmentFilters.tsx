@@ -19,6 +19,34 @@ const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
   'Champion Heart and Vascular Center': ['GAE', 'HAE', 'PAE', 'PFE', 'UFE'],
   'ECCO Medical': ['GAE', 'PAE', 'PFE'],
 };
+
+// Tokens that are never a real service line (mis-parsed values)
+const INVALID_SERVICE_TOKENS = new Set([
+  'null', 'none', 'n/a', 'na', 'unknown', 'tbd', 'other', 'procedure',
+  'procedures', 'consultation', 'consult', 'appointment', 'undefined', '-', '--',
+]);
+
+// A service must appear on at least this many appointments to be listed
+const MIN_SERVICE_OCCURRENCES = 2;
+
+// Collapse variants onto their canonical service line
+const normalizeService = (raw: string): string | null => {
+  let value = (raw || '').trim();
+  if (!value) return null;
+  if (value.length > 30) return null;
+  if (/[\n\r]/.test(value) || /https?:\/\//i.test(value)) return null;
+  if (INVALID_SERVICE_TOKENS.has(value.toLowerCase())) return null;
+
+  // PAE variants (w/BPH, w BPH, with BPH)
+  if (/^pae\b/i.test(value) && /bph/i.test(value)) return 'PAE';
+  if (/^uae$/i.test(value)) return 'UFE';
+
+  // Uppercase pure acronyms (3-4 letters), otherwise keep original casing
+  if (/^[a-z]{2,4}$/i.test(value)) return value.toUpperCase();
+
+  return value;
+};
+
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -146,16 +174,34 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         return query;
       };
 
-      const [activeResult, allResult] = await Promise.all([
-        buildBaseQuery(true),
-        buildBaseQuery(false)
+      // Page past the 1000-row PostgREST cap so options reflect every appointment
+      const fetchAll = async (applyDateFilter: boolean) => {
+        const PAGE = 1000;
+        const rows: any[] = [];
+        for (let offset = 0; ; offset += PAGE) {
+          const { data, error } = await buildBaseQuery(applyDateFilter).range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          const page = data || [];
+          rows.push(...page);
+          if (page.length < PAGE) break;
+          if (offset > 50000) break;
+        }
+        return rows;
+      };
+
+      const [activeData, allData] = await Promise.all([
+        fetchAll(true),
+        fetchAll(false)
       ]);
 
-      const activeData = activeResult.data;
-      const allData = allResult.data;
 
-      const extractServices = (items: any[]) => {
-        const services = new Set<string>();
+      const countServices = (items: any[]) => {
+        const counts = new Map<string, number>();
+        const bump = (raw: string) => {
+          const normalized = normalizeService(raw);
+          if (!normalized) return;
+          counts.set(normalized, (counts.get(normalized) || 0) + 1);
+        };
         items.forEach(item => {
           if (!item.calendar_name) return;
           // Service source of truth: parsed procedure_type, fallback to calendar name text
@@ -164,7 +210,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             ? (parsed.procedure_type || parsed.procedure)
             : null;
           if (parsedType && typeof parsedType === 'string' && parsedType.trim()) {
-            services.add(parsedType.trim());
+            bump(parsedType);
           } else {
             // Extract service: text between quotes or after "your " and before " Consultation"
             const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
@@ -177,16 +223,24 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 .trim();
               // Skip if nothing meaningful remains (pure modality)
               if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
-                services.add(service);
+                bump(service);
               }
             }
           }
         });
-        return services;
+        return counts;
       };
 
-      const activeServices = extractServices(activeData || []);
-      const allServices = extractServices(allData || []);
+      const activeCounts = countServices(activeData || []);
+      const allCounts = countServices(allData || []);
+
+      // Suppress one-off mis-parsed values (e.g. TKR, "Procedure", "null")
+      const activeServices = new Set(
+        [...activeCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
+      );
+      const allServices = new Set(
+        [...allCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
+      );
 
       // Merge known project services into the full list so every clinic service line is visible
       if (projectFilter && projectFilter !== 'ALL') {
@@ -199,6 +253,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         allServices.add(serviceFilter);
         activeServices.add(serviceFilter);
       }
+
 
       // Locations are driven by the date-filtered dataset (current behavior)
       if (activeData) {
