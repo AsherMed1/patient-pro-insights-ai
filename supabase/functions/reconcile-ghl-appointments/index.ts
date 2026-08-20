@@ -13,6 +13,7 @@ const BodySchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dry_run: z.boolean().optional().default(false),
+  cleanup_unconfirmed: z.boolean().optional().default(false),
   limit_per_project: z.number().int().min(1).max(500).optional().default(200),
 }).refine((v) => v.sweep || v.project_name || v.location_id, {
   message: 'sweep=true, project_name, or location_id is required',
