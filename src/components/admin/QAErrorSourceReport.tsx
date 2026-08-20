@@ -728,7 +728,7 @@ export default function QAErrorSourceReport() {
 
       <QACaseDrawerStandalone
         caseId={openCaseId}
-        onClose={() => { setOpenCaseId(null); fetchRows(); }}
+        onClose={() => { setOpenCaseId(null); fetchRows({ background: true }); }}
       />
     </div>
   );
