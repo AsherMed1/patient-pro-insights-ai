@@ -483,7 +483,8 @@ serve(async (req) => {
             supabase,
             webhookData.ghl_id,
             appointmentData.project_name,
-            requestId
+            requestId,
+            webhookData.ghl_location_id
           );
           if (fallback) {
             intakeSource = fallback;
