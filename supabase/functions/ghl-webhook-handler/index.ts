@@ -465,6 +465,46 @@ serve(async (req) => {
       
       if (error) throw error
       appointmentRecord = data
+
+      // Late-arriving intake source: GHL often sends the appointment webhook before the
+      // "Insurance Intake Source" custom field is populated. Never overwrite a stored
+      // value with null, and reroute a still-pending record into the Trainee bucket
+      // when the source resolves to Trainee Submitted.
+      try {
+        let updIntakeSource = webhookData.insurance_intake_source || null;
+        if (!updIntakeSource && webhookData.ghl_id && !appointmentRecord.insurance_intake_source) {
+          updIntakeSource = await fetchIntakeSourceFromContact(
+            supabase,
+            webhookData.ghl_id,
+            appointmentRecord.project_name,
+            requestId,
+            webhookData.ghl_location_id
+          );
+        }
+        if (updIntakeSource) {
+          const isPendingReviewRow =
+            String(appointmentRecord.review_status || '').toLowerCase() === 'pending' &&
+            ['new', 'pending_review', null, undefined, ''].includes(appointmentRecord.review_stage as any);
+          const shouldRouteTrainee = updIntakeSource === 'trainee_submitted' && isPendingReviewRow;
+          const patch: Record<string, any> = {};
+          if (appointmentRecord.insurance_intake_source !== updIntakeSource) {
+            patch.insurance_intake_source = updIntakeSource;
+          }
+          if (shouldRouteTrainee) patch.review_stage = 'trainee';
+          if (Object.keys(patch).length > 0) {
+            const { data: patched } = await supabase
+              .from('all_appointments')
+              .update(patch)
+              .eq('id', appointmentRecord.id)
+              .select()
+              .single();
+            if (patched) appointmentRecord = patched;
+            console.log(`[${requestId}] intake-source on update: ${updIntakeSource}${shouldRouteTrainee ? ' → routed to Trainee Review' : ''}`);
+          }
+        }
+      } catch (e) {
+        console.error(`[${requestId}] intake-source update handling failed:`, e);
+      }
     } else {
       // All projects now route through the Review Queue unless the GHL "Insurance Intake Source"
       // custom field is set to "Setter Submitted". Previously Premier/ECCO/Davis were auto-approved
