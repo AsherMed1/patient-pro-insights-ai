@@ -2612,6 +2612,18 @@ const ReviewQueue: React.FC = () => {
                             {isNewView ? 'Pending Review' : 'Back to New'}
                           </Button>
                           )}
+                          {!isTraineeView && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                              onClick={() => handleMoveToTrainee([row.id])}
+                              disabled={processing}
+                              title="Reclassify as Trainee Submitted and move to the Trainee Review bucket"
+                            >
+                              <GraduationCap className="h-3.5 w-3.5 mr-1" /> Trainee Review
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
