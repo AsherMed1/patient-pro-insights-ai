@@ -224,6 +224,54 @@ Deno.serve(async (req) => {
         summary.skipped_unconfirmed = eligible.length - candidates.length;
         summary.skipped = events.length - candidates.length;
 
+        // One-off repair: remove untouched pending rows that a previous sweep
+        // created from events GHL never confirmed.
+        if (body.cleanup_unconfirmed) {
+          const unconfirmedIds = eligible
+            .filter((event) => !isConfirmedEvent(event))
+            .map((event) => String(event.id || event.appointmentId));
+          let deleted = 0;
+          for (let index = 0; index < unconfirmedIds.length; index += 100) {
+            const slice = unconfirmedIds.slice(index, index + 100);
+            const { data: rows } = await admin
+              .from('all_appointments')
+              .select('id')
+              .in('ghl_appointment_id', slice)
+              .eq('review_status', 'pending')
+              .neq('review_stage', 'trainee');
+            const ids = (rows || []).map((row: { id: string }) => row.id);
+            if (!ids.length) continue;
+
+            const { data: worked } = await admin
+              .from('appointment_contact_attempts')
+              .select('appointment_id')
+              .in('appointment_id', ids);
+            const { data: reviewed } = await admin
+              .from('appointment_review_history')
+              .select('appointment_id')
+              .in('appointment_id', ids);
+            const touched = new Set([
+              ...(worked || []).map((row: { appointment_id: string }) => row.appointment_id),
+              ...(reviewed || []).map((row: { appointment_id: string }) => row.appointment_id),
+            ]);
+            const removable = ids.filter((id) => !touched.has(id));
+            if (!removable.length) continue;
+
+            if (!body.dry_run) {
+              await admin.from('appointment_notes').delete().in('appointment_id', removable);
+              const { error: deleteError } = await admin
+                .from('all_appointments')
+                .delete()
+                .in('id', removable);
+              if (deleteError) throw new Error(`cleanup failed: ${deleteError.message}`);
+            }
+            deleted += removable.length;
+          }
+          summary.cleaned_up = deleted;
+        }
+
+
+
 
         const eventIds = candidates.map((event) => String(event.id || event.appointmentId));
         const existing = new Set<string>();
