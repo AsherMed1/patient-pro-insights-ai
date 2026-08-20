@@ -38,6 +38,11 @@ type GhlEvent = Record<string, unknown> & {
   dateAdded?: string;
 };
 
+// The Review Queue is for confirmed bookings only. Unconfirmed GHL events
+// ("new"), terminal events, and status-less events must never be recovered.
+const isConfirmedEvent = (event: GhlEvent): boolean =>
+  String(event.appointmentStatus ?? event.status ?? '').trim().toLowerCase() === 'confirmed';
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeaders, 'Content-Type': 'application/json' },
