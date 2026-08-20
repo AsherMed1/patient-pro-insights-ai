@@ -93,6 +93,7 @@ export default function QAErrorSourceReport() {
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date>(new Date());
+  const [preset, setPreset] = useState<'today' | 'week' | 'month' | 'custom'>('custom');
   const [projectFilter, setProjectFilter] = useState('all');
   const [qaFilter, setQaFilter] = useState('all');
   const [alertFilter, setAlertFilter] = useState('all');
@@ -100,8 +101,23 @@ export default function QAErrorSourceReport() {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const fetchRows = async () => {
-    setLoading(true);
+  const applyPreset = (p: 'today' | 'week' | 'month') => {
+    const now = new Date();
+    if (p === 'today') {
+      setDateFrom(now);
+      setDateTo(now);
+    } else if (p === 'week') {
+      setDateFrom(startOfWeek(now, { weekStartsOn: 0 }));
+      setDateTo(now);
+    } else {
+      setDateFrom(startOfMonth(now));
+      setDateTo(endOfMonth(now));
+    }
+    setPreset(p);
+  };
+
+  const fetchRows = async (opts?: { background?: boolean }) => {
+    if (!opts?.background) setLoading(true);
     try {
       const from = new Date(dateFrom);
       from.setHours(0, 0, 0, 0);
@@ -135,6 +151,7 @@ export default function QAErrorSourceReport() {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchRows();
