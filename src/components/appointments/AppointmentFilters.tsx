@@ -234,12 +234,16 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       const activeCounts = countServices(activeData || []);
       const allCounts = countServices(allData || []);
 
-      // Suppress one-off mis-parsed values (e.g. TKR, "Procedure", "null")
-      const activeServices = new Set(
-        [...activeCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
-      );
+      // Suppress one-off mis-parsed values (e.g. TKR, "Procedure", "null") in the FULL list only
       const allServices = new Set(
         [...allCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
+      );
+      // Date-scoped set: a single appointment is enough to enable a service,
+      // but only for services that already exist in the full (sanitized) list.
+      const activeServices = new Set(
+        [...activeCounts.entries()]
+          .filter(([s, n]) => n > 0 && allServices.has(s))
+          .map(([s]) => s)
       );
 
       // Merge known project services into the full list so every clinic service line is visible
