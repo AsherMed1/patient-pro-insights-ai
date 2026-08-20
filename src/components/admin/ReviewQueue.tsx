@@ -132,9 +132,11 @@ type QueueView = 'new' | 'pending' | 'trainee' | 'declined' | 'approved';
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
   const { userName } = useUserAttribution();
-  const { hasRole } = useRole();
-  // Trainee Review bucket is for trainers and management only
-  const canReviewTrainees = hasRole(['admin', 'agent', 'trainer']);
+  const { hasRole, loading: roleLoading } = useRole();
+  // Trainee Review bucket is for trainers and management only.
+  // While roles are still resolving we keep the button mounted (disabled) so it
+  // doesn't pop in a few seconds after the rest of the bucket row renders.
+  const canReviewTrainees = roleLoading || hasRole(['admin', 'agent', 'trainer']);
   const [rows, setRows] = useState<ReviewAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
@@ -2014,6 +2016,8 @@ const ReviewQueue: React.FC = () => {
             <Button
               variant={queueView === 'trainee' ? 'default' : 'outline'}
               size="sm"
+              disabled={roleLoading}
+              className={cn(roleLoading && 'opacity-60')}
               onClick={() => { setQueueView('trainee'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
             >
               Trainee Review

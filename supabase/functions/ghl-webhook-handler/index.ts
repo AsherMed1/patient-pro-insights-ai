@@ -648,6 +648,45 @@ serve(async (req) => {
         }
       }
 
+      // GHL often stamps the "Insurance Intake Source" custom field on the contact a few
+      // seconds AFTER the appointment webhook fires. If we couldn't resolve it in-band,
+      // re-check the contact in the background and reroute the still-pending record.
+      if (appointmentRecord && !intakeSource && webhookData.ghl_id && appointmentData.project_name) {
+        const apptId = appointmentRecord.id;
+        const contactId = webhookData.ghl_id;
+        const projName = appointmentData.project_name;
+        const locId = webhookData.ghl_location_id;
+        const retry = async () => {
+          for (const delayMs of [15000, 45000, 120000]) {
+            await new Promise((r) => setTimeout(r, delayMs));
+            try {
+              const { data: current } = await supabase
+                .from('all_appointments')
+                .select('id, insurance_intake_source, review_status, review_stage')
+                .eq('id', apptId)
+                .maybeSingle();
+              if (!current) return;
+              if (current.insurance_intake_source) return; // resolved elsewhere
+              if (current.review_status !== 'pending') return; // already actioned
+              const late = await fetchIntakeSourceFromContact(supabase, contactId, projName, `${requestId}:retry`, locId);
+              if (!late) continue;
+              const updates: Record<string, unknown> = { insurance_intake_source: late };
+              if (late === 'trainee_submitted' && ['new', 'pending_review'].includes(current.review_stage || 'new')) {
+                updates.review_stage = 'trainee';
+              }
+              await supabase.from('all_appointments').update(updates).eq('id', apptId);
+              console.log(`[${requestId}] late intake-source resolved=${late} for appointment ${apptId}`);
+              return;
+            } catch (e) {
+              console.error(`[${requestId}] late intake-source recheck failed:`, e);
+            }
+          }
+        };
+        try { (globalThis as any).EdgeRuntime?.waitUntil ? (globalThis as any).EdgeRuntime.waitUntil(retry()) : retry(); } catch (_e) { /* noop */ }
+      }
+
+
+
       // Notify Slack review queue (fire-and-forget) — skip for exempt projects and setter-submitted bypasses
       try {
         if (!isExempt && !isSetterSubmitted) supabase.functions.invoke('notify-slack-review-queue', {
@@ -1648,6 +1687,7 @@ async function fetchIntakeSourceFromContact(
   // whitespace/case tolerant project-name match. An exact `.eq(project_name)`
   // silently missed projects whose stored name has extra spaces.
   let project: any = null;
+  let matchStrategy: string | null = null;
 
   if (locationId) {
     const { data } = await supabase
@@ -1655,7 +1695,7 @@ async function fetchIntakeSourceFromContact(
       .select('project_name, ghl_api_key, ghl_location_id')
       .eq('ghl_location_id', locationId)
       .maybeSingle();
-    if (data?.ghl_api_key) project = data;
+    if (data?.ghl_api_key) { project = data; matchStrategy = 'location_id'; }
   }
 
   if (!project) {
@@ -1664,7 +1704,7 @@ async function fetchIntakeSourceFromContact(
       .select('project_name, ghl_api_key, ghl_location_id')
       .eq('project_name', projectName)
       .maybeSingle();
-    if (data?.ghl_api_key) project = data;
+    if (data?.ghl_api_key) { project = data; matchStrategy = 'exact_name'; }
   }
 
   if (!project) {
@@ -1676,12 +1716,15 @@ async function fetchIntakeSourceFromContact(
       .ilike('project_name', `%${String(projectName || '').split(/\s+/)[0] || ''}%`)
       .limit(50);
     project = (candidates || []).find((p: any) => normalize(p.project_name) === target && p.ghl_api_key) || null;
+    if (project) matchStrategy = 'normalized_name';
   }
 
   if (!project?.ghl_api_key) {
     console.log(`[${requestId}] intake-source fallback: missing GHL credentials for "${projectName}" (location=${locationId || 'n/a'})`);
     return null;
   }
+
+  console.log(`[${requestId}] intake-source fallback: project="${project.project_name}" via ${matchStrategy} (location=${project.ghl_location_id})`);
 
   const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
   const GHL_API_VERSION = '2021-07-28';
@@ -1702,6 +1745,7 @@ async function fetchIntakeSourceFromContact(
       if (d?.id && d?.name) defsMap[d.id] = d.name;
     }
   }
+  console.log(`[${requestId}] intake-source fallback: customFields defs status=${defsRes.status} count=${Object.keys(defsMap).length}`);
 
   const contactRes = await fetch(`${GHL_BASE_URL}/contacts/${contactId}`, {
     method: 'GET',
@@ -1719,10 +1763,13 @@ async function fetchIntakeSourceFromContact(
   const contact = contactData.contact ?? contactData;
   const rawFields = contact?.customFields || [];
   const normalized = rawFields.map((f: any) => ({
-    key: defsMap[f.id] || f.key || f.name || '',
+    key: defsMap[f.id] || f.key || f.name || `(unresolved:${f.id})`,
     value: f.field_value ?? f.value,
   }));
-  return extractInsuranceIntakeSource(normalized);
+  const resolved = extractInsuranceIntakeSource(normalized);
+  const hit = normalized.find((f: any) => /insurance[\s_-]*intake[\s_-]*source/i.test(f.key || ''));
+  console.log(`[${requestId}] intake-source fallback: contact fields=${normalized.length} matchedKey=${hit?.key || 'none'} rawValue=${hit ? JSON.stringify(hit.value) : 'n/a'} resolved=${resolved || 'null'}`);
+  return resolved;
 }
 
 // Extract "Insurance Intake Source" custom field. Returns normalized value:
