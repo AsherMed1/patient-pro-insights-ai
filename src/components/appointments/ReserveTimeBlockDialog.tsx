@@ -501,9 +501,43 @@ export function ReserveTimeBlockDialog({
         });
 
         cancelledCount++;
+        cancelled.push(appt);
       } catch (err) {
         console.error(`[ReserveTimeBlock] Error cancelling appt ${appt.id}:`, err);
       }
+    }
+
+    // 5. Slack hand-off so a caller can work the rebook queue (fire-and-forget).
+    if (cancelled.length > 0) {
+      const fmt = (time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        const ampm = h < 12 ? 'AM' : 'PM';
+        const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
+      };
+
+      supabase.functions.invoke('notify-slack-block-cancellations', {
+        body: {
+          projectName,
+          blockedDate: selectedDate ? format(selectedDate, 'PPPP') : '',
+          timeRanges: timeRanges.map((r) => `${fmt(r.startTime)} - ${fmt(r.endTime)}`),
+          blockReason: reason || null,
+          reservedBy: userName || null,
+          ghlLocationId,
+          timezone: projectTimezone,
+          patients: cancelled.map((c) => ({
+            appointmentId: c.id,
+            leadName: c.lead_name,
+            phone: c.lead_phone_number,
+            requestedTime: c.requested_time,
+            dateOfAppointment: c.date_of_appointment,
+            calendarName: c.calendar_name,
+            ghlId: c.ghl_id,
+          })),
+        },
+      }).catch((err) => {
+        console.error('[ReserveTimeBlock] Slack rebook-queue alert failed (non-critical):', err);
+      });
     }
 
     return cancelledCount;
