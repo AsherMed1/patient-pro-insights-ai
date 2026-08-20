@@ -1575,15 +1575,45 @@ async function fetchIntakeSourceFromContact(
   supabase: any,
   contactId: string,
   projectName: string,
-  requestId: string
-): Promise<'setter_submitted' | 'patient_submitted' | null> {
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('ghl_api_key, ghl_location_id')
-    .eq('project_name', projectName)
-    .maybeSingle();
-  if (error || !project?.ghl_api_key) {
-    console.log(`[${requestId}] intake-source fallback: missing GHL credentials for ${projectName}`);
+  requestId: string,
+  locationId?: string | null
+): Promise<'setter_submitted' | 'patient_submitted' | 'trainee_submitted' | null> {
+  // Resolve credentials by GHL location id first (most reliable), then by a
+  // whitespace/case tolerant project-name match. An exact `.eq(project_name)`
+  // silently missed projects whose stored name has extra spaces.
+  let project: any = null;
+
+  if (locationId) {
+    const { data } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .eq('ghl_location_id', locationId)
+      .maybeSingle();
+    if (data?.ghl_api_key) project = data;
+  }
+
+  if (!project) {
+    const { data } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .eq('project_name', projectName)
+      .maybeSingle();
+    if (data?.ghl_api_key) project = data;
+  }
+
+  if (!project) {
+    const normalize = (s: string) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const target = normalize(projectName);
+    const { data: candidates } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .ilike('project_name', `%${String(projectName || '').split(/\s+/)[0] || ''}%`)
+      .limit(50);
+    project = (candidates || []).find((p: any) => normalize(p.project_name) === target && p.ghl_api_key) || null;
+  }
+
+  if (!project?.ghl_api_key) {
+    console.log(`[${requestId}] intake-source fallback: missing GHL credentials for "${projectName}" (location=${locationId || 'n/a'})`);
     return null;
   }
 
