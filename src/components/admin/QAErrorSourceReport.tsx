@@ -384,7 +384,7 @@ export default function QAErrorSourceReport() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchRows} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => fetchRows()} disabled={loading}>
             <RefreshCw className={cn('h-3 w-3 mr-1', loading && 'animate-spin')} />
             Refresh
           </Button>
