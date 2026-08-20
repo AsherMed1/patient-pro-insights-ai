@@ -174,13 +174,26 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         return query;
       };
 
-      const [activeResult, allResult] = await Promise.all([
-        buildBaseQuery(true),
-        buildBaseQuery(false)
+      // Page past the 1000-row PostgREST cap so options reflect every appointment
+      const fetchAll = async (applyDateFilter: boolean) => {
+        const PAGE = 1000;
+        const rows: any[] = [];
+        for (let offset = 0; ; offset += PAGE) {
+          const { data, error } = await buildBaseQuery(applyDateFilter).range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          const page = data || [];
+          rows.push(...page);
+          if (page.length < PAGE) break;
+          if (offset > 50000) break;
+        }
+        return rows;
+      };
+
+      const [activeData, allData] = await Promise.all([
+        fetchAll(true),
+        fetchAll(false)
       ]);
 
-      const activeData = activeResult.data;
-      const allData = allResult.data;
 
       const extractServices = (items: any[]) => {
         const services = new Set<string>();
