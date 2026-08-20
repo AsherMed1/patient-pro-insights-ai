@@ -465,6 +465,46 @@ serve(async (req) => {
       
       if (error) throw error
       appointmentRecord = data
+
+      // Late-arriving intake source: GHL often sends the appointment webhook before the
+      // "Insurance Intake Source" custom field is populated. Never overwrite a stored
+      // value with null, and reroute a still-pending record into the Trainee bucket
+      // when the source resolves to Trainee Submitted.
+      try {
+        let updIntakeSource = webhookData.insurance_intake_source || null;
+        if (!updIntakeSource && webhookData.ghl_id && !appointmentRecord.insurance_intake_source) {
+          updIntakeSource = await fetchIntakeSourceFromContact(
+            supabase,
+            webhookData.ghl_id,
+            appointmentRecord.project_name,
+            requestId,
+            webhookData.ghl_location_id
+          );
+        }
+        if (updIntakeSource) {
+          const isPendingReviewRow =
+            String(appointmentRecord.review_status || '').toLowerCase() === 'pending' &&
+            ['new', 'pending_review', null, undefined, ''].includes(appointmentRecord.review_stage as any);
+          const shouldRouteTrainee = updIntakeSource === 'trainee_submitted' && isPendingReviewRow;
+          const patch: Record<string, any> = {};
+          if (appointmentRecord.insurance_intake_source !== updIntakeSource) {
+            patch.insurance_intake_source = updIntakeSource;
+          }
+          if (shouldRouteTrainee) patch.review_stage = 'trainee';
+          if (Object.keys(patch).length > 0) {
+            const { data: patched } = await supabase
+              .from('all_appointments')
+              .update(patch)
+              .eq('id', appointmentRecord.id)
+              .select()
+              .single();
+            if (patched) appointmentRecord = patched;
+            console.log(`[${requestId}] intake-source on update: ${updIntakeSource}${shouldRouteTrainee ? ' → routed to Trainee Review' : ''}`);
+          }
+        }
+      } catch (e) {
+        console.error(`[${requestId}] intake-source update handling failed:`, e);
+      }
     } else {
       // All projects now route through the Review Queue unless the GHL "Insurance Intake Source"
       // custom field is set to "Setter Submitted". Previously Premier/ECCO/Davis were auto-approved
@@ -483,7 +523,8 @@ serve(async (req) => {
             supabase,
             webhookData.ghl_id,
             appointmentData.project_name,
-            requestId
+            requestId,
+            webhookData.ghl_location_id
           );
           if (fallback) {
             intakeSource = fallback;
@@ -581,6 +622,31 @@ serve(async (req) => {
 
       if (error) throw error
       appointmentRecord = data
+
+      // Safety net: make sure the intake source (and the trainee routing that depends on
+      // it) actually landed on the row. If the insert path dropped it for any reason,
+      // write it explicitly so the record cannot silently fall back to the New bucket.
+      if (appointmentRecord && intakeSource) {
+        const needsSource = appointmentRecord.insurance_intake_source !== intakeSource;
+        const needsStage = isTraineeSubmitted && appointmentRecord.review_stage !== 'trainee';
+        if (needsSource || needsStage) {
+          const { data: fixed, error: fixError } = await supabase
+            .from('all_appointments')
+            .update({
+              insurance_intake_source: intakeSource,
+              ...(isTraineeSubmitted ? { review_stage: 'trainee' } : {}),
+            })
+            .eq('id', appointmentRecord.id)
+            .select()
+            .single();
+          if (fixError) {
+            console.error(`[${requestId}] intake-source backfill failed:`, fixError);
+          } else if (fixed) {
+            appointmentRecord = fixed;
+            console.log(`[${requestId}] intake-source backfilled (source=${intakeSource}, stage=${fixed.review_stage})`);
+          }
+        }
+      }
 
       // Notify Slack review queue (fire-and-forget) — skip for exempt projects and setter-submitted bypasses
       try {
@@ -1575,15 +1641,45 @@ async function fetchIntakeSourceFromContact(
   supabase: any,
   contactId: string,
   projectName: string,
-  requestId: string
-): Promise<'setter_submitted' | 'patient_submitted' | null> {
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('ghl_api_key, ghl_location_id')
-    .eq('project_name', projectName)
-    .maybeSingle();
-  if (error || !project?.ghl_api_key) {
-    console.log(`[${requestId}] intake-source fallback: missing GHL credentials for ${projectName}`);
+  requestId: string,
+  locationId?: string | null
+): Promise<'setter_submitted' | 'patient_submitted' | 'trainee_submitted' | null> {
+  // Resolve credentials by GHL location id first (most reliable), then by a
+  // whitespace/case tolerant project-name match. An exact `.eq(project_name)`
+  // silently missed projects whose stored name has extra spaces.
+  let project: any = null;
+
+  if (locationId) {
+    const { data } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .eq('ghl_location_id', locationId)
+      .maybeSingle();
+    if (data?.ghl_api_key) project = data;
+  }
+
+  if (!project) {
+    const { data } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .eq('project_name', projectName)
+      .maybeSingle();
+    if (data?.ghl_api_key) project = data;
+  }
+
+  if (!project) {
+    const normalize = (s: string) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const target = normalize(projectName);
+    const { data: candidates } = await supabase
+      .from('projects')
+      .select('project_name, ghl_api_key, ghl_location_id')
+      .ilike('project_name', `%${String(projectName || '').split(/\s+/)[0] || ''}%`)
+      .limit(50);
+    project = (candidates || []).find((p: any) => normalize(p.project_name) === target && p.ghl_api_key) || null;
+  }
+
+  if (!project?.ghl_api_key) {
+    console.log(`[${requestId}] intake-source fallback: missing GHL credentials for "${projectName}" (location=${locationId || 'n/a'})`);
     return null;
   }
 

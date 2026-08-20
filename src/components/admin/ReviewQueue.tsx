@@ -16,7 +16,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall, CalendarIcon } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall, CalendarIcon, GraduationCap } from 'lucide-react';
 import LogAttemptDialog, { channelLabel, outcomeLabel } from '@/components/appointments/LogAttemptDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -1694,6 +1694,47 @@ const ReviewQueue: React.FC = () => {
   };
 
   /**
+   * Manually reclassify a mis-routed record as trainee-submitted so it can be
+   * reviewed in the Trainee Review bucket without waiting on GoHighLevel.
+   */
+  const handleMoveToTrainee = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setProcessing(true);
+    try {
+      const actor = userName || 'Unknown';
+      const stamp = new Date().toISOString();
+      const { error } = await supabase
+        .from('all_appointments')
+        .update({ insurance_intake_source: 'trainee_submitted', review_stage: 'trainee' })
+        .in('id', ids);
+      if (error) throw error;
+
+      try {
+        await supabase.from('appointment_notes').insert(
+          ids.map(id => ({
+            appointment_id: id,
+            note_text: `Review Queue: moved to Trainee Review by ${actor} - [[timestamp:${stamp}]]`,
+            created_by: actor === 'Unknown' ? 'Review Queue' : actor,
+            attachments: [],
+            visibility: 'internal',
+          }))
+        );
+      } catch (e) {
+        console.warn('trainee move note insert failed', e);
+      }
+
+      toast({ title: 'Moved to Trainee Review', description: `${ids.length} appointment(s)` });
+      setSelected(new Set());
+      fetch();
+      fetchCounts();
+    } catch (e: any) {
+      toast({ title: 'Move failed', description: describeError(e), variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /**
    * Return a trainee-submitted appointment to the trainee for corrections.
    * Keeps it in the Trainee Review bucket (never client-facing) and pushes a
    * `trainee-correction-needed` tag to GHL so the trainee is notified there.
@@ -2570,6 +2611,18 @@ const ReviewQueue: React.FC = () => {
                             <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
                             {isNewView ? 'Pending Review' : 'Back to New'}
                           </Button>
+                          )}
+                          {!isTraineeView && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                              onClick={() => handleMoveToTrainee([row.id])}
+                              disabled={processing}
+                              title="Reclassify as Trainee Submitted and move to the Trainee Review bucket"
+                            >
+                              <GraduationCap className="h-3.5 w-3.5 mr-1" /> Trainee Review
+                            </Button>
                           )}
                         </>
                       )}
