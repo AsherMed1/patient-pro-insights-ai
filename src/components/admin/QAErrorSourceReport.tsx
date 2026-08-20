@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { format, startOfWeek, subDays } from 'date-fns';
+import { format, startOfWeek, startOfMonth, endOfMonth, subDays } from 'date-fns';
 import {
   Calendar as CalendarIcon,
   ChevronDown,
