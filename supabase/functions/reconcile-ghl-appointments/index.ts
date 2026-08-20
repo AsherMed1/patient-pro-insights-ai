@@ -298,8 +298,9 @@ Deno.serve(async (req) => {
         already_present: acc.already_present + Number(entry.already_present),
         recovered: acc.recovered + Number(entry.recovered),
         skipped: acc.skipped + Number(entry.skipped),
+        skipped_unconfirmed: acc.skipped_unconfirmed + Number(entry.skipped_unconfirmed || 0),
         failed: acc.failed + Number(entry.failed),
-      }), { scanned: 0, already_present: 0, recovered: 0, skipped: 0, failed: 0 }),
+      }), { scanned: 0, already_present: 0, recovered: 0, skipped: 0, skipped_unconfirmed: 0, failed: 0 }),
       projects: summaries,
     });
   } catch (error) {
