@@ -207,18 +207,22 @@ Deno.serve(async (req) => {
         already_present: 0,
         recovered: 0,
         skipped: 0,
+        skipped_unconfirmed: 0,
         failed: 0,
       };
       try {
         const events = (await fetchEvents(project, startMs, endMs)).slice(0, body.limit_per_project);
         summary.scanned = events.length;
-        const candidates = events.filter((event) => {
+        const eligible = events.filter((event) => {
           const id = String(event.id || event.appointmentId || '').trim();
           const contactId = String(event.contactId || '').trim();
           const title = String(event.title || '').trim();
           return id && contactId && !/^reserved(?:\s*-|$)/i.test(title);
         });
+        const candidates = eligible.filter(isConfirmedEvent);
+        summary.skipped_unconfirmed = eligible.length - candidates.length;
         summary.skipped = events.length - candidates.length;
+
 
         const eventIds = candidates.map((event) => String(event.id || event.appointmentId));
         const existing = new Set<string>();
