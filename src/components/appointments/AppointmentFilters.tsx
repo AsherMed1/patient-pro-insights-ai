@@ -19,6 +19,34 @@ const KNOWN_PROJECT_SERVICES: Record<string, string[]> = {
   'Champion Heart and Vascular Center': ['GAE', 'HAE', 'PAE', 'PFE', 'UFE'],
   'ECCO Medical': ['GAE', 'PAE', 'PFE'],
 };
+
+// Tokens that are never a real service line (mis-parsed values)
+const INVALID_SERVICE_TOKENS = new Set([
+  'null', 'none', 'n/a', 'na', 'unknown', 'tbd', 'other', 'procedure',
+  'procedures', 'consultation', 'consult', 'appointment', 'undefined', '-', '--',
+]);
+
+// A service must appear on at least this many appointments to be listed
+const MIN_SERVICE_OCCURRENCES = 2;
+
+// Collapse variants onto their canonical service line
+const normalizeService = (raw: string): string | null => {
+  let value = (raw || '').trim();
+  if (!value) return null;
+  if (value.length > 30) return null;
+  if (/[\n\r]/.test(value) || /https?:\/\//i.test(value)) return null;
+  if (INVALID_SERVICE_TOKENS.has(value.toLowerCase())) return null;
+
+  // PAE variants (w/BPH, w BPH, with BPH)
+  if (/^pae\b/i.test(value) && /bph/i.test(value)) return 'PAE';
+  if (/^uae$/i.test(value)) return 'UFE';
+
+  // Uppercase pure acronyms (3-4 letters), otherwise keep original casing
+  if (/^[a-z]{2,4}$/i.test(value)) return value.toUpperCase();
+
+  return value;
+};
+
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
