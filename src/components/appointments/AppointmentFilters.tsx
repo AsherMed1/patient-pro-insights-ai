@@ -195,8 +195,13 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
       ]);
 
 
-      const extractServices = (items: any[]) => {
-        const services = new Set<string>();
+      const countServices = (items: any[]) => {
+        const counts = new Map<string, number>();
+        const bump = (raw: string) => {
+          const normalized = normalizeService(raw);
+          if (!normalized) return;
+          counts.set(normalized, (counts.get(normalized) || 0) + 1);
+        };
         items.forEach(item => {
           if (!item.calendar_name) return;
           // Service source of truth: parsed procedure_type, fallback to calendar name text
@@ -205,7 +210,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             ? (parsed.procedure_type || parsed.procedure)
             : null;
           if (parsedType && typeof parsedType === 'string' && parsedType.trim()) {
-            services.add(parsedType.trim());
+            bump(parsedType);
           } else {
             // Extract service: text between quotes or after "your " and before " Consultation"
             const serviceMatch = item.calendar_name.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
@@ -218,16 +223,24 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
                 .trim();
               // Skip if nothing meaningful remains (pure modality)
               if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) {
-                services.add(service);
+                bump(service);
               }
             }
           }
         });
-        return services;
+        return counts;
       };
 
-      const activeServices = extractServices(activeData || []);
-      const allServices = extractServices(allData || []);
+      const activeCounts = countServices(activeData || []);
+      const allCounts = countServices(allData || []);
+
+      // Suppress one-off mis-parsed values (e.g. TKR, "Procedure", "null")
+      const activeServices = new Set(
+        [...activeCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
+      );
+      const allServices = new Set(
+        [...allCounts.entries()].filter(([, n]) => n >= MIN_SERVICE_OCCURRENCES).map(([s]) => s)
+      );
 
       // Merge known project services into the full list so every clinic service line is visible
       if (projectFilter && projectFilter !== 'ALL') {
@@ -240,6 +253,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
         allServices.add(serviceFilter);
         activeServices.add(serviceFilter);
       }
+
 
       // Locations are driven by the date-filtered dataset (current behavior)
       if (activeData) {
