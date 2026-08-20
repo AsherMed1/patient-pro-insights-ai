@@ -2016,6 +2016,8 @@ const ReviewQueue: React.FC = () => {
             <Button
               variant={queueView === 'trainee' ? 'default' : 'outline'}
               size="sm"
+              disabled={roleLoading}
+              className={cn(roleLoading && 'opacity-60')}
               onClick={() => { setQueueView('trainee'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
             >
               Trainee Review
