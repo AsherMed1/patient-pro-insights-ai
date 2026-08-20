@@ -648,6 +648,45 @@ serve(async (req) => {
         }
       }
 
+      // GHL often stamps the "Insurance Intake Source" custom field on the contact a few
+      // seconds AFTER the appointment webhook fires. If we couldn't resolve it in-band,
+      // re-check the contact in the background and reroute the still-pending record.
+      if (appointmentRecord && !intakeSource && webhookData.ghl_id && appointmentData.project_name) {
+        const apptId = appointmentRecord.id;
+        const contactId = webhookData.ghl_id;
+        const projName = appointmentData.project_name;
+        const locId = webhookData.ghl_location_id;
+        const retry = async () => {
+          for (const delayMs of [15000, 45000, 120000]) {
+            await new Promise((r) => setTimeout(r, delayMs));
+            try {
+              const { data: current } = await supabase
+                .from('all_appointments')
+                .select('id, insurance_intake_source, review_status, review_stage')
+                .eq('id', apptId)
+                .maybeSingle();
+              if (!current) return;
+              if (current.insurance_intake_source) return; // resolved elsewhere
+              if (current.review_status !== 'pending') return; // already actioned
+              const late = await fetchIntakeSourceFromContact(supabase, contactId, projName, `${requestId}:retry`, locId);
+              if (!late) continue;
+              const updates: Record<string, unknown> = { insurance_intake_source: late };
+              if (late === 'trainee_submitted' && ['new', 'pending_review'].includes(current.review_stage || 'new')) {
+                updates.review_stage = 'trainee';
+              }
+              await supabase.from('all_appointments').update(updates).eq('id', apptId);
+              console.log(`[${requestId}] late intake-source resolved=${late} for appointment ${apptId}`);
+              return;
+            } catch (e) {
+              console.error(`[${requestId}] late intake-source recheck failed:`, e);
+            }
+          }
+        };
+        try { (globalThis as any).EdgeRuntime?.waitUntil ? (globalThis as any).EdgeRuntime.waitUntil(retry()) : retry(); } catch (_e) { /* noop */ }
+      }
+
+
+
       // Notify Slack review queue (fire-and-forget) — skip for exempt projects and setter-submitted bypasses
       try {
         if (!isExempt && !isSetterSubmitted) supabase.functions.invoke('notify-slack-review-queue', {
