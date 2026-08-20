@@ -1648,6 +1648,7 @@ async function fetchIntakeSourceFromContact(
   // whitespace/case tolerant project-name match. An exact `.eq(project_name)`
   // silently missed projects whose stored name has extra spaces.
   let project: any = null;
+  let matchStrategy: string | null = null;
 
   if (locationId) {
     const { data } = await supabase
@@ -1655,7 +1656,7 @@ async function fetchIntakeSourceFromContact(
       .select('project_name, ghl_api_key, ghl_location_id')
       .eq('ghl_location_id', locationId)
       .maybeSingle();
-    if (data?.ghl_api_key) project = data;
+    if (data?.ghl_api_key) { project = data; matchStrategy = 'location_id'; }
   }
 
   if (!project) {
@@ -1664,7 +1665,7 @@ async function fetchIntakeSourceFromContact(
       .select('project_name, ghl_api_key, ghl_location_id')
       .eq('project_name', projectName)
       .maybeSingle();
-    if (data?.ghl_api_key) project = data;
+    if (data?.ghl_api_key) { project = data; matchStrategy = 'exact_name'; }
   }
 
   if (!project) {
@@ -1676,12 +1677,15 @@ async function fetchIntakeSourceFromContact(
       .ilike('project_name', `%${String(projectName || '').split(/\s+/)[0] || ''}%`)
       .limit(50);
     project = (candidates || []).find((p: any) => normalize(p.project_name) === target && p.ghl_api_key) || null;
+    if (project) matchStrategy = 'normalized_name';
   }
 
   if (!project?.ghl_api_key) {
     console.log(`[${requestId}] intake-source fallback: missing GHL credentials for "${projectName}" (location=${locationId || 'n/a'})`);
     return null;
   }
+
+  console.log(`[${requestId}] intake-source fallback: project="${project.project_name}" via ${matchStrategy} (location=${project.ghl_location_id})`);
 
   const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
   const GHL_API_VERSION = '2021-07-28';
