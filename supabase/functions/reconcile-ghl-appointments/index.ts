@@ -70,8 +70,7 @@ async function authenticate(
   const authHeader = req.headers.get('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-  const scheduled = body.sweep && !body.project_name && !body.location_id &&
-    req.headers.get('apikey') === anonKey && token === anonKey;
+  const scheduled = body.sweep && req.headers.get('apikey') === anonKey && token === anonKey;
 
   if (scheduled) return { scheduled: true };
   if (!token) return null;
