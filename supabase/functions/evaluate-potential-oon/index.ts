@@ -112,6 +112,8 @@ serve(async (req) => {
       await supabase.from('appointment_notes').insert({
         appointment_id: appt.id,
         note_text: `Potential OON insurance detected — ${summary}. Held for QA insurance verification.`,
+        created_by: 'System',
+        visibility: 'internal',
       }).then(({ error: nErr }) => { if (nErr) console.error('note insert failed:', nErr); });
 
       if (wasClientFacing) {
