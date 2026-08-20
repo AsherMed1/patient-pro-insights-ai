@@ -449,6 +449,7 @@ export function ReserveTimeBlockDialog({
     );
 
     let cancelledCount = 0;
+    const cancelled: BlockConflict[] = [];
 
     for (const appt of eligible) {
       try {
