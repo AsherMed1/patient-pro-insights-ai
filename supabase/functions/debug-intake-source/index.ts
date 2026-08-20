@@ -42,11 +42,13 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
     if (!token) return json({ error: 'Unauthorized' }, 401);
-    const { data: userData, error: userErr } = await admin.auth.getUser(token);
-    if (userErr || !userData?.user) return json({ error: 'Unauthorized' }, 401);
-    const { data: roles } = await admin.from('user_roles').select('role').eq('user_id', userData.user.id);
-    const allowed = (roles || []).some((r: any) => ['admin', 'agent', 'trainer'].includes(r.role));
-    if (!allowed) return json({ error: 'Forbidden' }, 403);
+    if (token !== serviceKey) {
+      const { data: userData, error: userErr } = await admin.auth.getUser(token);
+      if (userErr || !userData?.user) return json({ error: 'Unauthorized' }, 401);
+      const { data: roles } = await admin.from('user_roles').select('role').eq('user_id', userData.user.id);
+      const allowed = (roles || []).some((r: any) => ['admin', 'agent', 'trainer'].includes(r.role));
+      if (!allowed) return json({ error: 'Forbidden' }, 403);
+    }
 
     const body = await req.json().catch(() => ({}));
     let contactId: string | null = body?.contact_id ?? null;
