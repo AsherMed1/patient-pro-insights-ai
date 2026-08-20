@@ -16,7 +16,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall, CalendarIcon } from 'lucide-react';
+import { Check, X, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown, Undo2, Trash2, Copy, ArrowRightLeft, Zap, Clock, PhoneCall, CalendarIcon, GraduationCap } from 'lucide-react';
 import LogAttemptDialog, { channelLabel, outcomeLabel } from '@/components/appointments/LogAttemptDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
