@@ -13,6 +13,7 @@ const BodySchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dry_run: z.boolean().optional().default(false),
+  cleanup_unconfirmed: z.boolean().optional().default(false),
   limit_per_project: z.number().int().min(1).max(500).optional().default(200),
 }).refine((v) => v.sweep || v.project_name || v.location_id, {
   message: 'sweep=true, project_name, or location_id is required',
@@ -37,6 +38,11 @@ type GhlEvent = Record<string, unknown> & {
   title?: string;
   dateAdded?: string;
 };
+
+// The Review Queue is for confirmed bookings only. Unconfirmed GHL events
+// ("new"), terminal events, and status-less events must never be recovered.
+const isConfirmedEvent = (event: GhlEvent): boolean =>
+  String(event.appointmentStatus ?? event.status ?? '').trim().toLowerCase() === 'confirmed';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -70,9 +76,12 @@ async function authenticate(
   const authHeader = req.headers.get('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
   const scheduled = body.sweep && req.headers.get('apikey') === anonKey && token === anonKey;
 
   if (scheduled) return { scheduled: true };
+  // Internal/admin tooling calls authenticate with the service role key.
+  if (serviceRoleKey && token === serviceRoleKey) return { scheduled: true };
   if (!token) return null;
 
   const { data, error } = await admin.auth.getUser(token);
@@ -202,18 +211,70 @@ Deno.serve(async (req) => {
         already_present: 0,
         recovered: 0,
         skipped: 0,
+        skipped_unconfirmed: 0,
         failed: 0,
       };
       try {
         const events = (await fetchEvents(project, startMs, endMs)).slice(0, body.limit_per_project);
         summary.scanned = events.length;
-        const candidates = events.filter((event) => {
+        const eligible = events.filter((event) => {
           const id = String(event.id || event.appointmentId || '').trim();
           const contactId = String(event.contactId || '').trim();
           const title = String(event.title || '').trim();
           return id && contactId && !/^reserved(?:\s*-|$)/i.test(title);
         });
+        const candidates = eligible.filter(isConfirmedEvent);
+        summary.skipped_unconfirmed = eligible.length - candidates.length;
         summary.skipped = events.length - candidates.length;
+
+        // One-off repair: remove untouched pending rows that a previous sweep
+        // created from events GHL never confirmed.
+        if (body.cleanup_unconfirmed) {
+          const unconfirmedIds = eligible
+            .filter((event) => !isConfirmedEvent(event))
+            .map((event) => String(event.id || event.appointmentId));
+          let deleted = 0;
+          for (let index = 0; index < unconfirmedIds.length; index += 100) {
+            const slice = unconfirmedIds.slice(index, index + 100);
+            const { data: rows } = await admin
+              .from('all_appointments')
+              .select('id')
+              .in('ghl_appointment_id', slice)
+              .eq('review_status', 'pending')
+              .neq('review_stage', 'trainee');
+            const ids = (rows || []).map((row: { id: string }) => row.id);
+            if (!ids.length) continue;
+
+            const { data: worked } = await admin
+              .from('appointment_contact_attempts')
+              .select('appointment_id')
+              .in('appointment_id', ids);
+            const { data: reviewed } = await admin
+              .from('appointment_review_history')
+              .select('appointment_id')
+              .in('appointment_id', ids);
+            const touched = new Set([
+              ...(worked || []).map((row: { appointment_id: string }) => row.appointment_id),
+              ...(reviewed || []).map((row: { appointment_id: string }) => row.appointment_id),
+            ]);
+            const removable = ids.filter((id) => !touched.has(id));
+            if (!removable.length) continue;
+
+            if (!body.dry_run) {
+              await admin.from('appointment_notes').delete().in('appointment_id', removable);
+              const { error: deleteError } = await admin
+                .from('all_appointments')
+                .delete()
+                .in('id', removable);
+              if (deleteError) throw new Error(`cleanup failed: ${deleteError.message}`);
+            }
+            deleted += removable.length;
+          }
+          summary.cleaned_up = deleted;
+        }
+
+
+
 
         const eventIds = candidates.map((event) => String(event.id || event.appointmentId));
         const existing = new Set<string>();
@@ -289,8 +350,9 @@ Deno.serve(async (req) => {
         already_present: acc.already_present + Number(entry.already_present),
         recovered: acc.recovered + Number(entry.recovered),
         skipped: acc.skipped + Number(entry.skipped),
+        skipped_unconfirmed: acc.skipped_unconfirmed + Number(entry.skipped_unconfirmed || 0),
         failed: acc.failed + Number(entry.failed),
-      }), { scanned: 0, already_present: 0, recovered: 0, skipped: 0, failed: 0 }),
+      }), { scanned: 0, already_present: 0, recovered: 0, skipped: 0, skipped_unconfirmed: 0, failed: 0 }),
       projects: summaries,
     });
   } catch (error) {
