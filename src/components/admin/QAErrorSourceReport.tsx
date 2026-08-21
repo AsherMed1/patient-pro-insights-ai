@@ -103,27 +103,18 @@ export default function QAErrorSourceReport() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const applyPreset = (p: 'today' | 'week' | 'month') => {
-    const now = new Date();
-    if (p === 'today') {
-      setDateFrom(now);
-      setDateTo(now);
-    } else if (p === 'week') {
-      setDateFrom(startOfWeek(now, { weekStartsOn: 0 }));
-      setDateTo(now);
-    } else {
-      setDateFrom(startOfMonth(now));
-      setDateTo(endOfMonth(now));
-    }
+    const { from, to } = ctPresetRange(p);
+    setDateFrom(from);
+    setDateTo(to);
     setPreset(p);
   };
 
   const fetchRows = async (opts?: { background?: boolean }) => {
     if (!opts?.background) setLoading(true);
     try {
-      const from = new Date(dateFrom);
-      from.setHours(0, 0, 0, 0);
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
+      // Central Time day boundaries so every user sees the same range.
+      const from = getCTStartOfDayUTC(dateFrom) as Date;
+      const to = getCTEndOfDayUTC(dateTo) as Date;
 
       const PAGE = 1000;
       const out: any[] = [];
@@ -133,11 +124,12 @@ export default function QAErrorSourceReport() {
           .select(
             'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, qa_name, error_category, error_source, caught_before_clinic, resolution_type, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, appointment_created_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
           )
-          // Same date basis as Case Metrics: when the patient record was created.
-          .gte('appointment_created_at', from.toISOString())
-          .lte('appointment_created_at', to.toISOString())
-          .order('appointment_created_at', { ascending: false })
+          // Same date basis as Case Metrics: when the alert entered the QA queue.
+          .gte('entered_queue_at', from.toISOString())
+          .lte('entered_queue_at', to.toISOString())
+          .order('entered_queue_at', { ascending: false })
           .range(page * PAGE, page * PAGE + PAGE - 1);
+
 
         if (error) throw error;
         const batch = (data as any[]) || [];
