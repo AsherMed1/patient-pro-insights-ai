@@ -320,11 +320,17 @@ const normalizeName = (n: string | null): string =>
   (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /**
- * The date a QA row is filtered by: when the patient record itself was created,
- * falling back to the alert's first queue entry for contact-only alerts.
+ * When the patient record itself was created (reference column only).
  */
 const recordCreatedAt = (c: QACase): string =>
   c.appointment_created_at || c.first_entered_at || c.entered_queue_at;
+
+/**
+ * The timestamp operational date filters use: when the alert entered the QA
+ * queue. Falls back to the current queue-entry stamp for older rows.
+ */
+const queuedAt = (c: QACase): string => c.first_entered_at || c.entered_queue_at;
+
 
 
 const groupKeyFor = (c: QACase): string => {
