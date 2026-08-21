@@ -57,6 +57,55 @@ export const getCTStartOfDayUTC = (date: string | Date) => {
 };
 
 /**
+ * Get Central Time end-of-day (23:59:59.999 CT) as a UTC Date for comparisons
+ */
+export const getCTEndOfDayUTC = (date: string | Date) => {
+  if (!date) return null;
+  try {
+    const dateString =
+      date instanceof Date ? format(date, 'yyyy-MM-dd') : isDateOnlyString(date) ? date : null;
+    if (dateString) {
+      const d = fromZonedTime(`${dateString}T23:59:59`, CENTRAL_TIME_ZONE);
+      return new Date(d.getTime() + 999);
+    }
+    return new Date(date);
+  } catch {
+    return null;
+  }
+};
+
+/** Today's calendar date in Central Time, as a local Date at midnight (for pickers). */
+export const ctToday = (): Date => {
+  const [y, m, d] = formatInTimeZone(new Date(), CENTRAL_TIME_ZONE, 'yyyy-MM-dd')
+    .split('-')
+    .map(Number);
+  return new Date(y, m - 1, d);
+};
+
+export type CTPreset = 'today' | 'week' | 'month';
+
+/**
+ * Quick date range presets anchored to the current Central Time calendar date.
+ * Week = Monday–Sunday of the current CT week. Month = first–last day of CT month.
+ * Returned as local Dates at midnight so the calendar pickers display them correctly;
+ * convert with getCTStartOfDayUTC / getCTEndOfDayUTC when comparing timestamps.
+ */
+export const ctPresetRange = (preset: CTPreset): { from: Date; to: Date } => {
+  const today = ctToday();
+  if (preset === 'today') return { from: today, to: today };
+  if (preset === 'week') {
+    const dow = today.getDay(); // 0 = Sunday
+    const diffToMonday = dow === 0 ? 6 : dow - 1;
+    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - diffToMonday);
+    const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6);
+    return { from, to };
+  }
+  const from = new Date(today.getFullYear(), today.getMonth(), 1);
+  const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return { from, to };
+};
+
+/**
  * Format date only in Central Time Zone
  */
 export const formatDateInCentralTime = (date: string | Date) => {

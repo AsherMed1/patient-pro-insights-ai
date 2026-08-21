@@ -41,6 +41,8 @@ import { renderWithLinks } from '@/lib/linkify';
 import { renderNoteWithMentions, parseMentions } from '@/lib/mentions';
 import MentionTextarea from '@/components/admin/MentionTextarea';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
+import { getCTStartOfDayUTC, getCTEndOfDayUTC, ctPresetRange, formatInCentralTime, type CTPreset } from '@/utils/dateTimeUtils';
+
 import QATicketPanel, { ticketStatusLabel, ticketStatusClass } from '@/components/admin/QATicketPanel';
 import QASection, { qaSectionSetAll } from '@/components/admin/QASection';
 import ImageAttachInput from '@/components/admin/ImageAttachInput';
@@ -270,15 +272,16 @@ interface QAGroup {
   displayAlertTypes: AlertType[];
   shortNoticeCorrected: boolean;
   earliestCreated: string;
+  earliestQueued: string;
   latestActivity: string;
   ticketCase: QACase | null;
 }
 
 type SortKey =
   | 'patient' | 'clinic' | 'service' | 'alerts' | 'self_booked' | 'error'
-  | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket' | 'status';
+  | 'error_source' | 'resolution' | 'created' | 'queued' | 'latest' | 'resolved' | 'ticket' | 'status';
 
-type OptionalColumn = 'service' | 'self_booked' | 'error' | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket';
+type OptionalColumn = 'service' | 'self_booked' | 'error' | 'error_source' | 'resolution' | 'created' | 'queued' | 'latest' | 'resolved' | 'ticket';
 
 const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: 'service', label: 'Service' },
@@ -287,10 +290,12 @@ const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: 'error_source', label: 'Error Source' },
   { key: 'resolution', label: 'Escalation Type' },
   { key: 'created', label: 'Date Created' },
+  { key: 'queued', label: 'Queued for Audit' },
   { key: 'latest', label: 'Latest Alert' },
   { key: 'resolved', label: 'Resolved' },
   { key: 'ticket', label: 'Ticket' },
 ];
+
 
 const COLUMNS_STORAGE_KEY = 'qa-queue-columns';
 
@@ -317,11 +322,17 @@ const normalizeName = (n: string | null): string =>
   (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /**
- * The date a QA row is filtered by: when the patient record itself was created,
- * falling back to the alert's first queue entry for contact-only alerts.
+ * When the patient record itself was created (reference column only).
  */
 const recordCreatedAt = (c: QACase): string =>
   c.appointment_created_at || c.first_entered_at || c.entered_queue_at;
+
+/**
+ * The timestamp operational date filters use: when the alert entered the QA
+ * queue. Falls back to the current queue-entry stamp for older rows.
+ */
+const queuedAt = (c: QACase): string => c.first_entered_at || c.entered_queue_at;
+
 
 
 const groupKeyFor = (c: QACase): string => {
@@ -363,10 +374,14 @@ function groupCases(list: QACase[]): QAGroup[] {
     const earliestCreated = sorted
       .map((c) => recordCreatedAt(c))
       .sort()[0];
+    const earliestQueued = sorted
+      .map((c) => queuedAt(c))
+      .sort()[0];
 
     const latestActivity = primary.last_alert_activity_at || primary.entered_queue_at;
     const ticketCase = sorted.find((c) => c.controlhub_ticket_id) || null;
-    groups.push({ key, primary, children: sorted, displayAlertTypes, shortNoticeCorrected, earliestCreated, latestActivity, ticketCase });
+    groups.push({ key, primary, children: sorted, displayAlertTypes, shortNoticeCorrected, earliestCreated, earliestQueued, latestActivity, ticketCase });
+
   }
   groups.sort(
     (a, b) => new Date(b.latestActivity).getTime() - new Date(a.latestActivity).getTime(),
@@ -406,6 +421,15 @@ export default function QAOperationsQueue() {
   const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  // Quick date presets, anchored to the current Central Time calendar date.
+  const [datePreset, setDatePreset] = useState<CTPreset | 'custom' | null>(null);
+  const applyPreset = (preset: CTPreset) => {
+    const { from, to } = ctPresetRange(preset);
+    setDateFrom(from);
+    setDateTo(to);
+    setDatePreset(preset);
+  };
+
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
   const [selectedSiblings, setSelectedSiblings] = useState<QACase[]>([]);
   const [hiddenCompletedCount, setHiddenCompletedCount] = useState(0);
@@ -744,25 +768,25 @@ export default function QAOperationsQueue() {
   // Alert Type filter against `primary.alert_type` only. Selecting an alert
   // type that isn't the patient's latest alert returns zero results for them.
   //
-  // The date range keeps a patient when the RECORD was created inside it — all
-  // of that patient's alerts stay attached, including ones raised later, so the
-  // row shows the current status and the full history.
+  // The date range keeps a patient when ANY of their alerts ENTERED THE QA QUEUE
+  // inside it — all of that patient's alerts stay attached, including ones
+  // raised later, so the row shows the current status and the full history.
+  // Day boundaries are Central Time so every user sees identical results.
   const groupedNoStatus = useMemo(() => {
     let groups = groupCases(rowFilteredNoAlert);
     if (dateFrom || dateTo) {
-      const start = dateFrom ? new Date(dateFrom) : null;
-      if (start) start.setHours(0, 0, 0, 0);
-      const end = dateTo ? new Date(dateTo) : null;
-      if (end) end.setHours(23, 59, 59, 999);
+      const start = dateFrom ? getCTStartOfDayUTC(dateFrom) : null;
+      const end = dateTo ? getCTEndOfDayUTC(dateTo) : null;
       groups = groups.filter((g) =>
         g.children.some((c) => {
-          const created = new Date(recordCreatedAt(c));
-          if (start && created < start) return false;
-          if (end && created > end) return false;
+          const queued = new Date(queuedAt(c));
+          if (start && queued < start) return false;
+          if (end && queued > end) return false;
           return true;
         }),
       );
     }
+
     if (alertFilter === 'all') return groups;
     return groups.filter((g) => g.primary.alert_type === alertFilter);
   }, [rowFilteredNoAlert, alertFilter, dateFrom, dateTo]);
@@ -795,6 +819,8 @@ export default function QAOperationsQueue() {
       case 'error_source': return (c.error_source || '').toLowerCase();
       case 'resolution': return (c.resolution_type || '').toLowerCase();
       case 'created': return new Date(g.earliestCreated).getTime();
+      case 'queued': return new Date(g.earliestQueued).getTime();
+
       case 'latest': return new Date(g.latestActivity).getTime();
       case 'resolved': return c.date_resolved ? new Date(c.date_resolved).getTime() : 0;
       case 'ticket': return (g.ticketCase?.controlhub_ticket_id || '').toLowerCase();
@@ -1075,8 +1101,10 @@ export default function QAOperationsQueue() {
     setAssignmentFilter('all');
     setDateFrom(undefined);
     setDateTo(undefined);
+    setDatePreset(null);
     setTab('new');
   };
+
 
   return (
     <div className="space-y-4">
@@ -1226,28 +1254,65 @@ export default function QAOperationsQueue() {
             <SelectItem value="unassigned">Unassigned</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1">
+          {([
+            ['today', 'Today'],
+            ['week', 'This Week'],
+            ['month', 'This Month'],
+          ] as [CTPreset, string][]).map(([key, label]) => (
+            <Button
+              key={key}
+              variant={datePreset === key ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => applyPreset(key)}
+            >
+              {label}
+            </Button>
+          ))}
+          <Button
+            variant={datePreset === 'custom' ? 'default' : 'secondary'}
+            size="sm"
+            onClick={() => setDatePreset('custom')}
+          >
+            Custom Range
+          </Button>
+        </div>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateFrom && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateFrom ? format(dateFrom, 'MMM d') : 'Created from'}
+              {dateFrom ? format(dateFrom, 'MMM d') : 'Queued from'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <CalendarPicker mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className={cn('p-3 pointer-events-auto')} />
+            <CalendarPicker
+              mode="single"
+              selected={dateFrom}
+              onSelect={(d) => { setDateFrom(d); setDatePreset('custom'); }}
+              initialFocus
+              className={cn('p-3 pointer-events-auto')}
+            />
           </PopoverContent>
         </Popover>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateTo && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateTo ? format(dateTo, 'MMM d') : 'Created to'}
+              {dateTo ? format(dateTo, 'MMM d') : 'Queued to'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
+            <CalendarPicker
+              mode="single"
+              selected={dateTo}
+              onSelect={(d) => { setDateTo(d); setDatePreset('custom'); }}
+              initialFocus
+              className={cn('p-3 pointer-events-auto')}
+            />
           </PopoverContent>
         </Popover>
+        <span className="text-xs text-muted-foreground">CT</span>
+
         <Button
           variant="ghost"
           size="sm"
@@ -1333,6 +1398,8 @@ export default function QAOperationsQueue() {
                     {showCol('error_source') && <SortableHead column="error_source" label="Error Source" className="min-w-[110px]" />}
                     {showCol('resolution') && <SortableHead column="resolution" label="Escalation Type" className="min-w-[110px]" />}
                     {showCol('created') && <SortableHead column="created" label="Date Created" className="w-[95px]" />}
+                    {showCol('queued') && <SortableHead column="queued" label="Queued for Audit" className="w-[110px]" />}
+
                     {showCol('latest') && <SortableHead column="latest" label="Latest Alert" className="w-[95px]" />}
                     {showCol('resolved') && <SortableHead column="resolved" label="Resolved" className="w-[75px]" />}
                     {showCol('ticket') && <SortableHead column="ticket" label="Ticket" className="w-[90px]" />}
@@ -1392,7 +1459,9 @@ export default function QAOperationsQueue() {
                         </TableCell>
                       )}
 
-                      {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{formatInCentralTime(g.earliestCreated, 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('queued') && <TableCell className="px-2 py-2 text-muted-foreground">{formatInCentralTime(g.earliestQueued, 'MMM d, h:mm a')}</TableCell>}
+
                       {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
                       {showCol('ticket') && (

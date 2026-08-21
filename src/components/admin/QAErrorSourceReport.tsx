@@ -13,6 +13,8 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, startOfMonth, endOfMonth, subDays } from 'date-fns';
+import { getCTStartOfDayUTC, getCTEndOfDayUTC, ctPresetRange } from '@/utils/dateTimeUtils';
+
 import {
   Calendar as CalendarIcon,
   ChevronDown,
@@ -71,7 +73,8 @@ const UNSPECIFIED = 'Unspecified';
 
 const enteredAt = (c: SourceCase) => c.first_entered_at || c.entered_queue_at;
 const resolvedAt = (c: SourceCase) => c.date_resolved || c.completed_at;
-const errorAt = (c: SourceCase) => c.appointment_created_at || enteredAt(c);
+// Errors are bucketed by queue-entry time, matching the report's date filter.
+const errorAt = (c: SourceCase) => enteredAt(c);
 const sourceOf = (c: SourceCase) => (c.error_source || '').trim() || UNSPECIFIED;
 const qaOf = (c: SourceCase) => (c.qa_name || '').trim() || 'Unassigned';
 const pct = (num: number, den: number) => (den > 0 ? `${Math.round((num / den) * 1000) / 10}%` : '—');
@@ -103,27 +106,18 @@ export default function QAErrorSourceReport() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const applyPreset = (p: 'today' | 'week' | 'month') => {
-    const now = new Date();
-    if (p === 'today') {
-      setDateFrom(now);
-      setDateTo(now);
-    } else if (p === 'week') {
-      setDateFrom(startOfWeek(now, { weekStartsOn: 0 }));
-      setDateTo(now);
-    } else {
-      setDateFrom(startOfMonth(now));
-      setDateTo(endOfMonth(now));
-    }
+    const { from, to } = ctPresetRange(p);
+    setDateFrom(from);
+    setDateTo(to);
     setPreset(p);
   };
 
   const fetchRows = async (opts?: { background?: boolean }) => {
     if (!opts?.background) setLoading(true);
     try {
-      const from = new Date(dateFrom);
-      from.setHours(0, 0, 0, 0);
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
+      // Central Time day boundaries so every user sees the same range.
+      const from = getCTStartOfDayUTC(dateFrom) as Date;
+      const to = getCTEndOfDayUTC(dateTo) as Date;
 
       const PAGE = 1000;
       const out: any[] = [];
@@ -133,11 +127,12 @@ export default function QAErrorSourceReport() {
           .select(
             'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, qa_name, error_category, error_source, caught_before_clinic, resolution_type, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, appointment_created_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
           )
-          // Same date basis as Case Metrics: when the patient record was created.
-          .gte('appointment_created_at', from.toISOString())
-          .lte('appointment_created_at', to.toISOString())
-          .order('appointment_created_at', { ascending: false })
+          // Same date basis as Case Metrics: when the alert entered the QA queue.
+          .gte('entered_queue_at', from.toISOString())
+          .lte('entered_queue_at', to.toISOString())
+          .order('entered_queue_at', { ascending: false })
           .range(page * PAGE, page * PAGE + PAGE - 1);
+
 
         if (error) throw error;
         const batch = (data as any[]) || [];

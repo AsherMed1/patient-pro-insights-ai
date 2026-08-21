@@ -13,6 +13,8 @@ import { format, startOfWeek, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Download, Loader2, RefreshCw } from 'lucide-react';
 import QAActivityReport from '@/components/admin/QAActivityReport';
 import QAErrorSourceReport from '@/components/admin/QAErrorSourceReport';
+import { getCTStartOfDayUTC, getCTEndOfDayUTC, ctPresetRange, type CTPreset } from '@/utils/dateTimeUtils';
+
 import {
   Bar,
   BarChart,
@@ -95,18 +97,25 @@ export default function QAReports() {
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date>(new Date());
+  const [preset, setPreset] = useState<CTPreset | 'custom'>('custom');
   const [projectFilter, setProjectFilter] = useState('all');
   const [qaFilter, setQaFilter] = useState('all');
   const [alertFilter, setAlertFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
+  const applyPreset = (key: CTPreset) => {
+    const { from, to } = ctPresetRange(key);
+    setDateFrom(from);
+    setDateTo(to);
+    setPreset(key);
+  };
+
   const fetchRows = async () => {
     setLoading(true);
     try {
-      const from = new Date(dateFrom);
-      from.setHours(0, 0, 0, 0);
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
+      // Central Time day boundaries so every user sees the same range.
+      const from = getCTStartOfDayUTC(dateFrom) as Date;
+      const to = getCTEndOfDayUTC(dateTo) as Date;
 
       const PAGE = 1000;
       const out: any[] = [];
@@ -116,13 +125,12 @@ export default function QAReports() {
           .select(
             'id, project_name, patient_name, service_line, alert_type, workflow_status, appointment_date, appointment_status, qa_name, self_booked, error_category, error_source, caught_before_clinic, resolution_type, escalation_status, escalation_owner_user_id, escalated_by_user_id, escalated_at, date_resolved, completed_at, entered_queue_at, first_entered_at, appointment_created_at, controlhub_ticket_id, controlhub_ticket_url, patient_link',
           )
-          // Date range selects patient records by when the record was created,
-          // not by when each alert entered the queue — so a record created in
-          // the range is reported with its final outcome even when the alert
-          // that decided that outcome fired later.
-          .gte('appointment_created_at', from.toISOString())
-          .lte('appointment_created_at', to.toISOString())
-          .order('appointment_created_at', { ascending: false })
+          // Operational reporting buckets alerts by WHEN THEY ENTERED THE QA
+          // QUEUE, not by appointment creation date. `entered_queue_at` is the
+          // always-present column; `first_entered_at` refines it in memory.
+          .gte('entered_queue_at', from.toISOString())
+          .lte('entered_queue_at', to.toISOString())
+          .order('entered_queue_at', { ascending: false })
           .range(page * PAGE, page * PAGE + PAGE - 1);
 
         if (error) throw error;
@@ -130,7 +138,13 @@ export default function QAReports() {
         out.push(...batch);
         if (batch.length < PAGE) break;
       }
-      setRows(out as ReportCase[]);
+      // Refine with first_entered_at where present (an alert that re-entered the
+      // queue is reported against its first entry).
+      const refined = (out as ReportCase[]).filter((r) => {
+        const q = new Date(r.first_entered_at || r.entered_queue_at);
+        return q >= from && q <= to;
+      });
+      setRows(refined);
     } catch (e: any) {
       console.error('[QAReports] fetch failed', e);
       toast({ title: 'Could not load report data', description: e.message, variant: 'destructive' });
@@ -143,6 +157,7 @@ export default function QAReports() {
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo]);
+
 
   const projects = useMemo(
     () => Array.from(new Set(rows.map((r) => r.project_name).filter(Boolean))).sort(),
@@ -504,8 +519,25 @@ export default function QAReports() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DatePick value={dateFrom} onChange={setDateFrom} label="Created from" />
-        <DatePick value={dateTo} onChange={setDateTo} label="Created to" />
+        {([['today', 'Today'], ['week', 'This Week'], ['month', 'This Month']] as [CTPreset, string][]).map(
+          ([key, label]) => (
+            <Button
+              key={key}
+              variant={preset === key ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => applyPreset(key)}
+            >
+              {label}
+            </Button>
+          ),
+        )}
+        <Button variant={preset === 'custom' ? 'default' : 'secondary'} size="sm" onClick={() => setPreset('custom')}>
+          Custom Range
+        </Button>
+        <DatePick value={dateFrom} onChange={(d) => { setDateFrom(d); setPreset('custom'); }} label="Queued from" />
+        <DatePick value={dateTo} onChange={(d) => { setDateTo(d); setPreset('custom'); }} label="Queued to" />
+        <span className="text-xs text-muted-foreground">CT</span>
+
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="w-56"><SelectValue placeholder="Clinic" /></SelectTrigger>
           <SelectContent>
