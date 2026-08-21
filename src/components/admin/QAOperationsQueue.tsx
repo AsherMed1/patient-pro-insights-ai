@@ -1459,7 +1459,9 @@ export default function QAOperationsQueue() {
                         </TableCell>
                       )}
 
-                      {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{format(new Date(g.earliestCreated), 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('created') && <TableCell className="px-2 py-2 text-muted-foreground">{formatInCentralTime(g.earliestCreated, 'MMM d, h:mm a')}</TableCell>}
+                      {showCol('queued') && <TableCell className="px-2 py-2 text-muted-foreground">{formatInCentralTime(g.earliestQueued, 'MMM d, h:mm a')}</TableCell>}
+
                       {showCol('latest') && <TableCell className="px-2 py-2">{format(new Date(g.latestActivity), 'MMM d, h:mm a')}</TableCell>}
                       {showCol('resolved') && <TableCell className="px-2 py-2">{c.date_resolved ? format(new Date(c.date_resolved), 'MMM d') : '—'}</TableCell>}
                       {showCol('ticket') && (
