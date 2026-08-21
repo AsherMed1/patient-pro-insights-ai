@@ -2781,8 +2781,11 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
 
     const toSupersede = (siblings as any[]).filter((r) => {
       if (r.is_reserved_block) return false
-      // Rows awaiting a Review Queue decision must stay in the queue.
-      if ((r.review_status || '').toLowerCase().trim() === 'pending') return false
+      // Declined/dismissed rows are frozen snapshots — never touch them.
+      if (['declined', 'dismissed'].includes((r.review_status || '').toLowerCase().trim())) return false
+      // NOTE: rows still `pending` in the Review Queue ARE retired when a newer
+      // booking arrives for the same contact+project — otherwise the stale
+      // booking keeps sitting in the New bucket after a reschedule.
       const status = (r.status || '').toLowerCase().trim()
       if (SUPERSEDE_TERMINAL_STATUSES.includes(status)) return true
       if (!newDate) return false
