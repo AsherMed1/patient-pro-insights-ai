@@ -421,6 +421,15 @@ export default function QAOperationsQueue() {
   const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  // Quick date presets, anchored to the current Central Time calendar date.
+  const [datePreset, setDatePreset] = useState<CTPreset | 'custom' | null>(null);
+  const applyPreset = (preset: CTPreset) => {
+    const { from, to } = ctPresetRange(preset);
+    setDateFrom(from);
+    setDateTo(to);
+    setDatePreset(preset);
+  };
+
   const [selectedCase, setSelectedCase] = useState<QACase | null>(null);
   const [selectedSiblings, setSelectedSiblings] = useState<QACase[]>([]);
   const [hiddenCompletedCount, setHiddenCompletedCount] = useState(0);
