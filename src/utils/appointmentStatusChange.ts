@@ -58,6 +58,7 @@ export async function changeAppointmentStatus({
   userName,
   currentAppointment,
   onWarning,
+  skipGhlSync,
 }: ChangeAppointmentStatusOptions): Promise<ChangeAppointmentStatusResult> {
   console.log('🔄 changeAppointmentStatus called with:', { appointmentId, status });
 
@@ -161,7 +162,10 @@ export async function changeAppointmentStatus({
   let ghlVerified: boolean | null = null;
   let ghlErrorText: string | undefined;
 
-  if (syncData?.ghl_appointment_id) {
+  if (skipGhlSync) {
+    console.log('⏭️ GHL sync skipped by caller (stale portal record)');
+    ghlVerified = null;
+  } else if (syncData?.ghl_appointment_id) {
     try {
       const { data: ghlResult, error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
         body: {
