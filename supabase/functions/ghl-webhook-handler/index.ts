@@ -185,6 +185,18 @@ serve(async (req) => {
       })
     }
 
+    // ============================================================
+    // EARLY INTERCEPT: Appointment deleted in GoHighLevel
+    // A deleted GHL event must never leave an actionable portal row.
+    // ============================================================
+    const deleteResult = await tryAppointmentDeleteSync(payload, supabase, requestId)
+    if (deleteResult) {
+      return new Response(JSON.stringify({ ...deleteResult, requestId }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     // Detect webhook format and extract data
     const webhookData = extractWebhookData(payload, requestId)
 
