@@ -155,13 +155,25 @@ serve(async (req) => {
     if (!getResponse.ok) {
       const errorText = await getResponse.text();
       console.error('Failed to fetch existing appointment:', getResponse.status, errorText);
+      // A deleted event answers 404 — callers use this to clear stale portal
+      // rows locally instead of issuing a cancellation against nothing.
+      const notFound = getResponse.status === 404;
       return new Response(
         JSON.stringify({
-          error: 'Failed to fetch existing appointment from GoHighLevel',
+          error: notFound
+            ? 'Appointment no longer exists in GoHighLevel'
+            : 'Failed to fetch existing appointment from GoHighLevel',
+          code: notFound ? 'not_found' : 'fetch_failed',
+          found: notFound ? false : undefined,
           details: errorText,
           status: getResponse.status,
         }),
-        { status: getResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        {
+          // 404s are an expected, actionable outcome — return 200 so the
+          // supabase client surfaces the body instead of a generic error.
+          status: notFound ? 200 : getResponse.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
       );
     }
 
@@ -170,6 +182,23 @@ serve(async (req) => {
     const existingCalendarId = existingAppointment.appointment?.calendarId;
     const existingStartTime = existingAppointment.appointment?.startTime;
     const existingEndTime = existingAppointment.appointment?.endTime;
+
+    if (isReadOnly) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          found: true,
+          code: 'found',
+          appointment_id: ghl_appointment_id,
+          start_time: existingStartTime ?? null,
+          end_time: existingEndTime ?? null,
+          calendar_id: existingCalendarId ?? null,
+          appointment_status:
+            existingAppointment.appointment?.appointmentStatus ?? existingAppointment.appointmentStatus ?? null,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Fallback: fetch assignedUserId from calendar team members
     if (!assignedUserId && existingCalendarId) {
