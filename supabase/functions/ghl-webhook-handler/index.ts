@@ -448,6 +448,54 @@ serve(async (req) => {
       }
     }
 
+    // Guard: GHL sometimes replays an ALREADY-RESCHEDULED booking under a brand new
+    // event id (Dejan Petkovski, Texas Endovascular - Houston Vein Clinic, Aug 2026).
+    // The contact already holds a live row that was moved off exactly this slot, so
+    // creating another row manufactures a duplicate the clinic then tries to cancel —
+    // which cancels the real appointment in GHL. Attach the new event id to the
+    // surviving row instead of inserting.
+    if (!isUpdate) {
+      const replayTarget = await findStaleReplayTarget(supabase, webhookData, requestId)
+      if (replayTarget) {
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({ ghl_appointment_id: webhookData.ghl_appointment_id || replayTarget.ghl_appointment_id })
+            .eq('id', replayTarget.id)
+          await supabase.from('appointment_notes').insert({
+            appointment_id: replayTarget.id,
+            note_text: `GoHighLevel replayed the previous booking (${webhookData.date_of_appointment} ${webhookData.requested_time || ''}, event ${webhookData.ghl_appointment_id || 'unknown'}) after this appointment was rescheduled. No duplicate record was created — System`,
+            created_by: 'System',
+            visibility: 'internal',
+          })
+        } catch (replayErr) {
+          console.warn(`[${requestId}] stale-replay bookkeeping failed:`, replayErr)
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            operation: 'skipped',
+            reason: 'stale_reschedule_replay',
+            merged_into: replayTarget.id,
+            ghl_appointment_id: webhookData.ghl_appointment_id,
+            requestId,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Guard: when a duplicate row was just cancelled in the portal, GHL echoes that
+    // cancellation back onto the contact's OTHER (live) booking. Ignore it.
+    if (isUpdate && existingAppointment) {
+      const suppressed = await isSiblingCancelEcho(supabase, existingAppointment, webhookData, requestId)
+      if (suppressed) {
+        webhookData.__suppress_status_update = true
+      }
+    }
+
+
+
     // Get appropriate fields based on operation type (selective updates for existing appointments)
     const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange, autoDeclineNote } = getUpdateableFields(webhookData, existingAppointment)
 
