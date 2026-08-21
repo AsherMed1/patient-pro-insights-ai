@@ -519,8 +519,25 @@ export default function QAReports() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <DatePick value={dateFrom} onChange={setDateFrom} label="Created from" />
-        <DatePick value={dateTo} onChange={setDateTo} label="Created to" />
+        {([['today', 'Today'], ['week', 'This Week'], ['month', 'This Month']] as [CTPreset, string][]).map(
+          ([key, label]) => (
+            <Button
+              key={key}
+              variant={preset === key ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => applyPreset(key)}
+            >
+              {label}
+            </Button>
+          ),
+        )}
+        <Button variant={preset === 'custom' ? 'default' : 'secondary'} size="sm" onClick={() => setPreset('custom')}>
+          Custom Range
+        </Button>
+        <DatePick value={dateFrom} onChange={(d) => { setDateFrom(d); setPreset('custom'); }} label="Queued from" />
+        <DatePick value={dateTo} onChange={(d) => { setDateTo(d); setPreset('custom'); }} label="Queued to" />
+        <span className="text-xs text-muted-foreground">CT</span>
+
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="w-56"><SelectValue placeholder="Clinic" /></SelectTrigger>
           <SelectContent>
