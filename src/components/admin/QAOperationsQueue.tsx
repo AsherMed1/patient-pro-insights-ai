@@ -270,15 +270,16 @@ interface QAGroup {
   displayAlertTypes: AlertType[];
   shortNoticeCorrected: boolean;
   earliestCreated: string;
+  earliestQueued: string;
   latestActivity: string;
   ticketCase: QACase | null;
 }
 
 type SortKey =
   | 'patient' | 'clinic' | 'service' | 'alerts' | 'self_booked' | 'error'
-  | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket' | 'status';
+  | 'error_source' | 'resolution' | 'created' | 'queued' | 'latest' | 'resolved' | 'ticket' | 'status';
 
-type OptionalColumn = 'service' | 'self_booked' | 'error' | 'error_source' | 'resolution' | 'created' | 'latest' | 'resolved' | 'ticket';
+type OptionalColumn = 'service' | 'self_booked' | 'error' | 'error_source' | 'resolution' | 'created' | 'queued' | 'latest' | 'resolved' | 'ticket';
 
 const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: 'service', label: 'Service' },
@@ -287,10 +288,12 @@ const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: 'error_source', label: 'Error Source' },
   { key: 'resolution', label: 'Escalation Type' },
   { key: 'created', label: 'Date Created' },
+  { key: 'queued', label: 'Queued for Audit' },
   { key: 'latest', label: 'Latest Alert' },
   { key: 'resolved', label: 'Resolved' },
   { key: 'ticket', label: 'Ticket' },
 ];
+
 
 const COLUMNS_STORAGE_KEY = 'qa-queue-columns';
 
