@@ -1,49 +1,40 @@
-# Georgia Endovascular — "patients disappearing" from the portal
+# Compose Email to Clinic from the QA case record
 
-## Short answer: nothing is deleted
+Yes — this is feasible. Phase 1 is send-only from the Scheduling Google Workspace mailbox, with every sent email recorded on the patient's QA record.
 
-Georgia Endovascular has **1,860 appointment records**, the oldest dated **Mar 10, 2025**, covering **1,578 distinct patients**. The audit log contains **no appointment deletions ever** (the only `deleted` events are user-account deletions). Volume is not causing purging, and there is no retention job removing patient rows.
+## How it works
 
-What is happening is that some records are **hidden from the clinic view**, and the portal's search makes older patients hard to reach.
+A new "Email Clinic" panel sits in the QA Operations case drawer, next to the ControlHub ticket panel and Internal Patient Notes.
 
-## What the clinic actually sees
+- **Compose:** subject + message body, with @-free rich-text-lite (plain text), image/file attachments using the same attach control already used for ControlHub replies and notes.
+- **Recipients:** a dropdown of saved clinic contacts for that patient's project (name + email + role, e.g. Scheduler / Office Manager), multi-select, plus optional CC. Contacts are managed in a small admin screen per project.
+- **Sender:** always the Scheduling mailbox (scheduling@…). The email is sent through Gmail, so it also appears in the real Gmail Sent folder and threads normally when the clinic replies.
+- **Prefill:** subject and body start from a template with the patient name, clinic, appointment date/time and the alert type, so Gloria isn't retyping context. Templates are editable per send.
+- **Thread record:** each sent email is stored on the case and rendered as a timeline entry — recipients, subject, body, attachments, who sent it, and when. Visible in the case drawer and counted in the case activity log.
+- **Reply handling (phase 1):** clinic replies still land in the Gmail Scheduling inbox. The panel shows the Gmail thread link so one click opens the conversation. Phase 2 (below) pulls replies in automatically.
 
-Of the 1,860 rows, only **1,529 are visible** to Georgia Endo. The rest are filtered out of every client-facing view:
+## Phase 2 (later, if wanted)
 
-| Bucket | Rows | Visible to clinic? |
-|---|---|---|
-| Approved, active | 1,529 | Yes |
-| Reserved time blocks | 150 | No (correct — not patients) |
-| Superseded duplicates | 126 | No |
-| Declined | 41 | No |
-| Potential OON | 12 | No |
-| Dismissed | 2 | No |
+Because sending goes through the Gmail API, replies can be pulled back in with a scheduled job that reads the Scheduling mailbox and matches the stored Gmail thread ID to the case — turning the panel into a full two-way thread with no inbox searching. This is an additive step; nothing in phase 1 has to be redone.
 
-## Three real causes, in order of impact
+## Access and safety
 
-**1. Search runs inside the selected tab, and the portal opens on "New".**
-The appointment list defaults to the **New** tab. A search for a patient seen months ago returns nothing there, because that tab only holds records that are not yet internally processed. The patient is present under **All** (or **Completed**), but nothing tells the user that — the result just reads as "patient not in the portal". This is very likely most of what Georgia Endo is reporting.
-
-**2. 22 patients truly have no visible row.**
-When a duplicate booking is retired (`is_superseded`), the surviving row is normally still visible. For 22 Georgia Endo records the retired row is the *only* row for that person — no active sibling exists, so the patient vanishes from the portal entirely. These are genuinely unreachable today and need to be identified and restored.
-
-**3. Declined / OON records look deleted to the clinic.**
-41 declined and 12 potential-OON records — including past-dated ones the clinic did see in person, e.g. patients dated Aug 5–20 — are admin-only by design. From the clinic's chair, a patient they treated is simply gone.
-
-There is also a reporting bug: the Overview stat cards query without paging, so PostgREST caps the result at 1,000 rows. Georgia Endo has more than that, so **Total Appointments / Showed / Procedures are silently undercounted** for this clinic.
-
-## Proposed fix
-
-1. **Make search global across tabs.** When a search term is entered, drop the tab restriction and search the full approved history for the project, showing which bucket each hit belongs to. Add an explicit hint when a search returns nothing in the current tab but has matches elsewhere.
-2. **Recover the 22 orphaned records.** Audit every superseded Georgia Endo row that has no active sibling, un-supersede it with an internal note, and re-run the same check across all projects to see whether other clinics are affected.
-3. **Prevent recurrence.** Refuse to mark a row superseded when it would leave the contact with zero visible rows, and log that case for review.
-4. **Surface declined / OON to the clinic as read-only history** rather than hiding them outright — a patient the clinic physically saw should still be findable, with its status shown plainly.
-5. **Fix the stat-card cap.** Page the Overview stats query past 1,000 rows so totals are accurate for high-volume clinics.
+- Panel is limited to admin and QA specialist roles; clinic portal users never see it.
+- Emails contain PHI, so the body and attachments are stored in the same private, access-controlled way as QA notes/attachments, and every send is written to the audit trail.
+- Attachments are re-used from the existing private attachments bucket and attached to the outbound message.
 
 ## Technical notes
 
-- `src/components/AllAppointmentsManager.tsx`: skip the `activeTab` predicate block when `searchTerm` is non-empty; keep project, date and status filters. Server pagination already exists, so no perf change.
-- Orphan detection: superseded rows in `all_appointments` where no non-superseded `review_status='approved'` row shares the same `ghl_id` or `lead_name` within the project. Recovery is an `is_superseded=false` update plus an internal-visibility `appointment_notes` entry — no deletions.
-- Guard: extend `merge_older_active_siblings` / the webhook supersede path to count remaining active siblings before setting the flag.
-- `src/pages/ProjectPortal.tsx` `fetchAppointmentStats`: add 1,000-row paging (same loop pattern already used in `AppointmentFilters.tsx`).
-- Declined/OON visibility is a policy change — confirm before shipping step 4.
+- **Gmail access:** connect the Scheduling Google Workspace account via the Google Mail connector and send with `users/me/messages/send` through the connector gateway. The connected account is the sender, so the Scheduling mailbox must be the account that authorizes the connection. (Resend, already used for welcome emails, is not a good fit here — it can't put the message in the Scheduling Sent folder or thread with the clinic's replies.)
+- **New table `qa_case_emails`:** `case_id`, `appointment_id`, `project_name`, `to_emails[]`, `cc_emails[]`, `subject`, `body`, `attachments jsonb`, `gmail_message_id`, `gmail_thread_id`, `sent_by_user_id`, `sent_by_name`, `status` (`sent` / `failed`), `error`, `created_at`. GRANTs for `authenticated` (select/insert) and `service_role`; RLS mirroring `qa_case_notes` access (`has_qa_case_access`).
+- **New table `clinic_email_contacts`:** `project_name`, `name`, `email`, `role`, `is_default`, `active`. Admin-managed; GRANT select to `authenticated`, full to `service_role`, write policies restricted to admins.
+- **New edge function `send-clinic-email`:** validates the caller's JWT and QA role with Zod-validated input, builds the RFC 2822 message (with base64 attachments), sends via the gateway, then inserts the `qa_case_emails` row and a `qa_case_activity` entry. Surfaces provider status/body on failure.
+- **Frontend:** new `src/components/admin/QAEmailPanel.tsx` rendered in the case drawer in `QAOperationsQueue.tsx`, reusing `ImageAttachInput`, `AttachmentGallery` and `uploadImages`; realtime subscription on `qa_case_emails` for the thread list. Small admin editor for clinic contacts alongside the existing admin settings screens.
+
+## Build order
+
+1. Connect the Scheduling Gmail account.
+2. Migrations for the two tables.
+3. `send-clinic-email` edge function.
+4. Email panel in the case drawer + clinic contact management.
+5. Templates and audit/activity wiring.
