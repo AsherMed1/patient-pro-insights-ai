@@ -1250,28 +1250,65 @@ export default function QAOperationsQueue() {
             <SelectItem value="unassigned">Unassigned</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1">
+          {([
+            ['today', 'Today'],
+            ['week', 'This Week'],
+            ['month', 'This Month'],
+          ] as [CTPreset, string][]).map(([key, label]) => (
+            <Button
+              key={key}
+              variant={datePreset === key ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => applyPreset(key)}
+            >
+              {label}
+            </Button>
+          ))}
+          <Button
+            variant={datePreset === 'custom' ? 'default' : 'secondary'}
+            size="sm"
+            onClick={() => setDatePreset('custom')}
+          >
+            Custom Range
+          </Button>
+        </div>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateFrom && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateFrom ? format(dateFrom, 'MMM d') : 'Created from'}
+              {dateFrom ? format(dateFrom, 'MMM d') : 'Queued from'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <CalendarPicker mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className={cn('p-3 pointer-events-auto')} />
+            <CalendarPicker
+              mode="single"
+              selected={dateFrom}
+              onSelect={(d) => { setDateFrom(d); setDatePreset('custom'); }}
+              initialFocus
+              className={cn('p-3 pointer-events-auto')}
+            />
           </PopoverContent>
         </Popover>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn('justify-start', !dateTo && 'text-muted-foreground')}>
               <CalendarIcon className="h-3 w-3 mr-1" />
-              {dateTo ? format(dateTo, 'MMM d') : 'Created to'}
+              {dateTo ? format(dateTo, 'MMM d') : 'Queued to'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className={cn('p-3 pointer-events-auto')} />
+            <CalendarPicker
+              mode="single"
+              selected={dateTo}
+              onSelect={(d) => { setDateTo(d); setDatePreset('custom'); }}
+              initialFocus
+              className={cn('p-3 pointer-events-auto')}
+            />
           </PopoverContent>
         </Popover>
+        <span className="text-xs text-muted-foreground">CT</span>
+
         <Button
           variant="ghost"
           size="sm"
