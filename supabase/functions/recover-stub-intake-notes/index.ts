@@ -90,69 +90,92 @@ serve(async (req) => {
     );
   }
 
+  // Single-flight: a second concurrent run (cron overlap, manual kick) exits here.
+  const { data: gotLock, error: lockErr } = await supabase.rpc("acquire_job_lock", {
+    _job_name: LOCK_NAME,
+    _ttl_seconds: LOCK_TTL_SECONDS,
+  });
+  if (lockErr) {
+    console.error("[recover-stubs] lock error:", lockErr);
+  }
+  if (!gotLock) {
+    console.log("[recover-stubs] another run holds the lock; skipping");
+    return new Response(
+      JSON.stringify({ skipped: true, reason: "already_running", found: candidates.length }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   // Long job: process in the background so the 60s wall clock is not a limit.
   const work = (async () => {
     let recovered = 0;
     let unchanged = 0;
     let failed = 0;
 
-    for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-      const batch = candidates.slice(i, i + BATCH_SIZE);
+    try {
+      for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+        const batch = candidates.slice(i, i + BATCH_SIZE);
 
-      await Promise.all(
-        batch.map(async (row) => {
-          const before = (row.patient_intake_notes || "").trim().length;
-          try {
-            const { error: fetchErr } = await supabase.functions.invoke("fetch-ghl-contact-data", {
-              body: { appointmentId: row.id },
-            });
-            if (fetchErr) {
-              failed++;
-              console.error(`[recover-stubs] fetch failed for ${row.lead_name} (${row.id}):`, fetchErr);
-              return;
-            }
+        await Promise.all(
+          batch.map(async (row) => {
+            const before = row.notes_length || 0;
+            try {
+              const { error: fetchErr } = await supabase.functions.invoke("fetch-ghl-contact-data", {
+                body: { appointmentId: row.id },
+              });
+              if (fetchErr) {
+                failed++;
+                console.error(`[recover-stubs] fetch failed for ${row.lead_name} (${row.id}):`, fetchErr);
+                return;
+              }
 
-            const { data: after } = await supabase
-              .from("all_appointments")
-              .select("patient_intake_notes")
-              .eq("id", row.id)
-              .maybeSingle();
-
-            const afterLen = (after?.patient_intake_notes || "").trim().length;
-            if (afterLen > before + 50) {
-              recovered++;
-              // Clear the parse stamp so auto-parse reprocesses the richer notes.
-              await supabase
+              const { data: after } = await supabase
                 .from("all_appointments")
-                .update({ parsing_completed_at: null, parse_attempts: 0 })
-                .eq("id", row.id);
-            } else {
-              unchanged++;
+                .select("patient_intake_notes")
+                .eq("id", row.id)
+                .maybeSingle();
+
+              const afterLen = (after?.patient_intake_notes || "").trim().length;
+              if (afterLen > before + 50) {
+                recovered++;
+                // Clear the parse stamp so auto-parse reprocesses the richer notes.
+                await supabase
+                  .from("all_appointments")
+                  .update({ parsing_completed_at: null, parse_attempts: 0 })
+                  .eq("id", row.id);
+              } else {
+                unchanged++;
+              }
+            } catch (e) {
+              failed++;
+              console.error(`[recover-stubs] threw for ${row.id}:`, e);
             }
-          } catch (e) {
-            failed++;
-            console.error(`[recover-stubs] threw for ${row.id}:`, e);
-          }
-        }),
+          }),
+        );
+
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      }
+
+      console.log(
+        `[recover-stubs] done: recovered=${recovered} unchanged=${unchanged} failed=${failed}`,
       );
 
-      await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-    }
-
-    console.log(
-      `[recover-stubs] done: recovered=${recovered} unchanged=${unchanged} failed=${failed}`,
-    );
-
-    // Kick the parser once for everything we un-stamped.
-    try {
-      await supabase.functions.invoke("auto-parse-intake-notes", { body: {} });
-    } catch (e) {
-      console.error("[recover-stubs] parser kick failed:", e);
+      // Kick the parser once for everything we un-stamped.
+      if (recovered > 0) {
+        try {
+          await supabase.functions.invoke("auto-parse-intake-notes", { body: {} });
+        } catch (e) {
+          console.error("[recover-stubs] parser kick failed:", e);
+        }
+      }
+    } finally {
+      await supabase.rpc("release_job_lock", { _job_name: LOCK_NAME });
     }
   })();
 
   // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
   EdgeRuntime.waitUntil(work);
+
 
   return new Response(
     JSON.stringify({
