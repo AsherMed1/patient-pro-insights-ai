@@ -1346,21 +1346,7 @@ export default function QAOperationsQueue() {
                     return (
                     <TableRow key={g.key} className="group">
                       <TableCell className="font-medium px-2 py-2 sticky left-0 z-[1] bg-background group-hover:bg-muted/50 border-r">
-                        <div className="flex items-center gap-1.5">
-                          <span className="whitespace-normal font-sans not-italic">{c.patient_name || '—'}</span>
-                          {ghlUrlFor(c) && (
-                            <a
-                              href={ghlUrlFor(c)!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-primary hover:text-primary/80 shrink-0"
-                              title="Open in GHL"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                        </div>
+                        <span className="whitespace-normal font-sans not-italic">{c.patient_name || '—'}</span>
                       </TableCell>
                       <TableCell className="px-2 py-2">{c.project_name}</TableCell>
                       {showCol('service') && <TableCell className="px-2 py-2">{displayService(c.service_line) || '—'}</TableCell>}
