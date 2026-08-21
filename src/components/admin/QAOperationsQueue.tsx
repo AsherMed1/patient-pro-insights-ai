@@ -819,6 +819,8 @@ export default function QAOperationsQueue() {
       case 'error_source': return (c.error_source || '').toLowerCase();
       case 'resolution': return (c.resolution_type || '').toLowerCase();
       case 'created': return new Date(g.earliestCreated).getTime();
+      case 'queued': return new Date(g.earliestQueued).getTime();
+
       case 'latest': return new Date(g.latestActivity).getTime();
       case 'resolved': return c.date_resolved ? new Date(c.date_resolved).getTime() : 0;
       case 'ticket': return (g.ticketCase?.controlhub_ticket_id || '').toLowerCase();
