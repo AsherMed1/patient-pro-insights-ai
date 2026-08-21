@@ -1099,8 +1099,10 @@ export default function QAOperationsQueue() {
     setAssignmentFilter('all');
     setDateFrom(undefined);
     setDateTo(undefined);
+    setDatePreset(null);
     setTab('new');
   };
+
 
   return (
     <div className="space-y-4">
