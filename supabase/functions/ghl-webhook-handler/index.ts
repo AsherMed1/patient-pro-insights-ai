@@ -490,7 +490,7 @@ serve(async (req) => {
     if (isUpdate && existingAppointment) {
       const suppressed = await isSiblingCancelEcho(supabase, existingAppointment, webhookData, requestId)
       if (suppressed) {
-        webhookData.__suppress_status_update = true
+        ;(webhookData as any).__suppress_status_update = true
       }
     }
 
