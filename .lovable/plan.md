@@ -1,32 +1,39 @@
-# Fix: Review Queue shows a false Short Notice countdown for some users
+# Dejan Petkovski duplicate — Texas Endovascular - Houston Vein Clinic
 
-## Root cause (verified)
+## What's in the database
 
-James O'Bannon, Zenith Vascular & Fibroid Center, Aug 26 at 1:30 PM, booked Aug 20 at 4:30 PM CT.
+Two active rows exist for GHL contact `kWuGoUwtcVg8m6jd1vWt`, both on the FSE Houston (Bellaire) calendar:
 
-- Zenith's configured short-notice threshold is **36 business hours**. That booking had ~94 business hours of notice, so it is correctly **not** short notice and correctly produced **no `short_notice_alerts` row and no Slack post**. GHL is fine.
-- The badge in the screenshot ("Short Notice in 20h 48m", orange) is the countdown chip. Reproducing the math: 20h 48m at the moment that screenshot was taken only comes out if the queue used a **72-hour** threshold, not Zenith's 36.
-- Where the 72 comes from: the Review Queue loads each clinic's threshold and timezone by selecting from the `projects` table in the browser. When a project row does not come back, it silently falls back to `{ threshold: 72, timezone: 'America/Chicago' }`.
-- Row-level security on `projects` only grants SELECT to **admin, agent, project_user (assigned only), and va**. The roles that actually work the Review Queue — `review_only`, `qa_specialist`, `trainer`, `recapture` — get **zero rows back**, so every row silently falls back to 72h Central.
+| Portal ID | Appointment | GHL event | Created | Status | Superseded |
+|---|---|---|---|---|---|
+| 61714adc | Sep 24, 1:00 PM | 1UXzeopr… | Aug 16, 02:13 | Scheduled | no |
+| 51e1e13a | Aug 19, 9:30 AM | FNBQPccj… | Aug 16, 14:09 | Cancelled | no |
 
-Effect for those users: every countdown is wrong, clinics with a short threshold (18h, 24h, 36h) look like they are approaching or already inside a short-notice window that the backend never agrees with, and no Slack alert ever accompanies them. Admins see the correct value, which is why this looks inconsistent between people.
+## What happened (from the record's own notes)
+
+1. Row 61714adc started as the **Aug 19, 9:30 AM** booking and was correctly rescheduled in place to **Sep 24, 1:00 PM** ("Rescheduled | FROM 2026-08-19 09:30 | TO 2026-09-24 01:00 PM | By: GoHighLevel", Aug 16 12:16).
+2. Two hours later GHL sent the **original Aug 19 9:30 booking again under a new event ID** (`FNBQPccj…`). The webhook had no rule to reject it, so it created row 51e1e13a and auto-approved it as setter-submitted. That is the duplicate the clinic saw.
+3. On Aug 17 the team cancelled the duplicate ("Notes: DUPLICATE"). Eleven seconds later the **real Sep 24 row flipped to Cancelled via GoHighLevel**, and it had to be manually set back to Scheduled at 15:49.
+
+So the duplicate is resolved on the surface, but it also briefly cancelled the patient's live appointment — the exact risk flagged earlier.
+
+## Root cause (confirmed in code)
+
+`supersedeOlderContactRows()` in `ghl-webhook-handler` only ever retires *older* siblings; the **incoming** booking is always assumed to be the winner. When GHL replays a stale, earlier-dated booking under a fresh event ID for a contact that already holds a newer active booking, nothing suppresses the incoming row, so it lands as a second active appointment.
+
+The cancel-echo is a second, related issue: the portal cancels the correct event ID (`FNBQPccj…`), but GHL still ended up cancelling the contact's live appointment and echoed it back onto row 61714adc. Whether GHL treats the replayed event as the same underlying appointment is **not yet confirmed** — verifying that is step 1 below.
 
 ## Fix
 
-1. **Give the queue roles read access to the short-notice config.** Add a SELECT policy on `projects` for `review_only`, `qa_specialist`, `trainer` and `recapture` (the same read the `va` role already has), so the countdown uses each clinic's real threshold and timezone.
-2. **Stop the silent fallback.** When a project's config genuinely cannot be resolved, render **no** short-notice countdown for that row instead of inventing a 72h Central window. A missing config must never manufacture a Short Notice signal.
-3. **Reword the countdown chip** so a record that is not short notice does not read like one:
-   - inside the window: `Short Notice window` (red) — unchanged
-   - under 24h to threshold: `Short notice in 6h` (orange)
-   - over 24h: `Becomes short notice in 1d 12h` (neutral, no fill)
-4. **Timezone aliases.** The shared helper only recognises `America/*` names, but 30 of the projects are stored as `US/Central`, `US/Eastern`, `US/Mountain` or `America/Louisville` and all silently fall back to a fixed −6 offset. Map those onto their `America/*` equivalents so Eastern and Mountain clinics stop being computed one to two hours off.
-
-After the fix, James O'Bannon shows `Becomes short notice in 1d 12h` in neutral grey, matching Slack's silence.
+1. **Reject stale replays at create time.** Before inserting a new row, check for an active, non-terminal row for the same contact + project. If the incoming booking is dated *earlier* than the existing active booking and the existing row already carries a reschedule that moved it off the incoming date/time, treat the incoming event as a replay: attach the new event ID to the existing row (or mark the new row superseded immediately) instead of creating a live duplicate. Genuine second bookings — a real earlier appointment with no matching reschedule history — still create a row for human review.
+2. **Verify the GHL cancel behavior before changing it.** Pull the GHL event history for both IDs and confirm whether cancelling one cancels the other. If they are the same underlying appointment, block the outbound cancel whenever the row being cancelled is a known duplicate of a newer active booking, and cancel only in the portal.
+3. **Guard the echo either way.** When a GHL cancellation arrives for a row whose sibling was cancelled in the portal seconds earlier, ignore it instead of flipping the live booking to Cancelled — reuse the existing 120s echo-back debounce, keyed on contact rather than event ID.
+4. **Retire this record's duplicate.** Mark 51e1e13a `is_superseded = true` with a note pointing at the Sep 24 booking, so it stops showing next to the live appointment. No deletion.
+5. **Report first.** Run the existing duplicate scan for other contacts holding one active row plus a same-contact replay row, and list them before applying any sweep.
 
 ## Technical notes
 
-- Migration: `CREATE POLICY "Queue roles view projects" ON public.projects FOR SELECT TO authenticated USING (has_role(auth.uid(),'review_only') OR has_role(auth.uid(),'qa_specialist') OR has_role(auth.uid(),'trainer') OR has_role(auth.uid(),'recapture'));` plus `GRANT SELECT ON public.projects TO authenticated` if not already present. No data changes.
-- `src/components/admin/ReviewQueue.tsx` (~lines 702-730): drop the `threshold: 72 / America/Chicago` fallback for unresolved projects; leave those entries out of `projectConfigs` so no countdown renders. Badge text change at ~lines 2338-2351, keeping the existing 24h orange / above-24h neutral split.
-- `src/lib/shortNotice.ts`: add a `TZ_ALIASES` map (`US/Eastern`→`America/New_York`, `US/Central`→`America/Chicago`, `US/Mountain`→`America/Denver`, `US/Pacific`→`America/Los_Angeles`, `US/Arizona`→`America/Phoenix`, `US/Hawaii`→`Pacific/Honolulu`, `America/Louisville`/`America/Detroit`/`America/Indiana/Indianapolis`→`America/New_York`) resolved inside `getTimezoneOffset`.
-- Mirror the same alias map in `supabase/functions/sweep-short-notice-pending/index.ts` and the short-notice block in `ghl-webhook-handler` so backend alerting and the portal agree.
-- No change to when alerts fire or to Slack delivery.
+- `supabase/functions/ghl-webhook-handler/index.ts`: add a `suppressStaleReplay()` check in the create path (before the insert around line 391) mirroring the sibling query in `supersedeOlderContactRows()`; on match, either patch `ghl_appointment_id` onto the surviving row or insert with `is_superseded = true` plus an audit note.
+- Echo guard lives in the existing terminal-status handling near line 2289; extend the debounce lookup from `ghl_appointment_id` to `ghl_id + project_name`.
+- `src/utils/appointmentStatusChange.ts` already passes `skipGhlSync`; the duplicate-cancel path should set it once step 2 confirms the shared-appointment behavior.
+- Cleanup touches `is_superseded` and `appointment_notes` only — no schema change, no deletions.
