@@ -16,10 +16,13 @@ const corsHeaders = {
 //
 // Body: { limit?: number, project_name?: string, max_notes_length?: number, dry_run?: boolean }
 
-const DEFAULT_LIMIT = 200;
+const DEFAULT_LIMIT = 50;
 const DEFAULT_MAX_NOTES = 300;
+const DEFAULT_DAYS = 30;
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 400;
+const LOCK_NAME = "recover-stub-intake-notes";
+const LOCK_TTL_SECONDS = 900;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -33,30 +36,29 @@ serve(async (req) => {
 
   let limit = DEFAULT_LIMIT;
   let maxNotes = DEFAULT_MAX_NOTES;
+  let days = DEFAULT_DAYS;
   let projectName: string | null = null;
   let dryRun = false;
 
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
-      if (typeof body.limit === "number") limit = Math.min(1000, Math.max(1, body.limit));
+      if (typeof body.limit === "number") limit = Math.min(500, Math.max(1, body.limit));
       if (typeof body.max_notes_length === "number") maxNotes = Math.max(0, body.max_notes_length);
+      if (typeof body.days === "number") days = Math.min(365, Math.max(1, body.days));
       if (typeof body.project_name === "string" && body.project_name.trim()) projectName = body.project_name.trim();
       if (body.dry_run === true) dryRun = true;
     }
   } catch (_e) { /* defaults */ }
 
-  let query = supabase
-    .from("all_appointments")
-    .select("id, lead_name, project_name, patient_intake_notes, ghl_id")
-    .not("ghl_id", "is", null)
-    .eq("is_superseded", false)
-    .order("created_at", { ascending: false })
-    .limit(Math.min(1000, limit * 3));
-
-  if (projectName) query = query.eq("project_name", projectName);
-
-  const { data: rows, error } = await query;
+  // Stub detection happens in Postgres: the old client-side filter only looked at
+  // the newest few hundred rows, so older stubs were never found.
+  const { data: rows, error } = await supabase.rpc("find_stub_intake_appointments", {
+    _max_notes_length: maxNotes,
+    _days: days,
+    _limit: limit,
+    _project_name: projectName,
+  });
 
   if (error) {
     console.error("[recover-stubs] query failed:", error);
@@ -66,9 +68,13 @@ serve(async (req) => {
     });
   }
 
-  const candidates = (rows || [])
-    .filter((r) => (r.patient_intake_notes || "").trim().length < maxNotes)
-    .slice(0, limit);
+  const candidates = (rows || []) as Array<{
+    id: string;
+    lead_name: string | null;
+    project_name: string | null;
+    ghl_id: string | null;
+    notes_length: number;
+  }>;
 
   const byProject: Record<string, number> = {};
   for (const c of candidates) {
