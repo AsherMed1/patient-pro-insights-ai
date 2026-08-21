@@ -490,7 +490,7 @@ serve(async (req) => {
     if (isUpdate && existingAppointment) {
       const suppressed = await isSiblingCancelEcho(supabase, existingAppointment, webhookData, requestId)
       if (suppressed) {
-        webhookData.__suppress_status_update = true
+        ;(webhookData as any).__suppress_status_update = true
       }
     }
 
@@ -2291,7 +2291,7 @@ function getUpdateableFields(
   
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
-  if (webhookData.__suppress_status_update) {
+  if ((webhookData as any).__suppress_status_update) {
     console.log(`[WEBHOOK] Ignoring incoming status "${webhookData.status}" — echo of a duplicate row cancelled in the portal moments ago`)
   } else if (isExplicitStatusChange(incomingStatus)) {
     // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call, Cancelled)
