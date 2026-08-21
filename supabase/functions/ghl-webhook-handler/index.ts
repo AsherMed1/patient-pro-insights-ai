@@ -448,6 +448,54 @@ serve(async (req) => {
       }
     }
 
+    // Guard: GHL sometimes replays an ALREADY-RESCHEDULED booking under a brand new
+    // event id (Dejan Petkovski, Texas Endovascular - Houston Vein Clinic, Aug 2026).
+    // The contact already holds a live row that was moved off exactly this slot, so
+    // creating another row manufactures a duplicate the clinic then tries to cancel —
+    // which cancels the real appointment in GHL. Attach the new event id to the
+    // surviving row instead of inserting.
+    if (!isUpdate) {
+      const replayTarget = await findStaleReplayTarget(supabase, webhookData, requestId)
+      if (replayTarget) {
+        try {
+          await supabase
+            .from('all_appointments')
+            .update({ ghl_appointment_id: webhookData.ghl_appointment_id || replayTarget.ghl_appointment_id })
+            .eq('id', replayTarget.id)
+          await supabase.from('appointment_notes').insert({
+            appointment_id: replayTarget.id,
+            note_text: `GoHighLevel replayed the previous booking (${webhookData.date_of_appointment} ${webhookData.requested_time || ''}, event ${webhookData.ghl_appointment_id || 'unknown'}) after this appointment was rescheduled. No duplicate record was created — System`,
+            created_by: 'System',
+            visibility: 'internal',
+          })
+        } catch (replayErr) {
+          console.warn(`[${requestId}] stale-replay bookkeeping failed:`, replayErr)
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            operation: 'skipped',
+            reason: 'stale_reschedule_replay',
+            merged_into: replayTarget.id,
+            ghl_appointment_id: webhookData.ghl_appointment_id,
+            requestId,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Guard: when a duplicate row was just cancelled in the portal, GHL echoes that
+    // cancellation back onto the contact's OTHER (live) booking. Ignore it.
+    if (isUpdate && existingAppointment) {
+      const suppressed = await isSiblingCancelEcho(supabase, existingAppointment, webhookData, requestId)
+      if (suppressed) {
+        webhookData.__suppress_status_update = true
+      }
+    }
+
+
+
     // Get appropriate fields based on operation type (selective updates for existing appointments)
     const { fields: appointmentData, rescheduleNote, welcomeCallTransitionNote, statusChangeNote, serviceChange, autoDeclineNote } = getUpdateableFields(webhookData, existingAppointment)
 
@@ -2243,7 +2291,9 @@ function getUpdateableFields(
   
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
-  if (isExplicitStatusChange(incomingStatus)) {
+  if (webhookData.__suppress_status_update) {
+    console.log(`[WEBHOOK] Ignoring incoming status "${webhookData.status}" — echo of a duplicate row cancelled in the portal moments ago`)
+  } else if (isExplicitStatusChange(incomingStatus)) {
     // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call, Cancelled)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
     // Welcome Call is a mid-flow portal state, NOT terminal — allow GHL updates (e.g. Cancelled) to override it.
@@ -2846,6 +2896,103 @@ async function tryAppointmentDeleteSync(payload: any, supabase: any, requestId: 
   console.log(`[${requestId}] [delete-sync] retired ${targets.length} row(s) for deleted GHL event ${appointmentId}`)
   return { ok: true, branch: 'appointment_delete', updated: targets.length, ghl_appointment_id: appointmentId }
 }
+
+// Normalize "09:30:00" / "9:30 AM" / "01:00 PM" to HH:MM for comparison.
+function normalizeTimeToken(value: any): string | null {
+  if (!value) return null
+  const raw = String(value).trim().toUpperCase()
+  const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/)
+  if (ampm) {
+    let h = parseInt(ampm[1], 10) % 12
+    if (ampm[3] === 'PM') h += 12
+    return `${String(h).padStart(2, '0')}:${ampm[2]}`
+  }
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})/)
+  if (hhmm) return `${hhmm[1].padStart(2, '0')}:${hhmm[2]}`
+  return null
+}
+
+// A GHL replay is an incoming NEW booking for a slot that an existing, still-active
+// row for the same contact was already rescheduled AWAY from. Returns that row.
+async function findStaleReplayTarget(supabase: any, webhookData: any, requestId: string) {
+  try {
+    if (!webhookData?.ghl_id || !webhookData?.project_name || !webhookData?.date_of_appointment) return null
+    const incomingDate = String(webhookData.date_of_appointment).slice(0, 10)
+    const incomingTime = normalizeTimeToken(webhookData.requested_time)
+
+    const { data: siblings, error } = await supabase
+      .from('all_appointments')
+      .select('id, status, review_status, date_of_appointment, requested_time, reschedule_history, ghl_appointment_id, is_reserved_block')
+      .eq('ghl_id', webhookData.ghl_id)
+      .eq('project_name', webhookData.project_name)
+      .eq('is_superseded', false)
+      .limit(25)
+
+    if (error || !siblings?.length) return null
+
+    for (const row of siblings as any[]) {
+      if (row.is_reserved_block) continue
+      if (['declined', 'dismissed'].includes((row.review_status || '').toLowerCase().trim())) continue
+      const status = (row.status || '').toLowerCase().trim()
+      if (SUPERSEDE_TERMINAL_STATUSES.includes(status)) continue
+      if (row.ghl_appointment_id && row.ghl_appointment_id === webhookData.ghl_appointment_id) continue
+      // Only a booking that now sits LATER than the incoming one can be the survivor.
+      const rowDate = row.date_of_appointment ? String(row.date_of_appointment).slice(0, 10) : null
+      if (!rowDate || rowDate <= incomingDate) continue
+
+      const history = Array.isArray(row.reschedule_history) ? row.reschedule_history : []
+      const movedOffThisSlot = history.some((h: any) => {
+        const prevDate = h?.previous_date ? String(h.previous_date).slice(0, 10) : null
+        if (prevDate !== incomingDate) return false
+        const prevTime = normalizeTimeToken(h?.previous_time)
+        // Date match alone is enough when either side has no usable time.
+        if (!prevTime || !incomingTime) return true
+        return prevTime === incomingTime
+      })
+      if (!movedOffThisSlot) continue
+
+      console.log(`[${requestId}] ⛔ Stale GHL replay of ${incomingDate} ${incomingTime || ''} — row ${row.id} was already rescheduled to ${rowDate}`)
+      return row
+    }
+    return null
+  } catch (e) {
+    console.warn(`[${requestId}] findStaleReplayTarget threw:`, e)
+    return null
+  }
+}
+
+// True when the incoming cancellation is GHL echoing back a cancellation the portal
+// just applied to a DIFFERENT row of the same contact (the duplicate), which must not
+// close this contact's live booking.
+async function isSiblingCancelEcho(supabase: any, existingAppointment: any, webhookData: any, requestId: string) {
+  try {
+    const incoming = (webhookData?.status || '').trim().toLowerCase()
+    if (!['cancelled', 'canceled'].includes(incoming)) return false
+    const currentStatus = (existingAppointment?.status || '').trim().toLowerCase()
+    if (SUPERSEDE_TERMINAL_STATUSES.includes(currentStatus)) return false
+    if (!existingAppointment?.ghl_id || !existingAppointment?.project_name) return false
+
+    const cutoff = new Date(Date.now() - 180000).toISOString()
+    const { data: siblings, error } = await supabase
+      .from('all_appointments')
+      .select('id, status, updated_at')
+      .eq('ghl_id', existingAppointment.ghl_id)
+      .eq('project_name', existingAppointment.project_name)
+      .neq('id', existingAppointment.id)
+      .in('status', ['Cancelled', 'Canceled'])
+      .gte('updated_at', cutoff)
+      .limit(5)
+
+    if (error || !siblings?.length) return false
+    console.log(`[${requestId}] 🛡️ Suppressing GHL cancellation echo on live row ${existingAppointment.id} — sibling ${siblings[0].id} was cancelled in the portal ${Math.round((Date.now() - new Date(siblings[0].updated_at).getTime()) / 1000)}s ago`)
+    return true
+  } catch (e) {
+    console.warn(`[${requestId}] isSiblingCancelEcho threw:`, e)
+    return false
+  }
+}
+
+
 
 async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: string) {
   try {
