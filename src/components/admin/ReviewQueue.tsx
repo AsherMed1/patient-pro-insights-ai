@@ -454,6 +454,9 @@ const ReviewQueue: React.FC = () => {
       .select('id, lead_name, lead_phone_number, lead_email, project_name, calendar_name, date_of_appointment, requested_time, date_appointment_created, status, patient_intake_notes, parsed_pathology_info, parsed_insurance_info, parsed_demographics, dob, dob_rejected_value, ghl_id, ghl_appointment_id, review_status, review_stage, created_at, reviewed_at, reviewed_by, review_notes, decline_reason, decline_ghl_cancel_confirmed_at, decline_ghl_cancel_error, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution, pending_since, pending_by_name, short_notice_auto_tagged_at, insurance_intake_source, trainee_name, returned_reason, returned_at, returned_by')
       .eq('review_status', queueView === 'declined' ? 'declined' : queueView === 'approved' ? 'approved' : 'pending')
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+      // Retired rows (replaced by a newer booking, or deleted in GHL) must never
+      // stay actionable in the queue — the counts already exclude them.
+      .or('is_superseded.is.null,is_superseded.eq.false')
       .limit(500);
 
     if (queueView === 'declined' || queueView === 'approved') {
@@ -1167,7 +1170,7 @@ const ReviewQueue: React.FC = () => {
     try {
       const { data: priorRow } = await supabase
         .from('all_appointments')
-        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id, ghl_appointment_id, decline_notified_at')
+        .select('review_status, lead_name, lead_phone_number, calendar_name, project_name, status, ghl_id, ghl_appointment_id, decline_notified_at, date_of_appointment, requested_time, is_superseded')
         .eq('id', id)
         .single();
 
@@ -1434,6 +1437,35 @@ const ReviewQueue: React.FC = () => {
             ? !!reasonOption?.reschedulable
             : needsReschedule;
 
+        // 0. OWNERSHIP CHECK — never cancel a GHL event that no longer belongs
+        // to this portal row. A rescheduled patient's newer booking can share
+        // (or replace) the event id stored here; cancelling it would kill the
+        // patient's live appointment.
+        let staleReason: string | null = null;
+        if (priorRow.ghl_appointment_id) {
+          try {
+            const { data: readRes } = await supabase.functions.invoke('update-ghl-appointment', {
+              body: {
+                ghl_appointment_id: priorRow.ghl_appointment_id,
+                project_name: priorRow.project_name,
+                mode: 'read',
+              },
+            });
+            const res: any = readRes || {};
+            if (res.code === 'not_found') {
+              staleReason = 'Appointment no longer exists in GoHighLevel — record cleared without a GHL cancellation.';
+            } else if (res.found && res.start_time && priorRow.date_of_appointment) {
+              const ghlDate = String(res.start_time).slice(0, 10);
+              const rowDate = String(priorRow.date_of_appointment).slice(0, 10);
+              if (ghlDate !== rowDate) {
+                staleReason = `The linked GoHighLevel appointment is now dated ${ghlDate}, not ${rowDate}. This portal record is stale — it was cleared locally and the patient's current appointment was left untouched.`;
+              }
+            }
+          } catch (err) {
+            console.warn('GHL ownership pre-check failed (continuing):', err);
+          }
+        }
+
         // 1. Cancel in GHL — unconditional. changeAppointmentStatus only writes
         // the portal status note on a real transition, so re-running it on an
         // already-Cancelled row does not duplicate notes.
@@ -1445,12 +1477,13 @@ const ReviewQueue: React.FC = () => {
             newStatus: 'Cancelled',
             userName: actor,
             currentAppointment: priorRow as any,
+            skipGhlSync: !!staleReason,
             onWarning: ({ title, description, severe }) =>
               toast({ title, description, variant: severe ? 'destructive' : undefined }),
           });
-          cancelConfirmed = res.ghlVerified === true;
-          cancelError = res.ghlError;
-          if (!priorRow.ghl_appointment_id) {
+          cancelConfirmed = staleReason ? true : res.ghlVerified === true;
+          cancelError = staleReason ? undefined : res.ghlError;
+          if (!staleReason && !priorRow.ghl_appointment_id) {
             cancelError = 'No GoHighLevel appointment is linked to this record.';
           }
         } catch (err: any) {
@@ -1474,6 +1507,24 @@ const ReviewQueue: React.FC = () => {
           });
         }
 
+        // 1b. Stale record: retire it locally so it disappears from the queue,
+        // and record why no GHL cancellation was sent.
+        if (staleReason) {
+          await supabase.from('all_appointments').update({ is_superseded: true }).eq('id', id);
+          try {
+            await supabase.from('appointment_notes').insert({
+              appointment_id: id,
+              note_text: `Stale record cleared from the Review Queue — ${staleReason} - [[timestamp:${stamp}]]`,
+              created_by: 'System',
+              visibility: 'internal',
+            });
+          } catch { /* non-critical */ }
+          toast({
+            title: 'Stale record cleared',
+            description: staleReason,
+          });
+        }
+
         // 2. Portal note with attribution
         const rescheduleWord = wantsReschedule ? 'yes' : 'no';
         const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor}${cancelConfirmed ? ' — cancellation confirmed in GoHighLevel' : ' — GoHighLevel cancellation NOT confirmed'} - [[timestamp:${stamp}]]`;
@@ -1489,7 +1540,9 @@ const ReviewQueue: React.FC = () => {
         }
 
         // 3 + 4. GHL contact note + reason tag — guarded against duplicates
-        if (!priorRow.decline_notified_at && priorRow.ghl_id) {
+        // Stale cleanups must NOT tag, note, or message the contact — the
+        // patient still has a live appointment.
+        if (!staleReason && !priorRow.decline_notified_at && priorRow.ghl_id) {
           let notified = false;
           const { data: projectData } = await supabase
             .from('projects')
@@ -1559,7 +1612,7 @@ const ReviewQueue: React.FC = () => {
               .update({ decline_notified_at: new Date().toISOString() })
               .eq('id', id);
           }
-        } else if (!priorRow.ghl_id) {
+        } else if (!staleReason && !priorRow.ghl_id) {
           toast({
             title: 'Declined — no GHL contact linked',
             description: 'No text/email was triggered because this appointment has no GHL contact.',
