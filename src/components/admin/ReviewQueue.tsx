@@ -1527,7 +1527,7 @@ const ReviewQueue: React.FC = () => {
 
         // 2. Portal note with attribution
         const rescheduleWord = wantsReschedule ? 'yes' : 'no';
-        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor}${cancelConfirmed ? ' — cancellation confirmed in GoHighLevel' : ' — GoHighLevel cancellation NOT confirmed'} - [[timestamp:${stamp}]]`;
+        const declineNote = `Declined: ${reasonLabel}${explanation ? ` — ${explanation}` : ''} (Reschedule: ${rescheduleWord}) by ${actor}${staleReason ? ' — stale record, no GoHighLevel cancellation sent' : cancelConfirmed ? ' — cancellation confirmed in GoHighLevel' : ' — GoHighLevel cancellation NOT confirmed'} - [[timestamp:${stamp}]]`;
         try {
           await supabase.from('appointment_notes').insert({
             appointment_id: id,
