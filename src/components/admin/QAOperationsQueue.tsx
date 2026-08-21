@@ -757,25 +757,25 @@ export default function QAOperationsQueue() {
   // Alert Type filter against `primary.alert_type` only. Selecting an alert
   // type that isn't the patient's latest alert returns zero results for them.
   //
-  // The date range keeps a patient when the RECORD was created inside it — all
-  // of that patient's alerts stay attached, including ones raised later, so the
-  // row shows the current status and the full history.
+  // The date range keeps a patient when ANY of their alerts ENTERED THE QA QUEUE
+  // inside it — all of that patient's alerts stay attached, including ones
+  // raised later, so the row shows the current status and the full history.
+  // Day boundaries are Central Time so every user sees identical results.
   const groupedNoStatus = useMemo(() => {
     let groups = groupCases(rowFilteredNoAlert);
     if (dateFrom || dateTo) {
-      const start = dateFrom ? new Date(dateFrom) : null;
-      if (start) start.setHours(0, 0, 0, 0);
-      const end = dateTo ? new Date(dateTo) : null;
-      if (end) end.setHours(23, 59, 59, 999);
+      const start = dateFrom ? getCTStartOfDayUTC(dateFrom) : null;
+      const end = dateTo ? getCTEndOfDayUTC(dateTo) : null;
       groups = groups.filter((g) =>
         g.children.some((c) => {
-          const created = new Date(recordCreatedAt(c));
-          if (start && created < start) return false;
-          if (end && created > end) return false;
+          const queued = new Date(queuedAt(c));
+          if (start && queued < start) return false;
+          if (end && queued > end) return false;
           return true;
         }),
       );
     }
+
     if (alertFilter === 'all') return groups;
     return groups.filter((g) => g.primary.alert_type === alertFilter);
   }, [rowFilteredNoAlert, alertFilter, dateFrom, dateTo]);
