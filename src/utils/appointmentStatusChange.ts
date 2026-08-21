@@ -32,6 +32,12 @@ export interface ChangeAppointmentStatusOptions {
   } | null;
   /** Non-fatal warnings (GHL sync failures etc.) surfaced to the caller's UI. */
   onWarning?: (warning: { title: string; description: string; severe?: boolean }) => void;
+  /**
+   * Skip the GoHighLevel push entirely (local-only status change). Used when the
+   * portal row is stale — the GHL event was deleted or now backs a NEWER booking
+   * — so cancelling in GHL would hit the patient's active appointment.
+   */
+  skipGhlSync?: boolean;
 }
 
 export interface ChangeAppointmentStatusResult {
