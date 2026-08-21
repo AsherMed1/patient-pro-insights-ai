@@ -2291,7 +2291,9 @@ function getUpdateableFields(
   
   // Conditionally update status (only for explicit changes)
   const incomingStatus = webhookData.status?.toLowerCase()
-  if (isExplicitStatusChange(incomingStatus)) {
+  if (webhookData.__suppress_status_update) {
+    console.log(`[WEBHOOK] Ignoring incoming status "${webhookData.status}" — echo of a duplicate row cancelled in the portal moments ago`)
+  } else if (isExplicitStatusChange(incomingStatus)) {
     // Guard: Don't let ANY GHL webhook overwrite portal-only terminal statuses (OON, Do Not Call, Cancelled)
     const existingStatusForEcho = existingAppointment.status?.toLowerCase()?.trim()
     // Welcome Call is a mid-flow portal state, NOT terminal — allow GHL updates (e.g. Cancelled) to override it.
