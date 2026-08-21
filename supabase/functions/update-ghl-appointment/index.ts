@@ -88,7 +88,7 @@ serve(async (req) => {
       );
     }
 
-    if (!isCalendarTransfer && !isStatusUpdate && !isReschedule) {
+    if (!isReadOnly && !isCalendarTransfer && !isStatusUpdate && !isReschedule) {
       return new Response(
         JSON.stringify({
           error: 'Missing required fields',
