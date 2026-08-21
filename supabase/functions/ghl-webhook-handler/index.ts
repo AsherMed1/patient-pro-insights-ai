@@ -2771,6 +2771,82 @@ const SUPERSEDE_TERMINAL_STATUSES = [
   'showed', 'won', 'oon', 'do not call', 'donotcall', 'rescheduled',
 ]
 
+// ---------------------------------------------------------------------------
+// GHL appointment DELETE sync.
+// When an event is deleted in GHL the matching portal row must stop being
+// actionable: it is retired (is_superseded) and, if not already terminal,
+// marked Cancelled. Resolution is by the SPECIFIC ghl_appointment_id only, so
+// a delete can never touch the patient's other (newer) booking.
+// ---------------------------------------------------------------------------
+function isAppointmentDeletePayload(payload: any): boolean {
+  if (!payload || typeof payload !== 'object') return false
+  const candidates = [payload.type, payload.event, payload.eventType, payload.webhookType, payload.action]
+    .filter((v) => typeof v === 'string')
+    .map((v) => v.toLowerCase().replace(/[\s_-]/g, ''))
+  return candidates.some((v) => v.includes('appointmentdelete') || v.includes('deleteappointment'))
+}
+
+async function tryAppointmentDeleteSync(payload: any, supabase: any, requestId: string): Promise<any | null> {
+  if (!isAppointmentDeletePayload(payload)) return null
+
+  const appointmentId = sanitizeId(resolveNestedValue(payload, [
+    ['appointmentId'],
+    ['appointment_id'],
+    ['appointment', 'id'],
+    ['appointment', 'appointmentId'],
+    ['calendar', 'appointmentId'],
+    ['calendar', 'id'],
+    ['id'],
+  ]))
+
+  if (!appointmentId) {
+    console.warn(`[${requestId}] [delete-sync] delete payload without an appointment id — ignoring`)
+    return { ok: true, branch: 'appointment_delete', updated: 0, reason: 'missing_appointment_id' }
+  }
+
+  const { data: rows, error } = await supabase
+    .from('all_appointments')
+    .select('id, status, review_status, is_superseded, is_reserved_block, project_name, lead_name')
+    .eq('ghl_appointment_id', appointmentId)
+    .limit(20)
+
+  if (error) {
+    console.warn(`[${requestId}] [delete-sync] lookup failed:`, error)
+    return { ok: false, branch: 'appointment_delete', error: error.message }
+  }
+
+  const targets = (rows || []).filter((r: any) => !r.is_reserved_block && !r.is_superseded)
+  if (!targets.length) {
+    console.log(`[${requestId}] [delete-sync] no active portal row for GHL event ${appointmentId}`)
+    return { ok: true, branch: 'appointment_delete', updated: 0, reason: 'no_active_row' }
+  }
+
+  for (const row of targets) {
+    const status = String(row.status || '').toLowerCase().trim()
+    const update: any = { is_superseded: true, updated_at: new Date().toISOString() }
+    if (!SUPERSEDE_TERMINAL_STATUSES.includes(status)) update.status = 'Cancelled'
+
+    const { error: updErr } = await supabase.from('all_appointments').update(update).eq('id', row.id)
+    if (updErr) {
+      console.warn(`[${requestId}] [delete-sync] update failed for ${row.id}:`, updErr)
+      continue
+    }
+    try {
+      await supabase.from('appointment_notes').insert({
+        appointment_id: row.id,
+        note_text: `Appointment deleted in GoHighLevel (event ${appointmentId}) — record retired and removed from the Review Queue — System`,
+        created_by: 'System',
+        visibility: 'internal',
+      })
+    } catch (noteErr) {
+      console.warn(`[${requestId}] [delete-sync] note insert failed:`, noteErr)
+    }
+  }
+
+  console.log(`[${requestId}] [delete-sync] retired ${targets.length} row(s) for deleted GHL event ${appointmentId}`)
+  return { ok: true, branch: 'appointment_delete', updated: targets.length, ghl_appointment_id: appointmentId }
+}
+
 async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: string) {
   try {
     const { data: siblings, error } = await supabase
