@@ -2736,6 +2736,24 @@ export type Database = {
           },
         ]
       }
+      job_locks: {
+        Row: {
+          expires_at: string
+          job_name: string
+          locked_at: string
+        }
+        Insert: {
+          expires_at: string
+          job_name: string
+          locked_at?: string
+        }
+        Update: {
+          expires_at?: string
+          job_name?: string
+          locked_at?: string
+        }
+        Relationships: []
+      }
       meeting_transcripts: {
         Row: {
           attendees: string[] | null
@@ -5135,6 +5153,10 @@ export type Database = {
       }
     }
     Functions: {
+      acquire_job_lock: {
+        Args: { _job_name: string; _ttl_seconds?: number }
+        Returns: boolean
+      }
       bulk_sync_patient_intake_notes: {
         Args: never
         Returns: {
@@ -5180,6 +5202,21 @@ export type Database = {
           password_hash: string
           project_found: boolean
           verification_result: boolean
+        }[]
+      }
+      find_stub_intake_appointments: {
+        Args: {
+          _days?: number
+          _limit?: number
+          _max_notes_length?: number
+          _project_name?: string
+        }
+        Returns: {
+          ghl_id: string
+          id: string
+          lead_name: string
+          notes_length: number
+          project_name: string
         }[]
       }
       fix_completed_appointments: {
@@ -5469,6 +5506,7 @@ export type Database = {
             Returns: string
           }
       refresh_performance_views: { Args: never; Returns: undefined }
+      release_job_lock: { Args: { _job_name: string }; Returns: undefined }
       sync_lead_data_to_appointments: {
         Args: { batch_size?: number }
         Returns: {
