@@ -69,7 +69,11 @@ serve(async (req) => {
       status,
       project_name,
       cancellation_notes,
+      mode,
     } = await req.json();
+
+    // Read-only ownership check: return the current GHL event without changing it.
+    const isReadOnly = mode === 'read';
 
     // Determine operation type
     const isCalendarTransfer = calendar_id && !new_date && !new_time && !status;
