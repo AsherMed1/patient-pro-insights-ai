@@ -55,6 +55,7 @@ interface CaseInfo {
   workflow_status: string;
   patient_link: string | null;
   qa_name: string | null;
+  appointment_id: string | null;
 }
 
 interface LogEntry {
@@ -62,6 +63,7 @@ interface LogEntry {
   at: string;
   specialist: string;
   caseId: string;
+  recordKey: string;
   patient: string;
   patientLink: string | null;
   clinic: string;
@@ -70,6 +72,22 @@ interface LogEntry {
   status: string;
   turnaroundMs: number | null;
 }
+
+interface RecordGroup {
+  key: string;
+  specialist: string;
+  patient: string;
+  patientLink: string | null;
+  clinic: string;
+  alertTypes: string[];
+  status: string;
+  actionCounts: Partial<Record<ActionKey, number>>;
+  actions: LogEntry[];
+  first: string;
+  last: string;
+  turnaroundMs: number | null;
+}
+
 
 const deriveAction = (a: ActivityRow): ActionKey => {
   const d = (a.description || '').toLowerCase();
