@@ -12,18 +12,47 @@ const INVALID_SERVICE_TOKENS = new Set([
   'procedures', 'consultation', 'consult', 'appointment', 'undefined', '-', '--',
 ]);
 
+/**
+ * Canonical service lines. Anything that doesn't normalize onto one of these
+ * (e.g. TKR, FNA, "knee replacement surgery") is not a service line and is
+ * never offered in a dropdown.
+ */
+export const CANONICAL_SERVICE_LINES = [
+  'GAE', 'PAE', 'PFE', 'UFE', 'FSE', 'PAD', 'HAE', 'ATE', 'TAE', 'Neuropathy',
+] as const;
+
+const CANONICAL_BY_KEY = new Map<string, string>(
+  CANONICAL_SERVICE_LINES.map((s) => [s.toLowerCase(), s]),
+);
+for (const list of Object.values(KNOWN_PROJECT_SERVICES)) {
+  for (const s of list) if (!CANONICAL_BY_KEY.has(s.toLowerCase())) CANONICAL_BY_KEY.set(s.toLowerCase(), s);
+}
+
 /** Collapse variants onto their canonical service line (mirrors AppointmentFilters). */
 export const normalizeServiceLine = (raw: string): string | null => {
   const value = (raw || '').trim();
   if (!value) return null;
-  if (value.length > 30) return null;
+  if (value.length > 60) return null;
   if (/[\n\r]/.test(value) || /https?:\/\//i.test(value)) return null;
   if (INVALID_SERVICE_TOKENS.has(value.toLowerCase())) return null;
+
+  // Aliases / variants
   if (/^pae\b/i.test(value) && /bph/i.test(value)) return 'PAE';
   if (/^uae$/i.test(value)) return 'UFE';
-  if (/^[a-z]{2,4}$/i.test(value)) return value.toUpperCase();
-  return value;
+
+  // Descriptive name with a parenthesised acronym, e.g. "Genicular Artery Embolization (GAE)"
+  const paren = value.match(/\(([A-Za-z]{2,4})\)\s*$/);
+  if (paren) {
+    const canon = CANONICAL_BY_KEY.get(paren[1].toLowerCase());
+    if (canon) return canon;
+  }
+
+  return CANONICAL_BY_KEY.get(value.toLowerCase()) ?? null;
 };
+
+/** True when a value is a recognised service line. */
+export const isServiceLine = (raw: string): boolean => normalizeServiceLine(raw) !== null;
+
 
 /** Service line of a single appointment row: parsed procedure first, calendar name fallback. */
 export const serviceLineFromAppointment = (row: {
