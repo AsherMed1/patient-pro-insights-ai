@@ -3224,6 +3224,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          is_setter_team_lead: boolean
           portal_tour_completed_at: string | null
           updated_at: string | null
           welcome_email_sent: boolean | null
@@ -3235,6 +3236,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          is_setter_team_lead?: boolean
           portal_tour_completed_at?: string | null
           updated_at?: string | null
           welcome_email_sent?: boolean | null
@@ -3246,6 +3248,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          is_setter_team_lead?: boolean
           portal_tour_completed_at?: string | null
           updated_at?: string | null
           welcome_email_sent?: boolean | null

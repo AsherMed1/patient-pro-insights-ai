@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_setter_team_lead boolean NOT NULL DEFAULT false;
