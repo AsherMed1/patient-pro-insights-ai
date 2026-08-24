@@ -53,6 +53,7 @@ export default function LogAttemptDialog({
   const [bookedById, setBookedById] = useState('');
   const [bookedByName, setBookedByName] = useState('');
   const [note, setNote] = useState('');
+  const [flatTextValue, setFlatTextValue] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -61,14 +62,25 @@ export default function LogAttemptDialog({
     setConversation('');
     setOtherResolution('');
     setNote('');
+    setFlatTextValue('');
     setBookedById(currentUserId || '');
     setBookedByName(currentUserName || '');
   }, [open, currentUserId, currentUserName]);
 
+  const isTextFlat = channel === 'text';
   const reached = !!result && CONTACT_RESULTS.includes(result as AttemptResult);
   const isWrongNumber = result === 'wrong_number';
   const needsBookedBy = reached && conversation === 'booked_rescheduled';
   const needsNote = reached && conversation === 'other';
+
+  const handleFlatTextChange = (value: string) => {
+    const opt = TEXT_FLAT_OPTIONS.find(o => o.value === value);
+    if (!opt) return;
+    setFlatTextValue(value);
+    setResult(opt.result);
+    setConversation(opt.conversationOutcome || '');
+    setOtherResolution('');
+  };
 
   const submit = () => {
     if (!result) {
