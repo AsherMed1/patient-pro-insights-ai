@@ -138,8 +138,9 @@ const ReviewQueue: React.FC = () => {
   // doesn't pop in a few seconds after the rest of the bucket row renders.
   // VA / QA users get read-only visibility of the Trainee Review bucket so they
   // can answer clinic questions; only reviewers can act on those records.
-  const canSeeTraineeQueue = roleLoading || hasRole(['admin', 'agent', 'trainer', 'va', 'qa_specialist']);
-  const canActOnTrainees = roleLoading || hasRole(['admin', 'agent', 'trainer']);
+  // Setter Team Leads (flagged in User Management) get full review powers too.
+  const canSeeTraineeQueue = roleLoading || hasRole(['admin', 'agent', 'trainer', 'va', 'qa_specialist']) || canReviewTrainees();
+  const canActOnTrainees = roleLoading || canReviewTrainees();
   const [rows, setRows] = useState<ReviewAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
