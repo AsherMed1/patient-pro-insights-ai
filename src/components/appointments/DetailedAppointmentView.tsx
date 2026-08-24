@@ -61,6 +61,8 @@ import LogAttemptDialog from './LogAttemptDialog';
 import AppointmentHistory from './AppointmentHistory';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
+import { buildInsuranceData } from '@/lib/insuranceFields';
+
 import AdminActivityLog from './AdminActivityLog';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil } from "@/utils/appointmentLeadMatcher";
 import { supabase } from "@/integrations/supabase/client";
