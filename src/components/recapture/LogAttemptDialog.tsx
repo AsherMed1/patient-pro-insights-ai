@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import BookedBySelect from './BookedBySelect';
 import {
   CHANNEL_LABELS, CONVERSATION_OUTCOMES, CONVERSATION_OUTCOME_LABELS, CONTACT_RESULTS,
-  RESULTS_BY_CHANNEL, RESULT_LABELS, SCHEDULING_OUTCOMES,
+  RESULTS_BY_CHANNEL, RESULT_LABELS, SCHEDULING_OUTCOMES, TEXT_FLAT_OPTIONS,
   type AttemptResult, type Channel, type ConversationOutcome,
 } from './types';
 
