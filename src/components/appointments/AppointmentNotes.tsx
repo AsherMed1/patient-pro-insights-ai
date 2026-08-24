@@ -29,6 +29,8 @@ import AttachmentGallery from '@/components/admin/AttachmentGallery';
 import { uploadImages } from '@/lib/attachments';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { WelcomeCallAttemptControl } from '@/components/appointments/WelcomeCallAttemptDialog';
+
 
 interface AppointmentNotesProps {
   appointmentId: string;
@@ -176,18 +178,26 @@ const AppointmentNotes = ({ appointmentId, leadName, projectName, externalShowFo
             {isClinicUser ? 'Notes' : 'Internal Notes'} ({visibleNotes.length})
           </span>
         </div>
-        {!showAddForm && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center space-x-1"
-          >
-            <Plus className="h-3 w-3" />
-            <span>Add Note</span>
-          </Button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <WelcomeCallAttemptControl
+            appointmentId={appointmentId}
+            patientName={leadName}
+            showEmptyState={!isClinicUser}
+          />
+          {!showAddForm && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center space-x-1"
+            >
+              <Plus className="h-3 w-3" />
+              <span>Add Note</span>
+            </Button>
+          )}
+        </div>
       </div>
+
 
       {/* Add Note Form */}
       {showAddForm && (
