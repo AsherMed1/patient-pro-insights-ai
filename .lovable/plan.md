@@ -1,26 +1,63 @@
-# Add OON reasons and notes to Excel exports
+# Welcome Call Attempt workflow
 
-Same idea as the cancellation export, applied to out-of-network records. Today OON reasons live in the notes and in the potential-OON flag details, and OON records marked from the Review Queue never appear in the appointments export at all.
+Documented, repeatable Welcome Call outreach logging for clinics, with compliance reporting for PPM. Nothing here touches appointment status.
 
-## What changes
+## Clinic experience
 
-**1. Appointments export gains OON columns**
+A **Welcome Call attempt** button sits in the Internal Notes header of the patient record (and on the appointment card), exactly where the screenshot shows it.
 
-When you filter the appointments list to status = OON and export, the file already carries the Notes column. It will additionally include:
+The dialog is deliberately minimal:
 
-- **OON Reason** — the resolution/reason captured when the record was marked out of network.
-- **Potential OON Flag** — whether the record was auto-flagged, and the plan or group number that matched (e.g. `Plan "Ambetter" → Ambetter Marketplace`).
-- **Flagged Date** / **Resolved Date** — when the flag was raised and when a human resolved it.
+- Outreach method: **Call** (fixed, shown as a locked value)
+- Outcome: **Patient Answered** or **Patient Did Not Answer** (required)
+- **Internal note** — mandatory, save stays disabled until text is entered
+- Previous attempts listed underneath (outcome, note, who, when) so the next caller has context
 
-**2. New export on the Review Queue → OON tab**
+Every save creates a new historical entry — attempts are never overwritten, and unlimited attempts are allowed.
 
-Records marked OON from the Review Queue are admin-only and are excluded from the appointments export, so those cancellation-style reports miss them entirely. The OON tab gets its own "Export to Excel" button producing the same column set (patient, project, location, appointment date, insurance provider/plan/ID, OON reason, flag details, reviewer, and the full Notes column newest-first).
+### Patient Did Not Answer
+- Logs the attempt + internal note.
+- Fires the Welcome Call SMS through GoHighLevel.
+- Appointment stays exactly as it is: no cancel, no completion, no workflow block.
+- Further attempts can be logged any time.
 
-Both exports include all notes — clinic-visible and internal — since the reasons usually sit in internal notes.
+### Patient Answered
+- Logs the attempt + internal note.
+- No SMS.
+- Welcome Call state becomes **Successfully Reached**.
+
+### SMS safeguard
+The no-answer SMS is only triggered once per patient per rolling 12 hours. A suppressed send still logs the attempt and writes an internal note saying the SMS was skipped due to the cooldown, so the audit trail stays honest.
+
+## Welcome Call states
+
+Derived on the appointment record and shown as a badge:
+
+| State | Meaning | Visibility |
+| --- | --- | --- |
+| No Attempt Logged | nothing documented | PPM users only |
+| Attempted – Not Reached | one or more attempts, never answered | everyone |
+| Successfully Reached | an answered attempt exists | everyone |
+
+Moving to Successfully Reached keeps the full attempt history intact.
+
+## Reporting (admin)
+
+A **Welcome Calls** report, filterable by clinic and date range, covering: total confirmed appointments, appointments with at least one attempt, no attempt logged, attempted–not reached, successfully reached, attempt rate, successful contact rate, average attempts per patient, and attempts broken down by clinic user with timestamps. Rows drill into the patient record; export to Excel.
+
+Because state is derived per appointment, this can later be cross-tabbed against show / no-show / cancellation / recapture outcomes.
 
 ## Technical detail
 
-- `src/utils/exportAppointmentsToExcel.ts`: extend `AppointmentRow` with `potential_oon`, `potential_oon_matches`, `potential_oon_flagged_at`, `potential_oon_resolved_at`, `potential_oon_resolution`, `review_status`, `reviewed_by`; add a `formatOonMatches` helper mirroring `formatNotes`; append the new columns after the reschedule columns; keep width caps and Notes wrapping.
-- `src/components/AllAppointmentsManager.tsx`: no query change needed (`select('*')` already returns the OON fields) — the new columns populate automatically.
-- `src/components/admin/ReviewQueue.tsx`: add an export button rendered only on the OON tab. It re-queries `all_appointments` for `review_status = 'oon'` (respecting the tab's project/date filters), then fetches `appointment_notes` for those ids in chunks of 200 ordered newest-first, and calls `exportAppointmentsToExcel` with the grouped notes map — the same pattern used by the appointments export.
-- Read-only additions; no schema or backend changes.
+**Data**
+- Reuse `public.appointment_contact_attempts` with `source = 'welcome_call'`, `channel = 'call'`, `outcome` in `answered` | `no_answer`, mandatory `note`, plus `user_id` / `user_name` / `attempted_at`. Patient, project and appointment context come from the `appointment_id` FK.
+- Migration adds derived columns on `all_appointments`: `welcome_call_state` (text, default `none`), `welcome_call_attempt_count` (int default 0), `welcome_call_first_attempt_at`, `welcome_call_last_attempt_at`, `welcome_call_reached_at`, `welcome_call_last_sms_at` (cooldown clock). Maintained by an `AFTER INSERT` trigger on `appointment_contact_attempts` so reporting reads plain columns.
+- Note: this is separate from the existing `welcome_call_completed` / `il_completed` cancellation-dialog fields; those stay as-is.
+
+**Frontend**
+- New `src/components/appointments/WelcomeCallAttemptDialog.tsx` (own component rather than overloading `LogAttemptDialog`, whose channel/outcome sets are setter-oriented). On submit: insert the attempt, insert the mirrored `appointment_notes` row with `visibility: 'internal'` and `by {userName}` attribution, then invoke the SMS function when outcome is `no_answer`.
+- Button + state badge rendered in `AppointmentNotes.tsx` header, `DetailedAppointmentView.tsx`, and `AppointmentCard.tsx`. `No Attempt Logged` badge is gated behind the management/PPM role check from `useRole`.
+- New `src/components/admin/WelcomeCallReport.tsx` added to the admin reports area, aggregating from the new derived columns + attempt rows, reusing the existing Excel export helper.
+
+**Backend**
+- New edge function `trigger-welcome-call-sms`: validates the caller JWT, re-checks the 12h cooldown server-side against `welcome_call_last_sms_at`, then adds a `welcome-call-no-answer` tag to the GHL contact (same pattern as `update-ghl-contact-tags`) which drives the SMS workflow in GHL, and stamps the cooldown column. Message copy (`{{contact.first_name}}`, `{{clinic_name}}`, `{{clinic_phone}}`) lives in the GHL workflow template — the portal only triggers it.
