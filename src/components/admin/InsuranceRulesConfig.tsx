@@ -526,6 +526,22 @@ const InsuranceRulesConfig = () => {
               </div>
             </div>
 
+            <div className="flex items-end gap-3">
+              <div className="space-y-1">
+                <Label>Filter by clinic</Label>
+                <Select value={rulesClinicFilter} onValueChange={setRulesClinicFilter}>
+                  <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All clinics</SelectItem>
+                    {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-xs text-muted-foreground pb-2">
+                {visibleRules.length} {visibleRules.length === 1 ? 'rule' : 'rules'}
+              </span>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
