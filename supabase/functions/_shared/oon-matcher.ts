@@ -8,6 +8,8 @@ export interface BlockRuleScope {
   project_name?: string | null;
   location?: string | null;
   calendar_name?: string | null;
+  /** Optional service line (e.g. "Neuropathy"). Null = every service line. */
+  service_line?: string | null;
 }
 
 export interface BlockRule {
@@ -28,6 +30,7 @@ export interface AppointmentInsuranceInput {
   projectName?: string | null;
   location?: string | null;
   calendarName?: string | null;
+  serviceLine?: string | null;
   plans: (string | null | undefined)[];
   groupNumbers: (string | null | undefined)[];
 }
@@ -85,10 +88,17 @@ function scopeMatches(rule: BlockRule, input: AppointmentInsuranceInput): boolea
   const project = normalizePlan(input.projectName);
   const location = normalizePlan(input.location);
   const calendar = normalizePlan(input.calendarName);
+  const service = normalizePlan(input.serviceLine);
   return scopes.some((s) => {
     if (s.project_name && normalizePlan(s.project_name) !== project) return false;
     if (s.location && !location.includes(normalizePlan(s.location))) return false;
     if (s.calendar_name && !calendar.includes(normalizePlan(s.calendar_name))) return false;
+    if (s.service_line) {
+      const term = normalizePlan(s.service_line);
+      // Unknown service line on the appointment: a line-specific rule must not fire.
+      if (!service) return false;
+      if (service !== term && !service.includes(term) && !calendar.includes(term)) return false;
+    }
     return true;
   });
 }
@@ -160,7 +170,7 @@ export async function loadBlockRules(supabase: any): Promise<BlockRule[]> {
     supabase.from('insurance_block_rules').select('*').eq('is_active', true),
     supabase.from('insurance_canonical_plans').select('id, canonical_name'),
     supabase.from('insurance_plan_aliases').select('plan_id, alias'),
-    supabase.from('insurance_block_rule_scopes').select('rule_id, project_name, location, calendar_name'),
+    supabase.from('insurance_block_rule_scopes').select('rule_id, project_name, location, calendar_name, service_line'),
   ]);
 
   const planById = new Map<string, { name: string; terms: string[] }>();
@@ -173,7 +183,7 @@ export async function loadBlockRules(supabase: any): Promise<BlockRule[]> {
   const scopesByRule = new Map<string, BlockRuleScope[]>();
   for (const s of scopes || []) {
     const list = scopesByRule.get(s.rule_id) || [];
-    list.push({ project_name: s.project_name, location: s.location, calendar_name: s.calendar_name });
+    list.push({ project_name: s.project_name, location: s.location, calendar_name: s.calendar_name, service_line: s.service_line });
     scopesByRule.set(s.rule_id, list);
   }
 
@@ -221,6 +231,7 @@ export function extractInsuranceValues(appt: any): { plans: string[]; groupNumbe
 
 export interface SupportedInsurance {
   project_name: string;
+  service_line?: string | null;
   raw_option: string;
   normalized: string;
   is_unknown_option: boolean;
@@ -263,7 +274,17 @@ export function evaluateAllowlist(
   supported: SupportedInsurance[],
   input: AppointmentInsuranceInput,
 ): OonMatch[] {
-  const list = supported.filter((s) => s.active && !s.is_unknown_option);
+  const service = normalizePlan(input.serviceLine);
+  const calendar = normalizePlan(input.calendarName);
+  // Accepted list = clinic-wide rows + rows for this appointment's service line.
+  const list = supported.filter((s) => {
+    if (!s.active || s.is_unknown_option) return false;
+    if (!s.service_line) return true;
+    const term = normalizePlan(s.service_line);
+    if (!term) return true;
+    if (!service) return calendar.includes(term);
+    return service === term || service.includes(term) || calendar.includes(term);
+  });
   if (!list.length) return [];
 
   // Generic answers ("Other", "Self pay/ Cash", "Not sure") are a data-quality
@@ -302,7 +323,7 @@ export async function loadSupportedInsurances(
 ): Promise<SupportedInsurance[]> {
   const { data } = await supabase
     .from('clinic_supported_insurances')
-    .select('project_name, raw_option, normalized, is_unknown_option, active')
+    .select('project_name, service_line, raw_option, normalized, is_unknown_option, active')
     .eq('project_name', projectName)
     .eq('active', true);
   return (data || []) as SupportedInsurance[];
@@ -316,4 +337,29 @@ export async function loadOonMode(supabase: any, projectName: string): Promise<'
     .eq('project_name', projectName)
     .maybeSingle();
   return data?.oon_mode === 'allowlist' ? 'allowlist' : 'denylist';
+}
+
+
+/**
+ * Resolve the service line for an appointment the same way the dashboard filters
+ * do: parsed procedure type first, then the service parsed out of the calendar name.
+ */
+export function resolveServiceLine(appt: any): string | null {
+  const parsed = appt?.parsed_pathology_info;
+  const parsedType = parsed && typeof parsed === 'object'
+    ? (parsed.procedure_type || parsed.procedure)
+    : null;
+  if (typeof parsedType === 'string' && parsedType.trim()) return parsedType.trim();
+
+  const calendar = typeof appt?.calendar_name === 'string' ? appt.calendar_name : '';
+  const m = calendar.match(/your\s+["']?([^"']+?)["']?\s+Consultation/i);
+  if (m && m[1]) {
+    const service = m[1]
+      .trim()
+      .replace(/^(?:virtual|in[-\s]?person)\s+/i, '')
+      .replace(/\s+(?:virtual|in[-\s]?person)$/i, '')
+      .trim();
+    if (service && !/^(?:virtual|in[-\s]?person)$/i.test(service)) return service;
+  }
+  return null;
 }
