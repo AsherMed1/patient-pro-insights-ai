@@ -138,7 +138,7 @@ export const RESULT_LABELS: Record<string, string> = {
 /** Attempt outcomes offered per method. */
 export const RESULTS_BY_CHANNEL: Record<Channel, AttemptResult[]> = {
   call: ['answered', 'voicemail', 'no_answer', 'busy', 'disconnected', 'wrong_number'],
-  text: ['text_sent', 'text_responded', 'text_failed'],
+  text: ['text_sent', 'text_responded', 'text_failed', 'wrong_number'],
   email: ['email_sent', 'email_responded', 'email_failed'],
 };
 
