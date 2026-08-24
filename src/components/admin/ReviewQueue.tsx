@@ -2507,7 +2507,9 @@ const ReviewQueue: React.FC = () => {
 
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end">
-                      {isApprovedView ? (
+                      {traineeReadOnly ? (
+                        <Badge variant="outline" className="border-blue-400 text-blue-700 bg-blue-50">Awaiting trainee review</Badge>
+                      ) : isApprovedView ? (
                         <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">Approved</Badge>
                       ) : isDeclinedView ? (
                         <>
