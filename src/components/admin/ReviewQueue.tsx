@@ -2198,7 +2198,7 @@ const ReviewQueue: React.FC = () => {
 
 
         {/* Bulk actions (pending only) */}
-        {!isReadOnlyView && selected.size > 0 && (
+        {!isReadOnlyView && !traineeReadOnly && selected.size > 0 && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted">
             <span className="text-sm font-medium mr-2">{selected.size} selected</span>
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
@@ -2244,7 +2244,7 @@ const ReviewQueue: React.FC = () => {
         ) : (
           <div className="border rounded-md divide-y">
             <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 text-xs font-medium text-muted-foreground bg-muted/40 items-center">
-              {isReadOnlyView ? (
+              {isReadOnlyView || traineeReadOnly ? (
                 <div />
               ) : (
                 <input
@@ -2278,7 +2278,7 @@ const ReviewQueue: React.FC = () => {
               return (
                 <div key={row.id} className="hover:bg-muted/20">
                   <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 items-center text-sm">
-                    {isReadOnlyView ? (
+                    {isReadOnlyView || traineeReadOnly ? (
                       <div />
                     ) : (
                       <input
