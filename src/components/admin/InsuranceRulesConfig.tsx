@@ -183,6 +183,7 @@ const InsuranceRulesConfig = () => {
       });
       if (sErr) toast({ title: 'Rule saved, scope failed', description: sErr.message, variant: 'destructive' });
     }
+    if (ruleProject !== '__all__') setRulesClinicFilter(ruleProject);
     setRuleValue(''); setRuleNote(''); setRuleLocation('');
     loadAll();
     toast({ title: 'Rule added' });
