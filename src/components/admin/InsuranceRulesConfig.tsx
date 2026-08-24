@@ -12,16 +12,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
 import { evaluateRules, evaluateAllowlist, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
+import { fetchServiceLines } from '@/lib/serviceLines';
 
 interface CanonicalPlan { id: string; canonical_name: string; }
 interface PlanAlias { id: string; plan_id: string; alias: string; }
-interface RuleScope { id: string; rule_id: string; project_name: string | null; location: string | null; calendar_name: string | null; }
+interface RuleScope { id: string; rule_id: string; project_name: string | null; location: string | null; calendar_name: string | null; service_line: string | null; }
 interface RuleRow {
   id: string; rule_type: RuleType; plan_id: string | null; value: string | null;
   match_method: MatchMethod; is_active: boolean; note: string | null;
 }
 interface SupportedRow {
-  id: string; project_name: string; raw_option: string; normalized: string;
+  id: string; project_name: string; service_line: string | null; raw_option: string; normalized: string;
   plan_id: string | null; source: string; is_unknown_option: boolean;
   active: boolean; last_synced_at: string;
 }
@@ -48,11 +49,16 @@ const InsuranceRulesConfig = () => {
   const [ruleNote, setRuleNote] = useState('');
   const [ruleProject, setRuleProject] = useState<string>('__all__');
   const [ruleLocation, setRuleLocation] = useState('');
+  const [ruleServiceLine, setRuleServiceLine] = useState<string>('__any__');
+  const [ruleServiceCustom, setRuleServiceCustom] = useState('');
   const [rulesClinicFilter, setRulesClinicFilter] = useState<string>('__all__');
+  const [rulesServiceFilter, setRulesServiceFilter] = useState<string>('__all__');
+  const [serviceLinesByClinic, setServiceLinesByClinic] = useState<Record<string, string[]>>({});
 
   // tester state
   const [testProject, setTestProject] = useState<string>('__all__');
   const [testLocation, setTestLocation] = useState('');
+  const [testServiceLine, setTestServiceLine] = useState<string>('__any__');
   const [testPlan, setTestPlan] = useState('');
   const [testGroup, setTestGroup] = useState('');
 
@@ -61,6 +67,8 @@ const InsuranceRulesConfig = () => {
   const [supported, setSupported] = useState<SupportedRow[]>([]);
   const [supportedClinic, setSupportedClinic] = useState<string>('');
   const [manualOption, setManualOption] = useState('');
+  const [manualServiceLine, setManualServiceLine] = useState<string>('__all_lines__');
+  const [supportedServiceFilter, setSupportedServiceFilter] = useState<string>('__all__');
   const [syncing, setSyncing] = useState(false);
 
   const loadAll = async () => {
@@ -87,6 +95,20 @@ const InsuranceRulesConfig = () => {
 
   useEffect(() => { loadAll(); }, []);
 
+  // Service lines are clinic-specific — load them lazily for whichever clinic is selected.
+  const ensureServiceLines = async (project: string) => {
+    if (!project || project === '__all__' || serviceLinesByClinic[project]) return;
+    const lines = await fetchServiceLines(project);
+    setServiceLinesByClinic((m) => ({ ...m, [project]: lines }));
+  };
+
+  useEffect(() => { ensureServiceLines(ruleProject); }, [ruleProject]);
+  useEffect(() => { ensureServiceLines(rulesClinicFilter); }, [rulesClinicFilter]);
+  useEffect(() => { ensureServiceLines(supportedClinic); }, [supportedClinic]);
+  useEffect(() => { ensureServiceLines(testProject); }, [testProject]);
+
+  const serviceLinesFor = (project: string) => serviceLinesByClinic[project] || [];
+
   const planNameById = useMemo(() => {
     const m = new Map<string, string>();
     plans.forEach((p) => m.set(p.id, p.canonical_name));
@@ -109,6 +131,7 @@ const InsuranceRulesConfig = () => {
       planTerms: r.plan_id ? termsByPlan.get(r.plan_id) ?? [] : r.value ? [r.value] : [],
       scopes: (scopesByRule.get(r.id) || []).map((s) => ({
         project_name: s.project_name, location: s.location, calendar_name: s.calendar_name,
+        service_line: s.service_line,
       })),
     }));
   }, [rules, plans, aliases, scopes, planNameById]);
@@ -119,6 +142,7 @@ const InsuranceRulesConfig = () => {
       projectName: testProject === '__all__' ? null : testProject,
       location: testLocation || null,
       calendarName: testLocation || null,
+      serviceLine: testServiceLine === '__any__' ? null : testServiceLine,
       plans: [testPlan],
       groupNumbers: [testGroup],
     };
@@ -126,12 +150,12 @@ const InsuranceRulesConfig = () => {
     const mode = projectRows.find((p) => p.project_name === testProject)?.oon_mode;
     if (testProject !== '__all__' && mode === 'allowlist') {
       matches.push(...evaluateAllowlist(
-        supported.filter((s) => s.project_name === testProject),
+        supported.filter((s) => s.project_name === testProject) as never,
         input,
       ));
     }
     return matches;
-  }, [compiledRules, testProject, testLocation, testPlan, testGroup, projectRows, supported]);
+  }, [compiledRules, testProject, testLocation, testServiceLine, testPlan, testGroup, projectRows, supported]);
 
 
   const addPlan = async () => {
@@ -175,16 +199,23 @@ const InsuranceRulesConfig = () => {
     }).select().single();
     if (error) return toast({ title: 'Could not add rule', description: error.message, variant: 'destructive' });
 
-    if (ruleProject !== '__all__' || ruleLocation.trim()) {
+    const chosenServiceLine =
+      ruleServiceLine === '__any__' ? null
+      : ruleServiceLine === '__custom__' ? (ruleServiceCustom.trim() || null)
+      : ruleServiceLine;
+
+    if (ruleProject !== '__all__' || ruleLocation.trim() || chosenServiceLine) {
       const { error: sErr } = await supabase.from('insurance_block_rule_scopes').insert({
         rule_id: data.id,
         project_name: ruleProject === '__all__' ? null : ruleProject,
         location: ruleLocation.trim() || null,
+        service_line: chosenServiceLine,
       });
       if (sErr) toast({ title: 'Rule saved, scope failed', description: sErr.message, variant: 'destructive' });
     }
     if (ruleProject !== '__all__') setRulesClinicFilter(ruleProject);
     setRuleValue(''); setRuleNote(''); setRuleLocation('');
+    setRuleServiceLine('__any__'); setRuleServiceCustom('');
     loadAll();
     toast({ title: 'Rule added' });
   };
@@ -199,21 +230,32 @@ const InsuranceRulesConfig = () => {
   const scopeLabel = (ruleId: string) => {
     const list = scopes.filter((s) => s.rule_id === ruleId);
     if (!list.length) return 'All clinics';
-    return list.map((s) => [s.project_name, s.location, s.calendar_name].filter(Boolean).join(' · ')).join(' | ');
+    return list
+      .map((s) => [s.project_name, s.location, s.calendar_name, s.service_line].filter(Boolean).join(' · '))
+      .join(' | ');
   };
 
   const visibleRules = useMemo(() => {
-    if (rulesClinicFilter === '__all__') return rules;
+    if (rulesClinicFilter === '__all__' && rulesServiceFilter === '__all__') return rules;
     return rules.filter((r) => {
       const list = scopes.filter((s) => s.rule_id === r.id);
       if (!list.length) return true; // global rule applies everywhere
-      return list.some((s) => !s.project_name || s.project_name === rulesClinicFilter);
+      return list.some((s) => {
+        if (rulesClinicFilter !== '__all__' && s.project_name && s.project_name !== rulesClinicFilter) return false;
+        if (rulesServiceFilter !== '__all__' && s.service_line && s.service_line !== rulesServiceFilter) return false;
+        return true;
+      });
     });
-  }, [rules, scopes, rulesClinicFilter]);
+  }, [rules, scopes, rulesClinicFilter, rulesServiceFilter]);
 
   const clinicSupported = useMemo(
-    () => supported.filter((s) => s.project_name === supportedClinic),
-    [supported, supportedClinic],
+    () => supported.filter((s) => {
+      if (s.project_name !== supportedClinic) return false;
+      if (supportedServiceFilter === '__all__') return true;
+      // Clinic-wide rows apply to every service line, so keep them visible.
+      return !s.service_line || s.service_line === supportedServiceFilter;
+    }),
+    [supported, supportedClinic, supportedServiceFilter],
   );
 
   const currentMode = projectRows.find((p) => p.project_name === supportedClinic)?.oon_mode ?? 'denylist';
@@ -246,7 +288,9 @@ const InsuranceRulesConfig = () => {
     if (!raw || !supportedClinic) return;
     const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const { error } = await supabase.from('clinic_supported_insurances').insert({
-      project_name: supportedClinic, raw_option: raw, normalized, source: 'manual', active: true,
+      project_name: supportedClinic,
+      service_line: manualServiceLine === '__all_lines__' ? '' : manualServiceLine,
+      raw_option: raw, normalized, source: 'manual', active: true,
     });
     if (error) return toast({ title: 'Could not add', description: error.message, variant: 'destructive' });
     setManualOption('');
