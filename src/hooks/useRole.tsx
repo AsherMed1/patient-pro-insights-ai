@@ -9,6 +9,7 @@ export const useRole = () => {
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessibleProjects, setAccessibleProjects] = useState<string[]>([]);
+  const [setterTeamLead, setSetterTeamLead] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -16,9 +17,18 @@ export const useRole = () => {
     if (!user) {
       setRole(null);
       setAccessibleProjects([]);
+      setSetterTeamLead(false);
       setLoading(false);
       return;
     }
+
+    // Fetch the Setter Team Lead flag (grants Trainee Review powers)
+    supabase
+      .from('profiles')
+      .select('is_setter_team_lead')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setSetterTeamLead(!!data?.is_setter_team_lead));
 
     const fetchRole = async () => {
       try {
@@ -151,11 +161,17 @@ export const useRole = () => {
   const hasQAAccess = () => hasRole(['admin', 'agent', 'qa_specialist']);
   const hasRecaptureAccess = () => hasRole(['admin', 'agent', 'va', 'review_only', 'recapture']);
   const canEditNotes = () => hasRole(['admin', 'agent', 'va']);
+  const isSetterTeamLead = () => setterTeamLead;
+  // Full Trainee Review powers: leadership, trainers, and flagged Setter Team Leads
+  const canReviewTrainees = () => hasRole(['admin', 'agent', 'trainer']) || setterTeamLead;
 
   return {
     role,
     loading: loading || authLoading,
     accessibleProjects,
+    setterTeamLead,
+    isSetterTeamLead,
+    canReviewTrainees,
     hasRole,
     hasProjectAccess,
     isAdmin,
