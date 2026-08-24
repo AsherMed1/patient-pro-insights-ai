@@ -668,54 +668,220 @@ export default function QAActivityReport() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Detailed activity log ({entries.length})</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">
+                  {grouped
+                    ? `Activity by patient record (${groups.length} records · ${entries.length} actions)`
+                    : `Detailed activity log (${entries.length})`}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {grouped && groups.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setExpanded((prev) => (prev.size ? new Set() : new Set(groups.map((g) => g.key))))
+                      }
+                    >
+                      {expanded.size ? 'Collapse all' : 'Expand all'}
+                    </Button>
+                  )}
+                  <div className="flex rounded-md border overflow-hidden">
+                    <Button
+                      variant={grouped ? 'default' : 'ghost'}
+                      size="sm"
+                      className="rounded-none"
+                      onClick={() => setGrouped(true)}
+                    >
+                      Grouped
+                    </Button>
+                    <Button
+                      variant={!grouped ? 'default' : 'ghost'}
+                      size="sm"
+                      className="rounded-none"
+                      onClick={() => setGrouped(false)}
+                    >
+                      Flat
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date / Time (CT)</TableHead>
-                    <TableHead>QA Specialist</TableHead>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Clinic</TableHead>
-                    <TableHead>Alert Type</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Open → Complete</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.slice(0, logLimit).map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="whitespace-nowrap">{fmt(e.at)}</TableCell>
-                      <TableCell>{e.specialist}</TableCell>
-                      <TableCell>
-                        {e.patientLink ? (
-                          <a href={e.patientLink} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                            {e.patient}
-                          </a>
-                        ) : (
-                          e.patient
-                        )}
-                      </TableCell>
-                      <TableCell>{e.clinic}</TableCell>
-                      <TableCell>{ALERT_LABELS[e.alertType] || e.alertType}</TableCell>
-                      <TableCell>{ACTION_LABELS[e.action]}</TableCell>
-                      <TableCell className="capitalize">{e.status.replace('_', ' ')}</TableCell>
-                      <TableCell className="text-right">{humanizeMs(e.turnaroundMs)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {!entries.length && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No actions in this window.</TableCell></TableRow>
+              {grouped ? (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8" />
+                        <TableHead>Patient</TableHead>
+                        <TableHead>QA Specialist</TableHead>
+                        <TableHead>Clinic</TableHead>
+                        <TableHead>Alert Type(s)</TableHead>
+                        <TableHead>Actions</TableHead>
+                        <TableHead>First Action (CT)</TableHead>
+                        <TableHead>Last Action (CT)</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Open → Complete</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groups.slice(0, logLimit).map((g) => {
+                        const isOpen = expanded.has(g.key);
+                        return (
+                          <>
+                            <TableRow
+                              key={g.key}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => toggleGroup(g.key)}
+                            >
+                              <TableCell className="align-middle">
+                                {isOpen ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {g.patientLink ? (
+                                  <a
+                                    href={g.patientLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary hover:underline"
+                                    onClick={(ev) => ev.stopPropagation()}
+                                  >
+                                    {g.patient}
+                                  </a>
+                                ) : (
+                                  g.patient
+                                )}
+                              </TableCell>
+                              <TableCell>{g.specialist}</TableCell>
+                              <TableCell>{g.clinic}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {g.alertTypes.map((t) => (
+                                    <Badge key={t} variant="outline" className="text-[10px]">
+                                      {ALERT_LABELS[t] || t}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    {g.actions.length} {g.actions.length === 1 ? 'action' : 'actions'}
+                                  </Badge>
+                                  {(Object.keys(ACTION_LABELS) as ActionKey[])
+                                    .filter((k) => g.actionCounts[k])
+                                    .map((k) => (
+                                      <Badge key={k} variant="outline" className="text-[10px]">
+                                        {ACTION_LABELS[k]}
+                                        {(g.actionCounts[k] || 0) > 1 ? ` ×${g.actionCounts[k]}` : ''}
+                                      </Badge>
+                                    ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{fmt(g.first, 'MMM d, h:mm a')}</TableCell>
+                              <TableCell className="whitespace-nowrap">{fmt(g.last, 'MMM d, h:mm a')}</TableCell>
+                              <TableCell className="capitalize">{g.status.replace('_', ' ')}</TableCell>
+                              <TableCell className="text-right">{humanizeMs(g.turnaroundMs)}</TableCell>
+                            </TableRow>
+                            {isOpen && (
+                              <TableRow key={`${g.key}-detail`} className="bg-muted/30 hover:bg-muted/30">
+                                <TableCell />
+                                <TableCell colSpan={9} className="py-2">
+                                  <div className="space-y-1">
+                                    {g.actions.map((e) => (
+                                      <div
+                                        key={e.id}
+                                        className="flex flex-wrap items-center gap-3 text-xs border-l-2 border-border pl-3 py-1"
+                                      >
+                                        <span className="text-muted-foreground whitespace-nowrap w-40">{fmt(e.at)}</span>
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {ACTION_LABELS[e.action]}
+                                        </Badge>
+                                        <span className="text-muted-foreground">
+                                          {ALERT_LABELS[e.alertType] || e.alertType}
+                                        </span>
+                                        <span>{e.specialist}</span>
+                                        {e.turnaroundMs !== null && (
+                                          <span className="text-muted-foreground ml-auto">
+                                            open → complete: {humanizeMs(e.turnaroundMs)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        );
+                      })}
+                      {!groups.length && (
+                        <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">No actions in this window.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  {groups.length > logLimit && (
+                    <div className="pt-3 text-center">
+                      <Button variant="outline" size="sm" onClick={() => setLogLimit((n) => n + 200)}>
+                        Show more ({groups.length - logLimit} remaining)
+                      </Button>
+                    </div>
                   )}
-                </TableBody>
-              </Table>
-              {entries.length > logLimit && (
-                <div className="pt-3 text-center">
-                  <Button variant="outline" size="sm" onClick={() => setLogLimit((n) => n + 200)}>
-                    Show more ({entries.length - logLimit} remaining)
-                  </Button>
-                </div>
+                </>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date / Time (CT)</TableHead>
+                        <TableHead>QA Specialist</TableHead>
+                        <TableHead>Patient</TableHead>
+                        <TableHead>Clinic</TableHead>
+                        <TableHead>Alert Type</TableHead>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Open → Complete</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entries.slice(0, logLimit).map((e) => (
+                        <TableRow key={e.id}>
+                          <TableCell className="whitespace-nowrap">{fmt(e.at)}</TableCell>
+                          <TableCell>{e.specialist}</TableCell>
+                          <TableCell>
+                            {e.patientLink ? (
+                              <a href={e.patientLink} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                                {e.patient}
+                              </a>
+                            ) : (
+                              e.patient
+                            )}
+                          </TableCell>
+                          <TableCell>{e.clinic}</TableCell>
+                          <TableCell>{ALERT_LABELS[e.alertType] || e.alertType}</TableCell>
+                          <TableCell>{ACTION_LABELS[e.action]}</TableCell>
+                          <TableCell className="capitalize">{e.status.replace('_', ' ')}</TableCell>
+                          <TableCell className="text-right">{humanizeMs(e.turnaroundMs)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {!entries.length && (
+                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No actions in this window.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  {entries.length > logLimit && (
+                    <div className="pt-3 text-center">
+                      <Button variant="outline" size="sm" onClick={() => setLogLimit((n) => n + 200)}>
+                        Show more ({entries.length - logLimit} remaining)
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
