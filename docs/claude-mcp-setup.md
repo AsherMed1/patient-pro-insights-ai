@@ -1,7 +1,8 @@
 # Connecting Claude to the Portal Database (Supabase MCP)
 
 Read-only Claude access to the PatientPro Portal database via Supabase's official
-hosted MCP server. No app code is involved — this is Supabase + Claude configuration.
+hosted MCP server, using **one shared portal-wide token**. No app code is involved —
+this is Supabase + Claude configuration.
 
 Supabase project ref: `bhabbokbhnqioykjimix`
 
@@ -12,28 +13,47 @@ Supabase project ref: `bhabbokbhnqioykjimix`
 Full-record access means PHI leaves the portal and enters Claude.
 
 - [ ] BAA in place with Anthropic (Enterprise / commercial plan). Consumer Claude plans are **not** HIPAA-covered.
-- [ ] Access limited to named internal staff. No clinic users. No shared tokens.
+- [ ] Access limited to named internal staff. No clinic users.
 - [ ] Every connection is read-only — all writes stay in the portal so triggers,
       audit logs, and status side-effects are never bypassed.
-- [ ] Access recorded in the HIPAA policy set: who holds a token, what they can read,
-      and how tokens are revoked at offboarding.
+- [ ] Access recorded in the HIPAA policy set: who holds the shared token, what it can read,
+      and the rotation trigger when someone leaves.
 
-If the BAA is not signed yet, run the pilot against the de-identified view layer
-(section 5) instead of raw tables.
+### Known limitation of the shared-token model
+
+A single portal-wide token means **queries are attributable to the portal, not to an
+individual**. Supabase project logs show that a query ran, not who ran it. If per-person
+attribution is an audit requirement, this model does not satisfy it and PHI-level users
+need their own tokens instead.
+
+Two compensating controls are in place:
+
+1. **Curated views instead of raw tables** — the `claude_reader` role can only read four
+   reporting views (section 5). Nobody can pull arbitrary PHI columns ad hoc.
+2. **Faster rotation** — monthly, plus immediately whenever anyone holding the token
+   leaves or changes role (section 6).
 
 ---
 
-## 2. Each staff member creates their own token
+## 2. Create the shared portal token (admin, once)
 
-1. Supabase Dashboard → account menu → **Access Tokens**.
-2. **Generate new token**, name it `claude-mcp-<firstname>`.
-3. Copy it once and paste it only into that person's own Claude MCP config.
+1. Sign in to Supabase as a **long-lived admin/service account**, not an individual's
+   personal login — if that account loses project access, the shared token dies with it.
+2. Dashboard → account menu → **Access Tokens** → **Generate new token**.
+3. Name it `claude-mcp-portal`.
+4. Store the value in two places and nowhere else:
+   - Your password manager, in a vault shared only with approved staff.
+   - The project secret store as `CLAUDE_MCP_PORTAL_TOKEN` (system of record for the
+     current value; no app code reads it).
+5. Keep a roster of who has been given the token — one row per person, with the date.
 
-Tokens are secrets: never in the repo, never in chat, never in a shared doc or password-free note.
+Never distribute the token by chat, email, ticket, or commit it to the repo.
 
 ---
 
 ## 3. Add the MCP server in Claude
+
+Every staff member uses the **same** token and the same flags.
 
 ### Claude Desktop / Code (`claude_desktop_config.json`)
 
@@ -50,7 +70,7 @@ Tokens are secrets: never in the repo, never in chat, never in a shared doc or p
         "--features=database,docs"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "<your-personal-access-token>"
+        "SUPABASE_ACCESS_TOKEN": "<shared claude-mcp-portal token>"
       }
     }
   }
@@ -64,8 +84,6 @@ Add a custom connector pointing at Supabase's hosted MCP endpoint:
 ```
 https://mcp.supabase.com/mcp?project_ref=bhabbokbhnqioykjimix&read_only=true&features=database,docs
 ```
-
-Authorize with the Supabase account that holds access to the project.
 
 ### Required flags — do not omit
 
@@ -81,48 +99,74 @@ Authorize with the Supabase account that holds access to the project.
 
 Restart Claude, then run these three checks:
 
-1. **Schema visible** — "List the tables in this database."
-   Expect `all_appointments`, `qa_cases`, `new_leads`, `projects`, `recapture_cases`.
-2. **Read works** — "Count appointments per project created in the last 30 days."
+1. **Schema visible** — "List the views in the `reporting` schema."
+   Expect `appointment_summary`, `qa_case_summary`, `recapture_funnel`,
+   `welcome_call_compliance`.
+2. **Read works** — "Count appointments per project created in the last 30 days
+   from `reporting.appointment_summary`."
 3. **Write blocked** — "Run: `update all_appointments set status = 'Showed' where id = '00000000-0000-0000-0000-000000000000'`."
    Expect a refusal from read-only mode. If this succeeds, **stop and fix the flags.**
 
-Useful starting queries for staff:
+Starting queries for staff:
 
 ```sql
 -- Appointments by status, last 30 days
 select project_name, status, count(*)
-from all_appointments
+from reporting.appointment_summary
 where created_at > now() - interval '30 days'
-  and coalesce(is_superseded, false) = false
 group by 1, 2
 order by 1, 3 desc;
 
--- Open QA cases by bucket
-select status, count(*) from qa_cases group by 1 order by 2 desc;
-```
+-- Open QA cases by workflow bucket
+select workflow_status, count(*)
+from reporting.qa_case_summary
+group by 1 order by 2 desc;
 
-Note when writing queries: exclude `is_superseded = true` rows, and remember
-`review_status`/`review_stage` gate what is client-facing.
+-- Welcome call compliance, last 8 weeks
+select * from reporting.welcome_call_compliance
+where appointment_week > current_date - 56
+order by appointment_week desc, project_name;
+```
 
 ---
 
-## 5. Optional hardening (recommended)
+## 5. The read-only layer (already applied)
 
-Not yet applied. Ask and we will ship it as a single migration:
+A migration created the `reporting` schema and the `claude_reader` role:
 
-- **`claude_reader` role** — `SELECT`-only grants, no access to `auth`/`storage` schemas.
-- **Curated reporting views** — appointment summary, QA case summary, recapture funnel.
-  Staff query views instead of 100+ raw tables; shapes queries and makes them reviewable.
-- **De-identified view layer** — name, DOB, phone, email, and insurance IDs masked, for
-  anyone outside BAA-covered access.
+| View | Contents |
+| --- | --- |
+| `reporting.appointment_summary` | Clinic, status, dates, procedure, review stage, short-notice / OON flags, welcome-call state |
+| `reporting.qa_case_summary` | Workflow status, error category and source, escalation, turnaround timestamps |
+| `reporting.recapture_funnel` | Lost type, work status, outcome, attempts, recovery flag |
+| `reporting.welcome_call_compliance` | Per-clinic weekly attempt / reached / no-answer counts |
+
+Properties of the layer:
+
+- Superseded and reserved-block rows are excluded, so results match the portal.
+- `claude_reader` has `SELECT` on those views only — verified: no raw-table access,
+  no `auth` or `storage` access, no write privileges.
+- The `reporting` schema is **not** exposed to the public API — `anon` has no access to it.
+- `claude_reader` has no password and cannot log in until an admin sets one; it is the
+  boundary for direct database connections. MCP itself is bounded by `--read-only`.
+
+To add a metric, extend or add a view in `reporting` rather than granting table access.
 
 ---
 
 ## 6. Ongoing operations
 
-- Rotate tokens quarterly; revoke immediately on role change or offboarding.
-- Keep the access roster in this repo or your compliance folder — one row per person and token name.
-- **Audit gap:** portal `hipaa_audit_log` does not capture Claude reads. Supabase project
-  logs are the audit trail for MCP queries. Note this gap in policy, or route staff through
-  the curated views so query shapes are known in advance.
+**Rotation cadence:** monthly, and immediately when anyone holding the token leaves or
+changes role.
+
+Rotation is a two-step so nobody is locked out mid-flight:
+
+1. Generate a new `claude-mcp-portal` token in Supabase.
+2. Update `CLAUDE_MCP_PORTAL_TOKEN` and the password-manager entry, then have staff paste
+   the new value into their Claude config.
+3. **Only after** the new token is confirmed working, revoke the old one in Supabase.
+
+**Audit gap:** the portal's `hipaa_audit_log` does not capture Claude reads, and the shared
+token makes MCP queries attributable to the portal rather than an individual. Supabase
+project logs are the audit trail. Document both facts in policy; the curated views are what
+keep query shapes known in advance.
