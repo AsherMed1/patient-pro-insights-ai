@@ -87,7 +87,7 @@ export default function LogAttemptDialog({
       toast({ title: 'Select an attempt outcome', variant: 'destructive' });
       return;
     }
-    if (reached && !conversation) {
+    if (!isTextFlat && reached && !conversation) {
       toast({ title: 'A conversation outcome is required', variant: 'destructive' });
       return;
     }
