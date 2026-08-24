@@ -2068,7 +2068,7 @@ const ReviewQueue: React.FC = () => {
             Pending Review
             <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
           </Button>
-          {canReviewTrainees && (
+          {canSeeTraineeQueue && (
             <Button
               variant={queueView === 'trainee' ? 'default' : 'outline'}
               size="sm"
