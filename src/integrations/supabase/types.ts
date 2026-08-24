@@ -4130,8 +4130,11 @@ export type Database = {
       recapture_attempts: {
         Row: {
           attempted_at: string
+          booked_by_name: string | null
+          booked_by_user_id: string | null
           case_id: string
           channel: string
+          conversation_outcome: string | null
           created_at: string
           id: string
           note: string | null
@@ -4142,8 +4145,11 @@ export type Database = {
         }
         Insert: {
           attempted_at?: string
+          booked_by_name?: string | null
+          booked_by_user_id?: string | null
           case_id: string
           channel: string
+          conversation_outcome?: string | null
           created_at?: string
           id?: string
           note?: string | null
@@ -4154,8 +4160,11 @@ export type Database = {
         }
         Update: {
           attempted_at?: string
+          booked_by_name?: string | null
+          booked_by_user_id?: string | null
           case_id?: string
           channel?: string
+          conversation_outcome?: string | null
           created_at?: string
           id?: string
           note?: string | null
@@ -4180,14 +4189,18 @@ export type Database = {
           appointment_id: string | null
           assigned_user_id: string | null
           attempt_count: number
+          booked_by_name: string | null
+          booked_by_user_id: string | null
           completed_at: string | null
           completed_by: string | null
           completion_reason: string | null
+          conversation_outcome: string | null
           created_at: string
           entered_worklist_at: string
           first_attempt_at: string | null
           follow_up_at: string | null
           follow_up_note: string | null
+          follow_up_timezone: string | null
           ghl_contact_id: string | null
           id: string
           last_attempt_at: string | null
@@ -4195,6 +4208,9 @@ export type Database = {
           lead_phone_number: string | null
           lost_status_at_entry: string | null
           lost_type: string
+          opened_at: string | null
+          opened_by: string | null
+          opened_by_name: string | null
           outcome: string | null
           outcome_notes: string | null
           patient_name: string | null
@@ -4212,14 +4228,18 @@ export type Database = {
           appointment_id?: string | null
           assigned_user_id?: string | null
           attempt_count?: number
+          booked_by_name?: string | null
+          booked_by_user_id?: string | null
           completed_at?: string | null
           completed_by?: string | null
           completion_reason?: string | null
+          conversation_outcome?: string | null
           created_at?: string
           entered_worklist_at?: string
           first_attempt_at?: string | null
           follow_up_at?: string | null
           follow_up_note?: string | null
+          follow_up_timezone?: string | null
           ghl_contact_id?: string | null
           id?: string
           last_attempt_at?: string | null
@@ -4227,6 +4247,9 @@ export type Database = {
           lead_phone_number?: string | null
           lost_status_at_entry?: string | null
           lost_type: string
+          opened_at?: string | null
+          opened_by?: string | null
+          opened_by_name?: string | null
           outcome?: string | null
           outcome_notes?: string | null
           patient_name?: string | null
@@ -4244,14 +4267,18 @@ export type Database = {
           appointment_id?: string | null
           assigned_user_id?: string | null
           attempt_count?: number
+          booked_by_name?: string | null
+          booked_by_user_id?: string | null
           completed_at?: string | null
           completed_by?: string | null
           completion_reason?: string | null
+          conversation_outcome?: string | null
           created_at?: string
           entered_worklist_at?: string
           first_attempt_at?: string | null
           follow_up_at?: string | null
           follow_up_note?: string | null
+          follow_up_timezone?: string | null
           ghl_contact_id?: string | null
           id?: string
           last_attempt_at?: string | null
@@ -4259,6 +4286,9 @@ export type Database = {
           lead_phone_number?: string | null
           lost_status_at_entry?: string | null
           lost_type?: string
+          opened_at?: string | null
+          opened_by?: string | null
+          opened_by_name?: string | null
           outcome?: string | null
           outcome_notes?: string | null
           patient_name?: string | null
