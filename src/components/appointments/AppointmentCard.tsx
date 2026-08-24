@@ -671,36 +671,9 @@ const AppointmentCard = ({
 
   const getInsuranceData = () => {
     // Merge appointment and lead data, prioritizing APPOINTMENT data (most recent/accurate)
-    return {
-      insurance_provider: appointment.parsed_insurance_info?.insurance_provider || 
-                         appointment.parsed_insurance_info?.provider || 
-                         appointment.detected_insurance_provider ||
-                         leadInsuranceData?.insurance_provider,
-      insurance_plan: appointment.parsed_insurance_info?.insurance_plan || 
-                     appointment.parsed_insurance_info?.plan || 
-                     appointment.detected_insurance_plan ||
-                     leadInsuranceData?.insurance_plan,
-      insurance_id: appointment.parsed_insurance_info?.insurance_id_number || 
-                   appointment.parsed_insurance_info?.id || 
-                   appointment.detected_insurance_id ||
-                   leadInsuranceData?.insurance_id,
-      insurance_id_link: appointment.insurance_id_link || 
-                         leadInsuranceData?.insurance_id_link,
-      insurance_back_link: appointment.insurance_back_link ||
-                          leadInsuranceData?.insurance_back_link,
-      group_number: appointment.parsed_insurance_info?.insurance_group_number || 
-                   appointment.parsed_insurance_info?.group_number ||
-                   leadInsuranceData?.group_number,
-      secondary_provider: appointment.parsed_insurance_info?.secondary_provider ||
-                          appointment.parsed_insurance_info?.secondary_insurance_provider,
-      secondary_plan: appointment.parsed_insurance_info?.secondary_plan,
-      secondary_id: appointment.parsed_insurance_info?.secondary_id_number,
-      secondary_group_number: appointment.parsed_insurance_info?.secondary_group_number,
-      secondary_front_link: appointment.parsed_insurance_info?.secondary_card_front_url ||
-                            appointment.parsed_insurance_info?.secondary_card_url,
-      secondary_back_link: appointment.parsed_insurance_info?.secondary_card_back_url,
-    };
+    return buildInsuranceData(appointment, leadInsuranceData);
   };
+
 
   // Helper function to format timezone names
   const formatTimezoneName = (tz: string): string => {
