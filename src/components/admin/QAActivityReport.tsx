@@ -149,6 +149,16 @@ export default function QAActivityReport() {
   const [alertFilter, setAlertFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [logLimit, setLogLimit] = useState(200);
+  const [grouped, setGrouped] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const fetchAll = async () => {
     setLoading(true);
