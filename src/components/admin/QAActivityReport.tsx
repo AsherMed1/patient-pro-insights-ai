@@ -730,7 +730,7 @@ export default function QAActivityReport() {
                       {groups.slice(0, logLimit).map((g) => {
                         const isOpen = expanded.has(g.key);
                         return (
-                          <>
+                          <Fragment key={g.key}>
                             <TableRow
                               key={g.key}
                               className="cursor-pointer hover:bg-muted/50"
