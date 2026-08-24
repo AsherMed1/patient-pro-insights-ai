@@ -93,22 +93,29 @@ export const WelcomeCallAttemptDialog: React.FC<WelcomeCallAttemptDialogProps> =
             body: { appointment_id: appointmentId },
           });
           if (fnErr) throw fnErr;
+          if ((data as any)?.success === false) {
+            throw new Error((data as any)?.error || 'GHL tag could not be applied');
+          }
           if ((data as any)?.suppressed) {
             toast({
               title: 'Attempt logged',
-              description: 'Welcome Call SMS was skipped — one was already sent in the last 12 hours.',
+              description: 'Patient was already tagged for Welcome Call follow-up in the last 12 hours.',
             });
           } else {
-            toast({ title: 'Attempt logged', description: 'Welcome Call SMS triggered.' });
+            toast({
+              title: 'Attempt logged',
+              description: 'Patient tagged in GHL for Welcome Call follow-up.',
+            });
           }
         } catch (e: any) {
-          console.error('Welcome Call SMS trigger failed', e);
+          console.error('Welcome Call GHL tag failed', e);
           toast({
             title: 'Attempt logged',
-            description: 'The attempt was saved, but the SMS could not be triggered.',
+            description: `The attempt was saved, but the GHL follow-up tag could not be applied.${e?.message ? ` (${e.message})` : ''}`,
             variant: 'destructive',
           });
         }
+
       } else {
         toast({ title: 'Attempt logged', description: 'Marked as successfully reached.' });
       }

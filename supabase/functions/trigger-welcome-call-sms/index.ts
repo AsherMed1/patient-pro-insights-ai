@@ -41,7 +41,7 @@ serve(async (req) => {
 
     const { data: appt, error: apptErr } = await supabase
       .from('all_appointments')
-      .select('id, ghl_id, lead_name, welcome_call_last_sms_at')
+      .select('id, ghl_id, lead_name, project_name, welcome_call_last_sms_at')
       .eq('id', appointmentId)
       .maybeSingle();
 
@@ -53,7 +53,7 @@ serve(async (req) => {
     if (last && Date.now() - last < COOLDOWN_MS) {
       await supabase.from('appointment_notes').insert({
         appointment_id: appointmentId,
-        note_text: 'Welcome Call SMS was not sent: a Welcome Call text was already sent to this patient within the last 12 hours.',
+        note_text: 'Welcome Call follow-up tag was not applied: this patient was already tagged for Welcome Call follow-up within the last 12 hours.',
         created_by: 'System',
         visibility: 'internal',
       });
@@ -64,8 +64,18 @@ serve(async (req) => {
       return json({ success: false, error: 'No GHL contact linked to this appointment' }, 409);
     }
 
-    const apiKey = Deno.env.get('GHL_LOCATION_API_KEY');
-    if (!apiKey) return json({ error: 'GHL API key not configured' }, 500);
+    // Prefer the clinic's own GHL key; fall back to the global location key.
+    let apiKey: string | null = null;
+    if (appt.project_name) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('ghl_api_key')
+        .eq('project_name', appt.project_name)
+        .maybeSingle();
+      if (project?.ghl_api_key) apiKey = project.ghl_api_key as string;
+    }
+    if (!apiKey) apiKey = Deno.env.get('GHL_LOCATION_API_KEY') ?? null;
+    if (!apiKey) return json({ error: 'GHL API key not configured for this clinic' }, 500);
 
     const response = await fetch(
       `https://services.leadconnectorhq.com/contacts/${appt.ghl_id}/tags`,
@@ -83,7 +93,15 @@ serve(async (req) => {
     if (!response.ok) {
       const details = await response.text();
       console.error('GHL tag push failed', response.status, details);
-      return json({ success: false, error: 'Failed to trigger SMS', details }, response.status);
+      return json(
+        {
+          success: false,
+          error: `GHL rejected the Welcome Call tag (HTTP ${response.status})`,
+          status: response.status,
+          details,
+        },
+        response.status,
+      );
     }
 
     await supabase
@@ -93,10 +111,11 @@ serve(async (req) => {
 
     await supabase.from('appointment_notes').insert({
       appointment_id: appointmentId,
-      note_text: 'Welcome Call SMS triggered (patient did not answer).',
+      note_text: `Welcome Call follow-up tag applied in GHL ("${TAG}") — patient did not answer.`,
       created_by: 'System',
       visibility: 'internal',
     });
+
 
     return json({ success: true, suppressed: false });
   } catch (error) {
