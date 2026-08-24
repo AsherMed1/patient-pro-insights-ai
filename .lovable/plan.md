@@ -1,40 +1,41 @@
-# Patients aren't deleted — older records get hidden
+# Fix: Group Number missing in the Insurance Information overlay
 
-## What I verified for Victor Young (Georgia Endovascular)
+## What's happening
 
-Both of his records are still in the database:
+Sandra Tickle's record does have the group number stored. In `all_appointments`, `parsed_insurance_info` holds:
 
-| Created | Appointment date | Status | Visible in portal? |
-|---|---|---|---|
-| May 6, 2026 | Jun 16, 2026 | Cancelled | No — flagged as superseded |
-| Aug 22, 2026 | Aug 28, 2026 | Confirmed | Yes |
+- `insurance_provider`: CareFirst
+- `insurance_plan`: Care first Medicare advantage
+- `insurance_id_number`: MXJ 928024242
+- `insurance_group_number`: **CF030000**
 
-Nothing was deleted. When his new August booking came in from GHL for the same contact, the portal's duplicate-prevention logic marked the older cancelled May row as `is_superseded = true`. Every client-facing view (Appointments tabs, dashboards, calendar, search) filters superseded rows out, so the May history became invisible — which is why it looks like he was deleted and now reads as a brand-new lead.
+So the data synced fine. The overlay is looking in the wrong place.
 
-This is systemic, not a one-off: 130 superseded rows on Georgia Endovascular alone (Texas Vascular 124, Painless Center 112, NG Vascular 105, and so on across every clinic).
+The overlay's data is assembled by a `getInsuranceData()` helper that exists in two components, and the two versions disagree on field names:
 
-Two secondary reasons older patients are hard to find:
-- Search only looks inside the currently selected tab, so a Cancelled patient won't appear while on New or Upcoming.
-- Search is also constrained by whatever date range is applied.
+- The appointment card version reads `insurance_group_number` first, then `group_number` — it works.
+- The detailed appointment view version (the one that opens the overlay in the screenshot) only reads `group_number` and the lead's `group_number`. Since the stored key is `insurance_group_number`, it resolves to undefined and the overlay prints "Not provided".
 
-## What to build
+The same mismatch affects the Insurance ID in that version (it reads `id` instead of `insurance_id_number`); it only looks correct today because the `detected_insurance_id` column happens to be populated.
 
-### 1. Global patient search (clinic-facing)
-A search that ignores tab, date range and the superseded filter:
-- Searches name, phone, email, DOB across the clinic's entire history.
-- Results show every matching record for that patient, newest first, each labelled with status, appointment date, and an "Archived (merged into newer booking)" badge for superseded rows.
-- Clicking a result opens that record read-only if archived, or normally if active.
+## Fix
 
-### 2. Patient history on the active record
-On an appointment's detail view, show a "Previous bookings for this patient" section listing the superseded/older rows (date, status, cancellation reason), so staff can see the full journey without hunting. This makes Victor Young's May consult visible from his August record.
+Align the detailed-view mapping with the card mapping so both read every known key variant:
 
-### 3. Don't hide cancelled history from search
-Keep superseded rows out of counts, dashboards and reporting (so metrics stay correct), but make them reachable via search and patient history.
+- Group number: `insurance_group_number` → `group_number` → lead's `group_number`
+- Insurance ID: `insurance_id_number` → `id` → `detected_insurance_id` → lead's value
+- Provider/Plan: also accept `insurance_provider` / `insurance_plan` keys alongside `provider` / `plan`
+- Apply the same key-variant handling to the secondary insurance fields
 
-## Technical notes
+Then extract this into one shared helper used by both the card and the detailed view, so the two paths can't drift apart again.
 
-- Root cause path: `supersedeOlderContactRows` in `supabase/functions/ghl-webhook-handler/index.ts` sets `is_superseded = true`; every read path (`AllAppointmentsManager.tsx`, `ProjectPortal.tsx`, `useCalendarAppointments.tsx`, `lib/reporting.ts`, dashboards) filters with `.or('is_superseded.is.null,is_superseded.eq.false')`.
-- New global search component queries `all_appointments` without the tab/date/superseded filters, scoped to the user's accessible projects (RLS already handles project scoping), matching on `lead_name`, `lead_phone_digits`, `lead_email`, `dob`, reusing `applySearchFilter` from `src/utils/appointmentSearchFilters.ts`.
-- Patient history section matches siblings by `ghl_id` (fallback: `lead_phone_digits` + `project_name`) and reuses the existing appointment history hook pattern in `src/hooks/useAppointmentHistory.tsx`.
-- No schema change and no data migration required; superseded rows are intact.
-- Counts, dashboards and Excel exports keep their current superseded exclusion so reporting numbers don't shift.
+## Technical detail
+
+- `src/components/appointments/DetailedAppointmentView.tsx` — `getInsuranceData()` (~line 708) is the source of the bug.
+- `src/components/appointments/AppointmentCard.tsx` — `getInsuranceData()` (~line 672) is the correct reference implementation.
+- New shared helper (e.g. `src/lib/insuranceFields.ts`) that takes the appointment plus optional lead details and returns the normalized shape `InsuranceViewModal` expects.
+- No database or edge-function changes: this is display-layer only, no migration needed.
+
+## Verification
+
+Open Sandra Tickle (Vascular Surgery Associates, Sep 16 2026) → Insurance Information overlay and confirm Group Number reads CF030000, and that the inline insurance panel and the card overlay still show the same values.
