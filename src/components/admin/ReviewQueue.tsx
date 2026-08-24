@@ -136,7 +136,10 @@ const ReviewQueue: React.FC = () => {
   // Trainee Review bucket is for trainers and management only.
   // While roles are still resolving we keep the button mounted (disabled) so it
   // doesn't pop in a few seconds after the rest of the bucket row renders.
-  const canReviewTrainees = roleLoading || hasRole(['admin', 'agent', 'trainer']);
+  // VA / QA users get read-only visibility of the Trainee Review bucket so they
+  // can answer clinic questions; only reviewers can act on those records.
+  const canSeeTraineeQueue = roleLoading || hasRole(['admin', 'agent', 'trainer', 'va', 'qa_specialist']);
+  const canActOnTrainees = roleLoading || hasRole(['admin', 'agent', 'trainer']);
   const [rows, setRows] = useState<ReviewAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
@@ -2030,6 +2033,7 @@ const ReviewQueue: React.FC = () => {
   const isReadOnlyView = isDeclinedView || isApprovedView;
   const isNewView = queueView === 'new';
   const isTraineeView = queueView === 'trainee';
+  const traineeReadOnly = isTraineeView && !canActOnTrainees;
 
   return (
     <Card>
@@ -2065,7 +2069,7 @@ const ReviewQueue: React.FC = () => {
             Pending Review
             <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
           </Button>
-          {canReviewTrainees && (
+          {canSeeTraineeQueue && (
             <Button
               variant={queueView === 'trainee' ? 'default' : 'outline'}
               size="sm"
@@ -2194,7 +2198,7 @@ const ReviewQueue: React.FC = () => {
 
 
         {/* Bulk actions (pending only) */}
-        {!isReadOnlyView && selected.size > 0 && (
+        {!isReadOnlyView && !traineeReadOnly && selected.size > 0 && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted">
             <span className="text-sm font-medium mr-2">{selected.size} selected</span>
             <Button size="sm" variant="default" onClick={() => handleBulk('approved')} disabled={processing}>
@@ -2230,6 +2234,12 @@ const ReviewQueue: React.FC = () => {
           </div>
         )}
 
+        {traineeReadOnly && (
+          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+            View only — these appointments are waiting on a trainer or supervisor to review the trainee's submission, so they are not client-facing yet. Approve, decline, and return actions are handled by the review team.
+          </div>
+        )}
+
         {/* Table */}
         {loading ? (
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
@@ -2240,7 +2250,7 @@ const ReviewQueue: React.FC = () => {
         ) : (
           <div className="border rounded-md divide-y">
             <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 text-xs font-medium text-muted-foreground bg-muted/40 items-center">
-              {isReadOnlyView ? (
+              {isReadOnlyView || traineeReadOnly ? (
                 <div />
               ) : (
                 <input
@@ -2274,7 +2284,7 @@ const ReviewQueue: React.FC = () => {
               return (
                 <div key={row.id} className="hover:bg-muted/20">
                   <div className="grid grid-cols-[28px_minmax(180px,1.2fr)_minmax(160px,1fr)_minmax(220px,1.6fr)_minmax(120px,0.9fr)_minmax(300px,auto)] gap-3 p-3 items-center text-sm">
-                    {isReadOnlyView ? (
+                    {isReadOnlyView || traineeReadOnly ? (
                       <div />
                     ) : (
                       <input
@@ -2503,7 +2513,9 @@ const ReviewQueue: React.FC = () => {
 
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end">
-                      {isApprovedView ? (
+                      {traineeReadOnly ? (
+                        <Badge variant="outline" className="border-blue-400 text-blue-700 bg-blue-50">Awaiting trainee review</Badge>
+                      ) : isApprovedView ? (
                         <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">Approved</Badge>
                       ) : isDeclinedView ? (
                         <>

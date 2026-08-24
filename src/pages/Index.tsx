@@ -317,7 +317,7 @@ const Index = () => {
             <TabsList className="inline-flex w-auto min-w-full whitespace-nowrap gap-1 h-auto p-1">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            {(hasManagementAccess() || role === 'va') && (
+            {(hasManagementAccess() || role === 'va' || role === 'qa_specialist') && (
               <TabsTrigger value="review-queue">
                 Review Queue
                 {reviewPendingCount > 0 && (
@@ -379,7 +379,7 @@ const Index = () => {
             <AllAppointmentsManager />
           </TabsContent>
 
-          {(hasManagementAccess() || role === 'va') && (
+          {(hasManagementAccess() || role === 'va' || role === 'qa_specialist') && (
             <TabsContent value="review-queue" className="space-y-6">
               <ReviewQueue />
             </TabsContent>
