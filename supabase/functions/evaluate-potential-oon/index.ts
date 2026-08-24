@@ -7,6 +7,7 @@ import {
   evaluateAllowlist,
   loadSupportedInsurances,
   loadOonMode,
+  resolveServiceLine,
 } from '../_shared/oon-matcher.ts';
 
 const corsHeaders = {
@@ -55,6 +56,7 @@ serve(async (req) => {
         projectName: appt.project_name,
         location: appt.calendar_name,
         calendarName: appt.calendar_name,
+        serviceLine: resolveServiceLine(appt),
         plans,
         groupNumbers,
       };

@@ -8,6 +8,7 @@ export interface BlockRuleScope {
   project_name?: string | null;
   location?: string | null;
   calendar_name?: string | null;
+  service_line?: string | null;
 }
 
 export interface BlockRule {
@@ -38,6 +39,7 @@ export interface MatchInput {
   projectName?: string | null;
   location?: string | null;
   calendarName?: string | null;
+  serviceLine?: string | null;
   plans: (string | null | undefined)[];
   groupNumbers: (string | null | undefined)[];
 }
@@ -70,10 +72,16 @@ function scopeMatches(rule: BlockRule, input: MatchInput): boolean {
   const project = normalizePlan(input.projectName);
   const location = normalizePlan(input.location);
   const calendar = normalizePlan(input.calendarName);
+  const service = normalizePlan(input.serviceLine);
   return scopes.some((s) => {
     if (s.project_name && normalizePlan(s.project_name) !== project) return false;
     if (s.location && !location.includes(normalizePlan(s.location))) return false;
     if (s.calendar_name && !calendar.includes(normalizePlan(s.calendar_name))) return false;
+    if (s.service_line) {
+      const term = normalizePlan(s.service_line);
+      if (!service) return false;
+      if (service !== term && !service.includes(term) && !calendar.includes(term)) return false;
+    }
     return true;
   });
 }
@@ -129,6 +137,7 @@ export function evaluateRules(rules: BlockRule[], input: MatchInput): OonMatch[]
 
 export interface SupportedInsurance {
   project_name: string;
+  service_line?: string | null;
   raw_option: string;
   normalized: string;
   is_unknown_option: boolean;
@@ -171,7 +180,16 @@ export function evaluateAllowlist(
   supported: SupportedInsurance[],
   input: MatchInput,
 ): OonMatch[] {
-  const list = supported.filter((s) => s.active && !s.is_unknown_option);
+  const service = normalizePlan(input.serviceLine);
+  const calendar = normalizePlan(input.calendarName);
+  const list = supported.filter((s) => {
+    if (!s.active || s.is_unknown_option) return false;
+    if (!s.service_line) return true;
+    const term = normalizePlan(s.service_line);
+    if (!term) return true;
+    if (!service) return calendar.includes(term);
+    return service === term || service.includes(term) || calendar.includes(term);
+  });
   if (!list.length) return [];
 
   // Generic answers ("Other", "Self pay/ Cash", "Not sure") are a data-quality
