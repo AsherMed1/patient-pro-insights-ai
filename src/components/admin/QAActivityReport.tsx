@@ -442,6 +442,27 @@ export default function QAActivityReport() {
       'Patient Link': e.patientLink || '',
     }));
 
+  const groupSheet = () =>
+    groups.map((g) => ({
+      'QA Specialist': g.specialist,
+      Patient: g.patient,
+      Clinic: g.clinic,
+      'Alert Types': g.alertTypes.map((t) => ALERT_LABELS[t] || t).join(', '),
+      Actions: g.actions.length,
+      Opened: g.actionCounts.opened || 0,
+      Claimed: g.actionCounts.claimed || 0,
+      'Audit Updates': g.actionCounts.audit_update || 0,
+      Completed: g.actionCounts.completed || 0,
+      Reopened: g.actionCounts.reopened || 0,
+      Escalated: g.actionCounts.escalated || 0,
+      Tickets: g.actionCounts.ticket_created || 0,
+      'First Action (CT)': fmt(g.first, 'yyyy-MM-dd HH:mm'),
+      'Last Action (CT)': fmt(g.last, 'yyyy-MM-dd HH:mm'),
+      'Completion Status': g.status,
+      'Open → Complete': humanizeMs(g.turnaroundMs),
+      'Patient Link': g.patientLink || '',
+    }));
+
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(
@@ -454,23 +475,25 @@ export default function QAActivityReport() {
         { Metric: 'Alerts completed', Value: totals.completed },
         { Metric: 'Alerts reopened', Value: totals.reopened },
         { Metric: 'Tickets created', Value: totals.tickets },
+        { Metric: 'Patient records touched', Value: groups.length },
         { Metric: 'Total actions logged', Value: totals.actions },
       ]),
       'Overview',
     );
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarySheet()), 'By Specialist');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(groupSheet()), 'Grouped Records');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(logSheet()), 'Detailed Log');
     XLSX.writeFile(wb, `qa_specialist_activity_${stamp}.xlsx`);
   };
 
   const exportCsv = () => {
-    const ws = XLSX.utils.json_to_sheet(logSheet());
+    const ws = XLSX.utils.json_to_sheet(grouped ? groupSheet() : logSheet());
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `qa_specialist_activity_log_${stamp}.csv`;
+    a.download = `qa_specialist_activity_${grouped ? 'records' : 'log'}_${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
