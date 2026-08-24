@@ -555,7 +555,7 @@ const InsuranceRulesConfig = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rules.map((r) => (
+                {visibleRules.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.rule_type === 'group_number' ? 'Group number' : 'Plan'}</TableCell>
                     <TableCell>{r.plan_id ? planNameById.get(r.plan_id) : r.value}</TableCell>
