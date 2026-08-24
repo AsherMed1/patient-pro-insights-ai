@@ -12,16 +12,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
 import { evaluateRules, evaluateAllowlist, type BlockRule, type MatchMethod, type RuleType } from '@/lib/oonMatching';
+import { fetchServiceLines } from '@/lib/serviceLines';
 
 interface CanonicalPlan { id: string; canonical_name: string; }
 interface PlanAlias { id: string; plan_id: string; alias: string; }
-interface RuleScope { id: string; rule_id: string; project_name: string | null; location: string | null; calendar_name: string | null; }
+interface RuleScope { id: string; rule_id: string; project_name: string | null; location: string | null; calendar_name: string | null; service_line: string | null; }
 interface RuleRow {
   id: string; rule_type: RuleType; plan_id: string | null; value: string | null;
   match_method: MatchMethod; is_active: boolean; note: string | null;
 }
 interface SupportedRow {
-  id: string; project_name: string; raw_option: string; normalized: string;
+  id: string; project_name: string; service_line: string | null; raw_option: string; normalized: string;
   plan_id: string | null; source: string; is_unknown_option: boolean;
   active: boolean; last_synced_at: string;
 }
@@ -48,11 +49,16 @@ const InsuranceRulesConfig = () => {
   const [ruleNote, setRuleNote] = useState('');
   const [ruleProject, setRuleProject] = useState<string>('__all__');
   const [ruleLocation, setRuleLocation] = useState('');
+  const [ruleServiceLine, setRuleServiceLine] = useState<string>('__any__');
+  const [ruleServiceCustom, setRuleServiceCustom] = useState('');
   const [rulesClinicFilter, setRulesClinicFilter] = useState<string>('__all__');
+  const [rulesServiceFilter, setRulesServiceFilter] = useState<string>('__all__');
+  const [serviceLinesByClinic, setServiceLinesByClinic] = useState<Record<string, string[]>>({});
 
   // tester state
   const [testProject, setTestProject] = useState<string>('__all__');
   const [testLocation, setTestLocation] = useState('');
+  const [testServiceLine, setTestServiceLine] = useState<string>('__any__');
   const [testPlan, setTestPlan] = useState('');
   const [testGroup, setTestGroup] = useState('');
 
@@ -61,6 +67,8 @@ const InsuranceRulesConfig = () => {
   const [supported, setSupported] = useState<SupportedRow[]>([]);
   const [supportedClinic, setSupportedClinic] = useState<string>('');
   const [manualOption, setManualOption] = useState('');
+  const [manualServiceLine, setManualServiceLine] = useState<string>('__all_lines__');
+  const [supportedServiceFilter, setSupportedServiceFilter] = useState<string>('__all__');
   const [syncing, setSyncing] = useState(false);
 
   const loadAll = async () => {
@@ -87,6 +95,20 @@ const InsuranceRulesConfig = () => {
 
   useEffect(() => { loadAll(); }, []);
 
+  // Service lines are clinic-specific — load them lazily for whichever clinic is selected.
+  const ensureServiceLines = async (project: string) => {
+    if (!project || project === '__all__' || serviceLinesByClinic[project]) return;
+    const lines = await fetchServiceLines(project);
+    setServiceLinesByClinic((m) => ({ ...m, [project]: lines }));
+  };
+
+  useEffect(() => { ensureServiceLines(ruleProject); }, [ruleProject]);
+  useEffect(() => { ensureServiceLines(rulesClinicFilter); }, [rulesClinicFilter]);
+  useEffect(() => { ensureServiceLines(supportedClinic); }, [supportedClinic]);
+  useEffect(() => { ensureServiceLines(testProject); }, [testProject]);
+
+  const serviceLinesFor = (project: string) => serviceLinesByClinic[project] || [];
+
   const planNameById = useMemo(() => {
     const m = new Map<string, string>();
     plans.forEach((p) => m.set(p.id, p.canonical_name));
@@ -109,6 +131,7 @@ const InsuranceRulesConfig = () => {
       planTerms: r.plan_id ? termsByPlan.get(r.plan_id) ?? [] : r.value ? [r.value] : [],
       scopes: (scopesByRule.get(r.id) || []).map((s) => ({
         project_name: s.project_name, location: s.location, calendar_name: s.calendar_name,
+        service_line: s.service_line,
       })),
     }));
   }, [rules, plans, aliases, scopes, planNameById]);
@@ -119,6 +142,7 @@ const InsuranceRulesConfig = () => {
       projectName: testProject === '__all__' ? null : testProject,
       location: testLocation || null,
       calendarName: testLocation || null,
+      serviceLine: testServiceLine === '__any__' ? null : testServiceLine,
       plans: [testPlan],
       groupNumbers: [testGroup],
     };
@@ -126,12 +150,12 @@ const InsuranceRulesConfig = () => {
     const mode = projectRows.find((p) => p.project_name === testProject)?.oon_mode;
     if (testProject !== '__all__' && mode === 'allowlist') {
       matches.push(...evaluateAllowlist(
-        supported.filter((s) => s.project_name === testProject),
+        supported.filter((s) => s.project_name === testProject) as never,
         input,
       ));
     }
     return matches;
-  }, [compiledRules, testProject, testLocation, testPlan, testGroup, projectRows, supported]);
+  }, [compiledRules, testProject, testLocation, testServiceLine, testPlan, testGroup, projectRows, supported]);
 
 
   const addPlan = async () => {
@@ -175,16 +199,23 @@ const InsuranceRulesConfig = () => {
     }).select().single();
     if (error) return toast({ title: 'Could not add rule', description: error.message, variant: 'destructive' });
 
-    if (ruleProject !== '__all__' || ruleLocation.trim()) {
+    const chosenServiceLine =
+      ruleServiceLine === '__any__' ? null
+      : ruleServiceLine === '__custom__' ? (ruleServiceCustom.trim() || null)
+      : ruleServiceLine;
+
+    if (ruleProject !== '__all__' || ruleLocation.trim() || chosenServiceLine) {
       const { error: sErr } = await supabase.from('insurance_block_rule_scopes').insert({
         rule_id: data.id,
         project_name: ruleProject === '__all__' ? null : ruleProject,
         location: ruleLocation.trim() || null,
+        service_line: chosenServiceLine,
       });
       if (sErr) toast({ title: 'Rule saved, scope failed', description: sErr.message, variant: 'destructive' });
     }
     if (ruleProject !== '__all__') setRulesClinicFilter(ruleProject);
     setRuleValue(''); setRuleNote(''); setRuleLocation('');
+    setRuleServiceLine('__any__'); setRuleServiceCustom('');
     loadAll();
     toast({ title: 'Rule added' });
   };
@@ -199,21 +230,32 @@ const InsuranceRulesConfig = () => {
   const scopeLabel = (ruleId: string) => {
     const list = scopes.filter((s) => s.rule_id === ruleId);
     if (!list.length) return 'All clinics';
-    return list.map((s) => [s.project_name, s.location, s.calendar_name].filter(Boolean).join(' · ')).join(' | ');
+    return list
+      .map((s) => [s.project_name, s.location, s.calendar_name, s.service_line].filter(Boolean).join(' · '))
+      .join(' | ');
   };
 
   const visibleRules = useMemo(() => {
-    if (rulesClinicFilter === '__all__') return rules;
+    if (rulesClinicFilter === '__all__' && rulesServiceFilter === '__all__') return rules;
     return rules.filter((r) => {
       const list = scopes.filter((s) => s.rule_id === r.id);
       if (!list.length) return true; // global rule applies everywhere
-      return list.some((s) => !s.project_name || s.project_name === rulesClinicFilter);
+      return list.some((s) => {
+        if (rulesClinicFilter !== '__all__' && s.project_name && s.project_name !== rulesClinicFilter) return false;
+        if (rulesServiceFilter !== '__all__' && s.service_line && s.service_line !== rulesServiceFilter) return false;
+        return true;
+      });
     });
-  }, [rules, scopes, rulesClinicFilter]);
+  }, [rules, scopes, rulesClinicFilter, rulesServiceFilter]);
 
   const clinicSupported = useMemo(
-    () => supported.filter((s) => s.project_name === supportedClinic),
-    [supported, supportedClinic],
+    () => supported.filter((s) => {
+      if (s.project_name !== supportedClinic) return false;
+      if (supportedServiceFilter === '__all__') return true;
+      // Clinic-wide rows apply to every service line, so keep them visible.
+      return !s.service_line || s.service_line === supportedServiceFilter;
+    }),
+    [supported, supportedClinic, supportedServiceFilter],
   );
 
   const currentMode = projectRows.find((p) => p.project_name === supportedClinic)?.oon_mode ?? 'denylist';
@@ -246,7 +288,9 @@ const InsuranceRulesConfig = () => {
     if (!raw || !supportedClinic) return;
     const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const { error } = await supabase.from('clinic_supported_insurances').insert({
-      project_name: supportedClinic, raw_option: raw, normalized, source: 'manual', active: true,
+      project_name: supportedClinic,
+      service_line: manualServiceLine === '__all_lines__' ? '' : manualServiceLine,
+      raw_option: raw, normalized, source: 'manual', active: true,
     });
     if (error) return toast({ title: 'Could not add', description: error.message, variant: 'destructive' });
     setManualOption('');
@@ -347,8 +391,29 @@ const InsuranceRulesConfig = () => {
             </p>
 
 
-            <div className="flex gap-2 max-w-md">
-              <Input placeholder="Add an accepted insurance manually" value={manualOption}
+            <div className="space-y-1 max-w-xs">
+              <Label>Filter by service line</Label>
+              <Select value={supportedServiceFilter} onValueChange={setSupportedServiceFilter}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All service lines</SelectItem>
+                  {serviceLinesFor(supportedClinic).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-2 max-w-3xl">
+              <div className="space-y-1 min-w-[220px]">
+                <Label>Service line for new entry</Label>
+                <Select value={manualServiceLine} onValueChange={setManualServiceLine}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all_lines__">All service lines</SelectItem>
+                    {serviceLinesFor(supportedClinic).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Input className="max-w-xs" placeholder="Add an accepted insurance manually" value={manualOption}
                 onChange={(e) => setManualOption(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') addManualOption(); }} />
               <Button variant="outline" onClick={addManualOption}><Plus className="h-4 w-4 mr-1" />Add</Button>
@@ -358,6 +423,7 @@ const InsuranceRulesConfig = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Option</TableHead>
+                  <TableHead>Service line</TableHead>
                   <TableHead>Canonical plan</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Generic</TableHead>
@@ -370,6 +436,21 @@ const InsuranceRulesConfig = () => {
                 {clinicSupported.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.raw_option}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.service_line || '__all_lines__'}
+                        onValueChange={(v) => updateSupported(row, { service_line: v === '__all_lines__' ? '' : v })}
+                      >
+                        <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all_lines__">All service lines</SelectItem>
+                          {serviceLinesFor(supportedClinic).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                          {row.service_line && !serviceLinesFor(supportedClinic).includes(row.service_line) && (
+                            <SelectItem value={row.service_line}>{row.service_line}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>
                       <Select value={row.plan_id ?? '__none__'} onValueChange={(v) => linkPlan(row, v)}>
                         <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
@@ -399,7 +480,7 @@ const InsuranceRulesConfig = () => {
                 ))}
                 {!loading && clinicSupported.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                    <TableCell colSpan={8} className="text-sm text-muted-foreground">
                       Nothing synced for this clinic yet — use “Sync from GHL”. If it stays empty, the sub-account may
                       be missing GHL credentials or the insurance provider field.
                     </TableCell>
@@ -518,6 +599,21 @@ const InsuranceRulesConfig = () => {
                 <Input value={ruleLocation} onChange={(e) => setRuleLocation(e.target.value)} placeholder="e.g. Macon" />
               </div>
               <div className="space-y-1">
+                <Label>Service line (optional)</Label>
+                <Select value={ruleServiceLine} onValueChange={setRuleServiceLine}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">All service lines</SelectItem>
+                    {serviceLinesFor(ruleProject).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                    <SelectItem value="__custom__">Other (type it)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {ruleServiceLine === '__custom__' && (
+                  <Input className="mt-1" value={ruleServiceCustom} placeholder="e.g. Knee Pain"
+                    onChange={(e) => setRuleServiceCustom(e.target.value)} />
+                )}
+              </div>
+              <div className="space-y-1">
                 <Label>Note</Label>
                 <Input value={ruleNote} onChange={(e) => setRuleNote(e.target.value)} placeholder="Why this is OON" />
               </div>
@@ -534,6 +630,16 @@ const InsuranceRulesConfig = () => {
                   <SelectContent>
                     <SelectItem value="__all__">All clinics</SelectItem>
                     {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Filter by service line</Label>
+                <Select value={rulesServiceFilter} onValueChange={setRulesServiceFilter}>
+                  <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All service lines</SelectItem>
+                    {serviceLinesFor(rulesClinicFilter).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -585,7 +691,7 @@ const InsuranceRulesConfig = () => {
               number to see whether it would be flagged and by which rule. Use it after adding a rule to confirm
               it catches what you expect and nothing else.
             </p>
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-5">
 
               <div className="space-y-1">
                 <Label>Clinic</Label>
@@ -600,6 +706,16 @@ const InsuranceRulesConfig = () => {
               <div className="space-y-1">
                 <Label>Location / calendar</Label>
                 <Input value={testLocation} onChange={(e) => setTestLocation(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Service line</Label>
+                <Select value={testServiceLine} onValueChange={setTestServiceLine}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any / unknown</SelectItem>
+                    {serviceLinesFor(testProject).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>Insurance plan</Label>

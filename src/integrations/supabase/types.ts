@@ -1344,7 +1344,7 @@ export type Database = {
           plan_id: string | null
           project_name: string
           raw_option: string
-          service_line: string | null
+          service_line: string
           source: string
           updated_at: string
         }
@@ -1358,7 +1358,7 @@ export type Database = {
           plan_id?: string | null
           project_name: string
           raw_option: string
-          service_line?: string | null
+          service_line?: string
           source?: string
           updated_at?: string
         }
@@ -1372,7 +1372,7 @@ export type Database = {
           plan_id?: string | null
           project_name?: string
           raw_option?: string
-          service_line?: string | null
+          service_line?: string
           source?: string
           updated_at?: string
         }

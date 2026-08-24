@@ -165,6 +165,7 @@ serve(async (req) => {
         const rows = options
           .map((raw) => ({
             project_name: name,
+            service_line: "",
             raw_option: raw,
             normalized: normalizePlan(raw),
             plan_id: planIdByTerm.get(normalizePlan(raw)) ?? null,
@@ -181,7 +182,7 @@ serve(async (req) => {
 
         const { error: upErr } = await supabase
           .from("clinic_supported_insurances")
-          .upsert(rows, { onConflict: "project_name,normalized" });
+          .upsert(rows, { onConflict: "project_name,normalized,service_line" });
         if (upErr) throw upErr;
 
         // Options that disappeared from GHL are kept but marked inactive.
