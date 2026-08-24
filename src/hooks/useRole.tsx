@@ -17,9 +17,18 @@ export const useRole = () => {
     if (!user) {
       setRole(null);
       setAccessibleProjects([]);
+      setSetterTeamLead(false);
       setLoading(false);
       return;
     }
+
+    // Fetch the Setter Team Lead flag (grants Trainee Review powers)
+    supabase
+      .from('profiles')
+      .select('is_setter_team_lead')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setSetterTeamLead(!!data?.is_setter_team_lead));
 
     const fetchRole = async () => {
       try {
