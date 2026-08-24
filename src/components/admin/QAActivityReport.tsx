@@ -818,7 +818,7 @@ export default function QAActivityReport() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </Fragment>
                         );
                       })}
                       {!groups.length && (
