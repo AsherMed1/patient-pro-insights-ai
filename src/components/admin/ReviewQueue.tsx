@@ -2033,6 +2033,7 @@ const ReviewQueue: React.FC = () => {
   const isReadOnlyView = isDeclinedView || isApprovedView;
   const isNewView = queueView === 'new';
   const isTraineeView = queueView === 'trainee';
+  const traineeReadOnly = isTraineeView && !canActOnTrainees;
 
   return (
     <Card>
