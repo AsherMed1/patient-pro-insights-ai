@@ -1,67 +1,30 @@
-# Welcome Call Attempt Workflow
+# Clean up the Service line dropdown options
 
-## Clinic experience
+## What's wrong
 
-A **Welcome Call attempt** button next to Add Note on every patient record (both the portal card and the detailed view). Clicking it opens a small dialog:
+The Service line dropdowns (OON Block Rules, Supported Insurances, rule tester) are built from every distinct `procedure_type` value ever parsed for a clinic, with no filtering by frequency. Checked across all appointments, the real service lines and the junk are clearly separable:
 
-- Outreach method: Call (fixed, shown as a read-only chip)
-- Outcome: Patient Answered / Patient Did Not Answer (required)
-- Internal note: required — Save stays disabled until text is entered
+Real lines: GAE (14,632), PAE (2,428), PFE (1,978), UFE (1,208), FSE (986), PAD (694), Neuropathy (616), HAE (418), ATE (22), TAE (19).
 
-Saving creates a new attempt row every time (never overwrites), mirrors the note into the notes timeline attributed to the clinic user, and shows a confirmation toast. Prior attempts are listed inside the dialog so staff see what has already been tried.
+Junk / variants currently offered as options:
+- `TKR` — 5 rows across 5 clinics (Joint & Vascular, NG Vascular, Richmond Vascular, Texas Vascular, Vascular and Vein Institute of the South). Not a service line.
+- `knee replacement surgery` (1), `tarsal tunnel release` (1), `Procedure` (1), `FNA` (2) — misparses.
+- `null` as a literal string (9 rows, 3 clinics).
+- `PAE w/BPH` (59), `PAE - BPH` (2), `Genicular Artery Embolization (GAE)` (1) — variants that should collapse onto PAE / GAE.
 
-A badge on the record shows the Welcome Call state:
+## The fix
 
-- **No attempt logged** — PPM users only (clinics see nothing)
-- **Attempted – Not Reached** — everyone
-- **Successfully Reached** — everyone
+In `src/lib/serviceLines.ts` (single source used by every service-line dropdown):
 
-Full attempt history is retained when a record moves from Attempted to Reached.
+1. Add a canonical service-line allowlist: GAE, PAE, PFE, UFE, FSE, PAD, HAE, ATE, TAE, PFE, Neuropathy (plus any acronym already present in `KNOWN_PROJECT_SERVICES`). Anything not on the list is dropped from dropdowns.
+2. Extend `normalizeServiceLine` alias handling: `PAE w/BPH`, `PAE - BPH`, `PAE with BPH` → PAE; `UAE` → UFE; a name with a parenthesised acronym (`Genicular Artery Embolization (GAE)`) → the acronym; explicitly reject `TKR`, `FNA`, `Procedure`, `null`, and free-text surgical phrases.
+3. `fetchServiceLines` returns only allowlisted values (still union'd with the clinic's `KNOWN_PROJECT_SERVICES`), so each clinic shows only the lines it actually runs.
+4. Safety valve: a service line already saved on an existing rule or supported-insurance row keeps rendering in that row's select (the existing fallback `SelectItem` in `InsuranceRulesConfig.tsx` already does this), so no saved rule silently loses its scope.
 
-## Patient Did Not Answer
+## Not included
 
-- Attempt + mandatory note saved
-- Welcome Call SMS triggered through GoHighLevel
-- Appointment status, procedure status and workflow position are untouched — no cancellation, no completion, no blocking
-- More attempts can be logged at any time
+This is a display-layer fix; it does not rewrite the ~20 mis-parsed `parsed_pathology_info` rows in the database. Say the word if you also want those rows corrected (e.g. the 5 `TKR` rows and the 9 literal `null` rows).
 
-SMS copy lives in the GHL workflow (so `{{contact.first_name}}`, clinic name and clinic phone resolve there). The portal fires it by pushing a `welcome-call-no-answer` tag to the GHL contact, matching how the existing `approved` tag releases a GHL workflow.
+## Files touched
 
-**Anti-spam safeguard:** the SMS only fires if no Welcome Call SMS has been sent to that patient in the last 12 hours. Suppressed sends are logged as an internal note ("SMS suppressed — already sent X hours ago") so the audit trail is complete, and the attempt itself still saves normally.
-
-## Patient Answered
-
-- Attempt + mandatory note saved
-- No SMS
-- Contact state set to **Successfully Reached**
-
-## Reporting
-
-New admin-only **Welcome Call Compliance** report (inside the existing reporting area) with a clinic/date-range filter and CSV/Excel export:
-
-- Total confirmed appointments
-- Appointments with ≥1 attempt / with no attempt logged
-- Attempted – Not Reached, Successfully Reached
-- Welcome Call Attempt Rate, Successful Contact Rate
-- Attempts per patient, clinic user who logged each attempt, timestamps
-
-Because state and counts are stored per appointment alongside status, the same rows can later be sliced against show / no-show / cancellation / recapture outcomes without further schema work.
-
-## Technical notes
-
-**Data (migration)**
-- Reuse `appointment_contact_attempts` with `source = 'welcome_call'`, `channel = 'call'`, `outcome in ('answered','no_answer')`; note is enforced non-empty for welcome-call rows by trigger. Clinic/patient/appointment context comes from the joined `all_appointments` row.
-- RLS: add project-scoped INSERT and SELECT policies for `project_user` (and `review_only` read) via the existing `has_project_access` / `user_accessible_project_names` helpers, so clinics can log and read only their own appointments' attempts.
-- New derived columns on `all_appointments`: `welcome_call_state` (`none` default / `attempted_not_reached` / `reached`), `welcome_call_attempt_count`, `welcome_call_first_attempt_at`, `welcome_call_reached_at`, `welcome_call_last_sms_at`. Maintained by an `AFTER INSERT` trigger on `appointment_contact_attempts` — never downgraded from `reached`.
-- Backfill state from any existing attempt rows.
-
-**Frontend**
-- New `src/components/appointments/WelcomeCallAttemptDialog.tsx` (patterned on `LogAttemptDialog.tsx`): fixed channel, two-outcome radio, required note, history list, calls the SMS edge function on `no_answer`.
-- Button + state badge added in `AppointmentCard.tsx` and `DetailedAppointmentView.tsx` notes header; badge hides the "No attempt logged" variant for `isProjectUser()`.
-- Mirrored note written as `visibility: 'clinic'` (clinic-authored, visible to clinic and PPM); system SMS/suppression notes written as `internal`.
-
-**Backend**
-- New edge function `send-welcome-call-sms`: validates input with Zod, loads the appointment, enforces the 12h cooldown against `welcome_call_last_sms_at`, adds the `welcome-call-no-answer` tag via the GHL contacts API (same auth path as `update-ghl-contact-tags`), stamps `welcome_call_last_sms_at`, and writes an internal audit note. Appointment status is never modified.
-- Reporting component `src/components/admin/WelcomeCallComplianceReport.tsx` querying the new columns plus attempt rows.
-
-**Needs on the GHL side:** one workflow triggered by the `welcome-call-no-answer` tag that sends the SMS copy above and removes the tag afterwards, so repeat attempts can re-trigger it.
+- `src/lib/serviceLines.ts`
