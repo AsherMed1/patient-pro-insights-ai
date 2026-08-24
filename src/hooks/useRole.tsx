@@ -9,6 +9,7 @@ export const useRole = () => {
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessibleProjects, setAccessibleProjects] = useState<string[]>([]);
+  const [setterTeamLead, setSetterTeamLead] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
