@@ -1344,6 +1344,7 @@ export type Database = {
           plan_id: string | null
           project_name: string
           raw_option: string
+          service_line: string | null
           source: string
           updated_at: string
         }
@@ -1357,6 +1358,7 @@ export type Database = {
           plan_id?: string | null
           project_name: string
           raw_option: string
+          service_line?: string | null
           source?: string
           updated_at?: string
         }
@@ -1370,6 +1372,7 @@ export type Database = {
           plan_id?: string | null
           project_name?: string
           raw_option?: string
+          service_line?: string | null
           source?: string
           updated_at?: string
         }
@@ -2542,6 +2545,7 @@ export type Database = {
           location: string | null
           project_name: string
           rule_id: string
+          service_line: string | null
           updated_at: string
         }
         Insert: {
@@ -2551,6 +2555,7 @@ export type Database = {
           location?: string | null
           project_name: string
           rule_id: string
+          service_line?: string | null
           updated_at?: string
         }
         Update: {
@@ -2560,6 +2565,7 @@ export type Database = {
           location?: string | null
           project_name?: string
           rule_id?: string
+          service_line?: string | null
           updated_at?: string
         }
         Relationships: [
