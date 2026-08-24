@@ -150,20 +150,37 @@ export default function LogAttemptDialog({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Attempt outcome</label>
-            <Select
-              value={result || undefined}
-              onValueChange={(v) => { setResult(v as AttemptResult); setConversation(''); setOtherResolution(''); }}
-            >
-              <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
-              <SelectContent>
-                {RESULTS_BY_CHANNEL[channel].map((r) => (
-                  <SelectItem key={r} value={r}>{RESULT_LABELS[r]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isTextFlat ? (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Attempt outcome</label>
+              <Select
+                value={flatTextValue || undefined}
+                onValueChange={handleFlatTextChange}
+              >
+                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
+                <SelectContent>
+                  {TEXT_FLAT_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Attempt outcome</label>
+              <Select
+                value={result || undefined}
+                onValueChange={(v) => { setResult(v as AttemptResult); setConversation(''); setOtherResolution(''); }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
+                <SelectContent>
+                  {RESULTS_BY_CHANNEL[channel].map((r) => (
+                    <SelectItem key={r} value={r}>{RESULT_LABELS[r]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {isWrongNumber && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
@@ -175,7 +192,7 @@ export default function LogAttemptDialog({
             </div>
           )}
 
-          {reached && (
+          {reached && !isTextFlat && (
             <div className="space-y-1">
               <label className="text-sm font-medium">Conversation outcome (required)</label>
               <Select
