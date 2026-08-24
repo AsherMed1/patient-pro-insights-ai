@@ -570,8 +570,10 @@ const InsuranceRulesConfig = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!loading && rules.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-sm text-muted-foreground">No rules configured.</TableCell></TableRow>
+                {!loading && visibleRules.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-sm text-muted-foreground">
+                    {rulesClinicFilter === '__all__' ? 'No rules configured.' : 'No rules for this clinic.'}
+                  </TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
