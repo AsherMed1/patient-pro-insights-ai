@@ -18,6 +18,8 @@ import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
+import { buildInsuranceData } from '@/lib/insuranceFields';
+
 import DetailedAppointmentView from './DetailedAppointmentView';
 import { findAssociatedLead, hasInsuranceInfo as hasInsuranceInfoUtil, type LeadAssociation } from "@/utils/appointmentLeadMatcher";
 import { Calendar } from "@/components/ui/calendar";
