@@ -1502,7 +1502,26 @@ const AllAppointmentsManager = ({
                     toast({ title: "No data to export", description: `No ${tabLabel} appointments matched the current filters.`, variant: "destructive" });
                     return;
                   }
-                  exportAppointmentsToExcel(data);
+                  // Fetch notes for the exported rows in chunks
+                  const notesByAppointment: Record<string, any[]> = {};
+                  const ids = data.map((r: any) => r.id).filter(Boolean);
+                  for (let i = 0; i < ids.length; i += 200) {
+                    const chunk = ids.slice(i, i + 200);
+                    const { data: notes, error: notesError } = await supabase
+                      .from('appointment_notes')
+                      .select('appointment_id, note_text, created_at, created_by, visibility')
+                      .in('appointment_id', chunk)
+                      .order('created_at', { ascending: false });
+                    if (notesError) {
+                      console.error('Failed to load notes for export:', notesError);
+                      continue;
+                    }
+                    (notes || []).forEach((n: any) => {
+                      if (!notesByAppointment[n.appointment_id]) notesByAppointment[n.appointment_id] = [];
+                      notesByAppointment[n.appointment_id].push(n);
+                    });
+                  }
+                  exportAppointmentsToExcel(data, notesByAppointment);
                   toast({ title: "Export complete", description: `${data.length} ${tabLabel} appointment${data.length !== 1 ? 's' : ''} exported.` });
                 } catch (e: any) {
                   toast({ title: "Export failed", description: e.message, variant: "destructive" });
