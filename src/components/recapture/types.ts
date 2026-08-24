@@ -124,11 +124,11 @@ export const RESULT_LABELS: Record<string, string> = {
   busy: 'Busy',
   disconnected: 'Number Disconnected',
   wrong_number: 'Wrong Number',
-  text_sent: 'Text Sent',
-  text_responded: 'Patient Responded',
+  text_sent: 'Text Sent — No Response',
+  text_responded: 'Patient Answered (Responded)',
   text_failed: 'Message Failed / Undeliverable',
-  email_sent: 'Email Sent',
-  email_responded: 'Patient Responded',
+  email_sent: 'Email Sent — No Response',
+  email_responded: 'Patient Answered (Responded)',
   email_failed: 'Email Failed / Undeliverable',
   callback_requested: 'Callback Requested',
   not_interested: 'Not Interested',
@@ -138,7 +138,7 @@ export const RESULT_LABELS: Record<string, string> = {
 /** Attempt outcomes offered per method. */
 export const RESULTS_BY_CHANNEL: Record<Channel, AttemptResult[]> = {
   call: ['answered', 'voicemail', 'no_answer', 'busy', 'disconnected', 'wrong_number'],
-  text: ['text_sent', 'text_responded', 'text_failed'],
+  text: ['text_sent', 'text_responded', 'text_failed', 'wrong_number'],
   email: ['email_sent', 'email_responded', 'email_failed'],
 };
 
