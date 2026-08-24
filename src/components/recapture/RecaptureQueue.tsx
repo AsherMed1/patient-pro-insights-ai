@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
@@ -15,7 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRole } from '@/hooks/useRole';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Loader2, ExternalLink, Calendar as CalendarIcon, Phone, ArrowUpDown, CheckCircle2, BarChart3, User, X, MoreHorizontal } from 'lucide-react';
+import { Loader2, ExternalLink, Calendar as CalendarIcon, BarChart3, X, MoreHorizontal } from 'lucide-react';
 import DetailedAppointmentView from '@/components/appointments/DetailedAppointmentView';
 import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
@@ -27,21 +28,16 @@ import {
   type LostType, type RecaptureCase, type WorkStatus,
 } from './types';
 
-const STATUS_TABS: { value: WorkStatus | 'all'; label: string }[] = [
+type TabValue = WorkStatus | 'all';
+
+const STATUS_TABS: { value: TabValue; label: string }[] = [
   { value: 'new', label: 'New' },
+  { value: 'opened', label: 'Opened' },
   { value: 'nurture', label: 'Nurture' },
   { value: 'follow_up', label: 'Follow-Up' },
   { value: 'completed', label: 'Completed' },
   { value: 'all', label: 'All' },
 ];
-
-function daysSince(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  const d = parseISO(dateStr);
-  if (isNaN(d.getTime())) return null;
-  const diff = Math.floor((new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-  return diff;
-}
 
 function formatPhone(p: string | null): string {
   if (!p) return '';
@@ -50,16 +46,15 @@ function formatPhone(p: string | null): string {
   return p;
 }
 
-
-
 export default function RecaptureQueue() {
   const { user } = useAuth();
   const { isAdmin, hasManagementAccess, isReviewOnly, isRecaptureRole, accessibleProjects } = useRole();
-  const canManage = hasManagementAccess() || isAdmin();
   const isSetter = () => isReviewOnly() || isRecaptureRole();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [view, setView] = useState<'queue' | 'reports'>('queue');
-  const [tab, setTab] = useState<WorkStatus | 'all'>('new');
+  const [tab, setTab] = useState<TabValue>('new');
   const [cases, setCases] = useState<RecaptureCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -77,8 +72,13 @@ export default function RecaptureQueue() {
   const [savingAssign, setSavingAssign] = useState(false);
 
   const [detailAppt, setDetailAppt] = useState<AllAppointment | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
+  // Keeps follow-up countdowns ticking without a refresh.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   const fetchAllPages = async (build: () => any): Promise<any[]> => {
     const PAGE = 1000;
@@ -183,16 +183,44 @@ export default function RecaptureQueue() {
     })();
   }, []);
 
+  /** Bell reminders for follow-ups that just came due on my own cases. */
+  useEffect(() => {
+    if (!user?.id || cases.length === 0) return;
+    const due = cases.filter((c) => {
+      if (c.work_status !== 'follow_up' || !c.follow_up_at) return false;
+      const owner = c.assigned_user_id || c.opened_by;
+      if (owner !== user.id) return false;
+      return new Date(c.follow_up_at).getTime() <= Date.now();
+    });
+    if (due.length === 0) return;
+    (async () => {
+      const rows = due.slice(0, 25).map((c) => ({
+        mentioned_user_id: user.id,
+        mentioned_by_user_id: user.id,
+        mentioned_by_name: 'System',
+        kind: 'recapture_follow_up_due',
+        title: `Follow-up due: ${c.patient_name || 'Patient'} (${c.follow_up_at})`,
+        body: `The scheduled Recapture follow-up for ${c.patient_name || 'this patient'} at ${c.project_name} is now due.`,
+        appointment_id: c.appointment_id,
+        recapture_case_id: c.id,
+      }));
+      const { error } = await supabase
+        .from('qa_note_mentions' as any)
+        .upsert(rows as any, {
+          onConflict: 'recapture_case_id,mentioned_user_id,kind,title',
+          ignoreDuplicates: true,
+        });
+      if (error) console.warn('[recapture] follow-up reminder failed', error.message);
+    })();
+  }, [cases, user?.id]);
+
   const openDetail = async (c: RecaptureCase) => {
     setSelectedCase(c);
     if (c.appointment_id) {
-      setDetailLoading(true);
       const { data, error } = await supabase.from('all_appointments').select('*').eq('id', c.appointment_id).single();
-      setDetailLoading(false);
       if (!error && data) setDetailAppt(data as unknown as AllAppointment);
     }
   };
-
 
   const ghlUrlFor = (c: RecaptureCase): string | null => {
     if (!c.ghl_contact_id) return null;
@@ -201,9 +229,9 @@ export default function RecaptureQueue() {
     return `https://app.gohighlevel.com/v2/location/${loc}/contacts/detail/${c.ghl_contact_id}`;
   };
 
-  const filteredCases = useMemo(() => {
+  /** Everything except the bucket filter — bucket counts are derived from this. */
+  const filteredIgnoringTab = useMemo(() => {
     let list = [...cases];
-    if (tab !== 'all') list = list.filter((c) => c.work_status === tab);
     if (projectFilter !== 'all') list = list.filter((c) => c.project_name === projectFilter);
     if (lostTypeFilter !== 'all') list = list.filter((c) => c.lost_type === lostTypeFilter);
     if (dateFrom) list = list.filter((c) => c.entered_worklist_at && new Date(c.entered_worklist_at) >= dateFrom);
@@ -222,23 +250,51 @@ export default function RecaptureQueue() {
       );
     }
     return list;
-  }, [cases, tab, projectFilter, lostTypeFilter, dateFrom, dateTo, search]);
+  }, [cases, projectFilter, lostTypeFilter, dateFrom, dateTo, search]);
 
+  const filteredCases = useMemo(
+    () => (tab === 'all' ? filteredIgnoringTab : filteredIgnoringTab.filter((c) => c.work_status === tab)),
+    [filteredIgnoringTab, tab],
+  );
+
+  /** Counts always describe exactly what the active search/filters return. */
   const counts = useMemo(() => {
+    const byStatus = (s: WorkStatus) => filteredIgnoringTab.filter((c) => c.work_status === s).length;
     return {
-      new: cases.filter((c) => c.work_status === 'new').length,
-      nurture: cases.filter((c) => c.work_status === 'nurture').length,
-      follow_up: cases.filter((c) => c.work_status === 'follow_up').length,
-      completed: cases.filter((c) => c.work_status === 'completed').length,
-      all: cases.length,
-    };
-  }, [cases]);
-
+      new: byStatus('new'),
+      opened: byStatus('opened'),
+      nurture: byStatus('nurture'),
+      follow_up: byStatus('follow_up'),
+      completed: byStatus('completed'),
+      all: filteredIgnoringTab.length,
+    } as Record<TabValue, number>;
+  }, [filteredIgnoringTab]);
 
   const projects = useMemo(() => Array.from(new Set(cases.map((c) => c.project_name))).sort(), [cases]);
 
+  /** Live in-place patch so a saved outcome shows before the row repositions. */
+  const patchCase = useCallback((id: string, update: Partial<RecaptureCase>) => {
+    setCases((prev) => prev.map((c) => (c.id === id ? { ...c, ...update } : c)));
+    setSelectedCase((prev) => (prev && prev.id === id ? { ...prev, ...update } : prev));
+  }, []);
 
+  const openCase = useCallback((c: RecaptureCase) => {
+    setSelectedCase(c);
+    setDrawerOpen(true);
+  }, []);
 
+  // Deep link from a bell notification: ?recaptureCase=<id>
+  const deepLinkId = searchParams.get('recaptureCase');
+  useEffect(() => {
+    if (!deepLinkId || cases.length === 0) return;
+    const match = cases.find((c) => c.id === deepLinkId);
+    if (!match) return;
+    setTab('all');
+    openCase(match);
+    const next = new URLSearchParams(searchParams);
+    next.delete('recaptureCase');
+    setSearchParams(next, { replace: true });
+  }, [deepLinkId, cases, openCase, searchParams, setSearchParams]);
 
   const saveAssign = async () => {
     if (!selectedCase) return;
@@ -267,9 +323,22 @@ export default function RecaptureQueue() {
     return <Badge variant="outline" className="border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">No-Show</Badge>;
   };
 
+  const showStatusColumn = tab === 'follow_up';
+  const columnCount = showStatusColumn ? 7 : 6;
+
+  const followUpCell = (c: RecaptureCase) => {
+    const cd = followUpCountdown(c.follow_up_at);
+    if (!cd) return <span className="text-muted-foreground">—</span>;
+    return (
+      <Badge variant={cd.overdue ? 'destructive' : cd.due ? 'default' : 'outline'} className="whitespace-nowrap">
+        {cd.short}
+      </Badge>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">Recapture Worklist</h2>
         </div>
@@ -278,7 +347,7 @@ export default function RecaptureQueue() {
             Queue
           </Button>
           <Button variant={view === 'reports' ? 'default' : 'outline'} size="sm" onClick={() => setView('reports')}>
-            <BarChart3 className="h-4 w-4 mr-1" /> Reports
+            <BarChart3 className="mr-1 h-4 w-4" /> Reports
           </Button>
         </div>
       </div>
@@ -287,21 +356,25 @@ export default function RecaptureQueue() {
         <RecaptureReports />
       ) : (
         <>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as WorkStatus | 'all')} className="w-full">
-            <TabsList className="h-auto flex-wrap">
-              {STATUS_TABS.map((t) => (
-                <TabsTrigger key={t.value} value={t.value}>
-                  {t.label}
-                  <Badge variant="secondary" className="ml-2">{counts[t.value]}</Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          {/* Frozen queue controls: buckets, search and filters stay put while scrolling */}
+          <div
+            className="sticky z-20 -mx-4 space-y-3 border-b bg-background/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6"
+            style={{ top: 'calc(var(--portal-header-h, 0px) + var(--portal-nav-h, 0px))' }}
+          >
+            <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)} className="w-full">
+              <TabsList className="h-auto flex-wrap">
+                {STATUS_TABS.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value}>
+                    {t.label}
+                    <Badge variant="secondary" className="ml-2">{counts[t.value]}</Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
 
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Search</label>
-              <div className="relative">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Search</label>
                 <Input
                   placeholder="Name / phone / email"
                   value={search}
@@ -309,77 +382,77 @@ export default function RecaptureQueue() {
                   className="w-[220px]"
                 />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Clinic</label>
+                <Select value={projectFilter} onValueChange={setProjectFilter}>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clinics</SelectItem>
+                    {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Lost Type</label>
+                <Select value={lostTypeFilter} onValueChange={setLostTypeFilter}>
+                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="no_show">No-Show</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">From</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[150px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateFrom ? format(dateFrom, 'MMM d, yyyy') : <span className="text-muted-foreground">Pick date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarPicker mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">To</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[150px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateTo ? format(dateTo, 'MMM d, yyyy') : <span className="text-muted-foreground">Pick date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {(dateFrom || dateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+                  <X className="mr-1 h-4 w-4" /> Clear dates
+                </Button>
+              )}
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Clinic</label>
-              <Select value={projectFilter} onValueChange={setProjectFilter}>
-                <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clinics</SelectItem>
-                  {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Lost Type</label>
-              <Select value={lostTypeFilter} onValueChange={setLostTypeFilter}>
-                <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="no_show">No-Show</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">From</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[150px] justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, 'MMM d, yyyy') : <span className="text-muted-foreground">Pick date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarPicker mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">To</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[150px] justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, 'MMM d, yyyy') : <span className="text-muted-foreground">Pick date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarPicker mode="single" selected={dateTo} onSelect={setDateTo} initialFocus />
-                </PopoverContent>
-              </Popover>
-            </div>
-            {(dateFrom || dateTo) && (
-              <Button variant="ghost" size="sm" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
-                <X className="h-4 w-4 mr-1" /> Clear dates
-              </Button>
-            )}
           </div>
 
-          <div className="rounded-md border overflow-x-auto">
-            <Table className="min-w-max">
+          <div className="rounded-md border">
+            <Table
+              className="min-w-max"
+              containerClassName="max-h-[calc(100vh-var(--portal-header-h,0px)-var(--portal-nav-h,0px)-260px)] overflow-auto"
+            >
               <TableHeader>
                 <TableRow>
-                  <TableHead>Patient</TableHead>
-                  <TableHead>Clinic</TableHead>
-                  <TableHead>Lost Type</TableHead>
-                  <TableHead>Lost Date</TableHead>
-                  <TableHead>Days Since</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Attempts</TableHead>
-                  <TableHead>Assignee</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="sticky right-0 z-20 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
+                  <TableHead className="sticky top-0 z-20 bg-background">Patient</TableHead>
+                  {showStatusColumn && <TableHead className="sticky top-0 z-20 bg-background">Status</TableHead>}
+                  <TableHead className="sticky top-0 z-20 bg-background">Clinic</TableHead>
+                  <TableHead className="sticky top-0 z-20 bg-background">Type</TableHead>
+                  <TableHead className="sticky top-0 z-20 bg-background">Service Line</TableHead>
+                  <TableHead className="sticky top-0 z-20 bg-background">Contact Attempts</TableHead>
+                  <TableHead className="sticky right-0 top-0 z-30 w-[240px] min-w-[240px] border-l bg-background text-right whitespace-nowrap">
                     Actions
                   </TableHead>
                 </TableRow>
@@ -387,45 +460,35 @@ export default function RecaptureQueue() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    <TableCell colSpan={columnCount} className="py-8 text-center">
+                      <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                     </TableCell>
                   </TableRow>
                 ) : filteredCases.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">
                       No recapture cases found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredCases.map((c) => {
-                    const days = daysSince(c.appointment_date || c.entered_worklist_at);
                     const ghlUrl = ghlUrlFor(c);
                     return (
                       <TableRow key={c.id} className={cn(c.stale && 'opacity-60')}>
                         <TableCell>
                           <div className="font-medium">{c.patient_name || '—'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatPhone(c.lead_phone_number || null)}
+                          </div>
                         </TableCell>
+                        {showStatusColumn && <TableCell>{followUpCell(c)}</TableCell>}
                         <TableCell className="text-sm">{c.project_name}</TableCell>
                         <TableCell>{lostTypeBadge(c.lost_type)}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">
-                          {c.appointment_date ? format(parseISO(c.appointment_date), 'MMM d, yyyy') : '—'}
-                        </TableCell>
-                        <TableCell className="text-sm">{days !== null ? `${days}d` : '—'}</TableCell>
                         <TableCell className="text-sm">{c.service_line || '—'}</TableCell>
                         <TableCell className="text-sm">{c.attempt_count}</TableCell>
-                        <TableCell className="text-sm">{c.assignee_name || c.assignee_email || 'Unassigned'}</TableCell>
-                        <TableCell>
-                          <Badge variant={c.work_status === 'completed' ? 'default' : c.work_status === 'new' ? 'secondary' : 'outline'}>
-                            {WORK_STATUS_LABELS[c.work_status]}
-                          </Badge>
-                          {c.work_status === 'follow_up' && c.follow_up_at && (
-                            <div className="text-xs text-muted-foreground mt-1">{followUpCountdown(c.follow_up_at).label}</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="sticky right-0 z-10 w-[280px] min-w-[280px] max-w-[280px] border-l bg-background text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2 flex-nowrap">
-                            <Button variant="default" size="sm" onClick={() => { setSelectedCase(c); setDrawerOpen(true); }}>
+                        <TableCell className="sticky right-0 z-10 w-[240px] min-w-[240px] border-l bg-background text-right whitespace-nowrap">
+                          <div className="flex flex-nowrap items-center justify-end gap-2">
+                            <Button variant="default" size="sm" onClick={() => openCase(c)}>
                               Open Record
                             </Button>
                             <DropdownMenu>
@@ -442,7 +505,7 @@ export default function RecaptureQueue() {
                                 )}
                                 {ghlUrl && (
                                   <DropdownMenuItem asChild>
-                                    <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 cursor-pointer">
+                                    <a href={ghlUrl} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2">
                                       <ExternalLink className="h-3.5 w-3.5" />
                                       Open in GHL
                                     </a>
@@ -455,7 +518,6 @@ export default function RecaptureQueue() {
                             </DropdownMenu>
                           </div>
                         </TableCell>
-
                       </TableRow>
                     );
                   })
@@ -472,6 +534,7 @@ export default function RecaptureQueue() {
         open={drawerOpen}
         onOpenChange={(o) => { setDrawerOpen(o); if (!o) setSelectedCase(null); }}
         onChanged={fetchCases}
+        onCasePatched={patchCase}
         onOpenPortalRecord={(c) => openDetail(c)}
         ghlUrl={selectedCase ? ghlUrlFor(selectedCase) : null}
       />
@@ -485,8 +548,6 @@ export default function RecaptureQueue() {
         />
       )}
 
-
-
       {/* Assign Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent>
@@ -495,7 +556,6 @@ export default function RecaptureQueue() {
             <Select value={assigneeId} onValueChange={setAssigneeId}>
               <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
                 {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>)}
               </SelectContent>
             </Select>

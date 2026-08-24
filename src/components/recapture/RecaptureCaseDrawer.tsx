@@ -1,22 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserAttribution } from '@/hooks/useUserAttribution';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Loader2, Phone, Mail, FileText, PhoneCall } from 'lucide-react';
 import {
-  CHANNEL_LABELS, COMPLETION_REASON_LABELS, LOST_TYPE_LABELS, RESULT_LABELS, WORK_STATUS_LABELS,
-  followUpCountdown,
-  type AttemptResult, type Channel, type CompletionReason, type RecaptureAttempt, type RecaptureCase,
+  ChevronDown, ChevronRight, ExternalLink, FileText, Loader2, Mail, Phone, PhoneCall,
+} from 'lucide-react';
+import MentionTextarea from '@/components/admin/MentionTextarea';
+import { parseMentions, renderNoteWithMentions, stripMentionTokens } from '@/lib/mentions';
+import {
+  NOTE_AUTHOR_BADGE_CLASSES, NOTE_AUTHOR_CLASSES, NOTE_AUTHOR_LABELS,
+  classifyNoteAuthor, withoutGhlTagNoise,
+} from '@/lib/noteStyles';
+import { DEFAULT_CLINIC_TZ, formatClinicTime, timezoneLabel } from '@/lib/clinicTime';
+import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
+import LogAttemptDialog, { type AttemptPayload } from './LogAttemptDialog';
+import ScheduleFollowUpDialog from './ScheduleFollowUpDialog';
+import {
+  CHANNEL_LABELS, COMPLETION_REASON_LABELS, CONVERSATION_OUTCOME_LABELS, LOST_TYPE_LABELS,
+  RESULT_LABELS, WORK_STATUS_LABELS, followUpCountdown,
+  type CompletionReason, type RecaptureAttempt, type RecaptureCase, type WorkStatus,
 } from './types';
 
 interface InternalNote {
@@ -33,40 +41,74 @@ interface Props {
   ghlUrl: string | null;
   onOpenPortalRecord: (c: RecaptureCase) => void;
   onChanged: () => void;
+  /** Live patch of the row in the queue so counts and buckets follow along. */
+  onCasePatched?: (id: string, patch: Partial<RecaptureCase>) => void;
 }
 
-export default function RecaptureCaseDrawer({ caseRow, open, onOpenChange, ghlUrl, onOpenPortalRecord, onChanged }: Props) {
+function Section({
+  title, count, open, onToggle, children,
+}: {
+  title: string; count: number; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mb-2 flex w-full items-center gap-1.5 text-left text-sm font-semibold"
+      >
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        {title} ({count})
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+export default function RecaptureCaseDrawer({
+  caseRow, open, onOpenChange, ghlUrl, onOpenPortalRecord, onChanged, onCasePatched,
+}: Props) {
   const { user } = useAuth();
   const { userName } = useUserAttribution();
+  const actor = userName || user?.email || 'Portal User';
 
+  const [row, setRow] = useState<RecaptureCase | null>(caseRow);
   const [attempts, setAttempts] = useState<RecaptureAttempt[]>([]);
   const [loadingAttempts, setLoadingAttempts] = useState(false);
   const [notes, setNotes] = useState<InternalNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [activityOpen, setActivityOpen] = useState(true);
+  const [timezone, setTimezone] = useState<string>(
+    getCachedProjectTimezone(caseRow?.project_name) || DEFAULT_CLINIC_TZ,
+  );
 
-  // Log attempt dialog
   const [attemptOpen, setAttemptOpen] = useState(false);
-  const [channel, setChannel] = useState<Channel>('call');
-  const [result, setResult] = useState<AttemptResult | ''>('');
-  const [attemptNote, setAttemptNote] = useState('');
-  const [savingAttempt, setSavingAttempt] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [pending, setPending] = useState<AttemptPayload | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // Outcome dialog
-  const [outcomeOpen, setOutcomeOpen] = useState(false);
-  const [outcomeKind, setOutcomeKind] = useState<'nurture' | 'follow_up' | 'completed' | ''>('');
-  const [followUpDate, setFollowUpDate] = useState('');
-  const [followUpTime, setFollowUpTime] = useState('');
-  const [outcomeNote, setOutcomeNote] = useState('');
-  const [completionReason, setCompletionReason] = useState<CompletionReason | ''>('');
-  const [savingOutcome, setSavingOutcome] = useState(false);
+  const openStamped = useRef<string | null>(null);
 
   const [, forceTick] = useState(0);
   useEffect(() => {
     if (!open) return;
-    const t = setInterval(() => forceTick((n) => n + 1), 60000);
+    const t = setInterval(() => forceTick((n) => n + 1), 30000);
     return () => clearInterval(t);
   }, [open]);
+
+  useEffect(() => { setRow(caseRow); }, [caseRow]);
+
+  useEffect(() => {
+    if (!caseRow?.project_name) return;
+    fetchProjectTimezone(caseRow.project_name).then(setTimezone);
+  }, [caseRow?.project_name]);
+
+  const patch = useCallback((update: Partial<RecaptureCase>) => {
+    setRow((prev) => (prev ? { ...prev, ...update } : prev));
+    if (caseRow) onCasePatched?.(caseRow.id, update);
+  }, [caseRow, onCasePatched]);
 
   const loadAttempts = useCallback(async (caseId: string) => {
     setLoadingAttempts(true);
@@ -91,152 +133,251 @@ export default function RecaptureCaseDrawer({ caseRow, open, onOpenChange, ghlUr
       .eq('appointment_id', appointmentId)
       .eq('visibility', 'internal')
       .order('created_at', { ascending: false })
-      .limit(30);
-    setNotes(((data as any) || []) as InternalNote[]);
+      .limit(50);
+    setNotes(withoutGhlTagNoise(((data as any) || []) as InternalNote[]));
   }, []);
+
+  /** Opening a record is an activity stamp — it is not an attempt or an outcome. */
+  const stampOpened = useCallback(async (c: RecaptureCase) => {
+    if (openStamped.current === c.id) return;
+    openStamped.current = c.id;
+    const now = new Date().toISOString();
+    const update: any = { opened_at: c.opened_at || now, opened_by: user?.id, opened_by_name: actor };
+    // New (never opened) records move to Opened; anything further along stays put.
+    if (c.work_status === 'new') update.work_status = 'opened';
+    const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', c.id);
+    if (!error) {
+      patch({
+        opened_at: update.opened_at,
+        opened_by: user?.id || null,
+        opened_by_name: actor,
+        ...(update.work_status ? { work_status: 'opened' as WorkStatus } : {}),
+      });
+    }
+  }, [user?.id, actor, patch]);
 
   useEffect(() => {
     if (!open || !caseRow) return;
     loadAttempts(caseRow.id);
     if (caseRow.appointment_id) loadNotes(caseRow.appointment_id);
     else setNotes([]);
-  }, [open, caseRow?.id, loadAttempts, loadNotes]);
+    stampOpened(caseRow);
+  }, [open, caseRow?.id, loadAttempts, loadNotes, stampOpened]);
 
-  if (!caseRow) return null;
+  useEffect(() => { if (!open) openStamped.current = null; }, [open]);
 
-  const countdown = followUpCountdown(caseRow.follow_up_at);
+  if (!row) return null;
 
-  const resetAttemptForm = () => {
-    setChannel('call');
-    setResult('');
-    setAttemptNote('');
+  const countdown = followUpCountdown(row.follow_up_at);
+
+  const notifyMentions = async (text: string, appointmentId: string | null, noteId: string | null) => {
+    const mentions = parseMentions(text);
+    if (mentions.length === 0) return;
+    const rows = mentions
+      .filter((m) => m.userId !== user?.id)
+      .map((m) => ({
+        mentioned_user_id: m.userId,
+        mentioned_by_user_id: user?.id,
+        mentioned_by_name: actor,
+        kind: 'recapture_mention',
+        title: `${actor} mentioned you on a Recapture record`,
+        body: stripMentionTokens(text).slice(0, 300),
+        appointment_id: appointmentId,
+        appointment_note_id: noteId,
+        recapture_case_id: row.id,
+      }));
+    if (rows.length === 0) return;
+    const { error } = await supabase.from('qa_note_mentions' as any).insert(rows as any);
+    if (error) console.warn('[recapture] mention notify failed', error.message);
   };
 
-  /** Logging an attempt only ever appends history — it never completes a record. */
-  const saveAttempt = async () => {
-    if (!result) {
-      toast({ title: 'Select an attempt outcome', variant: 'destructive' });
-      return;
+  const writeInternalNote = async (text: string) => {
+    if (!row.appointment_id) return null;
+    const { data, error } = await supabase
+      .from('appointment_notes')
+      .insert({
+        appointment_id: row.appointment_id,
+        note_text: text,
+        created_by: actor,
+        visibility: 'internal',
+      } as any)
+      .select('id')
+      .maybeSingle();
+    if (error) {
+      console.warn('[recapture] note write failed', error.message);
+      return null;
     }
-    setSavingAttempt(true);
-    try {
-      const { error } = await supabase.from('recapture_attempts' as any).insert({
-        case_id: caseRow.id,
-        channel,
-        result,
-        note: attemptNote.trim() || null,
-        user_id: user?.id,
-        user_name: userName || user?.email,
-      });
-      if (error) throw error;
+    return (data as any)?.id || null;
+  };
 
-      // A brand new record becomes Nurture on its first attempt; anything else stays put.
-      if (caseRow.work_status === 'new') {
-        await supabase
-          .from('recapture_cases' as any)
-          .update({ work_status: 'nurture', work_started_at: caseRow.work_started_at || new Date().toISOString() })
-          .eq('id', caseRow.id);
-      }
+  /** Blocks a patient from all future recapture / reschedule outreach. */
+  const blockFutureOutreach = async (reason: string) => {
+    const { error } = await supabase.from('patient_reschedule_blocks' as any).insert({
+      ghl_contact_id: row.ghl_contact_id,
+      project_name: row.project_name,
+      patient_name: row.patient_name,
+      lead_phone_number: row.lead_phone_number || null,
+      source_appointment_id: row.appointment_id,
+      reason,
+      blocked_by: actor,
+      is_active: true,
+    } as any);
+    if (error) console.warn('[recapture] reschedule block failed', error.message);
+  };
 
-      toast({ title: 'Attempt logged', description: `${CHANNEL_LABELS[channel]} — ${RESULT_LABELS[result]}` });
+  const handleAttemptSubmit = (payload: AttemptPayload) => {
+    if (payload.needsScheduling) {
+      setPending(payload);
       setAttemptOpen(false);
-      resetAttemptForm();
-      await loadAttempts(caseRow.id);
-      onChanged();
-    } catch (e: any) {
-      toast({ title: 'Failed to log attempt', description: e.message, variant: 'destructive' });
+      setFollowUpOpen(true);
+      return;
     }
-    setSavingAttempt(false);
+    void persist(payload, null);
   };
 
-  const saveOutcome = async () => {
-    if (!outcomeKind) return;
-    if (outcomeKind === 'follow_up' && (!followUpDate || !followUpTime)) {
-      toast({ title: 'Follow-up date and time are required', variant: 'destructive' });
-      return;
-    }
-    if (outcomeKind === 'completed' && !completionReason) {
-      toast({ title: 'Select a completion reason', variant: 'destructive' });
-      return;
-    }
-    if (outcomeKind === 'completed' && completionReason === 'other' && !outcomeNote.trim()) {
-      toast({ title: 'A note is required for "Other"', variant: 'destructive' });
-      return;
-    }
-
-    setSavingOutcome(true);
+  const persist = async (
+    payload: AttemptPayload,
+    followUp: { followUpAtIso: string; timezone: string; note: string } | null,
+  ) => {
+    setSaving(true);
+    const previous = { ...row };
     try {
-      const update: any = { updated_at: new Date().toISOString() };
-      if (outcomeKind === 'nurture') {
-        update.work_status = 'nurture';
-        update.follow_up_at = null;
-        update.follow_up_note = null;
-        update.work_started_at = caseRow.work_started_at || new Date().toISOString();
-        if (outcomeNote.trim()) update.outcome_notes = outcomeNote.trim();
-      } else if (outcomeKind === 'follow_up') {
+      const now = new Date().toISOString();
+      const { error: attemptError } = await supabase.from('recapture_attempts' as any).insert({
+        case_id: row.id,
+        channel: payload.channel,
+        result: payload.result,
+        conversation_outcome: payload.conversationOutcome,
+        booked_by_user_id: payload.bookedByUserId,
+        booked_by_name: payload.bookedByName,
+        note: payload.note || followUp?.note || null,
+        attempted_at: now,
+        user_id: user?.id,
+        user_name: actor,
+      });
+      if (attemptError) throw attemptError;
+
+      const update: any = {
+        updated_at: now,
+        work_started_at: row.work_started_at || now,
+        conversation_outcome: payload.conversationOutcome,
+      };
+      let statusLabel = '';
+
+      if (followUp) {
         update.work_status = 'follow_up';
-        update.follow_up_at = new Date(`${followUpDate}T${followUpTime}`).toISOString();
-        update.follow_up_note = outcomeNote.trim() || null;
-        update.work_started_at = caseRow.work_started_at || new Date().toISOString();
-      } else {
+        update.follow_up_at = followUp.followUpAtIso;
+        update.follow_up_timezone = followUp.timezone;
+        update.follow_up_note = followUp.note || payload.note || null;
+        statusLabel = `Follow-Up scheduled for ${formatClinicTime(followUp.followUpAtIso, followUp.timezone)}`;
+      } else if (payload.result === 'wrong_number') {
         update.work_status = 'completed';
-        update.completion_reason = completionReason;
-        update.outcome = completionReason === 'booked_rescheduled' ? 'rebooked' : completionReason;
-        update.outcome_notes = outcomeNote.trim() || null;
-        update.completed_at = new Date().toISOString();
+        update.completion_reason = 'wrong_number' as CompletionReason;
+        update.outcome = 'wrong_number';
+        update.completed_at = now;
         update.completed_by = user?.id;
         update.follow_up_at = null;
-        if (completionReason === 'booked_rescheduled') update.recovered = true;
+        statusLabel = 'Completed — Invalid / Wrong Number';
+      } else if (payload.conversationOutcome === 'booked_rescheduled') {
+        update.work_status = 'completed';
+        update.completion_reason = 'booked_rescheduled' as CompletionReason;
+        update.outcome = 'rebooked';
+        update.recovered = true;
+        update.booked_by_user_id = payload.bookedByUserId;
+        update.booked_by_name = payload.bookedByName;
+        update.completed_at = now;
+        update.completed_by = user?.id;
+        update.follow_up_at = null;
+        statusLabel = `Completed — Booked / Rescheduled by ${payload.bookedByName}`;
+      } else if (payload.conversationOutcome === 'not_interested') {
+        update.work_status = 'completed';
+        update.completion_reason = 'not_interested' as CompletionReason;
+        update.outcome = 'not_interested';
+        update.completed_at = now;
+        update.completed_by = user?.id;
+        update.follow_up_at = null;
+        statusLabel = 'Completed — Not Interested';
+      } else if (payload.conversationOutcome === 'other' && payload.otherResolution === 'completed') {
+        update.work_status = 'completed';
+        update.completion_reason = 'other' as CompletionReason;
+        update.outcome = 'other';
+        update.outcome_notes = payload.note;
+        update.completed_at = now;
+        update.completed_by = user?.id;
+        update.follow_up_at = null;
+        statusLabel = 'Completed — Other';
+      } else {
+        // Attempt with no successful contact: the record works through Nurture.
+        update.work_status = 'nurture';
+        statusLabel = 'Nurture';
       }
 
-      const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', caseRow.id);
-      if (error) throw error;
+      if (payload.note) update.outcome_notes = payload.note;
 
-      // Mirror the outcome into the patient record as an internal-only note.
-      if (caseRow.appointment_id) {
-        const label =
-          outcomeKind === 'nurture'
-            ? 'Nurture'
-            : outcomeKind === 'follow_up'
-              ? `Follow-Up Required for ${format(new Date(`${followUpDate}T${followUpTime}`), 'MMM d, yyyy h:mm a')}`
-              : `Completed — ${COMPLETION_REASON_LABELS[completionReason as CompletionReason]}`;
-        await supabase.from('appointment_notes').insert({
-          appointment_id: caseRow.appointment_id,
-          note_text: `Recapture outcome: ${label}${outcomeNote.trim() ? `. ${outcomeNote.trim()}` : ''} by ${userName || user?.email || 'Portal User'}`,
-          created_by: userName || user?.email || 'Portal User',
-          visibility: 'internal',
-        } as any);
-        loadNotes(caseRow.appointment_id);
+      const { error: caseError } = await supabase
+        .from('recapture_cases' as any)
+        .update(update)
+        .eq('id', row.id);
+      if (caseError) throw caseError;
+
+      if (update.work_status === 'completed' &&
+        (payload.result === 'wrong_number' || payload.conversationOutcome === 'not_interested')) {
+        await blockFutureOutreach(
+          payload.result === 'wrong_number' ? 'Recapture: invalid / wrong number' : 'Recapture: not interested',
+        );
       }
 
-      toast({ title: 'Outcome saved' });
-      setOutcomeOpen(false);
-      setOutcomeKind('');
-      setOutcomeNote('');
-      setCompletionReason('');
-      setFollowUpDate('');
-      setFollowUpTime('');
+      // Only after the backend confirms do we move the visible outcome.
+      patch({
+        work_status: update.work_status,
+        conversation_outcome: update.conversation_outcome ?? null,
+        follow_up_at: update.follow_up_at ?? null,
+        follow_up_timezone: update.follow_up_timezone ?? row.follow_up_timezone,
+        follow_up_note: update.follow_up_note ?? row.follow_up_note,
+        completion_reason: update.completion_reason ?? row.completion_reason,
+        outcome: update.outcome ?? row.outcome,
+        outcome_notes: update.outcome_notes ?? row.outcome_notes,
+        booked_by_name: update.booked_by_name ?? row.booked_by_name,
+        booked_by_user_id: update.booked_by_user_id ?? row.booked_by_user_id,
+        recovered: update.recovered ?? row.recovered,
+        completed_at: update.completed_at ?? row.completed_at,
+        attempt_count: (row.attempt_count || 0) + 1,
+        last_attempt_at: now,
+      });
+
+      const attemptLine =
+        `Recapture ${CHANNEL_LABELS[payload.channel]} attempt — ${RESULT_LABELS[payload.result]}` +
+        (payload.conversationOutcome
+          ? ` · ${CONVERSATION_OUTCOME_LABELS[payload.conversationOutcome]}`
+          : '') +
+        (statusLabel ? `. ${statusLabel}` : '') +
+        (payload.note ? `. ${payload.note}` : '') +
+        ` by ${actor}`;
+      await writeInternalNote(attemptLine);
+
+      toast({ title: 'Outcome saved', description: statusLabel || undefined });
+      setAttemptOpen(false);
+      setFollowUpOpen(false);
+      setPending(null);
+      await loadAttempts(row.id);
+      if (row.appointment_id) await loadNotes(row.appointment_id);
       onChanged();
-      if (outcomeKind === 'completed') onOpenChange(false);
     } catch (e: any) {
+      setRow(previous as RecaptureCase);
       toast({ title: 'Failed to save outcome', description: e.message, variant: 'destructive' });
     }
-    setSavingOutcome(false);
+    setSaving(false);
   };
 
   const addNote = async () => {
-    if (!caseRow.appointment_id || !noteText.trim()) return;
+    if (!row.appointment_id || !noteText.trim()) return;
     setSavingNote(true);
     try {
-      const { error } = await supabase.from('appointment_notes').insert({
-        appointment_id: caseRow.appointment_id,
-        note_text: `${noteText.trim()} by ${userName || user?.email || 'Portal User'}`,
-        created_by: userName || user?.email || 'Portal User',
-        visibility: 'internal',
-      } as any);
-      if (error) throw error;
+      const text = `${noteText.trim()} by ${actor}`;
+      const noteId = await writeInternalNote(text);
+      await notifyMentions(noteText, row.appointment_id, noteId);
       setNoteText('');
-      await loadNotes(caseRow.appointment_id);
+      await loadNotes(row.appointment_id);
       toast({ title: 'Note added' });
     } catch (e: any) {
       toast({ title: 'Failed to add note', description: e.message, variant: 'destructive' });
@@ -244,140 +385,164 @@ export default function RecaptureCaseDrawer({ caseRow, open, onOpenChange, ghlUr
     setSavingNote(false);
   };
 
+  const activityCount = attempts.length + (row.opened_at ? 1 : 0);
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-2xl overflow-y-auto bg-background">
+        <SheetContent className="overflow-y-auto bg-background sm:max-w-2xl">
           <SheetHeader>
-            <SheetTitle className="flex items-center gap-2 flex-wrap">
-              {caseRow.patient_name || 'Patient'}
-              <Badge variant="outline">{LOST_TYPE_LABELS[caseRow.lost_type]}</Badge>
-              <Badge variant="secondary">{WORK_STATUS_LABELS[caseRow.work_status]}</Badge>
+            <SheetTitle className="flex flex-wrap items-center gap-2">
+              {row.patient_name || 'Patient'}
+              <Badge variant="outline">{LOST_TYPE_LABELS[row.lost_type]}</Badge>
+              <Badge variant="secondary">{WORK_STATUS_LABELS[row.work_status]}</Badge>
+              {row.work_status === 'follow_up' && countdown && (
+                <Badge variant={countdown.overdue ? 'destructive' : 'outline'}>{countdown.short}</Badge>
+              )}
             </SheetTitle>
           </SheetHeader>
 
           <div className="space-y-6 py-6">
-            {/* Actions */}
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => setAttemptOpen(true)}>
-                <PhoneCall className="h-4 w-4 mr-1" /> Log Attempt
+                <PhoneCall className="mr-1 h-4 w-4" /> Log Attempt
               </Button>
-              <Select
-                value={outcomeKind || undefined}
-                onValueChange={(v) => {
-                  setOutcomeKind(v as any);
-                  setOutcomeOpen(true);
-                }}
-              >
-                <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Outcome" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nurture">Nurture</SelectItem>
-                  <SelectItem value="follow_up">Follow-Up Required</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-              {caseRow.appointment_id && (
-                <Button size="sm" variant="outline" onClick={() => onOpenPortalRecord(caseRow)}>
-                  <FileText className="h-4 w-4 mr-1" /> Portal record
+              {row.appointment_id && (
+                <Button size="sm" variant="outline" onClick={() => onOpenPortalRecord(row)}>
+                  <FileText className="mr-1 h-4 w-4" /> Portal record
                 </Button>
               )}
               {ghlUrl && (
                 <Button size="sm" variant="outline" asChild>
                   <a href={ghlUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-1" /> GoHighLevel
+                    <ExternalLink className="mr-1 h-4 w-4" /> GoHighLevel
                   </a>
                 </Button>
               )}
             </div>
 
-            {/* Facts */}
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="text-muted-foreground">Clinic</span><div className="font-medium">{caseRow.project_name}</div></div>
-              <div><span className="text-muted-foreground">Service Line</span><div className="font-medium">{caseRow.service_line || '—'}</div></div>
+              <div><span className="text-muted-foreground">Clinic</span><div className="font-medium">{row.project_name}</div></div>
+              <div><span className="text-muted-foreground">Service Line</span><div className="font-medium">{row.service_line || '—'}</div></div>
               <div>
                 <span className="text-muted-foreground">Phone</span>
-                <div className="font-medium flex items-center gap-1">
-                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />{caseRow.lead_phone_number || '—'}
+                <div className="flex items-center gap-1 font-medium">
+                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />{row.lead_phone_number || '—'}
                 </div>
               </div>
               <div>
                 <span className="text-muted-foreground">Email</span>
-                <div className="font-medium flex items-center gap-1 break-all">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />{caseRow.lead_email || '—'}
+                <div className="flex items-center gap-1 break-all font-medium">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />{row.lead_email || '—'}
                 </div>
               </div>
               <div>
                 <span className="text-muted-foreground">Last Appointment</span>
                 <div className="font-medium">
-                  {caseRow.appointment_date ? format(parseISO(caseRow.appointment_date), 'MMM d, yyyy h:mm a') : '—'}
+                  {row.appointment_date ? formatClinicTime(row.appointment_date, timezone) : '—'}
                 </div>
               </div>
-              <div><span className="text-muted-foreground">Contact Attempts</span><div className="font-medium">{caseRow.attempt_count}</div></div>
-              {caseRow.follow_up_at && (
+              <div><span className="text-muted-foreground">Contact Attempts</span><div className="font-medium">{row.attempt_count}</div></div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Outcome</span>
+                <div className="font-medium">
+                  {row.work_status === 'completed'
+                    ? `Completed — ${row.completion_reason ? COMPLETION_REASON_LABELS[row.completion_reason] : row.outcome || '—'}`
+                    : row.conversation_outcome
+                      ? CONVERSATION_OUTCOME_LABELS[row.conversation_outcome]
+                      : WORK_STATUS_LABELS[row.work_status]}
+                  {row.booked_by_name && ` · booked by ${row.booked_by_name}`}
+                </div>
+                {row.outcome_notes && <div className="text-muted-foreground">{row.outcome_notes}</div>}
+              </div>
+              {row.follow_up_at && (
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Follow-Up</span>
                   <div className={cn('font-medium', countdown?.overdue && 'text-destructive')}>
-                    {format(parseISO(caseRow.follow_up_at), 'MMM d, yyyy h:mm a')}
+                    {formatClinicTime(row.follow_up_at, row.follow_up_timezone || timezone)}
                     {countdown && ` · ${countdown.label}`}
                   </div>
-                  {caseRow.follow_up_note && <div className="text-muted-foreground">{caseRow.follow_up_note}</div>}
-                </div>
-              )}
-              {caseRow.work_status === 'completed' && (
-                <div className="col-span-2">
-                  <span className="text-muted-foreground">Completion Reason</span>
-                  <div className="font-medium">
-                    {caseRow.completion_reason ? COMPLETION_REASON_LABELS[caseRow.completion_reason] : caseRow.outcome || '—'}
+                  <div className="text-xs text-muted-foreground">
+                    Clinic local time — {timezoneLabel(row.follow_up_timezone || timezone)}
                   </div>
-                  {caseRow.outcome_notes && <div className="text-muted-foreground">{caseRow.outcome_notes}</div>}
+                  {row.follow_up_note && <div className="text-muted-foreground">{row.follow_up_note}</div>}
                 </div>
               )}
             </div>
 
-            {caseRow.stale && (
+            {row.stale && (
               <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
                 This case is stale — the source appointment is no longer in a cancelled/no-show state.
               </div>
             )}
 
-            {/* Attempt history */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Contact Attempt History</h3>
+            <Section
+              title="Activity History"
+              count={activityCount}
+              open={activityOpen}
+              onToggle={() => setActivityOpen((o) => !o)}
+            >
               {loadingAttempts ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
-              ) : attempts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No attempts logged yet.</p>
+              ) : activityCount === 0 ? (
+                <p className="text-sm text-muted-foreground">No activity yet.</p>
               ) : (
                 <div className="space-y-2">
                   {attempts.map((a) => (
-                    <div key={a.id} className="rounded-md border p-3 text-sm bg-card">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div key={a.id} className="rounded-md border bg-card p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">
-                          {CHANNEL_LABELS[a.channel]}{a.result ? ` — ${RESULT_LABELS[a.result]}` : ''}
+                          {CHANNEL_LABELS[a.channel] || a.channel}
+                          {a.result ? ` — ${RESULT_LABELS[a.result] || a.result}` : ''}
+                          {a.conversation_outcome
+                            ? ` · ${CONVERSATION_OUTCOME_LABELS[a.conversation_outcome]}`
+                            : ''}
                         </span>
                         <span className="text-muted-foreground">
-                          {format(parseISO(a.attempted_at), 'MMM d, h:mm a')}{a.user_name ? ` · ${a.user_name}` : ''}
+                          {format(parseISO(a.attempted_at), 'MMM d, yyyy h:mm a')}
+                          {a.user_name ? ` · ${a.user_name}` : ''}
                         </span>
                       </div>
+                      {a.booked_by_name && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Booked / rescheduled by {a.booked_by_name}
+                        </div>
+                      )}
                       {a.note && <div className="mt-1">{a.note}</div>}
                     </div>
                   ))}
+                  {row.opened_at && (
+                    <div className="rounded-md border bg-card p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">Opened Recapture record</span>
+                        <span className="text-muted-foreground">
+                          {format(parseISO(row.opened_at), 'MMM d, yyyy h:mm a')}
+                          {row.opened_by_name ? ` · ${row.opened_by_name}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </Section>
 
-            {/* Internal notes */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Internal Notes</h3>
-              {caseRow.appointment_id ? (
+            <Section
+              title="Notes"
+              count={notes.length}
+              open={notesOpen}
+              onToggle={() => setNotesOpen((o) => !o)}
+            >
+              {row.appointment_id ? (
                 <>
-                  <div className="flex gap-2 mb-2">
-                    <Textarea
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="Add an internal note (never visible to the clinic)..."
-                      rows={2}
-                    />
+                  <div className="mb-2 flex gap-2">
+                    <div className="flex-1">
+                      <MentionTextarea
+                        value={noteText}
+                        onChange={setNoteText}
+                        placeholder="Add an internal note — type @ to mention a teammate..."
+                        rows={2}
+                      />
+                    </div>
                     <Button size="sm" onClick={addNote} disabled={savingNote || !noteText.trim()}>
                       {savingNote && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Add
                     </Button>
@@ -386,119 +551,52 @@ export default function RecaptureCaseDrawer({ caseRow, open, onOpenChange, ghlUr
                     <p className="text-sm text-muted-foreground">No internal notes yet.</p>
                   ) : (
                     <div className="space-y-2">
-                      {notes.map((n) => (
-                        <div key={n.id} className="rounded-md border p-3 text-sm bg-card">
-                          <div className="text-muted-foreground text-xs">
-                            {format(parseISO(n.created_at), 'MMM d, yyyy h:mm a')} · {n.created_by}
+                      {notes.map((n) => {
+                        const type = classifyNoteAuthor(n.created_by);
+                        return (
+                          <div key={n.id} className={cn('rounded-md border p-3 text-sm', NOTE_AUTHOR_CLASSES[type])}>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className={NOTE_AUTHOR_BADGE_CLASSES[type]}>
+                                {NOTE_AUTHOR_LABELS[type]}
+                              </Badge>
+                              <span>{n.created_by}</span>
+                              <span>·</span>
+                              <span>{format(parseISO(n.created_at), 'MMM d, yyyy h:mm a')}</span>
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap">
+                              {renderNoteWithMentions(n.note_text)}
+                            </div>
                           </div>
-                          <div className="mt-1 whitespace-pre-wrap">{n.note_text}</div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">No linked appointment record.</p>
               )}
-            </div>
+            </Section>
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Log Attempt */}
-      <Dialog open={attemptOpen} onOpenChange={(o) => { setAttemptOpen(o); if (!o) resetAttemptForm(); }}>
-        <DialogContent className="bg-background">
-          <DialogHeader>
-            <DialogTitle>Log Contact Attempt</DialogTitle>
-            <DialogDescription>
-              This records activity only — it never completes the recapture record.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Method</label>
-              <Select value={channel} onValueChange={(v) => setChannel(v as Channel)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CHANNEL_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Attempt outcome</label>
-              <Select value={result} onValueChange={(v) => setResult(v as AttemptResult)}>
-                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RESULT_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Note (optional)</label>
-              <Textarea value={attemptNote} onChange={(e) => setAttemptNote(e.target.value)} placeholder="Context for the next setter..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAttemptOpen(false)}>Cancel</Button>
-            <Button onClick={saveAttempt} disabled={savingAttempt}>
-              {savingAttempt && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Attempt
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LogAttemptDialog
+        open={attemptOpen}
+        onOpenChange={setAttemptOpen}
+        saving={saving}
+        currentUserId={user?.id}
+        currentUserName={actor}
+        onSubmit={handleAttemptSubmit}
+      />
 
-      {/* Outcome */}
-      <Dialog open={outcomeOpen} onOpenChange={(o) => { setOutcomeOpen(o); if (!o) setOutcomeKind(''); }}>
-        <DialogContent className="bg-background">
-          <DialogHeader>
-            <DialogTitle>
-              {outcomeKind === 'nurture' ? 'Move to Nurture' : outcomeKind === 'follow_up' ? 'Schedule Follow-Up' : 'Complete Recapture Record'}
-            </DialogTitle>
-            <DialogDescription>
-              {outcomeKind === 'completed'
-                ? 'Completing closes the active recapture workflow for this patient.'
-                : 'The record stays active and can keep receiving contact attempts.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {outcomeKind === 'follow_up' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Follow-up date</label>
-                  <Input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Follow-up time</label>
-                  <Input type="time" value={followUpTime} onChange={(e) => setFollowUpTime(e.target.value)} />
-                </div>
-              </div>
-            )}
-            {outcomeKind === 'completed' && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Completion reason</label>
-                <Select value={completionReason} onValueChange={(v) => setCompletionReason(v as CompletionReason)}>
-                  <SelectTrigger><SelectValue placeholder="Select reason" /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(COMPLETION_REASON_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-1">
-              <label className="text-sm font-medium">
-                Note {outcomeKind === 'completed' && completionReason === 'other' ? '(required)' : '(optional)'}
-              </label>
-              <Textarea value={outcomeNote} onChange={(e) => setOutcomeNote(e.target.value)} placeholder="Context..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOutcomeOpen(false)}>Cancel</Button>
-            <Button onClick={saveOutcome} disabled={savingOutcome}>
-              {savingOutcome && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Outcome
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ScheduleFollowUpDialog
+        open={followUpOpen}
+        onOpenChange={(o) => { setFollowUpOpen(o); if (!o) setPending(null); }}
+        timezone={timezone}
+        saving={saving}
+        initialNote={pending?.note}
+        onSchedule={(fu) => { if (pending) void persist(pending, fu); }}
+      />
     </>
   );
 }
