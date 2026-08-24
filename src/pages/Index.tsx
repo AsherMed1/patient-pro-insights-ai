@@ -417,9 +417,11 @@ const Index = () => {
 
           <TabsContent value="reporting" className="space-y-6">
             <ProjectCallSummaryTable />
+            {hasManagementAccess() && <WelcomeCallReport />}
             <ReferralDelaysReport />
             <RecaptureDashboard />
           </TabsContent>
+
 
           <TabsContent value="leads" className="space-y-6">
             <NewLeadsManager />
