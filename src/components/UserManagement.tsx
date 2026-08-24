@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/hooks/useRole';
@@ -68,7 +69,8 @@ const UserManagement = () => {
     email: '',
     fullName: '',
     role: 'project_user' as UserRole,
-    selectedProjectId: ''
+    selectedProjectId: '',
+    isSetterTeamLead: false
   });
   const { toast } = useToast();
   const { sendWelcomeEmail } = useSendWelcomeEmail();
@@ -90,7 +92,7 @@ const UserManagement = () => {
       // Get profiles first
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, email, full_name, created_at');
+        .select('id, email, full_name, created_at, is_setter_team_lead');
 
       console.log('📋 Raw profiles data:', profiles);
       console.log('📋 Profiles count:', profiles?.length || 0);
@@ -310,7 +312,8 @@ const UserManagement = () => {
       email: user.email,
       fullName: user.full_name,
       role: user.role || 'project_user',
-      selectedProjectId: ''
+      selectedProjectId: '',
+      isSetterTeamLead: !!user.is_setter_team_lead
     });
     setShowEditDialog(true);
   };
@@ -326,6 +329,7 @@ const UserManagement = () => {
         .update({
           email: editUser.email,
           full_name: editUser.fullName,
+          is_setter_team_lead: editUser.isSetterTeamLead,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingUser.id);
@@ -788,9 +792,14 @@ const UserManagement = () => {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.full_name}</TableCell>
                   <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role || 'project_user')}>
-                      {getRoleLabel(user.role || "project_user")}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge variant={getRoleBadgeVariant(user.role || 'project_user')}>
+                        {getRoleLabel(user.role || "project_user")}
+                      </Badge>
+                      {user.is_setter_team_lead && (
+                        <Badge variant="secondary">Team Lead</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {user.role === 'project_user' ? (
@@ -912,6 +921,22 @@ const UserManagement = () => {
                 Setter — access to Review Queue and Recapture.
               </p>
             </div>
+
+            {editUser.role === 'review_only' && (
+              <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                <div className="space-y-1">
+                  <Label htmlFor="editSetterTeamLead">Setter Team Lead</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Grants full Trainee Review powers (approve, decline, return to trainee).
+                  </p>
+                </div>
+                <Switch
+                  id="editSetterTeamLead"
+                  checked={editUser.isSetterTeamLead}
+                  onCheckedChange={(checked) => setEditUser(prev => ({ ...prev, isSetterTeamLead: checked }))}
+                />
+              </div>
+            )}
 
             <div className="flex space-x-2">
               <Button onClick={updateUser} className="flex-1" disabled={updating}>
