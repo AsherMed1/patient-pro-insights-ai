@@ -48,6 +48,7 @@ const InsuranceRulesConfig = () => {
   const [ruleNote, setRuleNote] = useState('');
   const [ruleProject, setRuleProject] = useState<string>('__all__');
   const [ruleLocation, setRuleLocation] = useState('');
+  const [rulesClinicFilter, setRulesClinicFilter] = useState<string>('__all__');
 
   // tester state
   const [testProject, setTestProject] = useState<string>('__all__');
