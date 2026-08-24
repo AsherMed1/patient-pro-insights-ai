@@ -161,11 +161,17 @@ export const useRole = () => {
   const hasQAAccess = () => hasRole(['admin', 'agent', 'qa_specialist']);
   const hasRecaptureAccess = () => hasRole(['admin', 'agent', 'va', 'review_only', 'recapture']);
   const canEditNotes = () => hasRole(['admin', 'agent', 'va']);
+  const isSetterTeamLead = () => setterTeamLead;
+  // Full Trainee Review powers: leadership, trainers, and flagged Setter Team Leads
+  const canReviewTrainees = () => hasRole(['admin', 'agent', 'trainer']) || setterTeamLead;
 
   return {
     role,
     loading: loading || authLoading,
     accessibleProjects,
+    setterTeamLead,
+    isSetterTeamLead,
+    canReviewTrainees,
     hasRole,
     hasProjectAccess,
     isAdmin,
