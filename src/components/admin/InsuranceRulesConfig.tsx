@@ -391,8 +391,29 @@ const InsuranceRulesConfig = () => {
             </p>
 
 
-            <div className="flex gap-2 max-w-md">
-              <Input placeholder="Add an accepted insurance manually" value={manualOption}
+            <div className="space-y-1 max-w-xs">
+              <Label>Filter by service line</Label>
+              <Select value={supportedServiceFilter} onValueChange={setSupportedServiceFilter}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All service lines</SelectItem>
+                  {serviceLinesFor(supportedClinic).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-2 max-w-3xl">
+              <div className="space-y-1 min-w-[220px]">
+                <Label>Service line for new entry</Label>
+                <Select value={manualServiceLine} onValueChange={setManualServiceLine}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all_lines__">All service lines</SelectItem>
+                    {serviceLinesFor(supportedClinic).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Input className="max-w-xs" placeholder="Add an accepted insurance manually" value={manualOption}
                 onChange={(e) => setManualOption(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') addManualOption(); }} />
               <Button variant="outline" onClick={addManualOption}><Plus className="h-4 w-4 mr-1" />Add</Button>
@@ -402,6 +423,7 @@ const InsuranceRulesConfig = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Option</TableHead>
+                  <TableHead>Service line</TableHead>
                   <TableHead>Canonical plan</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Generic</TableHead>
@@ -414,6 +436,21 @@ const InsuranceRulesConfig = () => {
                 {clinicSupported.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.raw_option}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.service_line || '__all_lines__'}
+                        onValueChange={(v) => updateSupported(row, { service_line: v === '__all_lines__' ? '' : v })}
+                      >
+                        <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all_lines__">All service lines</SelectItem>
+                          {serviceLinesFor(supportedClinic).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                          {row.service_line && !serviceLinesFor(supportedClinic).includes(row.service_line) && (
+                            <SelectItem value={row.service_line}>{row.service_line}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>
                       <Select value={row.plan_id ?? '__none__'} onValueChange={(v) => linkPlan(row, v)}>
                         <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
@@ -443,7 +480,7 @@ const InsuranceRulesConfig = () => {
                 ))}
                 {!loading && clinicSupported.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                    <TableCell colSpan={8} className="text-sm text-muted-foreground">
                       Nothing synced for this clinic yet — use “Sync from GHL”. If it stays empty, the sub-account may
                       be missing GHL credentials or the insurance provider field.
                     </TableCell>
@@ -562,6 +599,21 @@ const InsuranceRulesConfig = () => {
                 <Input value={ruleLocation} onChange={(e) => setRuleLocation(e.target.value)} placeholder="e.g. Macon" />
               </div>
               <div className="space-y-1">
+                <Label>Service line (optional)</Label>
+                <Select value={ruleServiceLine} onValueChange={setRuleServiceLine}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">All service lines</SelectItem>
+                    {serviceLinesFor(ruleProject).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                    <SelectItem value="__custom__">Other (type it)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {ruleServiceLine === '__custom__' && (
+                  <Input className="mt-1" value={ruleServiceCustom} placeholder="e.g. Knee Pain"
+                    onChange={(e) => setRuleServiceCustom(e.target.value)} />
+                )}
+              </div>
+              <div className="space-y-1">
                 <Label>Note</Label>
                 <Input value={ruleNote} onChange={(e) => setRuleNote(e.target.value)} placeholder="Why this is OON" />
               </div>
@@ -578,6 +630,16 @@ const InsuranceRulesConfig = () => {
                   <SelectContent>
                     <SelectItem value="__all__">All clinics</SelectItem>
                     {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Filter by service line</Label>
+                <Select value={rulesServiceFilter} onValueChange={setRulesServiceFilter}>
+                  <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All service lines</SelectItem>
+                    {serviceLinesFor(rulesClinicFilter).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -629,7 +691,7 @@ const InsuranceRulesConfig = () => {
               number to see whether it would be flagged and by which rule. Use it after adding a rule to confirm
               it catches what you expect and nothing else.
             </p>
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-5">
 
               <div className="space-y-1">
                 <Label>Clinic</Label>
@@ -644,6 +706,16 @@ const InsuranceRulesConfig = () => {
               <div className="space-y-1">
                 <Label>Location / calendar</Label>
                 <Input value={testLocation} onChange={(e) => setTestLocation(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Service line</Label>
+                <Select value={testServiceLine} onValueChange={setTestServiceLine}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any / unknown</SelectItem>
+                    {serviceLinesFor(testProject).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>Insurance plan</Label>
