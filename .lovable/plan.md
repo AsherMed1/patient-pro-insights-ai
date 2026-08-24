@@ -1,37 +1,67 @@
-# Georgia Endo — "patients we saw a while back are gone"
+# Welcome Call Attempt Workflow
 
-Nothing is being deleted. I re-checked the data today: Georgia Endovascular has 1,868 appointment records (1,571 currently visible to the clinic) and there are **zero** appointment deletions in the audit log. Three separate things make old patients look missing.
+## Clinic experience
 
-## What is actually happening
+A **Welcome Call attempt** button next to Add Note on every patient record (both the portal card and the detailed view). Clicking it opens a small dialog:
 
-1. **Search only looks inside the tab you're on.** The portal opens on the appointments list with a tab selected (New / Needs Review / Upcoming / Completed). Searching a patient seen months ago while sitting on New returns nothing, even though the record exists under All or Completed. Nothing tells the user to switch tabs — it reads as "the patient isn't in the portal."
+- Outreach method: Call (fixed, shown as a read-only chip)
+- Outcome: Patient Answered / Patient Did Not Answer (required)
+- Internal note: required — Save stays disabled until text is entered
 
-2. **13 records are hidden as retired duplicates with no surviving twin.** When two rows exist for the same person, one is marked as a retired duplicate and hidden. For 13 Georgia Endo records the hidden row is the *only* row for that person, so the patient disappears from every clinic view.
+Saving creates a new attempt row every time (never overwrites), mirrors the note into the notes timeline attributed to the clinic user, and shows a confirmation toast. Prior attempts are listed inside the dialog so staff see what has already been tried.
 
-3. **Records the clinic physically saw can be hidden by admin-only states.** 64 declined, 14 potential-OON and 2 dismissed Georgia Endo rows are invisible to the clinic. Some of those are patients the clinic did see and expects to look up.
+A badge on the record shows the Welcome Call state:
 
-4. **Overview totals are undercounted.** The stat-card query fetches rows with no paging, so it silently stops at 1,000 rows. Georgia Endo has 1,571 visible records, so the Overview numbers are wrong and reinforce the "records are missing" impression.
+- **No attempt logged** — PPM users only (clinics see nothing)
+- **Attempted – Not Reached** — everyone
+- **Successfully Reached** — everyone
 
-## Fix
+Full attempt history is retained when a record moves from Attempted to Reached.
 
-1. **Global search.** When a search term is entered, drop the tab predicate and search the clinic's full approved history, with a badge on each hit showing which bucket it belongs to. Clearing the search restores normal tab behavior.
+## Patient Did Not Answer
 
-2. **Recover the 13 orphaned records.** Un-retire every retired row that has no active sibling for the same contact, with an internal note recording the recovery, and run the same check across all projects.
+- Attempt + mandatory note saved
+- Welcome Call SMS triggered through GoHighLevel
+- Appointment status, procedure status and workflow position are untouched — no cancellation, no completion, no blocking
+- More attempts can be logged at any time
 
-3. **Prevent recurrence.** Refuse to retire a row when doing so would leave the contact with zero clinic-visible rows, and log the case for admin review.
+SMS copy lives in the GHL workflow (so `{{contact.first_name}}`, clinic name and clinic phone resolve there). The portal fires it by pushing a `welcome-call-no-answer` tag to the GHL contact, matching how the existing `approved` tag releases a GHL workflow.
 
-4. **Read-only history for declined / OON.** Surface these to the clinic in search results and the Completed bucket as read-only entries with the status shown plainly, instead of hiding them.
+**Anti-spam safeguard:** the SMS only fires if no Welcome Call SMS has been sent to that patient in the last 12 hours. Suppressed sends are logged as an internal note ("SMS suppressed — already sent X hours ago") so the audit trail is complete, and the attempt itself still saves normally.
 
-5. **Fix the 1,000-row cap** on the Overview stats query with the same paging loop already used in the filters query, so totals are accurate.
+## Patient Answered
+
+- Attempt + mandatory note saved
+- No SMS
+- Contact state set to **Successfully Reached**
+
+## Reporting
+
+New admin-only **Welcome Call Compliance** report (inside the existing reporting area) with a clinic/date-range filter and CSV/Excel export:
+
+- Total confirmed appointments
+- Appointments with ≥1 attempt / with no attempt logged
+- Attempted – Not Reached, Successfully Reached
+- Welcome Call Attempt Rate, Successful Contact Rate
+- Attempts per patient, clinic user who logged each attempt, timestamps
+
+Because state and counts are stored per appointment alongside status, the same rows can later be sliced against show / no-show / cancellation / recapture outcomes without further schema work.
 
 ## Technical notes
 
-- `src/components/AllAppointmentsManager.tsx` — skip the `activeTab` predicate block (and mirror it in the count and tab-count queries) when `searchTerm` is non-empty; derive a bucket label per row for display.
-- `src/pages/ProjectPortal.tsx` — `fetchAppointmentStats` currently issues a single unbounded select; page it in 1,000-row batches.
-- Orphan detection matches on `ghl_id`, falling back to `lead_name` + project.
-- Retire-guard lives with the existing supersede logic (`mark_superseded_on_change` / `merge_older_active_siblings`) so both webhook and portal paths are covered.
-- Visibility change for declined/OON is a read filter change only; no status or review_status values are rewritten.
+**Data (migration)**
+- Reuse `appointment_contact_attempts` with `source = 'welcome_call'`, `channel = 'call'`, `outcome in ('answered','no_answer')`; note is enforced non-empty for welcome-call rows by trigger. Clinic/patient/appointment context comes from the joined `all_appointments` row.
+- RLS: add project-scoped INSERT and SELECT policies for `project_user` (and `review_only` read) via the existing `has_project_access` / `user_accessible_project_names` helpers, so clinics can log and read only their own appointments' attempts.
+- New derived columns on `all_appointments`: `welcome_call_state` (`none` default / `attempted_not_reached` / `reached`), `welcome_call_attempt_count`, `welcome_call_first_attempt_at`, `welcome_call_reached_at`, `welcome_call_last_sms_at`. Maintained by an `AFTER INSERT` trigger on `appointment_contact_attempts` — never downgraded from `reached`.
+- Backfill state from any existing attempt rows.
 
-## Validation
+**Frontend**
+- New `src/components/appointments/WelcomeCallAttemptDialog.tsx` (patterned on `LogAttemptDialog.tsx`): fixed channel, two-outcome radio, required note, history list, calls the SMS edge function on `no_answer`.
+- Button + state badge added in `AppointmentCard.tsx` and `DetailedAppointmentView.tsx` notes header; badge hides the "No attempt logged" variant for `isProjectUser()`.
+- Mirrored note written as `visibility: 'clinic'` (clinic-authored, visible to clinic and PPM); system SMS/suppression notes written as `internal`.
 
-Search a known older Georgia Endo patient from the New tab and confirm they appear with the correct bucket badge, confirm the 13 recovered records are findable, and confirm the Overview total reads 1,571 rather than 1,000.
+**Backend**
+- New edge function `send-welcome-call-sms`: validates input with Zod, loads the appointment, enforces the 12h cooldown against `welcome_call_last_sms_at`, adds the `welcome-call-no-answer` tag via the GHL contacts API (same auth path as `update-ghl-contact-tags`), stamps `welcome_call_last_sms_at`, and writes an internal audit note. Appointment status is never modified.
+- Reporting component `src/components/admin/WelcomeCallComplianceReport.tsx` querying the new columns plus attempt rows.
+
+**Needs on the GHL side:** one workflow triggered by the `welcome-call-no-answer` tag that sends the SMS copy above and removes the tag afterwards, so repeat attempts can re-trigger it.
