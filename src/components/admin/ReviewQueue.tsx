@@ -2234,6 +2234,12 @@ const ReviewQueue: React.FC = () => {
           </div>
         )}
 
+        {traineeReadOnly && (
+          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+            View only — these appointments are waiting on a trainer or supervisor to review the trainee's submission, so they are not client-facing yet. Approve, decline, and return actions are handled by the review team.
+          </div>
+        )}
+
         {/* Table */}
         {loading ? (
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
