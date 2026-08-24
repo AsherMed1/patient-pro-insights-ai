@@ -202,6 +202,15 @@ const InsuranceRulesConfig = () => {
     return list.map((s) => [s.project_name, s.location, s.calendar_name].filter(Boolean).join(' · ')).join(' | ');
   };
 
+  const visibleRules = useMemo(() => {
+    if (rulesClinicFilter === '__all__') return rules;
+    return rules.filter((r) => {
+      const list = scopes.filter((s) => s.rule_id === r.id);
+      if (!list.length) return true; // global rule applies everywhere
+      return list.some((s) => !s.project_name || s.project_name === rulesClinicFilter);
+    });
+  }, [rules, scopes, rulesClinicFilter]);
+
   const clinicSupported = useMemo(
     () => supported.filter((s) => s.project_name === supportedClinic),
     [supported, supportedClinic],
