@@ -283,6 +283,47 @@ export default function QAActivityReport() {
     [allEntries, minFrom, minTo, projectFilter, qaFilter, alertFilter, actionFilter],
   );
 
+  // One row per patient record per specialist, with the full action trail nested inside.
+  const groups = useMemo(() => {
+    const map = new Map<string, RecordGroup>();
+    for (const e of entries) {
+      const key = `${e.specialist}::${e.recordKey}`;
+      const g =
+        map.get(key) ||
+        ({
+          key,
+          specialist: e.specialist,
+          patient: e.patient,
+          patientLink: e.patientLink,
+          clinic: e.clinic,
+          alertTypes: [],
+          status: e.status,
+          actionCounts: {},
+          actions: [],
+          first: e.at,
+          last: e.at,
+          turnaroundMs: null,
+        } as RecordGroup);
+      g.actions.push(e);
+      g.actionCounts[e.action] = (g.actionCounts[e.action] || 0) + 1;
+      if (!g.alertTypes.includes(e.alertType)) g.alertTypes.push(e.alertType);
+      if (e.at < g.first) g.first = e.at;
+      if (e.at > g.last) {
+        g.last = e.at;
+        g.status = e.status;
+      }
+      if (e.turnaroundMs !== null && (g.turnaroundMs === null || e.turnaroundMs > g.turnaroundMs)) {
+        g.turnaroundMs = e.turnaroundMs;
+      }
+      if (!g.patientLink && e.patientLink) g.patientLink = e.patientLink;
+      map.set(key, g);
+    }
+    const list = Array.from(map.values());
+    for (const g of list) g.actions.sort((a, b) => (a.at < b.at ? 1 : -1));
+    return list.sort((a, b) => (a.last < b.last ? 1 : -1));
+  }, [entries]);
+
+
   const clinics = useMemo(() => Array.from(new Set(allEntries.map((e) => e.clinic))).sort(), [allEntries]);
   const specialists = useMemo(() => Array.from(new Set(allEntries.map((e) => e.specialist))).sort(), [allEntries]);
 
