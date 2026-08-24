@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,8 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, subDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Calendar as CalendarIcon, Download, Loader2, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Calendar as CalendarIcon, ChevronDown, ChevronRight, Download, Loader2, RefreshCw } from 'lucide-react';
 
 const TZ = 'America/Chicago';
 
@@ -55,6 +56,7 @@ interface CaseInfo {
   workflow_status: string;
   patient_link: string | null;
   qa_name: string | null;
+  appointment_id: string | null;
 }
 
 interface LogEntry {
@@ -62,6 +64,7 @@ interface LogEntry {
   at: string;
   specialist: string;
   caseId: string;
+  recordKey: string;
   patient: string;
   patientLink: string | null;
   clinic: string;
@@ -70,6 +73,22 @@ interface LogEntry {
   status: string;
   turnaroundMs: number | null;
 }
+
+interface RecordGroup {
+  key: string;
+  specialist: string;
+  patient: string;
+  patientLink: string | null;
+  clinic: string;
+  alertTypes: string[];
+  status: string;
+  actionCounts: Partial<Record<ActionKey, number>>;
+  actions: LogEntry[];
+  first: string;
+  last: string;
+  turnaroundMs: number | null;
+}
+
 
 const deriveAction = (a: ActivityRow): ActionKey => {
   const d = (a.description || '').toLowerCase();
@@ -131,6 +150,16 @@ export default function QAActivityReport() {
   const [alertFilter, setAlertFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [logLimit, setLogLimit] = useState(200);
+  const [grouped, setGrouped] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const fetchAll = async () => {
     setLoading(true);
@@ -160,7 +189,7 @@ export default function QAActivityReport() {
         const chunk = caseIds.slice(i, i + 200);
         const { data } = await supabase
           .from('qa_cases' as any)
-          .select('id, project_name, patient_name, alert_type, workflow_status, patient_link, qa_name')
+          .select('id, project_name, patient_name, alert_type, workflow_status, patient_link, qa_name, appointment_id')
           .in('id', chunk);
         for (const c of ((data as any[]) || []) as CaseInfo[]) caseMap[c.id] = c;
       }
@@ -236,6 +265,9 @@ export default function QAActivityReport() {
           at: a.created_at,
           specialist: (a.actor_user_id && people[a.actor_user_id]) || c?.qa_name || 'System / Unattributed',
           caseId: a.case_id,
+          recordKey:
+            c?.appointment_id ||
+            (c ? `${(c.patient_name || '—').toLowerCase()}|${(c.project_name || '—').toLowerCase()}` : a.case_id),
           patient: c?.patient_name || '—',
           patientLink: c?.patient_link || null,
           clinic: c?.project_name || '—',
@@ -261,6 +293,47 @@ export default function QAActivityReport() {
       }),
     [allEntries, minFrom, minTo, projectFilter, qaFilter, alertFilter, actionFilter],
   );
+
+  // One row per patient record per specialist, with the full action trail nested inside.
+  const groups = useMemo(() => {
+    const map = new Map<string, RecordGroup>();
+    for (const e of entries) {
+      const key = `${e.specialist}::${e.recordKey}`;
+      const g =
+        map.get(key) ||
+        ({
+          key,
+          specialist: e.specialist,
+          patient: e.patient,
+          patientLink: e.patientLink,
+          clinic: e.clinic,
+          alertTypes: [],
+          status: e.status,
+          actionCounts: {},
+          actions: [],
+          first: e.at,
+          last: e.at,
+          turnaroundMs: null,
+        } as RecordGroup);
+      g.actions.push(e);
+      g.actionCounts[e.action] = (g.actionCounts[e.action] || 0) + 1;
+      if (!g.alertTypes.includes(e.alertType)) g.alertTypes.push(e.alertType);
+      if (e.at < g.first) g.first = e.at;
+      if (e.at > g.last) {
+        g.last = e.at;
+        g.status = e.status;
+      }
+      if (e.turnaroundMs !== null && (g.turnaroundMs === null || e.turnaroundMs > g.turnaroundMs)) {
+        g.turnaroundMs = e.turnaroundMs;
+      }
+      if (!g.patientLink && e.patientLink) g.patientLink = e.patientLink;
+      map.set(key, g);
+    }
+    const list = Array.from(map.values());
+    for (const g of list) g.actions.sort((a, b) => (a.at < b.at ? 1 : -1));
+    return list.sort((a, b) => (a.last < b.last ? 1 : -1));
+  }, [entries]);
+
 
   const clinics = useMemo(() => Array.from(new Set(allEntries.map((e) => e.clinic))).sort(), [allEntries]);
   const specialists = useMemo(() => Array.from(new Set(allEntries.map((e) => e.specialist))).sort(), [allEntries]);
@@ -370,6 +443,27 @@ export default function QAActivityReport() {
       'Patient Link': e.patientLink || '',
     }));
 
+  const groupSheet = () =>
+    groups.map((g) => ({
+      'QA Specialist': g.specialist,
+      Patient: g.patient,
+      Clinic: g.clinic,
+      'Alert Types': g.alertTypes.map((t) => ALERT_LABELS[t] || t).join(', '),
+      Actions: g.actions.length,
+      Opened: g.actionCounts.opened || 0,
+      Claimed: g.actionCounts.claimed || 0,
+      'Audit Updates': g.actionCounts.audit_update || 0,
+      Completed: g.actionCounts.completed || 0,
+      Reopened: g.actionCounts.reopened || 0,
+      Escalated: g.actionCounts.escalated || 0,
+      Tickets: g.actionCounts.ticket_created || 0,
+      'First Action (CT)': fmt(g.first, 'yyyy-MM-dd HH:mm'),
+      'Last Action (CT)': fmt(g.last, 'yyyy-MM-dd HH:mm'),
+      'Completion Status': g.status,
+      'Open → Complete': humanizeMs(g.turnaroundMs),
+      'Patient Link': g.patientLink || '',
+    }));
+
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(
@@ -382,23 +476,25 @@ export default function QAActivityReport() {
         { Metric: 'Alerts completed', Value: totals.completed },
         { Metric: 'Alerts reopened', Value: totals.reopened },
         { Metric: 'Tickets created', Value: totals.tickets },
+        { Metric: 'Patient records touched', Value: groups.length },
         { Metric: 'Total actions logged', Value: totals.actions },
       ]),
       'Overview',
     );
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarySheet()), 'By Specialist');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(groupSheet()), 'Grouped Records');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(logSheet()), 'Detailed Log');
     XLSX.writeFile(wb, `qa_specialist_activity_${stamp}.xlsx`);
   };
 
   const exportCsv = () => {
-    const ws = XLSX.utils.json_to_sheet(logSheet());
+    const ws = XLSX.utils.json_to_sheet(grouped ? groupSheet() : logSheet());
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `qa_specialist_activity_log_${stamp}.csv`;
+    a.download = `qa_specialist_activity_${grouped ? 'records' : 'log'}_${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -573,54 +669,220 @@ export default function QAActivityReport() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Detailed activity log ({entries.length})</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">
+                  {grouped
+                    ? `Activity by patient record (${groups.length} records · ${entries.length} actions)`
+                    : `Detailed activity log (${entries.length})`}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {grouped && groups.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setExpanded((prev) => (prev.size ? new Set() : new Set(groups.map((g) => g.key))))
+                      }
+                    >
+                      {expanded.size ? 'Collapse all' : 'Expand all'}
+                    </Button>
+                  )}
+                  <div className="flex rounded-md border overflow-hidden">
+                    <Button
+                      variant={grouped ? 'default' : 'ghost'}
+                      size="sm"
+                      className="rounded-none"
+                      onClick={() => setGrouped(true)}
+                    >
+                      Grouped
+                    </Button>
+                    <Button
+                      variant={!grouped ? 'default' : 'ghost'}
+                      size="sm"
+                      className="rounded-none"
+                      onClick={() => setGrouped(false)}
+                    >
+                      Flat
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date / Time (CT)</TableHead>
-                    <TableHead>QA Specialist</TableHead>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Clinic</TableHead>
-                    <TableHead>Alert Type</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Open → Complete</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.slice(0, logLimit).map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="whitespace-nowrap">{fmt(e.at)}</TableCell>
-                      <TableCell>{e.specialist}</TableCell>
-                      <TableCell>
-                        {e.patientLink ? (
-                          <a href={e.patientLink} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                            {e.patient}
-                          </a>
-                        ) : (
-                          e.patient
-                        )}
-                      </TableCell>
-                      <TableCell>{e.clinic}</TableCell>
-                      <TableCell>{ALERT_LABELS[e.alertType] || e.alertType}</TableCell>
-                      <TableCell>{ACTION_LABELS[e.action]}</TableCell>
-                      <TableCell className="capitalize">{e.status.replace('_', ' ')}</TableCell>
-                      <TableCell className="text-right">{humanizeMs(e.turnaroundMs)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {!entries.length && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No actions in this window.</TableCell></TableRow>
+              {grouped ? (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8" />
+                        <TableHead>Patient</TableHead>
+                        <TableHead>QA Specialist</TableHead>
+                        <TableHead>Clinic</TableHead>
+                        <TableHead>Alert Type(s)</TableHead>
+                        <TableHead>Actions</TableHead>
+                        <TableHead>First Action (CT)</TableHead>
+                        <TableHead>Last Action (CT)</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Open → Complete</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groups.slice(0, logLimit).map((g) => {
+                        const isOpen = expanded.has(g.key);
+                        return (
+                          <Fragment key={g.key}>
+                            <TableRow
+                              key={g.key}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => toggleGroup(g.key)}
+                            >
+                              <TableCell className="align-middle">
+                                {isOpen ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {g.patientLink ? (
+                                  <a
+                                    href={g.patientLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary hover:underline"
+                                    onClick={(ev) => ev.stopPropagation()}
+                                  >
+                                    {g.patient}
+                                  </a>
+                                ) : (
+                                  g.patient
+                                )}
+                              </TableCell>
+                              <TableCell>{g.specialist}</TableCell>
+                              <TableCell>{g.clinic}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {g.alertTypes.map((t) => (
+                                    <Badge key={t} variant="outline" className="text-[10px]">
+                                      {ALERT_LABELS[t] || t}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    {g.actions.length} {g.actions.length === 1 ? 'action' : 'actions'}
+                                  </Badge>
+                                  {(Object.keys(ACTION_LABELS) as ActionKey[])
+                                    .filter((k) => g.actionCounts[k])
+                                    .map((k) => (
+                                      <Badge key={k} variant="outline" className="text-[10px]">
+                                        {ACTION_LABELS[k]}
+                                        {(g.actionCounts[k] || 0) > 1 ? ` ×${g.actionCounts[k]}` : ''}
+                                      </Badge>
+                                    ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">{fmt(g.first, 'MMM d, h:mm a')}</TableCell>
+                              <TableCell className="whitespace-nowrap">{fmt(g.last, 'MMM d, h:mm a')}</TableCell>
+                              <TableCell className="capitalize">{g.status.replace('_', ' ')}</TableCell>
+                              <TableCell className="text-right">{humanizeMs(g.turnaroundMs)}</TableCell>
+                            </TableRow>
+                            {isOpen && (
+                              <TableRow key={`${g.key}-detail`} className="bg-muted/30 hover:bg-muted/30">
+                                <TableCell />
+                                <TableCell colSpan={9} className="py-2">
+                                  <div className="space-y-1">
+                                    {g.actions.map((e) => (
+                                      <div
+                                        key={e.id}
+                                        className="flex flex-wrap items-center gap-3 text-xs border-l-2 border-border pl-3 py-1"
+                                      >
+                                        <span className="text-muted-foreground whitespace-nowrap w-40">{fmt(e.at)}</span>
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {ACTION_LABELS[e.action]}
+                                        </Badge>
+                                        <span className="text-muted-foreground">
+                                          {ALERT_LABELS[e.alertType] || e.alertType}
+                                        </span>
+                                        <span>{e.specialist}</span>
+                                        {e.turnaroundMs !== null && (
+                                          <span className="text-muted-foreground ml-auto">
+                                            open → complete: {humanizeMs(e.turnaroundMs)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                      {!groups.length && (
+                        <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">No actions in this window.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  {groups.length > logLimit && (
+                    <div className="pt-3 text-center">
+                      <Button variant="outline" size="sm" onClick={() => setLogLimit((n) => n + 200)}>
+                        Show more ({groups.length - logLimit} remaining)
+                      </Button>
+                    </div>
                   )}
-                </TableBody>
-              </Table>
-              {entries.length > logLimit && (
-                <div className="pt-3 text-center">
-                  <Button variant="outline" size="sm" onClick={() => setLogLimit((n) => n + 200)}>
-                    Show more ({entries.length - logLimit} remaining)
-                  </Button>
-                </div>
+                </>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date / Time (CT)</TableHead>
+                        <TableHead>QA Specialist</TableHead>
+                        <TableHead>Patient</TableHead>
+                        <TableHead>Clinic</TableHead>
+                        <TableHead>Alert Type</TableHead>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Open → Complete</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entries.slice(0, logLimit).map((e) => (
+                        <TableRow key={e.id}>
+                          <TableCell className="whitespace-nowrap">{fmt(e.at)}</TableCell>
+                          <TableCell>{e.specialist}</TableCell>
+                          <TableCell>
+                            {e.patientLink ? (
+                              <a href={e.patientLink} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                                {e.patient}
+                              </a>
+                            ) : (
+                              e.patient
+                            )}
+                          </TableCell>
+                          <TableCell>{e.clinic}</TableCell>
+                          <TableCell>{ALERT_LABELS[e.alertType] || e.alertType}</TableCell>
+                          <TableCell>{ACTION_LABELS[e.action]}</TableCell>
+                          <TableCell className="capitalize">{e.status.replace('_', ' ')}</TableCell>
+                          <TableCell className="text-right">{humanizeMs(e.turnaroundMs)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {!entries.length && (
+                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">No actions in this window.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  {entries.length > logLimit && (
+                    <div className="pt-3 text-center">
+                      <Button variant="outline" size="sm" onClick={() => setLogLimit((n) => n + 200)}>
+                        Show more ({entries.length - logLimit} remaining)
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
