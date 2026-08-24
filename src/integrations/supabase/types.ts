@@ -304,7 +304,13 @@ export type Database = {
           trainee_user_id: string | null
           updated_at: string
           was_ever_confirmed: boolean
+          welcome_call_attempt_count: number
           welcome_call_completed: boolean | null
+          welcome_call_first_attempt_at: string | null
+          welcome_call_last_attempt_at: string | null
+          welcome_call_last_sms_at: string | null
+          welcome_call_reached_at: string | null
+          welcome_call_state: string
         }
         Insert: {
           agent?: string | null
@@ -404,7 +410,13 @@ export type Database = {
           trainee_user_id?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
+          welcome_call_attempt_count?: number
           welcome_call_completed?: boolean | null
+          welcome_call_first_attempt_at?: string | null
+          welcome_call_last_attempt_at?: string | null
+          welcome_call_last_sms_at?: string | null
+          welcome_call_reached_at?: string | null
+          welcome_call_state?: string
         }
         Update: {
           agent?: string | null
@@ -504,7 +516,13 @@ export type Database = {
           trainee_user_id?: string | null
           updated_at?: string
           was_ever_confirmed?: boolean
+          welcome_call_attempt_count?: number
           welcome_call_completed?: boolean | null
+          welcome_call_first_attempt_at?: string | null
+          welcome_call_last_attempt_at?: string | null
+          welcome_call_last_sms_at?: string | null
+          welcome_call_reached_at?: string | null
+          welcome_call_state?: string
         }
         Relationships: [
           {
