@@ -160,7 +160,7 @@ export default function QAActivityReport() {
         const chunk = caseIds.slice(i, i + 200);
         const { data } = await supabase
           .from('qa_cases' as any)
-          .select('id, project_name, patient_name, alert_type, workflow_status, patient_link, qa_name')
+          .select('id, project_name, patient_name, alert_type, workflow_status, patient_link, qa_name, appointment_id')
           .in('id', chunk);
         for (const c of ((data as any[]) || []) as CaseInfo[]) caseMap[c.id] = c;
       }
