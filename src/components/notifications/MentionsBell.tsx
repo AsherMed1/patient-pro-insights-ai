@@ -28,6 +28,13 @@ export default function MentionsBell() {
   const openMention = async (m: QAMention) => {
     setOpen(false);
     if (!m.read_at) await markRead(m.id);
+    if (m.recapture_case_id) {
+      // Recapture mention or follow-up reminder: open the case drawer in the worklist.
+      navigate(
+        `/?tab=recapture&recaptureCase=${m.recapture_case_id}&n=${m.id}-${Date.now()}`,
+      );
+      return;
+    }
     if (m.appointment_id) {
       // Mention lives on a patient record note in the Appointments portal.
       const noteParam = m.appointment_note_id ? `&note=${m.appointment_note_id}` : '';

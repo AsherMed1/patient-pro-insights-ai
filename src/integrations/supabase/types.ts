@@ -3883,6 +3883,7 @@ export type Database = {
           mentioned_user_id: string
           note_id: string | null
           read_at: string | null
+          recapture_case_id: string | null
           title: string | null
         }
         Insert: {
@@ -3898,6 +3899,7 @@ export type Database = {
           mentioned_user_id: string
           note_id?: string | null
           read_at?: string | null
+          recapture_case_id?: string | null
           title?: string | null
         }
         Update: {
@@ -3913,6 +3915,7 @@ export type Database = {
           mentioned_user_id?: string
           note_id?: string | null
           read_at?: string | null
+          recapture_case_id?: string | null
           title?: string | null
         }
         Relationships: [
@@ -3956,6 +3959,13 @@ export type Database = {
             columns: ["note_id"]
             isOneToOne: false
             referencedRelation: "qa_case_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_note_mentions_recapture_case_id_fkey"
+            columns: ["recapture_case_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_cases"
             referencedColumns: ["id"]
           },
         ]

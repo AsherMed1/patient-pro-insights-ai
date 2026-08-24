@@ -6,6 +6,7 @@ export interface QAMention {
   id: string;
   note_id: string | null;
   case_id: string | null;
+  recapture_case_id: string | null;
   appointment_id: string | null;
   appointment_note_id: string | null;
   kind: string;
@@ -21,13 +22,14 @@ export interface QAMention {
 }
 
 const SELECT =
-  '*, qa_case_notes(note), qa_cases(patient_name, project_name, alert_type), all_appointments(lead_name, project_name), appointment_notes(note_text)';
+  '*, qa_case_notes(note), qa_cases(patient_name, project_name, alert_type), all_appointments(lead_name, project_name), appointment_notes(note_text), recapture_cases(patient_name, project_name)';
 
 const shape = (rows: any[]): QAMention[] =>
   (rows || []).map((r) => ({
     id: r.id,
     note_id: r.note_id,
     case_id: r.case_id,
+    recapture_case_id: r.recapture_case_id ?? null,
     appointment_id: r.appointment_id ?? null,
     appointment_note_id: r.appointment_note_id ?? null,
     kind: r.kind || 'mention',
@@ -37,8 +39,8 @@ const shape = (rows: any[]): QAMention[] =>
     read_at: r.read_at,
     created_at: r.created_at,
     note: r.qa_case_notes?.note ?? r.appointment_notes?.note_text ?? null,
-    patient_name: r.qa_cases?.patient_name ?? r.all_appointments?.lead_name ?? null,
-    project_name: r.qa_cases?.project_name ?? r.all_appointments?.project_name ?? null,
+    patient_name: r.qa_cases?.patient_name ?? r.all_appointments?.lead_name ?? r.recapture_cases?.patient_name ?? null,
+    project_name: r.qa_cases?.project_name ?? r.all_appointments?.project_name ?? r.recapture_cases?.project_name ?? null,
     alert_type: r.qa_cases?.alert_type ?? null,
   }));
 
