@@ -112,7 +112,7 @@ export default function LogAttemptDialog({
     onSubmit({
       channel,
       result: result as AttemptResult,
-      conversationOutcome: reached ? (conversation as ConversationOutcome) : null,
+      conversationOutcome: reached && conversation ? (conversation as ConversationOutcome) : null,
       otherResolution: conversation === 'other' ? (otherResolution as 'follow_up' | 'completed') : null,
       bookedByUserId: needsBookedBy ? bookedById : null,
       bookedByName: needsBookedBy ? bookedByName : null,
