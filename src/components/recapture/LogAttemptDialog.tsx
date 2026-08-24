@@ -141,7 +141,7 @@ export default function LogAttemptDialog({
             <label className="text-sm font-medium">Method</label>
             <Select
               value={channel}
-              onValueChange={(v) => { setChannel(v as Channel); setResult(''); setConversation(''); setOtherResolution(''); }}
+              onValueChange={(v) => { setChannel(v as Channel); setResult(''); setConversation(''); setOtherResolution(''); setFlatTextValue(''); }}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
