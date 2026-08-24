@@ -29,6 +29,8 @@ import AttachmentGallery from '@/components/admin/AttachmentGallery';
 import { uploadImages } from '@/lib/attachments';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { WelcomeCallAttemptControl } from '@/components/appointments/WelcomeCallAttemptDialog';
+
 
 interface AppointmentNotesProps {
   appointmentId: string;
