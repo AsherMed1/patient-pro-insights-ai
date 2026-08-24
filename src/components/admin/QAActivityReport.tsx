@@ -12,7 +12,8 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, subDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Calendar as CalendarIcon, Download, Loader2, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Calendar as CalendarIcon, ChevronDown, ChevronRight, Download, Loader2, RefreshCw } from 'lucide-react';
 
 const TZ = 'America/Chicago';
 
