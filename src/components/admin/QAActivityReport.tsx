@@ -254,6 +254,9 @@ export default function QAActivityReport() {
           at: a.created_at,
           specialist: (a.actor_user_id && people[a.actor_user_id]) || c?.qa_name || 'System / Unattributed',
           caseId: a.case_id,
+          recordKey:
+            c?.appointment_id ||
+            (c ? `${(c.patient_name || '—').toLowerCase()}|${(c.project_name || '—').toLowerCase()}` : a.case_id),
           patient: c?.patient_name || '—',
           patientLink: c?.patient_link || null,
           clinic: c?.project_name || '—',
