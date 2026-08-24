@@ -167,6 +167,30 @@ export const CONVERSATION_OUTCOMES: ConversationOutcome[] = [
 /** Conversation outcomes that open the Schedule Follow-Up modal. */
 export const SCHEDULING_OUTCOMES: ConversationOutcome[] = ['follow_up_required', 'callback_requested'];
 
+/**
+ * Flat combined options for the TEXT channel — merges attempt results and
+ * conversation outcomes into a single dropdown. Each entry maps to the
+ * underlying (result, conversationOutcome) pair the parent expects.
+ */
+export interface TextFlatOption {
+  value: string;
+  label: string;
+  result: AttemptResult;
+  conversationOutcome: ConversationOutcome | null;
+}
+
+export const TEXT_FLAT_OPTIONS: TextFlatOption[] = [
+  { value: 'text_sent',          label: 'Text Sent',                      result: 'text_sent',      conversationOutcome: null },
+  { value: 'text_responded',     label: 'Patient Responded',              result: 'text_responded', conversationOutcome: null },
+  { value: 'text_failed',        label: 'Message Failed / Undeliverable', result: 'text_failed',    conversationOutcome: null },
+  { value: 'wrong_number',       label: 'Wrong Number',                   result: 'wrong_number',   conversationOutcome: null },
+  { value: 'booked_rescheduled', label: 'Rescheduled / Booked',           result: 'text_responded', conversationOutcome: 'booked_rescheduled' },
+  { value: 'follow_up_required', label: 'Follow-Up Required',             result: 'text_responded', conversationOutcome: 'follow_up_required' },
+  { value: 'callback_requested', label: 'Callback Requested',             result: 'text_responded', conversationOutcome: 'callback_requested' },
+  { value: 'not_interested',     label: 'Not Interested',                 result: 'text_responded', conversationOutcome: 'not_interested' },
+  { value: 'other',              label: 'Other',                          result: 'text_responded', conversationOutcome: 'other' },
+];
+
 export const COMPLETION_REASON_LABELS: Record<CompletionReason, string> = {
   booked_rescheduled: 'Booked / Rescheduled',
   not_interested: 'Not Interested',

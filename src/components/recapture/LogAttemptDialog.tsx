@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import BookedBySelect from './BookedBySelect';
 import {
   CHANNEL_LABELS, CONVERSATION_OUTCOMES, CONVERSATION_OUTCOME_LABELS, CONTACT_RESULTS,
-  RESULTS_BY_CHANNEL, RESULT_LABELS, SCHEDULING_OUTCOMES,
+  RESULTS_BY_CHANNEL, RESULT_LABELS, SCHEDULING_OUTCOMES, TEXT_FLAT_OPTIONS,
   type AttemptResult, type Channel, type ConversationOutcome,
 } from './types';
 
@@ -53,6 +53,7 @@ export default function LogAttemptDialog({
   const [bookedById, setBookedById] = useState('');
   const [bookedByName, setBookedByName] = useState('');
   const [note, setNote] = useState('');
+  const [flatTextValue, setFlatTextValue] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -61,21 +62,32 @@ export default function LogAttemptDialog({
     setConversation('');
     setOtherResolution('');
     setNote('');
+    setFlatTextValue('');
     setBookedById(currentUserId || '');
     setBookedByName(currentUserName || '');
   }, [open, currentUserId, currentUserName]);
 
+  const isTextFlat = channel === 'text';
   const reached = !!result && CONTACT_RESULTS.includes(result as AttemptResult);
   const isWrongNumber = result === 'wrong_number';
   const needsBookedBy = reached && conversation === 'booked_rescheduled';
   const needsNote = reached && conversation === 'other';
+
+  const handleFlatTextChange = (value: string) => {
+    const opt = TEXT_FLAT_OPTIONS.find(o => o.value === value);
+    if (!opt) return;
+    setFlatTextValue(value);
+    setResult(opt.result);
+    setConversation(opt.conversationOutcome || '');
+    setOtherResolution('');
+  };
 
   const submit = () => {
     if (!result) {
       toast({ title: 'Select an attempt outcome', variant: 'destructive' });
       return;
     }
-    if (reached && !conversation) {
+    if (!isTextFlat && reached && !conversation) {
       toast({ title: 'A conversation outcome is required', variant: 'destructive' });
       return;
     }
@@ -100,7 +112,7 @@ export default function LogAttemptDialog({
     onSubmit({
       channel,
       result: result as AttemptResult,
-      conversationOutcome: reached ? (conversation as ConversationOutcome) : null,
+      conversationOutcome: reached && conversation ? (conversation as ConversationOutcome) : null,
       otherResolution: conversation === 'other' ? (otherResolution as 'follow_up' | 'completed') : null,
       bookedByUserId: needsBookedBy ? bookedById : null,
       bookedByName: needsBookedBy ? bookedByName : null,
@@ -129,7 +141,7 @@ export default function LogAttemptDialog({
             <label className="text-sm font-medium">Method</label>
             <Select
               value={channel}
-              onValueChange={(v) => { setChannel(v as Channel); setResult(''); setConversation(''); setOtherResolution(''); }}
+              onValueChange={(v) => { setChannel(v as Channel); setResult(''); setConversation(''); setOtherResolution(''); setFlatTextValue(''); }}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -138,20 +150,37 @@ export default function LogAttemptDialog({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Attempt outcome</label>
-            <Select
-              value={result || undefined}
-              onValueChange={(v) => { setResult(v as AttemptResult); setConversation(''); setOtherResolution(''); }}
-            >
-              <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
-              <SelectContent>
-                {RESULTS_BY_CHANNEL[channel].map((r) => (
-                  <SelectItem key={r} value={r}>{RESULT_LABELS[r]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isTextFlat ? (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Attempt outcome</label>
+              <Select
+                value={flatTextValue || undefined}
+                onValueChange={handleFlatTextChange}
+              >
+                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
+                <SelectContent>
+                  {TEXT_FLAT_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Attempt outcome</label>
+              <Select
+                value={result || undefined}
+                onValueChange={(v) => { setResult(v as AttemptResult); setConversation(''); setOtherResolution(''); }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
+                <SelectContent>
+                  {RESULTS_BY_CHANNEL[channel].map((r) => (
+                    <SelectItem key={r} value={r}>{RESULT_LABELS[r]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {isWrongNumber && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
@@ -163,7 +192,7 @@ export default function LogAttemptDialog({
             </div>
           )}
 
-          {reached && (
+          {reached && !isTextFlat && (
             <div className="space-y-1">
               <label className="text-sm font-medium">Conversation outcome (required)</label>
               <Select
