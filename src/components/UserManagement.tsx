@@ -24,6 +24,7 @@ interface User {
   role?: UserRole;
   created_at: string;
   assignedProjects?: string[];
+  is_setter_team_lead?: boolean;
 }
 
 interface Project {
