@@ -48,6 +48,7 @@ const InsuranceRulesConfig = () => {
   const [ruleNote, setRuleNote] = useState('');
   const [ruleProject, setRuleProject] = useState<string>('__all__');
   const [ruleLocation, setRuleLocation] = useState('');
+  const [rulesClinicFilter, setRulesClinicFilter] = useState<string>('__all__');
 
   // tester state
   const [testProject, setTestProject] = useState<string>('__all__');
@@ -182,6 +183,7 @@ const InsuranceRulesConfig = () => {
       });
       if (sErr) toast({ title: 'Rule saved, scope failed', description: sErr.message, variant: 'destructive' });
     }
+    if (ruleProject !== '__all__') setRulesClinicFilter(ruleProject);
     setRuleValue(''); setRuleNote(''); setRuleLocation('');
     loadAll();
     toast({ title: 'Rule added' });
@@ -199,6 +201,15 @@ const InsuranceRulesConfig = () => {
     if (!list.length) return 'All clinics';
     return list.map((s) => [s.project_name, s.location, s.calendar_name].filter(Boolean).join(' · ')).join(' | ');
   };
+
+  const visibleRules = useMemo(() => {
+    if (rulesClinicFilter === '__all__') return rules;
+    return rules.filter((r) => {
+      const list = scopes.filter((s) => s.rule_id === r.id);
+      if (!list.length) return true; // global rule applies everywhere
+      return list.some((s) => !s.project_name || s.project_name === rulesClinicFilter);
+    });
+  }, [rules, scopes, rulesClinicFilter]);
 
   const clinicSupported = useMemo(
     () => supported.filter((s) => s.project_name === supportedClinic),
@@ -515,6 +526,22 @@ const InsuranceRulesConfig = () => {
               </div>
             </div>
 
+            <div className="flex items-end gap-3">
+              <div className="space-y-1">
+                <Label>Filter by clinic</Label>
+                <Select value={rulesClinicFilter} onValueChange={setRulesClinicFilter}>
+                  <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All clinics</SelectItem>
+                    {projects.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-xs text-muted-foreground pb-2">
+                {visibleRules.length} {visibleRules.length === 1 ? 'rule' : 'rules'}
+              </span>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -528,7 +555,7 @@ const InsuranceRulesConfig = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rules.map((r) => (
+                {visibleRules.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.rule_type === 'group_number' ? 'Group number' : 'Plan'}</TableCell>
                     <TableCell>{r.plan_id ? planNameById.get(r.plan_id) : r.value}</TableCell>
@@ -543,8 +570,10 @@ const InsuranceRulesConfig = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!loading && rules.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-sm text-muted-foreground">No rules configured.</TableCell></TableRow>
+                {!loading && visibleRules.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-sm text-muted-foreground">
+                    {rulesClinicFilter === '__all__' ? 'No rules configured.' : 'No rules for this clinic.'}
+                  </TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
