@@ -54,7 +54,25 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   const result: { name: string | null; phone: string | null } = { name: null, phone: null };
   if (!intakeNotes) return result;
 
+  // Free-text fallback: a US-style 10-digit number embedded in prose.
   const PHONE_RE = /(\(?\d{3}\)?[.\-\s]?\d{3}[.\-\s]?\d{4})/;
+  // A whole label value that IS a phone number: digits plus common separators,
+  // 10-15 digits total (covers leading zeros, country codes and extensions).
+  // Using this before PHONE_RE prevents truncating "09353503443" to 10 digits.
+  const looksLikeWholePhone = (v: string) => {
+    const s = (v || '').trim();
+    if (!s) return false;
+    if (/[A-Za-z]/.test(s)) return false;
+    if (!/^[\d\s().+\-x/]+$/.test(s)) return false;
+    const digits = s.replace(/\D/g, '');
+    return digits.length >= 10 && digits.length <= 15;
+  };
+  /** Best phone value from a label value: the full value when it is itself a phone. */
+  const phoneFromValue = (v: string): string | null => {
+    if (looksLikeWholePhone(v)) return v.trim();
+    const m = (v || '').match(PHONE_RE);
+    return m ? m[1] : null;
+  };
   const isBad = (v: string) => {
     if (!v) return true;
     const s = v.trim();
