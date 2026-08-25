@@ -1158,12 +1158,17 @@ async function persistInsuranceCardSlots(
 ) {
   if (!slots.primaryFront && !slots.primaryBack && !slots.secondaryFront && !slots.secondaryBack) return;
 
+  // Never persist a back image that is literally the same file as its front.
+  const primaryBack = slots.primaryBack && slots.primaryBack === slots.primaryFront ? null : slots.primaryBack;
+  const secondaryBack =
+    slots.secondaryBack && slots.secondaryBack === slots.secondaryFront ? null : slots.secondaryBack;
+
   const { data, error } = await supabase.rpc('merge_appointment_insurance_cards', {
     _appointment_id: appointmentId,
     _primary_front: slots.primaryFront,
-    _primary_back: slots.primaryBack,
+    _primary_back: primaryBack,
     _secondary_front: slots.secondaryFront,
-    _secondary_back: slots.secondaryBack,
+    _secondary_back: secondaryBack,
     _allow_primary_pair_correction: allowPrimaryPairCorrection,
   });
 
