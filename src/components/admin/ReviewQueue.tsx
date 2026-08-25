@@ -530,7 +530,10 @@ const ReviewQueue: React.FC = () => {
         .from('all_appointments')
         .select('id', { count: 'exact', head: true })
         .eq('review_status', status)
-        .or('is_reserved_block.is.null,is_reserved_block.eq.false');
+        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+        // The lists hide retired (superseded) rows — the badges must too, or a
+        // bucket shows a bigger number than the rows you can actually count.
+        .or('is_superseded.is.null,is_superseded.eq.false');
       if (stage) q = q.eq('review_stage', stage);
 
       // Mirror the list filters so the badges match what is on screen
