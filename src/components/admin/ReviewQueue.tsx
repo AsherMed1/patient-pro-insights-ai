@@ -170,6 +170,7 @@ const ReviewQueue: React.FC = () => {
   const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [traineeCount, setTraineeCount] = useState(0);
+  const [qaHoldCount, setQaHoldCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
   const [approvedDateFrom, setApprovedDateFrom] = useState<Date | undefined>();
