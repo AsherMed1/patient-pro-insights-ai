@@ -48,6 +48,17 @@ function inferProcedureFromContext(
   return null;
 }
 
+// Time-of-day preference for unscheduled-capture projects (no booked slot in GHL).
+function extractTimePreference(notes: string | null | undefined): string | null {
+  const m = /Time Preference\s*:\s*([^\n]+)/i.exec(notes || '');
+  if (!m) return null;
+  const v = m[1].trim().toLowerCase().replace(/\s+/g, '_');
+  if (['morning', 'afternoon', 'evening', 'no_preference'].includes(v)) return v;
+  return null;
+}
+
+
+
 
 type InputRow = {
   project_name: string;
@@ -277,6 +288,7 @@ Deno.serve(async (req) => {
           internal_process_complete: false,
           date_appointment_created: new Date().toISOString().slice(0, 10),
           ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
+          ...(dateOfAppt ? {} : { time_preference: extractTimePreference(formattedNotes) }),
         };
 
         const { data: inserted, error: insErr } = await supabase

@@ -181,7 +181,7 @@ serve(async (req) => {
 
     // Unscheduled-capture projects: capture leads without booking a specific time slot.
     // Store a time-of-day preference instead of date_of_appointment/requested_time.
-    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'prospero vascular and interventional']);
+    const UNSCHEDULED_PROJECTS = new Set(['premier vascular', 'ecco medical', 'prospero vascular and interventional', 'vascular institute of michigan']);
     const SCHEDULING_TAG_PROJECTS = new Set(['prospero vascular and interventional']);
     const isPremierVascular = UNSCHEDULED_PROJECTS.has((body.project_name || '').trim().toLowerCase());
     const normalizeTimePreference = (val: unknown): string | null => {
