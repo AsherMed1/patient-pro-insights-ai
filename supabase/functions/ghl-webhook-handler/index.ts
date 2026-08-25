@@ -1136,11 +1136,26 @@ const PRIMARY_CARD_PATTERNS = [
   'insurance_image',
   'insurance_id_card',
   'front_of_insurance_card',
+  'back_of_insurance_card',
   'insurance card',
   'card front',
+  'card back',
   'insurance front',
+  'insurance back',
+  'front of insurance',
+  'back of insurance',
+  'front of your insurance',
+  'back of your insurance',
   'insurance_id_link',
+  'insurance_back_link',
+  'insurance_front_link',
 ];
+
+// Some clinics collect the two sides in two separate upload fields. When the field
+// key itself says "back", the file belongs in the back slot regardless of filename.
+const BACK_KEY_RE = /back[_\s-]*(of|side)?|_back\b|\bback\b/;
+const FRONT_KEY_RE = /front/;
+
 
 export interface InsuranceCardSlots {
   primaryFront: string | null;
