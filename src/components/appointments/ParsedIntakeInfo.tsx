@@ -1614,8 +1614,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     .filter(([k, v]) => k !== 'procedure_type' && k !== 'procedure' && formatValue(v as any));
                   const hasMedicalExtras = Boolean(
                     formatValue(parsedMedicalInfo?.smoking_status) ||
-                    formatValue(parsedMedicalInfo?.blood_thinners)
+                    formatValue(parsedMedicalInfo?.blood_thinners) ||
+                    formatValue((parsedMedicalInfo as any)?.medical_conditions)
                   );
+
                   if (pathologyKeys.length > 0 || hasMedicalExtras) return null;
                   return (
                     <div className="text-xs text-muted-foreground italic pt-2 border-t border-amber-200 mt-2">
