@@ -2542,9 +2542,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     } else if (key.includes('vascular provider') || key.includes('vascular_provider') || key.includes('care of a vascular')) {
       (result.pathology_info as any).vascular_provider = String(value);
     } else if (key.includes('medical conditions') || key.includes('medical_conditions')) {
-      (result.pathology_info as any).diagnosis = String(value);
-    } else if (isTargetPAD && /\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker|smoke)\b/i.test(rawKey)) {
+      (result.medical_info as any).medical_conditions = String(value);
+    } else if (isTargetPAD && /\b(?:smoking\s+status|tobacco(?:\s+use|\s+products?)?|smoker|smoke)\b/i.test(rawKey)) {
       (result.medical_info as any).smoking_status = String(value);
+
     } else if (key.includes('numbness') || key.includes('cold feet') || key.includes('discoloration')) {
       const lowerVal = String(value).toLowerCase();
       if (lowerVal.includes('yes') || lowerVal === '☑️ yes') {
