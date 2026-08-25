@@ -1591,6 +1591,21 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                   </div>
                   );
                 })()}
+                {/* Honest empty state: distinguish "clinic never collected it" from a parser failure */}
+                {(() => {
+                  const pathologyKeys = Object.entries(parsedPathologyInfo || {})
+                    .filter(([k, v]) => k !== 'procedure_type' && k !== 'procedure' && formatValue(v as any));
+                  const hasMedicalExtras = Boolean(
+                    formatValue(parsedMedicalInfo?.smoking_status) ||
+                    formatValue(parsedMedicalInfo?.blood_thinners)
+                  );
+                  if (pathologyKeys.length > 0 || hasMedicalExtras) return null;
+                  return (
+                    <div className="text-xs text-muted-foreground italic pt-2 border-t border-amber-200 mt-2">
+                      No intake pathology answers were submitted for this patient.
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}
