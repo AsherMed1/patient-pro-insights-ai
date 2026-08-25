@@ -327,6 +327,36 @@ export default function RecaptureCaseDrawer({
         );
       }
 
+      // Push do-not-reschedule tag to GHL when the patient is marked Not Interested
+      // so clinic GHL workflows halt further outreach. Fire-and-forget, non-blocking.
+      if (payload.conversationOutcome === 'not_interested' && row.appointment_id) {
+        try {
+          const { data: appt } = await supabase
+            .from('all_appointments')
+            .select('ghl_id, project_name')
+            .eq('id', row.appointment_id)
+            .maybeSingle();
+          if (appt?.ghl_id) {
+            const { data: proj } = await supabase
+              .from('projects')
+              .select('ghl_api_key')
+              .eq('project_name', appt.project_name)
+              .maybeSingle();
+            supabase.functions.invoke('update-ghl-contact-tags', {
+              body: {
+                ghl_contact_id: appt.ghl_id,
+                ghl_api_key: proj?.ghl_api_key || undefined,
+                tags: ['do-not-reschedule'],
+                action: 'add',
+                source: 'recapture not-interested',
+              },
+            }).catch((e) => console.warn('[recapture] do-not-reschedule tag push failed', e));
+          }
+        } catch (e) {
+          console.warn('[recapture] do-not-reschedule tag lookup failed', e);
+        }
+      }
+
       // Only after the backend confirms do we move the visible outcome.
       patch({
         work_status: update.work_status,
