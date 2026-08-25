@@ -556,10 +556,11 @@ const ReviewQueue: React.FC = () => {
       }
       return q;
     };
-    const [{ count: nc }, { count: pc }, { count: tc }, { count: dc }, { count: ac }] = await Promise.all([
+    const [{ count: nc }, { count: pc }, { count: tc }, { count: qc }, { count: dc }, { count: ac }] = await Promise.all([
       base('pending', 'new'),
       base('pending', 'pending_review'),
       base('pending', 'trainee'),
+      base('pending', 'qa_hold'),
       base('declined'),
       base('approved'),
     ]);
@@ -567,6 +568,7 @@ const ReviewQueue: React.FC = () => {
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setTraineeCount(tc || 0);
+    setQaHoldCount(qc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
     setCountsLoading(false);
