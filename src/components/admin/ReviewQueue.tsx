@@ -467,7 +467,13 @@ const ReviewQueue: React.FC = () => {
     if (queueView === 'declined' || queueView === 'approved') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
     } else {
-      q = q.eq('review_stage', queueView === 'new' ? 'new' : queueView === 'trainee' ? 'trainee' : 'pending_review');
+      q = q.eq(
+        'review_stage',
+        queueView === 'new' ? 'new'
+          : queueView === 'trainee' ? 'trainee'
+          : queueView === 'qa_hold' ? 'qa_hold'
+          : 'pending_review',
+      );
       q = q.order('created_at', { ascending: false });
     }
 
