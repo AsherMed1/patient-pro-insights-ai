@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/useRole";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
+import AppointmentHistory from './AppointmentHistory';
+
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { buildInsuranceData } from '@/lib/insuranceFields';
