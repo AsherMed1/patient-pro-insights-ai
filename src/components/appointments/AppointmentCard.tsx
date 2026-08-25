@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/useRole";
 import LeadDetailsModal from '@/components/LeadDetailsModal';
 import AppointmentNotes from './AppointmentNotes';
+import AppointmentHistory from './AppointmentHistory';
+
 import { ParsedIntakeInfo } from './ParsedIntakeInfo';
 import InsuranceViewModal from '@/components/InsuranceViewModal';
 import { buildInsuranceData } from '@/lib/insuranceFields';
@@ -2225,7 +2227,11 @@ const AppointmentCard = ({
           leadName={appointment.lead_name}
           projectName={appointment.project_name}
         />
+
+        {/* Patient History (includes superseded appointments) */}
+        <AppointmentHistory appointment={appointment} defaultOpen={false} />
       </div>
+
       
       {/* Modals */}
       {showLeadDetails && leadData && (
