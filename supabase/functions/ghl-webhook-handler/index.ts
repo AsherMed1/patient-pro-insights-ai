@@ -1326,14 +1326,14 @@ function customFieldEntries(customFields: any): Array<[string, any]> {
 const SECONDARY_KEY_RE = /secondary|2nd|\(2\)|[_\s-]2\b|_2$/;
 
 function collectInsuranceCardFiles(customFields: any): {
-  primaryFiles: Array<{ url: string; name: string }>;
-  secondaryFiles: Array<{ url: string; name: string }>;
+  primaryFiles: CardFile[];
+  secondaryFiles: CardFile[];
 } {
   const entries = customFieldEntries(customFields);
   const isCardField = (key: string) => PRIMARY_CARD_PATTERNS.some((p) => key.includes(p));
 
-  const secondaryFiles: Array<{ url: string; name: string }> = [];
-  const primaryFiles: Array<{ url: string; name: string }> = [];
+  const secondaryFiles: CardFile[] = [];
+  const primaryFiles: CardFile[] = [];
   const diagnostics: Array<Record<string, unknown>> = [];
   // The same image is often exposed twice for one slot — once through a merge tag
   // (insurance_id_link) and once through the upload field itself. Dedupe across ALL
@@ -1345,11 +1345,20 @@ function collectInsuranceCardFiles(customFields: any): {
     if (!isCardField(key)) continue;
     const files = extractFilesFromValue(value);
     const isSecondary = SECONDARY_KEY_RE.test(key);
+    // A field key that names a side is authoritative for that side. Merge tags
+    // (insurance_id_link / insurance_back_link) count too.
+    const keySlot: 'front' | 'back' | null =
+      key.includes('back_link') || (BACK_KEY_RE.test(key) && !FRONT_KEY_RE.test(key))
+        ? 'back'
+        : key.includes('front_link') || (FRONT_KEY_RE.test(key) && !BACK_KEY_RE.test(key))
+          ? 'front'
+          : null;
     // Log every card-ish key, INCLUDING empty ones: an empty
     // insurance_id_link_secondary proves the GHL merge tag never resolved.
     diagnostics.push({
       key,
       slot: isSecondary ? 'secondary' : 'primary',
+      keySlot,
       files: files.length,
       rawType: typeof value,
       rawEmpty: value === null || value === undefined || String(value).trim() === '',
@@ -1361,7 +1370,9 @@ function collectInsuranceCardFiles(customFields: any): {
     for (const file of files) {
       if (seen.has(file.url)) continue;
       seen.add(file.url);
-      target.push(file);
+      // Only trust the key hint when the field holds a single file; a multi-file
+      // field named "insurance card" carries both sides.
+      target.push({ ...file, slot: files.length === 1 ? keySlot : null });
     }
   }
 
@@ -1371,6 +1382,7 @@ function collectInsuranceCardFiles(customFields: any): {
 
   return { primaryFiles, secondaryFiles };
 }
+
 
 function extractInsuranceCardSlots(customFields: any): InsuranceCardSlots {
   const { primaryFiles, secondaryFiles } = collectInsuranceCardFiles(customFields);
