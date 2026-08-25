@@ -1175,8 +1175,13 @@ async function persistInsuranceCardSlots(
 }
 
 // Assign collected files to front/back: filename hints win, otherwise use order.
+// The same file must never occupy both slots (a merge tag and an upload field can
+// reference one image), so an identical back is always dropped.
 function assignFrontBack(files: Array<{ url: string; name: string }>): { front: string | null; back: string | null } {
   if (files.length === 0) return { front: null, back: null };
+
+  const dedupe = (pair: { front: string | null; back: string | null }) =>
+    pair.back && pair.back === pair.front ? { front: pair.front, back: null } : pair;
 
   const hint = (f: { url: string; name: string }) => `${f.name} ${f.url}`.toLowerCase();
   const explicitBack = files.find((f) => /back/.test(hint(f)));
@@ -1184,10 +1189,10 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
 
   if (explicitFront || explicitBack) {
     const front = explicitFront?.url ?? files.find((f) => f !== explicitBack)?.url ?? null;
-    return { front, back: explicitBack?.url ?? null };
+    return dedupe({ front, back: explicitBack?.url ?? null });
   }
 
-  return { front: files[0].url, back: files[1]?.url ?? null };
+  return dedupe({ front: files[0].url, back: files[1]?.url ?? null });
 }
 
 // GHL upload values are opaque `documents/download/<id>` URLs with no filename in
