@@ -9,10 +9,11 @@ import { supabase } from '@/integrations/supabase/client';
  *
  * Responsibilities (in order):
  *  1. DB update (status, procedure_ordered rules, internal_process_complete rules)
- *  2. GHL appointment status sync via `update-ghl-appointment`
+ *  2. GHL appointment status sync via `update-ghl-appointment` — SKIPPED for OON
+ *     (see the `isOon` note below: the GHL OON workflow owns that cancellation)
  *  3. System note "Status changed from X to Y by {user}" on real transitions
  *  4. Do Not Call side effects (DND in GHL)
- *  5. OON side effects (Slack alert)
+ *  5. OON side effects (Slack alert + GHL contact tags)
  *  6. `appointment-status-webhook` fired on every save
  */
 
@@ -159,10 +160,23 @@ export async function changeAppointmentStatus({
   // re-opens, while the portal record stays active as an unscheduled lead.
   const ghlStatus = status.toLowerCase() === 'referral requested' ? 'Cancelled' : status;
 
+  // OON is WORKFLOW-OWNED in GoHighLevel. The client's "OON PT - Cancel Appt in
+  // future" workflow only fires while the GHL appointment is still `confirmed`
+  // AND the contact carries the `oon pt` tag — it then updates the appointment
+  // status itself and sends the patient the OON message. If the portal cancels
+  // the appointment first (STATUS_MAP maps OON -> cancelled), that filter can
+  // never match: no OON message goes out and the plain cancellation drags the
+  // opportunity into the "Needs to Reschedule" workflow instead. So for OON we
+  // deliberately leave the GHL appointment alone and let GHL cancel it.
+  const isOon = status === 'OON';
+
   let ghlVerified: boolean | null = null;
   let ghlErrorText: string | undefined;
 
-  if (skipGhlSync) {
+  if (isOon) {
+    console.log('⏭️ GHL appointment push skipped for OON — GHL workflow owns the cancellation');
+    ghlVerified = null;
+  } else if (skipGhlSync) {
     console.log('⏭️ GHL sync skipped by caller (stale portal record)');
     ghlVerified = null;
   } else if (syncData?.ghl_appointment_id) {
@@ -318,6 +332,73 @@ export async function changeAppointmentStatus({
       }
     } catch (oonError) {
       console.error('⚠️ Failed to send OON Slack notification (non-critical):', oonError);
+    }
+
+    // GHL contact tags. `appointment-oon` mirrors the Review Queue "Mark OON"
+    // path (it releases contacts from the review-queue Wait step). `oon pt` is
+    // normally applied by the project's own GHL automation off the outbound
+    // webhook — but when the project has no webhook URL configured, that tag can
+    // never arrive, so we push it ourselves or the OON workflow never fires.
+    try {
+      const { data: tagRow } = await supabase
+        .from('all_appointments')
+        .select('ghl_id, project_name')
+        .eq('id', appointmentId)
+        .maybeSingle();
+
+      if (tagRow?.ghl_id) {
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('ghl_api_key, appointment_webhook_url')
+          .eq('project_name', tagRow.project_name as string)
+          .maybeSingle();
+
+        const tags = ['appointment-oon'];
+        if (!projectData?.appointment_webhook_url) tags.push('oon pt');
+
+        const { error: tagErr } = await supabase.functions.invoke('update-ghl-contact-tags', {
+          body: {
+            ghl_contact_id: tagRow.ghl_id,
+            ghl_api_key: projectData?.ghl_api_key || undefined,
+            tags,
+            action: 'add',
+            source: 'Portal — status set to OON',
+          },
+        });
+
+        if (tagErr) {
+          console.error('⚠️ OON GHL tag push failed:', tagErr);
+          onWarning?.({
+            title: 'OON saved — GHL tag failed',
+            description: `The GHL tag(s) ${tags.join(', ')} could not be added. The OON workflow may not fire for this patient.`,
+            severe: true,
+          });
+          await supabase.from('appointment_notes').insert({
+            appointment_id: appointmentId,
+            note_text: `GHL OON tags FAILED (${tags.join(', ')}): ${(tagErr as any)?.message || tagErr}`,
+            created_by: 'System',
+            visibility: 'internal',
+          } as any);
+        } else {
+          await supabase.from('appointment_notes').insert({
+            appointment_id: appointmentId,
+            note_text:
+              `GHL OON tags applied: ${tags.join(', ')}. The GoHighLevel appointment was intentionally left as-is ` +
+              `so the OON workflow can cancel it and send the patient the OON message.`,
+            created_by: 'System',
+            visibility: 'internal',
+          } as any);
+        }
+      } else {
+        await supabase.from('appointment_notes').insert({
+          appointment_id: appointmentId,
+          note_text: 'GHL OON tags skipped: no GHL contact ID on this appointment.',
+          created_by: 'System',
+          visibility: 'internal',
+        } as any);
+      }
+    } catch (tagError) {
+      console.error('⚠️ OON GHL tag push threw (non-critical):', tagError);
     }
   }
 
