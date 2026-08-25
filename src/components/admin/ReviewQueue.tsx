@@ -2095,6 +2095,15 @@ const ReviewQueue: React.FC = () => {
             </Button>
           )}
           <Button
+            variant={queueView === 'qa_hold' ? 'default' : 'outline'}
+            size="sm"
+            title="Appointments pulled back by the Potential-OON safeguard, waiting on insurance verification"
+            onClick={() => { setQueueView('qa_hold'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
+          >
+            QA Hold
+            <Badge variant="secondary" className="ml-2">{qaHoldCount}</Badge>
+          </Button>
+          <Button
             variant={queueView === 'declined' ? 'default' : 'outline'}
             size="sm"
             onClick={() => { setQueueView('declined'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
