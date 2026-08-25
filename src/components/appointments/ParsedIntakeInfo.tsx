@@ -1539,12 +1539,29 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     </Badge>
                   </div>
                 )}
+                {formatValue((parsedMedicalInfo as any)?.medical_conditions) && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Medical Conditions:</span>{" "}
+                    <span className="inline-flex flex-wrap gap-1 align-middle">
+                      {String((parsedMedicalInfo as any).medical_conditions)
+                        .split(/[,;|]/)
+                        .map((c: string) => c.trim())
+                        .filter(Boolean)
+                        .map((c: string, i: number) => (
+                          <Badge key={`${c}-${i}`} variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                            {c}
+                          </Badge>
+                        ))}
+                    </span>
+                  </div>
+                )}
                 {formatValue(parsedMedicalInfo?.smoking_status) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Smoking Status:</span>{" "}
                     <span className="font-medium">{parsedMedicalInfo.smoking_status}</span>
                   </div>
                 )}
+
                 {formatValue(parsedMedicalInfo?.blood_thinners) && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Blood Thinners:</span>{" "}
