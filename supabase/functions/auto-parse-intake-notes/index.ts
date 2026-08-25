@@ -131,10 +131,10 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
       if (isBad(value) || isSlurp(value)) continue;
       if (/\b(phone|number|tel)\b/i.test(label)) continue; // handled above
       if (/\bname\b/i.test(label)) { /* already tried */ continue; }
-      const pm = value.match(PHONE_RE);
+      const pm = phoneFromValue(value);
       if (pm) {
-        if (!result.phone) result.phone = pm[1];
-        const stripped = clean(value.replace(pm[1], ''));
+        if (!result.phone) result.phone = pm;
+        const stripped = clean(value.replace(pm, ''));
         if (stripped && !isBad(stripped) && !isSlurp(stripped)) { result.name = stripped; break; }
       } else {
         result.name = value;
