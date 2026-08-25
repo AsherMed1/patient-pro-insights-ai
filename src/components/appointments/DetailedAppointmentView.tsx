@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import NoShowEligibilityDialog from './NoShowEligibilityDialog';
 import { applyNoShowEligibility, liftRescheduleBlock } from '@/utils/rescheduleBlock';
+import { changeAppointmentStatus } from '@/utils/appointmentStatusChange';
 
 
 import { AllAppointment } from './types';
@@ -318,6 +319,8 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   
   // Cancellation reason dialog states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showOonDialog, setShowOonDialog] = useState(false);
+  const [oonConfirmText, setOonConfirmText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
   const [welcomeCallCompleted, setWelcomeCallCompleted] = useState<boolean | null>(null);
@@ -384,6 +387,32 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
   const handleFieldUpdate = async (updates: Record<string, any>) => {
     setIsUpdating(true);
     try {
+      if (updates.status) {
+        const result = await changeAppointmentStatus({
+          appointmentId: appointment.id,
+          newStatus: updates.status,
+          userName,
+          currentAppointment: appointment,
+          onWarning: (warning) => {
+            if (warning.severe) {
+              toast.error(warning.title, { description: warning.description });
+            } else {
+              toast.warning(warning.title, { description: warning.description });
+            }
+          },
+        });
+
+        if (!result.ok) {
+          if (!result.blocked) toast.error('Failed to update status');
+          return;
+        }
+
+        setCurrentStatus(updates.status);
+        onDataRefresh?.();
+        toast.success('Status updated successfully');
+        return;
+      }
+
       // Build previousValues from current appointment state
       const previousValues: Record<string, any> = {};
       for (const key of Object.keys(updates)) {
@@ -400,23 +429,6 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
         body: { appointmentId: appointment.id, updates, previousValues, userId, userName, changeSource: 'portal' }
       });
       if (error) throw error;
-
-      // GHL sync for status changes
-      if (updates.status && appointment.ghl_appointment_id) {
-        try {
-          await supabase.functions.invoke('update-ghl-appointment', {
-            body: {
-              project_name: appointment.project_name,
-              ghl_appointment_id: appointment.ghl_appointment_id,
-              status: updates.status
-            }
-          });
-        } catch (ghlErr) {
-          console.error('GHL sync failed:', ghlErr);
-          toast.error('Saved locally but GHL sync failed');
-        }
-      }
-
       onDataRefresh?.();
       toast.success('Updated successfully');
     } catch (err) {
@@ -1216,6 +1228,9 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                       setShowRescheduleDialog(true);
                     } else if (value.toLowerCase() === 'cancelled' || value.toLowerCase() === 'canceled') {
                       setShowCancelDialog(true);
+                    } else if (value.toLowerCase() === 'oon') {
+                      setOonConfirmText('');
+                      setShowOonDialog(true);
                     } else if (['no show', 'noshow', 'no-show'].includes(value.toLowerCase())) {
                       setShowNoShowDialog(true);
                     } else {
@@ -1794,6 +1809,37 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showOonDialog} onOpenChange={(open) => { setShowOonDialog(open); if (!open) setOonConfirmText(''); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark patient as Out of Network?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will trigger appointment cancellation workflows, patient notifications, and status updates in connected systems. This cannot be automatically reversed. Type <strong>CONFIRM</strong> below to proceed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={oonConfirmText}
+            onChange={(e) => setOonConfirmText(e.target.value)}
+            placeholder="Type CONFIRM"
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={oonConfirmText.trim().toUpperCase() !== 'CONFIRM' || isUpdating}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                await handleFieldUpdate({ status: 'OON' });
+                setShowOonDialog(false);
+                setOonConfirmText('');
+              }}
+            >
+              Confirm Out of Network
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
