@@ -1192,7 +1192,46 @@ async function persistInsuranceCardSlots(
     return;
   }
   console.log(`[${requestId}] Insurance card slots persisted atomically:`, data);
+
+  // Merge-tag rescue: GHL's insurance_id_link merge tag resolves to only ONE of the
+  // two uploaded primary files, and it is often the BACK. Because the merge above only
+  // fills blanks, that back image gets locked into the front slot and the real front
+  // never lands. When the filename-resolved pair says the stored "front" is actually
+  // the back, rewrite both slots.
+  if (slots.primaryFront && primaryBack) {
+    const { data: row } = await supabase
+      .from('all_appointments')
+      .select('insurance_id_link, insurance_back_link')
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    const storedFront = row?.insurance_id_link || null;
+    const storedBack = row?.insurance_back_link || null;
+    const misplaced =
+      storedFront === primaryBack && storedBack !== primaryBack && storedFront !== slots.primaryFront;
+
+    if (misplaced) {
+      const { error: fixError } = await supabase
+        .from('all_appointments')
+        .update({
+          insurance_id_link: slots.primaryFront,
+          insurance_back_link: primaryBack,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', appointmentId);
+
+      if (fixError) {
+        console.error(`[${requestId}] Failed to correct swapped primary card slots:`, fixError);
+      } else {
+        console.log(
+          `[${requestId}] Corrected primary card slots: stored front was the back image`,
+          JSON.stringify({ front: slots.primaryFront, back: primaryBack }),
+        );
+      }
+    }
+  }
 }
+
 
 // Assign collected files to front/back: an explicit slot hint from the GHL field key
 // wins, then filename hints, then arrival order. The same file must never occupy both
