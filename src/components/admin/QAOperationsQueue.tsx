@@ -2335,11 +2335,30 @@ function CaseDrawer({
         actor_user_id: user?.id ?? null,
       } as any);
     }
+    // Record exactly which audit fields changed, so any later overwrite is
+    // fully traceable in the activity history.
+    const AUDIT_FIELDS: (keyof QACase)[] = [
+      'qa_name',
+      'self_booked',
+      'error_category',
+      'error_source',
+      'caught_before_clinic',
+      'resolution_type',
+    ];
+    const changes: Record<string, { from: any; to: any }> = {};
+    for (const f of AUDIT_FIELDS) {
+      const before = (caseData as any)[f] ?? null;
+      const after = (patch as any)[f] ?? null;
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        changes[f as string] = { from: before, to: after };
+      }
+    }
     await supabase.from('qa_case_activity' as any).insert({
       case_id: caseData.id,
       activity_type: 'audit_update',
       description: 'Audit fields updated',
       actor_user_id: user?.id ?? null,
+      metadata: { changes, actor_name: actorName ?? null },
     } as any);
     if (escalating) {
       await supabase.from('qa_case_activity' as any).insert({
