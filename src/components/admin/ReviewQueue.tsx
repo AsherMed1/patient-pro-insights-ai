@@ -127,7 +127,7 @@ interface DuplicateAppt {
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
-type QueueView = 'new' | 'pending' | 'trainee' | 'declined' | 'approved';
+type QueueView = 'new' | 'pending' | 'trainee' | 'qa_hold' | 'declined' | 'approved';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
@@ -170,6 +170,7 @@ const ReviewQueue: React.FC = () => {
   const [newCount, setNewCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [traineeCount, setTraineeCount] = useState(0);
+  const [qaHoldCount, setQaHoldCount] = useState(0);
   const [declinedCount, setDeclinedCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
   const [approvedDateFrom, setApprovedDateFrom] = useState<Date | undefined>();
@@ -466,7 +467,13 @@ const ReviewQueue: React.FC = () => {
     if (queueView === 'declined' || queueView === 'approved') {
       q = q.order('reviewed_at', { ascending: false, nullsFirst: false });
     } else {
-      q = q.eq('review_stage', queueView === 'new' ? 'new' : queueView === 'trainee' ? 'trainee' : 'pending_review');
+      q = q.eq(
+        'review_stage',
+        queueView === 'new' ? 'new'
+          : queueView === 'trainee' ? 'trainee'
+          : queueView === 'qa_hold' ? 'qa_hold'
+          : 'pending_review',
+      );
       q = q.order('created_at', { ascending: false });
     }
 
@@ -523,7 +530,10 @@ const ReviewQueue: React.FC = () => {
         .from('all_appointments')
         .select('id', { count: 'exact', head: true })
         .eq('review_status', status)
-        .or('is_reserved_block.is.null,is_reserved_block.eq.false');
+        .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+        // The lists hide retired (superseded) rows — the badges must too, or a
+        // bucket shows a bigger number than the rows you can actually count.
+        .or('is_superseded.is.null,is_superseded.eq.false');
       if (stage) q = q.eq('review_stage', stage);
 
       // Mirror the list filters so the badges match what is on screen
@@ -546,10 +556,11 @@ const ReviewQueue: React.FC = () => {
       }
       return q;
     };
-    const [{ count: nc }, { count: pc }, { count: tc }, { count: dc }, { count: ac }] = await Promise.all([
+    const [{ count: nc }, { count: pc }, { count: tc }, { count: qc }, { count: dc }, { count: ac }] = await Promise.all([
       base('pending', 'new'),
       base('pending', 'pending_review'),
       base('pending', 'trainee'),
+      base('pending', 'qa_hold'),
       base('declined'),
       base('approved'),
     ]);
@@ -557,6 +568,7 @@ const ReviewQueue: React.FC = () => {
     setNewCount(nc || 0);
     setPendingCount(pc || 0);
     setTraineeCount(tc || 0);
+    setQaHoldCount(qc || 0);
     setDeclinedCount(dc || 0);
     setApprovedCount(ac || 0);
     setCountsLoading(false);
@@ -2083,6 +2095,15 @@ const ReviewQueue: React.FC = () => {
             </Button>
           )}
           <Button
+            variant={queueView === 'qa_hold' ? 'default' : 'outline'}
+            size="sm"
+            title="Appointments pulled back by the Potential-OON safeguard, waiting on insurance verification"
+            onClick={() => { setQueueView('qa_hold'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
+          >
+            QA Hold
+            <Badge variant="secondary" className="ml-2">{qaHoldCount}</Badge>
+          </Button>
+          <Button
             variant={queueView === 'declined' ? 'default' : 'outline'}
             size="sm"
             onClick={() => { setQueueView('declined'); setSelected(new Set()); if (queueView === 'approved') { setApprovedDateFrom(undefined); setApprovedDateTo(undefined); } }}
@@ -2246,7 +2267,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isTraineeView ? 'No trainee submissions waiting for review.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
+            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isTraineeView ? 'No trainee submissions waiting for review.' : queueView === 'qa_hold' ? 'No appointments on QA Hold for insurance verification.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">

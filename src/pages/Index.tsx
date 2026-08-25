@@ -139,7 +139,11 @@ const Index = () => {
       .from('all_appointments')
       .select('*', { count: 'exact', head: true })
       .eq('review_status', 'pending')
+      // Only the buckets the Review Queue actually renders, and never retired
+      // (superseded) rows — otherwise this badge exceeds the bucket badges.
+      .in('review_stage', ['new', 'pending_review', 'trainee', 'qa_hold'])
       .or('is_reserved_block.is.null,is_reserved_block.eq.false')
+      .or('is_superseded.is.null,is_superseded.eq.false')
       .not('project_name', 'in', '("ECCO Medical","Premier Vascular","Premier Vascular Surgery")');
     setReviewPendingCount(count || 0);
   }, [canSeeReviewCount]);
