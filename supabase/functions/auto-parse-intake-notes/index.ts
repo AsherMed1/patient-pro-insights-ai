@@ -1521,14 +1521,31 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   const isPAD = (parsedData.pathology_info?.procedure_type || '').toString().toUpperCase() === 'PAD';
 
   if (isPAD) {
-    // Smoking/tobacco status — require explicit label with word boundary, stop at pipe
+    // Smoking/tobacco status — accept both label-style and question-style intake keys
     if (!parsedData.medical_info.smoking_status) {
-      const smokeMatch = intakeNotes.match(/\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker)\s*:\s*([^\n|]+)/i);
+      const smokeMatch = intakeNotes.match(
+        /(?:\b(?:smoking\s+status|tobacco(?:\s+use)?|smoker)|do\s+you\s+smoke[^:\n|]*|smoke\s+or\s+use\s+tobacco[^:\n|]*|tobacco\s+products?)\s*:\s*([^\n|]+)/i
+      );
       if (smokeMatch && smokeMatch[1]) {
         parsedData.medical_info.smoking_status = smokeMatch[1].trim();
         console.log(`[AUTO-PARSE ENRICH] Extracted smoking_status via regex: ${parsedData.medical_info.smoking_status}`);
       }
     }
+
+    // Comorbidities / medical conditions multi-select
+    if (!(parsedData.medical_info as any).medical_conditions) {
+      const mcMatch = intakeNotes.match(
+        /(?:select\s+the\s+following\s+)?medical\s+conditions?(?:\s+that\s+apply(?:\s+to\s+you)?)?[^:\n|]*:\s*([^\n|]+)/i
+      );
+      if (mcMatch && mcMatch[1]) {
+        const val = mcMatch[1].trim();
+        if (val && !/^(none|n\/a|no)$/i.test(val)) {
+          (parsedData.medical_info as any).medical_conditions = val;
+          console.log(`[AUTO-PARSE ENRICH] Extracted medical_conditions via regex: ${val}`);
+        }
+      }
+    }
+
 
     // Blood thinners — require word boundary label, stop at pipe
     if (!parsedData.medical_info.blood_thinners) {
