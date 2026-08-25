@@ -2766,6 +2766,22 @@ function CaseDrawer({
                   </div>
                 )}
 
+                {siblingAudit && (
+                  <div className="rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-400">
+                    Audit already recorded on the{' '}
+                    {ALERT_LABELS[siblingAudit.alert_type] ?? siblingAudit.alert_type} case
+                    {siblingAudit.qa_name ? ` by ${siblingAudit.qa_name}` : ''}
+                    {siblingAudit.updated_at
+                      ? ` — ${format(new Date(siblingAudit.updated_at), 'MMM d, h:mm a')}`
+                      : ''}
+                    .{' '}
+                    <button type="button" onClick={copySiblingAudit} className="underline font-medium">
+                      Copy into this record
+                    </button>
+                  </div>
+                )}
+
+
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                   <div className="min-w-0">
