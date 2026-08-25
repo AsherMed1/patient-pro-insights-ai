@@ -159,10 +159,23 @@ export async function changeAppointmentStatus({
   // re-opens, while the portal record stays active as an unscheduled lead.
   const ghlStatus = status.toLowerCase() === 'referral requested' ? 'Cancelled' : status;
 
+  // OON is WORKFLOW-OWNED in GoHighLevel. The client's "OON PT - Cancel Appt in
+  // future" workflow only fires while the GHL appointment is still `confirmed`
+  // AND the contact carries the `oon pt` tag — it then updates the appointment
+  // status itself and sends the patient the OON message. If the portal cancels
+  // the appointment first (STATUS_MAP maps OON -> cancelled), that filter can
+  // never match: no OON message goes out and the plain cancellation drags the
+  // opportunity into the "Needs to Reschedule" workflow instead. So for OON we
+  // deliberately leave the GHL appointment alone and let GHL cancel it.
+  const isOon = status === 'OON';
+
   let ghlVerified: boolean | null = null;
   let ghlErrorText: string | undefined;
 
-  if (skipGhlSync) {
+  if (isOon) {
+    console.log('⏭️ GHL appointment push skipped for OON — GHL workflow owns the cancellation');
+    ghlVerified = null;
+  } else if (skipGhlSync) {
     console.log('⏭️ GHL sync skipped by caller (stale portal record)');
     ghlVerified = null;
   } else if (syncData?.ghl_appointment_id) {
