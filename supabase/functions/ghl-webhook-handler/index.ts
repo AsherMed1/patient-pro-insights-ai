@@ -1194,18 +1194,25 @@ async function persistInsuranceCardSlots(
   console.log(`[${requestId}] Insurance card slots persisted atomically:`, data);
 }
 
-// Assign collected files to front/back: filename hints win, otherwise use order.
-// The same file must never occupy both slots (a merge tag and an upload field can
-// reference one image), so an identical back is always dropped.
-function assignFrontBack(files: Array<{ url: string; name: string }>): { front: string | null; back: string | null } {
+// Assign collected files to front/back: an explicit slot hint from the GHL field key
+// wins, then filename hints, then arrival order. The same file must never occupy both
+// slots (a merge tag and an upload field can reference one image), so an identical back
+// is always dropped. A lone file that is clearly the BACK stays in the back slot —
+// mislabeling it as the front is what made the portal show the back as "Front of Card".
+type CardFile = { url: string; name: string; slot?: 'front' | 'back' | null };
+
+function assignFrontBack(files: CardFile[]): { front: string | null; back: string | null } {
   if (files.length === 0) return { front: null, back: null };
 
   const dedupe = (pair: { front: string | null; back: string | null }) =>
     pair.back && pair.back === pair.front ? { front: pair.front, back: null } : pair;
 
-  const hint = (f: { url: string; name: string }) => `${f.name} ${f.url}`.toLowerCase();
-  const explicitBack = files.find((f) => /back/.test(hint(f)));
-  const explicitFront = files.find((f) => /front/.test(hint(f)) && f !== explicitBack);
+  const hint = (f: CardFile) => `${f.name} ${f.url}`.toLowerCase();
+  const isBack = (f: CardFile) => f.slot === 'back' || (f.slot !== 'front' && /back/.test(hint(f)));
+  const isFront = (f: CardFile) => f.slot === 'front' || (f.slot !== 'back' && /front/.test(hint(f)));
+
+  const explicitBack = files.find(isBack);
+  const explicitFront = files.find((f) => isFront(f) && f !== explicitBack);
 
   if (explicitFront || explicitBack) {
     const front = explicitFront?.url ?? files.find((f) => f !== explicitBack)?.url ?? null;
@@ -1214,6 +1221,7 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
 
   return dedupe({ front: files[0].url, back: files[1]?.url ?? null });
 }
+
 
 // GHL upload values are opaque `documents/download/<id>` URLs with no filename in
 // them, so front/back hints never match and we fall back to arrival order — which
