@@ -1158,12 +1158,17 @@ async function persistInsuranceCardSlots(
 ) {
   if (!slots.primaryFront && !slots.primaryBack && !slots.secondaryFront && !slots.secondaryBack) return;
 
+  // Never persist a back image that is literally the same file as its front.
+  const primaryBack = slots.primaryBack && slots.primaryBack === slots.primaryFront ? null : slots.primaryBack;
+  const secondaryBack =
+    slots.secondaryBack && slots.secondaryBack === slots.secondaryFront ? null : slots.secondaryBack;
+
   const { data, error } = await supabase.rpc('merge_appointment_insurance_cards', {
     _appointment_id: appointmentId,
     _primary_front: slots.primaryFront,
-    _primary_back: slots.primaryBack,
+    _primary_back: primaryBack,
     _secondary_front: slots.secondaryFront,
-    _secondary_back: slots.secondaryBack,
+    _secondary_back: secondaryBack,
     _allow_primary_pair_correction: allowPrimaryPairCorrection,
   });
 
@@ -1175,8 +1180,13 @@ async function persistInsuranceCardSlots(
 }
 
 // Assign collected files to front/back: filename hints win, otherwise use order.
+// The same file must never occupy both slots (a merge tag and an upload field can
+// reference one image), so an identical back is always dropped.
 function assignFrontBack(files: Array<{ url: string; name: string }>): { front: string | null; back: string | null } {
   if (files.length === 0) return { front: null, back: null };
+
+  const dedupe = (pair: { front: string | null; back: string | null }) =>
+    pair.back && pair.back === pair.front ? { front: pair.front, back: null } : pair;
 
   const hint = (f: { url: string; name: string }) => `${f.name} ${f.url}`.toLowerCase();
   const explicitBack = files.find((f) => /back/.test(hint(f)));
@@ -1184,10 +1194,10 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
 
   if (explicitFront || explicitBack) {
     const front = explicitFront?.url ?? files.find((f) => f !== explicitBack)?.url ?? null;
-    return { front, back: explicitBack?.url ?? null };
+    return dedupe({ front, back: explicitBack?.url ?? null });
   }
 
-  return { front: files[0].url, back: files[1]?.url ?? null };
+  return dedupe({ front: files[0].url, back: files[1]?.url ?? null });
 }
 
 // GHL upload values are opaque `documents/download/<id>` URLs with no filename in
@@ -1301,6 +1311,11 @@ function collectInsuranceCardFiles(customFields: any): {
   const secondaryFiles: Array<{ url: string; name: string }> = [];
   const primaryFiles: Array<{ url: string; name: string }> = [];
   const diagnostics: Array<Record<string, unknown>> = [];
+  // The same image is often exposed twice for one slot — once through a merge tag
+  // (insurance_id_link) and once through the upload field itself. Dedupe across ALL
+  // fields of a slot, otherwise "first file = front, second = back" duplicates it.
+  const seenPrimary = new Set<string>();
+  const seenSecondary = new Set<string>();
 
   for (const [key, value] of entries) {
     if (!isCardField(key)) continue;
@@ -1317,8 +1332,13 @@ function collectInsuranceCardFiles(customFields: any): {
       rawPreview: typeof value === 'string' ? String(value).slice(0, 120) : undefined,
     });
     if (files.length === 0) continue;
-    if (isSecondary) secondaryFiles.push(...files);
-    else primaryFiles.push(...files);
+    const target = isSecondary ? secondaryFiles : primaryFiles;
+    const seen = isSecondary ? seenSecondary : seenPrimary;
+    for (const file of files) {
+      if (seen.has(file.url)) continue;
+      seen.add(file.url);
+      target.push(file);
+    }
   }
 
   if (diagnostics.length > 0) {
