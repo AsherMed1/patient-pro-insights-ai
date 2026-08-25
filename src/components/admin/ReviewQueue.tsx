@@ -127,7 +127,7 @@ interface DuplicateAppt {
 type ActionType = 'approved' | 'declined' | 'oon';
 type SortKey = 'patient' | 'project' | 'service' | 'appointment';
 type SortDir = 'asc' | 'desc';
-type QueueView = 'new' | 'pending' | 'trainee' | 'declined' | 'approved';
+type QueueView = 'new' | 'pending' | 'trainee' | 'qa_hold' | 'declined' | 'approved';
 
 const ReviewQueue: React.FC = () => {
   const { toast } = useToast();
