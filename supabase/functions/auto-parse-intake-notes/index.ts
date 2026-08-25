@@ -99,10 +99,10 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   // 1) Name-specific labels first — take the first usable (non-placeholder) candidate.
   for (const raw of allMatches(/(?:Primary Care|PCP)[^:\n]*\bName\b[^:\n;|]*:\s*([^\n|;]+)/i)) {
     if (isBad(raw) || isSlurp(raw)) continue;
-    const pm = raw.match(PHONE_RE);
+    const pm = phoneFromValue(raw);
     if (pm) {
-      result.phone = pm[1];
-      const stripped = clean(raw.replace(pm[1], ''));
+      result.phone = pm;
+      const stripped = clean(raw.replace(pm, ''));
       if (stripped && !isBad(stripped) && !isSlurp(stripped)) result.name = stripped;
     } else {
       result.name = raw;
@@ -114,8 +114,7 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   if (!result.phone) {
     for (const raw of allMatches(/(?:Primary Care|PCP)[^:\n]*(?:Phone|Number|Tel)[^:\n;|]*:\s*([^\n|;]+)/i)) {
       if (isBad(raw) || isSlurp(raw)) continue;
-      const pm = raw.match(PHONE_RE);
-      result.phone = pm ? pm[1] : raw;
+      result.phone = phoneFromValue(raw) ?? raw;
       break;
     }
   }
