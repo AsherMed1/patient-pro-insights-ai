@@ -1,61 +1,59 @@
-# Portal OON status must trigger the GHL OON workflow
+# OON must apply the `oon pt` tag in GHL (both OON paths)
 
-## Confirmed issue
+## Confirmed root cause
 
-The clinic set the patient to **OON** from the Portal status dropdown, but the GHL OON workflow did not fire because that Portal path was not applying the GHL contact tag your workflow listens for.
-
-From the workflows you found, the required GHL tag is:
+Your two GHL workflows (`OON status → GHL Appt Updates` and `OON PT - Cancel Appt in future`) both key off the contact tag:
 
 ```text
 oon pt
 ```
 
-The existing Portal behavior only mapped the appointment status to a GHL appointment cancellation. That released/cancelled the appointment, but without the `oon pt` contact tag, GHL treated it like a normal cancellation/reschedule scenario instead of the OON patient workflow.
+Neither Portal OON path sends that tag:
+
+- **Portal status dropdown → OON** (`src/utils/appointmentStatusChange.ts`): sends **no contact tag at all**. It only sets the status, cancels the GHL appointment, writes a note, fires `notify-slack-oon`, and fires `appointment-status-webhook`.
+- **Review Queue → Mark OON** (`src/components/admin/ReviewQueue.tsx`): sends a contact tag, but the wrong one — `appointment-oon`, which exists only as a workflow-exit tag for the review-queue Wait step.
+
+Because GHL only saw a plain appointment cancellation, the contact fell into the Needs to Reschedule branch instead of the OON workflow, and no OON message went out.
 
 ## Fix
 
-Update the canonical Portal status-change path so **every time an appointment is set to `OON` from the Portal**, it also updates the GHL contact tags:
+Apply the same GHL contact tag set on **every** OON write path.
 
-1. Add GHL contact tag:
-   ```text
-   oon pt
-   ```
-2. Also add the internal branch-protection tag:
-   ```text
-   do-not-reschedule
-   ```
-3. Remove any conflicting reschedule branch tag:
-   ```text
-   reschedulable
-   ```
-4. Keep existing OON side effects:
-   - Portal status becomes `OON`
-   - GHL appointment is still cancelled/released
-   - OON Slack alert still fires
-   - `appointment-status-webhook` still fires
-   - status-change note is still written
+Tags to add:
+```text
+oon pt
+do-not-reschedule
+```
 
-## Why this prevents the problem
+Tag to remove:
+```text
+reschedulable
+```
 
-Your GHL workflows are tag-based for the OON patient message. Sending `oon pt` makes the contact enter the OON workflow instead of only being processed as a cancelled appointment.
+### 1. Portal status dropdown (`appointmentStatusChange.ts`)
+In the existing `status === 'OON'` block, push the tag set to the GHL contact via `update-ghl-contact-tags` using the project's `ghl_api_key` (same pattern the Do Not Call block already uses). Write an internal audit note listing the tags applied, and a clear failure note plus a non-blocking warning toast if the push fails — never block the status save.
 
-Adding `do-not-reschedule` and removing `reschedulable` prevents the same contact from also sitting in the Needs to Reschedule branch.
+### 2. Review Queue → Mark OON (`ReviewQueue.tsx`)
+Change the tag payload from `['appointment-oon']` to add `oon pt` + `do-not-reschedule` and remove `reschedulable`. Keep `appointment-oon` as well, since the review-queue Wait step still listens for it.
 
-## Recovery for affected patients
+### 3. Shared helper
+Put the OON tag set in one place (a small exported helper next to `cancellationTags.ts`) so both paths, and any future OON writer, use identical tags.
 
-Add a small backfill/recovery function for recent OON records that already missed the tag:
+Everything else stays as-is: OON still cancels/releases the GHL appointment, still fires the Slack alert and `appointment-status-webhook`, and Review Queue OON rows stay admin-only.
 
-- Find recent `all_appointments` records where `status = 'OON'` and a GHL contact ID exists.
-- Add `oon pt` and `do-not-reschedule` to the GHL contact.
-- Remove `reschedulable` from the GHL contact.
-- Write an internal audit note showing the recovery tags were applied.
+## Recovery for patients already stuck
 
-This can be run for one patient first, then batched for recent OON records if needed.
+One-off recovery pass (modeled on `backfill-review-exit-tags`) over recent records where `status = 'OON'` or `review_status = 'oon'` and a GHL contact ID exists:
+
+- add `oon pt` + `do-not-reschedule`
+- remove `reschedulable`
+- write an internal audit note that recovery tags were applied
+
+Batched with a small delay between GHL calls. Give me the patient's name/clinic and I'll run that one first as a check before the batch.
 
 ## Technical details
 
-- Main file to update: `src/utils/appointmentStatusChange.ts`
-- Reuse existing `update-ghl-contact-tags` Edge Function.
-- No database schema changes required.
-- Do not change the GHL appointment-status mapping: OON should still cancel/release the appointment slot in GHL.
-- Add a memory rule after implementation: all OON write paths must apply `oon pt` + `do-not-reschedule` contact tags, and remove `reschedulable`.
+- Files: `src/utils/appointmentStatusChange.ts`, `src/components/admin/ReviewQueue.tsx`, new shared OON tag helper, one new recovery edge function.
+- Reuses the existing `update-ghl-contact-tags` edge function; no schema changes.
+- `update-ghl-appointment` STATUS_MAP stays unchanged (`OON → cancelled`) so the slot is still released.
+- Memory rule to add after implementation: every OON write path must apply `oon pt` + `do-not-reschedule` and remove `reschedulable` on the GHL contact, or reject the write.
