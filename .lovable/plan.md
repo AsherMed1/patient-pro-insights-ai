@@ -1,4 +1,4 @@
-# Fix Review Queue count mismatches (28 vs 11 vs 8)
+# Fix Review Queue count mismatches (28 vs 11 vs 8) and surface the hidden QA Hold rows
 
 ## What the numbers actually are
 
@@ -8,27 +8,44 @@ Live database, `review_status = 'pending'`, excluding reserved blocks:
 new,           not superseded   8    <- what you can actually see and count
 new,           superseded       3
 pending_review                 10
-qa_hold                         9    <- no tab shows these
+qa_hold                         9    <- invisible: no tab renders this stage
 ```
 
-Three different rules are being used, so three different numbers appear:
+Three different rules produce three different numbers:
 
 - **New tab badge (11)** — the count query forgets to exclude retired (superseded) rows, while the list correctly excludes them. 8 visible + 3 retired = 11.
 - **Manual count (8)** — correct.
-- **Red "28" on the Review Queue tab** — a separate query on the dashboard that counts every pending row in any stage (including the 3 retired rows and the 9 `qa_hold` rows that no tab displays), only excluding reserved blocks and three clinics.
+- **Red "28" on the Review Queue tab** — a separate dashboard query that counts every pending row in any stage (including the 3 retired rows and the 9 invisible `qa_hold` rows), excluding only reserved blocks and three clinics.
+
+## What `qa_hold` is
+
+It is the Potential-OON safeguard. When the OON matcher flags a setter-submitted or already-approved appointment, `evaluate-potential-oon` pulls it back out of the client portal by setting `review_status='pending'` and `review_stage='qa_hold'` so QA can verify insurance first. Nothing in the Review Queue renders that stage, so these records are held but unreachable in the UI.
+
+The 9 currently held (all `potential_oon = true`, none resolved):
+
+```text
+Charanjit Singh          Liberty Medical            Sep 02   Confirmed
+Brenda Allen             Alliance Vascular          Aug 27   OON
+AVA TEST DO NOT TOUCH    AVA Vascular               Sep 02   Confirmed
+Paris Sweezer            Liberty Medical            Sep 02   OON
+Jose Quinones            Liberty Medical            Aug 26   OON
+Shamelia Burroughs       Liberty Medical            Sep 07   OON
+Ruben Falcon             Liberty Medical            Sep 03   OON
+Deborah Washington       Liberty Medical            Sep 03   OON
+Elizabeth Spruill        Richmond Vascular Center   Sep 08   OON
+```
 
 ## The fix
 
-1. Make the tab count queries exclude retired rows exactly like the list does, so New shows 8 and each badge matches its own tab.
-2. Make the red Review Queue tab badge equal the buckets a reviewer can act on: New + Pending Review (excluding retired rows, reserved blocks, and the same excluded clinics). With today's data that badge becomes 18 instead of 28.
-3. Confirm what should happen to the 9 `qa_hold` rows — see the question below. They currently sit in `review_status = 'pending'` with a stage no tab renders, so they are invisible in the queue but inflate the red badge.
+1. Align the bucket badges with their lists: exclude retired (superseded) rows from the count queries, so New reads 8.
+2. Add a visible **QA Hold** bucket to the Review Queue (admins, agents, VAs, QA specialists) showing `review_stage='qa_hold'` rows with the Potential-OON match details and the existing verify / Confirm OON / Approve actions, so held records can be worked instead of sitting invisible.
+3. Make the red Review Queue tab badge count the actionable buckets — New + Pending Review + QA Hold — excluding retired rows, reserved blocks, and the same excluded clinics. With today's data: 8 + 10 + 9 = 27, and it will always equal the sum of the visible bucket badges.
 
 ## Technical notes
 
-- `src/components/admin/ReviewQueue.tsx` → `fetchCounts` `base()` helper: add `.or('is_superseded.is.null,is_superseded.eq.false')` (the list `fetch` at line 463 already has it). Best done by extracting a shared filter helper used by both `fetch` and `fetchCounts` so they cannot drift again.
-- `src/pages/Index.tsx` → `fetchReviewCount`: add the superseded exclusion and restrict to `review_stage in ('new','pending_review')`, keeping the existing reserved-block and project exclusions.
-- No database or RLS change required; this is purely query alignment.
-
-## Open question
-
-The 9 `qa_hold` rows have no tab in the Review Queue. Should they stay excluded from the badge (treated as parked elsewhere), or do they need their own visible bucket?
+- `src/components/admin/ReviewQueue.tsx`
+  - `fetchCounts` `base()`: add `.or('is_superseded.is.null,is_superseded.eq.false')`; factor the shared filter application out so `fetch` and `fetchCounts` cannot drift again.
+  - Widen `QueueView` with `'qa_hold'`, add the bucket button + count, and map it to `.eq('review_stage','qa_hold')` in `fetch`.
+  - Reuse the existing Potential-OON panel (verify in-network / Confirm OON) already rendered for flagged rows.
+- `src/pages/Index.tsx` → `fetchReviewCount`: add the superseded exclusion and `.in('review_stage', ['new','pending_review','qa_hold'])`.
+- No database, RLS, or edge-function change needed — `qa_hold` rows already exist and are readable by these roles.
