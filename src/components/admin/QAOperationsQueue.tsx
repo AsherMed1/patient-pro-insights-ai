@@ -2051,6 +2051,42 @@ function CaseDrawer({
 
   const isDirty = !!caseData && !sameAudit(audit, savedSnapshotRef.current);
 
+  // The audit belongs to the appointment, not the individual alert row. When a
+  // new alert opens a fresh case, surface the audit recorded on a sibling row so
+  // it never looks like the work was wiped.
+  const hasAudit = (c: Partial<QACase> | null | undefined) =>
+    !!c &&
+    !!(
+      (c.qa_name && String(c.qa_name).trim()) ||
+      c.error_category ||
+      c.error_source ||
+      c.resolution_type ||
+      c.caught_before_clinic != null ||
+      c.self_booked != null
+    );
+
+  const siblingAudit = (() => {
+    if (!caseData || hasAudit(audit) || hasAudit(caseData)) return null;
+    const audited = siblings.filter((s) => hasAudit(s));
+    if (audited.length === 0) return null;
+    return [...audited].sort(
+      (a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime(),
+    )[0];
+  })();
+
+  const copySiblingAudit = () => {
+    if (!siblingAudit) return;
+    setAudit({
+      qa_name: siblingAudit.qa_name ?? '',
+      self_booked: siblingAudit.self_booked,
+      error_category: siblingAudit.error_category,
+      error_source: siblingAudit.error_source,
+      caught_before_clinic: siblingAudit.caught_before_clinic,
+      resolution_type: siblingAudit.resolution_type,
+    });
+  };
+
+
   // Persist an in-progress audit as a local draft so a reload or accidental
   // close doesn't lose typed entries.
   useEffect(() => {
