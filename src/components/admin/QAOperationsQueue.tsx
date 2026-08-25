@@ -2070,7 +2070,9 @@ function CaseDrawer({
     const audited = siblings.filter((s) => hasAudit(s));
     if (audited.length === 0) return null;
     return [...audited].sort(
-      (a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime(),
+      (a, b) =>
+        new Date((b as any).updated_at || 0).getTime() -
+        new Date((a as any).updated_at || 0).getTime(),
     )[0];
   })();
 
@@ -2807,8 +2809,8 @@ function CaseDrawer({
                     Audit already recorded on the{' '}
                     {ALERT_LABELS[siblingAudit.alert_type] ?? siblingAudit.alert_type} case
                     {siblingAudit.qa_name ? ` by ${siblingAudit.qa_name}` : ''}
-                    {siblingAudit.updated_at
-                      ? ` — ${format(new Date(siblingAudit.updated_at), 'MMM d, h:mm a')}`
+                    {(siblingAudit as any).updated_at
+                      ? ` — ${format(new Date((siblingAudit as any).updated_at), 'MMM d, h:mm a')}`
                       : ''}
                     .{' '}
                     <button type="button" onClick={copySiblingAudit} className="underline font-medium">
