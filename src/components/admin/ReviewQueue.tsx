@@ -2267,7 +2267,7 @@ const ReviewQueue: React.FC = () => {
           <div className="py-12 text-center text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
-            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isTraineeView ? 'No trainee submissions waiting for review.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
+            {isApprovedView ? 'No approved appointments.' : isDeclinedView ? 'No declined appointments.' : isTraineeView ? 'No trainee submissions waiting for review.' : queueView === 'qa_hold' ? 'No appointments on QA Hold for insurance verification.' : isNewView ? '🎉 No new appointments waiting for review.' : 'No appointments in Pending Review.'}
           </div>
         ) : (
           <div className="border rounded-md divide-y">
