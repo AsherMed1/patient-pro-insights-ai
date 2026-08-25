@@ -1,59 +1,48 @@
-# OON must apply the `oon pt` tag in GHL (both OON paths)
+# Portal OON status must stop cancelling the GHL appointment
 
-## Confirmed root cause
+## Root cause (matches your Review Queue test)
 
-Your two GHL workflows (`OON status → GHL Appt Updates` and `OON PT - Cancel Appt in future`) both key off the contact tag:
+Your GHL workflow `OON PT - Cancel Appt in future` fires on **Appointment status = confirmed** AND **has tag `oon pt`**, and it is the step that updates the appointment status and sends the patient the OON SMS.
 
-```text
-oon pt
-```
+The two Portal OON paths behave differently:
 
-Neither Portal OON path sends that tag:
+- **Review Queue → Mark OON** (works, as you saw on Test Johann in Liberty Medical): sets `review_status = 'oon'`, writes the note, fires `notify-slack-oon`, fires `appointment-status-webhook` to the project's GHL inbound webhook, and adds the `appointment-oon` exit tag. It **never cancels the GHL appointment**. So GHL still sees a confirmed appointment when `oon pt` lands, the OON workflow fires, and GHL cancels the appointment itself.
+- **Portal status dropdown → OON** (broken): before the webhook lands, it calls `update-ghl-appointment`, whose `STATUS_MAP` maps `OON → cancelled`. The appointment is already cancelled in GHL, so when the workflow evaluates `Appointment status is confirmed` the filter fails, no OON SMS goes out, and the plain cancellation is what pulled the opportunity into the Needs to Reschedule workflow instead.
 
-- **Portal status dropdown → OON** (`src/utils/appointmentStatusChange.ts`): sends **no contact tag at all**. It only sets the status, cancels the GHL appointment, writes a note, fires `notify-slack-oon`, and fires `appointment-status-webhook`.
-- **Review Queue → Mark OON** (`src/components/admin/ReviewQueue.tsx`): sends a contact tag, but the wrong one — `appointment-oon`, which exists only as a workflow-exit tag for the review-queue Wait step.
-
-Because GHL only saw a plain appointment cancellation, the contact fell into the Needs to Reschedule branch instead of the OON workflow, and no OON message went out.
+So this was never a removed tag — the dropdown path has always pre-cancelled the appointment out from under the OON workflow.
 
 ## Fix
 
-Apply the same GHL contact tag set on **every** OON write path.
+Make the dropdown path behave like the Review Queue path for OON.
 
-Tags to add:
-```text
-oon pt
-do-not-reschedule
-```
+1. In `src/utils/appointmentStatusChange.ts`, when `status === 'OON'`, **skip the direct GHL appointment-status push** (no `update-ghl-appointment` call). GHL's `OON PT - Cancel Appt in future` workflow owns cancelling/releasing the slot.
+2. Keep everything else in order: portal status becomes `OON`, status-change note, `notify-slack-oon`, and `appointment-status-webhook` (the webhook is what puts `oon pt` on the contact through your GHL automation).
+3. Add the `appointment-oon` exit tag on this path too, so the dropdown and the Review Queue leave GHL in an identical state.
+4. Write an internal audit note stating the appointment was intentionally left confirmed in GHL so the OON workflow can cancel it, and drop the misleading "GHL Sync Warning" toast for OON.
+5. Safety net: if the project has **no** `appointment_webhook_url`, the tag can never arrive from GHL — in that case push `oon pt` to the contact directly via `update-ghl-contact-tags` so the workflow still fires. (Verified both Liberty Medical and Texas Endovascular do have a webhook URL configured.)
 
-Tag to remove:
-```text
-reschedulable
-```
+`Cancelled`, `Do Not Call`, `Referral Requested` and all other statuses keep their current GHL appointment behavior — only OON changes.
 
-### 1. Portal status dropdown (`appointmentStatusChange.ts`)
-In the existing `status === 'OON'` block, push the tag set to the GHL contact via `update-ghl-contact-tags` using the project's `ghl_api_key` (same pattern the Do Not Call block already uses). Write an internal audit note listing the tags applied, and a clear failure note plus a non-blocking warning toast if the push fails — never block the status save.
+## Recovery for the affected patient
 
-### 2. Review Queue → Mark OON (`ReviewQueue.tsx`)
-Change the tag payload from `['appointment-oon']` to add `oon pt` + `do-not-reschedule` and remove `reschedulable`. Keep `appointment-oon` as well, since the review-queue Wait step still listens for it.
+For the patient you already cancelled manually: the appointment is cancelled in GHL, so the workflow filter can no longer match. Options, in order of preference:
 
-### 3. Shared helper
-Put the OON tag set in one place (a small exported helper next to `cancellationTags.ts`) so both paths, and any future OON writer, use identical tags.
+1. Send the OON message from GHL manually for that one contact, or
+2. Re-fire the Portal OON (after the fix) on a record whose GHL appointment is still confirmed.
 
-Everything else stays as-is: OON still cancels/releases the GHL appointment, still fires the Slack alert and `appointment-status-webhook`, and Review Queue OON rows stay admin-only.
+Tell me the patient's name and clinic and I'll confirm what state their GHL appointment and tags are in before choosing.
 
-## Recovery for patients already stuck
+## Verification after the fix
 
-One-off recovery pass (modeled on `backfill-review-exit-tags`) over recent records where `status = 'OON'` or `review_status = 'oon'` and a GHL contact ID exists:
-
-- add `oon pt` + `do-not-reschedule`
-- remove `reschedulable`
-- write an internal audit note that recovery tags were applied
-
-Batched with a small delay between GHL calls. Give me the patient's name/clinic and I'll run that one first as a check before the batch.
+Repeat your Test Johann flow, but from the Portal status dropdown instead of the Review Queue:
+- GHL appointment should stay `confirmed` right after the Portal save
+- `oon pt` should land on the contact
+- `OON PT - Cancel Appt in future` should show an enrollment, cancel the appointment, and send the SMS
+- The opportunity should not enter Needs to Reschedule
 
 ## Technical details
 
-- Files: `src/utils/appointmentStatusChange.ts`, `src/components/admin/ReviewQueue.tsx`, new shared OON tag helper, one new recovery edge function.
-- Reuses the existing `update-ghl-contact-tags` edge function; no schema changes.
-- `update-ghl-appointment` STATUS_MAP stays unchanged (`OON → cancelled`) so the slot is still released.
-- Memory rule to add after implementation: every OON write path must apply `oon pt` + `do-not-reschedule` and remove `reschedulable` on the GHL contact, or reject the write.
+- Files: `src/utils/appointmentStatusChange.ts` (skip the OON appointment push, add the exit tag + fallback tag, audit note).
+- No change to `update-ghl-appointment`'s `STATUS_MAP` — the OON path simply stops calling it.
+- No schema changes; reuses `update-ghl-contact-tags` and `appointment-status-webhook`.
+- Memory rule to add: OON is workflow-owned in GHL. The Portal must never push a GHL appointment cancellation for OON — cancelling before `oon pt` lands breaks the `Appointment status is confirmed` filter and routes the patient into Needs to Reschedule.
