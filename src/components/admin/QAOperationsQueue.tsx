@@ -2051,6 +2051,44 @@ function CaseDrawer({
 
   const isDirty = !!caseData && !sameAudit(audit, savedSnapshotRef.current);
 
+  // The audit belongs to the appointment, not the individual alert row. When a
+  // new alert opens a fresh case, surface the audit recorded on a sibling row so
+  // it never looks like the work was wiped.
+  const hasAudit = (c: Partial<QACase> | null | undefined) =>
+    !!c &&
+    !!(
+      (c.qa_name && String(c.qa_name).trim()) ||
+      c.error_category ||
+      c.error_source ||
+      c.resolution_type ||
+      c.caught_before_clinic != null ||
+      c.self_booked != null
+    );
+
+  const siblingAudit = (() => {
+    if (!caseData || hasAudit(audit) || hasAudit(caseData)) return null;
+    const audited = siblings.filter((s) => hasAudit(s));
+    if (audited.length === 0) return null;
+    return [...audited].sort(
+      (a, b) =>
+        new Date((b as any).updated_at || 0).getTime() -
+        new Date((a as any).updated_at || 0).getTime(),
+    )[0];
+  })();
+
+  const copySiblingAudit = () => {
+    if (!siblingAudit) return;
+    setAudit({
+      qa_name: siblingAudit.qa_name ?? '',
+      self_booked: siblingAudit.self_booked,
+      error_category: siblingAudit.error_category,
+      error_source: siblingAudit.error_source,
+      caught_before_clinic: siblingAudit.caught_before_clinic,
+      resolution_type: siblingAudit.resolution_type,
+    });
+  };
+
+
   // Persist an in-progress audit as a local draft so a reload or accidental
   // close doesn't lose typed entries.
   useEffect(() => {
@@ -2297,11 +2335,30 @@ function CaseDrawer({
         actor_user_id: user?.id ?? null,
       } as any);
     }
+    // Record exactly which audit fields changed, so any later overwrite is
+    // fully traceable in the activity history.
+    const AUDIT_FIELDS: (keyof QACase)[] = [
+      'qa_name',
+      'self_booked',
+      'error_category',
+      'error_source',
+      'caught_before_clinic',
+      'resolution_type',
+    ];
+    const changes: Record<string, { from: any; to: any }> = {};
+    for (const f of AUDIT_FIELDS) {
+      const before = (caseData as any)[f] ?? null;
+      const after = (patch as any)[f] ?? null;
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        changes[f as string] = { from: before, to: after };
+      }
+    }
     await supabase.from('qa_case_activity' as any).insert({
       case_id: caseData.id,
       activity_type: 'audit_update',
       description: 'Audit fields updated',
       actor_user_id: user?.id ?? null,
+      metadata: { changes, actor_name: actorName ?? null },
     } as any);
     if (escalating) {
       await supabase.from('qa_case_activity' as any).insert({
@@ -2765,6 +2822,22 @@ function CaseDrawer({
                     </button>
                   </div>
                 )}
+
+                {siblingAudit && (
+                  <div className="rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-400">
+                    Audit already recorded on the{' '}
+                    {ALERT_LABELS[siblingAudit.alert_type] ?? siblingAudit.alert_type} case
+                    {siblingAudit.qa_name ? ` by ${siblingAudit.qa_name}` : ''}
+                    {(siblingAudit as any).updated_at
+                      ? ` — ${format(new Date((siblingAudit as any).updated_at), 'MMM d, h:mm a')}`
+                      : ''}
+                    .{' '}
+                    <button type="button" onClick={copySiblingAudit} className="underline font-medium">
+                      Copy into this record
+                    </button>
+                  </div>
+                )}
+
 
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
