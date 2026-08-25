@@ -9,10 +9,11 @@ import { supabase } from '@/integrations/supabase/client';
  *
  * Responsibilities (in order):
  *  1. DB update (status, procedure_ordered rules, internal_process_complete rules)
- *  2. GHL appointment status sync via `update-ghl-appointment`
+ *  2. GHL appointment status sync via `update-ghl-appointment` — SKIPPED for OON
+ *     (see the `isOon` note below: the GHL OON workflow owns that cancellation)
  *  3. System note "Status changed from X to Y by {user}" on real transitions
  *  4. Do Not Call side effects (DND in GHL)
- *  5. OON side effects (Slack alert)
+ *  5. OON side effects (Slack alert + GHL contact tags)
  *  6. `appointment-status-webhook` fired on every save
  */
 
