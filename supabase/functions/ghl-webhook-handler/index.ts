@@ -1311,6 +1311,11 @@ function collectInsuranceCardFiles(customFields: any): {
   const secondaryFiles: Array<{ url: string; name: string }> = [];
   const primaryFiles: Array<{ url: string; name: string }> = [];
   const diagnostics: Array<Record<string, unknown>> = [];
+  // The same image is often exposed twice for one slot — once through a merge tag
+  // (insurance_id_link) and once through the upload field itself. Dedupe across ALL
+  // fields of a slot, otherwise "first file = front, second = back" duplicates it.
+  const seenPrimary = new Set<string>();
+  const seenSecondary = new Set<string>();
 
   for (const [key, value] of entries) {
     if (!isCardField(key)) continue;
@@ -1327,8 +1332,13 @@ function collectInsuranceCardFiles(customFields: any): {
       rawPreview: typeof value === 'string' ? String(value).slice(0, 120) : undefined,
     });
     if (files.length === 0) continue;
-    if (isSecondary) secondaryFiles.push(...files);
-    else primaryFiles.push(...files);
+    const target = isSecondary ? secondaryFiles : primaryFiles;
+    const seen = isSecondary ? seenSecondary : seenPrimary;
+    for (const file of files) {
+      if (seen.has(file.url)) continue;
+      seen.add(file.url);
+      target.push(file);
+    }
   }
 
   if (diagnostics.length > 0) {
