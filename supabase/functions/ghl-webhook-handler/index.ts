@@ -1295,14 +1295,15 @@ async function orderFrontBackByFilename(
   return { front, back };
 }
 
-async function withResolvedNames(
-  files: Array<{ url: string; name: string }>
-): Promise<Array<{ url: string; name: string }>> {
-  if (files.length < 2) return files;
+async function withResolvedNames(files: CardFile[]): Promise<CardFile[]> {
+  if (files.length === 0) return files;
+  // Resolve names even for a SINGLE file: a lone upload is often the back of the card,
+  // and without the filename it would silently land in the front slot.
   return await Promise.all(
-    files.map(async (f) => (f.name ? f : { ...f, name: await resolveFileName(f.url) }))
+    files.map(async (f) => (f.name || f.slot ? f : { ...f, name: await resolveFileName(f.url) }))
   );
 }
+
 
 // Normalise custom fields (array or object shape) into [key, value] pairs
 function customFieldEntries(customFields: any): Array<[string, any]> {
