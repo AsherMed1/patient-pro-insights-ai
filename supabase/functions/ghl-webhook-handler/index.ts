@@ -1136,11 +1136,26 @@ const PRIMARY_CARD_PATTERNS = [
   'insurance_image',
   'insurance_id_card',
   'front_of_insurance_card',
+  'back_of_insurance_card',
   'insurance card',
   'card front',
+  'card back',
   'insurance front',
+  'insurance back',
+  'front of insurance',
+  'back of insurance',
+  'front of your insurance',
+  'back of your insurance',
   'insurance_id_link',
+  'insurance_back_link',
+  'insurance_front_link',
 ];
+
+// Some clinics collect the two sides in two separate upload fields. When the field
+// key itself says "back", the file belongs in the back slot regardless of filename.
+const BACK_KEY_RE = /back[_\s-]*(of|side)?|_back\b|\bback\b/;
+const FRONT_KEY_RE = /front/;
+
 
 export interface InsuranceCardSlots {
   primaryFront: string | null;
@@ -1177,20 +1192,66 @@ async function persistInsuranceCardSlots(
     return;
   }
   console.log(`[${requestId}] Insurance card slots persisted atomically:`, data);
+
+  // Merge-tag rescue: GHL's insurance_id_link merge tag resolves to only ONE of the
+  // two uploaded primary files, and it is often the BACK. Because the merge above only
+  // fills blanks, that back image gets locked into the front slot and the real front
+  // never lands. When the filename-resolved pair says the stored "front" is actually
+  // the back, rewrite both slots.
+  if (slots.primaryFront && primaryBack) {
+    const { data: row } = await supabase
+      .from('all_appointments')
+      .select('insurance_id_link, insurance_back_link')
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    const storedFront = row?.insurance_id_link || null;
+    const storedBack = row?.insurance_back_link || null;
+    const misplaced =
+      storedFront === primaryBack && storedBack !== primaryBack && storedFront !== slots.primaryFront;
+
+    if (misplaced) {
+      const { error: fixError } = await supabase
+        .from('all_appointments')
+        .update({
+          insurance_id_link: slots.primaryFront,
+          insurance_back_link: primaryBack,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', appointmentId);
+
+      if (fixError) {
+        console.error(`[${requestId}] Failed to correct swapped primary card slots:`, fixError);
+      } else {
+        console.log(
+          `[${requestId}] Corrected primary card slots: stored front was the back image`,
+          JSON.stringify({ front: slots.primaryFront, back: primaryBack }),
+        );
+      }
+    }
+  }
 }
 
-// Assign collected files to front/back: filename hints win, otherwise use order.
-// The same file must never occupy both slots (a merge tag and an upload field can
-// reference one image), so an identical back is always dropped.
-function assignFrontBack(files: Array<{ url: string; name: string }>): { front: string | null; back: string | null } {
+
+// Assign collected files to front/back: an explicit slot hint from the GHL field key
+// wins, then filename hints, then arrival order. The same file must never occupy both
+// slots (a merge tag and an upload field can reference one image), so an identical back
+// is always dropped. A lone file that is clearly the BACK stays in the back slot —
+// mislabeling it as the front is what made the portal show the back as "Front of Card".
+type CardFile = { url: string; name: string; slot?: 'front' | 'back' | null };
+
+function assignFrontBack(files: CardFile[]): { front: string | null; back: string | null } {
   if (files.length === 0) return { front: null, back: null };
 
   const dedupe = (pair: { front: string | null; back: string | null }) =>
     pair.back && pair.back === pair.front ? { front: pair.front, back: null } : pair;
 
-  const hint = (f: { url: string; name: string }) => `${f.name} ${f.url}`.toLowerCase();
-  const explicitBack = files.find((f) => /back/.test(hint(f)));
-  const explicitFront = files.find((f) => /front/.test(hint(f)) && f !== explicitBack);
+  const hint = (f: CardFile) => `${f.name} ${f.url}`.toLowerCase();
+  const isBack = (f: CardFile) => f.slot === 'back' || (f.slot !== 'front' && /back/.test(hint(f)));
+  const isFront = (f: CardFile) => f.slot === 'front' || (f.slot !== 'back' && /front/.test(hint(f)));
+
+  const explicitBack = files.find(isBack);
+  const explicitFront = files.find((f) => isFront(f) && f !== explicitBack);
 
   if (explicitFront || explicitBack) {
     const front = explicitFront?.url ?? files.find((f) => f !== explicitBack)?.url ?? null;
@@ -1199,6 +1260,7 @@ function assignFrontBack(files: Array<{ url: string; name: string }>): { front: 
 
   return dedupe({ front: files[0].url, back: files[1]?.url ?? null });
 }
+
 
 // GHL upload values are opaque `documents/download/<id>` URLs with no filename in
 // them, so front/back hints never match and we fall back to arrival order — which
@@ -1272,14 +1334,15 @@ async function orderFrontBackByFilename(
   return { front, back };
 }
 
-async function withResolvedNames(
-  files: Array<{ url: string; name: string }>
-): Promise<Array<{ url: string; name: string }>> {
-  if (files.length < 2) return files;
+async function withResolvedNames(files: CardFile[]): Promise<CardFile[]> {
+  if (files.length === 0) return files;
+  // Resolve names even for a SINGLE file: a lone upload is often the back of the card,
+  // and without the filename it would silently land in the front slot.
   return await Promise.all(
-    files.map(async (f) => (f.name ? f : { ...f, name: await resolveFileName(f.url) }))
+    files.map(async (f) => (f.name || f.slot ? f : { ...f, name: await resolveFileName(f.url) }))
   );
 }
+
 
 // Normalise custom fields (array or object shape) into [key, value] pairs
 function customFieldEntries(customFields: any): Array<[string, any]> {
@@ -1302,14 +1365,14 @@ function customFieldEntries(customFields: any): Array<[string, any]> {
 const SECONDARY_KEY_RE = /secondary|2nd|\(2\)|[_\s-]2\b|_2$/;
 
 function collectInsuranceCardFiles(customFields: any): {
-  primaryFiles: Array<{ url: string; name: string }>;
-  secondaryFiles: Array<{ url: string; name: string }>;
+  primaryFiles: CardFile[];
+  secondaryFiles: CardFile[];
 } {
   const entries = customFieldEntries(customFields);
   const isCardField = (key: string) => PRIMARY_CARD_PATTERNS.some((p) => key.includes(p));
 
-  const secondaryFiles: Array<{ url: string; name: string }> = [];
-  const primaryFiles: Array<{ url: string; name: string }> = [];
+  const secondaryFiles: CardFile[] = [];
+  const primaryFiles: CardFile[] = [];
   const diagnostics: Array<Record<string, unknown>> = [];
   // The same image is often exposed twice for one slot — once through a merge tag
   // (insurance_id_link) and once through the upload field itself. Dedupe across ALL
@@ -1321,11 +1384,20 @@ function collectInsuranceCardFiles(customFields: any): {
     if (!isCardField(key)) continue;
     const files = extractFilesFromValue(value);
     const isSecondary = SECONDARY_KEY_RE.test(key);
+    // A field key that names a side is authoritative for that side. Merge tags
+    // (insurance_id_link / insurance_back_link) count too.
+    const keySlot: 'front' | 'back' | null =
+      key.includes('back_link') || (BACK_KEY_RE.test(key) && !FRONT_KEY_RE.test(key))
+        ? 'back'
+        : key.includes('front_link') || (FRONT_KEY_RE.test(key) && !BACK_KEY_RE.test(key))
+          ? 'front'
+          : null;
     // Log every card-ish key, INCLUDING empty ones: an empty
     // insurance_id_link_secondary proves the GHL merge tag never resolved.
     diagnostics.push({
       key,
       slot: isSecondary ? 'secondary' : 'primary',
+      keySlot,
       files: files.length,
       rawType: typeof value,
       rawEmpty: value === null || value === undefined || String(value).trim() === '',
@@ -1337,7 +1409,9 @@ function collectInsuranceCardFiles(customFields: any): {
     for (const file of files) {
       if (seen.has(file.url)) continue;
       seen.add(file.url);
-      target.push(file);
+      // Only trust the key hint when the field holds a single file; a multi-file
+      // field named "insurance card" carries both sides.
+      target.push({ ...file, slot: files.length === 1 ? keySlot : null });
     }
   }
 
@@ -1347,6 +1421,7 @@ function collectInsuranceCardFiles(customFields: any): {
 
   return { primaryFiles, secondaryFiles };
 }
+
 
 function extractInsuranceCardSlots(customFields: any): InsuranceCardSlots {
   const { primaryFiles, secondaryFiles } = collectInsuranceCardFiles(customFields);
