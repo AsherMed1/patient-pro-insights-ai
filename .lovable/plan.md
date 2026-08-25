@@ -1,36 +1,45 @@
-# GHL tags for Recapture outcomes
+# Push `do-not-reschedule` tag to GHL when Recapture "Not Interested" is selected
 
-## Answer first
+## Current behavior
+Selecting **Not Interested** in the Recapture drawer (`RecaptureCaseDrawer.tsx` lines 292–300) completes the case and inserts a `patient_reschedule_blocks` row, but it never touches GHL. No tag is pushed today.
 
-No. Selecting **Not Interested** in the Recapture drawer does not touch GHL at all. Today it only:
+## Change
+When `conversationOutcome === 'not_interested'` and the case update succeeds, push the single `do-not-reschedule` tag to the GHL contact via the existing `update-ghl-contact-tags` edge function. One tag, no cleanup of other tags, no other outcomes affected.
 
-- inserts the attempt row in `recapture_attempts`
-- completes the case (`work_status='completed'`, `completion_reason='not_interested'`)
-- inserts a `patient_reschedule_blocks` row (`blockFutureOutreach`)
-- writes an internal note
+Implementation in `src/components/recapture/RecaptureCaseDrawer.tsx` inside `persist()`, right after the existing `blockFutureOutreach(...)` call for the not-interested branch:
 
-The No-Show / cancellation paths do push tags via `pushLifecycleTags`, but Recapture never calls it. So GHL workflows cannot currently branch on a recapture opt-out.
+```ts
+// Push do-not-reschedule tag to GHL so workflows halt outreach.
+if (row.appointment_id && payload.conversationOutcome === 'not_interested') {
+  const { data: appt } = await supabase
+    .from('all_appointments')
+    .select('ghl_id, project_name')
+    .eq('id', row.appointment_id)
+    .maybeSingle();
+  if (appt?.ghl_id) {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('ghl_api_key')
+      .eq('project_name', appt.project_name)
+      .maybeSingle();
+    supabase.functions.invoke('update-ghl-contact-tags', {
+      body: {
+        ghl_contact_id: appt.ghl_id,
+        ghl_api_key: proj?.ghl_api_key || undefined,
+        tags: ['do-not-reschedule'],
+        action: 'add',
+        source: 'recapture not-interested',
+      },
+    }).catch((e) => console.warn('[recapture] do-not-reschedule tag push failed', e));
+  }
+}
+```
 
-## Proposed change
+Fire-and-forget (`.catch`), non-blocking — the recapture save must not fail if GHL is unavailable. No audit note is required beyond the internal attempt note the drawer already writes.
 
-Push a tag set from Recapture whenever an outcome is terminal, reusing the existing `pushLifecycleTags` helper (which already writes an audit note and never blocks the save on a GHL failure):
+## Files touched
+- `src/components/recapture/RecaptureCaseDrawer.tsx` — add the tag push in the not-interested branch only.
 
-| Recapture outcome | Tags pushed |
-| --- | --- |
-| Not Interested | `recapture-not-interested`, `do-not-reschedule` |
-| Wrong Number | `recapture-wrong-number`, `do-not-reschedule` |
-| Rescheduled / Booked | `recapture-rebooked`, `reschedulable` |
-
-Contradicting flags are removed first (already handled inside `pushLifecycleTags`), so a contact never carries both `reschedulable` and `do-not-reschedule`.
-
-Non-terminal outcomes (Text Sent, Patient Responded, Follow-Up Required, Callback Requested, Nurture) push nothing — they stay portal-internal.
-
-## Technical notes
-
-- `src/components/appointments/cancellationTags.ts`: add `'recapture'` to `LifecycleEventKind` with reason prefix `recapture-reason`, or simpler — call `pushLifecycleTags` with `kind: 'cancellation'` and `extraTags: ['recapture-not-interested']`. Preferred: add a small dedicated `pushRecaptureTags({ appointmentId, outcome })` wrapper so cancellation semantics aren't overloaded.
-- `src/components/recapture/RecaptureCaseDrawer.tsx`: in `persist()`, after the `recapture_cases` update succeeds and alongside `blockFutureOutreach`, fire the tag push for the three terminal outcomes. Uses `row.appointment_id`; skip silently when it is null.
-- No schema change. No edge function change — `update-ghl-contact-tags` already resolves the project GHL API key.
-
-## Open question
-
-If you'd rather reuse the existing tag vocabulary the clinics' GHL workflows already listen to (`cancel-reason-not-interested` / `do-not-reschedule`) instead of new `recapture-*` tags, say so and I'll swap the mapping.
+## No changes
+- No schema change, no edge function change (`update-ghl-contact-tags` already exists and resolves the project API key).
+- Wrong Number, Rescheduled/Booked, and all non-terminal outcomes remain unchanged — only Not Interested pushes the tag, per your instruction.
