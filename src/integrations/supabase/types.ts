@@ -3361,6 +3361,42 @@ export type Database = {
         }
         Relationships: []
       }
+      project_short_notice_rules: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          location: string | null
+          note: string | null
+          project_name: string
+          service_line: string | null
+          threshold_hours: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location?: string | null
+          note?: string | null
+          project_name: string
+          service_line?: string | null
+          threshold_hours: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location?: string | null
+          note?: string | null
+          project_name?: string
+          service_line?: string | null
+          threshold_hours?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       project_tags: {
         Row: {
           created_at: string
@@ -4522,6 +4558,7 @@ export type Database = {
           resolved_hours_difference: number | null
           resolved_reason: string | null
           slack_sent: boolean | null
+          threshold_hours: number | null
         }
         Insert: {
           alert_sent_at?: string | null
@@ -4538,6 +4575,7 @@ export type Database = {
           resolved_hours_difference?: number | null
           resolved_reason?: string | null
           slack_sent?: boolean | null
+          threshold_hours?: number | null
         }
         Update: {
           alert_sent_at?: string | null
@@ -4554,6 +4592,7 @@ export type Database = {
           resolved_hours_difference?: number | null
           resolved_reason?: string | null
           slack_sent?: boolean | null
+          threshold_hours?: number | null
         }
         Relationships: [
           {
