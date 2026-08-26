@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveShortNoticeThreshold, serviceLineForRow } from "../_shared/short-notice-rules.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,7 +71,7 @@ serve(async (req) => {
     // Pending Review records that still have a future appointment slot
     const { data: rows, error } = await supabase
       .from('all_appointments')
-      .select('id, lead_name, lead_phone_number, project_name, calendar_name, date_of_appointment, requested_time, status, ghl_id, created_at, date_appointment_created, short_notice_auto_tagged_at')
+      .select('id, lead_name, lead_phone_number, project_name, calendar_name, parsed_pathology_info, date_of_appointment, requested_time, status, ghl_id, created_at, date_appointment_created, short_notice_auto_tagged_at')
       .eq('review_status', 'pending')
       .eq('review_stage', 'pending_review')
       .gte('date_of_appointment', today)
@@ -97,6 +98,17 @@ serve(async (req) => {
     const projectMap: Record<string, any> = {};
     (projects || []).forEach((p: any) => { projectMap[p.project_name] = p; });
 
+    // Per-clinic notice rules (service line / location overrides)
+    const { data: ruleRows } = await supabase
+      .from('project_short_notice_rules')
+      .select('project_name, service_line, location, threshold_hours, is_active')
+      .in('project_name', projectNames)
+      .eq('is_active', true);
+    const rulesByProject: Record<string, any[]> = {};
+    (ruleRows || []).forEach((r: any) => {
+      (rulesByProject[r.project_name] ||= []).push(r);
+    });
+
     // Skip anything that already has an open alert
     const { data: openAlerts } = await supabase
       .from('short_notice_alerts')
@@ -109,7 +121,13 @@ serve(async (req) => {
     for (const row of candidates) {
       if (alreadyTagged.has(row.id)) continue;
       const project = projectMap[row.project_name] || {};
-      const threshold = project.short_notice_threshold_hours ?? 72;
+      const serviceLine = serviceLineForRow(row);
+      const resolved = resolveShortNoticeThreshold(
+        rulesByProject[row.project_name] || [],
+        { serviceLine, location: row.calendar_name || null, calendarName: row.calendar_name || null },
+        project.short_notice_threshold_hours ?? 72,
+      );
+      const threshold = resolved.thresholdHours;
       if (!threshold || threshold <= 0) continue;
       const timezone = project.timezone || 'America/Chicago';
       const apptUtc = localDatetimeToUTC(row.date_of_appointment.slice(0, 10), row.requested_time, timezone);
@@ -129,6 +147,12 @@ serve(async (req) => {
           appointmentDatetime: apptUtc.toISOString(),
           createdDatetime: new Date(row.created_at || row.date_appointment_created || now).toISOString(),
           hoursDifference: hoursOfNotice,
+          thresholdHours: threshold,
+          serviceLine: serviceLine || null,
+          location: row.calendar_name || null,
+          ruleScope: resolved.rule
+            ? `${resolved.rule.service_line || 'any service'} · ${resolved.rule.location || 'any location'}`
+            : 'account default',
           status: row.status || 'Pending Review',
           calendarName: row.calendar_name || null,
           phone: row.lead_phone_number || null,
