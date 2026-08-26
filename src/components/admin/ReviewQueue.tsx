@@ -2615,7 +2615,8 @@ const ReviewQueue: React.FC = () => {
                             variant="default"
                             className="bg-green-600 hover:bg-green-700"
                             onClick={() => handleSingleAction(row.id, 'approved', undefined, undefined, duplicatesByRowId[row.id]?.length || 0)}
-                            disabled={processing}
+                            disabled={processing || isOonBlocked(row)}
+                            title={isOonBlocked(row) ? 'Potential OON insurance — verify the insurance before approving' : undefined}
                           >
                             <Check className="h-3.5 w-3.5 mr-1" /> Approve
                           </Button>
@@ -2624,7 +2625,8 @@ const ReviewQueue: React.FC = () => {
                             variant="outline"
                             className="border-orange-300 text-orange-700 hover:bg-orange-50"
                             onClick={() => { setActionRow({ id: row.id, action: 'oon' }); setActionNotes(''); }}
-                            disabled={processing}
+                            disabled={processing || isOonBlocked(row)}
+                            title={isOonBlocked(row) ? 'Use "Confirm OON" in the Potential OON panel above' : undefined}
                           >
                             <AlertTriangle className="h-3.5 w-3.5 mr-1" /> OON
                           </Button>
@@ -2647,7 +2649,7 @@ const ReviewQueue: React.FC = () => {
                           >
                             <Undo2 className="h-3.5 w-3.5 mr-1" /> Return to trainee
                           </Button>
-                          ) : (
+                          ) : queueView === 'qa_hold' ? null : (
                           <Button
                             size="sm"
                             variant="outline"
