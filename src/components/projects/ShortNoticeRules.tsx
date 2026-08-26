@@ -65,6 +65,34 @@ export const ShortNoticeRules: React.FC<Props> = ({ projectName, defaultHours })
 
   useEffect(() => { load(); }, [load]);
 
+  // Locations detected from the project's calendars (same extraction as the calendar legend)
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLocations = async () => {
+      if (!projectName) return;
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .select('calendar_name, parsed_pathology_info')
+        .eq('project_name', projectName)
+        .not('calendar_name', 'is', null);
+      if (error || cancelled) return;
+      const unique = new Set<string>();
+      (data || []).forEach((row: any) => {
+        const loc = extractLocationFromCalendarName(
+          row.calendar_name,
+          row.parsed_pathology_info?.location,
+        );
+        if (!loc) return;
+        if (LEGACY_LOCATIONS.some((legacy) => loc.includes(legacy))) return;
+        unique.add(loc);
+      });
+      setLocationOptions(Array.from(unique).sort());
+    };
+    fetchLocations();
+    return () => { cancelled = true; };
+  }, [projectName]);
+
   const serviceLabel = useMemo(
     () => (serviceLines.length ? serviceLines.join(', ') : 'All service lines'),
     [serviceLines],
