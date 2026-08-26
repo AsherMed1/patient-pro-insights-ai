@@ -87,9 +87,14 @@ export const ShortNoticeRules: React.FC<Props> = ({ projectName, defaultHours })
       location: location.trim() || null,
       threshold_hours: threshold,
     }));
-    const { error } = await supabase
-      .from('project_short_notice_rules')
-      .upsert(payload, { onConflict: 'project_name,service_line,location' });
+    // Replace any existing rule with the same scope, then insert
+    for (const p of payload) {
+      let del = supabase.from('project_short_notice_rules').delete().eq('project_name', p.project_name);
+      del = p.service_line ? del.eq('service_line', p.service_line) : del.is('service_line', null);
+      del = p.location ? del.eq('location', p.location) : del.is('location', null);
+      await del;
+    }
+    const { error } = await supabase.from('project_short_notice_rules').insert(payload);
     setSaving(false);
     if (error) {
       toast({ title: 'Could not save rule', description: error.message, variant: 'destructive' });
