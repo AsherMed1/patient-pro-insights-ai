@@ -1408,9 +1408,16 @@ const ReviewQueue: React.FC = () => {
           });
         }
 
-        // GHL exit tag: without this, contacts sit forever in the GHL workflow
-        // Wait step that only listens for the 'approved' tag.
+        // GHL tags. `appointment-oon` is the exit tag for the review-queue Wait
+        // step. `oon pt` is what enrolls the client's "OON PT - Cancel Appt in
+        // future" workflow — it is normally applied by the project's own GHL
+        // automation off the outbound webhook, but when that never lands the
+        // workflow never fires and GHL only shows a plain cancellation. Pushing
+        // it here is idempotent, so projects whose automation also applies it
+        // are unaffected. The GHL appointment itself is deliberately left alone
+        // so the workflow can cancel it and send the patient the OON message.
         if (priorRow.ghl_id) {
+          const oonTags = ['appointment-oon', 'oon pt'];
           try {
             const { data: projectData } = await supabase
               .from('projects')
@@ -1422,16 +1429,32 @@ const ReviewQueue: React.FC = () => {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
                 ghl_api_key: projectData?.ghl_api_key || undefined,
-                tags: ['appointment-oon'],
+                tags: oonTags,
                 action: 'add',
+                source: `Review Queue OON by ${userName || 'a portal user'}`,
               },
             });
             if (oonTagErr) {
               console.error('OON GHL tag failed:', oonTagErr);
               toast({
                 title: 'OON saved — GHL tag failed',
-                description: 'The "appointment-oon" tag could not be added in GHL.',
+                description: `The GHL tag(s) ${oonTags.join(', ')} could not be added. The OON workflow may not fire for this patient.`,
                 variant: 'destructive',
+              });
+              await supabase.from('appointment_notes').insert({
+                appointment_id: id,
+                note_text: `GHL OON tags FAILED (${oonTags.join(', ')}): ${(oonTagErr as any)?.message || oonTagErr}`,
+                created_by: 'System',
+                visibility: 'internal',
+              });
+            } else {
+              await supabase.from('appointment_notes').insert({
+                appointment_id: id,
+                note_text:
+                  `GHL OON tags applied: ${oonTags.join(', ')}. The GoHighLevel appointment was intentionally left as-is ` +
+                  `so the OON workflow can cancel it and send the patient the OON message.`,
+                created_by: 'System',
+                visibility: 'internal',
               });
             }
           } catch (err) {
