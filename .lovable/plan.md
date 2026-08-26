@@ -1,41 +1,28 @@
-# Short-Notice Alert Threshold: per location and per procedure
+# Multi-Select Service Line on OON Rules
 
-Today each clinic has one Short-Notice threshold (`projects.short_notice_threshold_hours`, e.g. Nashville Vascular = 60h) applied to every booking. This adds optional override rules so a clinic can set different thresholds per location (Nashville vs Hendersonville vs Bowling Green) and per procedure (GAE, PAE, UFE, ...), while keeping the existing project-wide value as the default.
+Yes — the Service line picker in the insurance denylist rule form can become multi-select. The underlying scope table already stores one row per scope, so a rule can carry several service lines without any database change.
 
-## How it will work
+## What changes
 
-- The project edit dialog keeps the current dropdown, relabelled **Default threshold (all locations & procedures)**.
-- Below it, a new **Threshold overrides** list. Each row is: Location (or "Any location") + Procedure (or "Any procedure") + threshold, with add/remove buttons.
-  - Location choices come from the clinic's existing calendar-derived locations (for Nashville Vascular: Nashville, Hendersonville, Bowling Green, plus Virtual when present).
-  - Procedure choices come from the canonical service lines already used elsewhere (GAE, PAE, PFE, UFE, FSE, PAD, HAE, ATE, TAE, Neuropathy).
-- Matching precedence when an appointment is evaluated:
-  1. Location + procedure exact match
-  2. Location only
-  3. Procedure only
-  4. Project default
-  A rule set to Disabled turns short-notice alerting off for that slice only.
-- Everything that uses the threshold picks up the override: booking-time Slack alerts, the 15-minute Pending sweep, the Review Queue countdown/badges, and the appointments API.
+- The "Service line (optional)" dropdown in the Add rule form becomes a checkbox dropdown:
+  - "All service lines" (default, clears all checks)
+  - One checkbox per canonical service line for the selected clinic (ATE, FSE, GAE, HAE, PAD, PFE, TAE, TKR, UFE)
+  - "Other (type it)" free-text still available and additive
+- Trigger label shows "All service lines", the single line name, or "N service lines".
+- Saving a rule with 2+ service lines creates one scope row per line, so the rule flags a plan for any of the selected lines (e.g. GAE + TKR for Joint & Vascular Institute).
+- The rules table's Scope column lists every selected line for that rule (existing scope-label logic already joins multiple scope rows).
+- The "Filter by service line" dropdown below stays single-select; a rule matches the filter when any of its scopes matches.
 
-## Example (Nashville Vascular & Vein Institute)
+## Not changed
 
-```text
-Default:                              60 hours
-Hendersonville / Any procedure:       36 hours
-Nashville / PAE:                     120 hours
-```
-A GAE booking in Nashville uses 60h; a PAE booking in Nashville uses 120h; anything in Hendersonville uses 36h.
+- No database migration; `insurance_block_rule_scopes` already supports multiple rows per rule.
+- Matching/evaluation logic is untouched — it already treats any matching scope row as a hit.
+- The Supported/allowlist table's per-row service line dropdown stays single-select.
 
-## Technical details
+## Technical notes
 
-- New table `public.project_short_notice_rules`: `id`, `project_name text not null`, `location text null`, `service_line text null`, `threshold_hours int not null`, `created_at/updated_at`, unique on `(project_name, coalesce(location,''), coalesce(service_line,''))`. GRANTs: `select` to `authenticated`, `all` to `service_role`; RLS — read for authenticated, write for admins via `has_role(auth.uid(),'admin')`.
-- Shared resolver:
-  - `src/lib/shortNotice.ts` gains `resolveThreshold(rules, location, serviceLine, projectDefault)`; location comes from `extractLocationFromCalendarName` (LocationLegend) and procedure from `serviceLineFromAppointment` (`src/lib/serviceLines.ts`).
-  - Mirrored in `supabase/functions/_shared/shortNoticeRules.ts` with the same regex-based location extraction and service-line normalization, so backend and portal agree.
-- Consumers updated to fetch the rules alongside the project row and call the resolver instead of reading `short_notice_threshold_hours` directly:
-  - `supabase/functions/ghl-webhook-handler/index.ts` (`checkShortNoticeAlert`)
-  - `supabase/functions/sweep-short-notice-pending/index.ts`
-  - `supabase/functions/update-appointment-fields/index.ts`
-  - `supabase/functions/all-appointments-api/index.ts`
-  - `src/components/admin/ReviewQueue.tsx` (per-project threshold map becomes per-project + rules; countdown uses the resolved value per row)
-- `EditProjectDialog.tsx` / `ProjectsManager.tsx`: render and persist the override rows (delete-then-insert on save); the existing hour options list is reused for rule thresholds.
-- No change to alert formatting, Slack payloads, or resolution logic.
+- `src/components/admin/InsuranceRulesConfig.tsx`
+  - Replace `ruleServiceLine` string state with `ruleServiceLines: string[]`.
+  - Swap the `Select` for a `DropdownMenu` + `DropdownMenuCheckboxItem` (same pattern used elsewhere in admin views).
+  - In `addRule`, build the list of chosen lines (checked lines + trimmed custom value) and insert one `insurance_block_rule_scopes` row per line; when the list is empty, keep current behaviour (single scope row with `service_line: null`, only if clinic/location set).
+  - Update the rules-filter predicate so a rule passes when any of its scope rows matches the selected service line.
