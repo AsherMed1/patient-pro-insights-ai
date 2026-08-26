@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ChevronDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
@@ -49,7 +51,8 @@ const InsuranceRulesConfig = () => {
   const [ruleNote, setRuleNote] = useState('');
   const [ruleProject, setRuleProject] = useState<string>('__all__');
   const [ruleLocation, setRuleLocation] = useState('');
-  const [ruleServiceLine, setRuleServiceLine] = useState<string>('__any__');
+  const [ruleServiceLines, setRuleServiceLines] = useState<string[]>([]);
+  const [ruleServiceCustomOn, setRuleServiceCustomOn] = useState(false);
   const [ruleServiceCustom, setRuleServiceCustom] = useState('');
   const [rulesClinicFilter, setRulesClinicFilter] = useState<string>('__all__');
   const [rulesServiceFilter, setRulesServiceFilter] = useState<string>('__all__');
@@ -199,23 +202,26 @@ const InsuranceRulesConfig = () => {
     }).select().single();
     if (error) return toast({ title: 'Could not add rule', description: error.message, variant: 'destructive' });
 
-    const chosenServiceLine =
-      ruleServiceLine === '__any__' ? null
-      : ruleServiceLine === '__custom__' ? (ruleServiceCustom.trim() || null)
-      : ruleServiceLine;
+    const chosenServiceLines = Array.from(new Set([
+      ...ruleServiceLines,
+      ...(ruleServiceCustomOn && ruleServiceCustom.trim() ? [ruleServiceCustom.trim()] : []),
+    ]));
 
-    if (ruleProject !== '__all__' || ruleLocation.trim() || chosenServiceLine) {
-      const { error: sErr } = await supabase.from('insurance_block_rule_scopes').insert({
+    if (ruleProject !== '__all__' || ruleLocation.trim() || chosenServiceLines.length) {
+      const baseScope = {
         rule_id: data.id,
         project_name: ruleProject === '__all__' ? null : ruleProject,
         location: ruleLocation.trim() || null,
-        service_line: chosenServiceLine,
-      });
+      };
+      const payload = chosenServiceLines.length
+        ? chosenServiceLines.map((sl) => ({ ...baseScope, service_line: sl }))
+        : [{ ...baseScope, service_line: null }];
+      const { error: sErr } = await supabase.from('insurance_block_rule_scopes').insert(payload);
       if (sErr) toast({ title: 'Rule saved, scope failed', description: sErr.message, variant: 'destructive' });
     }
     if (ruleProject !== '__all__') setRulesClinicFilter(ruleProject);
     setRuleValue(''); setRuleNote(''); setRuleLocation('');
-    setRuleServiceLine('__any__'); setRuleServiceCustom('');
+    setRuleServiceLines([]); setRuleServiceCustomOn(false); setRuleServiceCustom('');
     loadAll();
     toast({ title: 'Rule added' });
   };
@@ -600,15 +606,49 @@ const InsuranceRulesConfig = () => {
               </div>
               <div className="space-y-1">
                 <Label>Service line (optional)</Label>
-                <Select value={ruleServiceLine} onValueChange={setRuleServiceLine}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__any__">All service lines</SelectItem>
-                    {serviceLinesFor(ruleProject).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
-                    <SelectItem value="__custom__">Other (type it)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {ruleServiceLine === '__custom__' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between font-normal">
+                      <span className={ruleServiceLines.length ? '' : 'text-muted-foreground'}>
+                        {ruleServiceLines.length === 0
+                          ? 'All service lines'
+                          : ruleServiceLines.length === 1
+                            ? ruleServiceLines[0]
+                            : `${ruleServiceLines.length} service lines`}
+                      </span>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-popover z-50">
+                    <DropdownMenuItem onSelect={() => { setRuleServiceLines([]); setRuleServiceCustomOn(false); }}>
+                      All service lines
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {serviceLinesFor(ruleProject).map((sl) => (
+                      <DropdownMenuCheckboxItem
+                        key={sl}
+                        checked={ruleServiceLines.includes(sl)}
+                        onCheckedChange={(checked) =>
+                          setRuleServiceLines((prev) =>
+                            checked ? Array.from(new Set([...prev, sl])) : prev.filter((v) => v !== sl)
+                          )
+                        }
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {sl}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={ruleServiceCustomOn}
+                      onCheckedChange={(checked) => setRuleServiceCustomOn(!!checked)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      Other (type it)
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {ruleServiceCustomOn && (
                   <Input className="mt-1" value={ruleServiceCustom} placeholder="e.g. Knee Pain"
                     onChange={(e) => setRuleServiceCustom(e.target.value)} />
                 )}
