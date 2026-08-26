@@ -99,6 +99,41 @@ export const useQAMentions = () => {
       .is('read_at', null);
   }, []);
 
+  /** Mark the clicked notification and every unread sibling for the same record read. */
+  const markGroupRead = useCallback(
+    async (m: QAMention) => {
+      const now = new Date().toISOString();
+      const column = m.recapture_case_id
+        ? 'recapture_case_id'
+        : m.appointment_id
+          ? 'appointment_id'
+          : m.case_id
+            ? 'case_id'
+            : null;
+      const value = m.recapture_case_id || m.appointment_id || m.case_id;
+
+      if (!column || !value) {
+        await markRead(m.id);
+        return;
+      }
+
+      setMentions((prev) =>
+        prev.map((x) =>
+          !x.read_at && (x as any)[column] === value ? { ...x, read_at: now } : x,
+        ),
+      );
+
+      let q = supabase
+        .from('qa_note_mentions' as any)
+        .update({ read_at: now } as any)
+        .eq(column, value)
+        .is('read_at', null);
+      if (user?.id) q = q.eq('mentioned_user_id', user.id);
+      await q;
+    },
+    [markRead, user?.id],
+  );
+
   const markAllRead = useCallback(async () => {
     if (!user?.id) return;
     const now = new Date().toISOString();
@@ -112,5 +147,5 @@ export const useQAMentions = () => {
 
   const unreadCount = mentions.filter((m) => !m.read_at).length;
 
-  return { mentions, unreadCount, loading, markRead, markAllRead, refresh: fetchMentions };
+  return { mentions, unreadCount, loading, markRead, markGroupRead, markAllRead, refresh: fetchMentions };
 };

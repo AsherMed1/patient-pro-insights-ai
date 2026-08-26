@@ -19,7 +19,7 @@ const ALERT_LABELS: Record<string, string> = {
 };
 
 export default function MentionsBell() {
-  const { mentions, unreadCount, markRead, markAllRead } = useQAMentions();
+  const { mentions, unreadCount, markGroupRead, markAllRead } = useQAMentions();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -27,7 +27,7 @@ export default function MentionsBell() {
 
   const openMention = async (m: QAMention) => {
     setOpen(false);
-    if (!m.read_at) await markRead(m.id);
+    if (!m.read_at) await markGroupRead(m);
     if (m.recapture_case_id) {
       // Recapture mention or follow-up reminder: open the case drawer in the worklist.
       navigate(
