@@ -606,15 +606,49 @@ const InsuranceRulesConfig = () => {
               </div>
               <div className="space-y-1">
                 <Label>Service line (optional)</Label>
-                <Select value={ruleServiceLine} onValueChange={setRuleServiceLine}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__any__">All service lines</SelectItem>
-                    {serviceLinesFor(ruleProject).map((sl) => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
-                    <SelectItem value="__custom__">Other (type it)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {ruleServiceLine === '__custom__' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between font-normal">
+                      <span className={ruleServiceLines.length ? '' : 'text-muted-foreground'}>
+                        {ruleServiceLines.length === 0
+                          ? 'All service lines'
+                          : ruleServiceLines.length === 1
+                            ? ruleServiceLines[0]
+                            : `${ruleServiceLines.length} service lines`}
+                      </span>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-popover z-50">
+                    <DropdownMenuItem onSelect={() => { setRuleServiceLines([]); setRuleServiceCustomOn(false); }}>
+                      All service lines
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {serviceLinesFor(ruleProject).map((sl) => (
+                      <DropdownMenuCheckboxItem
+                        key={sl}
+                        checked={ruleServiceLines.includes(sl)}
+                        onCheckedChange={(checked) =>
+                          setRuleServiceLines((prev) =>
+                            checked ? Array.from(new Set([...prev, sl])) : prev.filter((v) => v !== sl)
+                          )
+                        }
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {sl}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={ruleServiceCustomOn}
+                      onCheckedChange={(checked) => setRuleServiceCustomOn(!!checked)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      Other (type it)
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {ruleServiceCustomOn && (
                   <Input className="mt-1" value={ruleServiceCustom} placeholder="e.g. Knee Pain"
                     onChange={(e) => setRuleServiceCustom(e.target.value)} />
                 )}
