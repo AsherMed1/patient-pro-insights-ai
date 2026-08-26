@@ -765,9 +765,37 @@ serve(async (req) => {
         console.error(`[${requestId}] review-queue Slack invoke threw:`, e);
       }
 
+      // Potential-OON safeguard must run BEFORE the setter-submitted 'approved'
+      // tag: that tag is what releases the GHL confirmation text/email. If the
+      // insurance is flagged, the row is pulled into QA Hold and the patient
+      // must NOT be confirmed until a reviewer approves it in the Review Queue
+      // (that path pushes 'approved' itself).
+      // `var` so the later fire-and-forget evaluate block can see these.
+      var oonPreEvaluated = false;
+      var oonHeldForQA = false;
+      if (isSetterSubmitted) {
+        try {
+          const { data: oonRes, error: oonErr } = await supabase.functions.invoke('evaluate-potential-oon', {
+            body: { appointment_id: appointmentRecord.id },
+          });
+          if (oonErr) {
+            console.error(`[${requestId}] pre-approve potential-OON evaluate failed:`, oonErr);
+          } else {
+            oonPreEvaluated = true;
+            const first = Array.isArray((oonRes as any)?.results) ? (oonRes as any).results[0] : null;
+            oonHeldForQA = !!first?.heldForQA;
+            if (oonHeldForQA) {
+              console.log(`[${requestId}] setter-submitted held for QA (potential OON) — 'approved' tag withheld`);
+            }
+          }
+        } catch (e) {
+          console.error(`[${requestId}] pre-approve potential-OON evaluate threw:`, e);
+        }
+      }
+
       // Setter-submitted auto-approve: tag the GHL contact 'approved' to match
       // the admin manual-approve behavior in the Review Queue UI.
-      if (isSetterSubmitted && appointmentRecord.ghl_id) {
+      if (isSetterSubmitted && appointmentRecord.ghl_id && !oonHeldForQA) {
         try {
           const { data: projectData } = await supabase
             .from('projects')
@@ -875,10 +903,13 @@ serve(async (req) => {
 
     // Potential-OON insurance safeguard: evaluate the appointment's insurance
     // against the configured block rules (flags, QA hold, Slack alert).
+    // Skipped when the setter-submitted path already evaluated it above.
     try {
-      supabase.functions.invoke('evaluate-potential-oon', {
-        body: { appointment_id: appointmentRecord.id },
-      }).catch((e: unknown) => console.error(`[${requestId}] potential-OON evaluate failed:`, e));
+      if (!(typeof oonPreEvaluated !== 'undefined' && oonPreEvaluated)) {
+        supabase.functions.invoke('evaluate-potential-oon', {
+          body: { appointment_id: appointmentRecord.id },
+        }).catch((e: unknown) => console.error(`[${requestId}] potential-OON evaluate failed:`, e));
+      }
     } catch (e) {
       console.error(`[${requestId}] potential-OON evaluate threw:`, e);
     }

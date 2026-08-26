@@ -1408,9 +1408,16 @@ const ReviewQueue: React.FC = () => {
           });
         }
 
-        // GHL exit tag: without this, contacts sit forever in the GHL workflow
-        // Wait step that only listens for the 'approved' tag.
+        // GHL tags. `appointment-oon` is the exit tag for the review-queue Wait
+        // step. `oon pt` is what enrolls the client's "OON PT - Cancel Appt in
+        // future" workflow — it is normally applied by the project's own GHL
+        // automation off the outbound webhook, but when that never lands the
+        // workflow never fires and GHL only shows a plain cancellation. Pushing
+        // it here is idempotent, so projects whose automation also applies it
+        // are unaffected. The GHL appointment itself is deliberately left alone
+        // so the workflow can cancel it and send the patient the OON message.
         if (priorRow.ghl_id) {
+          const oonTags = ['appointment-oon', 'oon pt'];
           try {
             const { data: projectData } = await supabase
               .from('projects')
@@ -1422,16 +1429,32 @@ const ReviewQueue: React.FC = () => {
               body: {
                 ghl_contact_id: priorRow.ghl_id,
                 ghl_api_key: projectData?.ghl_api_key || undefined,
-                tags: ['appointment-oon'],
+                tags: oonTags,
                 action: 'add',
+                source: `Review Queue OON by ${userName || 'a portal user'}`,
               },
             });
             if (oonTagErr) {
               console.error('OON GHL tag failed:', oonTagErr);
               toast({
                 title: 'OON saved — GHL tag failed',
-                description: 'The "appointment-oon" tag could not be added in GHL.',
+                description: `The GHL tag(s) ${oonTags.join(', ')} could not be added. The OON workflow may not fire for this patient.`,
                 variant: 'destructive',
+              });
+              await supabase.from('appointment_notes').insert({
+                appointment_id: id,
+                note_text: `GHL OON tags FAILED (${oonTags.join(', ')}): ${(oonTagErr as any)?.message || oonTagErr}`,
+                created_by: 'System',
+                visibility: 'internal',
+              });
+            } else {
+              await supabase.from('appointment_notes').insert({
+                appointment_id: id,
+                note_text:
+                  `GHL OON tags applied: ${oonTags.join(', ')}. The GoHighLevel appointment was intentionally left as-is ` +
+                  `so the OON workflow can cancel it and send the patient the OON message.`,
+                created_by: 'System',
+                visibility: 'internal',
               });
             }
           } catch (err) {
@@ -2579,7 +2602,10 @@ const ReviewQueue: React.FC = () => {
                             size="sm"
                             variant="outline"
                             onClick={() => setAttemptDialogRow(row)}
-                            title="Log a contact attempt for this patient"
+                            disabled={isOonBlocked(row)}
+                            title={isOonBlocked(row)
+                              ? 'Potential OON insurance — resolve the insurance flag first'
+                              : 'Log a contact attempt for this patient'}
                           >
                             <PhoneCall className="h-3.5 w-3.5 mr-1" /> Log attempt
                           </Button>
@@ -2612,7 +2638,8 @@ const ReviewQueue: React.FC = () => {
                             variant="default"
                             className="bg-green-600 hover:bg-green-700"
                             onClick={() => handleSingleAction(row.id, 'approved', undefined, undefined, duplicatesByRowId[row.id]?.length || 0)}
-                            disabled={processing}
+                            disabled={processing || isOonBlocked(row)}
+                            title={isOonBlocked(row) ? 'Potential OON insurance — verify the insurance before approving' : undefined}
                           >
                             <Check className="h-3.5 w-3.5 mr-1" /> Approve
                           </Button>
@@ -2621,7 +2648,8 @@ const ReviewQueue: React.FC = () => {
                             variant="outline"
                             className="border-orange-300 text-orange-700 hover:bg-orange-50"
                             onClick={() => { setActionRow({ id: row.id, action: 'oon' }); setActionNotes(''); }}
-                            disabled={processing}
+                            disabled={processing || isOonBlocked(row)}
+                            title={isOonBlocked(row) ? 'Use "Confirm OON" in the Potential OON panel above' : undefined}
                           >
                             <AlertTriangle className="h-3.5 w-3.5 mr-1" /> OON
                           </Button>
@@ -2644,7 +2672,7 @@ const ReviewQueue: React.FC = () => {
                           >
                             <Undo2 className="h-3.5 w-3.5 mr-1" /> Return to trainee
                           </Button>
-                          ) : (
+                          ) : queueView === 'qa_hold' ? null : (
                           <Button
                             size="sm"
                             variant="outline"
