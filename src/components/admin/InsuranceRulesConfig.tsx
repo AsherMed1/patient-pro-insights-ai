@@ -202,23 +202,26 @@ const InsuranceRulesConfig = () => {
     }).select().single();
     if (error) return toast({ title: 'Could not add rule', description: error.message, variant: 'destructive' });
 
-    const chosenServiceLine =
-      ruleServiceLine === '__any__' ? null
-      : ruleServiceLine === '__custom__' ? (ruleServiceCustom.trim() || null)
-      : ruleServiceLine;
+    const chosenServiceLines = Array.from(new Set([
+      ...ruleServiceLines,
+      ...(ruleServiceCustomOn && ruleServiceCustom.trim() ? [ruleServiceCustom.trim()] : []),
+    ]));
 
-    if (ruleProject !== '__all__' || ruleLocation.trim() || chosenServiceLine) {
-      const { error: sErr } = await supabase.from('insurance_block_rule_scopes').insert({
+    if (ruleProject !== '__all__' || ruleLocation.trim() || chosenServiceLines.length) {
+      const baseScope = {
         rule_id: data.id,
         project_name: ruleProject === '__all__' ? null : ruleProject,
         location: ruleLocation.trim() || null,
-        service_line: chosenServiceLine,
-      });
+      };
+      const payload = chosenServiceLines.length
+        ? chosenServiceLines.map((sl) => ({ ...baseScope, service_line: sl }))
+        : [{ ...baseScope, service_line: null }];
+      const { error: sErr } = await supabase.from('insurance_block_rule_scopes').insert(payload);
       if (sErr) toast({ title: 'Rule saved, scope failed', description: sErr.message, variant: 'destructive' });
     }
     if (ruleProject !== '__all__') setRulesClinicFilter(ruleProject);
     setRuleValue(''); setRuleNote(''); setRuleLocation('');
-    setRuleServiceLine('__any__'); setRuleServiceCustom('');
+    setRuleServiceLines([]); setRuleServiceCustomOn(false); setRuleServiceCustom('');
     loadAll();
     toast({ title: 'Rule added' });
   };
