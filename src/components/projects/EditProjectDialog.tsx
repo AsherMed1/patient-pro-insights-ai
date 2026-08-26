@@ -35,6 +35,8 @@ interface ProjectFormData {
   short_notice_threshold_hours?: string;
 }
 
+import { ShortNoticeRules } from '@/components/projects/ShortNoticeRules';
+
 interface EditProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -312,6 +314,13 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
                 </FormItem>
               )}
             />
+
+            {project?.project_name && (
+              <ShortNoticeRules
+                projectName={project.project_name}
+                defaultHours={Number(form.watch('short_notice_threshold_hours') ?? 72)}
+              />
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

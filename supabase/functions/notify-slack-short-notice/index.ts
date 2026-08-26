@@ -15,6 +15,10 @@ interface ShortNoticePayload {
   appointmentDatetime: string;
   createdDatetime: string;
   hoursDifference: number;
+  thresholdHours?: number;
+  serviceLine?: string;
+  location?: string;
+  ruleScope?: string;
   status?: string;
   calendarName?: string;
   phone?: string;
@@ -39,6 +43,10 @@ serve(async (req) => {
       appointmentDatetime,
       createdDatetime,
       hoursDifference,
+      thresholdHours,
+      serviceLine,
+      location,
+      ruleScope,
       status,
       calendarName,
       phone,
@@ -60,6 +68,7 @@ serve(async (req) => {
         appointment_datetime: appointmentDatetime,
         created_datetime: createdDatetime,
         hours_difference: hoursDifference,
+        threshold_hours: thresholdHours ?? null,
         ghl_id: ghlId || null,
         slack_sent: false,
       });
@@ -124,7 +133,7 @@ serve(async (req) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${leadName}* — booked *${hoursText} before appt* (weekends excluded)`
+            text: `*${leadName}* — booked *${hoursText} before appt* (weekends excluded)${thresholdHours ? `\nRequired notice: *${thresholdHours} biz hrs* (${ruleScope || 'account default'})` : ''}`
           }
         },
         { type: "divider" },
@@ -133,6 +142,20 @@ serve(async (req) => {
           fields: [
             { type: "mrkdwn", text: `*Clinic:*\n${projectName}` },
             { type: "mrkdwn", text: `*Status:*\n${status || 'Unconfirmed'}` }
+          ]
+        },
+        {
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*Service line:*\n${serviceLine || 'N/A'}` },
+            { type: "mrkdwn", text: `*Location:*\n${location || calendarName || 'N/A'}` }
+          ]
+        },
+        {
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*Required notice:*\n${thresholdHours ? `${thresholdHours} biz hrs` : 'Account default'}` },
+            { type: "mrkdwn", text: `*Notice provided:*\n${hoursText}` }
           ]
         },
         {

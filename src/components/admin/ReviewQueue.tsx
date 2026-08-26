@@ -41,8 +41,11 @@ import {
   MAX_CONTACT_AGE_DAYS,
 
   PENDING_FOLLOWUP_BUSINESS_HOURS,
+  resolveShortNoticeThreshold,
+  type ShortNoticeRule,
   type ShortNoticeStatus,
 } from '@/lib/shortNotice';
+import { serviceLineFromAppointment } from '@/lib/serviceLines';
 
 // Surface the full Postgres/Supabase error so failures are diagnosable from a screenshot
 const describeError = (e: any): string => {
@@ -187,6 +190,7 @@ const ReviewQueue: React.FC = () => {
   const [shortNoticeByRowId, setShortNoticeByRowId] = useState<Record<string, number>>({});
   const [shortNoticeOnly, setShortNoticeOnly] = useState(false);
   const [projectConfigs, setProjectConfigs] = useState<Record<string, ProjectConfig>>({});
+  const [noticeRulesByProject, setNoticeRulesByProject] = useState<Record<string, ShortNoticeRule[]>>({});
   const [lastContactByRowId, setLastContactByRowId] = useState<Record<string, LastContact>>({});
   const [attemptsByRowId, setAttemptsByRowId] = useState<Record<string, LastContact>>({});
   const [siblingIdsByRowId, setSiblingIdsByRowId] = useState<Record<string, string[]>>({});
@@ -215,11 +219,17 @@ const ReviewQueue: React.FC = () => {
     for (const r of rows) {
       const cfg = projectConfigs[r.project_name];
       if (!cfg) continue;
-      const st = getShortNoticeStatus(r.date_of_appointment, r.requested_time, cfg.threshold, cfg.timezone, nowTick);
+      const serviceLine = serviceLineFromAppointment(r as never);
+      const { thresholdHours } = resolveShortNoticeThreshold(
+        noticeRulesByProject[r.project_name] || [],
+        { serviceLine, location: r.calendar_name || null, calendarName: r.calendar_name || null },
+        cfg.threshold,
+      );
+      const st = getShortNoticeStatus(r.date_of_appointment, r.requested_time, thresholdHours, cfg.timezone, nowTick);
       if (st) map[r.id] = st;
     }
     return map;
-  }, [rows, projectConfigs, nowTick]);
+  }, [rows, projectConfigs, noticeRulesByProject, nowTick]);
 
   /** A record is short notice when it is tagged, or already inside the window. */
   const isShortNoticeRow = useCallback((row: ReviewAppointment) => {
@@ -742,6 +752,19 @@ const ReviewQueue: React.FC = () => {
         });
         // Fall back to the default threshold when a project row is missing
         missing.forEach(n => { if (!next[n]) next[n] = { threshold: 72, timezone: 'America/Chicago' }; });
+        return next;
+      });
+
+      // Per-clinic notice rules (service line / location overrides)
+      const { data: ruleRows } = await supabase
+        .from('project_short_notice_rules')
+        .select('project_name, service_line, location, threshold_hours, is_active')
+        .in('project_name', missing)
+        .eq('is_active', true);
+      setNoticeRulesByProject(prev => {
+        const next = { ...prev };
+        missing.forEach(n => { next[n] = []; });
+        (ruleRows || []).forEach((r: any) => { (next[r.project_name] ||= []).push(r); });
         return next;
       });
     };
