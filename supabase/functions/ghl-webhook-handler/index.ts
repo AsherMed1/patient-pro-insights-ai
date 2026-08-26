@@ -903,10 +903,13 @@ serve(async (req) => {
 
     // Potential-OON insurance safeguard: evaluate the appointment's insurance
     // against the configured block rules (flags, QA hold, Slack alert).
+    // Skipped when the setter-submitted path already evaluated it above.
     try {
-      supabase.functions.invoke('evaluate-potential-oon', {
-        body: { appointment_id: appointmentRecord.id },
-      }).catch((e: unknown) => console.error(`[${requestId}] potential-OON evaluate failed:`, e));
+      if (!(typeof oonPreEvaluated !== 'undefined' && oonPreEvaluated)) {
+        supabase.functions.invoke('evaluate-potential-oon', {
+          body: { appointment_id: appointmentRecord.id },
+        }).catch((e: unknown) => console.error(`[${requestId}] potential-OON evaluate failed:`, e));
+      }
     } catch (e) {
       console.error(`[${requestId}] potential-OON evaluate threw:`, e);
     }
