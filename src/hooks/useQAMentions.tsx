@@ -147,5 +147,5 @@ export const useQAMentions = () => {
 
   const unreadCount = mentions.filter((m) => !m.read_at).length;
 
-  return { mentions, unreadCount, loading, markRead, markAllRead, refresh: fetchMentions };
+  return { mentions, unreadCount, loading, markRead, markGroupRead, markAllRead, refresh: fetchMentions };
 };
