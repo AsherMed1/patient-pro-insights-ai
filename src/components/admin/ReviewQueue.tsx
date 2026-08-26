@@ -2579,7 +2579,10 @@ const ReviewQueue: React.FC = () => {
                             size="sm"
                             variant="outline"
                             onClick={() => setAttemptDialogRow(row)}
-                            title="Log a contact attempt for this patient"
+                            disabled={isOonBlocked(row)}
+                            title={isOonBlocked(row)
+                              ? 'Potential OON insurance — resolve the insurance flag first'
+                              : 'Log a contact attempt for this patient'}
                           >
                             <PhoneCall className="h-3.5 w-3.5 mr-1" /> Log attempt
                           </Button>
