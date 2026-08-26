@@ -107,6 +107,7 @@ function CalendarCheckboxList({ calendars, selectedIds, onSelectionChange, loadi
 
   const visibleCalendars = calendars
     .filter(c => !c.name.toLowerCase().includes('call back request'))
+    .filter(c => !c.name.toLowerCase().includes('sales calendar'))
     .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
 
   const toggleCalendar = (id: string) => {
