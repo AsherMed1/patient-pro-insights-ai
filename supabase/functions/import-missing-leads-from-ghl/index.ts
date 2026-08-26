@@ -48,6 +48,22 @@ function inferProcedureFromContext(
   return null;
 }
 
+// Projects that capture leads without a booked slot (time preference instead).
+const UNSCHEDULED_CAPTURE_PROJECTS = new Set([
+  'premier vascular',
+  'premier vascular surgery',
+  'ecco medical',
+  'davis vein & vascular',
+  'horizon vascular specialists',
+  'prospero vascular and interventional',
+  'vascular institute of michigan',
+  'alliance vascular',
+]);
+
+function isUnscheduledCaptureProject(projectName: string | null | undefined): boolean {
+  return UNSCHEDULED_CAPTURE_PROJECTS.has((projectName || '').trim().toLowerCase());
+}
+
 // Time-of-day preference for unscheduled-capture projects (no booked slot in GHL).
 function extractTimePreference(notes: string | null | undefined): string | null {
   const m = /Time Preference\s*:\s*([^\n]+)/i.exec(notes || '');
@@ -288,7 +304,12 @@ Deno.serve(async (req) => {
           internal_process_complete: false,
           date_appointment_created: new Date().toISOString().slice(0, 10),
           ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
-          ...(dateOfAppt ? {} : { time_preference: extractTimePreference(formattedNotes) }),
+          ...(dateOfAppt
+            ? {}
+            : {
+                time_preference: extractTimePreference(formattedNotes),
+                ...(isUnscheduledCaptureProject(row.project_name) ? { is_unscheduled: true } : {}),
+              }),
         };
 
         const { data: inserted, error: insErr } = await supabase
