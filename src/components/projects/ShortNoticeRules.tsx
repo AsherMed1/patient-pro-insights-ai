@@ -11,6 +11,10 @@ import { ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CANONICAL_SERVICE_LINES } from '@/lib/serviceLines';
+import { extractLocationFromCalendarName } from '@/components/appointments/LocationLegend';
+
+const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
+const ANY_LOCATION = '__any__';
 
 const HOUR_OPTIONS = [1, 12, 18, 24, 36, 48, 60, 72, 84, 120, 132, 168, 240, 252, 336];
 
@@ -60,6 +64,34 @@ export const ShortNoticeRules: React.FC<Props> = ({ projectName, defaultHours })
   }, [projectName, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Locations detected from the project's calendars (same extraction as the calendar legend)
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLocations = async () => {
+      if (!projectName) return;
+      const { data, error } = await supabase
+        .from('all_appointments')
+        .select('calendar_name, parsed_pathology_info')
+        .eq('project_name', projectName)
+        .not('calendar_name', 'is', null);
+      if (error || cancelled) return;
+      const unique = new Set<string>();
+      (data || []).forEach((row: any) => {
+        const loc = extractLocationFromCalendarName(
+          row.calendar_name,
+          row.parsed_pathology_info?.location,
+        );
+        if (!loc) return;
+        if (LEGACY_LOCATIONS.some((legacy) => loc.includes(legacy))) return;
+        unique.add(loc);
+      });
+      setLocationOptions(Array.from(unique).sort());
+    };
+    fetchLocations();
+    return () => { cancelled = true; };
+  }, [projectName]);
 
   const serviceLabel = useMemo(
     () => (serviceLines.length ? serviceLines.join(', ') : 'All service lines'),
@@ -203,8 +235,23 @@ export const ShortNoticeRules: React.FC<Props> = ({ projectName, defaultHours })
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Location (optional)</Label>
-          <Input className="h-9 w-[180px]" value={location} placeholder="e.g. Bowling Green"
-            onChange={(e) => setLocation(e.target.value)} />
+          {locationOptions.length > 0 ? (
+            <Select
+              value={location || ANY_LOCATION}
+              onValueChange={(v) => setLocation(v === ANY_LOCATION ? '' : v)}
+            >
+              <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                <SelectItem value={ANY_LOCATION}>Any location</SelectItem>
+                {locationOptions.map((loc) => (
+                  <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input className="h-9 w-[180px]" value={location} placeholder="e.g. Bowling Green"
+              onChange={(e) => setLocation(e.target.value)} />
+          )}
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Required notice</Label>
