@@ -51,7 +51,8 @@ const InsuranceRulesConfig = () => {
   const [ruleNote, setRuleNote] = useState('');
   const [ruleProject, setRuleProject] = useState<string>('__all__');
   const [ruleLocation, setRuleLocation] = useState('');
-  const [ruleServiceLine, setRuleServiceLine] = useState<string>('__any__');
+  const [ruleServiceLines, setRuleServiceLines] = useState<string[]>([]);
+  const [ruleServiceCustomOn, setRuleServiceCustomOn] = useState(false);
   const [ruleServiceCustom, setRuleServiceCustom] = useState('');
   const [rulesClinicFilter, setRulesClinicFilter] = useState<string>('__all__');
   const [rulesServiceFilter, setRulesServiceFilter] = useState<string>('__all__');
