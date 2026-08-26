@@ -83,7 +83,11 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   };
   // Guard against a "slurped" value that swallowed the rest of a semicolon blob
   const isSlurp = (v: string) => !v || v.length > 60 || /:/.test(v);
-  const clean = (v: string) => v.trim().replace(/[,;\-\s]+$/, '');
+  const clean = (v: string) => v.trim().replace(/[.,;\-\s]+$/, '');
+  const cleanNameCandidate = (v: string) => clean(v)
+    .replace(/\b(?:pt|patient)\b[\s.,:;]*(?:stated|said|reports?|noted|explained|mentioned|pcp|doctor|physician)?\b.*$/i, '')
+    .replace(/\b(?:stated|said|reports?|noted|explained|mentioned)\b.*$/i, '')
+    .trim();
 
   // Collect ALL matches for a label pattern (values stop at newline, "|" or ";")
   const allMatches = (re: RegExp): string[] => {
@@ -97,7 +101,9 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   };
 
   // 1) Name-specific labels first — take the first usable (non-placeholder) candidate.
-  for (const raw of allMatches(/(?:Primary Care|PCP)[^:\n]*\bName\b[^:\n;|]*:\s*([^\n|;]+)/i)) {
+  // Covers funnel variants like "Primary Care Doctor’s Name", "Doctor Name",
+  // "Primary Physician Name", and "PCP Name".
+  for (const raw of allMatches(/(?:Primary Care|PCP|Primary Physician|Physician|Doctor)[^:\n;|]*\bName\b[^:\n;|]*:\s*([^\n|;]+)/i)) {
     if (isBad(raw) || isSlurp(raw)) continue;
     const pm = phoneFromValue(raw);
     if (pm) {
@@ -112,7 +118,7 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
 
   // 2) Phone-specific labels.
   if (!result.phone) {
-    for (const raw of allMatches(/(?:Primary Care|PCP)[^:\n]*(?:Phone|Number|Tel)[^:\n;|]*:\s*([^\n|;]+)/i)) {
+    for (const raw of allMatches(/(?:Primary Care|PCP|Primary Physician|Physician|Doctor)[^:\n]*(?:Phone|Number|Tel)[^:\n;|]*:\s*([^\n|;]+)/i)) {
       if (isBad(raw) || isSlurp(raw)) continue;
       result.phone = phoneFromValue(raw) ?? raw;
       break;
@@ -123,7 +129,7 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
   //    but SKIP any line whose label is phone-specific (already handled) so we don't
   //    accidentally treat digits as a name.
   if (!result.name) {
-    const lineRe = /^(?:[ \t]*)([^\n:]*(?:Primary Care|PCP|physician)[^\n:]*):\s*([^\n|;]+)/gim;
+    const lineRe = /^(?:[ \t]*)([^\n:]*(?:Primary Care|PCP|physician|doctor)[^\n:]*):\s*([^\n|;]+)/gim;
     let m: RegExpExecArray | null;
     while ((m = lineRe.exec(intakeNotes)) !== null) {
       const label = m[1] || '';
@@ -140,6 +146,16 @@ function extractPcpNameAndPhone(intakeNotes: string): { name: string | null; pho
         result.name = value;
         break;
       }
+    }
+  }
+
+  // 4) Narrative fallback from notes, e.g. "previous pcp Latesha Marty".
+  // Use only when no explicit usable PCP name was submitted.
+  if (!result.name) {
+    const narrative = intakeNotes.match(/\b(?:previous|prior|former|current)?\s*(?:pcp|primary\s+care\s+(?:doctor|physician)|doctor|physician)\s+(?:is|was|named|name\s+is|:)?\s*([A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){0,3})\b/);
+    const candidate = narrative?.[1] ? cleanNameCandidate(narrative[1]) : null;
+    if (candidate && !isBad(candidate) && !isSlurp(candidate) && !/^(at|in|with|from|the|a|an)$/i.test(candidate)) {
+      result.name = candidate;
     }
   }
 
@@ -256,6 +272,91 @@ function extractMultiLineFieldValue(notes: string, fieldRegex: RegExp): string |
   return null;
 }
 
+function normalizeCheckboxAnswer(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const s = String(value).trim().replace(/^[☑️✅✔❌☐□]+\s*/, '').trim();
+  if (!s) return null;
+  if (/^yes\b/i.test(s)) return 'YES';
+  if (/^no\b/i.test(s)) return 'NO';
+  if (/^(null|undefined|none|n\/a|na)$/i.test(s)) return null;
+  return s;
+}
+
+function appendUniqueFact(existing: string | null | undefined, fact: string): string {
+  const cleaned = fact.trim();
+  if (!cleaned) return existing ? String(existing) : '';
+  const current = existing ? String(existing).trim() : '';
+  if (!current) return cleaned;
+  const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const existingFacts = current.split(/\s*[;|]\s*|\.\s+/).map(normalize).filter(Boolean);
+  if (existingFacts.includes(normalize(cleaned))) return current;
+  return `${current}; ${cleaned}`;
+}
+
+function extractPaeSurveyFields(intakeNotes: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!intakeNotes) return out;
+
+  const normalized = intakeNotes
+    .replace(/\s+\|\s+(?=PAE\s*(?:w\/?\s*BPH)?\s*\|)/gi, '\n')
+    .replace(/\s+\|\s+(?=Prostate\s*\|)/gi, '\n');
+  const lineRe = /(?:^|\n)\s*(?:PAE\s*(?:w\/?\s*BPH)?|Prostate)\s*\|\s*([^:\n]+?)\s*:\s*([^\n]+)/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = lineRe.exec(normalized)) !== null) {
+    const question = (match[1] || '').trim().replace(/\s+/g, ' ');
+    const answer = normalizeCheckboxAnswer((match[2] || '').trim().replace(/\s+\|\s*$/g, ''));
+    if (!question || !answer) continue;
+    const q = question.toLowerCase();
+
+    if (/experiencing any of the following|which.*symptom|what.*symptom/.test(q)) {
+      out.symptoms = appendUniqueFact(out.symptoms, answer);
+    } else if (/urinate more than once every 2 hours/.test(q)) {
+      out.urination_frequency = answer;
+      if (answer === 'YES') out.symptoms = appendUniqueFact(out.symptoms, 'Urinates more than once every 2 hours');
+    } else if (/urine stream.*weaker|stream.*harder to control|weak stream/.test(q)) {
+      out.weak_stream = answer;
+      if (answer === 'YES') out.symptoms = appendUniqueFact(out.symptoms, 'Weak or hard-to-control urine stream');
+    } else if (/quality of life/.test(q)) {
+      out.quality_of_life = answer;
+      if (answer === 'YES') out.symptoms = appendUniqueFact(out.symptoms, 'Unhappy with current quality of life');
+    } else if (/urinary tract infections|bladder health|kidney health|uti/.test(q)) {
+      out.uti_bladder_kidney = answer;
+      if (answer === 'YES') out.other_notes = appendUniqueFact(out.other_notes, 'Reports UTI, bladder, or kidney-health issues');
+    } else if (/prefer.*non.?surgical|non.?surgical treatment/.test(q)) {
+      out.prefers_non_surgical = answer;
+      if (answer === 'YES') out.treatment = appendUniqueFact(out.treatment, 'Prefers non-surgical treatment');
+    } else if (/interested in speaking to a specialist/.test(q)) {
+      out.specialist_interest = answer;
+    } else if (/candidate.*pae|learn if.*candidate/.test(q)) {
+      out.pae_candidate_interest = answer;
+    } else if (/blood in your urine/.test(q)) {
+      out.blood_in_urine = answer;
+    } else if (/how long|duration/.test(q)) {
+      out.duration = answer;
+    } else if (/treatments?|medications?|tried/.test(q)) {
+      out.previous_treatments = answer;
+    } else if (/diagnos|enlarged prostate|bph/.test(q)) {
+      out.diagnosis = answer;
+    }
+  }
+
+  return out;
+}
+
+function extractPrimaryInsuranceFrontBackFromNotes(notes: string): { front: string | null; back: string | null } {
+  if (!notes) return { front: null, back: null };
+  const files: InsuranceCardFile[] = [];
+  const lines = notes.split(/\r?\n/);
+  for (const line of lines) {
+    if (!/insurance/i.test(line) || !/(card|upload|photo|image|id[_\s-]*link|front|back)/i.test(line)) continue;
+    if (/secondary|\(\s*2\s*\)/i.test(line)) continue;
+    const slot = /\bback\b/i.test(line) ? 'back' : /\bfront\b/i.test(line) ? 'front' : null;
+    files.push(...collectInsuranceFilesFromValue(line, slot));
+  }
+  return assignInsuranceFrontBack(files);
+}
+
 
 // Helper to fetch GHL custom fields with appointment-based contact ID verification
 async function fetchGHLCustomFields(
@@ -346,51 +447,86 @@ async function fetchGHLCustomFields(
   }
 }
 
+type InsuranceCardFile = { url: string; name: string; slot?: 'front' | 'back' | null };
+
+function collectInsuranceFilesFromValue(value: any, slot: 'front' | 'back' | null = null): InsuranceCardFile[] {
+  const out: InsuranceCardFile[] = [];
+  const push = (url: string, name = '', slotHint: 'front' | 'back' | null = slot) => {
+    const cleanUrl = String(url || '').trim().replace(/[),.;]+$/, '');
+    if (!/^https?:\/\//i.test(cleanUrl)) return;
+    if (!out.some((file) => file.url === cleanUrl)) out.push({ url: cleanUrl, name: String(name || ''), slot: slotHint });
+  };
+
+  const walk = (input: any) => {
+    if (input === null || input === undefined) return;
+    if (typeof input === 'string') {
+      const raw = input.trim();
+      if (!raw || /^(null|undefined|none|n\/a)$/i.test(raw)) return;
+      if (raw.startsWith('{') || raw.startsWith('[')) {
+        try {
+          walk(JSON.parse(raw));
+          return;
+        } catch (_error) {
+          // Keep scanning malformed JSON-ish strings for URLs below.
+        }
+      }
+      for (const match of raw.matchAll(/https?:\/\/[^\s<>"'\]}]+/g)) push(match[0]);
+      return;
+    }
+    if (Array.isArray(input)) {
+      for (const item of input) walk(item);
+      return;
+    }
+    if (typeof input === 'object') {
+      const url = input.url ?? input.fileUrl ?? input.file_url ?? input.link ?? input.downloadUrl;
+      const name = input.name ?? input.fileName ?? input.file_name ?? input.originalName ?? input.originalname ?? input.meta?.originalname ?? input.meta?.name;
+      if (typeof url === 'string') {
+        push(url, name);
+        return;
+      }
+      for (const nested of Object.values(input)) walk(nested);
+    }
+  };
+
+  walk(value);
+  return out;
+}
+
+function assignInsuranceFrontBack(files: InsuranceCardFile[]): { front: string | null; back: string | null } {
+  const seen = new Set<string>();
+  const unique = files.filter((file) => {
+    if (!file.url || seen.has(file.url)) return false;
+    seen.add(file.url);
+    return true;
+  });
+  if (unique.length === 0) return { front: null, back: null };
+
+  const hint = (file: InsuranceCardFile) => `${file.name || ''} ${file.url || ''}`.toLowerCase();
+  const isBack = (file: InsuranceCardFile) => file.slot === 'back' || (file.slot !== 'front' && /\bback\b|card[_\s-]*back|back[_\s-]*of/.test(hint(file)));
+  const isFront = (file: InsuranceCardFile) => file.slot === 'front' || (file.slot !== 'back' && /\bfront\b|card[_\s-]*front|front[_\s-]*of/.test(hint(file)));
+  const explicitBack = unique.find(isBack);
+  const explicitFront = unique.find((file) => isFront(file) && file !== explicitBack);
+
+  if (explicitFront || explicitBack) {
+    const front = explicitFront?.url ?? unique.find((file) => file !== explicitBack)?.url ?? null;
+    const back = explicitBack?.url ?? null;
+    return { front, back: back === front ? null : back };
+  }
+
+  return {
+    front: unique[0]?.url ?? null,
+    back: unique[1]?.url && unique[1].url !== unique[0]?.url ? unique[1].url : null,
+  };
+}
+
 // Helper: Extract URL from JSON format or plain string (GHL file upload format)
 function extractUrlFromJsonOrString(value: any): string | null {
   return extractFrontBackFromJsonOrString(value).front;
 }
 
-// Helper: Extract front + back URLs from GHL upload JSON blob.
-// GHL stores multiple uploads as {"uuid": {"url":"...", "meta":{"originalname":"...front.jpg"}}}.
-// We disambiguate by originalname keywords ("front"/"back"). Anything unlabeled fills front, then back.
+// Helper: Extract front + back URLs from GHL upload data.
 function extractFrontBackFromJsonOrString(value: any): { front: string | null; back: string | null } {
-  const out = { front: null as string | null, back: null as string | null };
-  if (!value) return out;
-
-  let parsed: any = value;
-  if (typeof value === 'string') {
-    if (value.startsWith('http')) {
-      out.front = value;
-      return out;
-    }
-    if (value.startsWith('{')) {
-      try { parsed = JSON.parse(value); } catch { return out; }
-    } else {
-      return out;
-    }
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) return out;
-
-  const entries = Object.values(parsed) as any[];
-  const unlabeled: string[] = [];
-  for (const e of entries) {
-    if (!e?.url || typeof e.url !== 'string') continue;
-    const name = String(e?.meta?.originalname || '').toLowerCase();
-    if (name.includes('back')) {
-      if (!out.back) out.back = e.url;
-    } else if (name.includes('front')) {
-      if (!out.front) out.front = e.url;
-    } else {
-      unlabeled.push(e.url);
-    }
-  }
-  for (const u of unlabeled) {
-    if (!out.front) out.front = u;
-    else if (!out.back) out.back = u;
-  }
-  return out;
+  return assignInsuranceFrontBack(collectInsuranceFilesFromValue(value));
 }
 
 
@@ -1935,6 +2071,15 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
       parsedData.pathology_info.primary_complaint = 'PAE / BPH';
     }
 
+    const paeFields = extractPaeSurveyFields(intakeNotes);
+    for (const [key, value] of Object.entries(paeFields)) {
+      if (key === 'symptoms' || key === 'other_notes' || key === 'treatment') {
+        parsedData.pathology_info[key] = appendUniqueFact(parsedData.pathology_info[key], value);
+      } else if (!parsedData.pathology_info[key]) {
+        parsedData.pathology_info[key] = value;
+      }
+    }
+
     const grab = (re: RegExp): string | null => {
       const m = intakeNotes.match(re);
       return m && m[1] ? m[1].trim() : null;
@@ -1942,17 +2087,17 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
     // Symptoms experienced
     if (!parsedData.pathology_info.symptoms || /^(yes|no|☑️\s*yes|☐\s*no)$/i.test(String(parsedData.pathology_info.symptoms).trim())) {
-      const sx = grab(/PAE w\/?\s*BPH\s*\|\s*(?:What|Which)[^:?]*symptom[^:?]*\??\s*:\s*([^\n]+)/i)
+      const sx = grab(/PAE(?:\s*w\/?\s*BPH)?\s*\|\s*(?:What|Which|Are you)[^:?]*symptom[^:?]*\??\s*:\s*([^\n]+)/i)
         || grab(/symptoms? (?:are you )?experiencing[^:?]*\??\s*:\s*([^\n]+)/i);
       if (sx && sx.length > 2) {
-        parsedData.pathology_info.symptoms = sx;
+        parsedData.pathology_info.symptoms = appendUniqueFact(parsedData.pathology_info.symptoms, sx);
         console.log(`[AUTO-PARSE PAE] Extracted symptoms: ${sx}`);
       }
     }
 
     // Duration
     if (!parsedData.pathology_info.duration) {
-      const dur = grab(/PAE w\/?\s*BPH\s*\|[^|\n:]*(?:how long|duration)[^:?]*\??\s*:\s*([^\n]+)/i)
+      const dur = grab(/PAE(?:\s*w\/?\s*BPH)?\s*\|[^|\n:]*(?:how long|duration)[^:?]*\??\s*:\s*([^\n]+)/i)
         || grab(/how long have you (?:had|been experiencing)[^:?]*\??\s*:\s*([^\n]+)/i);
       if (dur) {
         parsedData.pathology_info.duration = dur;
@@ -1962,7 +2107,7 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
 
     // Previous treatments
     if (!parsedData.pathology_info.previous_treatments) {
-      const tx = grab(/PAE w\/?\s*BPH\s*\|[^|\n:]*(?:treatments?|medications?)[^:?]*\??\s*:\s*([^\n]+)/i)
+      const tx = grab(/PAE(?:\s*w\/?\s*BPH)?\s*\|[^|\n:]*(?:treatments?|medications?)[^:?]*\??\s*:\s*([^\n]+)/i)
         || grab(/what treatments? have you tried[^:?]*\??\s*:\s*([^\n]+)/i);
       if (tx && tx.length > 2) {
         parsedData.pathology_info.previous_treatments = tx;
@@ -1973,7 +2118,7 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
     // Urologist surgery recommended → diagnosis/notes
     const surg = grab(/urologist[^:?]*surger(?:y|ies)[^:?]*\??\s*:\s*([^\n]+)/i);
     if (surg && !parsedData.pathology_info.other_notes) {
-      parsedData.pathology_info.other_notes = `Urologist surgery recommended: ${surg}`;
+      parsedData.pathology_info.other_notes = appendUniqueFact(parsedData.pathology_info.other_notes, `Urologist surgery recommended: ${surg}`);
       console.log(`[AUTO-PARSE PAE] Extracted urologist surgery note: ${surg}`);
     }
   }
@@ -2322,7 +2467,10 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
   for (const field of customFields) {
     const rawKey = customFieldDefs[field.id] || field.key || '';
     const key = rawKey.toLowerCase();
-    const value = Array.isArray(field.field_value) ? field.field_value.join(', ') : field.field_value;
+    const rawValue = field.field_value;
+    const value = Array.isArray(rawValue)
+      ? rawValue.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join(', ')
+      : rawValue;
     if (!value) continue;
 
     // Filter pathology fields by procedure if targetProcedure is set
@@ -2440,7 +2588,7 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
     // Insurance card URL (front + back parsed from GHL upload JSON blob)
     else if ((key.includes('insurance') && key.includes('card')) || key.includes('upload')) {
       console.log(`[AUTO-PARSE GHL] Found potential insurance card field "${key}":`, typeof value, value?.substring?.(0, 100) || value);
-      const fb = extractFrontBackFromJsonOrString(value);
+      const fb = extractFrontBackFromJsonOrString(rawValue);
       console.log(`[AUTO-PARSE GHL] Extracted front/back:`, fb);
       const isSecondary = key.includes('secondary') || /\(\s*2\s*\)/.test(key);
       if (isSecondary) {
@@ -2450,6 +2598,40 @@ function extractDataFromGHLFields(contact: any, customFieldDefs: Record<string, 
       } else {
         if (fb.front) result.insurance_card_url = fb.front;
         if (fb.back) result.insurance_card_back_url = fb.back;
+      }
+    }
+
+    // PAE urinary/BPH survey fields. These are often named "PAE | <question>"
+    // rather than "PAE STEP", so map them before the generic procedure branch can
+    // reduce them to only "PAE Consultation".
+    else if ((targetProcedure || '').toString().toUpperCase() === 'PAE' && (key.includes('pae') || key.includes('prostate') || key.includes('urinate') || key.includes('urine') || key.includes('bladder') || key.includes('kidney'))) {
+      const answer = normalizeCheckboxAnswer(String(value));
+      if (!answer) continue;
+      if (!result.pathology_info.primary_complaint) result.pathology_info.primary_complaint = 'PAE / BPH';
+      const q = key;
+      if (/experiencing any of the following|which.*symptom|what.*symptom/.test(q)) {
+        result.pathology_info.symptoms = appendUniqueFact(result.pathology_info.symptoms, answer);
+      } else if (/urinate more than once every 2 hours/.test(q)) {
+        (result.pathology_info as any).urination_frequency = answer;
+        if (answer === 'YES') result.pathology_info.symptoms = appendUniqueFact(result.pathology_info.symptoms, 'Urinates more than once every 2 hours');
+      } else if (/urine stream.*weaker|stream.*harder to control|weak stream/.test(q)) {
+        (result.pathology_info as any).weak_stream = answer;
+        if (answer === 'YES') result.pathology_info.symptoms = appendUniqueFact(result.pathology_info.symptoms, 'Weak or hard-to-control urine stream');
+      } else if (/quality of life/.test(q)) {
+        (result.pathology_info as any).quality_of_life = answer;
+        if (answer === 'YES') result.pathology_info.symptoms = appendUniqueFact(result.pathology_info.symptoms, 'Unhappy with current quality of life');
+      } else if (/urinary tract infections|bladder health|kidney health|uti/.test(q)) {
+        (result.pathology_info as any).uti_bladder_kidney = answer;
+        if (answer === 'YES') (result.pathology_info as any).other_notes = appendUniqueFact((result.pathology_info as any).other_notes, 'Reports UTI, bladder, or kidney-health issues');
+      } else if (/prefer.*non.?surgical|non.?surgical treatment/.test(q)) {
+        (result.pathology_info as any).prefers_non_surgical = answer;
+        if (answer === 'YES') (result.pathology_info as any).treatment = appendUniqueFact((result.pathology_info as any).treatment, 'Prefers non-surgical treatment');
+      } else if (/interested in speaking to a specialist/.test(q)) {
+        (result.pathology_info as any).specialist_interest = answer;
+      } else if (/candidate.*pae|learn if.*candidate/.test(q)) {
+        (result.pathology_info as any).pae_candidate_interest = answer;
+      } else if (/blood in your urine/.test(q)) {
+        (result.pathology_info as any).blood_in_urine = answer;
       }
     }
 
@@ -2980,7 +3162,7 @@ Deno.serve(async (req) => {
       forceAppointmentId = typeof body?.appointmentId === "string" ? body.appointmentId : null;
     } catch (_e) { /* no body */ }
 
-    const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, dob_verified_at, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
+    const APPT_SELECT = "id, patient_intake_notes, lead_name, project_name, created_at, dob, dob_verified_at, parse_attempts, parsed_demographics, parsed_contact_info, parsed_insurance_info, parsed_medical_info, parsed_pathology_info, detected_insurance_provider, detected_insurance_plan, detected_insurance_id, insurance_id_link, insurance_back_link, ghl_id, ghl_appointment_id, calendar_name, date_of_appointment";
 
     let forcedAppointments: any[] = [];
     if (forceAppointmentId) {
@@ -3561,40 +3743,34 @@ IGNORE any intake data from prior consultations for different procedures. Focus 
 
           }
           
-          // Update insurance_id_link / insurance_back_link with fallback chain:
-          // 1. GHL custom field URL (highest priority) — includes front + back
-          // 2. Extract from patient_intake_notes text (front only fallback)
-          if (ghlData?.insurance_card_url) {
-            updateData.insurance_id_link = ghlData.insurance_card_url;
-            console.log(`[AUTO-PARSE] Setting insurance_id_link from GHL: ${ghlData.insurance_card_url}`);
-          } else {
-            // Fallback: extract front URL from "Upload A Copy Of Your Insurance Card (Primary)" JSON blob,
-            // then from any URL in the intake notes.
+          // Update insurance_id_link / insurance_back_link with slot-aware, non-destructive rules.
+          // GHL upload fields are preferred; raw note/merge-tag URLs are fallback only and never
+          // overwrite existing portal or webhook card slots.
+          {
             const intake = record.patient_intake_notes || '';
-            const primaryBlob = intake.match(/Upload A Copy Of Your Insurance Card\s*\(Primary\)\s*:\s*(\{[^\n]+\})/i);
-            if (primaryBlob && primaryBlob[1]) {
-              const fb = extractFrontBackFromJsonOrString(primaryBlob[1]);
-              if (fb.front) {
-                updateData.insurance_id_link = fb.front;
-                console.log(`[AUTO-PARSE] Setting insurance_id_link from intake (Primary) blob: ${fb.front}`);
-              }
-              if (fb.back) {
-                updateData.insurance_back_link = fb.back;
-                console.log(`[AUTO-PARSE] Setting insurance_back_link from intake (Primary) blob: ${fb.back}`);
-              }
-            } else {
-              const extractedUrl = extractInsuranceUrlFromText(intake);
-              if (extractedUrl) {
-                updateData.insurance_id_link = extractedUrl;
-                console.log(`[AUTO-PARSE] Setting insurance_id_link from intake notes: ${extractedUrl}`);
-              }
-            }
-          }
+            const fromNotes = extractPrimaryInsuranceFrontBackFromNotes(intake);
+            const candidateFront = ghlData?.insurance_card_url || fromNotes.front || null;
+            const candidateBack = ghlData?.insurance_card_back_url || fromNotes.back || null;
+            const existingFront = (record as any).insurance_id_link || null;
+            const existingBack = (record as any).insurance_back_link || null;
 
-          // Primary back URL from GHL custom field (when available)
-          if (ghlData?.insurance_card_back_url) {
-            updateData.insurance_back_link = ghlData.insurance_card_back_url;
-            console.log(`[AUTO-PARSE] Setting insurance_back_link from GHL: ${ghlData.insurance_card_back_url}`);
+            if (candidateFront && !existingFront) {
+              updateData.insurance_id_link = candidateFront;
+              console.log(`[AUTO-PARSE] Filling missing insurance_id_link: ${candidateFront}`);
+            }
+            if (candidateBack && candidateBack !== (updateData.insurance_id_link || existingFront) && !existingBack) {
+              updateData.insurance_back_link = candidateBack;
+              console.log(`[AUTO-PARSE] Filling missing insurance_back_link: ${candidateBack}`);
+            }
+
+            const candidatePairLooksComplete = candidateFront && candidateBack && candidateFront !== candidateBack;
+            const existingLooksMirrored = existingFront && existingBack && existingFront === existingBack;
+            const existingFrontLooksLikeBack = existingFront && candidateBack && existingFront === candidateBack && candidateFront !== candidateBack;
+            if (candidatePairLooksComplete && (existingLooksMirrored || existingFrontLooksLikeBack)) {
+              updateData.insurance_id_link = candidateFront;
+              updateData.insurance_back_link = candidateBack;
+              console.log('[AUTO-PARSE] Correcting mirrored/swapped primary insurance card slots from GHL upload data');
+            }
           }
 
         } else if (record.table === "new_leads") {
