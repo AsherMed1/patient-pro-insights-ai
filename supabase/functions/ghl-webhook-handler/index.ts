@@ -4288,8 +4288,21 @@ async function checkShortNoticeAlert(supabase: any, appointment: any, requestId:
       .eq('project_name', appointment.project_name)
       .single();
 
-    const threshold = project?.short_notice_threshold_hours ?? 72;
-    if (threshold === 0) return;
+    // Per-clinic overrides by service line and/or location
+    const { data: rules } = await supabase
+      .from('project_short_notice_rules')
+      .select('service_line, location, threshold_hours, is_active')
+      .eq('project_name', appointment.project_name)
+      .eq('is_active', true);
+
+    const serviceLine = serviceLineForRow(appointment);
+    const resolved = resolveShortNoticeThreshold(
+      rules || [],
+      { serviceLine, location: appointment.calendar_name || null, calendarName: appointment.calendar_name || null },
+      project?.short_notice_threshold_hours ?? 72,
+    );
+    const threshold = resolved.thresholdHours;
+    if (!threshold || threshold === 0) return;
 
     const projectTimezone = project?.timezone || 'America/Chicago';
     const apptTime = localDatetimeToUTC(appointment.date_of_appointment, appointment.requested_time, projectTimezone);
@@ -4297,7 +4310,7 @@ async function checkShortNoticeAlert(supabase: any, appointment: any, requestId:
     const hoursDiff = calculateBusinessHours(createdTime, apptTime);
 
     if (hoursDiff <= threshold && hoursDiff > 0) {
-      console.log(`[${requestId}] ⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)} business hrs notice)`);
+      console.log(`[${requestId}] ⚡ Short-notice alert: ${appointment.lead_name} (${Math.round(hoursDiff)} business hrs notice vs ${threshold}h${resolved.rule ? ' rule' : ' account default'})`);
       supabase.functions.invoke('notify-slack-short-notice', {
         body: {
           appointmentId: appointment.id,
@@ -4308,6 +4321,12 @@ async function checkShortNoticeAlert(supabase: any, appointment: any, requestId:
           appointmentDatetime: apptTime.toISOString(),
           createdDatetime: createdTime.toISOString(),
           hoursDifference: hoursDiff,
+          thresholdHours: threshold,
+          serviceLine: serviceLine || null,
+          location: appointment.calendar_name || null,
+          ruleScope: resolved.rule
+            ? `${resolved.rule.service_line || 'any service'} · ${resolved.rule.location || 'any location'}`
+            : 'account default',
           status: appointment.status || 'Unconfirmed',
           calendarName: appointment.calendar_name || null,
           phone: appointment.lead_phone_number || null,
