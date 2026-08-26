@@ -120,6 +120,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
   const [isReparsing, setIsReparsing] = useState(false);
 
   const isArterialInterventional = projectName === "Arterial Interventional Centers";
+  const isPaeProcedure = (parsedPathologyInfo?.procedure_type || parsedPathologyInfo?.procedure)?.toUpperCase() === 'PAE';
 
   const hasAnyData =
     parsedInsuranceInfo || parsedPathologyInfo || parsedContactInfo || parsedDemographics || parsedMedicalInfo || dob;
@@ -1463,6 +1464,60 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                       {parsedPathologyInfo.affected_areas}
                     </Badge>
                   </div>
+                )}
+
+                {/* PAE-specific urinary/BPH survey answers */}
+                {isPaeProcedure && (
+                  <>
+                    {formatValue(parsedPathologyInfo.urination_frequency) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Urinates More Than Every 2 Hours:</span>{" "}
+                        <Badge variant={String(parsedPathologyInfo.urination_frequency).toUpperCase().includes("YES") ? "default" : "secondary"}>
+                          {parsedPathologyInfo.urination_frequency}
+                        </Badge>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.weak_stream) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Weak / Hard-to-Control Stream:</span>{" "}
+                        <Badge variant={String(parsedPathologyInfo.weak_stream).toUpperCase().includes("YES") ? "destructive" : "secondary"}>
+                          {parsedPathologyInfo.weak_stream}
+                        </Badge>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.quality_of_life) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Unhappy With Quality of Life:</span>{" "}
+                        <Badge variant={String(parsedPathologyInfo.quality_of_life).toUpperCase().includes("YES") ? "destructive" : "secondary"}>
+                          {parsedPathologyInfo.quality_of_life}
+                        </Badge>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.uti_bladder_kidney) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">UTI / Bladder / Kidney Issues:</span>{" "}
+                        <Badge variant={String(parsedPathologyInfo.uti_bladder_kidney).toUpperCase().includes("YES") ? "destructive" : "secondary"}>
+                          {parsedPathologyInfo.uti_bladder_kidney}
+                        </Badge>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.prefers_non_surgical) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Prefers Non-Surgical Treatment:</span>{" "}
+                        <Badge variant={String(parsedPathologyInfo.prefers_non_surgical).toUpperCase().includes("YES") ? "default" : "secondary"}>
+                          {parsedPathologyInfo.prefers_non_surgical}
+                        </Badge>
+                      </div>
+                    )}
+                    {formatValue(parsedPathologyInfo.blood_in_urine) && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Blood in Urine:</span>{" "}
+                        <Badge variant={String(parsedPathologyInfo.blood_in_urine).toUpperCase().includes("YES") ? "destructive" : "secondary"}>
+                          {parsedPathologyInfo.blood_in_urine}
+                        </Badge>
+                      </div>
+                    )}
+                  </>
                 )}
 
 
