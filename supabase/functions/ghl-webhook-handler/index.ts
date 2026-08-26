@@ -43,6 +43,7 @@ const UNSCHEDULED_CAPTURE_PROJECTS = new Set([
   'horizon vascular specialists',
   'prospero vascular and interventional',
   'vascular institute of michigan',
+  'alliance vascular',
 ])
 
 function isUnscheduledCaptureProject(projectName: any): boolean {
