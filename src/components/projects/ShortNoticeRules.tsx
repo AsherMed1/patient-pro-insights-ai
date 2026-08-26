@@ -235,8 +235,23 @@ export const ShortNoticeRules: React.FC<Props> = ({ projectName, defaultHours })
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Location (optional)</Label>
-          <Input className="h-9 w-[180px]" value={location} placeholder="e.g. Bowling Green"
-            onChange={(e) => setLocation(e.target.value)} />
+          {locationOptions.length > 0 ? (
+            <Select
+              value={location || ANY_LOCATION}
+              onValueChange={(v) => setLocation(v === ANY_LOCATION ? '' : v)}
+            >
+              <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                <SelectItem value={ANY_LOCATION}>Any location</SelectItem>
+                {locationOptions.map((loc) => (
+                  <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input className="h-9 w-[180px]" value={location} placeholder="e.g. Bowling Green"
+              onChange={(e) => setLocation(e.target.value)} />
+          )}
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Required notice</Label>
