@@ -304,7 +304,12 @@ Deno.serve(async (req) => {
           internal_process_complete: false,
           date_appointment_created: new Date().toISOString().slice(0, 10),
           ...(inferredProcedure ? { parsed_pathology_info: { procedure: inferredProcedure } } : {}),
-          ...(dateOfAppt ? {} : { time_preference: extractTimePreference(formattedNotes) }),
+          ...(dateOfAppt
+            ? {}
+            : {
+                time_preference: extractTimePreference(formattedNotes),
+                ...(isUnscheduledCaptureProject(row.project_name) ? { is_unscheduled: true } : {}),
+              }),
         };
 
         const { data: inserted, error: insErr } = await supabase
