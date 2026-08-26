@@ -1,63 +1,98 @@
-# Bridge QA Operations resolution into the Review Queue QA Hold bucket
+# Fix Prospero PAE intake transfer and insurance-card persistence
 
-## Context: these leads are already in both systems
+## Goal
 
-The 9 `qa_hold` rows are **dual-tracked by design** (per the Potential-OON safeguard):
+Make patient-submitted Prospero PAE intake data transfer consistently from Funnel/GHL into the Review Queue and Portal:
 
-- **QA Operations** — `evaluate-potential-oon` opens a `potential_oon` alert case for every flagged setter-submitted appointment. QA specialists audit/escalate the insurance there. All 9 already have a case.
-- **Review Queue `qa_hold` bucket** — the approval gate that keeps the appointment out of the client portal until a reviewer picks "Verified in network" (releases to portal) or "Confirm OON" (marks OON). That release decision only lives here.
+- PCP/doctor name and phone appear when submitted.
+- PAE medical/survey answers appear in the Medical Information section.
+- Primary and secondary insurance-card front/back images stay distinct.
+- Re-parsing never duplicates, swaps, or removes existing card images.
 
-So showing them in the Review Queue is correct. Moving them to QA Operations only would remove the portal-release gate.
+## Plan
 
-## The real problem: the two systems don't sync on resolution
+### 1. Confirm the affected Prospero test record
 
-Live data shows QA finished its work on several of these, but the Review Queue gate was never cleared:
+Locate the exact Prospero PAE test row and compare:
 
-| Lead | QA Ops status | QA Ops resolution | `potential_oon_resolved_at` |
-|---|---|---|---|
-| Jose Quinones | completed | Resolved by QA | NULL |
-| Ruben Falcon | completed | Resolved by QA | NULL |
-| Shamelia Burroughs | completed | Resolved by QA | NULL |
-| Paris Sweezer | completed | — | NULL |
-| Brenda Allen | completed | — | NULL |
-| Elizabeth Spruill | completed | Escalated to ES Team | NULL |
-| Charanjit Singh | pending_escalated | Escalated to Gloria | NULL |
-| Deborah Washington | in_review | — | NULL |
+- raw `patient_intake_notes`
+- top-level `insurance_id_link` / `insurance_back_link`
+- `parsed_medical_info`
+- `parsed_pathology_info`
+- `parsed_insurance_info`
+- related GHL contact custom-field file values
 
-Six are `completed` in QA Operations, yet still parked in `qa_hold` with no resolution recorded. The reviewer has no signal that QA is done — and QA's audit result never flows back to the approval gate.
+This verifies whether the missing data is absent from ingestion, lost during re-parse, or present but not rendered.
 
-## The fix
+### 2. Harden PCP/doctor extraction
 
-**Surface the linked QA Operations case on each QA Hold card** so the reviewer sees QA's status, resolution, and who worked it — then can act on it.
+Update the parser to recognize more Prospero/PAE label variants, including:
 
-### 1. Fetch the linked `potential_oon` QA Operations case for QA Hold rows
+- `Primary Care Doctor's Name`
+- `Primary Care Doctor’s Name`
+- `Doctor Name`
+- `Primary Physician`
+- paired or combined name/phone lines
 
-`src/components/admin/ReviewQueue.tsx`:
+The parser should keep existing non-empty PCP fields unless the incoming value is clearly valid, so re-processing cannot blank out a previously captured doctor.
 
-- Extend the `fetch` select / a parallel lookup so each `qa_hold` row carries its linked `qa_cases` row (`alert_type = 'potential_oon'`, matched on `appointment_id`). Needed fields: `workflow_status`, `resolution_type`, `qa_name`, `date_resolved`, `escalation_status`.
-- Add these to the `ReviewAppointment` interface as optional fields (e.g. `qa_case_status`, `qa_case_resolution`, `qa_case_qa_name`, `qa_case_resolved_at`).
+### 3. Add deterministic PAE survey mapping
 
-### 2. Render a "QA Operations" status strip on QA Hold cards
+Extend the PAE extraction path to map common urinary/BPH survey answers into `parsed_pathology_info`, including:
 
-In the Potential-OON panel (`isOonBlocked(row)` block, ~line 2484), add a one-line summary above the match details when a linked case exists:
+- symptom list
+- urination frequency
+- weak stream / stream control
+- quality-of-life impact
+- UTI/bladder/kidney-health questions
+- non-surgical treatment preference
+- duration and prior treatments
 
-- `QA Operations: <workflow_status>` — e.g. "QA Operations: Completed (Resolved by QA) by <qa_name> on <date>".
-- Color cue: green when `workflow_status = 'completed'`, amber when `in_review`/`pending_escalated`.
-- A short hint when QA is `completed` but the flag is still unresolved: "QA finished — verify in network or confirm OON to release."
+These fields will supplement the AI output so Review Queue reviewers are not dependent on the model catching every question-label variant.
 
-### 3. (Optional, ask first) Auto-clear the flag when QA completes with "Resolved by QA"
+### 4. Make insurance-card parsing slot-aware
 
-When the QA Operations `potential_oon` case reaches `workflow_status = 'completed'` with `resolution_type = 'Resolved by QA'`, automatically set `all_appointments.potential_oon_resolved_at` + `potential_oon_resolution = 'in_network'` so the appointment is released to the portal without a second manual step.
+Replace single-URL extraction in the re-parser with multi-file collection that understands GHL upload shapes:
 
-This is a judgment call: it removes the manual gate (faster) but lets QA's audit auto-release a record into the client portal. If you'd rather keep the explicit reviewer sign-off, skip this and rely on step 2's surfacing.
+- plain URL strings
+- JSON strings
+- object maps keyed by file ID
+- arrays of uploaded files
+- comma/newline-separated URL lists
+
+Assign cards by filename first (`front` / `back`), then by order. Deduplicate exact URLs so one file never fills both front and back.
+
+### 5. Protect existing card slots during re-parse
+
+Change `auto-parse-intake-notes` so parsed notes can only fill missing card slots and never overwrite an existing slot with null, a duplicate URL, or a lower-confidence single merge-tag URL.
+
+Ownership rules:
+
+- webhook/GHL upload fields are highest confidence
+- manual portal uploads remain protected
+- text-extracted merge-tag URLs are fallback only
+- secondary card URLs remain inside `parsed_insurance_info`
+- primary card URLs remain in top-level `insurance_id_link` / `insurance_back_link`
+
+### 6. Render PAE survey fields in the Portal
+
+Update `ParsedIntakeInfo` to display the new PAE-specific fields under Medical Information when the procedure is PAE, instead of hiding them inside raw notes.
+
+Keep the current generic medical rows, but add clear PAE rows for urinary frequency, weak stream, quality-of-life impact, bladder/kidney issues, and non-surgical preference.
+
+### 7. Re-test end-to-end
+
+After the code changes:
+
+1. Run the parser on the affected Prospero test record.
+2. Verify PCP/medical/PAE fields persist in the database.
+3. Verify insurance-card URLs remain distinct after a second re-parse.
+4. Verify the Review Queue / Portal displays the fields and correct card buttons.
+5. Deploy the affected Edge Function updates.
 
 ## Technical notes
 
-- No schema change needed — `qa_cases` already has `appointment_id`, `alert_type`, `workflow_status`, `resolution_type`, `qa_name`, `date_resolved`.
-- Join can be a single PostgREST query with an inner select on `qa_cases`, or a batched second fetch keyed on the appointment IDs — whichever fits the existing fetch pattern.
-- The QA Hold bucket and the Potential-OON panel already exist from the prior fix; this only adds the cross-system status display.
-- Roles unchanged: QA Hold is visible to admins/agents/VAs/QA specialists/review_only, same as today.
-
-## Open question
-
-Step 3 (auto-clear on QA completion) changes who controls the portal release. Do you want QA's "Resolved by QA" to auto-release the record, or should the Review Queue reviewer always make the final call?
+- Main backend file: `supabase/functions/auto-parse-intake-notes/index.ts`
+- Possible webhook touchpoint: `supabase/functions/ghl-webhook-handler/index.ts`, only if contact-field ingestion is also missing the data before parsing.
+- UI file: `src/components/appointments/ParsedIntakeInfo.tsx`
+- No database migration is expected unless the existing JSON fields cannot represent one of the required PAE answers.
