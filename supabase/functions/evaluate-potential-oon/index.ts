@@ -14,6 +14,29 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+// Terminal statuses — the appointment's lifecycle is over, so a late insurance
+// re-evaluation must never pull it back into the Review Queue / QA hold.
+const TERMINAL_STATUSES = new Set([
+  'cancelled', 'canceled', 'no show', 'noshow', 'showed', 'won',
+  'oon', 'do not call', 'rescheduled',
+]);
+
+const SKIP_REVIEW_STATUSES = new Set(['declined', 'dismissed', 'oon']);
+
+/** Returns a reason string when the appointment must not be flagged, else null. */
+function actionabilityBlock(appt: any): string | null {
+  const status = String(appt.status || '').trim().toLowerCase();
+  if (TERMINAL_STATUSES.has(status)) return `terminal_status:${appt.status}`;
+  if (appt.is_superseded) return 'superseded';
+  const reviewStatus = String(appt.review_status || '').trim().toLowerCase();
+  if (SKIP_REVIEW_STATUSES.has(reviewStatus)) return `review_status:${reviewStatus}`;
+  if (appt.date_of_appointment) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (String(appt.date_of_appointment).slice(0, 10) < today) return 'past_appointment_date';
+  }
+  return null;
+}
+
 
 /**
  * Evaluates one appointment (or a batch) against the Potential-OON block rules.
@@ -51,7 +74,15 @@ serve(async (req) => {
     const supportedCache = new Map<string, any[]>();
 
     for (const appt of appts || []) {
+      // Only live, still-actionable rows can be flagged / pulled into QA hold.
+      const notActionable = actionabilityBlock(appt);
+      if (notActionable) {
+        results.push({ id: appt.id, flagged: false, skipped: true, reason: notActionable });
+        continue;
+      }
+
       const { plans, groupNumbers } = extractInsuranceValues(appt);
+
       const input = {
         projectName: appt.project_name,
         location: appt.calendar_name,
