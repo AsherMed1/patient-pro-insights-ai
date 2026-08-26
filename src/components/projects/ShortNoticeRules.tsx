@@ -11,6 +11,10 @@ import { ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CANONICAL_SERVICE_LINES } from '@/lib/serviceLines';
+import { extractLocationFromCalendarName } from '@/components/appointments/LocationLegend';
+
+const LEGACY_LOCATIONS = ['Somerset, KY', 'Milledgeville', 'Somerset'];
+const ANY_LOCATION = '__any__';
 
 const HOUR_OPTIONS = [1, 12, 18, 24, 36, 48, 60, 72, 84, 120, 132, 168, 240, 252, 336];
 
