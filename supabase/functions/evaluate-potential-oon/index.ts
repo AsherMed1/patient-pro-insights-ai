@@ -51,7 +51,15 @@ serve(async (req) => {
     const supportedCache = new Map<string, any[]>();
 
     for (const appt of appts || []) {
+      // Only live, still-actionable rows can be flagged / pulled into QA hold.
+      const notActionable = actionabilityBlock(appt);
+      if (notActionable) {
+        results.push({ id: appt.id, flagged: false, skipped: true, reason: notActionable });
+        continue;
+      }
+
       const { plans, groupNumbers } = extractInsuranceValues(appt);
+
       const input = {
         projectName: appt.project_name,
         location: appt.calendar_name,
