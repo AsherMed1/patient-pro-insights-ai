@@ -978,7 +978,16 @@ serve(async (req) => {
       } catch (noteErr) {
         console.error(`[${requestId}] Failed to create auto-decline note:`, noteErr)
       }
+
+      // Safety net: an auto-decline must never leave the contact with zero rows
+      // visible in the client portal (declined + superseded siblings = invisible patient).
+      try {
+        await ensureContactRemainsVisible(supabase, autoDeclineNote.appointmentId, requestId)
+      } catch (visErr) {
+        console.warn(`[${requestId}] visibility safety net failed:`, visErr)
+      }
     }
+
 
 
     // Insert audit note for any other GHL-driven status change (Confirmed → Cancelled, etc.)
