@@ -505,6 +505,64 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     }
   };
 
+  // Manual retry of an outbound push GoHighLevel never accepted
+  const [retryingGhlSync, setRetryingGhlSync] = useState(false);
+  const handleRetryGhlSync = async () => {
+    if (!appointment.ghl_appointment_id || !appointment.date_of_appointment) {
+      toast.error("Missing GoHighLevel appointment ID or date");
+      return;
+    }
+    setRetryingGhlSync(true);
+    try {
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('timezone, ghl_location_id, ghl_api_key')
+        .eq('project_name', appointment.project_name)
+        .single();
+      if (projectError) throw projectError;
+      if (!projectData?.ghl_location_id) throw new Error('GHL location ID not configured');
+
+      const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+        body: {
+          ghl_appointment_id: appointment.ghl_appointment_id,
+          ghl_location_id: projectData.ghl_location_id,
+          new_date: appointment.date_of_appointment,
+          new_time: (appointment.requested_time || '09:00').slice(0, 5),
+          timezone: projectData.timezone || 'America/Chicago',
+          ghl_api_key: projectData.ghl_api_key,
+        },
+      });
+      if (ghlError) throw ghlError;
+
+      await supabase.from('all_appointments').update({
+        last_ghl_sync_status: 'success',
+        last_ghl_sync_at: new Date().toISOString(),
+        last_ghl_sync_error: null,
+      }).eq('id', appointment.id);
+
+      await supabase.from('appointment_reschedules').update({
+        ghl_sync_status: 'success',
+        ghl_synced_at: new Date().toISOString(),
+        ghl_sync_error: null,
+        processed: true,
+        processed_at: new Date().toISOString(),
+      }).eq('appointment_id', appointment.id).eq('processed', false);
+
+      toast.success("Appointment synced to GoHighLevel");
+      onDataRefresh?.();
+    } catch (error: any) {
+      const details = error?.message || String(error);
+      await supabase.from('all_appointments').update({
+        last_ghl_sync_status: 'failed',
+        last_ghl_sync_at: new Date().toISOString(),
+        last_ghl_sync_error: details,
+      }).eq('id', appointment.id);
+      toast.error(`GoHighLevel sync failed: ${details}`);
+    } finally {
+      setRetryingGhlSync(false);
+    }
+  };
+
   // Handle reschedule submission
   const handleRescheduleSubmit = async () => {
     if (!rescheduleDate) {
@@ -665,6 +723,13 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
             ghl_sync_error: details,
             ghl_synced_at: new Date().toISOString()
           }).eq('id', rescheduleRecord.id);
+          // Persistent record of the failed push so nobody assumes the change landed in GHL.
+          await supabase.from('appointment_notes').insert({
+            appointment_id: appointment.id,
+            note_text: `GoHighLevel sync FAILED for reschedule to ${newDate} ${newTime} — the portal was updated but GoHighLevel still holds the old slot. Reason: ${details} — System`,
+            created_by: 'System',
+            visibility: 'internal',
+          });
           toast.error(
             `Appointment date/time updated locally${isCalendarMove ? ', but the location was NOT moved' : ''}. GoHighLevel sync failed: ${details}`
           );
@@ -986,6 +1051,25 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
                 {appointment.project_name} - Generated on {new Date().toLocaleDateString()}
               </p>
             </div>
+
+            {/* Persistent warning: the portal holds a change GoHighLevel never accepted */}
+            {appointment.last_ghl_sync_status === 'failed' && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm no-print">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium">Not synced to GoHighLevel</p>
+                  <p className="text-xs opacity-90">
+                    The portal shows {appointment.date_of_appointment || 'this date'}
+                    {appointment.requested_time ? ` ${appointment.requested_time}` : ''}, but GoHighLevel never accepted the change.
+                    {appointment.last_ghl_sync_error ? ` Reason: ${appointment.last_ghl_sync_error}` : ''}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={handleRetryGhlSync} disabled={retryingGhlSync}>
+                  {retryingGhlSync ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Retry
+                </Button>
+              </div>
+            )}
 
             {/* Appointment Overview */}
             <Card className="print-card min-w-0 max-w-full overflow-hidden">

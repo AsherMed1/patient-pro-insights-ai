@@ -29,6 +29,7 @@ type Row = {
   reschedule_history: any;
   ghl_appointment_id: string | null;
   is_unscheduled: boolean | null;
+  last_ghl_sync_status: string | null;
 };
 
 const normTime = (v: unknown) => {
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body?.limit) || 200, 500);
 
     const cols =
-      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled';
+      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled, last_ghl_sync_status';
 
     let rows: Row[] = [];
     if (appointmentIds.length) {
@@ -79,6 +80,26 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // A clinic-initiated reschedule that GoHighLevel has NOT accepted yet is not "drift":
+    // the portal is the source of truth until the outbound push succeeds. Load any
+    // unprocessed reschedule request so those rows are retried instead of overwritten.
+    const pendingPush = new Map<string, any>();
+    if (rows.length) {
+      const { data: resched } = await supabase
+        .from('appointment_reschedules')
+        .select('id, appointment_id, new_date, new_time, ghl_sync_status, created_at')
+        .in('appointment_id', rows.map((r) => r.id))
+        .eq('processed', false)
+        .in('ghl_sync_status', ['pending', 'failed'])
+        .order('created_at', { ascending: false });
+      for (const r of resched || []) {
+        if (!pendingPush.has(r.appointment_id)) pendingPush.set(r.appointment_id, r);
+      }
+    }
+
+    // Give up retrying (and escalate instead) once a push has been failing this long.
+    const RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
     const projectCache = new Map<string, { apiKey: string | null; timezone: string }>();
     async function getProject(name: string) {
@@ -114,6 +135,103 @@ Deno.serve(async (req) => {
         const { apiKey, timezone } = await getProject(row.project_name);
         if (!apiKey) {
           out.check = 'skipped_no_api_key';
+          results.push(out);
+          return;
+        }
+
+        // ---- Outbound push still owed to GoHighLevel: retry it, never overwrite the portal ----
+        const owed = pendingPush.get(row.id);
+        const pushPending =
+          !!owed || row.last_ghl_sync_status === 'pending' || row.last_ghl_sync_status === 'failed';
+
+        if (pushPending && row.date_of_appointment && row.requested_time) {
+          const startedAt = owed?.created_at ? new Date(owed.created_at).getTime() : Date.now();
+          const expired = Date.now() - startedAt > RETRY_WINDOW_MS;
+
+          if (expired) {
+            out.check = 'push_abandoned';
+            results.push(out);
+            return;
+          }
+
+          if (dryRun) {
+            out.check = 'push_pending';
+            results.push(out);
+            return;
+          }
+
+          const { data: pushData, error: pushErr } = await supabase.functions.invoke(
+            'update-ghl-appointment',
+            {
+              body: {
+                ghl_appointment_id: row.ghl_appointment_id,
+                project_name: row.project_name,
+                new_date: row.date_of_appointment,
+                new_time: String(row.requested_time).slice(0, 5),
+                timezone,
+                ghl_api_key: apiKey,
+              },
+            },
+          );
+
+          const failed = !!pushErr || pushData?.error;
+          if (!failed) {
+            await supabase
+              .from('all_appointments')
+              .update({
+                last_ghl_sync_status: 'success',
+                last_ghl_sync_at: new Date().toISOString(),
+                last_ghl_sync_error: null,
+              })
+              .eq('id', row.id);
+
+            if (owed) {
+              await supabase
+                .from('appointment_reschedules')
+                .update({
+                  ghl_sync_status: 'success',
+                  ghl_synced_at: new Date().toISOString(),
+                  processed: true,
+                  processed_at: new Date().toISOString(),
+                })
+                .eq('id', owed.id);
+            }
+
+            await supabase.from('appointment_notes').insert({
+              appointment_id: row.id,
+              note_text: `Pending reschedule pushed to GoHighLevel on retry | ${row.date_of_appointment} ${row.requested_time} — System`,
+              created_by: 'System',
+              visibility: 'internal',
+            });
+
+            out.check = 'push_retried';
+            results.push(out);
+            return;
+          }
+
+          const details = pushErr?.message || pushData?.error || 'Unknown GoHighLevel error';
+          await supabase
+            .from('all_appointments')
+            .update({
+              last_ghl_sync_status: 'failed',
+              last_ghl_sync_at: new Date().toISOString(),
+              last_ghl_sync_error: String(details).slice(0, 500),
+            })
+            .eq('id', row.id);
+
+          if (owed) {
+            await supabase
+              .from('appointment_reschedules')
+              .update({
+                ghl_sync_status: 'failed',
+                ghl_sync_error: String(details).slice(0, 500),
+                ghl_synced_at: new Date().toISOString(),
+              })
+              .eq('id', owed.id);
+          }
+
+          out.check = 'push_failed';
+          out.error = String(details).slice(0, 300);
           results.push(out);
           return;
         }
@@ -237,6 +355,10 @@ Deno.serve(async (req) => {
       drift: results.filter((r) => r.check === 'drift').length,
       corrected: results.filter((r) => r.check === 'corrected').length,
       ghl_error: results.filter((r) => r.check === 'ghl_error').length,
+      push_pending: results.filter((r) => r.check === 'push_pending').length,
+      push_retried: results.filter((r) => r.check === 'push_retried').length,
+      push_failed: results.filter((r) => r.check === 'push_failed').length,
+      push_abandoned: results.filter((r) => r.check === 'push_abandoned').length,
       skipped: results.filter((r) => String(r.check).startsWith('skipped')).length,
     };
 

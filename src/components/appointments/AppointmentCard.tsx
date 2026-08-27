@@ -1131,6 +1131,14 @@ const AppointmentCard = ({
             })
             .eq('id', rescheduleRecord.id);
           
+          // Persistent record of the failed push so nobody assumes the change landed in GHL.
+          await supabase.from('appointment_notes').insert({
+            appointment_id: appointment.id,
+            note_text: `GoHighLevel sync FAILED for reschedule — the portal was updated but GoHighLevel still holds the old slot. Reason: ${ghlError.message || String(ghlError)} — System`,
+            created_by: 'System',
+            visibility: 'internal',
+          });
+
           toast({
             title: "Partial Success",
             description: `Appointment date/time updated locally${isCalendarMove ? ', but the location was NOT moved' : ''}. GoHighLevel sync failed: ${ghlError.message || String(ghlError)}`,
