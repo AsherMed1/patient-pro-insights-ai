@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body?.limit) || 200, 500);
 
     const cols =
-      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled';
+      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled, last_ghl_sync_status';
 
     let rows: Row[] = [];
     if (appointmentIds.length) {
