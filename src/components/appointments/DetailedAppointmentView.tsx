@@ -994,6 +994,25 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
               </p>
             </div>
 
+            {/* Persistent warning: the portal holds a change GoHighLevel never accepted */}
+            {appointment.last_ghl_sync_status === 'failed' && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm no-print">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium">Not synced to GoHighLevel</p>
+                  <p className="text-xs opacity-90">
+                    The portal shows {appointment.date_of_appointment || 'this date'}
+                    {appointment.requested_time ? ` ${appointment.requested_time}` : ''}, but GoHighLevel never accepted the change.
+                    {appointment.last_ghl_sync_error ? ` Reason: ${appointment.last_ghl_sync_error}` : ''}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={handleRetryGhlSync} disabled={retryingGhlSync}>
+                  {retryingGhlSync ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Retry
+                </Button>
+              </div>
+            )}
+
             {/* Appointment Overview */}
             <Card className="print-card min-w-0 max-w-full overflow-hidden">
               <CardHeader>
