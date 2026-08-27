@@ -775,6 +775,7 @@ const AllAppointmentsManager = ({
                                procedureStatus === 'procedure_complete' ? true :
                                procedureStatus === 'no_procedure' ? false : 
                                procedureStatus === 'not_covered' ? false : 
+                               procedureStatus === 'not_a_candidate' ? false : 
                                procedureStatus === 'imaging_ordered' ? null :
                                procedureStatus === 'pending_test_results' ? null :
                                procedureStatus === 'pending_insurance_auth' ? null : null;
