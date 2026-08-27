@@ -30,6 +30,7 @@ type Row = {
   ghl_appointment_id: string | null;
   is_unscheduled: boolean | null;
   last_ghl_sync_status: string | null;
+  last_ghl_sync_at: string | null;
 };
 
 const normTime = (v: unknown) => {
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body?.limit) || 200, 500);
 
     const cols =
-      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled, last_ghl_sync_status';
+      'id, lead_name, project_name, status, review_status, date_of_appointment, requested_time, calendar_name, reschedule_history, ghl_appointment_id, is_unscheduled, last_ghl_sync_status, last_ghl_sync_at';
 
     let rows: Row[] = [];
     if (appointmentIds.length) {
@@ -141,19 +142,19 @@ Deno.serve(async (req) => {
 
         // ---- Outbound push still owed to GoHighLevel: retry it, never overwrite the portal ----
         const owed = pendingPush.get(row.id);
-        const pushPending =
-          !!owed || row.last_ghl_sync_status === 'pending' || row.last_ghl_sync_status === 'failed';
+        const syncedAt = row.last_ghl_sync_at ? new Date(row.last_ghl_sync_at).getTime() : 0;
+        const statusPending =
+          (row.last_ghl_sync_status === 'pending' || row.last_ghl_sync_status === 'failed') &&
+          Date.now() - syncedAt <= RETRY_WINDOW_MS;
+        const owedAt = owed?.created_at ? new Date(owed.created_at).getTime() : 0;
+        const owedFresh = !!owed && Date.now() - owedAt <= RETRY_WINDOW_MS;
+
+        // Only a RECENT unconfirmed clinic change protects the row. Once the retry window
+        // has passed, the row goes back through the normal drift check so stale sync flags
+        // can never freeze reconciliation forever.
+        const pushPending = owedFresh || statusPending;
 
         if (pushPending && row.date_of_appointment && row.requested_time) {
-          const startedAt = owed?.created_at ? new Date(owed.created_at).getTime() : Date.now();
-          const expired = Date.now() - startedAt > RETRY_WINDOW_MS;
-
-          if (expired) {
-            out.check = 'push_abandoned';
-            results.push(out);
-            return;
-          }
-
           if (dryRun) {
             out.check = 'push_pending';
             results.push(out);
