@@ -2,7 +2,7 @@
 // Keep in sync with supabase/functions/_shared/oon-matcher.ts
 
 export type MatchMethod = 'exact' | 'prefix' | 'contains' | 'regex';
-export type RuleType = 'plan' | 'group_number';
+export type RuleType = 'plan' | 'group_number' | 'id_number';
 
 export interface BlockRuleScope {
   project_name?: string | null;
@@ -28,7 +28,7 @@ export interface OonMatch {
   rule_id: string;
   rule_type: RuleType;
   match_method: MatchMethod;
-  matched_on: 'plan' | 'group';
+  matched_on: 'plan' | 'group' | 'id';
   matched_value: string;
   matched_term: string;
   plan_name?: string | null;
@@ -42,6 +42,7 @@ export interface MatchInput {
   serviceLine?: string | null;
   plans: (string | null | undefined)[];
   groupNumbers: (string | null | undefined)[];
+  idNumbers?: (string | null | undefined)[];
 }
 
 export function normalizePlan(value: unknown): string {
@@ -50,6 +51,12 @@ export function normalizePlan(value: unknown): string {
 }
 
 export function normalizeGroup(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+/** Lowercase, strip everything that is not alphanumeric. Used for insurance ID numbers. */
+export function normalizeId(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
