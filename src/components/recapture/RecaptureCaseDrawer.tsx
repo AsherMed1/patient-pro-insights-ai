@@ -20,6 +20,7 @@ import {
 import { DEFAULT_CLINIC_TZ, formatClinicTime, timezoneLabel } from '@/lib/clinicTime';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import LogAttemptDialog, { type AttemptPayload } from './LogAttemptDialog';
+import { logRecaptureActivity } from './activityLog';
 import ScheduleFollowUpDialog from './ScheduleFollowUpDialog';
 import {
   CHANNEL_LABELS, COMPLETION_REASON_LABELS, CONVERSATION_OUTCOME_LABELS, LOST_TYPE_LABELS,
@@ -147,6 +148,13 @@ export default function RecaptureCaseDrawer({
     if (c.work_status === 'new') update.work_status = 'opened';
     const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', c.id);
     if (!error) {
+      void logRecaptureActivity({
+        caseId: c.id,
+        activityType: c.work_status === 'completed' ? 'reopened' : 'opened',
+        description: c.work_status === 'completed' ? 'Completed record reopened' : 'Record opened',
+        actorUserId: user?.id || null,
+        actorName: actor,
+      });
       patch({
         opened_at: update.opened_at,
         opened_by: user?.id || null,
@@ -319,6 +327,40 @@ export default function RecaptureCaseDrawer({
         .update(update)
         .eq('id', row.id);
       if (caseError) throw caseError;
+
+      // Append-only activity trail: one row per action, never overwritten.
+      void logRecaptureActivity({
+        caseId: row.id,
+        activityType: 'attempt',
+        description:
+          `${CHANNEL_LABELS[payload.channel]} — ${RESULT_LABELS[payload.result]}` +
+          (payload.note ? ` · ${payload.note}` : ''),
+        channel: payload.channel,
+        result: payload.result,
+        conversationOutcome: payload.conversationOutcome,
+        actorUserId: user?.id || null,
+        actorName: actor,
+      });
+      if (followUp) {
+        void logRecaptureActivity({
+          caseId: row.id,
+          activityType: 'follow_up_scheduled',
+          description: statusLabel || 'Follow-up scheduled',
+          actorUserId: user?.id || null,
+          actorName: actor,
+        });
+      }
+      if (update.work_status === 'completed') {
+        void logRecaptureActivity({
+          caseId: row.id,
+          activityType: 'completed',
+          description: statusLabel || 'Completed',
+          conversationOutcome: payload.conversationOutcome,
+          actorUserId: user?.id || null,
+          actorName: actor,
+        });
+      }
+
 
       if (update.work_status === 'completed' &&
         (payload.result === 'wrong_number' || payload.conversationOutcome === 'not_interested')) {

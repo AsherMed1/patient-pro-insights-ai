@@ -22,6 +22,7 @@ import type { AllAppointment } from '@/components/appointments/types';
 import RecaptureReports from './RecaptureReports';
 
 import RecaptureCaseDrawer from './RecaptureCaseDrawer';
+import { logRecaptureActivity } from './activityLog';
 import {
   WORK_STATUS_LABELS,
   followUpCountdown,
@@ -304,6 +305,16 @@ export default function RecaptureQueue() {
       if (assigneeId && !selectedCase.work_started_at) update.work_started_at = new Date().toISOString();
       const { error } = await supabase.from('recapture_cases' as any).update(update).eq('id', selectedCase.id);
       if (error) throw error;
+      const assignedProfile = users.find((u) => u.id === assigneeId);
+      void logRecaptureActivity({
+        caseId: selectedCase.id,
+        activityType: 'assignment',
+        description: assigneeId
+          ? `Claimed / assigned to ${assignedProfile?.full_name || assignedProfile?.email || 'user'}`
+          : 'Assignment cleared',
+        actorUserId: assigneeId || user?.id || null,
+        actorName: assignedProfile?.full_name || assignedProfile?.email || user?.email || null,
+      });
       toast({ title: assigneeId ? 'Case assigned' : 'Case unassigned' });
       setAssignDialogOpen(false);
       setAssigneeId('');

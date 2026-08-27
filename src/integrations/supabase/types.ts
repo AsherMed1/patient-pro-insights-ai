@@ -4229,6 +4229,53 @@ export type Database = {
           },
         ]
       }
+      recapture_case_activity: {
+        Row: {
+          activity_type: string
+          actor_name: string | null
+          actor_user_id: string | null
+          case_id: string
+          channel: string | null
+          conversation_outcome: string | null
+          created_at: string
+          description: string | null
+          id: string
+          result: string | null
+        }
+        Insert: {
+          activity_type: string
+          actor_name?: string | null
+          actor_user_id?: string | null
+          case_id: string
+          channel?: string | null
+          conversation_outcome?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          result?: string | null
+        }
+        Update: {
+          activity_type?: string
+          actor_name?: string | null
+          actor_user_id?: string | null
+          case_id?: string
+          channel?: string | null
+          conversation_outcome?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          result?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recapture_case_activity_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "recapture_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recapture_cases: {
         Row: {
           appointment_date: string | null
