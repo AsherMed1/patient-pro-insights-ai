@@ -160,6 +160,27 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     return v;
   };
 
+  // Setter intake templates emit a checklist where unanswered items read
+  // "Not Collected". Those placeholders contradict the real parsed answers, so
+  // drop them and keep only the segments that carry actual information.
+  const stripNotCollectedSegments = (notes: string | null | undefined): string | null => {
+    if (!notes) return null;
+    const PLACEHOLDER = /^(?:not\s*collected|none\s*collected|not\s*provided|n\/?a|none|unknown|--?)\.?$/i;
+    const kept = String(notes)
+      .split(/\s*;\s*|\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((seg) => {
+        const idx = seg.indexOf(':');
+        if (idx === -1) return !PLACEHOLDER.test(seg.replace(/\.$/, '').trim());
+        const value = seg.slice(idx + 1).trim().replace(/\.$/, '').trim();
+        if (!value) return false;
+        return !PLACEHOLDER.test(value);
+      });
+    const out = kept.join('; ').trim();
+    return out.length > 0 ? out : null;
+  };
+
   const formatDOB = (dob: any) => {
     if (!dob || dob === "null" || dob === "") return null;
     try {
