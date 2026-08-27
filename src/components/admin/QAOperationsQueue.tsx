@@ -587,7 +587,7 @@ export default function QAOperationsQueue() {
         const chunk = apptIds.slice(i, i + 500);
         const { data: appts } = await supabase
           .from('all_appointments')
-          .select('id, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+          .select('id, lead_phone_number, lead_email, status, review_status, is_superseded, date_of_appointment, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
           .in('id', chunk);
         for (const a of (appts as any[]) || []) {
           contactMap.set(a.id, {
@@ -657,7 +657,7 @@ export default function QAOperationsQueue() {
       if (!row?.appointment_id) return row;
       const { data } = await supabase
         .from('all_appointments')
-        .select('lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+        .select('lead_phone_number, lead_email, status, review_status, is_superseded, date_of_appointment, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
         .eq('id', row.appointment_id)
         .maybeSingle();
       return {
@@ -2011,7 +2011,7 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, review_status, is_superseded, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -2089,7 +2089,7 @@ function CaseDrawer({
 
       const { data } = await supabase
         .from('all_appointments')
-        .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+        .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, review_status, is_superseded, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
         .eq('id', apptId)
         .maybeSingle();
       if (data) {
