@@ -1887,10 +1887,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         <span className="font-medium">{formatValue(parsedMedicalInfo?.urologist_phone) || "—"}</span>
                       </div>
                     )}
-                    {formatValue(parsedMedicalInfo?.notes) && (
+                    {stripNotCollectedSegments(formatValue(parsedMedicalInfo?.notes)) && (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Notes:</span>{" "}
-                        <span className="font-medium whitespace-pre-wrap">{parsedMedicalInfo.notes}</span>
+                        <span className="font-medium whitespace-pre-wrap">{stripNotCollectedSegments(formatValue(parsedMedicalInfo?.notes))}</span>
                       </div>
                     )}
                     {formatValue(parsedMedicalInfo?.xray_details) && (
