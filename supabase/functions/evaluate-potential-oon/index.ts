@@ -81,7 +81,7 @@ serve(async (req) => {
         continue;
       }
 
-      const { plans, groupNumbers } = extractInsuranceValues(appt);
+      const { plans, groupNumbers, idNumbers } = extractInsuranceValues(appt);
 
       const input = {
         projectName: appt.project_name,
@@ -90,6 +90,7 @@ serve(async (req) => {
         serviceLine: resolveServiceLine(appt),
         plans,
         groupNumbers,
+        idNumbers,
       };
       const matches = evaluateRules(rules, input);
 
@@ -139,7 +140,7 @@ serve(async (req) => {
       await supabase.from('all_appointments').update(update).eq('id', appt.id);
 
       const summary = matches
-        .map((m) => `${m.matched_on === 'group' ? 'Group #' : 'Plan'} "${m.matched_value}"${m.plan_name ? ` → ${m.plan_name}` : ''}`)
+        .map((m) => `${m.matched_on === 'group' ? 'Group #' : m.matched_on === 'id' ? 'Insurance ID' : 'Plan'} "${m.matched_value}"${m.plan_name ? ` → ${m.plan_name}` : ''}`)
         .join('; ');
 
       await supabase.from('appointment_notes').insert({
