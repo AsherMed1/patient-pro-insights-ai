@@ -29,6 +29,7 @@ type Row = {
   reschedule_history: any;
   ghl_appointment_id: string | null;
   is_unscheduled: boolean | null;
+  last_ghl_sync_status: string | null;
 };
 
 const normTime = (v: unknown) => {
