@@ -126,6 +126,11 @@ interface QACase {
   potential_oon_matches?: any;
   potential_oon_resolved_at?: string | null;
   potential_oon_resolution?: string | null;
+  /** Live appointment state used to decide whether a hold is still actionable. */
+  appointment_review_status?: string | null;
+  appointment_is_superseded?: boolean | null;
+
+
 }
 
 interface QANote {
@@ -173,12 +178,42 @@ const STATUS_TABS: { value: QueueTab; label: string }[] = [
 ];
 
 /**
- * A record sits in QA Hold while the Potential OON safeguard is unresolved.
- * Resolving it (in network / confirmed OON) drops the record out of the bucket
+ * Statuses that mean the appointment is finished — nothing left to verify.
+ */
+const TERMINAL_APPT_STATUSES = new Set([
+  'cancelled', 'canceled', 'no show', 'showed', 'won', 'oon', 'do not call', 'rescheduled',
+]);
+
+/**
+ * A record sits in QA Hold while the Potential OON safeguard is unresolved AND the
+ * appointment is still workable. Records that already ended elsewhere (cancelled,
+ * marked OON, declined/dismissed in Review Queue, superseded, or whose appointment
+ * date has passed) never belong in the bucket even if the flag was never stamped.
+ * Resolving a hold (in network / confirmed OON) drops the record out of the bucket
  * but never completes the audit — the specialist closes the case manually.
  */
-const isQaHold = (c: { potential_oon?: boolean | null; potential_oon_resolved_at?: string | null }) =>
-  !!c.potential_oon && !c.potential_oon_resolved_at;
+const isQaHold = (c: {
+  potential_oon?: boolean | null;
+  potential_oon_resolved_at?: string | null;
+  appointment_status?: string | null;
+  appointment_review_status?: string | null;
+  appointment_is_superseded?: boolean | null;
+  appointment_date?: string | null;
+}) => {
+  if (!c.potential_oon || c.potential_oon_resolved_at) return false;
+  if (c.appointment_is_superseded) return false;
+  const status = (c.appointment_status || '').trim().toLowerCase();
+  if (TERMINAL_APPT_STATUSES.has(status)) return false;
+  const review = (c.appointment_review_status || '').trim().toLowerCase();
+  if (['oon', 'declined', 'dismissed'].includes(review)) return false;
+  if (c.appointment_date) {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (c.appointment_date < todayStr) return false;
+  }
+  return true;
+};
+
 
 const WORKFLOW_STATUS_LABELS: Record<string, string> = {
   new: 'New',
@@ -552,13 +587,16 @@ export default function QAOperationsQueue() {
         const chunk = apptIds.slice(i, i + 500);
         const { data: appts } = await supabase
           .from('all_appointments')
-          .select('id, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+          .select('id, lead_phone_number, lead_email, status, review_status, is_superseded, date_of_appointment, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
           .in('id', chunk);
         for (const a of (appts as any[]) || []) {
           contactMap.set(a.id, {
             phone: a.lead_phone_number ?? null,
             email: a.lead_email ?? null,
             status: a.status ?? null,
+            review_status: a.review_status ?? null,
+            is_superseded: a.is_superseded ?? null,
+            date_of_appointment: a.date_of_appointment ?? null,
             potential_oon: a.potential_oon ?? null,
             potential_oon_matches: a.potential_oon_matches ?? null,
             potential_oon_resolved_at: a.potential_oon_resolved_at ?? null,
@@ -572,6 +610,9 @@ export default function QAOperationsQueue() {
         r.lead_email = c?.email ?? null;
         // Mirror the live Portal status so the queue never shows a stale snapshot.
         if (c && c.status) r.appointment_status = c.status;
+        r.appointment_review_status = c?.review_status ?? null;
+        r.appointment_is_superseded = c?.is_superseded ?? null;
+        if (c && c.date_of_appointment) r.appointment_date = c.date_of_appointment;
         r.potential_oon = c?.potential_oon ?? null;
         r.potential_oon_matches = c?.potential_oon_matches ?? null;
         r.potential_oon_resolved_at = c?.potential_oon_resolved_at ?? null;
@@ -622,7 +663,7 @@ export default function QAOperationsQueue() {
       if (!row?.appointment_id) return row;
       const { data } = await supabase
         .from('all_appointments')
-        .select('lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+        .select('lead_phone_number, lead_email, status, review_status, is_superseded, date_of_appointment, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
         .eq('id', row.appointment_id)
         .maybeSingle();
       return {
@@ -630,6 +671,9 @@ export default function QAOperationsQueue() {
         lead_phone_number: (data as any)?.lead_phone_number ?? null,
         lead_email: (data as any)?.lead_email ?? null,
         appointment_status: (data as any)?.status ?? row.appointment_status ?? null,
+        appointment_review_status: (data as any)?.review_status ?? null,
+        appointment_is_superseded: (data as any)?.is_superseded ?? null,
+        appointment_date: (data as any)?.date_of_appointment ?? row.appointment_date ?? null,
         potential_oon: (data as any)?.potential_oon ?? null,
         potential_oon_matches: (data as any)?.potential_oon_matches ?? null,
         potential_oon_resolved_at: (data as any)?.potential_oon_resolved_at ?? null,
@@ -1976,7 +2020,7 @@ function CaseDrawer({
     let cancelled = false;
     supabase
       .from('all_appointments')
-      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+      .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, review_status, is_superseded, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
       .eq('id', caseData.appointment_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -2054,7 +2098,7 @@ function CaseDrawer({
 
       const { data } = await supabase
         .from('all_appointments')
-        .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
+        .select('date_of_appointment, requested_time, lead_phone_number, lead_email, status, review_status, is_superseded, potential_oon, potential_oon_matches, potential_oon_resolved_at, potential_oon_resolution')
         .eq('id', apptId)
         .maybeSingle();
       if (data) {
