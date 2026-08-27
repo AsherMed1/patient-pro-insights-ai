@@ -3136,7 +3136,7 @@ async function supersedeOlderContactRows(supabase: any, newRow: any, requestId: 
   try {
     const { data: siblings, error } = await supabase
       .from('all_appointments')
-      .select('id, status, review_status, date_of_appointment, requested_time, created_at, is_reserved_block, ghl_appointment_id')
+      .select('id, status, review_status, date_of_appointment, requested_time, created_at, is_reserved_block, ghl_appointment_id, welcome_call_state, welcome_call_attempt_count, welcome_call_first_attempt_at, welcome_call_last_attempt_at, welcome_call_reached_at, procedure_status')
       .eq('ghl_id', newRow.ghl_id)
       .eq('project_name', newRow.project_name)
       .eq('is_superseded', false)
