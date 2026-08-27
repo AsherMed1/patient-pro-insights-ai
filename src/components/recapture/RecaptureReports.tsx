@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { format, subDays, parseISO } from 'date-fns';
 import { useRole } from '@/hooks/useRole';
+import { Button } from '@/components/ui/button';
+import RecaptureSetterActivity from './RecaptureSetterActivity';
 
 interface RecaptureCase {
   id: string;
