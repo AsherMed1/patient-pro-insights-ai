@@ -159,7 +159,7 @@ export default function RecaptureSetterActivity() {
       const caseChunks: Promise<any>[] = [];
       for (let i = 0; i < caseIds.length; i += 300) {
         const chunk = caseIds.slice(i, i + 300);
-        caseChunks.push(supabase.from('recapture_cases' as any).select('*').in('id', chunk));
+        caseChunks.push(Promise.resolve(supabase.from('recapture_cases' as any).select('*').in('id', chunk)) as Promise<any>);
       }
 
       const profileQuery: Promise<any> = actorIds.length
