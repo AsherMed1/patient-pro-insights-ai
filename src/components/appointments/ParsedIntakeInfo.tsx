@@ -1655,6 +1655,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     .replace(/These insurance plans are not accepted at this clinic:\s*[^.]*\.?\s*/gi, '')
                     .replace(/We are not in network with your plan\.?\s*Would you be open to a self[- ]?pay consultation:?\s*\w*\.?\s*/gi, '')
                     .trim();
+                  cleaned = stripNotCollectedSegments(cleaned) || '';
                   // Drop restated secondary insurance details that already have their own fields
                   const dupes = [
                     parsedInsuranceInfo?.secondary_plan,
