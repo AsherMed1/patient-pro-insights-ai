@@ -118,6 +118,7 @@ export function evaluateRules(
   const matches: OonMatch[] = [];
   const plans = (input.plans || []).filter(Boolean) as string[];
   const groups = (input.groupNumbers || []).filter(Boolean) as string[];
+  const ids = (input.idNumbers || []).filter(Boolean) as string[];
 
   for (const rule of rules) {
     if (!rule.is_active) continue;
@@ -148,16 +149,19 @@ export function evaluateRules(
         }
       }
     } else {
-      const term = rule.match_method === 'regex' ? String(rule.value || '') : normalizeGroup(rule.value);
+      const isId = rule.rule_type === 'id_number';
+      const normalize = isId ? normalizeId : normalizeGroup;
+      const term = rule.match_method === 'regex' ? String(rule.value || '') : normalize(rule.value);
       if (!term) continue;
-      for (const raw of groups) {
-        const subject = rule.match_method === 'regex' ? raw : normalizeGroup(raw);
+      const subjects = isId ? ids : groups;
+      for (const raw of subjects) {
+        const subject = rule.match_method === 'regex' ? raw : normalize(raw);
         if (testTerm(rule.match_method, subject, term)) {
           matches.push({
             rule_id: rule.id,
-            rule_type: 'group_number',
+            rule_type: isId ? 'id_number' : 'group_number',
             match_method: rule.match_method,
-            matched_on: 'group',
+            matched_on: isId ? 'id' : 'group',
             matched_value: raw,
             matched_term: term,
             plan_name: rule.planName ?? null,
@@ -206,7 +210,7 @@ export async function loadBlockRules(supabase: any): Promise<BlockRule[]> {
 }
 
 /** Pull every candidate plan / group value out of an appointment row. */
-export function extractInsuranceValues(appt: any): { plans: string[]; groupNumbers: string[] } {
+export function extractInsuranceValues(appt: any): { plans: string[]; groupNumbers: string[]; idNumbers: string[] } {
   const ins = (appt?.parsed_insurance_info || {}) as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const plans = [
@@ -228,7 +232,23 @@ export function extractInsuranceValues(appt: any): { plans: string[]; groupNumbe
     str(ins.secondary_group_number),
     str(appt?.group_number),
   ].filter(Boolean) as string[];
-  return { plans: [...new Set(plans)], groupNumbers: [...new Set(groupNumbers)] };
+  const idNumbers = [
+    str(ins.insurance_id_number),
+    str(ins.insurance_id),
+    str(ins.member_id),
+    str(ins.policy_number),
+    str(ins.secondary_insurance_id_number),
+    str(ins.secondary_insurance_id),
+    str(ins.secondary_member_id),
+    str(ins.secondary_policy_number),
+    str(appt?.detected_insurance_id),
+    str(appt?.insurance_id),
+  ].filter(Boolean) as string[];
+  return {
+    plans: [...new Set(plans)],
+    groupNumbers: [...new Set(groupNumbers)],
+    idNumbers: [...new Set(idNumbers)],
+  };
 }
 
 // ---------------------------------------------------------------------------
