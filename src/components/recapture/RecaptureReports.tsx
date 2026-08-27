@@ -40,7 +40,9 @@ export default function RecaptureReports() {
     fetchedRef.current = true;
     (async () => {
       try {
-        const { data: rows, error } = await supabase.from('recapture_cases' as any).select('*');
+        const { data: rows, error } = await supabase
+          .from('recapture_cases' as any)
+          .select('id, project_name, lost_type, work_status, outcome, recovered, attempt_count, entered_worklist_at, completed_at, assigned_user_id, completed_by');
         if (error) {
           console.error('Recapture reports fetch error:', error);
           setAllCases([]);
