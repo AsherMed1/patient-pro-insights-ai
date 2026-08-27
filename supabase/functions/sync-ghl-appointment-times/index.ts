@@ -355,6 +355,10 @@ Deno.serve(async (req) => {
       drift: results.filter((r) => r.check === 'drift').length,
       corrected: results.filter((r) => r.check === 'corrected').length,
       ghl_error: results.filter((r) => r.check === 'ghl_error').length,
+      push_pending: results.filter((r) => r.check === 'push_pending').length,
+      push_retried: results.filter((r) => r.check === 'push_retried').length,
+      push_failed: results.filter((r) => r.check === 'push_failed').length,
+      push_abandoned: results.filter((r) => r.check === 'push_abandoned').length,
       skipped: results.filter((r) => String(r.check).startsWith('skipped')).length,
     };
 
