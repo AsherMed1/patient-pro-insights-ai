@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, ShieldAlert, RefreshCw } from 'lucide-react';
@@ -64,6 +65,7 @@ const InsuranceRulesConfig = () => {
   const [testServiceLine, setTestServiceLine] = useState<string>('__any__');
   const [testPlan, setTestPlan] = useState('');
   const [testGroup, setTestGroup] = useState('');
+  const [testId, setTestId] = useState('');
 
   // supported-insurance state
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([]);
@@ -140,7 +142,7 @@ const InsuranceRulesConfig = () => {
   }, [rules, plans, aliases, scopes, planNameById]);
 
   const testMatches = useMemo(() => {
-    if (!testPlan.trim() && !testGroup.trim()) return [];
+    if (!testPlan.trim() && !testGroup.trim() && !testId.trim()) return [];
     const input = {
       projectName: testProject === '__all__' ? null : testProject,
       location: testLocation || null,
@@ -148,6 +150,7 @@ const InsuranceRulesConfig = () => {
       serviceLine: testServiceLine === '__any__' ? null : testServiceLine,
       plans: [testPlan],
       groupNumbers: [testGroup],
+      idNumbers: [testId],
     };
     const matches = evaluateRules(compiledRules, input);
     const mode = projectRows.find((p) => p.project_name === testProject)?.oon_mode;
@@ -158,7 +161,7 @@ const InsuranceRulesConfig = () => {
       ));
     }
     return matches;
-  }, [compiledRules, testProject, testLocation, testServiceLine, testPlan, testGroup, projectRows, supported]);
+  }, [compiledRules, testProject, testLocation, testServiceLine, testPlan, testGroup, testId, projectRows, supported]);
 
 
   const addPlan = async () => {
@@ -192,10 +195,13 @@ const InsuranceRulesConfig = () => {
     if (ruleType === 'group_number' && !ruleValue.trim()) {
       return toast({ title: 'Enter a group number pattern', variant: 'destructive' });
     }
+    if (ruleType === 'id_number' && !ruleValue.trim()) {
+      return toast({ title: 'Enter an insurance ID number or pattern', variant: 'destructive' });
+    }
     const { data, error } = await supabase.from('insurance_block_rules').insert({
       rule_type: ruleType,
       plan_id: ruleType === 'plan' ? rulePlanId : null,
-      value: ruleType === 'group_number' ? ruleValue.trim() : (ruleValue.trim() || null),
+      value: ruleType === 'plan' ? (ruleValue.trim() || null) : ruleValue.trim(),
       match_method: ruleMethod,
       is_active: true,
       note: ruleNote.trim() || null,
@@ -253,6 +259,46 @@ const InsuranceRulesConfig = () => {
       });
     });
   }, [rules, scopes, rulesClinicFilter, rulesServiceFilter]);
+
+  /** Clinics that use each canonical plan: accepted lists + clinic-scoped block rules. */
+  const planUsage = useMemo(() => {
+    const norm = (v: string | null | undefined) =>
+      (v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const termsByPlan = new Map<string, Set<string>>();
+    plans.forEach((p) => termsByPlan.set(p.id, new Set([norm(p.canonical_name)])));
+    aliases.forEach((a) => termsByPlan.get(a.plan_id)?.add(norm(a.alias)));
+
+    const usage = new Map<string, Map<string, Set<string>>>();
+    const add = (planId: string, clinic: string, reason: string) => {
+      if (!usage.has(planId)) usage.set(planId, new Map());
+      const byClinic = usage.get(planId)!;
+      if (!byClinic.has(clinic)) byClinic.set(clinic, new Set());
+      byClinic.get(clinic)!.add(reason);
+    };
+
+    supported.forEach((row) => {
+      if (!row.active || !row.project_name) return;
+      if (row.plan_id && termsByPlan.has(row.plan_id)) {
+        add(row.plan_id, row.project_name, 'Accepted list');
+        return;
+      }
+      const rowNorm = norm(row.normalized || row.raw_option);
+      if (!rowNorm) return;
+      plans.forEach((p) => {
+        if (termsByPlan.get(p.id)?.has(rowNorm)) add(p.id, row.project_name, 'Accepted list');
+      });
+    });
+
+    const globalPlans = new Set<string>();
+    rules.forEach((r) => {
+      if (!r.plan_id) return;
+      const list = scopes.filter((sc) => sc.rule_id === r.id && sc.project_name);
+      if (!list.length) { globalPlans.add(r.plan_id); return; }
+      list.forEach((sc) => add(r.plan_id as string, sc.project_name as string, 'Block rule'));
+    });
+
+    return { usage, globalPlans };
+  }, [plans, aliases, supported, rules, scopes]);
 
   const clinicSupported = useMemo(
     () => supported.filter((s) => {
