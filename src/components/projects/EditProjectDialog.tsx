@@ -322,7 +322,7 @@ export const EditProjectDialog: React.FC<EditProjectDialogProps> = ({
               />
             )}
 
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0 z-10 bg-background -mx-6 px-6 pt-3 border-t">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
