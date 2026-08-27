@@ -20,6 +20,7 @@ import {
 import { DEFAULT_CLINIC_TZ, formatClinicTime, timezoneLabel } from '@/lib/clinicTime';
 import { fetchProjectTimezone, getCachedProjectTimezone } from '@/utils/projectTimezoneCache';
 import LogAttemptDialog, { type AttemptPayload } from './LogAttemptDialog';
+import { logRecaptureActivity } from './activityLog';
 import ScheduleFollowUpDialog from './ScheduleFollowUpDialog';
 import {
   CHANNEL_LABELS, COMPLETION_REASON_LABELS, CONVERSATION_OUTCOME_LABELS, LOST_TYPE_LABELS,
