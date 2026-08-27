@@ -160,6 +160,27 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
     return v;
   };
 
+  // Setter intake templates emit a checklist where unanswered items read
+  // "Not Collected". Those placeholders contradict the real parsed answers, so
+  // drop them and keep only the segments that carry actual information.
+  const stripNotCollectedSegments = (notes: string | null | undefined): string | null => {
+    if (!notes) return null;
+    const PLACEHOLDER = /^(?:not\s*collected|none\s*collected|not\s*provided|n\/?a|none|unknown|--?)\.?$/i;
+    const kept = String(notes)
+      .split(/\s*;\s*|\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((seg) => {
+        const idx = seg.indexOf(':');
+        if (idx === -1) return !PLACEHOLDER.test(seg.replace(/\.$/, '').trim());
+        const value = seg.slice(idx + 1).trim().replace(/\.$/, '').trim();
+        if (!value) return false;
+        return !PLACEHOLDER.test(value);
+      });
+    const out = kept.join('; ').trim();
+    return out.length > 0 ? out : null;
+  };
+
   const formatDOB = (dob: any) => {
     if (!dob || dob === "null" || dob === "") return null;
     try {
@@ -1634,6 +1655,7 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                     .replace(/These insurance plans are not accepted at this clinic:\s*[^.]*\.?\s*/gi, '')
                     .replace(/We are not in network with your plan\.?\s*Would you be open to a self[- ]?pay consultation:?\s*\w*\.?\s*/gi, '')
                     .trim();
+                  cleaned = stripNotCollectedSegments(cleaned) || '';
                   // Drop restated secondary insurance details that already have their own fields
                   const dupes = [
                     parsedInsuranceInfo?.secondary_plan,
@@ -1865,10 +1887,10 @@ export const ParsedIntakeInfo: React.FC<ParsedIntakeInfoProps> = ({
                         <span className="font-medium">{formatValue(parsedMedicalInfo?.urologist_phone) || "—"}</span>
                       </div>
                     )}
-                    {formatValue(parsedMedicalInfo?.notes) && (
+                    {stripNotCollectedSegments(formatValue(parsedMedicalInfo?.notes)) && (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Notes:</span>{" "}
-                        <span className="font-medium whitespace-pre-wrap">{parsedMedicalInfo.notes}</span>
+                        <span className="font-medium whitespace-pre-wrap">{stripNotCollectedSegments(formatValue(parsedMedicalInfo?.notes))}</span>
                       </div>
                     )}
                     {formatValue(parsedMedicalInfo?.xray_details) && (
