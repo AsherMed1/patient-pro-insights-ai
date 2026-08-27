@@ -43,7 +43,7 @@ Re-run parsing for Veronica Hill's record only (Davis Vein & Vascular, active ro
 - `supabase/functions/auto-parse-intake-notes/index.ts` ~2200-2225: keep a `fromScaleLine` flag from the `pl` grab; apply `inPhoneShape` only when `!fromScaleLine`, and change the pattern to require a 3-digit group (`\(\s*\d{2}${raw}\s*\)` style / `\d{2}${raw}\s*[-.]\s*\d{3}`) instead of the bare value. Range clamp 0-10 stays.
 - Same file, insurance-notes assignment path (~1446, ~2582) plus the existing `stripSecondaryInsuranceEcho` step (~1609): add a `stripNotCollectedSegments` helper and run it there.
 - `src/components/appointments/ParsedIntakeInfo.tsx` ~1628-1660: add the same segment filter to the `insurance_notes` cleanup pipeline; return null when nothing remains.
-- Backfill via the existing reparse edge function, scoped to `is_superseded IS NOT TRUE` and `created_at > now() - interval '180 days'`.
+- Backfill via the existing reparse edge function, targeting the single appointment id `771afe05-f796-40e3-bc26-f883f568d563`.
 
 ## Verification
 
