@@ -594,6 +594,9 @@ export default function QAOperationsQueue() {
             phone: a.lead_phone_number ?? null,
             email: a.lead_email ?? null,
             status: a.status ?? null,
+            review_status: a.review_status ?? null,
+            is_superseded: a.is_superseded ?? null,
+            date_of_appointment: a.date_of_appointment ?? null,
             potential_oon: a.potential_oon ?? null,
             potential_oon_matches: a.potential_oon_matches ?? null,
             potential_oon_resolved_at: a.potential_oon_resolved_at ?? null,
@@ -607,6 +610,9 @@ export default function QAOperationsQueue() {
         r.lead_email = c?.email ?? null;
         // Mirror the live Portal status so the queue never shows a stale snapshot.
         if (c && c.status) r.appointment_status = c.status;
+        r.appointment_review_status = c?.review_status ?? null;
+        r.appointment_is_superseded = c?.is_superseded ?? null;
+        if (c && c.date_of_appointment) r.appointment_date = c.date_of_appointment;
         r.potential_oon = c?.potential_oon ?? null;
         r.potential_oon_matches = c?.potential_oon_matches ?? null;
         r.potential_oon_resolved_at = c?.potential_oon_resolved_at ?? null;
@@ -665,6 +671,9 @@ export default function QAOperationsQueue() {
         lead_phone_number: (data as any)?.lead_phone_number ?? null,
         lead_email: (data as any)?.lead_email ?? null,
         appointment_status: (data as any)?.status ?? row.appointment_status ?? null,
+        appointment_review_status: (data as any)?.review_status ?? null,
+        appointment_is_superseded: (data as any)?.is_superseded ?? null,
+        appointment_date: (data as any)?.date_of_appointment ?? row.appointment_date ?? null,
         potential_oon: (data as any)?.potential_oon ?? null,
         potential_oon_matches: (data as any)?.potential_oon_matches ?? null,
         potential_oon_resolved_at: (data as any)?.potential_oon_resolved_at ?? null,
