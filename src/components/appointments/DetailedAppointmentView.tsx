@@ -505,6 +505,64 @@ const DetailedAppointmentView = ({ isOpen, onClose, appointment, onDataRefresh, 
     }
   };
 
+  // Manual retry of an outbound push GoHighLevel never accepted
+  const [retryingGhlSync, setRetryingGhlSync] = useState(false);
+  const handleRetryGhlSync = async () => {
+    if (!appointment.ghl_appointment_id || !appointment.date_of_appointment) {
+      toast.error("Missing GoHighLevel appointment ID or date");
+      return;
+    }
+    setRetryingGhlSync(true);
+    try {
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('timezone, ghl_location_id, ghl_api_key')
+        .eq('project_name', appointment.project_name)
+        .single();
+      if (projectError) throw projectError;
+      if (!projectData?.ghl_location_id) throw new Error('GHL location ID not configured');
+
+      const { error: ghlError } = await supabase.functions.invoke('update-ghl-appointment', {
+        body: {
+          ghl_appointment_id: appointment.ghl_appointment_id,
+          ghl_location_id: projectData.ghl_location_id,
+          new_date: appointment.date_of_appointment,
+          new_time: (appointment.requested_time || '09:00').slice(0, 5),
+          timezone: projectData.timezone || 'America/Chicago',
+          ghl_api_key: projectData.ghl_api_key,
+        },
+      });
+      if (ghlError) throw ghlError;
+
+      await supabase.from('all_appointments').update({
+        last_ghl_sync_status: 'success',
+        last_ghl_sync_at: new Date().toISOString(),
+        last_ghl_sync_error: null,
+      }).eq('id', appointment.id);
+
+      await supabase.from('appointment_reschedules').update({
+        ghl_sync_status: 'success',
+        ghl_synced_at: new Date().toISOString(),
+        ghl_sync_error: null,
+        processed: true,
+        processed_at: new Date().toISOString(),
+      }).eq('appointment_id', appointment.id).eq('processed', false);
+
+      toast.success("Appointment synced to GoHighLevel");
+      onDataRefresh?.();
+    } catch (error: any) {
+      const details = error?.message || String(error);
+      await supabase.from('all_appointments').update({
+        last_ghl_sync_status: 'failed',
+        last_ghl_sync_at: new Date().toISOString(),
+        last_ghl_sync_error: details,
+      }).eq('id', appointment.id);
+      toast.error(`GoHighLevel sync failed: ${details}`);
+    } finally {
+      setRetryingGhlSync(false);
+    }
+  };
+
   // Handle reschedule submission
   const handleRescheduleSubmit = async () => {
     if (!rescheduleDate) {
