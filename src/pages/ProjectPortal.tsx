@@ -357,7 +357,7 @@ const ProjectPortal = () => {
   if (loading || roleLoading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-[1920px] mx-auto">
           <div className="flex items-center justify-center py-8">
             <span>Loading project...</span>
           </div>
@@ -369,7 +369,7 @@ const ProjectPortal = () => {
   if (!project) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="w-full max-w-[1920px] mx-auto space-y-6">
           <Link to="/">
             <Button variant="outline" className="mb-6">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -394,7 +394,7 @@ const ProjectPortal = () => {
     <div className="min-h-screen bg-background">
       {/* Sticky header */}
       <div className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/20">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between">
+        <div className="w-full max-w-[1920px] mx-auto px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between">
           <div data-tour="clinic-header">
             <ProjectHeader projectName={project.project_name} compact={isScrolled} />
           </div>
@@ -495,7 +495,7 @@ const ProjectPortal = () => {
 
         {/* Main Content Area */}
         <div className="flex-1 p-4 md:p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto portal-spacing">
+          <div className="w-full max-w-[1920px] mx-auto portal-spacing">
 
           {/* Overview Content */}
           {canViewOverview && activeTab === 'overview' && (

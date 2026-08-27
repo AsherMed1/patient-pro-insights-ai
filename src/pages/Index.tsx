@@ -185,7 +185,7 @@ const Index = () => {
   if (isRecaptureRole()) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-        <div className="max-w-7xl mx-auto space-y-4">
+        <div className="w-full max-w-[1920px] mx-auto space-y-4">
           <PortalHeader subtitle="Recapture Worklist" email={user?.email} role={role} onSignOut={handleSignOut} />
           <RecaptureQueue />
         </div>
@@ -197,7 +197,7 @@ const Index = () => {
   if (isReviewOnly()) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-        <div className="max-w-7xl mx-auto space-y-4">
+        <div className="w-full max-w-[1920px] mx-auto space-y-4">
           <PortalHeader subtitle="Setter Worklist" email={user?.email} role={role} onSignOut={handleSignOut} />
           <Tabs defaultValue="review-queue" className="w-full">
             <StickyNav>
@@ -241,7 +241,7 @@ const Index = () => {
   if (isProjectUser()) {
     return (
       <div className="min-h-screen bg-background p-6">
-        <div className="max-w-7xl mx-auto space-y-8">
+        <div className="w-full max-w-[1920px] mx-auto space-y-8">
           <div className="flex justify-between items-center">
             <div className="space-y-2">
               <h1 className="heading-1">Your Projects</h1>
@@ -315,7 +315,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+      <div className="w-full max-w-[1920px] mx-auto space-y-4">
         <PortalHeader subtitle="Admin Dashboard" email={user?.email} role={role} onSignOut={handleSignOut} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
