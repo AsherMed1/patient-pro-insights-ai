@@ -1631,6 +1631,8 @@ function enrichWithCriticalFields(parsedData: any, rawIntakeNotes: string): any 
   if (parsedData.insurance_info?.insurance_notes) {
     parsedData.insurance_info.insurance_notes =
       stripSecondaryInsuranceEcho(parsedData.insurance_info.insurance_notes, parsedData.insurance_info);
+    parsedData.insurance_info.insurance_notes =
+      stripNotCollectedSegments(parsedData.insurance_info.insurance_notes);
   }
 
 
