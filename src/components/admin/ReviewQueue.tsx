@@ -2093,7 +2093,9 @@ const ReviewQueue: React.FC = () => {
   const isDeclinedView = queueView === 'declined';
   const isApprovedView = queueView === 'approved';
   const isOonView = queueView === 'oon';
-  const isReadOnlyView = isDeclinedView || isApprovedView || isOonView;
+  // QA Hold is view-only here: Potential OON verification now happens in QA Operations.
+  const isQaHoldView = queueView === 'qa_hold';
+  const isReadOnlyView = isDeclinedView || isApprovedView || isOonView || isQaHoldView;
   const isNewView = queueView === 'new';
   const isTraineeView = queueView === 'trainee';
   const traineeReadOnly = isTraineeView && !canActOnTrainees;
