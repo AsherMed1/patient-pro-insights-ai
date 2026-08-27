@@ -139,6 +139,103 @@ Deno.serve(async (req) => {
           return;
         }
 
+        // ---- Outbound push still owed to GoHighLevel: retry it, never overwrite the portal ----
+        const owed = pendingPush.get(row.id);
+        const pushPending =
+          !!owed || row.last_ghl_sync_status === 'pending' || row.last_ghl_sync_status === 'failed';
+
+        if (pushPending && row.date_of_appointment && row.requested_time) {
+          const startedAt = owed?.created_at ? new Date(owed.created_at).getTime() : Date.now();
+          const expired = Date.now() - startedAt > RETRY_WINDOW_MS;
+
+          if (expired) {
+            out.check = 'push_abandoned';
+            results.push(out);
+            return;
+          }
+
+          if (dryRun) {
+            out.check = 'push_pending';
+            results.push(out);
+            return;
+          }
+
+          const { data: pushData, error: pushErr } = await supabase.functions.invoke(
+            'update-ghl-appointment',
+            {
+              body: {
+                ghl_appointment_id: row.ghl_appointment_id,
+                project_name: row.project_name,
+                new_date: row.date_of_appointment,
+                new_time: String(row.requested_time).slice(0, 5),
+                timezone,
+                ghl_api_key: apiKey,
+              },
+            },
+          );
+
+          const failed = !!pushErr || pushData?.error;
+          if (!failed) {
+            await supabase
+              .from('all_appointments')
+              .update({
+                last_ghl_sync_status: 'success',
+                last_ghl_sync_at: new Date().toISOString(),
+                last_ghl_sync_error: null,
+              })
+              .eq('id', row.id);
+
+            if (owed) {
+              await supabase
+                .from('appointment_reschedules')
+                .update({
+                  ghl_sync_status: 'success',
+                  ghl_synced_at: new Date().toISOString(),
+                  processed: true,
+                  processed_at: new Date().toISOString(),
+                })
+                .eq('id', owed.id);
+            }
+
+            await supabase.from('appointment_notes').insert({
+              appointment_id: row.id,
+              note_text: `Pending reschedule pushed to GoHighLevel on retry | ${row.date_of_appointment} ${row.requested_time} — System`,
+              created_by: 'System',
+              visibility: 'internal',
+            });
+
+            out.check = 'push_retried';
+            results.push(out);
+            return;
+          }
+
+          const details = pushErr?.message || pushData?.error || 'Unknown GoHighLevel error';
+          await supabase
+            .from('all_appointments')
+            .update({
+              last_ghl_sync_status: 'failed',
+              last_ghl_sync_at: new Date().toISOString(),
+              last_ghl_sync_error: String(details).slice(0, 500),
+            })
+            .eq('id', row.id);
+
+          if (owed) {
+            await supabase
+              .from('appointment_reschedules')
+              .update({
+                ghl_sync_status: 'failed',
+                ghl_sync_error: String(details).slice(0, 500),
+                ghl_synced_at: new Date().toISOString(),
+              })
+              .eq('id', owed.id);
+          }
+
+          out.check = 'push_failed';
+          out.error = String(details).slice(0, 300);
+          results.push(out);
+          return;
+        }
+
         const res = await fetch(
           `${GHL_BASE_URL}/calendars/events/appointments/${row.ghl_appointment_id}`,
           { headers: { Authorization: `Bearer ${apiKey}`, Version: GHL_API_VERSION, Accept: 'application/json' } },
